@@ -554,6 +554,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Every matrix leg evaluates the same guard against the same commit, so the
+    # value is identical whichever leg reports it last. attest-subjects needs it
+    # to tell "the guard withheld latest" from "the registry read was stale".
+    outputs:
+      latest_fresh: ${{ steps.guard.outputs.fresh }}
     strategy:
       matrix:
         include:
@@ -611,6 +616,280 @@ jobs:
               "${IMAGE}:${SHA}-amd64" "${IMAGE}:${SHA}-arm64"
           fi
 
+  # Sign the published images and attach SLSA provenance and an SBOM to each.
+  #
+  # This runs after create-ghcr-manifests rather than inside the build because
+  # buildx's own provenance/sbom attestations stay off (see the note in
+  # .github/actions/docker-build): the extra manifests they add to an index
+  # break the `imagetools create` retagging that promote-images depends on.
+  # Attaching attestations here instead leaves the index itself untouched — they
+  # are stored as separate referrer manifests that point at it.
+  #
+  # Resolve the set of digests that actually got published, so the attestation
+  # job below covers every tag a customer can pull.
+  #
+  # A static list is not enough. `imagetools create` always writes an INDEX, so
+  # `:<version>-amd64` is a single-entry index whose digest differs from the
+  # `:<sha>-amd64` manifest it wraps — attesting the manifest leaves the tag
+  # people actually pin unverifiable. Which tags exist also varies per run:
+  # version tags only on a release, and the latest tags only when the monotonic
+  # guard in create-ghcr-manifests passed. Resolving tag -> digest here and
+  # de-duplicating is what keeps the two in step without hardcoding that logic
+  # twice.
+  attest-subjects:
+    name: Resolve Attestation Subjects
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    needs: [create-ghcr-manifests, detect-version]
+    if: >-
+      !cancelled() &&
+      needs.create-ghcr-manifests.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      subjects: ${{ steps.resolve.outputs.subjects }}
+      count: ${{ steps.resolve.outputs.count }}
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve published tags to digests
+        id: resolve
+        env:
+          IS_RELEASE: ${{ needs.detect-version.outputs.is_release }}
+          VERSION: ${{ needs.detect-version.outputs.version }}
+          SHA: ${{ github.sha }}
+          LATEST_FRESH: ${{ needs.create-ghcr-manifests.outputs.latest_fresh }}
+        run: |
+          set -euo pipefail
+
+          IMAGES="simstudio migrations realtime pii cron"
+
+          # Prints the digest, or nothing when the tag is genuinely absent.
+          #
+          # An absent tag and a registry hiccup both make `inspect` fail, and
+          # treating them alike is how a published image silently ends up
+          # unsigned while this job still goes green. So: retry, and only report
+          # "absent" when the registry actually says the manifest is unknown.
+          # Anything else fails the step.
+          digest_of() {
+            local ref="$1" attempt raw err absent=0
+            for attempt in 1 2 3; do
+              if raw="$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2>/tmp/inspect.err)"; then
+                printf '%s' "$raw" | jq -r '.digest // empty'
+                return 0
+              fi
+              err="$(cat /tmp/inspect.err)"
+              # Absence is retried like any other failure: GHCR can report a
+              # just-published alias as unknown for a moment, and accepting that
+              # on the first attempt would skip a tag this run did publish.
+              case "$err" in
+                *"not found"*|*MANIFEST_UNKNOWN*|*"no such manifest"*|*"NAME_UNKNOWN"*) absent=1 ;;
+                *) absent=0 ;;
+              esac
+              if [ "$attempt" -lt 3 ]; then
+                sleep "$((attempt * 3))"
+              fi
+            done
+            # Only call it absent if the registry said so on the final attempt.
+            if [ "$absent" -eq 1 ]; then
+              return 0
+            fi
+            echo "::error::Could not inspect ${ref} after 3 attempts: ${err}" >&2
+            return 1
+          }
+
+          # Records a subject. `platform` tells the attestation job whether this
+          # digest is a single-architecture image, which is the only case where
+          # a Syft SBOM describes what the puller actually gets.
+          emit() {
+            jq -nc --arg image "$1" --arg digest "$2" --arg platform "$3" \
+              '{image: $image, digest: $digest, platform: $platform}' >> /tmp/subjects.jsonl
+          }
+
+          : > /tmp/subjects.jsonl
+          for name in $IMAGES; do
+            image="ghcr.io/simstudioai/${name}"
+
+            # The sha tags are this run's own output. All three must resolve —
+            # a missing one means the publish did not complete, not that the tag
+            # is optional.
+            seen=""
+            sha_index=""
+            for tag in "${SHA}" "${SHA}-amd64" "${SHA}-arm64"; do
+              digest="$(digest_of "${image}:${tag}")"
+              if [ -z "$digest" ]; then
+                echo "::error::${image}:${tag} was not published by this run"
+                exit 1
+              fi
+              case "$tag" in
+                *-amd64) platform=amd64 ;;
+                *-arm64) platform=arm64 ;;
+                *) platform=index; sha_index="$digest" ;;
+              esac
+              seen="$seen $digest"
+              emit "$image" "$digest" "$platform"
+            done
+
+            # A moving alias is only taken when it resolves to the same index
+            # digest this run published — content identity, which is what a
+            # digest can prove. create-ghcr-manifests holds the latest tags back when
+            # its monotonic guard sees a newer commit, and they then still point
+            # at an older build — attesting those would put this run's signature
+            # and provenance on an image it did not produce. The per-arch
+            # aliases are published in the same guarded block as `latest`, so
+            # that one comparison gates all three.
+            alias_groups="latest"
+            if [ "${IS_RELEASE}" = "true" ]; then
+              alias_groups="${alias_groups} ${VERSION}"
+            fi
+
+            for alias in $alias_groups; do
+              # A mismatch has two very different causes: the guard deliberately
+              # held the tag back, or GHCR is still serving the previous digest
+              # moments after this run wrote it. Re-read before concluding the
+              # former, or a read landing a second early silently drops three
+              # subjects from the matrix.
+              alias_index=""
+              for alias_attempt in 1 2 3; do
+                alias_index="$(digest_of "${image}:${alias}")"
+                [ "$alias_index" = "$sha_index" ] && break
+                [ "$alias_attempt" -lt 3 ] && sleep 5 || true
+              done
+
+              if [ "$alias_index" != "$sha_index" ]; then
+                # `latest` is allowed to lag, but only when the guard actually
+                # withheld it. If the guard published latest this run, a mismatch
+                # here is a stale read, not a deliberate skip — and silently
+                # dropping it would leave a published tag unsigned.
+                if [ "$alias" = "latest" ]; then
+                  if [ "${LATEST_FRESH}" = "true" ]; then
+                    echo "::error::${image}:latest was published by this run but resolves to ${alias_index:-nothing}"
+                    exit 1
+                  fi
+                  echo "Skipping latest* for ${image}: the monotonic guard withheld it this run."
+                  continue
+                fi
+                # A version tag has no such carve-out. This run published it, so
+                # a release must not ship a version image nothing has attested.
+                echo "::error::${image}:${alias} does not resolve to this run's index (${sha_index:-none}); refusing to publish an unattested release image"
+                exit 1
+              fi
+              for tag in "${alias}" "${alias}-amd64" "${alias}-arm64"; do
+                digest="$(digest_of "${image}:${tag}")"
+                if [ -z "$digest" ]; then
+                  echo "::error::${image}:${tag} is missing though ${image}:${alias} is current"
+                  exit 1
+                fi
+                case " $seen " in *" $digest "*) continue ;; esac
+                seen="$seen $digest"
+                case "$tag" in
+                  *-amd64) emit "$image" "$digest" amd64 ;;
+                  *-arm64) emit "$image" "$digest" arm64 ;;
+                  *) emit "$image" "$digest" index ;;
+                esac
+              done
+            done
+          done
+
+          if [ ! -s /tmp/subjects.jsonl ]; then
+            echo "::error::Resolved no image digests to attest"
+            exit 1
+          fi
+
+          echo "Resolved $(wc -l < /tmp/subjects.jsonl) distinct subjects:"
+          cat /tmp/subjects.jsonl
+          echo "subjects=$(jq -sc . /tmp/subjects.jsonl)" >> "$GITHUB_OUTPUT"
+          echo "count=$(wc -l < /tmp/subjects.jsonl | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+  # One leg per distinct published digest. Attesting each subject separately is
+  # also what makes the SBOMs truthful: the amd64 and arm64 images contain
+  # different packages, and one SBOM attached to the index cannot describe both.
+  attest-images:
+    name: Attest Images
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    needs: [attest-subjects]
+    if: >-
+      !cancelled() &&
+      needs.attest-subjects.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+      # Sigstore signs against the runner's OIDC identity; no key material is stored.
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.attest-subjects.outputs.subjects) }}
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Skipped for index subjects: Syft resolves an index to one platform, so
+      # the SBOM it produces would describe amd64 while the index also serves
+      # arm64. The per-arch subjects below carry an accurate SBOM each, and the
+      # index still gets a signature and provenance.
+      #
+      # Scanned by the `<sha>-<arch>` tag rather than by `matrix.digest`. Half
+      # the per-arch subjects are single-entry INDEXES (`imagetools create`
+      # writes an index even from one manifest), and Syft resolves an index
+      # against the RUNNER's platform — so an arm64-only index fails outright on
+      # an amd64 runner with "no child with platform linux/arm64". The sha tag is
+      # the plain manifest that index wraps: identical content, no platform
+      # resolution, and one pull shared by both subjects instead of two.
+      - name: Generate SBOM
+        if: matrix.platform != 'index'
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ matrix.image }}:${{ github.sha }}-${{ matrix.platform }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          # The action's own release upload is for workflows triggered by a
+          # release; these attach to the image instead.
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest SBOM
+        if: matrix.platform != 'index'
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ matrix.digest }}
+          sbom-path: sbom.spdx.json
+          # Stored alongside the image so a mirrored registry carries the
+          # attestation with it, rather than only being retrievable from GitHub.
+          push-to-registry: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ matrix.digest }}
+          push-to-registry: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # The attestations above prove how the image was built; this is the plain
+      # signature that admission controllers (Kyverno, the Sigstore policy
+      # controller) verify before admitting a pod.
+      - name: Sign image
+        run: cosign sign --yes "${{ matrix.image }}@${{ matrix.digest }}"
+
   # Check if docs changed
   # Smallest runner on purpose: a depth-2 checkout plus a path filter, no
   # install and no build.
@@ -652,11 +931,22 @@ jobs:
     name: Create GitHub Release
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
-    needs: [create-ghcr-manifests, detect-version]
-    # Explicit results: see migrate's comment.
+    needs: [create-ghcr-manifests, attest-subjects, attest-images, detect-version]
+    # Explicit results: see migrate's comment. attest-images is a gate, not just
+    # an ordering edge — a release must not advertise images whose signature or
+    # attestation failed to publish. The count check is belt and braces: today
+    # attest-subjects already fails on an empty subject set, so this only bites
+    # if that guard is ever removed.
+    #
+    # Note this gates the GitHub release, not the production deploy: CodePipeline
+    # fires from the ECR tags moved by promote-images, upstream of this job, and
+    # only the GHCR mirrors are attested.
     if: >-
       !cancelled() &&
       needs.create-ghcr-manifests.result == 'success' &&
+      needs.attest-subjects.result == 'success' &&
+      needs.attest-subjects.outputs.count != '0' &&
+      needs.attest-images.result == 'success' &&
       needs.detect-version.result == 'success' &&
       needs.detect-version.outputs.is_release == 'true'
     permissions:

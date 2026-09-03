@@ -6,7 +6,6 @@ description: Pinning versions, running migrations safely, and rolling back
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { FAQ } from '@/components/ui/faq'
 
 ## Pin your version
 
@@ -66,12 +65,49 @@ One variable drives all three schema-coupled images, so they cannot drift apart.
 
 ## How migrations run
 
-Migrations are Drizzle SQL files applied by a dedicated image.
+Migrations are Drizzle SQL files plus registered script (data) migrations, applied by a dedicated image in one locked session. A failure in either stage fails the migration container.
 
-- **Kubernetes** — an **init container on the app Deployment**. Every app pod waits for migrations to complete before it starts, so a failed migration blocks the rollout instead of starting an app against a mismatched schema. The container is idempotent, so it is a no-op on pods that start after the first.
+- **Kubernetes** — an **init container on the app Deployment**. Every app pod waits for migrations to complete before it starts, so a failed migration blocks the rollout instead of starting an app against a mismatched schema.
 - **Docker Compose** — a one-shot `migrations` service with `restart: no` that runs before the app.
 
 Migrations are **forward-only**. There are no down-migrations, which is why the pre-upgrade backup below is not optional.
+
+Migrations apply in sequence, so skipping several releases at once generally works mechanically. It is riskier — those combinations get less testing, and you take several releases' worth of behavior changes in one step. Upgrade in smaller increments where you can.
+
+### How concurrent replicas are handled
+
+Every app replica runs the full migrator — there is no leader. They are serialized by a **Postgres session advisory lock**, taken with a bounded try-lock loop rather than a blocking wait:
+
+1. One runner takes the lock and applies the pending files. The rest retry every 5 seconds.
+2. The applied files are journaled, so the runners that follow find nothing to do and exit.
+3. A runner that cannot get the lock within **30 minutes** fails with a message naming the deadline.
+
+Replicas racing each other is therefore not an exposure. The operator-visible failure mode is different and worth recognizing: **one wedged runner stalls everything behind it.** Every other replica sits waiting for up to 30 minutes and then fails, so a rollout can look hung for half an hour before producing an error — and the error surfaces on the replicas that were only waiting, not on the one actually stuck. Read the *earliest* migration container's logs, not the loudest.
+
+### Migration environment
+
+These control the migrator and are set on the `migrations` container, not the app.
+
+| Variable | Purpose |
+|---|---|
+| `MIGRATION_DATABASE_URL` | A **direct, non-pooled** DSN. Falls back to `DATABASE_URL`. Setting it also arms the backend-pid check that aborts the run if the session — and with it the advisory lock — is silently recycled mid-migration; with only `DATABASE_URL` set, that check is skipped |
+
+<Callout type="warn">
+  Set `MIGRATION_DATABASE_URL` if anything sits between Sim and Postgres. Session advisory locks and session-level `SET`s do not survive PgBouncer transaction pooling — the lock silently does not hold, and consecutive statements can land on different backends. Point it at the database directly, bypassing the pooler.
+
+  The chart has no values key for it: the migrations init container builds `DATABASE_URL` itself and reads only the database Secret, so setting it under `app.env` does not reach the migrator. On Helm the init container reads only the database Secret, and the chart's own Secret templates carry just the password — there is no supported key for this. Supply your own Secret through `postgresql.auth.existingSecret` (bundled) or `externalDatabase.existingSecret` (external) with the variable included, or run the migration image yourself against the direct DSN before upgrading. Compose is the same: its `migrations` service declares an explicit `environment:` list, so a value in `.env` alone does not reach it — add it to that service.
+</Callout>
+
+Behavior that is fixed in the migrator and not configurable, but that explains what you see in the logs:
+
+| Behavior | Value |
+|---|---|
+| Advisory-lock acquire deadline | 30 minutes, retried every 5s |
+| `lock_timeout` on the migration session | 5 seconds for ordinary DDL — a statement that waits longer fails with SQLSTATE `55P03`. An individual migration can set it to `0` for statements that must not be interrupted, such as `CREATE INDEX CONCURRENTLY`. `statement_timeout` is `0` on the same session by default, so a long migration is not cut off once it holds its locks — though a migration can narrow it for its own statements, as `0076_damp_vector.sql` does with a 180-second local setting |
+| SQL migration retry attempts | 8, with exponential backoff and jitter, and only for a lock timeout (`55P03`). Script (data) migrations run once — a failure there exits immediately. They also run with `lock_timeout = 0` and `statement_timeout = 0`, so one blocked on an app-held lock waits indefinitely: a stuck script migration looks like a hung migration container, not a `55P03` |
+| Connection attempts at startup | 10, for transient failures — `53300` (`too_many_connections`), `53400`, the `08xxx` connection-exception class, and socket-level errors such as `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `EHOSTUNREACH`, and `ENOTFOUND`. A database that is simply down is retried with backoff, not failed immediately |
+
+The `lock_timeout` deliberately trades a table-wide stall for a failed migration: without it, DDL waiting on an `AccessExclusiveLock` queues every other query on that table behind it for the whole wait.
 
 ## Upgrade procedure
 
@@ -143,12 +179,45 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
 
 ```bash
 npx sim-setup update
-docker compose -f docker-compose.prod.yml logs migrations
+# The file that started your install. The Ollama stack is not managed by
+# the CLI at all — see below.
+COMPOSE_FILE=docker-compose.prod.yml
+# COMPOSE_FILE=docker-compose.local.yml
+docker compose -f "$COMPOSE_FILE" logs migrations
 ```
 
-`npx sim-setup update` pulls the versions configured by `SIM_VERSION` (or `latest` when it is
-unset), recreates the changed services, and keeps data volumes. It is equivalent to running
-`docker compose pull` followed by `docker compose up -d`.
+`npx sim-setup update` obtains the new images, then brings the stack up with
+`docker compose up -d`, keeping data volumes. What it runs depends on which Compose file the
+install uses:
+
+| Install | What it runs |
+|---|---|
+| `docker-compose.prod.yml` | Refreshes its managed copy of the Compose file, then `docker compose pull` — the versions configured by `SIM_VERSION`, or `latest` when unset |
+| `docker-compose.local.yml` | `docker compose build --pull` — rebuilds from source against refreshed base images, no pull of published images |
+
+Inspect the result with `npx sim-setup logs`, which targets whichever Compose file the install uses.
+
+The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it: `update`, `logs`, and `status` report no install, or — in a source checkout that also carries per-application env files — report that checkout's dev install instead. Upgrade that stack directly:
+
+```bash
+# That file builds the app, realtime server, and migrator from source, so the
+# upgrade is a checkout plus a rebuild — pulling only refreshes Ollama and
+# Postgres. The Ollama service is profile-scoped, so pass the profile you
+# installed with or Compose silently skips it.
+PROFILE=gpu  # or cpu
+git pull
+docker compose -f docker-compose.ollama.yml --profile "$PROFILE" build --pull
+docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d
+```
+
+<Callout type="warn">
+  `sim-setup update` refuses two install kinds outright rather than doing something surprising:
+
+  - **Kubernetes** — it does not upgrade Helm releases. Use `helm upgrade` after reading the chart and release notes.
+  - **Source / dev** — the `dev` mode that manages only Postgres and Redis. Update the checkout with git, run `bun install`, and restart `bun run dev:full`. A source checkout running `docker-compose.local.yml` is a Compose install and does update, by rebuilding.
+
+  On a standalone `docker-compose.prod.yml` install it also refuses to overwrite its managed Compose file if you have edited it by hand, comparing the file against the hash it recorded in `.sim-setup.json`: preserve or remove your customizations first.
+</Callout>
 
 There is a short window where the app is unavailable while containers restart. Compose has no rolling-update mechanism — plan a maintenance window, or run Kubernetes if you need zero-downtime upgrades.
 
@@ -176,6 +245,7 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=200
 ```
 
 ```bash
+# Or the file that started your install.
 docker compose -f docker-compose.prod.yml logs migrations
 ```
 
@@ -185,7 +255,8 @@ Common causes:
 |---|---|
 | `permission denied to create extension "vector"` | The database user lacks superuser rights. Create the pgvector extension manually as an admin, then re-run. |
 | Connection refused / timeout | `DATABASE_URL` wrong, or the database is not reachable from the pod. Check network policy and credentials. |
-| Lock timeout on a large table | A long-running query is blocking DDL. Drain traffic and retry during a quiet window. |
+| `Timed out ... waiting for the migration advisory lock` | Another replica's migrator is wedged holding the lock. This replica waited 30 minutes and gave up. Find the runner that is actually stuck and read its logs. |
+| SQLSTATE `55P03` — lock timeout on a large table | A long-running query is holding a lock the DDL needs. The migrator sets `lock_timeout = 5s` on DDL rather than queueing every other query on that table behind it. Drain traffic and retry during a quiet window. |
 | Constraint violation | Pre-existing data conflicts with a new constraint. Capture the error, restore the pre-upgrade backup, and open an issue with the exact message. |
 
 Do not manually edit the migrations table to skip a failed migration — the schema and Sim's expectations will diverge in ways that surface much later.
@@ -199,8 +270,23 @@ helm rollback sim -n simstudio
 ```
 
 ```bash
-# Docker Compose — set the previous tag and restart
+# Production Compose — set SIM_VERSION in .env so the pin persists, replacing
+# any existing line rather than appending a second one. Substitute the previous
+# release tag from the releases page.
 docker compose -f docker-compose.prod.yml up -d
+```
+
+The local and Ollama stacks build the app from source and ignore `SIM_VERSION`, so roll those back by checking out the previous tag and rebuilding with the file — and, for the Ollama stack, the profile — that started the install:
+
+```bash
+git checkout <previous-release-tag>
+
+# Local stack
+docker compose -f docker-compose.local.yml up -d --build
+
+# Ollama stack — the profile you installed with
+PROFILE=gpu  # or cpu
+docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d --build
 ```
 
 **Rollback after a schema change** requires restoring the database to the pre-upgrade backup, because migrations are forward-only:
@@ -211,9 +297,3 @@ docker compose -f docker-compose.prod.yml up -d
 4. Verify.
 
 This loses everything written since the snapshot. It is why the pre-upgrade backup and a staging rehearsal matter more here than in most systems.
-
-<FAQ items={[
-  { question: "Can I roll back an upgrade?", answer: "You can roll back the application with helm rollback. Schema changes cannot be rolled back — migrations are forward-only — so reverting a release that added migrations means restoring the pre-upgrade database backup and losing anything written since."},
-  { question: "Can I skip versions?", answer: "Migrations apply in sequence, so jumping several releases generally works mechanically. It is riskier — those combinations get less testing, and you take several releases' worth of behavior changes at once. Upgrade in smaller steps where you can."},
-  { question: "Is there downtime during an upgrade?", answer: "On Kubernetes with replicaCount > 1, the rolling update keeps the app available, though migrations run before the new pods start. On Docker Compose there is a restart window — Compose has no rolling-update mechanism." },
-]} />

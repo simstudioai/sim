@@ -14,7 +14,7 @@ Single Sign-On lets your team sign in to Sim through your company's identity pro
 
 ## Before you start
 
-<Callout type="warning">
+<Callout type="warn">
   [Verify your email domain](/platform/enterprise/verified-domains) first. SSO cannot be saved until the domain shows as **Verified**, and DNS changes take time to propagate.
 
   The verified domain is what authorizes your identity provider. Removing it later immediately disables SSO sign-in for everyone on that domain until it is verified again.
@@ -28,7 +28,7 @@ Decide your **Provider ID** before configuring your identity provider. It become
 
 ### 1. Open SSO settings
 
-Go to **Settings → Security → Single sign-on** in your organization settings.
+Go to **Settings → Organization → Single sign-on** in your organization settings.
 
 ### 2. Choose a protocol
 
@@ -75,12 +75,12 @@ The **Callback URL** shown in the form is the endpoint your identity provider mu
 
 **OIDC providers** (Okta, Microsoft Entra ID, Google Workspace, Auth0):
 ```
-https://www.sim.ai/api/auth/sso/callback/{provider-id}
+https://<your-sim-domain>/api/auth/sso/callback/{provider-id}
 ```
 
 **SAML providers** (ADFS, Shibboleth):
 ```
-https://www.sim.ai/api/auth/sso/saml2/callback/{provider-id}
+https://<your-sim-domain>/api/auth/sso/saml2/callback/{provider-id}
 ```
 
 ### 5. Save and test
@@ -103,7 +103,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 2. Select **OIDC - OpenID Connect**, then **Web Application**
 3. Set the **Sign-in redirect URI** to your Sim callback URL:
    ```
-   https://www.sim.ai/api/auth/sso/callback/okta
+   https://<your-sim-domain>/api/auth/sso/callback/okta
    ```
 4. Under **Assignments**, grant access to the relevant users or groups
 5. Copy the **Client ID** and **Client Secret** from the app's **General** tab
@@ -133,7 +133,7 @@ The issuer URL uses Okta's default authorization server, which is pre-configured
 1. Go to **Microsoft Entra ID → App registrations → New registration**
 2. Under **Redirect URI**, select **Web** and enter your Sim callback URL, using the Provider ID you chose:
    ```
-   https://www.sim.ai/api/auth/sso/callback/azure-ad-acme
+   https://<your-sim-domain>/api/auth/sso/callback/azure-ad-acme
    ```
 3. After registration, go to **Certificates & secrets → New client secret** and copy the value immediately — it won't be shown again
 4. Go to **Overview** and copy the **Application (client) ID** and **Directory (tenant) ID**
@@ -198,7 +198,7 @@ Use this when your tenant is configured for SAML rather than OIDC. Both are supp
 2. Set the application type to **Web application**
 3. Add your Sim callback URL to **Authorized redirect URIs**:
    ```
-   https://www.sim.ai/api/auth/sso/callback/google-workspace
+   https://<your-sim-domain>/api/auth/sso/callback/google-workspace
    ```
 4. Copy the **Client ID** and **Client Secret**
 
@@ -233,7 +233,7 @@ Use this when your tenant is configured for SAML rather than OIDC. Both are supp
    ```
 4. Add an endpoint: **SAML Assertion Consumer Service** (HTTP POST) with the URL:
    ```
-   https://www.sim.ai/api/auth/sso/saml2/callback/adfs
+   https://<your-sim-domain>/api/auth/sso/saml2/callback/adfs
    ```
 5. Export the **Token-signing certificate** from **Certificates**: right-click → **View Certificate → Details → Copy to File**, choose **Base-64 encoded X.509 (.CER)**. The `.cer` file is PEM-encoded — rename it to `.pem` before pasting its contents into Sim.
 6. Note the **ADFS Federation Service endpoint URL** (e.g. `https://adfs.company.com/adfs/ls`)
@@ -274,7 +274,7 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 
 With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every newly provisioned user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but does not create new membership or workspace access; new access must be granted separately, while existing organization membership and workspace access remain available.
 
-<Callout type="warning">
+<Callout type="warn">
   Sign-in must start from Sim. Launching from your identity provider's app portal (Microsoft's **My Apps**, Okta's dashboard tile) sends an unsolicited assertion, which Sim rejects. This is deliberate — accepting them would let anyone replay an assertion into your tenant — but it means an IdP-initiated test fails even when the configuration is correct.
 </Callout>
 
@@ -321,11 +321,11 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "What is the Callback URL?",
-    answer: "The Callback URL (also called Redirect URI or ACS URL) is the endpoint in Sim that receives the authentication response from your identity provider. For OIDC providers it follows the format: https://www.sim.ai/api/auth/sso/callback/{provider-id}. For SAML providers it is: https://www.sim.ai/api/auth/sso/saml2/callback/{provider-id}. You must register this URL in your identity provider before SSO will work."
+    answer: "The Callback URL (also called Redirect URI or ACS URL) is the endpoint in Sim that receives the authentication response from your identity provider. Use your own deployment's domain — on Sim Cloud that is www.sim.ai. For OIDC providers it follows the format: https://<your-sim-domain>/api/auth/sso/callback/{provider-id}. For SAML providers it is: https://<your-sim-domain>/api/auth/sso/saml2/callback/{provider-id}. You must register this URL in your identity provider before SSO will work."
   },
   {
     question: "How do I update or replace an existing SSO configuration?",
-    answer: "Open Settings → Security → Single sign-on and click Edit. Update the fields and save. The existing provider configuration is replaced."
+    answer: "Open Settings → Organization → Single sign-on and click Edit. Update the fields and save. The existing provider configuration is replaced."
   }
 ]} />
 
@@ -386,7 +386,8 @@ SSO_ENABLED=true \
 NEXT_PUBLIC_APP_URL=https://your-instance.com \
 SSO_PROVIDER_TYPE=saml \
 SSO_PROVIDER_ID=adfs \
-SSO_ISSUER=https://your-instance.com \
+SSO_ISSUER=https://adfs.company.com/adfs/services/trust \
+SSO_SAML_AUDIENCE=https://your-instance.com \
 SSO_DOMAIN=company.com \
 SSO_USER_EMAIL=admin@company.com \
 SSO_SAML_ENTRY_POINT=https://adfs.company.com/adfs/ls \

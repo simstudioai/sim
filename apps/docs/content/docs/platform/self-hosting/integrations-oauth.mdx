@@ -110,7 +110,7 @@ One app registration in [Entra ID](https://entra.microsoft.com) covers all of th
 
 | Environment variables | Provider IDs |
 |---|---|
-| `MICROSOFT_CLIENT_ID`<br />`MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-planner`, `microsoft-dataverse`, `microsoft-ad` |
+| `MICROSOFT_CLIENT_ID`<br />`MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-word`, `microsoft-planner`, `microsoft-dataverse`, `microsoft-ad` |
 
 The same variables also power "Sign in with Microsoft".
 
@@ -199,7 +199,7 @@ Webhook triggers receive callbacks from the provider and must be able to verify 
 Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
 
 <FAQ items={[
-  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for the integrations your team uses. Nothing breaks if a provider's credentials are unset — that connector simply cannot be connected. One Google app covers 14 connectors and one Microsoft app covers 8, so most deployments need only a handful of registrations."},
+  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for the integrations your team uses. Nothing breaks if a provider's credentials are unset — that connector simply cannot be connected. One Google app covers 15 connectors and one Microsoft app covers 9, so most deployments need only a handful of registrations."},
   { question: "Users get a redirect_uri_mismatch error. What is wrong?", answer: "Almost always NEXT_PUBLIC_APP_URL does not match the URI registered with the provider. Check for http vs https, a trailing slash, an apex-vs-www difference, or a port. The URI Sim sends is built from NEXT_PUBLIC_APP_URL at request time."},
   { question: "Can I use the same OAuth app for staging and production?", answer: "Yes, if the provider allows multiple redirect URIs on one app — register both hosts. Providers that allow only one URI need a separate app per environment."},
   { question: "Why does the Instagram integration need cloud storage?", answer: "Meta fetches media from a public HTTPS URL rather than accepting an upload, so published files must live in S3, Azure Blob, or GCS. Local-disk storage cannot serve them. Gmail attachments and other integrations do not have this constraint." },

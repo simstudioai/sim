@@ -4,7 +4,6 @@ description: Health checks, logs, tracing, and what to alert on
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 ## Health endpoints
 
@@ -81,53 +80,78 @@ See [Security](/platform/self-hosting/security) for the `INTERNAL_API_BASE_URL` 
 
 ## Anonymous telemetry
 
+Whether anonymous telemetry runs depends on how you deploy. A Docker Compose or source deployment sends it unless you turn it off, so a deployment with an egress policy should decide about this deliberately rather than inherit the default.
+
+Telemetry has two halves that are decided at different times.
+
+| Half | When it is decided | Default |
+|---|---|---|
+| Server SDK | Runtime | **Off** on Helm (`app.envDefaults` sets `NEXT_TELEMETRY_DISABLED: "1"`); **on** for Docker Compose and source runs, which set nothing |
+| Browser | `next build` | **Off** in every published image — the value is inlined at build time, and no runtime variable changes it |
+
+Neither half gates `POST /api/telemetry`, the relay that forwards browser events. See the warning below.
+
+When the server SDK runs it exports three OTLP signals to the same base endpoint: traces at `/v1/traces`, metrics at `/v1/metrics`, and application **log records** at `/v1/logs`. Sim's own telemetry is scoped to feature-usage statistics, error rates, performance metrics, and AI/LLM operation traces — not workflow content or outputs, API keys, or geolocation.
+
+The log stream is different in kind: it carries every line at or above `LOG_LEVEL` with its structured metadata, error messages and stack traces, which can include user ids, emails and URLs. That matters if you raise `LOG_LEVEL` as suggested above, and it is a reason to point the exporter at your own collector rather than leaving it at the default.
+
+`NEXT_TELEMETRY_DISABLED=1` stops the server's OpenTelemetry SDK, which returns before it initializes, so it ends the app's own OTLP export to any endpoint. It does not affect Trigger.dev task telemetry, configured separately below. The **Settings → Privacy → Allow anonymous telemetry** toggle is browser-side only and does not stop server spans.
+
 <Callout type="warn">
-  **Sim sends anonymous usage telemetry by default.** OpenTelemetry traces are exported to `https://telemetry.simstudio.ai/v1/traces` unless you turn it off. Self-hosted deployments with an egress policy should decide about this explicitly.
+  On Helm, `NEXT_TELEMETRY_DISABLED` is what you must **clear** before any tracing works — including tracing to your own collector. Override it with `null` to remove the key entirely.
+
+  ```yaml
+  app:
+    envDefaults:
+      NEXT_TELEMETRY_DISABLED: null
+  ```
 </Callout>
-
-What is collected, per `apps/sim/telemetry.config.ts`: feature-usage statistics, error rates, performance metrics (sampled at 10%), and AI/LLM operation traces. What is **not** collected: personal information, workflow content or outputs, API keys or tokens, and IP addresses or geolocation.
-
-Three ways to change it:
-
-```bash
-# Disable entirely
-NEXT_TELEMETRY_DISABLED=1
-
-# Or redirect to your own OTLP collector instead of Sim's
-TELEMETRY_ENDPOINT=http://otel-collector.observability.svc.cluster.local:4318/v1/traces
-```
-
-Users can also toggle it off individually under **Settings → Privacy → Allow anonymous telemetry**.
 
 ## Tracing
 
-Sim emits OpenTelemetry traces. The chart can also deploy a collector for you:
+The chart can deploy an OpenTelemetry Collector for you:
 
 ```yaml
 telemetry:
   enabled: true
 ```
 
+<Callout type="warn">
+  `telemetry.enabled: true` deploys the collector and injects `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at it, but the app still has `NEXT_TELEMETRY_DISABLED: "1"` from `app.envDefaults`. The collector runs and receives nothing until you clear that key as shown above. Enabling telemetry is two changes, not one.
+</Callout>
+
 Or point the app at a collector you already run:
 
 | Variable | Purpose |
 |---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector endpoint (OTLP) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector endpoint (OTLP over HTTP) |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Auth headers, `key=value` comma-separated |
-| `OTEL_TRACES_SAMPLER_ARG` | Sampling ratio |
+| `TELEMETRY_ENDPOINT` | Legacy endpoint variable, still honored |
+| `TELEMETRY_SAMPLING_RATIO` | Sampling ratio, `0`–`1` |
+| `OTEL_TRACES_SAMPLER_ARG` | Sampling ratio, used only when `TELEMETRY_SAMPLING_RATIO` is unset |
 | `OTEL_DEPLOYMENT_ENVIRONMENT` | Environment label on emitted spans |
-| `TELEMETRY_SAMPLING_RATIO` | Application-level sampling ratio |
-| `TELEMETRY_ENDPOINT` | Custom telemetry endpoint |
 
-For Grafana Cloud specifically:
+The endpoint is resolved by precedence, first match wins: `OTEL_EXPORTER_OTLP_ENDPOINT`, then `TELEMETRY_ENDPOINT`, then the endpoint in `apps/sim/telemetry.config.ts`. This precedence governs the server SDK only — the `/api/telemetry` relay reads `TELEMETRY_ENDPOINT` and nothing else. Sampling resolves the same way: `TELEMETRY_SAMPLING_RATIO`, then `OTEL_TRACES_SAMPLER_ARG`, defaulting to 1.0. Editing `telemetry.config.ts` only changes the last fallback, so an environment variable set anywhere in your stack silently wins over it.
+
+<Callout type="info">
+  `OTEL_SERVICE_NAME` is not read. The chart sets it to `sim-app` when `telemetry.enabled` is true, but the app hardcodes its own service name, so spans arrive under the literal value `mothership`. Filter on that, not on `sim-app`.
+</Callout>
+
+If you enable the chart's Jaeger export, point `telemetry.jaeger.endpoint` at Jaeger's **OTLP gRPC port (4317)** — the collector exports over OTLP.
+
+### Trigger.dev task telemetry
+
+`GRAFANA_OTLP_ENDPOINT`, `GRAFANA_OTLP_HEADERS`, and `GRAFANA_DEPLOYMENT_ENVIRONMENT` are read only by `apps/sim/trigger.config.ts`. They route **Trigger.dev background-task** telemetry to Grafana Cloud and have no effect on the app's own OTLP export — for that, use `OTEL_EXPORTER_OTLP_ENDPOINT` above.
 
 | Variable | Purpose |
 |---|---|
-| `GRAFANA_OTLP_ENDPOINT` | Grafana OTLP endpoint |
+| `GRAFANA_OTLP_ENDPOINT` | Grafana OTLP gateway base URL |
 | `GRAFANA_OTLP_HEADERS` | e.g. `Authorization=Basic <base64(instanceId:token)>` |
 | `GRAFANA_DEPLOYMENT_ENVIRONMENT` | Deployment tier label |
 
-If you enable the chart's Jaeger export, point `telemetry.jaeger.endpoint` at Jaeger's **OTLP gRPC port (4317)** — the collector exports over OTLP.
+<Callout type="warn">
+  All three or none. Setting one or two throws at startup with a message naming them, so a partially configured worker will not boot.
+</Callout>
 
 ## Metrics
 
@@ -137,11 +161,15 @@ If you enable the chart's Jaeger export, point `telemetry.jaeger.endpoint` at Ja
 
 Until an application metrics endpoint ships, build alerting from the signals that do exist:
 
-- **Kubernetes state** — pod restarts, `CrashLoopBackOff`, OOMKills, replica count vs desired, PVC utilization (kube-state-metrics).
+- **Kubernetes state** — pod restarts, `CrashLoopBackOff`, OOMKills, replica count vs desired, PVC utilization (kube-state-metrics). For a point-in-time read on resource pressure, `kubectl top pods -n simstudio` shows current CPU and memory usage — compare it against the limits from `kubectl describe pod`. It is the first thing to check when a pod is being OOMKilled.
 - **Ingress/load balancer** — request rate, 5xx rate, p99 latency, websocket connection count.
 - **PostgreSQL** — connection count vs `max_connections`, replication lag, disk usage, long-running queries.
 - **Redis** — memory usage, evictions, connected clients.
 - **CronJobs** — last successful completion per job.
+
+### CloudWatch metrics
+
+Sim's hosted-key metrics recorder arms itself whenever `AWS_ACCESS_KEY_ID` is present, but every call site is additionally gated on the deployment being Sim Cloud. A self-hosted deployment emits no `PutMetricData` calls, even with AWS credentials configured for S3. If you want defence in depth against that gate ever changing, deny `cloudwatch:PutMetricData` on the IAM identity behind those credentials.
 
 ## What to alert on
 
@@ -159,29 +187,3 @@ Until an application metrics endpoint ships, build alerting from the signals tha
 <Callout type="warn">
   The CronJob alert is the one most deployments lack and most need. Background job failures produce no user-visible error — schedules simply stop firing. Alert on `kube_cronjob_status_last_successful_time` lagging, with a per-job threshold derived from that job's schedule.
 </Callout>
-
-## Quick diagnosis
-
-```bash
-# Overall state
-kubectl get pods,cronjobs -n simstudio
-
-# Why is a pod unhealthy
-kubectl describe pod -n simstudio <pod>
-
-# Did migrations succeed
-kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
-
-# Are background jobs running
-kubectl get jobs -n simstudio --sort-by=.metadata.creationTimestamp | tail
-
-# Resource pressure
-kubectl top pods -n simstudio
-```
-
-<FAQ items={[
-  { question: "Does Sim send telemetry to Sim by default?", answer: "Yes. Anonymous OpenTelemetry traces go to https://telemetry.simstudio.ai/v1/traces unless you set NEXT_TELEMETRY_DISABLED=1 or point TELEMETRY_ENDPOINT at your own collector. It excludes personal information, workflow content, API keys, and IP addresses, but it is outbound traffic you should decide about deliberately on a self-hosted deployment."},
-  { question: "Does Sim expose Prometheus metrics?", answer: "The default images do not expose a /metrics endpoint. The chart's monitoring.serviceMonitor option exists for builds that do; against stock images it scrapes nothing. Build alerting from Kubernetes, ingress, Postgres, and Redis signals instead."},
-  { question: "Why is the startup probe so lenient?", answer: "A cold Next.js start on a large bundle can take minutes. The 5-minute startup budget prevents the liveness probe from restarting the pod mid-boot, which would otherwise loop forever. Keep the budget above your observed cold-start time if you customize probes."},
-  { question: "How do I trace a single failing API request?", answer: "Every request carries a request ID that appears in all log lines for that request. Find it in the response or the first log line and grep your log aggregator for it." },
-]} />

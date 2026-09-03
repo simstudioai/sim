@@ -822,6 +822,17 @@ ollama:
   gpu:
     enabled: false
     count: 1
+    # The NVIDIA device plugin DaemonSet deployed alongside Ollama when GPU is
+    # enabled. Configurable so a disconnected install can point it at a mirror:
+    # it is the one image an air-gapped cluster would otherwise have to patch
+    # after install. Honors global.imageRegistry when
+    # global.useRegistryForAllImages is set, like the other third-party images.
+    devicePlugin:
+      image:
+        repository: nvcr.io/nvidia/k8s-device-plugin
+        tag: v0.18.2
+        pullPolicy: Always
+        digest: ""
     # GPU sharing strategy: "mig" (Multi-Instance GPU) or "time-slicing"
     # - mig: Hardware-level GPU partitioning (requires supported GPUs like A100)
     # - time-slicing: Software-level GPU sharing (works with most NVIDIA GPUs)
@@ -1273,7 +1284,9 @@ branding:
   enabled: false
 
   # Mount path in the container where branding files will be available
-  mountPath: "/app/public/branding"
+  # Must sit inside the image's public directory, which the standalone build
+  # places at /app/apps/sim/public — a path outside it serves nothing.
+  mountPath: "/app/apps/sim/public/branding"
 
   # Text files (CSS, JSON, HTML, etc.) - values are plain text
   # Example:
@@ -1879,10 +1892,9 @@ externalSecrets:
   # Enable External Secrets Operator integration
   enabled: false
 
-  # ESO API version. Default "v1beta1" — supported by every ESO release from
-  # Current ESO releases serve only external-secrets.io/v1 (the v1beta1
-  # compatibility path was removed in 2026). Set to "v1beta1" only for
-  # clusters still running ESO < 0.17.
+  # ESO API version. Current ESO releases serve only external-secrets.io/v1
+  # (the v1beta1 compatibility path was removed in 2026). Set this to
+  # "v1beta1" only for clusters still running ESO < 0.17.
   apiVersion: "v1"
 
   # How often to sync secrets from the external store

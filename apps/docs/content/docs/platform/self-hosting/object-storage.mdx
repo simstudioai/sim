@@ -6,7 +6,6 @@ description: Configure where Sim stores uploaded files — local disk, AWS S3, A
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { FAQ } from '@/components/ui/faq'
 
 Sim stores every uploaded file — knowledge base documents, chat attachments, execution outputs, profile pictures, and more — in object storage. Four backends are supported:
 
@@ -17,8 +16,8 @@ Sim stores every uploaded file — knowledge base documents, chat attachments, e
 | **[Azure Blob](https://learn.microsoft.com/azure/storage/blobs/)** | Production on Azure |
 | **[Google Cloud Storage](https://cloud.google.com/storage)** | Production on GCP |
 
-<Callout type="warning">
-  Local disk writes to the container's `/uploads` directory. Files are lost when the container is recreated unless that path is on a persistent volume, and they are **not** shared across replicas. For any multi-replica or production deployment, use S3, Azure Blob, or Google Cloud Storage.
+<Callout type="warn">
+  Local disk writes to `/app/apps/sim/uploads` inside the container. Neither `docker-compose.prod.yml` nor the Helm chart mounts a volume there, so every uploaded file is lost the moment the container is recreated — and files are **not** shared across replicas. Mount your own volume at that path if you must stay on local disk; for any multi-replica or production deployment, use S3, Azure Blob, or Google Cloud Storage.
 </Callout>
 
 ## How the backend is selected
@@ -28,9 +27,11 @@ Set `STORAGE_PROVIDER` to `local`, `s3`, `azure`, or `gcs` to select a backend e
 1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
 2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
 3. **Google Cloud Storage** — used if `GCS_BUCKET_NAME` is set (and neither Azure nor S3 is configured).
-4. **Local disk** — the fallback when none is configured.
+4. **Local disk** — used only when no cloud backend has been activated. Setting any of a backend's keys activates it, including a dedicated bucket, `S3_ENDPOINT`, or an Azure credential — so a half-configured backend fails at startup rather than quietly falling back here.
 
-If `STORAGE_PROVIDER` is unset, Sim skips incomplete backends and uses the first ready match in that order. A higher-priority backend with its required fields present but invalid supplied values fails fast instead of silently falling through. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
+If `STORAGE_PROVIDER` is unset, Sim uses the first backend whose configuration is complete, in that order. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
+
+A partially configured backend is skipped, so a fully configured one later in the order still wins. A backend whose values are present but malformed is different: it stops startup immediately, and a later fully configured one does not take over. What it never does is fall back to local disk: if no other backend is complete, startup fails with `File storage is partially or incorrectly configured`. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are checked as a pair — set both or neither.
 
 ## Set up AWS S3
 
@@ -40,15 +41,18 @@ If `STORAGE_PROVIDER` is unset, Sim skips incomplete backends and uses the first
 
 ### Create the buckets
 
-Sim separates files into purpose-specific buckets. **Sim never creates buckets** — create each one yourself before configuring it. Only `S3_OG_IMAGES_BUCKET_NAME` and `S3_WORKSPACE_LOGOS_BUCKET_NAME` fall back to the general bucket; the others resolve to their own literal defaults, so set every bucket you intend to use.
+Sim separates files into purpose-specific buckets. **Sim never creates buckets** — create each one yourself before configuring it. Most S3 bucket variables do **not** fall back to `S3_BUCKET_NAME`: leave `S3_KB_BUCKET_NAME`, `S3_CHAT_BUCKET_NAME`, `S3_COPILOT_BUCKET_NAME`, or `S3_PROFILE_PICTURES_BUCKET_NAME` unset and it resolves to an empty bucket name, so that file type fails to store. Three behave differently — `S3_OG_IMAGES_BUCKET_NAME` and `S3_WORKSPACE_LOGOS_BUCKET_NAME` fall back to `S3_BUCKET_NAME`, and `S3_EXECUTION_FILES_BUCKET_NAME` falls back to a literal default name (see the reference table below).
 
 ```bash
 # Set your region once
 export AWS_REGION=us-east-1
 
+# The eight purpose-specific buckets. The CORS and IAM steps below reuse this list.
+export SIM_BUCKETS="workspace-files knowledge-base execution-files chat-files
+                    copilot-files profile-pictures og-images workspace-logos"
+
 # Create buckets (names must be globally unique — prefix with your org)
-for name in workspace-files knowledge-base execution-files chat-files \
-            copilot-files profile-pictures og-images workspace-logos; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   aws s3api create-bucket \
     --bucket "myorg-sim-$name" \
     --region "$AWS_REGION" \
@@ -84,8 +88,7 @@ cat > /tmp/cors.json <<'EOF'
 }
 EOF
 
-for name in workspace-files knowledge-base execution-files chat-files \
-            copilot-files profile-pictures og-images workspace-logos; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   aws s3api put-bucket-cors --bucket "myorg-sim-$name" --cors-configuration file:///tmp/cors.json
 done
 ```
@@ -153,7 +156,7 @@ S3_OG_IMAGES_BUCKET_NAME=myorg-sim-og-images
 S3_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
 ```
 
-Only `AWS_REGION` and `S3_BUCKET_NAME` are strictly required to switch Sim into S3 mode. Add the others so each file type lands in its own bucket.
+`AWS_REGION` and `S3_BUCKET_NAME` are what switch Sim into S3 mode, but they do not cover the other file types — set every bucket above, because only the OpenGraph and workspace-logo buckets fall back to the general one.
 
 </Step>
 
@@ -167,13 +170,13 @@ Only `AWS_REGION` and `S3_BUCKET_NAME` are strictly required to switch Sim into 
 | `AWS_ACCESS_KEY_ID` | Access key | No (uses credential chain if unset) |
 | `AWS_SECRET_ACCESS_KEY` | Secret key | No (uses credential chain if unset) |
 | `S3_BUCKET_NAME` | General workspace files | **Yes** (enables S3) |
-| `S3_KB_BUCKET_NAME` | Knowledge base documents | Recommended |
-| `S3_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files. Falls back to the literal name `sim-execution-files`, which you almost certainly do not own — always set this explicitly | **Yes** |
-| `S3_CHAT_BUCKET_NAME` | Deployed chat assets | Recommended |
-| `S3_COPILOT_BUCKET_NAME` | Copilot attachments | Recommended |
-| `S3_PROFILE_PICTURES_BUCKET_NAME` | User avatars | Recommended |
-| `S3_OG_IMAGES_BUCKET_NAME` | OpenGraph preview images (falls back to `S3_BUCKET_NAME`) | Optional |
-| `S3_WORKSPACE_LOGOS_BUCKET_NAME` | Workspace logos (falls back to `S3_BUCKET_NAME`) | Optional |
+| `S3_KB_BUCKET_NAME` | Knowledge base documents | **Yes**, to use knowledge bases (no fallback) |
+| `S3_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files. Falls back to the literal name `sim-execution-files`, which you almost certainly do not own — always set this explicitly | Effectively yes — the fallback is a bucket you do not own |
+| `S3_CHAT_BUCKET_NAME` | Deployed chat assets | **Yes**, to use deployed chats (no fallback) |
+| `S3_COPILOT_BUCKET_NAME` | Chat attachments | **Yes**, to attach files in Chat (no fallback) |
+| `S3_PROFILE_PICTURES_BUCKET_NAME` | User avatars | **Yes**, for avatar uploads (no fallback) |
+| `S3_OG_IMAGES_BUCKET_NAME` | OpenGraph preview images | Optional (falls back to `S3_BUCKET_NAME`) |
+| `S3_WORKSPACE_LOGOS_BUCKET_NAME` | Workspace logos | Optional (falls back to `S3_BUCKET_NAME`) |
 | `S3_ENDPOINT` | Custom endpoint for S3-compatible storage (R2, MinIO, B2) | Optional (AWS S3 if unset) |
 | `S3_FORCE_PATH_STYLE` | `true` for path-style addressing (MinIO/Ceph) | Optional (defaults `false`) |
 
@@ -188,7 +191,7 @@ Add the storage variables to the `.env` file used by `docker-compose.prod.yml`, 
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Because files now live in S3, you no longer depend on a local `/uploads` volume for durability.
+Because files now live in S3, nothing depends on the container's `/app/apps/sim/uploads` directory any more.
 
   </Tab>
   <Tab value="Kubernetes (Helm)">
@@ -232,6 +235,10 @@ AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
 AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 ```
 
+<Callout type="warn">
+  Set every container name. Like the S3 variables, the knowledge-base, chat, Chat-attachment, and profile-picture containers do not fall back to `AZURE_STORAGE_CONTAINER_NAME` — an unset one resolves to an empty container name and that file type fails to store. The OpenGraph and workspace-logo containers do fall back to it, and `AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME` falls back to the literal name `sim-execution-files`.
+</Callout>
+
 Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
 Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
 and metadata headers. Small-file uploads also send `If-None-Match`; the signature itself is
@@ -270,9 +277,12 @@ GCS uses one bucket per purpose, mirroring the S3 layout:
 export PROJECT_ID=your-project-id
 export LOCATION=us-central1
 
+# The eight purpose-specific buckets. The CORS and IAM steps below reuse this list.
+export SIM_BUCKETS="workspace-files knowledge-base execution-files chat-files
+                    copilot-files profile-pictures og-images workspace-logos"
+
 # Create buckets (names must be globally unique — prefix with your org)
-for name in workspace-files knowledge-base execution-files chat-files \
-            copilot-files profile-pictures og-images workspace-logos; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   gcloud storage buckets create "gs://myorg-sim-$name" \
     --project "$PROJECT_ID" \
     --location "$LOCATION" \
@@ -303,22 +313,20 @@ cat > /tmp/cors.json <<'EOF'
       "x-goog-meta-knowledgebaseid",
       "x-goog-meta-folderid",
       "x-goog-meta-workflowid",
-      "x-goog-meta-executionid",
-      "x-goog-meta-simuploadid"
+      "x-goog-meta-executionid"
     ],
     "maxAgeSeconds": 3600
   }
 ]
 EOF
 
-for name in workspace-files knowledge-base execution-files chat-files \
-            copilot-files profile-pictures og-images workspace-logos; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   gcloud storage buckets update "gs://myorg-sim-$name" --cors-file=/tmp/cors.json
 done
 ```
 
 <Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes. `x-goog-meta-simuploadid` carries the opaque receipt used to verify an upload after an ambiguous network response.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes.
 </Callout>
 
 </Step>
@@ -332,8 +340,7 @@ Create a service account (or reuse the one your workload runs as) and grant it o
 ```bash
 gcloud iam service-accounts create sim-storage --project "$PROJECT_ID"
 
-for name in workspace-files knowledge-base execution-files chat-files \
-            copilot-files profile-pictures og-images workspace-logos; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   gcloud storage buckets add-iam-policy-binding "gs://myorg-sim-$name" \
     --member "serviceAccount:sim-storage@$PROJECT_ID.iam.gserviceaccount.com" \
     --role roles/storage.objectAdmin
@@ -375,7 +382,7 @@ GCS_OG_IMAGES_BUCKET_NAME=myorg-sim-og-images
 GCS_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
 ```
 
-Only `GCS_BUCKET_NAME` is strictly required to switch Sim into GCS mode. Every purpose-specific bucket falls back to the general bucket when unset — add the others so each file type lands in its own bucket.
+`GCS_BUCKET_NAME` is what switches Sim into GCS mode and is the only bucket strictly required: every purpose-specific bucket falls back to it when unset. GCS bucket names are globally unique, so Sim uses no literal defaults here — not even for execution files. Set the dedicated buckets to separate the file types; leave them unset and everything lands in the general bucket.
 
 </Step>
 
@@ -391,10 +398,10 @@ Only `GCS_BUCKET_NAME` is strictly required to switch Sim into GCS mode. Every p
 | `GCS_KB_BUCKET_NAME` | Knowledge base documents | Recommended (falls back to `GCS_BUCKET_NAME`) |
 | `GCS_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files | Recommended (falls back to `GCS_BUCKET_NAME`) |
 | `GCS_CHAT_BUCKET_NAME` | Deployed chat assets | Recommended (falls back to `GCS_BUCKET_NAME`) |
-| `GCS_COPILOT_BUCKET_NAME` | Copilot attachments | Recommended (falls back to `GCS_BUCKET_NAME`) |
+| `GCS_COPILOT_BUCKET_NAME` | Chat attachments | Recommended (falls back to `GCS_BUCKET_NAME`) |
 | `GCS_PROFILE_PICTURES_BUCKET_NAME` | User avatars | Recommended (falls back to `GCS_BUCKET_NAME`) |
-| `GCS_OG_IMAGES_BUCKET_NAME` | OpenGraph preview images (falls back to `GCS_BUCKET_NAME`) | Optional |
-| `GCS_WORKSPACE_LOGOS_BUCKET_NAME` | Workspace logos (falls back to `GCS_BUCKET_NAME`) | Optional |
+| `GCS_OG_IMAGES_BUCKET_NAME` | OpenGraph preview images | Recommended (falls back to `GCS_BUCKET_NAME`) |
+| `GCS_WORKSPACE_LOGOS_BUCKET_NAME` | Workspace logos | Recommended (falls back to `GCS_BUCKET_NAME`) |
 
 A full Helm example (Workload Identity, GKE) lives at `helm/sim/examples/values-gcp.yaml`.
 
@@ -406,7 +413,7 @@ Sim works with any S3-compatible store by pointing the S3 client at a custom end
   `S3_ENDPOINT` is trusted operator configuration, so it is used as-is — `http://` and private hosts are accepted (no SSRF/HTTPS gate). Don't wire it to untrusted input.
 </Callout>
 
-<Callout type="warning">
+<Callout type="warn">
   **The endpoint must be reachable from your users' browsers, and the bucket needs CORS.** Uploads use presigned `PUT` requests sent **directly from the browser** to `S3_ENDPOINT` (downloads are proxied back through the app, so they only need server-side reachability). This means:
 
   - A purely internal endpoint (e.g. `https://minio.internal:9000` that only the app pods can resolve) will let the server start cleanly but **uploads will fail in the browser**. Use an endpoint your users can reach.
@@ -482,7 +489,7 @@ state that outlives its database row:
 The provider window should exceed the 24-hour upload-session lifetime so an in-progress completion
 can still recover. Do not add an object-expiration rule for final upload keys.
 
-<Callout type="warning">
+<Callout type="warn">
   Object expiration and incomplete-multipart cleanup are different lifecycle operations. Configure
   the incomplete-multipart operation; expiring objects does not remove abandoned multipart parts.
 </Callout>
@@ -496,7 +503,3 @@ After restarting with the new configuration:
 3. Reload the page — the file should still render (downloads stream back through the app at `/api/files/serve`).
 
 If uploads fail, check the app logs for credential or permission errors (see [Troubleshooting](/platform/self-hosting/troubleshooting)).
-
-<FAQ items={[
-  { question: "How do I use GCS without storing a service-account key?", answer: "Run Sim with GKE Workload Identity (or an attached GCE service account) and leave GCS_CREDENTIALS_JSON unset — credentials resolve through Application Default Credentials. Grant the service account roles/iam.serviceAccountTokenCreator on itself so signed URLs can be generated via the IAM signBlob API."},
-]} />

@@ -6,11 +6,19 @@ on:
     paths:
       - 'helm/sim/**'
       - '.github/workflows/helm.yml'
+      # The image inventory is generated from the chart and checked here, so a
+      # change to its generator has to run this workflow too.
+      - 'scripts/generate-image-manifest.ts'
+      - 'package.json'
   pull_request:
     branches: [main, staging, dev]
     paths:
       - 'helm/sim/**'
       - '.github/workflows/helm.yml'
+      # The image inventory is generated from the chart and checked here, so a
+      # change to its generator has to run this workflow too.
+      - 'scripts/generate-image-manifest.ts'
+      - 'package.json'
 
 concurrency:
   group: helm-${{ github.ref }}
@@ -42,6 +50,13 @@ jobs:
       # imports only node builtins, so this job installs no dependencies.
       - name: Scheduler parity (docker/crontab vs helm cronjobs)
         run: bun run scripts/check-cron-parity.ts
+
+      # helm/sim/images.yaml is what an operator mirrors into a disconnected
+      # registry, so a chart change that adds an image has to update it. Lives
+      # here rather than in `check:audits` because it renders the chart, and the
+      # audits job has no Helm.
+      - name: Image inventory is current
+        run: bun run images:check
 
       - name: Helm lint
         run: helm lint helm/sim --values helm/sim/ci/default-values.yaml
