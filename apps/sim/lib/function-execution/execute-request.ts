@@ -73,6 +73,7 @@ import {
   MAX_SANDBOX_OUTPUT_BYTES,
   readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
 import {
   MAX_BLOCK_MOUNTED_FILES,
   SANDBOX_OUTPUT_DIR,
@@ -1588,12 +1589,16 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   const fileName = normalizeOutputWorkspaceFileName(outputPath)
 
-  const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
+  // Decode the way the sandbox read it (by path), never by guessing from the mime: a
+  // `.jpg` with no declared format resolved to the json text format and was stored as
+  // its base64 text (dev, 2026-09-03: thumbnails that opened as "raw text").
+  const isBinary = isBinarySandboxPath(outputSandboxPath)
   const resolvedMimeType =
     outputMimeType ||
-    FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)] ||
+    (isBinary
+      ? getMimeTypeFromExtension(getFileExtension(fileName))
+      : FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)]) ||
     'application/octet-stream'
-  const isBinary = !TEXT_MIMES.has(resolvedMimeType)
   const outputBytes = Buffer.byteLength(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   if (outputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
     return exportFailure(
@@ -1766,11 +1771,14 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     }
     const outputPath = file.formatPath ?? file.path
     const fileName = normalizeOutputWorkspaceFileName(outputPath)
+    // Same rule as the single-file export: the sandbox path decides the encoding.
+    const isBinary = isBinarySandboxPath(sandboxPath)
     const resolvedMimeType =
       file.mimeType ||
-      FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)] ||
+      (isBinary
+        ? getMimeTypeFromExtension(getFileExtension(fileName))
+        : FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)]) ||
       'application/octet-stream'
-    const isBinary = !new Set(Object.values(FORMAT_TO_CONTENT_TYPE)).has(resolvedMimeType)
     const size = Buffer.byteLength(content, isBinary ? 'base64' : 'utf-8')
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
