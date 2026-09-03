@@ -118,6 +118,20 @@ describe('Oracle B2C Service tool surface', () => {
     ).toEqual(optionIds)
   })
 
+  it('maps the response-specific subject input to the incident response tool', () => {
+    const params = OracleB2CServiceBlock.tools.config.params?.({
+      operation: 'create_incident_response',
+      subject: 'Unrelated incident subject',
+      responseSubject: 'Response subject',
+    })
+
+    expect(params).toMatchObject({
+      operation: undefined,
+      subject: 'Response subject',
+      responseSubject: undefined,
+    })
+  })
+
   it.each(operationCases)('%s uses the documented %s endpoint', (id, method, path) => {
     const tool = toolsById[id]
     expect(tool).toBeDefined()

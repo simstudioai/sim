@@ -362,7 +362,6 @@ export const OracleB2CServiceBlock: BlockConfig<OracleB2CServiceResponse> = {
     },
     {
       id: 'responseSubject',
-      canonicalParamId: 'subject',
       title: 'Response Subject',
       type: 'short-input',
       condition: { field: 'operation', value: 'create_incident_response' },
@@ -608,6 +607,8 @@ export const OracleB2CServiceBlock: BlockConfig<OracleB2CServiceResponse> = {
         return {
           ...params,
           operation: undefined,
+          subject: isIncidentResponse ? params.responseSubject : params.subject,
+          responseSubject: undefined,
           limit: isList ? toOptionalNumber(params.limit) : undefined,
           offset: isList ? toOptionalNumber(params.offset) : undefined,
           includeTotalResults: isList ? toOptionalBoolean(params.includeTotalResults) : undefined,
@@ -643,7 +644,8 @@ export const OracleB2CServiceBlock: BlockConfig<OracleB2CServiceResponse> = {
     offset: { type: 'number', description: 'Pagination offset' },
     includeTotalResults: { type: 'boolean', description: 'Request a total result count' },
     pageUrl: { type: 'string', description: 'Same-origin Oracle pagination URL' },
-    subject: { type: 'string', description: 'Incident or response subject' },
+    subject: { type: 'string', description: 'Incident subject' },
+    responseSubject: { type: 'string', description: 'Incident response subject' },
     primaryContactId: { type: 'string', description: 'Primary contact ID' },
     organizationId: { type: 'string', description: 'Organization ID' },
     queueId: { type: 'string', description: 'Queue ID' },
