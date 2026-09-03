@@ -9,6 +9,7 @@ import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowled
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { searchedKnowledgeBases } from '@/lib/sim-search/knowledge-bases'
+import { SlackSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/slack-search-results'
 import {
   highlightTerms,
   SOURCE_ROW_CLASSES,
@@ -316,6 +317,7 @@ export function KnowledgeSearchResults({
           })}
         </div>
       )}
+      <SlackSearchResults workspaceId={workspaceId} query={query} onSummarize={onSummarize} />
     </div>
   )
 }

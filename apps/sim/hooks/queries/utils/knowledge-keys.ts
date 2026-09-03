@@ -31,6 +31,9 @@ export const knowledgeKeys = {
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
   searches: () => [...knowledgeKeys.all, 'search'] as const,
+  slackSearches: () => [...knowledgeKeys.all, 'slackSearch'] as const,
+  slackSearch: (workspaceId: string | undefined, query: string) =>
+    [...knowledgeKeys.slackSearches(), workspaceId ?? '', query] as const,
   search: (workspaceId: string | undefined, knowledgeBaseIds: readonly string[], query: string) =>
     [
       ...knowledgeKeys.searches(),

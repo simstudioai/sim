@@ -430,6 +430,19 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     principalKinds: ['session'],
   }),
+  /**
+   * Searching a federated Sim Search source, which runs under the asking
+   * person's own connected account. There is no actorless form of it — without
+   * a person there is no account to search as — so it is session-only, exactly
+   * like connecting one.
+   */
+  simSearchFederated: defineWorkspaceOperation({
+    id: 'knowledge.simSearch.federated',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
   deleteConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.delete',
     minimumRole: 'write',

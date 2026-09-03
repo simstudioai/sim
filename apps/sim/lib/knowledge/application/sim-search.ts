@@ -29,6 +29,7 @@ import {
   missingSetupFields,
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
 } from '@/lib/sim-search/connectors'
+import { type SlackSearchOutcome, searchSlackForViewer } from '@/lib/slack-search/search'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
 const SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION =
@@ -236,5 +237,66 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
       request,
     })
     return { ...target, url }
+  },
+})
+
+export interface SearchSimSearchSlackInput {
+  workspaceId: string
+  query: string
+  limit?: number
+}
+
+export interface SearchSimSearchSlackResult {
+  status: SlackSearchOutcome['status']
+  results: {
+    channelId: string
+    messageTs: string
+    channelName: string
+    authorName: string
+    text: string
+    permalink: string
+    sentAt: string | null
+  }[]
+}
+
+/**
+ * Searches Slack for the person asking, live, under their own connected Slack
+ * account.
+ *
+ * Federated rather than indexed: nothing was crawled, so there is no document
+ * ACL to consult. Slack answers from its own index under that person's token
+ * and enforces its own permissions, which is why the result is exactly what
+ * they could have found in Slack themselves. The workspace authorization above
+ * still applies, so someone who left the workspace stops searching through it
+ * even while their Slack account keeps working.
+ */
+export const searchSimSearchSlack = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.simSearchFederated,
+  resolveContext: ({ input }: { input: SearchSimSearchSlackInput }) =>
+    resolveKnowledgeWorkspaceContext(input),
+  async execute({ principal, input, context }): Promise<SearchSimSearchSlackResult> {
+    const userId = resolvePrincipalSubjectUserId(principal)
+    if (!userId) throw new OrchestrationError('forbidden', 'Sign in to search your connected Slack')
+
+    const outcome = await searchSlackForViewer({
+      workspaceId: context.workspaceId,
+      userId,
+      query: input.query,
+      ...(input.limit !== undefined ? { limit: input.limit } : {}),
+    })
+    if (outcome.status !== 'ok') return { status: outcome.status, results: [] }
+
+    return {
+      status: 'ok',
+      results: outcome.results.map((result) => ({
+        channelId: result.channelId,
+        messageTs: result.messageTs,
+        channelName: result.channelName,
+        authorName: result.authorName,
+        text: result.text,
+        permalink: result.permalink,
+        sentAt: result.sentAt?.toISOString() ?? null,
+      })),
+    }
   },
 })

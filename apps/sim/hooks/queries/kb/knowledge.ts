@@ -40,7 +40,9 @@ import {
   nextAvailableSlotContract,
   restoreKnowledgeBaseContract,
   type SaveDocumentTagDefinitionsResult,
+  type SearchSimSearchSlackBody,
   saveDocumentTagDefinitionsContract,
+  searchSimSearchSlackContract,
   searchWorkspaceKnowledgeContract,
   type TagDefinitionData,
   type TagUsageData,
@@ -78,6 +80,8 @@ export const KNOWLEDGE_DOCUMENT_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_SEARCH_STALE_TIME = 60 * 1000
 export const WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME = 60 * 1000
+/** Slack answers live, so a result is only reused for as long as a person keeps typing one query. */
+export const SIM_SEARCH_SLACK_STALE_TIME = 30 * 1000
 export const KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_USAGE_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
@@ -1189,6 +1193,31 @@ export function useWorkspaceKnowledgeSearch(
       ),
     enabled: Boolean(workspaceId) && knowledgeBaseIds.length > 0 && trimmed.length > 0,
     staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
+    placeholderData: keepPreviousData,
+  })
+}
+
+async function searchSlack(body: SearchSimSearchSlackBody, signal?: AbortSignal) {
+  const data = await requestJson(searchSimSearchSlackContract, { body, signal })
+  return data.data
+}
+
+/**
+ * What Slack returns for `query`, searched live as the signed-in person.
+ *
+ * Slack is not indexed, so this asks Slack itself on every new query. The
+ * answer is short-lived on purpose: a conversation that moved on since the
+ * last search should not be served from a cache, and Slack's own per-person
+ * rate limit is what keeps the call rate sane.
+ */
+export function useSimSearchSlack(workspaceId: string | undefined, query: string) {
+  const trimmed = query.trim()
+  return useQuery({
+    queryKey: knowledgeKeys.slackSearch(workspaceId, trimmed),
+    queryFn: ({ signal }) =>
+      searchSlack({ workspaceId: workspaceId as string, query: trimmed }, signal),
+    enabled: Boolean(workspaceId) && trimmed.length > 0,
+    staleTime: SIM_SEARCH_SLACK_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
