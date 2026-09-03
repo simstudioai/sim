@@ -4478,52 +4478,62 @@ async function generateBlockDoc(blockPath: string) {
         continue
       }
 
-      if (
-        blockConfig.type.includes('_trigger') ||
-        blockConfig.type.includes('_webhook') ||
-        blockConfig.type.includes('rss')
-      ) {
-        console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
-        continue
-      }
+      try {
+        if (
+          blockConfig.type.includes('_trigger') ||
+          blockConfig.type.includes('_webhook') ||
+          blockConfig.type.includes('rss')
+        ) {
+          console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
+          continue
+        }
 
-      if (
-        (blockConfig.category === 'blocks' &&
-          !NATIVE_RESOURCE_BLOCK_TYPES.has(stripVersionSuffix(blockConfig.type))) ||
-        blockConfig.type === 'sim_workspace_event' ||
-        blockConfig.type === 'evaluator' ||
-        blockConfig.type === 'number' ||
-        blockConfig.type === 'webhook' ||
-        blockConfig.type === 'schedule' ||
-        blockConfig.type === 'mcp' ||
-        blockConfig.type === 'generic_webhook' ||
-        blockConfig.type === 'rss'
-      ) {
-        continue
-      }
+        if (
+          (blockConfig.category === 'blocks' &&
+            !NATIVE_RESOURCE_BLOCK_TYPES.has(stripVersionSuffix(blockConfig.type))) ||
+          blockConfig.type === 'sim_workspace_event' ||
+          blockConfig.type === 'evaluator' ||
+          blockConfig.type === 'number' ||
+          blockConfig.type === 'webhook' ||
+          blockConfig.type === 'schedule' ||
+          blockConfig.type === 'mcp' ||
+          blockConfig.type === 'generic_webhook' ||
+          blockConfig.type === 'rss'
+        ) {
+          continue
+        }
 
-      // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
-      const displayType = stripVersionSuffix(blockConfig.type)
-      const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${displayType}.mdx`)
+        // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
+        const displayType = stripVersionSuffix(blockConfig.type)
+        const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${displayType}.mdx`)
 
-      const existingContent = readGeneratedFile(outputFilePath)
+        const existingContent = readGeneratedFile(outputFilePath)
 
-      const manualSections = existingContent ? extractManualContent(existingContent) : {}
+        const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
-      const markdown = await generateMarkdownForBlock(blockConfig, displayType, fileContent)
+        const markdown = await generateMarkdownForBlock(blockConfig, displayType, fileContent)
 
-      let finalContent = markdown
-      if (Object.keys(manualSections).length > 0) {
-        finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
-      }
+        let finalContent = markdown
+        if (Object.keys(manualSections).length > 0) {
+          finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
+        }
 
-      emitGeneratedFile(outputFilePath, finalContent)
-      if (!CHECK_ONLY) {
-        const logType =
-          displayType !== blockConfig.type
-            ? `${displayType} (from ${blockConfig.type})`
-            : displayType
-        console.log(`✓ Generated docs for ${logType}`)
+        emitGeneratedFile(outputFilePath, finalContent)
+        if (!CHECK_ONLY) {
+          const logType =
+            displayType !== blockConfig.type
+              ? `${displayType} (from ${blockConfig.type})`
+              : displayType
+          console.log(`✓ Generated docs for ${logType}`)
+        }
+      } catch (error) {
+        // A file can declare more than one block config (a v1 beside a v2), so
+        // one unusable config must not skip the ones after it. The run still
+        // exits nonzero on the collected failure.
+        console.error(`Error processing ${blockConfig.type} in ${blockPath}:`, error)
+        blockGenerationFailures.push(
+          `${path.relative(rootDir, blockPath)} (${blockConfig.type}): ${getErrorText(error)}`
+        )
       }
     }
   } catch (error) {

@@ -11,6 +11,21 @@ describe('getScopeDescription', () => {
     expect(getScopeDescription('webhook', 'bitbucket')).toBe('Manage repository webhooks')
   })
 
+  /**
+   * `read` and `write` are issued by Linear, Trello and Reddit alike, so the
+   * shared label cannot describe any of them precisely. Each provider that
+   * reuses the name gets its own.
+   */
+  it.concurrent('disambiguates scope names more than one provider issues', () => {
+    expect(getScopeDescription('read', 'trello')).toBe(
+      'View boards, lists, and cards you can access'
+    )
+    expect(getScopeDescription('read', 'reddit')).toBe(
+      'View posts, comments, and subreddits through your account'
+    )
+    expect(getScopeDescription('read', 'linear')).toBe('Read access to connected account data')
+  })
+
   it.concurrent('preserves the existing Reddit meaning of the account scope', () => {
     expect(getScopeDescription('account', 'reddit')).toBe('Update account preferences and settings')
     expect(getScopeDescription('account')).toBe('Update account preferences and settings')

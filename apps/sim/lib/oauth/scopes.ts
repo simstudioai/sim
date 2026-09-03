@@ -957,7 +957,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   login: 'Access Wealthbox account',
   data: 'Access Wealthbox data',
 
-  // Linear scopes
+  // Bare read/write, shared by Linear, Trello and Reddit. The generic wording is
+  // the fallback; each provider's own meaning is in PROVIDER_SCOPE_DESCRIPTIONS.
   read: 'Read access to connected account data',
   write: 'Write access to connected account data',
 
@@ -1157,6 +1158,19 @@ const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<strin
     'Files.Read.All': 'Read Word documents shared with you, including SharePoint libraries',
     'Files.ReadWrite.All':
       'Read, create, and edit Word documents you have access to, including SharePoint libraries',
+  },
+  /**
+   * `read` and `write` are not Linear's alone: Trello and Reddit issue scopes
+   * under the same two names, and the shared labels describe none of them
+   * precisely. A published table saying "connected account data" for a Trello
+   * board grant tells the reader nothing about what they are approving.
+   */
+  trello: {
+    read: 'View boards, lists, and cards you can access',
+    write: 'Create and modify boards, lists, and cards',
+  },
+  reddit: {
+    read: 'View posts, comments, and subreddits through your account',
   },
   bitbucket: {
     account: 'View your Bitbucket account and workspace memberships',
