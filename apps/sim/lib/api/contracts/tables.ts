@@ -936,6 +936,24 @@ export const listTablesContract = defineRouteContract({
 })
 export type ListTablesResponse = ContractJsonResponse<typeof listTablesContract>
 
+export const listTableNamesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/names',
+  query: z.object({ workspaceId: workspaceIdSchema }),
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        tables: z.array(
+          z.object({
+            id: z.string().min(1).max(MAX_ID_LENGTH),
+            name: tableNameSchema,
+          })
+        ),
+      })
+    ),
+  },
+})
 export const createTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/table',
@@ -1466,6 +1484,8 @@ export const getTableRowContract = defineRouteContract({
     schema: successResponseSchema(z.object({ row: tableRowWireSchema })),
   },
 })
+
+export type GetTableRowResponse = ContractJsonResponse<typeof getTableRowContract>
 
 export const updateTableRowContract = defineRouteContract({
   method: 'PATCH',

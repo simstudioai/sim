@@ -5,7 +5,17 @@ import { Button, Checkbox, cn, handleKeyboardActivation } from '@sim/emcn'
 import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
+import type {
+  DisplayColumn,
+  ReferencePreviewTarget,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types'
+import {
+  isSameReferencePreviewTarget,
+  type NormalizedSelection,
+  resolveCellExec,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/utils'
 import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../types'
 import { CellContent } from './cells'
@@ -18,8 +28,6 @@ import {
   SELECTION_OVERLAY,
   SELECTION_TINT_BG,
 } from './constants'
-import type { DisplayColumn } from './types'
-import { type NormalizedSelection, resolveCellExec } from './utils'
 
 export interface DataRowProps {
   row: TableRowType
@@ -31,6 +39,7 @@ export interface DataRowProps {
   timeZone: string
   /** Whether Date and Expiration values can be formatted and edited safely. */
   timezoneStatus: TimezoneState['status']
+  referenceColumnsEnabled: boolean
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -81,6 +90,8 @@ export interface DataRowProps {
    * from re-running for a search elsewhere in the table.
    */
   findMatchColumns?: ReadonlySet<string>
+  expandedReference: ReferencePreviewTarget | null
+  onReferenceClick: (target: ReferencePreviewTarget) => void
 }
 
 function cellRangeRowChanged(
@@ -121,6 +132,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.workspaceId !== next.workspaceId ||
     prev.timeZone !== next.timeZone ||
     prev.timezoneStatus !== next.timezoneStatus ||
+    prev.referenceColumnsEnabled !== next.referenceColumnsEnabled ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -145,7 +157,9 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.activeDispatches !== next.activeDispatches ||
     prev.pinnedOffsets !== next.pinnedOffsets ||
     prev.lastPinnedColKey !== next.lastPinnedColKey ||
-    prev.findMatchColumns !== next.findMatchColumns
+    prev.findMatchColumns !== next.findMatchColumns ||
+    prev.expandedReference !== next.expandedReference ||
+    prev.onReferenceClick !== next.onReferenceClick
   ) {
     return false
   }
@@ -170,6 +184,7 @@ export const DataRow = React.memo(function DataRow({
   workspaceId,
   timeZone,
   timezoneStatus,
+  referenceColumnsEnabled,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -197,6 +212,8 @@ export const DataRow = React.memo(function DataRow({
   pinnedOffsets,
   lastPinnedColKey,
   findMatchColumns,
+  expandedReference,
+  onReferenceClick,
 }: DataRowProps) {
   const sel = normalizedSelection
   /**
@@ -310,6 +327,24 @@ export const DataRow = React.memo(function DataRow({
         </div>
       </td>
       {columns.map((column, colIndex) => {
+        const value =
+          pendingCellValue && column.key in pendingCellValue
+            ? pendingCellValue[column.key]
+            : row.data[column.key]
+        const referencePreview = referenceColumnsEnabled
+          ? columnTypeOf(column).referencePreview
+          : undefined
+        const referenceRowId = referencePreview?.getRowId(value) ?? null
+        const referenceTableId = referencePreview?.getTableId(column)
+        const referenceTarget =
+          referenceTableId && referenceRowId
+            ? {
+                sourceRowId: row.id,
+                sourceColumnKey: column.key,
+                referenceTableId,
+                referenceRowId,
+              }
+            : null
         const inRange =
           sel !== null &&
           rowIndex >= sel.startRow &&
@@ -407,11 +442,8 @@ export const DataRow = React.memo(function DataRow({
                 workspaceId={workspaceId}
                 timeZone={timeZone}
                 timezoneStatus={timezoneStatus}
-                value={
-                  pendingCellValue && column.key in pendingCellValue
-                    ? pendingCellValue[column.key]
-                    : row.data[column.key]
-                }
+                referenceColumnsEnabled={referenceColumnsEnabled}
+                value={value}
                 exec={resolveCellExec(
                   row,
                   column.workflowGroupId
@@ -434,6 +466,14 @@ export const DataRow = React.memo(function DataRow({
                     ? workflowGroups.find((g) => g.id === column.workflowGroupId)?.type ===
                       'enrichment'
                     : false
+                }
+                referenceAction={
+                  referenceTarget
+                    ? {
+                        expanded: isSameReferencePreviewTarget(expandedReference, referenceTarget),
+                        onClick: () => onReferenceClick(referenceTarget),
+                      }
+                    : undefined
                 }
               />
             </div>

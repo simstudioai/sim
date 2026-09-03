@@ -59,11 +59,14 @@ import {
   deleteTableViewContract,
   deleteWorkflowGroupContract,
   findTableRowsContract,
+  type GetTableRowResponse,
   getEnrichmentDetailContract,
   getTableContract,
+  getTableRowContract,
   type InsertTableRowBodyInput,
   listActiveDispatchesContract,
   listTableJobsContract,
+  listTableNamesContract,
   listTableRowsContract,
   listTablesContract,
   listTableViewsContract,
@@ -144,6 +147,8 @@ export const TABLE_FIND_STALE_TIME = 30 * 1000
 export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
+const TABLE_REFERENCE_PREVIEW_STALE_TIME = Number.POSITIVE_INFINITY
+const TABLE_REFERENCE_PREVIEW_GC_TIME = 0
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
@@ -217,10 +222,45 @@ async function fetchTableRows({
   return { rows, totalCount, nextCursor }
 }
 
+async function fetchTableRow(
+  workspaceId: string,
+  tableId: string,
+  rowId: string,
+  signal?: AbortSignal
+): Promise<GetTableRowResponse['data']['row'] | null> {
+  try {
+    const response = await requestJson(getTableRowContract, {
+      params: { tableId, rowId },
+      query: { workspaceId },
+      signal,
+    })
+    return response.data.row
+  } catch (error) {
+    if (isApiClientError(error) && error.status === 404) return null
+    throw error
+  }
+}
+
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+}
+
+function invalidateReferencePreviews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  rowIds: ReadonlySet<string>
+) {
+  const previewsRoot = tableKeys.referencePreviews()
+  queryClient.invalidateQueries({
+    queryKey: previewsRoot,
+    predicate: (query) => {
+      const targetTableId = query.queryKey[previewsRoot.length]
+      const targetRowId = query.queryKey[previewsRoot.length + 1]
+      return targetTableId === tableId && typeof targetRowId === 'string' && rowIds.has(targetRowId)
+    },
+  })
 }
 
 /**
@@ -301,6 +341,22 @@ export function useTablesList(
   })
 }
 
+export function useTableNames(workspaceId?: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: tableKeys.names(workspaceId),
+    queryFn: async ({ signal }) => {
+      if (!workspaceId) throw new Error('Workspace ID required')
+      const response = await requestJson(listTableNamesContract, {
+        query: { workspaceId },
+        signal,
+      })
+      return response.data.tables
+    },
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    staleTime: TABLE_LIST_STALE_TIME,
+  })
+}
+
 /**
  * Fetch a single table by id.
  */
@@ -311,6 +367,44 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_DETAIL_STALE_TIME,
+  })
+}
+
+interface ReferenceRowPreviewParams {
+  workspaceId: string | undefined
+  tableId: string | undefined
+  rowId: string | undefined
+  sourceRowId?: string
+  sourceColumnKey?: string
+}
+
+/** Loads a referenced table and row together for an expanded source cell. */
+export function useReferenceRowPreview({
+  workspaceId,
+  tableId,
+  rowId,
+  sourceRowId,
+  sourceColumnKey,
+}: ReferenceRowPreviewParams) {
+  const queryClient = useQueryClient()
+  // rq-lint-allow: tableId is globally unique; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
+  return useQuery({
+    queryKey: tableKeys.referencePreview(tableId ?? '', rowId ?? '', sourceRowId, sourceColumnKey),
+    queryFn: async ({ signal }) => {
+      const [table, row] = await Promise.all([
+        queryClient.fetchQuery(
+          getTableDetailQueryOptions(workspaceId as string, tableId as string)
+        ),
+        fetchTableRow(workspaceId as string, tableId as string, rowId as string, signal),
+      ])
+      return { table, row }
+    },
+    enabled: Boolean(workspaceId && tableId && rowId && sourceRowId && sourceColumnKey),
+    staleTime: TABLE_REFERENCE_PREVIEW_STALE_TIME,
+    gcTime: TABLE_REFERENCE_PREVIEW_GC_TIME,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 
@@ -1154,6 +1248,9 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
+    onSettled: (_data, _error, { rowId }) => {
+      invalidateReferencePreviews(queryClient, tableId, new Set([rowId]))
+    },
   })
 }
 
@@ -1228,6 +1325,10 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
+    onSettled: (_data, _error, { updates }) => {
+      const rowIds = new Set(updates.map(({ rowId }) => rowId))
+      invalidateReferencePreviews(queryClient, tableId, rowIds)
+    },
   })
 }
 
@@ -1249,8 +1350,9 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
+    onSettled: (_data, _error, rowId) => {
       invalidateRowCount(queryClient, tableId)
+      invalidateReferencePreviews(queryClient, tableId, new Set([rowId]))
     },
   })
 }
@@ -1298,8 +1400,9 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
+    onSettled: (_data, _error, rowIds) => {
       invalidateRowCount(queryClient, tableId)
+      invalidateReferencePreviews(queryClient, tableId, new Set(rowIds))
     },
   })
 }

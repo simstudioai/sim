@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { type BulkItemDisposition, classifyBulkItemError } from '@/lib/core/application/bulk-items'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -32,6 +33,10 @@ import {
 } from '@/lib/table/application/context'
 import { resolveTableFolderPath } from '@/lib/table/application/folder-paths'
 import { tableOperations } from '@/lib/table/application/operations'
+import {
+  findActiveTableReferenceBlockers,
+  tableReferenceBlockerMessage,
+} from '@/lib/table/column-types/registry.server'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 
@@ -496,6 +501,33 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
       TABLE_FOLDER_RESOURCE_TYPE,
       context.folderIds
     )
+    const referenceBlockers = await findActiveTableReferenceBlockers(db, context.workspaceId, {
+      tableIds: context.tableIds,
+      folderIds: plan.covered,
+    })
+    const blockersByTargetTableId = new Map<string, (typeof referenceBlockers)[number][]>()
+    for (const blocker of referenceBlockers) {
+      const targetBlockers = blockersByTargetTableId.get(blocker.targetTableId) ?? []
+      targetBlockers.push(blocker)
+      blockersByTargetTableId.set(blocker.targetTableId, targetBlockers)
+    }
+    const blockedFolderIds =
+      referenceBlockers.length === 0
+        ? new Map()
+        : new Map(
+            plan.selected.flatMap((folder) => {
+              const coveredFolderIds = plan.coveredBySelected.get(folder.id)
+              if (!coveredFolderIds) {
+                throw new Error(`Missing folder coverage for ${folder.id}`)
+              }
+              const blocker = referenceBlockers.find(
+                (candidate) =>
+                  candidate.targetFolderId !== null &&
+                  coveredFolderIds.has(candidate.targetFolderId)
+              )
+              return blocker ? [[folder.id, blocker] as const] : []
+            })
+          )
 
     const deleted: BulkTableItem[] = []
     const outcome: BulkTablesOutcome = { skipped: [], notFound: [], failed: [] }
@@ -508,6 +540,16 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
         plan.covered,
         (canonical) => authorizeTableOperation(principal, tableOperations.bulkDelete, canonical),
         async (canonical) => {
+          const blockers = blockersByTargetTableId.get(canonical.table.id)
+          if (blockers && blockers.length > 0) {
+            throw new OrchestrationError(
+              'conflict',
+              tableReferenceBlockerMessage(
+                canonical.table.name,
+                blockers.map((blocker) => blocker.referencingTableName)
+              )
+            )
+          }
           const { archived } = await deleteTable(canonical.table.id, generateRequestId(), {
             expectedWorkspaceId: context.workspaceId,
             skipNotify: true,
@@ -521,19 +563,33 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
 
       const deletedItems = { tables: deleted.length, folders: 0 }
       if (terminalError === undefined && plan.selected.length > 0) {
-        const folders = await bulkDeleteFolders({
-          workspaceId: context.workspaceId,
-          resourceType: TABLE_FOLDER_RESOURCE_TYPE,
-          userId: resolvePrincipalAttribution(principal, {
-            workspaceBillingOwnerUserId: context.billedAccountUserId,
-          }).attributedUserId,
-          folders: plan.selected,
-          countKey: 'tables',
+        const deletableFolders = plan.selected.filter((folder) => {
+          const blocker = blockedFolderIds.get(folder.id)
+          if (!blocker) return true
+          outcome.failed.push({
+            kind: 'folder',
+            ...folder,
+            reason: tableReferenceBlockerMessage(blocker.targetTableName, [
+              blocker.referencingTableName,
+            ]),
+          })
+          return false
         })
-        for (const folder of folders.succeeded) deleted.push({ kind: 'folder', ...folder })
-        for (const folder of folders.failed) outcome.failed.push({ kind: 'folder', ...folder })
-        deletedItems.folders = folders.folderCount
-        deletedItems.tables += folders.resourceCount
+        if (deletableFolders.length > 0) {
+          const folders = await bulkDeleteFolders({
+            workspaceId: context.workspaceId,
+            resourceType: TABLE_FOLDER_RESOURCE_TYPE,
+            userId: resolvePrincipalAttribution(principal, {
+              workspaceBillingOwnerUserId: context.billedAccountUserId,
+            }).attributedUserId,
+            folders: deletableFolders,
+            countKey: 'tables',
+          })
+          for (const folder of folders.succeeded) deleted.push({ kind: 'folder', ...folder })
+          for (const folder of folders.failed) outcome.failed.push({ kind: 'folder', ...folder })
+          deletedItems.folders = folders.folderCount
+          deletedItems.tables += folders.resourceCount
+        }
       }
 
       logger.info('Bulk archived tables and folders', {

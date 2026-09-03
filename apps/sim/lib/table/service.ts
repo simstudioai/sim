@@ -36,7 +36,11 @@ import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
-import { assertColumnReferencesInWorkspace } from '@/lib/table/column-types/registry.server'
+import {
+  assertColumnReferencesInWorkspace,
+  findActiveTableReferenceBlockers,
+  tableReferenceBlockerMessage,
+} from '@/lib/table/column-types/registry.server'
 import {
   COLUMN_TYPES,
   DEFAULT_TABLE_VIEW_NAME,
@@ -358,6 +362,21 @@ export async function listTables(
     .orderBy(...listOrderBy(TABLE_SORTS[sortBy], sortOrder))
 
   return hydrateTableRows(tables)
+}
+
+/** Lists active table IDs and names without materializing their schemas. */
+export async function listActiveTableNames(
+  workspaceId: string
+): Promise<Array<Pick<TableDefinition, 'id' | 'name'>>> {
+  return db
+    .select({ id: userTableDefinitions.id, name: userTableDefinitions.name })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
 }
 
 /** Loads at most two active exact-name matches so callers can fail on corrupt ambiguity. */
@@ -1155,32 +1174,11 @@ export async function deleteTable(
   options?: { archivedAt?: Date; skipNotify?: boolean; expectedWorkspaceId?: string }
 ): Promise<{ archived: { name: string; workspaceId: string | null } | null }> {
   const now = options?.archivedAt ?? new Date()
-  // Archiving destroys access to every row, so it is gated on the delete lock.
-  // The guard is inline in the WHERE (atomic — no separate read, no TOCTOU);
-  // a zero-row result is then disambiguated below (locked vs already-archived).
-  const result = await db
-    .update(userTableDefinitions)
-    .set({ archivedAt: now, updatedAt: now })
-    .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        options?.expectedWorkspaceId
-          ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
-          : undefined,
-        isNull(userTableDefinitions.archivedAt),
-        eq(userTableDefinitions.deleteLocked, false)
-      )
-    )
-    .returning({
-      createdBy: userTableDefinitions.createdBy,
-      workspaceId: userTableDefinitions.workspaceId,
-      name: userTableDefinitions.name,
-    })
-
-  const deleted = result[0]
-  if (!deleted) {
-    const [existing] = await db
+  const deleted = await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx)
+    const [existing] = await trx
       .select({
+        name: userTableDefinitions.name,
         archivedAt: userTableDefinitions.archivedAt,
         deleteLocked: userTableDefinitions.deleteLocked,
         workspaceId: userTableDefinitions.workspaceId,
@@ -1194,8 +1192,11 @@ export async function deleteTable(
             : undefined
         )
       )
+      .for('update')
       .limit(1)
-    if (existing && !existing.archivedAt && existing.deleteLocked) {
+
+    if (!existing || existing.archivedAt) return null
+    if (existing.deleteLocked) {
       logger.warn('Table mutation blocked by lock', {
         tableId,
         workspaceId: existing.workspaceId,
@@ -1203,8 +1204,39 @@ export async function deleteTable(
       })
       throw new TableLockedError('delete')
     }
-    // Otherwise the table is missing or already archived — a silent no-op, as before.
-  }
+
+    const blockers = existing.workspaceId
+      ? await findActiveTableReferenceBlockers(trx, existing.workspaceId, {
+          tableIds: [tableId],
+        })
+      : []
+    if (blockers.length > 0) {
+      throw new OrchestrationError(
+        'conflict',
+        tableReferenceBlockerMessage(
+          existing.name,
+          blockers.map((blocker) => blocker.referencingTableName)
+        )
+      )
+    }
+
+    const [archived] = await trx
+      .update(userTableDefinitions)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(userTableDefinitions.id, tableId),
+          isNull(userTableDefinitions.archivedAt),
+          eq(userTableDefinitions.deleteLocked, false)
+        )
+      )
+      .returning({
+        workspaceId: userTableDefinitions.workspaceId,
+        name: userTableDefinitions.name,
+      })
+    return archived ?? null
+  })
+
   logger.info(`[${requestId}] Archived table ${tableId}`)
   // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
   // Skipped under a folder cascade — deleteFolder fires one folder-level notify for the whole subtree,
@@ -1229,7 +1261,11 @@ export async function deleteTable(
 export async function restoreTable(
   tableId: string,
   requestId: string,
-  options?: { restoringFolderIds?: ReadonlySet<string>; skipNotify?: boolean }
+  options?: {
+    restoringFolderIds?: ReadonlySet<string>
+    restoringTableIds?: ReadonlySet<string>
+    skipNotify?: boolean
+  }
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
@@ -1274,7 +1310,25 @@ export async function restoreTable(
     try {
       await db.transaction(async (tx) => {
         await setTableTxTimeouts(tx)
-        await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
+        const [currentTable] = await tx
+          .select({
+            workspaceId: userTableDefinitions.workspaceId,
+            schema: userTableDefinitions.schema,
+          })
+          .from(userTableDefinitions)
+          .where(eq(userTableDefinitions.id, tableId))
+          .for('update')
+          .limit(1)
+        if (!currentTable) throw new OrchestrationError('not_found', 'Table not found')
+
+        const allowedArchivedTableIds = new Set(options?.restoringTableIds)
+        allowedArchivedTableIds.add(tableId)
+        await assertColumnReferencesInWorkspace(
+          tx,
+          currentTable.workspaceId,
+          (currentTable.schema as TableSchema).columns,
+          { allowedArchivedTableIds }
+        )
 
         attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
           const [match] = await tx

@@ -135,7 +135,9 @@ export type ForkLineageNodeApi = z.output<typeof forkLineageNodeSchema>
 export type ForkLineageChildApi = z.output<typeof forkLineageChildSchema>
 export type GetForkLineageResponse = z.output<typeof getForkLineageContract.response.schema>
 
-const forkResourceIdList = z.array(nonEmptyIdSchema).max(2000).optional()
+export const MAX_FORK_RESOURCE_IDS_PER_TYPE = 2_000
+
+const forkResourceIdList = z.array(nonEmptyIdSchema).max(MAX_FORK_RESOURCE_IDS_PER_TYPE).optional()
 
 export const forkResourceSelectionSchema = z.object({
   files: forkResourceIdList,

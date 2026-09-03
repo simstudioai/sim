@@ -30,6 +30,7 @@ describe('resolveCellRender', () => {
         exec: undefined,
         column: column('ttl'),
         waitingOnLabels: undefined,
+        referenceColumnsEnabled: false,
         timeZone: 'America/New_York',
       })
     ).toEqual({ kind: 'date', text: '2023-11-14T17:13:20-05:00' })
@@ -42,6 +43,7 @@ describe('resolveCellRender', () => {
         exec: undefined,
         column: column('ttl'),
         waitingOnLabels: undefined,
+        referenceColumnsEnabled: false,
         timeZone: 'America/Los_Angeles',
         timezoneStatus: 'invalid',
       })
@@ -55,6 +57,7 @@ describe('resolveCellRender', () => {
         exec: undefined,
         column: column('ttl'),
         waitingOnLabels: undefined,
+        referenceColumnsEnabled: false,
         timeZone: 'America/Los_Angeles',
         timezoneStatus: 'loading',
       })
@@ -68,6 +71,7 @@ describe('resolveCellRender', () => {
       exec: undefined,
       column: column('date'),
       waitingOnLabels: undefined,
+      referenceColumnsEnabled: false,
       timeZone: 'America/Los_Angeles',
       timezoneStatus: 'error',
     })

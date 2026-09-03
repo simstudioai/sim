@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
+import { Badge, Button, Checkbox, ChipTag, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
@@ -29,6 +29,7 @@ export type CellRenderKind =
   // Plain typed cells
   | { kind: 'boolean'; checked: boolean }
   | { kind: 'select'; options: SelectOption[] }
+  | { kind: 'reference-chip'; label: string }
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string; raw?: boolean }
   | { kind: 'url'; text: string; href: string; domain: string }
@@ -58,6 +59,7 @@ interface ResolveCellRenderInput {
   timeZone?: string
   /** Invalid or unavailable preferences render time-based values without conversion. */
   timezoneStatus?: TimezoneState['status']
+  referenceColumnsEnabled: boolean
 }
 
 export function resolveCellRender({
@@ -69,6 +71,7 @@ export function resolveCellRender({
   currentWorkspaceId,
   timeZone,
   timezoneStatus,
+  referenceColumnsEnabled,
 }: ResolveCellRenderInput): CellRenderKind {
   const isNull = value === null || value === undefined
   const isEmpty = isNull || value === ''
@@ -134,6 +137,16 @@ export function resolveCellRender({
   // "None" so every select cell reads as a clickable dropdown.
   if (column.type === 'select') {
     return { kind: 'select', options: resolveSelectOptions(column, value) }
+  }
+  const typeDefinition = columnTypeOf(column)
+  if (referenceColumnsEnabled && typeDefinition.referencePreview) {
+    const rowId = typeDefinition.referencePreview.getRowId(value)
+    return rowId
+      ? {
+          kind: 'reference-chip',
+          label: column.referenceTableName ?? 'Referenced table',
+        }
+      : { kind: 'empty' }
   }
   if (isNull) return { kind: 'empty' }
   // Formatted here rather than in a render branch because the symbol and
@@ -264,9 +277,19 @@ function extractSimResourceInfo(
 interface CellRenderProps {
   kind: CellRenderKind
   isEditing: boolean
+  referenceAction?: ReferenceCellAction
 }
 
-export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactElement | null {
+export interface ReferenceCellAction {
+  expanded: boolean
+  onClick: () => void
+}
+
+export function CellRender({
+  kind,
+  isEditing,
+  referenceAction,
+}: CellRenderProps): React.ReactElement | null {
   const valueText = kind.kind === 'value' ? kind.text : null
   const revealedValueText = useTypewriter(valueText)
 
@@ -387,6 +410,35 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
           )}
         </span>
       )
+
+    case 'reference-chip': {
+      const chip = (
+        <ChipTag
+          variant='field'
+          className={cn('min-w-0 max-w-full', isEditing && !referenceAction && 'invisible')}
+        >
+          <span className='truncate'>{kind.label}</span>
+        </ChipTag>
+      )
+      if (!referenceAction) return chip
+      return (
+        <Button
+          variant='ghost'
+          size='sm'
+          aria-expanded={referenceAction.expanded}
+          data-reference-cell-trigger=''
+          className={cn('min-w-0 max-w-full p-0', isEditing && 'invisible')}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (event.detail > 1) return
+            referenceAction.onClick()
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          {chip}
+        </Button>
+      )
+    }
 
     case 'json':
       return (

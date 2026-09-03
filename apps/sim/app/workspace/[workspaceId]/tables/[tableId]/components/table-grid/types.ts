@@ -22,6 +22,7 @@ export interface ColumnSourceInfo {
 export interface DisplayColumn extends ColumnDefinition {
   /** Stable per-visual-column identifier (= column.name). */
   key: string
+  referenceTableName?: string
   /** Block id producing this column's value (workflow-output columns only). */
   outputBlockId?: string
   /** Pluck path the workflow ran for this column. */
@@ -34,4 +35,11 @@ export interface DisplayColumn extends ColumnDefinition {
   headerLabel: string
   /** True when this is the leftmost sibling of its group (or non-grouped). */
   isGroupStart: boolean
+}
+
+export interface ReferencePreviewTarget {
+  sourceRowId: string
+  sourceColumnKey: string
+  referenceTableId: string
+  referenceRowId: string
 }
