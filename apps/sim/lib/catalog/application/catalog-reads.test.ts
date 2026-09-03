@@ -352,6 +352,64 @@ describe('catalog block and tool reads', () => {
     ).rejects.toMatchObject({ code: 'not_found', message: 'Block not found' })
   })
 
+  it('leaves a sunset block out of the list unless asked, while its detail leads with the state', async () => {
+    const legacyTable = block({
+      type: 'table',
+      name: 'Table',
+      description: 'Read and write table rows.',
+      hideFromToolbar: true,
+      sunset: { status: 'legacy', replacedBy: 'table_v2' },
+    })
+    mocks.getAllBlocks.mockReturnValue([slackBlock, legacyTable])
+    mocks.getBlock.mockImplementation((type: string) =>
+      [slackBlock, legacyTable].find((entry) => entry.type === type)
+    )
+    mocks.getLatestBlockForViewer.mockImplementation((type: string) =>
+      resolveLatestForViewer(type, [slackBlock, legacyTable])
+    )
+
+    const listed = await listCatalogBlocks.execute({ principal: session, input: listInput })
+    expect(listed.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
+
+    const included = await listCatalogBlocks.execute({
+      principal: session,
+      input: { ...listInput, includeSunset: true },
+    })
+    expect(included.entries.map((entry) => entry.id)).toEqual([
+      'loop',
+      'parallel',
+      'slack',
+      'table',
+    ])
+
+    const table = included.entries.find((entry) => entry.id === 'table')
+    expect(table?.sunset).toEqual({ status: 'legacy', replacedBy: 'table_v2' })
+
+    /** The detail read applies the list's default gate: a hidden legacy block stays 404. */
+    await expect(
+      getCatalogBlock.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID, blockId: 'table' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('keeps a kill-switched sunset block hidden even when sunset blocks are asked for', async () => {
+    const legacyTable = block({
+      type: 'table',
+      hideFromToolbar: true,
+      sunset: { status: 'legacy', replacedBy: 'table_v2' },
+    })
+    mocks.getAllBlocks.mockReturnValue([slackBlock, legacyTable])
+    setVisibility({ ...NOTHING_GATED, disabled: new Set(['table']) })
+
+    const included = await listCatalogBlocks.execute({
+      principal: session,
+      input: { ...listInput, includeSunset: true },
+    })
+    expect(included.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
+  })
+
   it('reveals a preview block once the visibility document names it', async () => {
     mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
     setVisibility({

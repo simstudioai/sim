@@ -183,6 +183,24 @@ describe('block detail regressions', () => {
     }
   })
 
+  /**
+   * `blocks get table` handed an agent a detail whose `sunset` sat below the
+   * operations it had already read, and it built with the superseded block.
+   */
+  it('leads a sunset block’s detail with its lifecycle state and successor', () => {
+    const detail = projectBlockDetail(registered('table'), { deployment: HOSTED })
+    expect(Object.keys(detail)[0]).toBe('sunset')
+    expect(detail.sunset).toEqual({ status: 'legacy', replacedBy: 'table_v2' })
+    expect(detail.description.startsWith('Legacy — replaced by table_v2. ')).toBe(true)
+    expect(v2BlockDetailSchema.parse(JSON.parse(JSON.stringify(detail))).description).toBe(
+      detail.description
+    )
+
+    const current = projectBlockDetail(registered('table_v2'), { deployment: HOSTED })
+    expect(current.sunset).toBeUndefined()
+    expect(current.description.startsWith('Legacy')).toBe(false)
+  })
+
   it('publishes a triggers-category block’s trigger-mode fields as its input schema', () => {
     const detail = projectBlockDetail(registered('schedule'), { deployment: HOSTED })
     const ids = detail.inputSchema.map((field) => field.id)

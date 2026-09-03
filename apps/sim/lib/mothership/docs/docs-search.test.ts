@@ -136,6 +136,29 @@ describe('searchDocs results', () => {
     mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
   })
 
+  it('titles a result by its page, with the section only when it adds something', async () => {
+    mockRows.value = [
+      {
+        chunkText: 'faq',
+        sourceDocument: 'tables/index.mdx',
+        sourceLink: 'https://docs.sim.ai/tables#next',
+        headerText: 'Next',
+        metadata: { title: 'Tables' },
+        similarity: 0.9,
+      },
+      {
+        chunkText: 'intro',
+        sourceDocument: 'tables/index.mdx',
+        sourceLink: 'https://docs.sim.ai/tables',
+        headerText: 'Tables',
+        metadata: { title: 'Tables' },
+        similarity: 0.8,
+      },
+    ]
+    const { results } = await searchDocs('tables')
+    expect(results.map((result) => result.title)).toEqual(['Tables › Next', 'Tables'])
+  })
+
   it('returns the docs/ path to read next, folding index pages', async () => {
     mockRows.value = [
       {

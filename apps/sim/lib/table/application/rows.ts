@@ -18,6 +18,7 @@ import type {
   Filter,
   ReplaceRowsResult,
   RowData,
+  RowExecutionMetadata,
   RowExecutions,
   Sort,
   SortSpec,
@@ -26,6 +27,7 @@ import type {
   TableRow,
   TableRowSecretProvenanceWrite,
   TableRowsCursor,
+  WorkflowGroup,
 } from '@/lib/table'
 import {
   batchInsertRows,
@@ -681,15 +683,23 @@ export interface ReadTableRowEnrichmentInput extends TableScopedInput {
 }
 
 export interface ReadTableRowEnrichmentResult extends TableResult {
+  /** The stored row, whose cells hold whatever the group's runs have written. */
+  row: TableRowSummary
+  /** The group asked about, resolved from the table schema. */
+  group: WorkflowGroup
+  /** The group's most recent run on this row, or null when it has never run. */
+  runState: RowExecutionMetadata | null
+  /** The enrichment cascade breakdown, or null when none was recorded. */
   detail: Awaited<ReturnType<typeof loadEnrichmentDetail>>
 }
 
 /**
- * The enrichment cascade breakdown — provider outcomes, cost, timing — for one
- * cell. Deliberately kept off the hot grid read and fetched on demand by the
- * details panel; `null` for a cell with no recorded run, or a run predating the
- * feature. The row id and group id are validated first so an unknown id 404s
- * instead of being indistinguishable from "no enrichment run yet".
+ * One group's outcome on one row: its run state, the row it wrote into, and
+ * the enrichment cascade breakdown — provider outcomes, cost, timing — kept off
+ * the hot grid read and fetched on demand. The row id and group id are
+ * validated first so an unknown id 404s instead of being indistinguishable
+ * from "no run yet"; a row that exists always answers, with `runState: null`
+ * when the group has never run for it.
  *
  * Shares {@link tableOperations.readRow}: this is a projection of the same row,
  * under the same role, so it is not a second semantic operation.
@@ -699,17 +709,24 @@ export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: ReadTableRowEnrichmentInput }) =>
     resolveActiveTableContext(input),
   async execute({ input, context }): Promise<ReadTableRowEnrichmentResult> {
-    const rowExists = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
-    if (!rowExists) throw new OrchestrationError('not_found', 'Row not found')
-    const groupExists = (context.table.schema.workflowGroups ?? []).some(
-      (group) => group.id === input.groupId
+    const row = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
+    if (!row) throw new OrchestrationError('not_found', 'Row not found')
+    const group = (context.table.schema.workflowGroups ?? []).find(
+      (candidate) => candidate.id === input.groupId
     )
-    if (!groupExists) {
+    if (!group) {
       throw new OrchestrationError('not_found', 'Workflow group not found')
     }
+    const [executions, detail] = await Promise.all([
+      loadExecutionsForRow(db, input.rowId, { budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES }),
+      loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+    ])
     return {
       table: context.table,
-      detail: await loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+      row,
+      group,
+      runState: executions[input.groupId] ?? null,
+      detail,
     }
   },
 })

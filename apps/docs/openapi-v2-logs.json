@@ -219,6 +219,16 @@
             }
           },
           {
+            "name": "includeHandledErrors",
+            "in": "query",
+            "required": false,
+            "description": "Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.",
+            "schema": {
+              "description": "Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.",
+              "type": "boolean"
+            }
+          },
+          {
             "name": "status",
             "in": "query",
             "required": false,
@@ -475,6 +485,16 @@
               "type": "string",
               "enum": ["info", "error"],
               "description": "Severity level to include."
+            }
+          },
+          {
+            "name": "includeHandledErrors",
+            "in": "query",
+            "required": false,
+            "description": "Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace.",
+            "schema": {
+              "description": "Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace.",
+              "type": "boolean"
             }
           },
           {
@@ -951,6 +971,10 @@
             ],
             "description": "Files the run produced, or null when none are recorded. Only the run's own output files appear; input attachments a caller supplied are addressed through the files API instead."
           },
+          "hasHandledErrors": {
+            "type": "boolean",
+            "description": "Whether a block in the run errored and was recovered by an error path. Such a run keeps `level: info`, so this is the only place the handled error shows at run level; pass `includeHandledErrors=true` with `level=error` to list these runs. Always false for a job run."
+          },
           "workflow": {
             "type": "object",
             "properties": {
@@ -1012,7 +1036,8 @@
           "endedAt",
           "totalDurationMs",
           "cost",
-          "files"
+          "files",
+          "hasHandledErrors"
         ],
         "additionalProperties": false,
         "title": "Execution log summary",
@@ -1260,6 +1285,7 @@
                 "cost": {
                   "total": 0.0032
                 },
+                "hasHandledErrors": false,
                 "files": [
                   {
                     "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
@@ -1797,6 +1823,10 @@
           "totalErrors": {
             "type": "number",
             "description": "Runs in the window that errored."
+          },
+          "handledErrorRuns": {
+            "description": "Runs in the window in which a block errored and was recovered by an error path. Such runs count as successful in every other figure. Present only when `includeHandledErrors=true`.",
+            "type": "number"
           },
           "avgLatency": {
             "type": "number",

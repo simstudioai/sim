@@ -3640,6 +3640,16 @@
             }
           },
           {
+            "name": "includeSunset",
+            "in": "query",
+            "required": false,
+            "description": "Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.",
+            "schema": {
+              "description": "Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.",
+              "type": "boolean"
+            }
+          },
+          {
             "name": "sortBy",
             "in": "query",
             "required": false,

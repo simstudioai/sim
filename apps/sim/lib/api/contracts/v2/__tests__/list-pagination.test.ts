@@ -154,6 +154,8 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/blocks': [
     'workspaceId',
     'search',
+    /** Admits sunset blocks into the sequence. */
+    'includeSunset',
     'category',
     'capability',
     'source',
@@ -217,6 +219,8 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'workflowName',
     /** Decides whether the job-run branch is part of the sequence at all. */
     'includeJobRuns',
+    /** Widens what `level=error` selects, so it changes the sequence. */
+    'includeHandledErrors',
   ],
   'GET /api/v2/mcp-servers': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/secrets': ['workspaceId', 'scope', 'search', 'sortBy', 'sortOrder'],

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -690,6 +690,12 @@ export const v2ListBlocksQuerySchema = catalogWorkspaceQuerySchema
       .enum(['builtin', 'custom'])
       .optional()
       .describe('Restrict to shipped blocks or to this workspace’s deployed custom blocks.'),
+    includeSunset: booleanQueryFlagSchema
+      .optional()
+      .default(false)
+      .describe(
+        'Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.'
+      ),
     ...v2SortFields(v2BlockSortFields, { sortBy: 'id', sortOrder: 'asc' }),
     ...v2PaginationFields({ description: 'Maximum blocks to return per page.' }),
   })

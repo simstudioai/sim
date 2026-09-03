@@ -19,6 +19,26 @@ const SIMILARITY_THRESHOLD = 0.3
 const DEFAULT_TOP_K = 5
 const MAX_TOP_K = 25
 
+/**
+ * `Page › Section` when the chunk sits under a named section, else the page
+ * title. The section alone misled: a page's last chunk sits under its trailing
+ * `## Next` nav heading, so `docs search` answered results titled "Next" with
+ * nothing saying which page they were from. Rows indexed before the chunker
+ * recorded a page title fall back to the section header they always had.
+ */
+function resultTitle(metadata: unknown, headerText: string): string {
+  const pageTitle =
+    metadata && typeof metadata === 'object' && 'title' in metadata
+      ? (metadata as { title?: unknown }).title
+      : undefined
+  if (typeof pageTitle !== 'string' || pageTitle.trim().length === 0) return headerText
+  const section = headerText.trim()
+  if (section.length === 0 || section === pageTitle || section === 'Document Root') {
+    return pageTitle
+  }
+  return `${pageTitle} › ${section}`
+}
+
 export interface DocsSearchResult {
   /** The `docs/` VFS path this chunk came from — pass it to `read` for the full page. */
   path: string
@@ -164,6 +184,7 @@ export async function searchDocs(
       sourceDocument: docsEmbeddings.sourceDocument,
       sourceLink: docsEmbeddings.sourceLink,
       headerText: docsEmbeddings.headerText,
+      metadata: docsEmbeddings.metadata,
       similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${queryVector}::vector)`,
     })
     .from(docsEmbeddings)
@@ -187,7 +208,7 @@ export async function searchDocs(
     results.push({
       path,
       url: row.sourceLink,
-      title: row.headerText,
+      title: resultTitle(row.metadata, row.headerText),
       content: row.chunkText,
       similarity: row.similarity,
     })

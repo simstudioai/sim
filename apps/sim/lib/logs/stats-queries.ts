@@ -1,6 +1,7 @@
 import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { eq, type SQL, sql } from 'drizzle-orm'
+import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
 
 /** Oldest and newest run start in the filtered set, or nulls when it is empty. */
 export interface LogStatsBounds {
@@ -16,6 +17,16 @@ export interface LogStatsSegmentRow {
   totalExecutions: number
   successfulExecutions: number
   avgDurationMs: number
+  /** Runs holding a handled block error. Always 0 unless the read counted them. */
+  handledErrorRuns: number
+}
+
+export interface ReadLogStatsSegmentsOptions {
+  /**
+   * Whether to count runs with a handled block error per bucket. Opt-in: it
+   * scans each run's stored execution data, so it is paid only when asked for.
+   */
+  countHandledErrors?: boolean
 }
 
 /**
@@ -54,10 +65,15 @@ export async function readLogStatsBounds(where: SQL | undefined): Promise<LogSta
 export async function readLogStatsSegments(
   where: SQL | undefined,
   startTimeIso: string,
-  segmentMs: number
+  segmentMs: number,
+  options: ReadLogStatsSegmentsOptions = {}
 ): Promise<LogStatsSegmentRow[]> {
   return dbReplica
     .select({
+      handledErrorRuns: (options.countHandledErrors
+        ? sql<number>`COUNT(*) FILTER (WHERE ${handledErrorSpanCondition()})`
+        : sql<number>`0`
+      ).as('handled_error_runs'),
       workflowId: sql<string>`COALESCE(${workflowExecutionLogs.workflowId}, 'deleted')`,
       workflowName: sql<string>`COALESCE(${workflow.name}, 'Deleted Workflow')`,
       segmentIndex:

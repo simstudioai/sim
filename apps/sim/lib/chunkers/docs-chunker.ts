@@ -23,6 +23,29 @@ interface Frontmatter {
 const logger = createLogger('DocsChunker')
 
 /**
+ * A line that is nothing but one markdown link — `[Next](/docs/tables/…)`,
+ * `[← Back](…)`. Docs pages end on these, and they name the neighbour, not the
+ * page, so neither a title nor a section header may be read from one.
+ */
+const LINK_ONLY_LINE = /^\s*\[[^\]]*\]\([^)]*\)\s*$/
+
+/**
+ * The page's own title: the frontmatter `title`, else the first `#` heading
+ * that is not a link-only line, else nothing. A chunk's `headerText` still
+ * names its section; this is what a search result is titled by when the
+ * section header would mislead — the last chunk of a page sits under its
+ * trailing nav, so it used to surface titled by that link.
+ */
+export function resolveDocumentTitle(
+  frontmatter: Frontmatter,
+  headers: readonly HeaderInfo[]
+): string | undefined {
+  const declared = typeof frontmatter.title === 'string' ? frontmatter.title.trim() : ''
+  if (declared.length > 0) return declared
+  return headers.find((header) => header.level === 1)?.text
+}
+
+/**
  * One `{ question: "...", answer: "..." }` FAQ item, in either quote style and
  * with an optional trailing comma (`session-policies.mdx` uses single-quoted
  * multiline items). Each captured value keeps its surrounding quotes — the
@@ -114,6 +137,7 @@ export class DocsChunker {
     const { chunks: textChunks, cleanedContent } = await this.splitContent(markdownContent)
 
     const headers = this.extractHeaders(cleanedContent)
+    const title = resolveDocumentTitle(frontmatter, headers)
 
     logger.info(`Generating embeddings for ${textChunks.length} chunks in ${relativePath}`)
     const embeddingModel = getConfiguredEmbeddingModel()
@@ -135,14 +159,14 @@ export class DocsChunker {
         tokenCount: estimateTokens(chunkText),
         sourceDocument: relativePath,
         headerLink: relevantHeader ? `${documentUrl}#${relevantHeader.anchor}` : documentUrl,
-        headerText: relevantHeader?.text || frontmatter.title || 'Document Root',
+        headerText: relevantHeader?.text || title || 'Document Root',
         headerLevel: relevantHeader?.level || 1,
         embedding: embeddings[i] || [],
         embeddingModel,
         metadata: {
           startIndex: chunkStart,
           endIndex: chunkEnd,
-          title: frontmatter.title,
+          title,
         },
       }
 
@@ -180,6 +204,8 @@ export class DocsChunker {
     while ((match = headerRegex.exec(content)) !== null) {
       const level = match[1].length
       const text = match[2].trim()
+      // A heading that is only a link (`## [Next](…)`) is navigation, not a section.
+      if (LINK_ONLY_LINE.test(text)) continue
       const anchor = this.generateAnchor(text)
 
       headers.push({

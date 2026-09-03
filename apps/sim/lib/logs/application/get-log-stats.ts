@@ -57,10 +57,17 @@ export const getLogStats = defineAuthorizedWorkspaceUseCase({
       requestedStart: input.filters.startDate,
       requestedEnd: input.filters.endDate,
     })
-    const rows = await readLogStatsSegments(where, window.startTime.toISOString(), window.segmentMs)
+    const includeHandledErrors = input.filters.includeHandledErrors === true
+    const rows = await readLogStatsSegments(
+      where,
+      window.startTime.toISOString(),
+      window.segmentMs,
+      { countHandledErrors: includeHandledErrors }
+    )
     return buildDashboardStats(rows, window, input.segmentCount, {
       maxWorkflows: MAX_STATS_WORKFLOWS,
       includeEmpty: input.includeEmpty === true,
+      includeHandledErrors,
     })
   },
 })

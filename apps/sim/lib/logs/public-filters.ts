@@ -1,6 +1,7 @@
 import { jobExecutionLogs, workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, or, type SQL, sql } from 'drizzle-orm'
 import { escapeLikePattern } from '@/lib/api/list-query'
+import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
 import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 
 /** Query filters shared by the v1 and v2 public log adapters. */
@@ -21,6 +22,12 @@ export interface LogFilters {
    */
   triggers?: string[]
   level?: 'info' | 'error'
+  /**
+   * Whether `level: 'error'` also selects runs that finished at `info` after a
+   * block error was recovered by an error path. Off by default: those runs
+   * succeeded, so they are errors only to a caller auditing error handling.
+   */
+  includeHandledErrors?: boolean
   /**
    * Persisted execution statuses to include, matched against the same column the
    * responses report. Deliberately not derived from `level` + `ended_at` the way
@@ -74,7 +81,12 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
 
   // Level filter
   if (filters.level) {
-    conditions.push(eq(workflowExecutionLogs.level, filters.level))
+    const byLevel = eq(workflowExecutionLogs.level, filters.level)
+    conditions.push(
+      filters.level === 'error' && filters.includeHandledErrors
+        ? (or(byLevel, handledErrorSpanCondition()) ?? byLevel)
+        : byLevel
+    )
   }
 
   if (filters.statuses && filters.statuses.length > 0) {

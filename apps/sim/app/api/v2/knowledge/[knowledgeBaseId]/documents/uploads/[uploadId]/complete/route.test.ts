@@ -41,33 +41,6 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { knowledgeBaseDocumentsUploaded: mocks.platformEvent },
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
-vi.mock('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/utils', () => ({
-  toV2KnowledgeDocumentUpload: (_session: unknown, document: { id: string } | null) => ({
-    id: 'upload-1',
-    knowledgeBaseId: 'kb-1',
-    status: 'completed',
-    name: 'guide.pdf',
-    contentType: 'application/pdf',
-    size: 1024,
-    expiresAt: '2026-08-04T21:00:00.000Z',
-    error: null,
-    document: document
-      ? {
-          id: document.id,
-          knowledgeBaseId: 'kb-1',
-          filename: 'guide.pdf',
-          fileSize: 1024,
-          mimeType: 'application/pdf',
-          processingStatus: 'pending',
-          chunkCount: 0,
-          tokenCount: 0,
-          characterCount: 0,
-          enabled: true,
-          createdAt: '2026-08-03T21:01:00.000Z',
-        }
-      : null,
-  }),
-}))
 
 import { POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route'
 
@@ -84,8 +57,19 @@ const DOCUMENT = {
   enabled: true,
   uploadedAt: new Date('2026-08-03T21:01:00.000Z'),
 }
+/** The session as the completion use case hands it back, in storage shape. */
+const SESSION = {
+  id: 'upload-1',
+  knowledgeBaseId: 'kb-1',
+  status: 'completed',
+  fileName: 'guide.pdf',
+  contentType: 'application/pdf',
+  fileSize: 1024,
+  expiresAt: new Date('2026-08-04T21:00:00.000Z'),
+  error: null,
+}
 const RESULT = {
-  session: { id: 'upload-1' },
+  session: SESSION,
   value: { document: DOCUMENT, created: true, knowledgeBaseName: 'Docs' },
   alreadyCompleted: false,
   workspaceId: WORKSPACE_ID,
@@ -158,6 +142,32 @@ describe('POST knowledge-document upload completion', () => {
     )
     expect(mocks.platformEvent).toHaveBeenCalledTimes(1)
     expect(await response.json()).toMatchObject({ data: { document: { id: 'upload-1' } } })
+  })
+
+  /**
+   * `knowledge documents upload` answered `filename: null, processingStatus: null`:
+   * the created row must come back under its own names, freshly `pending`
+   * with no chunks yet, not only as a session receipt.
+   */
+  it('publishes the created row with its filename, pending status, and zero chunks', async () => {
+    mocks.completeUpload.mockResolvedValue(RESULT)
+
+    const response = await request().response
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data).toMatchObject({
+      id: 'upload-1',
+      status: 'completed',
+      name: 'guide.pdf',
+      document: {
+        id: 'upload-1',
+        filename: 'guide.pdf',
+        processingStatus: 'pending',
+        chunkCount: 0,
+        createdAt: '2026-08-03T21:01:00.000Z',
+      },
+    })
   })
 
   it('does not duplicate analytics for an idempotent completion retry', async () => {

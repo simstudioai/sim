@@ -56,6 +56,16 @@ export async function resolveCatalogGate(
   return { allowedIntegrations, visibility, customBlockRows }
 }
 
+/** Per-read relaxations of the visibility predicate. */
+export interface BlockVisibilityOptions {
+  /**
+   * Admit a sunset (`legacy` / `deprecated`) block that is hidden from the
+   * toolbar. Only the lifecycle hide is lifted: an unrevealed preview block, a
+   * kill-switched one, and one the workspace excludes stay hidden.
+   */
+  includeSunset?: boolean
+}
+
 /**
  * Whether this caller may see a block at all.
  *
@@ -63,8 +73,12 @@ export async function resolveCatalogGate(
  * detail route 404s on it. Applying a weaker rule to the detail route would let
  * a caller enumerate unrevealed preview blocks one id at a time.
  */
-export function isBlockVisibleToCaller(block: BlockConfig, gate: CatalogGate): boolean {
-  if (block.hideFromToolbar) return false
+export function isBlockVisibleToCaller(
+  block: BlockConfig,
+  gate: CatalogGate,
+  options: BlockVisibilityOptions = {}
+): boolean {
+  if (block.hideFromToolbar && !(options.includeSunset && block.sunset)) return false
   if (isHiddenUnder(gate.visibility, block)) return false
   if (!isIntegrationDeploymentAvailableForVisibility(block.type, gate.visibility)) return false
   return isBlockTypeAllowed(block.type, gate)

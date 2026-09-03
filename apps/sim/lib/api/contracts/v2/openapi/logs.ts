@@ -37,6 +37,7 @@ const LOG_LIST_EXAMPLE = {
       endedAt: '2026-01-15T10:30:01.250Z',
       totalDurationMs: 1250,
       cost: { total: 0.0032 },
+      hasHandledErrors: false,
       files: [
         {
           id: 'f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04',

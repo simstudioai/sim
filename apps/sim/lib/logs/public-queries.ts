@@ -26,6 +26,7 @@ import {
 } from '@/lib/api/list-query'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { folderScopeCondition, type LogFolderScope } from '@/lib/logs/folder-scope'
+import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
 import {
   buildJobLogFilters,
   buildLogFilters,
@@ -115,6 +116,8 @@ function workflowLogQuery(includeExecutionData: boolean) {
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
+      /** Published on every row: a handled block error is invisible in `level`. */
+      hasHandledErrors: handledErrorSpanCondition(),
       executionData: includeExecutionData ? workflowExecutionLogs.executionData : sql`null`,
       workflowName: workflow.name,
       workflowDescription: workflow.description,

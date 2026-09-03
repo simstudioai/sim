@@ -8,8 +8,11 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
   getConfiguredEmbeddingModel: vi.fn(() => 'test-model'),
 }))
 
+import { mkdtemp, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
-import { DocsChunker } from '@/lib/chunkers/docs-chunker'
+import { DocsChunker, resolveDocumentTitle } from '@/lib/chunkers/docs-chunker'
 
 function cleanContent(content: string): string {
   const chunker = new DocsChunker()
@@ -184,5 +187,67 @@ describe('DocsChunker output budget', () => {
     const longLine = 'a'.repeat(120)
 
     expect(() => enforceSizeLimit([`${longLine}\n${longLine}`])).toThrow(ChunkLimitExceededError)
+  })
+})
+
+/**
+ * `docs search --path docs/tables` answered results titled "Next": every page
+ * ends on a nav link, so the last chunk sat under it and the indexer read the
+ * link as its header. A title comes from the frontmatter, else the first `#`
+ * heading, and never from a link-only line.
+ */
+describe('DocsChunker page title', () => {
+  const NAV_LINK = '[Next](/docs/tables/workflow-columns)'
+  const PARAGRAPH =
+    'Tables store rows your workflows read and write. Columns are typed, and every write is validated against the schema before it lands, so a bad row never reaches a downstream block. '
+  const BODY = `# Tables
+
+${PARAGRAPH.repeat(3)}
+
+## Querying rows
+
+Use the Table block to query, insert, or update rows from a workflow. ${PARAGRAPH.repeat(3)}
+
+## ${NAV_LINK}
+
+${NAV_LINK}
+`
+
+  async function chunkPage(content: string) {
+    const dir = await mkdtemp(join(tmpdir(), 'docs-chunker-'))
+    const file = join(dir, 'tables.mdx')
+    await writeFile(file, content)
+    return new DocsChunker({ chunkSize: 100, chunkOverlap: 0 }).chunkMdxFile(file, dir)
+  }
+
+  it('titles every chunk by the frontmatter title and never by the trailing nav link', async () => {
+    const chunks = await chunkPage(`---\ntitle: Tables overview\n---\n${BODY}`)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.metadata.title).toBe('Tables overview')
+      expect(chunk.headerText).not.toBe(NAV_LINK)
+      expect(chunk.headerText).not.toBe('Next')
+    }
+    expect(chunks.at(-1)?.headerText).toBe('Querying rows')
+  })
+
+  it('falls back to the first # heading when there is no frontmatter title', async () => {
+    const chunks = await chunkPage(BODY)
+
+    expect(chunks.length).toBeGreaterThan(0)
+    for (const chunk of chunks) expect(chunk.metadata.title).toBe('Tables')
+  })
+
+  it('never resolves a link-only heading as the title', () => {
+    expect(
+      resolveDocumentTitle({}, [{ level: 2, text: NAV_LINK, anchor: 'next', position: 0 }])
+    ).toBeUndefined()
+    expect(
+      resolveDocumentTitle({ title: '  ' }, [
+        { level: 2, text: 'Querying rows', anchor: 'querying-rows', position: 0 },
+        { level: 1, text: 'Tables', anchor: 'tables', position: 10 },
+      ])
+    ).toBe('Tables')
   })
 })

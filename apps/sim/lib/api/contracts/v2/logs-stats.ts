@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { MAX_STATS_SEGMENT_COUNT, MAX_STATS_WORKFLOWS } from '@/lib/api/contracts/logs'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   V2_FALSE_VALUES,
@@ -121,6 +121,12 @@ export const v2LogStatsSchema = z
       ),
     totalRuns: z.number().describe('Runs in the window across the whole workspace.'),
     totalErrors: z.number().describe('Runs in the window that errored.'),
+    handledErrorRuns: z
+      .number()
+      .optional()
+      .describe(
+        'Runs in the window in which a block errored and was recovered by an error path. Such runs count as successful in every other figure. Present only when `includeHandledErrors=true`.'
+      ),
     avgLatency: z
       .number()
       .describe('Mean run duration in milliseconds across the window, weighted by run count.'),
@@ -208,6 +214,12 @@ export const v2LogStatsQuerySchema = z
       })
       .optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
+    includeHandledErrors: booleanQueryFlagSchema
+      .describe(
+        'Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace.'
+      )
+      .optional()
+      .default(false),
     startDate: v2RunWindowBoundSchema('startDate').optional(),
     endDate: v2RunWindowBoundSchema('endDate').optional(),
     segmentCount: v2SegmentCountSchema,
