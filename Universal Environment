@@ -1,0 +1,114 @@
+`
+
+============================
+
+CORE APP CONFIG
+
+============================
+APP_ENV=production
+APP_PORT=8080
+APP_URL=http://localhost:8080
+APP_NAME=unified-assistant-system
+
+============================
+
+AUTH & SECURITY
+
+============================
+JWTSECRET=yourjwtsecrethere
+ENCRYPTIONKEY=your32byteencryptionkey_here
+HASHSALT=yourhashsalthere
+
+============================
+
+DATABASE
+
+============================
+DB_HOST=localhost
+DB_PORT=5432
+DBUSER=piuser
+DBPASSWORD=pipassword
+DBNAME=assistantdb
+
+============================
+
+FIREBASE
+
+============================
+FIREBASEPROJECTID=yourprojectid
+FIREBASEPRIVATEKEY=yourprivatekey
+FIREBASECLIENTEMAIL=yourclientemail
+
+============================
+
+TELEPHONY / VOIP
+
+============================
+TWILIOACCOUNTSID=yourtwiliosid
+TWILIOAUTHTOKEN=yourtwiliotoken
+TWILIOPHONENUMBER=yourtwilionumber
+
+============================
+
+EMAIL SERVICE
+
+============================
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTPUSER=youremail
+SMTPPASS=youremailapppassword
+
+============================
+
+AI / LLM PROVIDERS
+
+============================
+OPENAIAPIKEY=youropenaikey
+ANTHROPICAPIKEY=youranthropickey
+AZUREOPENAIKEY=yourazurekey
+AZUREOPENAIENDPOINT=yourazureendpoint
+
+============================
+
+LOGGING & AUDIT
+
+============================
+LOG_LEVEL=info
+AUDITLOGPATH=/var/log/assistant/audit.log
+
+============================
+
+CACHE / REDIS
+
+============================
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+============================
+
+OPPORTUNITY HUNTER
+
+============================
+HUNTER_MODE=active
+HUNTERSCANINTERVAL=3600
+HUNTERNOTIFYEMAIL=your_email
+
+============================
+
+ACCOUNT MANAGER
+
+============================
+ACCOUNTMANAGERMODE=enabled
+ACCOUNTMANAGERAUDIT=true
+
+============================
+
+HARDWARE / PI INTEGRATION
+
+============================
+PIDEVICEID=$(cat /etc/machine-id)
+PIGPIOENABLED=false
+`
+
+---
