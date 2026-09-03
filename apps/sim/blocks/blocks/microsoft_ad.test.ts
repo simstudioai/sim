@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { SCOPE_DESCRIPTIONS } from '@/lib/oauth/utils'
+import { SCOPE_DESCRIPTIONS } from '@/lib/oauth/scopes'
 import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
 import * as microsoftAdTools from '@/tools/microsoft_ad'
 

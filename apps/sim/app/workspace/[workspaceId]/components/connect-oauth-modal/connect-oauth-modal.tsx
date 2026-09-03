@@ -25,7 +25,8 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { getScopeDescription } from '@/lib/oauth/scopes'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import {
   MicrosoftDataverseEnvironmentField,
   useMicrosoftDataverseEnvironmentForm,
