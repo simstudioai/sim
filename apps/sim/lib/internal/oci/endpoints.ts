@@ -57,8 +57,10 @@ export type OciEndpointPolicy = OciStaticEndpointPolicy | OciDiscoveredEndpointP
 /**
  * Realm and region snapshot copied from `oci-common@2.140.0` files
  * `lib/realm.js` and `lib/region.js`, and verified byte-for-byte against the
- * same registry files in `2.140.1`. Unknown runtime metadata is deliberately
- * excluded so credentials cannot weaken endpoint trust with local OCI config.
+ * same registry files in `2.140.1`. When Oracle adds regions or realms, update
+ * both maps from the official SDK in one reviewed change and keep the exhaustive
+ * registry test passing. Unknown runtime metadata is deliberately excluded so
+ * credentials cannot weaken endpoint trust with local OCI config.
  */
 const REALM_DOMAINS = {
   oc1: 'oraclecloud.com',

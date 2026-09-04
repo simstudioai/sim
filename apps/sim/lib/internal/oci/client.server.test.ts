@@ -201,7 +201,15 @@ describe('credential-bound OCI client', () => {
   })
 
   it('loads only an exact credential/workspace/type/provider row before decryption', async () => {
-    await createPreparedClient()
+    const { client, endpoint } = await createPreparedClient()
+
+    await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
 
     expect(mocks.predicates).toEqual([
       { field: 'credential.id', value: 'credential-authoritative' },
@@ -490,6 +498,28 @@ describe('credential-bound OCI client', () => {
     expect(mocks.secureFetch).not.toHaveBeenCalled()
   })
 
+  it.each(['DELETE', 'POST', 'PUT', 'PATCH'] as const)(
+    'rejects caller-asserted safe retries for %s before signing or transport',
+    async (method) => {
+      const { client, endpoint } = await createPreparedClient()
+      const bodyFields =
+        method === 'DELETE' ? {} : { body: new Uint8Array(), contentType: 'text/plain' }
+
+      await expect(
+        client.request({
+          endpoint,
+          method,
+          encodedPath: '/v1/test',
+          ...bodyFields,
+          retry: { kind: 'safe', maxAttempts: 2 },
+          timeoutMs: 10_000,
+          maxResponseBytes: 1024,
+        } as unknown as OciRequest)
+      ).rejects.toMatchObject({ code: 'invalid_request' })
+      expect(mocks.secureFetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('does not retry unless the operation opts in', async () => {
     mocks.secureFetch.mockResolvedValue(
       secureResponse({ status: 503, body: '{"message":"secret"}' })
@@ -508,12 +538,15 @@ describe('credential-bound OCI client', () => {
   })
 
   it('re-signs every retry while preserving exact bytes and retry token', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-03T19:00:00.000Z'))
+    mocks.backoff.mockReturnValue(1000)
     mocks.secureFetch
       .mockResolvedValueOnce(secureResponse({ status: 503, body: '{"code":"Busy"}' }))
       .mockResolvedValueOnce(secureResponse({ status: 200, body: 'ok' }))
     const { client, endpoint } = await createPreparedClient()
     const body = new Uint8Array([9, 8, 7])
-    await client.request({
+    const pending = client.request({
       endpoint,
       method: 'PUT',
       encodedPath: '/v1/test',
@@ -523,6 +556,8 @@ describe('credential-bound OCI client', () => {
       timeoutMs: 10_000,
       maxResponseBytes: 1024,
     })
+    await vi.advanceTimersByTimeAsync(1000)
+    await pending
 
     const first = mocks.secureFetch.mock.calls[0][2]
     const second = mocks.secureFetch.mock.calls[1][2]
@@ -531,6 +566,31 @@ describe('credential-bound OCI client', () => {
     expect(second.headers['opc-retry-token']).toBe('operation-token')
     expect(first.headers['x-date']).not.toBe(second.headers['x-date'])
     expect(first.headers.authorization).not.toBe(second.headers.authorization)
+  })
+
+  it('never manufactures future signing dates under rapid request volume', async () => {
+    vi.useFakeTimers()
+    const now = new Date('2026-09-03T19:00:00.000Z')
+    vi.setSystemTime(now)
+    mocks.secureFetch.mockImplementation(async () => secureResponse({}))
+    const { client, endpoint } = await createPreparedClient()
+
+    await Promise.all(
+      Array.from({ length: 305 }, () =>
+        client.request({
+          endpoint,
+          method: 'GET',
+          encodedPath: '/v1/test',
+          timeoutMs: 10_000,
+          maxResponseBytes: 1024,
+        })
+      )
+    )
+
+    const signingDates = mocks.secureFetch.mock.calls.map(
+      (call) => (call[2] as { headers: Record<string, string> }).headers['x-date']
+    )
+    expect(new Set(signingDates)).toEqual(new Set([now.toUTCString()]))
   })
 
   it('retries only the exact internal IncorrectState 409 classification', async () => {
