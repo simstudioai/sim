@@ -578,7 +578,8 @@ export const RUN_SUMMARY_OUTPUT_PROPERTIES = {
   },
   profileId: {
     type: 'string',
-    description: 'Browser Context Profile the run attached, null when none did',
+    description:
+      'Browser Context Profile the run attached. Null covers both no profile and a payload that omitted the field, so read profileAttached alongside it rather than reading null as proof',
     optional: true,
     nullable: true,
   },
