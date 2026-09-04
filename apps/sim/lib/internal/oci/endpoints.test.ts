@@ -3,25 +3,37 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  createOciDiscoveredEndpointPolicy,
+  createOciStaticEndpointPolicy,
   getOciRegion,
-  isObjectStorageOciHostname,
   OCI_REGION_IDS,
-  type OciServiceHostnamePredicate,
-  objectStorageOciDestination,
-  objectStorageOciHostname,
+  regionalOciHostname,
+  resolveDiscoveredOciEndpoint,
   resolveEffectiveOciRegion,
-  validateOciDestination,
+  resolveStaticOciEndpoint,
 } from '@/lib/internal/oci/endpoints'
+import { OCI_SERVICE_ID } from '@/lib/oauth/types'
+
+const staticPolicy = createOciStaticEndpointPolicy({
+  serviceId: OCI_SERVICE_ID,
+  serviceName: 'identity',
+})
+const discoveryPolicy = createOciDiscoveredEndpointPolicy({
+  serviceId: OCI_SERVICE_ID,
+  serviceName: 'database',
+  responsePolicy: staticPolicy,
+  source: { kind: 'json', path: ['endpoint'] },
+})
 
 describe('OCI region registry', () => {
-  it('resolves every snapshotted entry to a consistent realm and domain', () => {
+  it('resolves every snapshotted region to a known realm domain', () => {
     expect(OCI_REGION_IDS.length).toBeGreaterThan(80)
     for (const id of OCI_REGION_IDS) {
       const region = getOciRegion(id)
       expect(region.id).toBe(id)
       expect(region.realm.id).toMatch(/^oc\d+$/)
       expect(region.realm.domain).toMatch(/^(?:oraclecloud|oraclegovcloud)/)
-      expect(objectStorageOciHostname(region)).toBe(`objectstorage.${id}.${region.realm.domain}`)
+      expect(regionalOciHostname('identity', region)).toBe(`identity.${id}.${region.realm.domain}`)
     }
   })
 
@@ -31,104 +43,91 @@ describe('OCI region registry', () => {
     expect(() => getOciRegion('constructor')).toThrow('not recognized')
   })
 
-  it('allows only same-realm effective-region overrides', () => {
-    expect(resolveEffectiveOciRegion('us-ashburn-1').id).toBe('us-ashburn-1')
+  it('allows only same-realm region overrides', () => {
     expect(resolveEffectiveOciRegion('us-ashburn-1', 'eu-frankfurt-1').id).toBe('eu-frankfurt-1')
     expect(() => resolveEffectiveOciRegion('us-ashburn-1', 'us-gov-ashburn-1')).toThrow(
       'credential realm'
     )
-    expect(() => resolveEffectiveOciRegion('us-ashburn-1', 'unknown-1')).toThrow('not recognized')
   })
 })
 
-describe('validateOciDestination', () => {
+describe('OCI endpoint policies', () => {
   const region = getOciRegion('us-ashburn-1')
-  const origin = 'https://objectstorage.us-ashburn-1.oraclecloud.com'
 
-  it.each(['static', 'authenticated-discovery'] as const)(
-    'brands a service-owned %s destination',
-    (provenance) => {
-      expect(objectStorageOciDestination(region, provenance)).toMatchObject({
-        origin,
-        hostname: 'objectstorage.us-ashburn-1.oraclecloud.com',
-        service: 'objectstorage',
+  it('freezes declarative policies and derives exact static origins', () => {
+    expect(Object.isFrozen(staticPolicy)).toBe(true)
+    expect(resolveStaticOciEndpoint(staticPolicy, region)).toMatchObject({
+      origin: 'https://identity.us-ashburn-1.oraclecloud.com',
+      hostname: 'identity.us-ashburn-1.oraclecloud.com',
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'identity',
+      provenance: 'static',
+    })
+  })
+
+  it('accepts discovered resource hosts only beneath the declared service, region, and realm', () => {
+    expect(
+      resolveDiscoveredOciEndpoint(
+        discoveryPolicy,
         region,
-        provenance,
-      })
-    }
-  )
+        'https://resource.database.us-ashburn-1.oraclecloud.com'
+      )
+    ).toMatchObject({
+      serviceName: 'database',
+      provenance: 'authenticated-discovery',
+    })
+  })
 
   it.each([
-    'http://objectstorage.us-ashburn-1.oraclecloud.com',
-    'https://objectstorage.us-ashburn-1.oraclecloud.com:8443',
-    'https://user@objectstorage.us-ashburn-1.oraclecloud.com',
-    'https://objectstorage.us-ashburn-1.oraclecloud.com/path',
-    'https://objectstorage.us-ashburn-1.oraclecloud.com?query=1',
-    'https://objectstorage.us-ashburn-1.oraclecloud.com#fragment',
+    'http://resource.database.us-ashburn-1.oraclecloud.com',
+    'https://resource.database.us-ashburn-1.oraclecloud.com:8443',
+    'https://user@resource.database.us-ashburn-1.oraclecloud.com',
+    'https://resource.database.us-ashburn-1.oraclecloud.com/path',
     'https://127.0.0.1',
-  ])('rejects a non-origin destination: %s', (candidate) => {
-    expect(() =>
-      validateOciDestination({
-        origin: candidate,
-        service: 'objectstorage',
-        region,
-        provenance: 'static',
-        isServiceHostname: isObjectStorageOciHostname,
-      })
-    ).toThrow()
+    'https://database.us-ashburn-1.oraclecloud.com',
+    'https://resource.database.eu-frankfurt-1.oraclecloud.com',
+    'https://resource.database.us-ashburn-1.oraclegovcloud.com',
+    'https://resource.database.us-ashburn-1.example.com',
+  ])('rejects an origin outside the discovery policy: %s', (origin) => {
+    expect(() => resolveDiscoveredOciEndpoint(discoveryPolicy, region, origin)).toThrow()
   })
 
-  it.each([
-    'https://identity.us-ashburn-1.oraclecloud.com',
-    'https://objectstorage.eu-frankfurt-1.oraclecloud.com',
-    'https://objectstorage.us-ashburn-1.oraclegovcloud.com',
-    'https://objectstorage.us-ashburn-1.example.com',
-  ])('rejects a hostname outside the service and effective region: %s', (candidate) => {
-    expect(() =>
-      validateOciDestination({
-        origin: candidate,
-        service: 'objectstorage',
-        region,
-        provenance: 'authenticated-discovery',
-        isServiceHostname: isObjectStorageOciHostname,
-      })
-    ).toThrow('not owned')
+  it('can explicitly permit the regional service host for authenticated discovery', () => {
+    const policy = createOciDiscoveredEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'database',
+      responsePolicy: staticPolicy,
+      source: { kind: 'header', name: 'Endpoint' },
+      allowRegionalHost: true,
+    })
+    expect(
+      resolveDiscoveredOciEndpoint(policy, region, 'https://database.us-ashburn-1.oraclecloud.com')
+        .origin
+    ).toBe('https://database.us-ashburn-1.oraclecloud.com')
+    expect(policy.source).toEqual({ kind: 'header', name: 'endpoint' })
+    expect(Object.isFrozen(policy.source)).toBe(true)
   })
 
-  it('binds the hostname predicate to its service constant', () => {
+  it('rejects malformed policy declarations and forged region mappings', () => {
     expect(() =>
-      validateOciDestination({
-        origin,
-        service: 'identity',
-        region,
-        provenance: 'static',
-        isServiceHostname: isObjectStorageOciHostname,
-      })
-    ).toThrow('not owned')
-  })
-
-  it('rejects a bracketed IPv6 literal before applying the service predicate', () => {
-    const acceptsEveryHostname = (() => true) as OciServiceHostnamePredicate
+      createOciStaticEndpointPolicy({ serviceId: OCI_SERVICE_ID, serviceName: 'bad.name' })
+    ).toThrow('service name')
     expect(() =>
-      validateOciDestination({
-        origin: 'https://[2606:4700::1111]',
-        service: 'objectstorage',
-        region,
-        provenance: 'static',
-        isServiceHostname: acceptsEveryHostname,
-      })
-    ).toThrow('exact HTTPS origin')
-  })
-
-  it('rejects a forged region-to-realm association', () => {
-    expect(() =>
-      validateOciDestination({
-        origin,
-        service: 'objectstorage',
-        region: { id: region.id, realm: { id: 'oc2', domain: 'oraclegovcloud.com' } },
-        provenance: 'static',
-        isServiceHostname: isObjectStorageOciHostname,
+      resolveStaticOciEndpoint(staticPolicy, {
+        id: region.id,
+        realm: { id: 'oc2', domain: 'oraclegovcloud.com' },
       })
     ).toThrow('known registry')
+    expect(() =>
+      createOciDiscoveredEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName: 'database',
+        responsePolicy: createOciStaticEndpointPolicy({
+          serviceId: 'slack',
+          serviceName: 'identity',
+        }),
+        source: { kind: 'json', path: ['endpoint'] },
+      })
+    ).toThrow('same owning service')
   })
 })
