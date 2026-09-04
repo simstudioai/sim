@@ -713,6 +713,8 @@ export const flowiseProfile: CompetitorProfile = {
       compliance: {
         value:
           'Unknown: beyond the unconfirmed third-party SOC 2 claim, Flowise has published no HIPAA, ISO 27001, PCI, or FedRAMP certification.',
+        detail:
+          "The SOC 2 claim comes from third-party security-scan aggregator Nudge Security; Flowise has published no SOC 2 report, badge, or trust page of its own. The same source also claims FedRAMP and PCI compliance, an atypical combination for a small startup that is not corroborated on Flowise's own website.",
         shortValue: 'SOC 2 claim unconfirmed; no official certifications published',
         confidence: 'unknown',
         sources: [],

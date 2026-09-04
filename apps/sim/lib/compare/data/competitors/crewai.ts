@@ -835,7 +835,7 @@ export const crewaiProfile: CompetitorProfile = {
         value:
           'SOC 2 Type 1 for CrewAI AMP (audit report dated November 2025) and HIPAA for the Enterprise edition (audit report dated February 2026); no ISO 27001, PCI, or FedRAMP certification confirmed',
         detail:
-          "CrewAI's Trust Center lists a HIPAA Audit Report dated February 2026 for the Enterprise edition, alongside the SOC 2 Type 1 report. CrewAI's pricing page separately references 'FedRamp High compliance' language for its Enterprise tier, but no independent FedRAMP authorization listing corroborates that claim, so it is not treated as confirmed here.",
+          "CrewAI's Vanta-indexed Trust Center lists a HIPAA Audit Report dated February 2026 for the Enterprise edition, alongside the SOC 2 Type 1 report. The certifications apply to the Enterprise/AMP offering, not to self-hosted deployments of the open-source framework, which have no compliance certification of their own because they are not a hosted service. CrewAI's pricing page separately references 'FedRamp High compliance' language for its Enterprise tier, but no independent FedRAMP authorization listing corroborates that claim, so it is not treated as confirmed here.",
         shortValue: 'SOC 2 Type 1 (AMP), HIPAA audit (Feb 2026); FedRAMP claim unconfirmed',
         confidence: 'estimated',
         sources: [

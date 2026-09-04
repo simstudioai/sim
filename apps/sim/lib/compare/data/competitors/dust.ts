@@ -828,7 +828,7 @@ export const dustProfile: CompetitorProfile = {
       compliance: {
         value: 'GDPR compliant, HIPAA-capable, SOC 2 Type II; no ISO 27001, PCI, or FedRAMP',
         detail:
-          "Dust's security page and enterprise materials state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
+          "Dust's security page and enterprise materials state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. A Vanta case study says Dust achieved SOC 2 Type II audit readiness in three weeks using Vanta's automation, reducing its compliance workload by roughly 50%; the report is downloadable through Dust's Trust Center. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
         shortValue: 'GDPR, HIPAA-capable, SOC 2 Type II',
         confidence: 'estimated',
         sources: [

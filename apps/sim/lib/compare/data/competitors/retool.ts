@@ -834,7 +834,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'SOC 2 Type II, ISO/IEC 27001:2022, GDPR, and CCPA certifications, plus HIPAA via BAA on Enterprise.',
         detail:
-          'The Trust Center (SafeBase-powered) lists SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA certifications. HIPAA compliance is available with a signed BAA on Enterprise (self-hosted) plans. PCI and FedRAMP are not confirmed.',
+          'The Trust Center (SafeBase-powered) lists SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA certifications, with reports and certificates downloadable through the self-serve portal. HIPAA compliance is available with a signed BAA on Enterprise (self-hosted) plans. PCI and FedRAMP are not confirmed.',
         shortValue: 'SOC 2, ISO 27001, GDPR, CCPA; HIPAA via BAA',
         confidence: 'estimated',
         sources: [
