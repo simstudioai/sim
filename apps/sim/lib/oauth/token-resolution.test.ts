@@ -432,6 +432,13 @@ describe('resolveCredentialAccessToken', () => {
       providerId: 'oracle-epm-service-account',
       usedCredentialTable: true,
     })
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'credential-1',
+    })
 
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
@@ -447,7 +454,29 @@ describe('resolveCredentialAccessToken', () => {
       error: 'Credential does not match the tool service',
     })
     expect(mockGetServiceConfigByProviderId).toHaveBeenCalledWith('google')
-    expect(authenticate).not.toHaveBeenCalled()
+    expect(authenticate).toHaveBeenCalledTimes(1)
+    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+
+  it('does not reveal provider mismatches before credential authorization succeeds', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      accountId: 'credential-1',
+      credentialId: 'credential-1',
+      credentialType: 'service_account',
+      providerId: 'oracle-epm-service-account',
+      usedCredentialTable: true,
+    })
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: false, error: 'Unauthorized' })
+
+    await expect(
+      resolveCredentialAccessToken({
+        requestId: 'req-1',
+        credentialId: 'credential-1',
+        toolId: 'gmail_send',
+        authenticate,
+      })
+    ).resolves.toEqual({ ok: false, status: 403, error: 'Unauthorized' })
+    expect(authenticate).toHaveBeenCalledTimes(1)
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
   })
 
@@ -547,6 +576,13 @@ describe('resolveCredentialAccessToken', () => {
       usedCredentialTable: true,
     })
     mockGetServiceConfigByProviderId.mockReturnValue(null)
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'credential-1',
+    })
 
     await expect(
       resolveCredentialAccessToken({
@@ -561,7 +597,7 @@ describe('resolveCredentialAccessToken', () => {
       code: 'CREDENTIAL_PROVIDER_MISMATCH',
       error: 'Credential does not match the tool service',
     })
-    expect(authenticate).not.toHaveBeenCalled()
+    expect(authenticate).toHaveBeenCalledTimes(1)
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
   })
 
