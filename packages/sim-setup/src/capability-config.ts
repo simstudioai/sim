@@ -952,16 +952,16 @@ export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDD
         },
         {
           /**
-           * Asked rather than derived: Sim cannot know what a local model emits
-           * until it is running, and a width that does not match is the one
-           * misconfiguration this path cannot detect for the operator.
+           * Optional and undefaulted on purpose. Sim reads the width from the
+           * server when this is unset, which is more reliable than any answer
+           * the operator can give here — and a default of 768 would be wrong
+           * for a 384-wide model such as `all-minilm` while also suppressing
+           * the lookup that would have got it right.
            */
           type: 'field',
           key: 'EMBEDDING_OUTPUT_DIMS',
           input: 'text',
-          required: true,
-          defaultValue: '768',
-          hint: 'must equal what the model emits: 384, 768, 1024, 1536, or 3072',
+          hint: 'optional — leave blank and Sim reads the width from your Ollama server',
           validate: true,
         },
       ],

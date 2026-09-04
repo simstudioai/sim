@@ -190,7 +190,7 @@ See [Observability](/platform/self-hosting/observability).
 
 | Variable | Description |
 |----------|-------------|
-| `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; use `ollama/<model>` for a model on your own Ollama. An unsupported value falls back to the default |
+| `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; use `ollama/<model>` for a model on your own Ollama. An unrecognised hosted model id falls back to the default, but an `ollama/` id is taken at face value — if that model is not on the server, knowledge-base creation fails rather than falling back |
 | `EMBEDDING_OUTPUT_DIMS` | Vector width new knowledge bases are stored at: `384`, `768`, `1024`, `1536` (default), or `3072`. It must be a width the chosen model can emit; anything else falls back to `1536` with a warning |
 | `OPENROUTER_API_KEY` | Fallback route for the OpenAI embedding models — used when it is set and `OPENAI_API_KEY` is not the chosen path |
 | `COHERE_API_KEY` | Enables the Knowledge block reranker |

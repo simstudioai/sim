@@ -1431,11 +1431,24 @@ describe('ollama embeddings', () => {
     ).rejects.toThrow('has 1024 unexpected dimensions; expected 768')
   })
 
-  it('refuses to fall back to the loopback default when OLLAMA_URL names no server', async () => {
-    await expect(
-      embed(['hello'], { model: 'ollama/nomic-embed-text', dimensions: 768, projectInputs: null })
-    ).rejects.toThrow('OLLAMA_URL must be configured for Ollama embeddings')
-    expect(fetchMock).not.toHaveBeenCalled()
+  /**
+   * A self-hosted deployment runs alongside its own Ollama, so the loopback
+   * default is a working configuration that needs no env var — the same rule
+   * the chat provider and the block's model selector apply. Requiring the
+   * variable here would make embedding stricter than the list that offers the
+   * models.
+   */
+  it('serves a self-hosted deployment from the loopback default', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(ollamaBody([[1, 2, 3]], 768)))
+
+    const result = await embed(['hello'], {
+      model: 'ollama/nomic-embed-text',
+      dimensions: 768,
+      projectInputs: null,
+    })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:11434/api/embed')
+    expect(result.dimensions).toBe(768)
   })
 
   it('ignores a caller-supplied key rather than sending one Ollama cannot use', async () => {

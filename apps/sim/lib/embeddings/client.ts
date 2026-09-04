@@ -15,7 +15,7 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { getOllamaUrl, isOllamaUrlConfigured } from '@/lib/core/utils/urls'
+import { getOllamaUrl } from '@/lib/core/utils/urls'
 import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
@@ -25,6 +25,7 @@ import {
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
+import { isOllamaServerConfigured } from '@/lib/embeddings/ollama-model-catalog.server'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
 import { getAdapterFactory } from '@/lib/embeddings/providers'
 import {
@@ -364,13 +365,15 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
   /**
    * Ollama runs on the deployment's own server and takes no credential, so it
    * resolves before every key-bearing path and ignores a caller-supplied key
-   * rather than pretending one applies. `OLLAMA_URL` must name a server: the
-   * loopback default `getOllamaUrl` falls back to is a development convenience,
-   * and silently indexing a knowledge base against a localhost that answers
-   * nothing is worse than saying so.
+   * rather than pretending one applies.
+   *
+   * A self-hosted deployment may leave `OLLAMA_URL` unset and be served by the
+   * loopback default, exactly as the chat provider is; only hosted Sim, which
+   * runs no Ollama, has to be pointed at one. Requiring the variable everywhere
+   * would have made this stricter than the selector that offers the models.
    */
   if (info.provider === 'ollama') {
-    if (!isOllamaUrlConfigured()) {
+    if (!isOllamaServerConfigured()) {
       throw new Error('OLLAMA_URL must be configured for Ollama embeddings')
     }
     const baseUrl = getOllamaUrl().replace(/\/+$/, '')

@@ -27,6 +27,22 @@ export interface OllamaEmbeddingModel {
   dimensions?: number
 }
 
+/**
+ * Whether this deployment has an Ollama server to talk to.
+ *
+ * Self-hosted deployments run alongside their own Ollama, so the loopback
+ * default `getOllamaUrl` falls back to is a working configuration that needs no
+ * env var — the same rule the chat provider's model route applies. Hosted Sim
+ * runs none, so there the address must be stated or there is nothing to reach.
+ *
+ * Exported because the selector, this module's width lookup, and the embedding
+ * client all have to answer it identically: a selector that lists models the
+ * client then refuses to embed with is worse than either behaviour alone.
+ */
+export function isOllamaServerConfigured(): boolean {
+  return !isHosted || isOllamaUrlConfigured()
+}
+
 export class OllamaEmbeddingModelNotFoundError extends Error {
   constructor(model: string) {
     super(
@@ -109,12 +125,8 @@ export async function fetchOllamaEmbeddingModelCatalog(
 async function loadOllamaEmbeddingModelCatalog(
   signal?: AbortSignal
 ): Promise<{ models: OllamaEmbeddingModel[]; unreachable?: string }> {
-  /**
-   * Hosted Sim runs no Ollama, and the loopback default cannot answer there, so
-   * an unconfigured hosted deployment is not dialled at all. An explicit
-   * `OLLAMA_URL` states an intent to reach a real server and is still honoured.
-   */
-  if (isHosted && !isOllamaUrlConfigured()) return { models: [] }
+  /** Nothing to dial: an unconfigured hosted deployment has no server to reach. */
+  if (!isOllamaServerConfigured()) return { models: [] }
 
   let names: string[]
   try {
@@ -177,13 +189,8 @@ export async function getOllamaEmbeddingModelMetadata(
 ): Promise<Required<OllamaEmbeddingModel>> {
   const name = isOllamaEmbeddingModel(model) ? ollamaEmbeddingModelName(model) : model
   if (!name) throw new OllamaEmbeddingModelNotFoundError(model)
-  /**
-   * The same requirement `resolveProvider` enforces before embedding. Without it
-   * a developer machine with an unset `OLLAMA_URL` and a local server answering
-   * on the loopback default would resolve a width here and create a knowledge
-   * base that every later embedding call refuses to serve.
-   */
-  if (!isOllamaUrlConfigured()) {
+  /** The same rule the selector and the embedding client apply. */
+  if (!isOllamaServerConfigured()) {
     throw new OllamaUnreachableError('OLLAMA_URL is not configured')
   }
 
