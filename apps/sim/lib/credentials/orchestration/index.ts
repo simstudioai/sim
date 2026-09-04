@@ -44,6 +44,7 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import {
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -82,6 +83,11 @@ const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
   'authMethod',
   'privateKey',
   'username',
+  'tenancyOcid',
+  'userOcid',
+  'fingerprint',
+  'privateKeyPassphrase',
+  'region',
 ]
 
 /**
@@ -194,6 +200,11 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   authMethod?: string
   privateKey?: string
   username?: string
+  tenancyOcid?: string
+  userOcid?: string
+  fingerprint?: string
+  privateKeyPassphrase?: string
+  region?: string
 }
 
 export interface PerformCredentialResult {
@@ -285,6 +296,24 @@ export async function updateCredentialRecord(
     if (hasRotationSecret) {
       const providerId = params.credential.providerId ?? ''
 
+      if (providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) {
+        const requiredOciFields = [
+          'tenancyOcid',
+          'userOcid',
+          'fingerprint',
+          'privateKey',
+          'region',
+        ] as const
+        const missingOciFields = requiredOciFields.filter((field) => params[field] === undefined)
+        if (missingOciFields.length > 0) {
+          return {
+            success: false,
+            error: `OCI credential rotation requires the complete signing tuple; missing ${missingOciFields.join(', ')}`,
+            errorCode: 'validation',
+          }
+        }
+      }
+
       // A reconnect rebuilds the secret blob from the submitted fields only, and
       // the modal never prefills (secrets are never echoed back). For an actual
       // secret that is correct - the admin retypes it. But a non-secret selector
@@ -370,6 +399,11 @@ export async function updateCredentialRecord(
             : params.authMethod,
           privateKey: params.privateKey,
           username: needsStoredUsername ? readStoredField(storedBlob, 'username') : params.username,
+          tenancyOcid: params.tenancyOcid,
+          userOcid: params.userOcid,
+          fingerprint: params.fingerprint,
+          privateKeyPassphrase: params.privateKeyPassphrase,
+          region: params.region,
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId
@@ -388,7 +422,12 @@ export async function updateCredentialRecord(
         }
       } catch (error) {
         if (error instanceof ServiceAccountSecretError) {
-          return { success: false, error: error.message, errorCode: 'validation' }
+          return {
+            success: false,
+            error: error.message,
+            errorCode: 'validation',
+            providerErrorCode: error.providerErrorCode,
+          }
         }
         if (error instanceof AtlassianValidationError) {
           // Surface the provider code so the client maps it to the specific

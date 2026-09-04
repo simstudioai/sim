@@ -25,6 +25,7 @@ import {
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
@@ -44,13 +45,15 @@ export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SLACK_CUSTOM_BOT_PROVIDER_ID
+  | typeof OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
-/** Sim setup guides for each provider, docked bottom-left of each modal. */
 const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
 const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
   'https://docs.sim.ai/integrations/atlassian-service-account'
+const OCI_API_KEY_DOCS_URL =
+  'https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm'
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -125,18 +128,6 @@ interface ConnectServiceAccountModalProps {
   onCreated?: (credentialId: string) => void
 }
 
-/**
- * Connect-service-account modal mounted from the per-integration detail page.
- * Self-contained: takes the resolved SA provider + service metadata from the
- * caller and submits via `useCreateWorkspaceCredential`. Branches the body
- * based on `serviceAccountProviderId`:
- *
- * - `google-service-account`: JSON-paste + drag/drop. Validated client-side
- *   against {@link serviceAccountJsonSchema} before submitting.
- * - `atlassian-service-account`: API token + site domain. Validated by the
- *   server against the Atlassian API; user-facing errors are mapped from the
- *   route's `error.code`.
- */
 export function ConnectServiceAccountModal({
   open,
   onOpenChange,
@@ -211,6 +202,22 @@ export function ConnectServiceAccountModal({
       />
     )
   }
+  if (serviceAccountProviderId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return (
+      <OciApiKeyServiceAccountModal
+        key={`${credentialId ?? 'new'}:${open ? 'open' : 'closed'}`}
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+        onCreated={onCreated}
+      />
+    )
+  }
   return (
     <GoogleServiceAccountModal
       open={open}
@@ -239,6 +246,196 @@ interface ProviderModalProps {
   initialDescription?: string
   /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
+}
+
+function OciApiKeyServiceAccountModal({
+  open,
+  onOpenChange,
+  workspaceId,
+  serviceName,
+  serviceIcon: ServiceIcon,
+  credentialId,
+  initialDisplayName,
+  initialDescription,
+  onCreated,
+}: ProviderModalProps) {
+  const [tenancyOcid, setTenancyOcid] = useState('')
+  const [userOcid, setUserOcid] = useState('')
+  const [fingerprint, setFingerprint] = useState('')
+  const [privateKey, setPrivateKey] = useState('')
+  const [privateKeyPassphrase, setPrivateKeyPassphrase] = useState('')
+  const [region, setRegion] = useState('')
+  const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
+  const [description, setDescription] = useState(initialDescription ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const createCredential = useCreateWorkspaceCredential()
+  const updateCredential = useUpdateWorkspaceCredential()
+
+  const isPending = createCredential.isPending || updateCredential.isPending
+  const isDisabled =
+    !tenancyOcid.trim() ||
+    !userOcid.trim() ||
+    !fingerprint.trim() ||
+    !privateKey.trim() ||
+    !region.trim() ||
+    isPending
+
+  const clearError = () => {
+    if (error) setError(null)
+  }
+
+  const handleSubmit = async () => {
+    setError(null)
+    if (isDisabled) return
+    const fields = {
+      tenancyOcid: tenancyOcid.trim(),
+      userOcid: userOcid.trim(),
+      fingerprint: fingerprint.trim(),
+      privateKey,
+      ...(privateKeyPassphrase.length > 0 ? { privateKeyPassphrase } : {}),
+      region: region.trim(),
+      displayName: displayName.trim() || undefined,
+      description: description.trim() || undefined,
+    }
+    try {
+      let connectedCredentialId = credentialId
+      if (credentialId) {
+        await updateCredential.mutateAsync({ credentialId, ...fields })
+      } else {
+        const created = await createCredential.mutateAsync({
+          workspaceId,
+          type: 'service_account',
+          providerId: OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+          ...fields,
+        })
+        connectedCredentialId = created.credential.id
+      }
+      if (connectedCredentialId) onCreated?.(connectedCredentialId)
+      onOpenChange(false)
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to add OCI API-key credential'))
+      logger.error('Failed to add OCI API-key credential', err)
+    }
+  }
+
+  return (
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle={`Add ${serviceName} API key`}
+      dismissDisabled={isPending}
+    >
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
+        Add {serviceName} API key
+      </ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField
+          type='input'
+          title='Tenancy OCID'
+          value={tenancyOcid}
+          onChange={(value) => {
+            setTenancyOcid(value)
+            clearError()
+          }}
+          placeholder='ocid1.tenancy.oc1..'
+          autoComplete='off'
+          mono
+          required
+        />
+        <ChipModalField
+          type='input'
+          title='User OCID'
+          value={userOcid}
+          onChange={(value) => {
+            setUserOcid(value)
+            clearError()
+          }}
+          placeholder='ocid1.user.oc1..'
+          autoComplete='off'
+          mono
+          required
+        />
+        <ChipModalField
+          type='input'
+          title='Fingerprint'
+          value={fingerprint}
+          onChange={(value) => {
+            setFingerprint(value)
+            clearError()
+          }}
+          placeholder='00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff'
+          autoComplete='off'
+          mono
+          required
+        />
+        <ChipModalField
+          type='textarea'
+          title='Private key'
+          value={privateKey}
+          onChange={(value) => {
+            setPrivateKey(value)
+            clearError()
+          }}
+          placeholder='-----BEGIN PRIVATE KEY-----'
+          minHeight={120}
+          mono
+          required
+        />
+        <ChipModalField
+          type='input'
+          inputType='password'
+          title='Private-key passphrase'
+          value={privateKeyPassphrase}
+          onChange={(value) => {
+            setPrivateKeyPassphrase(value)
+            clearError()
+          }}
+          placeholder='Optional'
+          autoComplete='new-password'
+        />
+        <ChipModalField
+          type='input'
+          title='Region'
+          value={region}
+          onChange={(value) => {
+            setRegion(value)
+            clearError()
+          }}
+          placeholder='us-ashburn-1'
+          autoComplete='off'
+          mono
+          required
+        />
+        <ChipModalField
+          type='input'
+          title='Display name'
+          value={displayName}
+          onChange={setDisplayName}
+          placeholder='Defaults to the OCI user OCID'
+          autoComplete='off'
+        />
+        <ChipModalField
+          type='textarea'
+          title='Description'
+          value={description}
+          onChange={setDescription}
+          placeholder='Optional description'
+          maxLength={500}
+          minHeight={80}
+        />
+        <ChipModalError>{error}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        secondaryActions={[{ label: 'Setup guide', onClick: () => openDocs(OCI_API_KEY_DOCS_URL) }]}
+        primaryAction={{
+          label: isPending ? 'Adding...' : credentialId ? 'Reconnect' : 'Add API key',
+          onClick: handleSubmit,
+          disabled: isDisabled,
+        }}
+      />
+    </ChipModal>
+  )
 }
 
 /**

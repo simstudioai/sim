@@ -8203,13 +8203,43 @@
             "writeOnly": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 65536
           },
           "username": {
             "description": "Provider run-as username.",
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "tenancyOcid": {
+            "description": "OCI tenancy OCID.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "userOcid": {
+            "description": "OCI user OCID.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "fingerprint": {
+            "description": "OCI API-key fingerprint.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "privateKeyPassphrase": {
+            "description": "Write-only OCI private-key passphrase.",
+            "writeOnly": true,
+            "type": "string",
+            "maxLength": 4096
+          },
+          "region": {
+            "description": "OCI home region.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
           }
         },
         "additionalProperties": false,
