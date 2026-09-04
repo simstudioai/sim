@@ -38,7 +38,7 @@ interface PersistedToolCall {
 }
 
 export interface PersistedContentBlock {
-  type: MothershipStreamV1EventType | 'plan'
+  type: MothershipStreamV1EventType | 'plan' | 'task'
   lane?: MothershipStreamV1StreamScope['lane']
   /**
    * Subagent name on lane text blocks. The span-tree parser needs a name to
@@ -58,6 +58,8 @@ export interface PersistedContentBlock {
   toolCall?: PersistedToolCall
   /** The agent's plan checklist (plan blocks only). */
   planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
+  /** The background task a task block announces. */
+  task?: import('@/lib/mothership/request/types').TaskBlockInfo
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
@@ -125,6 +127,8 @@ export interface PersistedMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  /** "task": a background-task notification opened this turn, not the user (rendered as a system chip). */
+  origin?: 'task'
   requestId?: string
   contentBlocks?: PersistedContentBlock[]
   fileAttachments?: PersistedFileAttachment[]
@@ -231,6 +235,8 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
   switch (block.type) {
     case 'plan':
       return { type: 'plan', ...(block.planItems ? { planItems: block.planItems } : {}) }
+    case 'task':
+      return { type: 'task', ...(block.task ? { task: block.task } : {}) }
     case 'text':
       return {
         type: MothershipStreamV1EventType.text,
@@ -391,6 +397,7 @@ export interface UserMessageParams {
   content: string
   fileAttachments?: PersistedFileAttachment[]
   contexts?: PersistedMessageContext[]
+  origin?: 'task'
 }
 
 export function buildPersistedUserMessage(params: UserMessageParams): PersistedMessage {
@@ -399,6 +406,7 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
     role: 'user',
     content: params.content,
     timestamp: new Date().toISOString(),
+    ...(params.origin ? { origin: params.origin } : {}),
   }
 
   if (params.fileAttachments && params.fileAttachments.length > 0) {
@@ -438,6 +446,8 @@ const CANONICAL_BLOCK_TYPES: Set<string> = new Set(Object.values(MothershipStrea
 interface RawBlock {
   type: string
   lane?: string
+  task?: import('@/lib/mothership/request/types').TaskBlockInfo
+  planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
   agent?: string
   /** Orchestrator-chosen subagent display name (legacy blocks store it as `subagentName`). */
   name?: string
@@ -619,6 +629,15 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
     }
   }
 
+  // Non-contract blocks the write path stores as-is: the plan checklist and a
+  // background-task pill. Without these they reloaded as empty text blocks.
+  if (block.type === 'task') {
+    return { type: 'task', ...(block.task ? { task: block.task } : {}) }
+  }
+  if (block.type === 'plan') {
+    return { type: 'plan', ...(block.planItems ? { planItems: block.planItems } : {}) }
+  }
+
   return {
     type: MothershipStreamV1EventType.text,
     channel: MothershipStreamV1TextChannel.assistant,
@@ -705,6 +724,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
   if (raw.requestId && typeof raw.requestId === 'string') {
     msg.requestId = raw.requestId
   }
+  if (raw.origin === 'task') msg.origin = 'task'
 
   const rawBlocks = raw.contentBlocks as RawBlock[] | undefined
   const rawToolCalls = raw.toolCalls as LegacyToolCall[] | undefined

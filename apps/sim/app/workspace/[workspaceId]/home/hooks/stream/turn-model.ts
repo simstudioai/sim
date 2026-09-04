@@ -10,6 +10,7 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
@@ -103,7 +104,17 @@ export interface TextNode extends NodeBase {
   endedAtMs?: number
 }
 
-export type LifecycleNode = ToolNode | AgentNode | TextNode
+/**
+ * A background task the turn armed (`run`/`task_armed`); resolves in place when the
+ * task's notification is steered into this same turn (`run`/`task_delivered`). The
+ * pill under the turn (mothership 21-background-tasks.md §6.4).
+ */
+export interface TaskNode extends NodeBase {
+  kind: 'task'
+  task: TaskBlockInfo
+}
+
+export type LifecycleNode = ToolNode | AgentNode | TextNode | TaskNode
 
 export interface TurnModel {
   status: TurnStatus
@@ -660,7 +671,45 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
     case MothershipStreamV1EventType.run: {
       const payload = payloadRecord(envelope.payload)
       const kind = payload.kind
-      if (kind === MothershipStreamV1RunKind.compaction_start) {
+      if (kind === MothershipStreamV1RunKind.task_armed) {
+        const taskId = asString(payload.taskId)
+        if (!taskId) break
+        const id = `task:${taskId}`
+        if (!model.nodes.has(id)) {
+          model.nodes.set(id, {
+            id,
+            kind: 'task',
+            spanId,
+            seq,
+            ...(tsMs !== undefined ? { startedAtMs: tsMs } : {}),
+            task: {
+              taskId,
+              kind: payload.taskKind === 'workflow_run' ? 'workflow_run' : 'timer',
+              target: isRecordLike(payload.target) ? payload.target : {},
+              note: asString(payload.note) ?? '',
+              status: 'pending',
+            },
+          })
+          model.order.push(id)
+        }
+      } else if (kind === MothershipStreamV1RunKind.task_delivered) {
+        const taskId = asString(payload.taskId)
+        const node = taskId ? model.nodes.get(`task:${taskId}`) : undefined
+        if (node?.kind === 'task') {
+          const status = asString(payload.status)
+          node.task = {
+            ...node.task,
+            status:
+              status === 'completed' ||
+              status === 'failed' ||
+              status === 'stopped' ||
+              status === 'expired'
+                ? status
+                : node.task.status,
+            summary: asString(payload.summary) ?? node.task.summary,
+          }
+        }
+      } else if (kind === MothershipStreamV1RunKind.compaction_start) {
         ensureSubagentLane(model, spanId, scope, seq, tsMs)
         const node = upsertToolNode(
           model,
@@ -756,7 +805,7 @@ export function applyTurnTerminal(model: TurnModel, turn: Exclude<TurnStatus, 's
   const nodeStatus = turnTerminalNodeStatus(turn)
   for (const id of model.order) {
     const node = model.nodes.get(id)
-    if (!node || node.kind === 'text') continue
+    if (!node || node.kind === 'text' || node.kind === 'task') continue
     // An unanswered permission prompt is a straggler too: the turn ended, so
     // the card must stop offering actions rather than sit there forever.
     if (node.status === 'running' || node.status === 'awaiting_approval') {

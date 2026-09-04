@@ -70,7 +70,22 @@ export const ContentBlockType = {
   subagent_thinking: 'subagent_thinking',
   subagent: 'subagent',
   plan: 'plan',
+  task: 'task',
 } as const
+
+/**
+ * A background task the turn armed (the worker's `run`/`task_armed` frame): the pill
+ * under the turn. `status`/`summary` arrive with `task_delivered` when the task's
+ * notification is steered into this same turn; a wake-delivered one resolves on reload.
+ */
+export interface TaskBlockInfo {
+  taskId: string
+  kind: 'timer' | 'workflow_run'
+  target: Record<string, unknown>
+  note: string
+  status?: 'pending' | 'completed' | 'failed' | 'stopped' | 'expired'
+  summary?: string
+}
 
 /** One step of the agent's visible plan (the worker's `plan` frame payload). */
 export interface AgentPlanItem {
@@ -105,6 +120,8 @@ export interface ContentBlock {
   parentSpanId?: string
   /** The agent's current plan (plan blocks only); whole-list, latest wins. */
   planItems?: AgentPlanItem[]
+  /** The background task this block announces (task blocks only). */
+  task?: TaskBlockInfo
 }
 
 export interface ActiveFileIntent {

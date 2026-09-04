@@ -161,6 +161,22 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
       continue
     }
 
+    if (node.kind === 'task') {
+      entries.push({
+        seq: node.seq,
+        block: {
+          type: 'task',
+          task: node.task,
+          ...spanFields,
+          timestamp: node.startedAtMs ?? node.seq,
+          ...(node.task.status && node.task.status !== 'pending'
+            ? { endedAt: node.startedAtMs ?? node.seq }
+            : {}),
+        },
+      })
+      continue
+    }
+
     // Agent node -> a `subagent` open block, plus a `subagent_end` at end seq.
     entries.push({
       seq: node.seq,
@@ -259,6 +275,41 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
   }
 
   for (const block of blocks) {
+    if (block.type === 'task') {
+      if (!block.task) continue
+      reduceEvent(
+        model,
+        synth(
+          'run',
+          {
+            kind: 'task_armed',
+            taskId: block.task.taskId,
+            taskKind: block.task.kind,
+            target: block.task.target,
+            note: block.task.note,
+          },
+          scopeFor(block),
+          block.timestamp
+        )
+      )
+      if (block.task.status && block.task.status !== 'pending') {
+        reduceEvent(
+          model,
+          synth(
+            'run',
+            {
+              kind: 'task_delivered',
+              taskId: block.task.taskId,
+              status: block.task.status,
+              summary: block.task.summary ?? '',
+            },
+            scopeFor(block),
+            block.endedAt ?? block.timestamp
+          )
+        )
+      }
+      continue
+    }
     if (block.type === 'subagent') {
       reduceEvent(
         model,
