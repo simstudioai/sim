@@ -4973,10 +4973,11 @@ export const knowledgeDocumentObservation = pgTable(
  * resolving that domain's directory once per connector would multiply the
  * Admin SDK traffic by the number of knowledge bases.
  *
- * `externalGroupId` is the identifier both the crawl and the directory can see
- * — a group email in Drive, a group name in Confluence — case-folded, exactly
- * as `groupToken` spells it. There is no opaque id to use instead: Drive's
- * `permissions.list` never returns one.
+ * `externalGroupId` is whatever the source's permissions API names a group by —
+ * a group email in Drive, a group id in Confluence — canonicalised by
+ * `canonicalGroupId`, exactly as `groupToken` spells it. Keying the directory
+ * by the same identifier the grant carries is what lets a token resolve to
+ * membership with no lookup in between.
  */
 export const knowledgeExternalGroup = pgTable(
   'knowledge_external_group',
@@ -4987,7 +4988,7 @@ export const knowledgeExternalGroup = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     /** Matches the provider segment of the `g:` token, e.g. `google-drive`. */
     providerId: text('provider_id').notNull(),
-    /** The directory this group belongs to — for Google, the Workspace domain. */
+    /** The directory this group belongs to: a Workspace domain for Google, a site's cloud id for Confluence. */
     tenantId: text('tenant_id').notNull(),
     externalGroupId: text('external_group_id').notNull(),
     /**
@@ -5012,7 +5013,7 @@ export const knowledgeExternalGroup = pgTable(
       table.tenantId,
       table.externalGroupId
     ),
-    /** Directory sweep: the groups of one workspace, least recently synced first. */
+    /** The read path's freshness filter: a workspace's groups confirmed within the staleness window. */
     workspaceSyncedIdx: index('keg_workspace_synced_idx').on(
       table.workspaceId,
       table.lastSyncedAt.asc().nullsFirst()

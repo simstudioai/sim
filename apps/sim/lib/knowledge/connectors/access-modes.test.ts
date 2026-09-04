@@ -7,7 +7,9 @@ import {
   CONNECTOR_ACCESS_MODES,
   CONTENT_ENGINE_ACCESS_MODES,
   documentAccessForMode,
+  isConnectorAccessMode,
   isContentEngineAccessMode,
+  requiresFullListing,
 } from '@/lib/knowledge/connectors/access-modes'
 
 describe('which engine drives a mode', () => {
@@ -57,5 +59,27 @@ describe('who may read what a sync writes', () => {
 
   it('treats an unknown mode as workspace-driven, matching the engine that claimed it', () => {
     expect(documentAccessForMode('unknown')).toBe('workspace')
+  })
+})
+
+describe('which modes must list the whole corpus every run', () => {
+  /**
+   * A permission change moves no content — re-sharing a file does not touch
+   * its modified time — so an incremental listing cannot carry a revoked grant.
+   * Only a mode that mirrors ACLs pays for a full listing; the others keep the
+   * incremental path.
+   */
+  it('requires a full listing only where ACLs are mirrored from the source', () => {
+    expect(requiresFullListing('admin')).toBe(true)
+    expect(requiresFullListing('workspace')).toBe(false)
+    expect(requiresFullListing('members')).toBe(false)
+  })
+})
+
+describe('isConnectorAccessMode', () => {
+  it('accepts exactly the declared modes', () => {
+    for (const mode of CONNECTOR_ACCESS_MODES) expect(isConnectorAccessMode(mode)).toBe(true)
+    expect(isConnectorAccessMode('root')).toBe(false)
+    expect(isConnectorAccessMode('')).toBe(false)
   })
 })

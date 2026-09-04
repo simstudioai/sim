@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { MAX_GROUP_NESTING_DEPTH } from '@/lib/knowledge/access/external-groups'
+import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
 import type {
   ConnectorDirectory,
   ConnectorDirectoryGroup,
@@ -14,8 +14,30 @@ const PAGE_SIZE = 200
 /** Guards against a directory that keeps paginating; far above any real domain. */
 const MAX_PAGES = 200
 
-export type DirectoryGroup = ConnectorDirectoryGroup
-export type DirectoryGroupMembership = ConnectorDirectoryMembership
+/**
+ * How deep nested groups are followed when flattening membership.
+ *
+ * A directory can nest groups arbitrarily and can contain cycles, so the walk
+ * needs both a visited set and a depth bound. Onyx does not recurse at all,
+ * which silently drops everyone who is a member only through a subgroup; a
+ * bounded walk covers every real directory while still terminating.
+ */
+const MAX_GROUP_NESTING_DEPTH = 10
+
+/**
+ * The Workspace domain an administrator's address belongs to, or undefined
+ * when the address is blank.
+ *
+ * This is the tenant of every group token a Drive crawl writes and of every
+ * group the directory sync stores, so it is derived in exactly one place: a
+ * crawl and a directory that spelled it differently would produce grants
+ * nothing ever resolves.
+ */
+export function googleWorkspaceDomain(adminEmail: unknown): string | undefined {
+  if (typeof adminEmail !== 'string') return undefined
+  const domain = adminEmail.trim().toLowerCase().split('@')[1]
+  return domain || undefined
+}
 
 interface DirectoryListResponse<T> {
   nextPageToken?: string
@@ -75,11 +97,11 @@ interface RawMember {
 export async function listDomainGroups(
   accessToken: string,
   domain: string
-): Promise<DirectoryGroup[]> {
+): Promise<ConnectorDirectoryGroup[]> {
   const raw = await listAll<RawGroup>(`${DIRECTORY_BASE}/groups`, accessToken, 'groups', { domain })
-  const groups: DirectoryGroup[] = []
+  const groups: ConnectorDirectoryGroup[] = []
   for (const group of raw) {
-    const id = group.email?.trim().toLowerCase()
+    const id = group.email ? canonicalGroupId(group.email) : ''
     if (!id) continue
     groups.push({ id })
   }
@@ -100,8 +122,8 @@ export async function listDomainGroups(
  */
 export async function listGroupMembers(
   accessToken: string,
-  group: DirectoryGroup
-): Promise<DirectoryGroupMembership> {
+  group: ConnectorDirectoryGroup
+): Promise<ConnectorDirectoryMembership> {
   const memberEmails = new Set<string>()
   const visited = new Set<string>([group.id])
   let complete = true
@@ -139,18 +161,12 @@ export async function listGroupMembers(
   return { group, memberEmails: [...memberEmails], complete }
 }
 
-/**
- * The Workspace domain the crawl is looking at, as a directory.
- *
- * The tenant is the impersonated administrator's email domain, which is what
- * `driveAclContext` writes into every group token, so the two must derive it the
- * same way or the tokens a crawl writes name a directory nothing resolves.
- */
+/** The Workspace domain the crawl is looking at, as a directory. */
 export function openGoogleDirectory(
   accessToken: string,
-  adminEmail: string | undefined
+  adminEmail: unknown
 ): ConnectorDirectory | null {
-  const tenantId = adminEmail?.trim().toLowerCase().split('@')[1]
+  const tenantId = googleWorkspaceDomain(adminEmail)
   if (!tenantId) return null
   return {
     tenantId,

@@ -312,6 +312,25 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
 }
 
 /**
+ * The site's cloud id, memoised on the run so it is discovered once per sync
+ * rather than once per call — and taken from the credential where a service
+ * account already carries it, since its API token cannot call
+ * `accessible-resources` to discover one.
+ */
+async function resolveCloudId(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  syncContext?: Record<string, unknown>
+): Promise<string> {
+  const cached = syncContext?.cloudId
+  if (typeof cached === 'string' && cached) return cached
+  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+  const cloudId = await getConfluenceCloudId(domain, accessToken)
+  if (syncContext) syncContext.cloudId = cloudId
+  return cloudId
+}
+
+/**
  * The provider segment of every Confluence group token. Fixed, and baked into
  * stored ACLs, so it must never change.
  */
@@ -336,12 +355,7 @@ async function resolveConfluenceAcls(
   externalIds: string[],
   syncContext?: Record<string, unknown>
 ): Promise<Record<string, string[]>> {
-  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
-  let cloudId = syncContext?.cloudId as string | undefined
-  if (!cloudId) {
-    cloudId = await getConfluenceCloudId(domain, accessToken)
-    if (syncContext) syncContext.cloudId = cloudId
-  }
+  const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
   const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
   const spacePrincipals: ConfluencePrincipal[] = []
@@ -382,8 +396,10 @@ async function resolveConfluenceAcls(
   })
 
   /**
-   * Addresses are resolved once for every account named anywhere, rather than
-   * per page: a space's own principals appear on every page that inherits them.
+   * Addresses are resolved once for every account named anywhere and written
+   * onto the principals in place: a space's own principals appear on every page
+   * that inherits them, and each restriction object is shared by every chain
+   * that walked through it.
    */
   const accountIds = new Set<string>()
   for (const principal of spacePrincipals) {
@@ -395,10 +411,16 @@ async function resolveConfluenceAcls(
     }
   }
   const emails = await resolveUserEmails(cloudId, accessToken, [...accountIds])
-  const withEmail = (principals: readonly ConfluencePrincipal[]): ConfluencePrincipal[] =>
-    principals.map((principal) =>
-      principal.kind === 'user' ? { ...principal, email: emails.get(principal.id) } : principal
-    )
+  const withEmail = (principals: ConfluencePrincipal[]): void => {
+    for (const principal of principals) {
+      /** A restriction sometimes discloses the address itself; a lookup miss must not erase it. */
+      if (principal.kind === 'user') principal.email = emails.get(principal.id) ?? principal.email
+    }
+  }
+  withEmail(spacePrincipals)
+  for (const restriction of restrictions.values()) {
+    if (restriction !== null) withEmail(restriction)
+  }
 
   const acls: Record<string, string[]> = {}
   let unattributed = 0
@@ -407,8 +429,8 @@ async function resolveConfluenceAcls(
     /** A page whose restrictions could not be read is readable by nobody, not by everyone. */
     if (!chain) continue
     const result = confluencePageAcl({
-      spacePrincipals: withEmail(spacePrincipals),
-      restrictionChain: chain.map((entry) => (entry === null ? null : withEmail(entry))),
+      spacePrincipals,
+      restrictionChain: chain,
       providerId: CONFLUENCE_ACL_PROVIDER_ID,
       tenantId: cloudId,
     })
@@ -445,11 +467,7 @@ export const confluenceConnector: ConnectorConfig = {
       throw new Error('At least one space key is required')
     }
 
-    let cloudId = syncContext?.cloudId as string | undefined
-    if (!cloudId) {
-      cloudId = await getConfluenceCloudId(domain, accessToken)
-      if (syncContext) syncContext.cloudId = cloudId
-    }
+    const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
     /**
      * Route through CQL when a label filter is set, when multiple spaces are
@@ -508,15 +526,11 @@ export const confluenceConnector: ConnectorConfig = {
 
   getDocumentAcls: resolveConfluenceAcls,
 
-  openDirectory: async (accessToken, sourceConfig, syncContext) => {
-    const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
-    let cloudId = syncContext?.cloudId as string | undefined
-    if (!cloudId) {
-      cloudId = await getConfluenceCloudId(domain, accessToken)
-      if (syncContext) syncContext.cloudId = cloudId
-    }
-    return openConfluenceDirectory(cloudId, accessToken)
-  },
+  openDirectory: async (accessToken, sourceConfig, syncContext) =>
+    openConfluenceDirectory(
+      await resolveCloudId(accessToken, sourceConfig, syncContext),
+      accessToken
+    ),
 
   getDocument: async (
     accessToken: string,
@@ -525,11 +539,7 @@ export const confluenceConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
-    let cloudId = syncContext?.cloudId as string | undefined
-    if (!cloudId) {
-      cloudId = await getConfluenceCloudId(domain, accessToken)
-      if (syncContext) syncContext.cloudId = cloudId
-    }
+    const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
     /**
      * Fetch the `view` representation rather than `storage`. Storage format only

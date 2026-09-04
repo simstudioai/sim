@@ -112,22 +112,31 @@ export interface GroupIdentity {
   /** The provider's tenant, or {@link NO_TENANT_SEGMENT} where it reports none. */
   tenantId: string | null
   /**
-   * The group as the provider names it, in whichever identifier both the
-   * crawl and the directory sync can see: Drive and Confluence both hand back
-   * an email or a name, never an opaque id.
+   * The group in whichever identifier both the crawl and the directory sync
+   * can see — a group email on Drive, a group id on Confluence. Whatever the
+   * source's permissions API returns is what the directory is keyed by, so no
+   * lookup ever stands between a grant and the membership that resolves it.
    */
   groupId: string
 }
 
 /**
- * The token of a group grant. Case-folded like {@link userToken}, since group
- * identifiers are emails on Drive and names on Confluence, and neither source
- * is consistent about case.
+ * A group identifier in the one form every writer and reader agrees on.
+ *
+ * Both the crawl that writes a `g:` token and the directory sync that stores
+ * the group's membership pass through this, so the two can never disagree about
+ * case or whitespace — Drive spells a group email however it was typed, and a
+ * grant that folds differently from its membership row grants nobody.
  */
+export function canonicalGroupId(groupId: string): string {
+  return groupId.trim().toLowerCase()
+}
+
+/** The token of a group grant. */
 export function groupToken(group: GroupIdentity): string | null {
   const { providerId } = group
   const tenant = group.tenantId || NO_TENANT_SEGMENT
-  const groupId = group.groupId?.trim().toLowerCase()
+  const groupId = canonicalGroupId(group.groupId ?? '')
   if (!providerId || !groupId) return null
   if (providerId.includes(':') || tenant.includes(':')) return null
   const token = `g:${providerId}:${tenant}:${groupId}`

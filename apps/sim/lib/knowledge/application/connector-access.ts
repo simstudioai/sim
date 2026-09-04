@@ -83,7 +83,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
  */
 export async function assertConnectorMirrorsSourceAcls(
   connectorMeta: ConnectorMeta,
-  sourceConfig: unknown,
+  sourceConfig: Record<string, unknown>,
   workspaceId: string
 ): Promise<void> {
   await requireSourceMirroredAccessAvailable({ workspaceId })
@@ -93,9 +93,14 @@ export async function assertConnectorMirrorsSourceAcls(
       `${connectorMeta.name} cannot mirror source permissions, so it has no administrator mode`
     )
   }
-  if (
-    !connectorServiceAccountSubject(connectorMeta.auth, sourceConfig as Record<string, unknown>)
-  ) {
+  /**
+   * Only a connector that impersonates needs a subject. A Drive service account
+   * sees nothing until it acts as an administrator; an Atlassian one holds an
+   * API token that already speaks for the site.
+   */
+  const { auth } = connectorMeta
+  const impersonates = auth.mode === 'oauth' && Boolean(auth.serviceAccountSubjectFieldId)
+  if (impersonates && !connectorServiceAccountSubject(auth, sourceConfig)) {
     throw new OrchestrationError(
       'validation',
       `${connectorMeta.name} needs the administrator to crawl as before it can mirror permissions`
@@ -165,13 +170,18 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       }
     } else {
       if (input.accessMode === 'admin') {
-        await assertConnectorMirrorsSourceAcls(connectorMeta, connector.sourceConfig, workspaceId)
+        await assertConnectorMirrorsSourceAcls(
+          connectorMeta,
+          connector.sourceConfig as Record<string, unknown>,
+          workspaceId
+        )
       }
       target = {
         accessMode: input.accessMode,
         credentialId: await requireUsableCredential({
           credentialId: input.credentialId,
           connectorMeta,
+          sourceConfig: connector.sourceConfig as Record<string, unknown>,
           workspaceId,
           actingUserId,
           requestId,
@@ -228,6 +238,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
 async function requireUsableCredential(input: {
   credentialId: string | undefined
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
+  sourceConfig: Record<string, unknown>
   workspaceId: string
   actingUserId: string
   requestId: string
@@ -254,6 +265,7 @@ async function requireUsableCredential(input: {
     requestId: input.requestId,
     service,
     auth,
+    sourceConfig: input.sourceConfig,
   })
   if (!token) {
     throw new OrchestrationError(

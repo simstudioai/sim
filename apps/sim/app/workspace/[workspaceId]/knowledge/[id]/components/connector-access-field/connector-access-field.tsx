@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { ButtonGroup, ButtonGroupItem, ChipCombobox, ChipModalField } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { isConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorMemberGroupOptions,
   decodeConnectorMemberGroupOption,
@@ -51,7 +52,7 @@ function accessHint(input: {
     return `Everyone in the workspace is invited by email to connect their ${input.connectorConfig.name} account when the first sync starts. Each member sees only the documents their own account can open; scheduled, API, and chat runs see workspace-visible documents only.`
   }
   if (input.mode === 'admin') {
-    return `Indexed once as the ${input.connectorConfig.name} administrator you name below, keeping each document's own permissions. People see only what ${input.connectorConfig.name} already lets them open; scheduled, API, and chat runs see workspace-visible documents only.`
+    return `Indexed once as an administrator, keeping each document's own permissions. People see only what ${input.connectorConfig.name} already lets them open; scheduled, API, and chat runs see workspace-visible documents only.`
   }
   return input.allowMembers ? undefined : 'Per-member access is turned off for this workspace.'
 }
@@ -117,7 +118,9 @@ export function ConnectorAccessField({
       <div className='flex flex-col gap-2'>
         <ButtonGroup
           value={value.accessMode}
-          onValueChange={(mode) => onChange({ accessMode: mode as ConnectorAccessMode })}
+          onValueChange={(mode) => {
+            if (isConnectorAccessMode(mode)) onChange({ accessMode: mode })
+          }}
         >
           <ButtonGroupItem value='workspace' disabled={disabled}>
             Workspace

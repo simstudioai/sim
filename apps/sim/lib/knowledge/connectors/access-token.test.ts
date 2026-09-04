@@ -67,6 +67,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: { credentialId: null, encryptedApiKey: 'cipher' },
         userId: 'user-1',
         requestId: 'req-1',
+        sourceConfig: {},
       })
     ).resolves.toEqual({ accessToken: 'plaintext-key' })
     expect(mockResolveTokenBundle).not.toHaveBeenCalled()
@@ -79,6 +80,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: NO_CREDENTIAL,
         userId: 'user-1',
         requestId: 'req-1',
+        sourceConfig: {},
       })
     ).resolves.toEqual({ accessToken: '' })
   })
@@ -90,6 +92,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: NO_CREDENTIAL,
         userId: 'user-1',
         requestId: 'req-1',
+        sourceConfig: {},
       })
     ).rejects.toThrow('missing encrypted API key')
   })
@@ -101,6 +104,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: NO_CREDENTIAL,
         userId: 'user-1',
         requestId: 'req-1',
+        sourceConfig: {},
       })
     ).rejects.toThrow('missing credential ID')
   })
@@ -116,6 +120,7 @@ describe('resolveConnectorAccessToken', () => {
       connector: credentialConnector('credential-1'),
       userId: 'credential-owner',
       requestId: 'req-1',
+      sourceConfig: {},
     })
     expect(mockResolveTokenBundle).toHaveBeenCalledWith(
       'credential-1',
@@ -134,6 +139,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: credentialConnector('credential-1'),
         userId: 'credential-owner',
         requestId: 'req-1',
+        sourceConfig: {},
       })
     ).resolves.toEqual({ accessToken: 'access-token', cloudId: 'cloud-1' })
   })
@@ -145,6 +151,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: credentialConnector('credential-1'),
         userId: 'credential-owner',
         requestId: 'req-1',
+        sourceConfig: {},
       })
     ).resolves.toEqual({ accessToken: 'access-token' })
   })
@@ -160,6 +167,7 @@ describe('resolveConnectorAccessToken', () => {
         connector: credentialConnector('credential-1'),
         userId: 'credential-owner',
         requestId: 'req-1',
+        sourceConfig: {},
       })
     ).resolves.toBeNull()
   })
@@ -210,7 +218,7 @@ describe('impersonation on the connector path', () => {
         requestId: 'req-1',
         sourceConfig: { adminEmail: 'admin@corp.com' },
       })
-    ).resolves.toEqual({ accessToken: 'access-token', subject: 'admin@corp.com' })
+    ).resolves.toEqual({ accessToken: 'access-token' })
     expect(mockResolveTokenBundle).toHaveBeenCalledWith(
       'credential-1',
       'credential-owner',
@@ -220,12 +228,13 @@ describe('impersonation on the connector path', () => {
     )
   })
 
-  it('impersonates nobody when no source config is supplied', async () => {
+  it('impersonates nobody for a connector that names no subject field', async () => {
     await resolveConnectorAccessToken({
-      auth: withSubject,
+      auth: OAUTH_AUTH,
       connector: credentialConnector('credential-1'),
       userId: 'credential-owner',
       requestId: 'req-1',
+      sourceConfig: { adminEmail: 'admin@corp.com' },
     })
     expect(mockResolveTokenBundle).toHaveBeenCalledWith(
       'credential-1',

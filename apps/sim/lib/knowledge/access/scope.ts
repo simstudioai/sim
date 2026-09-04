@@ -76,6 +76,12 @@ const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
  * is survivable, an abandoned sync is not.
  */
 async function loadExternalGroupTokens(email: string, workspaceId: string): Promise<string[]> {
+  /**
+   * A query of its own rather than a fourth join on the credential query above:
+   * that one already fans out per managed credential, and joining groups onto
+   * it would multiply the two — every credential row repeated for every group.
+   * Two indexed reads cost less than one cross product.
+   */
   const freshEnough = new Date(Date.now() - EXTERNAL_GROUP_STALE_AFTER_MS)
   const rows = await db
     .select({
@@ -114,12 +120,13 @@ export interface KnowledgeAccessScopeContext {
 }
 
 /**
- * The tokens a person holds in a workspace: the workspace pair plus one `s:`
- * token per active managed credential bound to them through a credential-group
- * enrollment. The person must be email-verified — the enrollment binding is by
+ * The tokens a person holds in a workspace: the workspace pair, one `s:` token
+ * per active managed credential bound to them through a credential-group
+ * enrollment, their own `u:` address, and a `g:` token per directory group it
+ * belongs to. The person must be email-verified — every binding here is by
  * email, and an unverified address must not inherit grants made to whoever
- * really owns it. Nothing here is cached: revoking or suspending a credential
- * is visible on the next read.
+ * really owns it. Nothing here is cached: revoking a credential or leaving a
+ * group is visible on the next read.
  */
 async function loadUserAccessTokens(
   userId: string,

@@ -3,8 +3,9 @@ import { knowledgeExternalGroup, knowledgeExternalGroupMember } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, lt, notInArray, or } from 'drizzle-orm'
+import { and, count, eq, notInArray, sql } from 'drizzle-orm'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
+import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
 import type {
   ConnectorConfig,
   ConnectorDirectory,
@@ -45,13 +46,11 @@ export async function syncExternalDirectoryGroups(input: {
   workspaceId: string
   providerId: string
   directory: ConnectorDirectory
-  /** Refresh even if the directory was read within the interval. */
-  force?: boolean
 }): Promise<DirectorySyncResult> {
   const { workspaceId, providerId, directory } = input
   const tenantId = directory.tenantId
 
-  if (!input.force && (await directoryReadRecently(workspaceId, providerId, tenantId))) {
+  if (await directoryReadRecently(workspaceId, providerId, tenantId)) {
     return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true }
   }
 
@@ -95,7 +94,7 @@ export async function syncExternalDirectoryGroups(input: {
     workspaceId,
     providerId,
     tenantId,
-    keep: groups.map((group) => group.id),
+    keep: groups.map((group) => canonicalGroupId(group.id)),
   })
 
   return { refreshed, keptStale, pruned, skipped: false }
@@ -113,34 +112,24 @@ async function directoryReadRecently(
   tenantId: string
 ): Promise<boolean> {
   const freshEnough = new Date(Date.now() - EXTERNAL_GROUP_SYNC_INTERVAL_MS)
-  const directory = and(
-    eq(knowledgeExternalGroup.workspaceId, workspaceId),
-    eq(knowledgeExternalGroup.providerId, providerId),
-    eq(knowledgeExternalGroup.tenantId, tenantId)
-  )
-
-  const [stale] = await db
-    .select({ id: knowledgeExternalGroup.id })
+  const [counts] = await db
+    .select({
+      total: count(),
+      stale: count(
+        sql`CASE WHEN ${knowledgeExternalGroup.lastSyncedAt} IS NULL OR ${knowledgeExternalGroup.lastSyncedAt} < ${sql.param(freshEnough, knowledgeExternalGroup.lastSyncedAt)} THEN 1 END`
+      ),
+    })
     .from(knowledgeExternalGroup)
     .where(
       and(
-        directory,
-        or(
-          isNull(knowledgeExternalGroup.lastSyncedAt),
-          lt(knowledgeExternalGroup.lastSyncedAt, freshEnough)
-        )
+        eq(knowledgeExternalGroup.workspaceId, workspaceId),
+        eq(knowledgeExternalGroup.providerId, providerId),
+        eq(knowledgeExternalGroup.tenantId, tenantId)
       )
     )
-    .limit(1)
-  if (stale) return false
 
   /** No groups at all is a directory that has never been read, not a fresh one. */
-  const [known] = await db
-    .select({ id: knowledgeExternalGroup.id })
-    .from(knowledgeExternalGroup)
-    .where(directory)
-    .limit(1)
-  return Boolean(known)
+  return counts.total > 0 && counts.stale === 0
 }
 
 async function upsertGroup(input: {
@@ -157,7 +146,7 @@ async function upsertGroup(input: {
       workspaceId,
       providerId,
       tenantId,
-      externalGroupId: group.id,
+      externalGroupId: canonicalGroupId(group.id),
     })
     .onConflictDoUpdate({
       target: [
@@ -208,9 +197,9 @@ async function replaceGroupMembers(groupId: string, emails: string[]): Promise<v
 /**
  * Removes groups this directory no longer has, cascading their membership.
  *
- * Only ever called with the result of a complete `listDomainGroups`, which
- * throws rather than returning a partial page — deleting groups because a
- * listing was truncated would revoke everyone in them.
+ * Only ever called with the result of a complete `listGroups`, which every
+ * directory implements to throw rather than return a partial page — deleting
+ * groups because a listing was truncated would revoke everyone in them.
  */
 async function pruneRemovedGroups(input: {
   workspaceId: string

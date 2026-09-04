@@ -6,7 +6,6 @@ import {
   driveFileAcl,
   type OpenSharingPolicy,
 } from '@/lib/knowledge/access/drive-permissions'
-import { openGoogleDirectory } from '@/lib/knowledge/connectors/google-directory'
 import {
   attachRetryHeaders,
   isRetryableError,
@@ -15,6 +14,7 @@ import {
   retryWithExponentialBackoff,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
+import { googleWorkspaceDomain, openGoogleDirectory } from '@/connectors/google-drive/directory'
 import {
   GoogleDriveApiError,
   readGoogleDriveApiError,
@@ -465,15 +465,13 @@ interface DriveAclContext {
  * directory a group belongs to, and how far the admin has opted into open
  * sharing being searchable.
  *
- * The tenant is the impersonated administrator's email domain, which is the
- * Workspace domain the crawl is looking at. It has to be decided once and kept:
- * it is baked into every stored `g:` token, so deriving it differently later
- * would orphan every ACL already written. Null when no administrator is
- * configured, which is every crawl that is not mirroring permissions.
+ * The tenant is the impersonated administrator's Workspace domain, derived by
+ * the same function the directory sync uses so the two can never disagree.
+ * Null when no administrator is configured, which is every crawl that is not
+ * mirroring permissions.
  */
 function driveAclContext(sourceConfig: Record<string, unknown>): DriveAclContext | null {
-  const admin = typeof sourceConfig.adminEmail === 'string' ? sourceConfig.adminEmail : ''
-  const domain = admin.trim().toLowerCase().split('@')[1]
+  const domain = googleWorkspaceDomain(sourceConfig.adminEmail)
   if (!domain) return null
   const openSharing = sourceConfig.openSharing
   return {
@@ -646,7 +644,7 @@ export const googleDriveConnector: ConnectorConfig = {
   },
 
   openDirectory: async (accessToken, sourceConfig) =>
-    openGoogleDirectory(accessToken, sourceConfig.adminEmail as string | undefined),
+    openGoogleDirectory(accessToken, sourceConfig.adminEmail),
 
   getDocument: async (
     accessToken: string,

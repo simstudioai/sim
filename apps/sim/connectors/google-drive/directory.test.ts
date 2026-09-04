@@ -2,8 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_GROUP_NESTING_DEPTH } from '@/lib/knowledge/access/external-groups'
-import { listDomainGroups, listGroupMembers } from '@/lib/knowledge/connectors/google-directory'
+import { listDomainGroups, listGroupMembers } from '@/connectors/google-drive/directory'
 
 const mockFetch = vi.fn()
 
@@ -115,7 +114,7 @@ describe('listGroupMembers', () => {
 
   it('reports an incomplete walk rather than a truncated membership', async () => {
     const members: Record<string, unknown[]> = {}
-    for (let depth = 0; depth <= MAX_GROUP_NESTING_DEPTH + 1; depth += 1) {
+    for (let depth = 0; depth <= 32; depth += 1) {
       members[`g${depth}@corp.com`] = [USER(`u${depth}@corp.com`), NESTED(`g${depth + 1}@corp.com`)]
     }
     directory(members)

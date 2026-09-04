@@ -37,10 +37,7 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import {
-  connectorServiceAccountScopes,
-  resolveConnectorAccessToken,
-} from '@/lib/knowledge/connectors/access-token'
+import { resolveConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
 import {
   resolveViewerConnectorMemberships,
   type ViewerConnectorMembership,
@@ -70,7 +67,6 @@ import type {
 } from '@/lib/knowledge/orchestration/shared'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
-import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getConnectorMeta } from '@/connectors/registry'
@@ -249,23 +245,20 @@ export async function resolveConnectorCredentialAccessToken(input: {
   actingUserId: string
   requestId: string
   service?: ServiceProviderIdentity
-  /**
-   * The connector's declared auth, when the caller knows which connector the
-   * credential is being resolved for. A service-account credential mints
-   * against the scopes it names; without it such a credential cannot resolve a
-   * token at all.
-   */
-  auth?: ConnectorAuthConfig
+  /** The connector the credential is being resolved for, so it mints exactly as a sync would. */
+  auth: ConnectorAuthConfig
+  sourceConfig: Record<string, unknown>
 }): Promise<string | null> {
   const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
   if (!identity) return null
-  const bundle = await resolveCredentialTokenBundle(
-    input.credentialId,
-    identity.kind === 'oauth' ? identity.userId : input.actingUserId,
-    input.requestId,
-    input.auth ? connectorServiceAccountScopes(input.auth) : undefined
-  )
-  return bundle?.accessToken ?? null
+  const resolved = await resolveConnectorAccessToken({
+    auth: input.auth,
+    connector: { credentialId: input.credentialId, encryptedApiKey: null },
+    userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
+    requestId: input.requestId,
+    sourceConfig: input.sourceConfig,
+  })
+  return resolved?.accessToken ?? null
 }
 
 async function validateConnectorSourceConfig(input: {
@@ -323,6 +316,7 @@ async function validateConnectorSourceConfig(input: {
     connector: input.connector,
     userId: tokenUserId,
     requestId: input.requestId,
+    sourceConfig: input.sourceConfig,
   })
   if (!resolved) {
     return {
@@ -595,57 +589,46 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     if (!connectorMeta) {
       throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
     }
-    if (input.accessMode === 'admin') {
-      /**
-       * Admin mode indexes a whole source under one administrator's view, so it
-       * is the same class of decision as members mode and takes the same role.
-       */
-      const subjectUserId = resolvePrincipalSubjectUserId(principal)
-      if (context.workspaceId === undefined) {
-        throw new OrchestrationError(
-          'validation',
-          'Administrator mode needs a workspace knowledge base'
-        )
-      }
-      if (!subjectUserId) {
-        throw new OrchestrationError('forbidden', 'Administrator mode needs a signed-in admin')
-      }
-      await requireCurrentHumanRole(subjectUserId, context, 'admin')
-      await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, workspaceId)
-    }
     let membersBinding: ResolvedMembersBinding | undefined
-    if (input.accessMode === 'members') {
+    if (input.accessMode && input.accessMode !== 'workspace') {
       /**
-       * Members mode grants the connector every enrolled member's credential,
-       * which is an admin decision even though creating a connector is not.
+       * Every mode but `workspace` decides whose data the workspace indexes —
+       * members mode grants the connector every enrolled member's credential,
+       * admin mode indexes a whole source through an administrator's eyes — so
+       * both take the admin role, even though creating a connector does not.
        */
       const subjectUserId = resolvePrincipalSubjectUserId(principal)
       if (context.workspaceId === undefined) {
         throw new OrchestrationError(
           'validation',
-          'Per-member access needs a workspace knowledge base'
+          'Permission-scoped access needs a workspace knowledge base'
         )
       }
       if (!subjectUserId) {
         throw new OrchestrationError(
           'forbidden',
-          'A members-mode connector needs a signed-in admin'
+          'Permission-scoped access needs a signed-in admin'
         )
       }
       await requireCurrentHumanRole(subjectUserId, context, 'admin')
-      membersBinding = await resolveKnowledgeConnectorMembersBinding({
-        workspaceId,
-        connectorMeta,
-        binding:
-          input.credentialGroupId && input.credentialGroupOptionId
-            ? {
-                credentialGroupId: input.credentialGroupId,
-                credentialGroupOptionId: input.credentialGroupOptionId,
-              }
-            : null,
-        actingUserId: subjectUserId,
-        sourceConfig: input.sourceConfig,
-      })
+
+      if (input.accessMode === 'admin') {
+        await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, workspaceId)
+      } else {
+        membersBinding = await resolveKnowledgeConnectorMembersBinding({
+          workspaceId,
+          connectorMeta,
+          binding:
+            input.credentialGroupId && input.credentialGroupOptionId
+              ? {
+                  credentialGroupId: input.credentialGroupId,
+                  credentialGroupOptionId: input.credentialGroupOptionId,
+                }
+              : null,
+          actingUserId: subjectUserId,
+          sourceConfig: input.sourceConfig,
+        })
+      }
     }
     const outcome = await performCreateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
@@ -667,6 +650,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
           actingUserId,
           requestId,
           auth: connectorMeta.auth,
+          sourceConfig: input.sourceConfig,
         }),
       userId: actingUserId,
       source: input.source ?? 'agent',

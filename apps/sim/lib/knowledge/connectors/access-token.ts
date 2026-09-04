@@ -17,12 +17,6 @@ export interface ConnectorAccessToken {
   accessToken: string
   /** Atlassian only — the Confluence/Jira cloud id the credential is bound to. */
   cloudId?: string
-  /**
-   * The person the credential is acting as, when it is a service account using
-   * domain-wide delegation. Names the tenant whose permissions the crawl sees,
-   * so ACL mirroring can attribute a group to the right directory.
-   */
-  subject?: string
 }
 
 /**
@@ -75,8 +69,13 @@ export async function resolveConnectorAccessToken(params: {
   connector: { credentialId: string | null; encryptedApiKey: string | null }
   userId: string
   requestId: string
-  /** Read only for the subject a service-account credential impersonates. */
-  sourceConfig?: Record<string, unknown>
+  /**
+   * Where a service-account credential's impersonation subject lives. Always
+   * passed on a path that has it: a Drive service account crawling without its
+   * subject sees an empty domain, so a token minted that way validates or syncs
+   * against nothing.
+   */
+  sourceConfig: Record<string, unknown>
 }): Promise<ConnectorAccessToken | null> {
   const { auth, connector, userId, requestId } = params
 
@@ -93,9 +92,7 @@ export async function resolveConnectorAccessToken(params: {
     throw new Error('OAuth connector is missing credential ID')
   }
 
-  const subject = params.sourceConfig
-    ? connectorServiceAccountSubject(auth, params.sourceConfig)
-    : undefined
+  const subject = connectorServiceAccountSubject(auth, params.sourceConfig)
   const bundle = await resolveCredentialTokenBundle(
     connector.credentialId,
     userId,
@@ -108,6 +105,5 @@ export async function resolveConnectorAccessToken(params: {
   return {
     accessToken: bundle.accessToken,
     ...(bundle.cloudId ? { cloudId: bundle.cloudId } : {}),
-    ...(subject ? { subject } : {}),
   }
 }

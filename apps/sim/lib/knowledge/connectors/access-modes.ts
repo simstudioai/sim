@@ -20,6 +20,10 @@ export const CONNECTOR_ACCESS_MODES = ['workspace', 'members', 'admin'] as const
 
 export type ConnectorAccessMode = (typeof CONNECTOR_ACCESS_MODES)[number]
 
+export function isConnectorAccessMode(value: string): value is ConnectorAccessMode {
+  return CONNECTOR_ACCESS_MODES.some((mode) => mode === value)
+}
+
 /**
  * The modes the content engine drives.
  *
@@ -55,4 +59,20 @@ export function aclIsDerived(access: SyncDocumentAccess): boolean {
 /** How a content-engine run's writes decide who may read what they store. */
 export function documentAccessForMode(accessMode: string): SyncDocumentAccess {
   return accessMode === 'admin' ? 'admin' : 'workspace'
+}
+
+/**
+ * Whether every run of this mode must list the whole corpus.
+ *
+ * An incremental listing returns only documents whose content changed, and a
+ * permission change moves no content: re-sharing a file does not touch its
+ * modified time in Drive, and restricting a page does not touch its version in
+ * Confluence. A mode whose ACLs are mirrored from the source therefore cannot
+ * refresh them from an incremental listing — a revoked grant on an unchanged
+ * document would stand until the next full sync happened to run. Listing
+ * everything costs metadata pages only; content is still hydrated by hash, so
+ * unchanged documents are never re-fetched or re-embedded.
+ */
+export function requiresFullListing(accessMode: string): boolean {
+  return accessMode === 'admin'
 }

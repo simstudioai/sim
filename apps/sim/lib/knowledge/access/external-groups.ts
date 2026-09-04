@@ -23,13 +23,3 @@ export const EXTERNAL_GROUP_STALE_AFTER_MS = 24 * 60 * 60 * 1000
  * thirty for the heavier APIs.
  */
 export const EXTERNAL_GROUP_SYNC_INTERVAL_MS = 5 * 60 * 1000
-
-/**
- * How deep nested groups are followed when flattening membership.
- *
- * A directory can nest groups arbitrarily and can contain cycles, so the walk
- * needs both a visited set and a depth bound. Onyx does not recurse at all,
- * which silently drops everyone who is a member only through a subgroup; a
- * bounded walk covers every real directory while still terminating.
- */
-export const MAX_GROUP_NESTING_DEPTH = 10

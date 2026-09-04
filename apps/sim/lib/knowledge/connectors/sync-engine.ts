@@ -20,6 +20,7 @@ import {
   CONTENT_ENGINE_ACCESS_MODES,
   documentAccessForMode,
   isContentEngineAccessMode,
+  requiresFullListing,
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
@@ -924,14 +925,16 @@ export async function executeSync(
      * be unchanged itself yet transclude a page that changed), and an incremental
      * listing would omit those unchanged containers, so they'd never be re-fetched.
      */
-    const isIncremental = shouldRunIncrementalSync(
-      connectorConfig.supportsIncrementalSync,
-      connector.syncMode,
-      options?.fullSync,
-      options?.rehydrate,
-      hasTombstonedDocs,
-      connector.lastSyncAt
-    )
+    const isIncremental =
+      !requiresFullListing(connectorBeforeLock.accessMode) &&
+      shouldRunIncrementalSync(
+        connectorConfig.supportsIncrementalSync,
+        connector.syncMode,
+        options?.fullSync,
+        options?.rehydrate,
+        hasTombstonedDocs,
+        connector.lastSyncAt
+      )
     const lastSyncAt =
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
 
