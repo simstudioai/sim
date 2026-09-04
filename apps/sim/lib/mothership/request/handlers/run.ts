@@ -5,6 +5,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { ContentBlock, StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
+import { ContentBlockType } from '@/lib/mothership/request/types'
 import type { StreamHandler } from './types'
 import { addContentBlock, getScopedSpanIdentity } from './types'
 
@@ -109,6 +110,33 @@ export const handleRunEvent: StreamHandler = (event, context) => {
     context.awaitingAsyncContinuation = undefined
     context.streamComplete = false
     logger.info('Received run resumed event')
+    return
+  }
+
+  if (event.payload.kind === MothershipStreamV1RunKind.task_armed) {
+    addContentBlock(context, {
+      type: ContentBlockType.task,
+      task: {
+        taskId: event.payload.taskId,
+        kind: event.payload.taskKind,
+        target: event.payload.target,
+        note: event.payload.note,
+        status: 'pending',
+      },
+    })
+    return
+  }
+
+  if (event.payload.kind === MothershipStreamV1RunKind.task_delivered) {
+    const delivered = event.payload
+    for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
+      const block = context.contentBlocks[i]
+      if (block.type === ContentBlockType.task && block.task?.taskId === delivered.taskId) {
+        block.task = { ...block.task, status: delivered.status, summary: delivered.summary }
+        block.endedAt = Date.now()
+        return
+      }
+    }
     return
   }
 

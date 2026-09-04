@@ -111,6 +111,8 @@ function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unk
         type: MothershipStreamV1EventType.complete,
         status: MothershipStreamV1CompletionStatus.cancelled,
       }
+    case 'task':
+      return block.task ? { type: 'task', task: block.task } : null
     default:
       return null
   }
