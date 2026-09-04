@@ -18,6 +18,46 @@ export const WORKSPACE_ACL: readonly string[] = Object.freeze([WORKSPACE_ACCESS_
 /** The ACL of a document nobody may read. */
 export const EMPTY_ACL: readonly string[] = Object.freeze([])
 
+/**
+ * The most tokens one document's ACL may carry.
+ *
+ * Every read compares the document's ACL against the caller's token set as one
+ * array overlap, so an ACL is only as cheap as it is short; a runaway one — a
+ * page restricted to a five-thousand-person space, a group expanded per member
+ * — degrades the GIN index for every other document in the workspace. Onyx
+ * declares the same 5,000 ceiling and, by its own comment, never enforces it.
+ * Ours is enforced, and a document that exceeds it fails closed rather than
+ * being stored with an ACL that would have to be truncated to fit.
+ */
+export const MAX_ACL_TOKENS = 5000
+
+export type AclRejection = 'malformed_token' | 'too_many_tokens'
+
+export type AclValidation =
+  | { valid: true; acl: string[] }
+  | { valid: false; reason: AclRejection; sample?: string }
+
+/**
+ * Accepts an ACL a connector produced, in the canonical sorted, de-duplicated
+ * form the database stores.
+ *
+ * The token shapes mirror `doc_acl_token_shape_check`, so a malformed token is
+ * caught here — where the offending document can be named and reported — rather
+ * than as a constraint violation that fails the whole batch it happened to
+ * share a statement with.
+ */
+export function validateAcl(tokens: Iterable<string>): AclValidation {
+  const acl = sortAccessTokens(tokens)
+  const malformed = acl.find((token) => !isAccessToken(token))
+  if (malformed !== undefined) {
+    return { valid: false, reason: 'malformed_token', sample: malformed }
+  }
+  if (acl.length > MAX_ACL_TOKENS) {
+    return { valid: false, reason: 'too_many_tokens' }
+  }
+  return { valid: true, acl }
+}
+
 export function isAccessToken(value: string): boolean {
   return ACCESS_TOKEN_PATTERN.test(value)
 }
