@@ -1,5 +1,4 @@
-import { cn } from '@sim/emcn'
-import { Check, Clock, X } from 'lucide-react'
+import { Check, Clock, cn, X } from '@sim/emcn'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 
 interface TaskPillProps {
