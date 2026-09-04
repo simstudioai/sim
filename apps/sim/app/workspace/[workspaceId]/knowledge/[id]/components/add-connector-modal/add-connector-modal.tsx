@@ -126,27 +126,13 @@ export function AddConnectorModal({
   )
 
   const {
-    data: rawCredentials = [],
+    data: credentials = [],
     isLoading: credentialsLoading,
     refetch: refetchCredentials,
   } = useOAuthCredentials(connectorProviderId ?? undefined, {
     enabled: Boolean(connectorConfig) && !isApiKeyMode,
     workspaceId,
   })
-
-  /**
-   * The credential list also returns the provider's service accounts, but
-   * `ConnectorAuthConfig` has no service-account mode: the sync engine resolves
-   * connector tokens through `refreshAccessTokenIfNeeded`, which passes no scopes
-   * and drops the `cloudId`/`domain`/`authStyle` a service account resolves with.
-   * Offering them here would surface credentials no connector can authenticate
-   * with, so — like a workflow picker that has not opted in via
-   * `allowServiceAccounts` — list OAuth accounts only.
-   */
-  const credentials = useMemo(
-    () => rawCredentials.filter((cred) => cred.type !== 'service_account'),
-    [rawCredentials]
-  )
 
   useCredentialRefreshTriggers(refetchCredentials, connectorProviderId ?? '', workspaceId)
 

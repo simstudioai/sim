@@ -209,6 +209,7 @@ async function requireUsableCredential(input: {
     actingUserId: input.actingUserId,
     requestId: input.requestId,
     service,
+    auth,
   })
   if (!token) {
     throw new OrchestrationError(

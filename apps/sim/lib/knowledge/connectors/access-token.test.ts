@@ -1,0 +1,164 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockDecryptApiKey, mockResolveTokenBundle } = vi.hoisted(() => ({
+  mockDecryptApiKey: vi.fn(),
+  mockResolveTokenBundle: vi.fn(),
+}))
+
+vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mockDecryptApiKey }))
+vi.mock('@/lib/oauth/credential-service', () => ({
+  resolveCredentialTokenBundle: mockResolveTokenBundle,
+}))
+
+import {
+  connectorServiceAccountScopes,
+  resolveConnectorAccessToken,
+} from '@/lib/knowledge/connectors/access-token'
+import type { ConnectorAuthConfig } from '@/connectors/types'
+
+const OAUTH_AUTH: ConnectorAuthConfig = {
+  mode: 'oauth',
+  provider: 'google-drive',
+  requiredScopes: ['https://www.googleapis.com/auth/drive'],
+}
+
+const NO_CREDENTIAL = { credentialId: null, encryptedApiKey: null }
+
+function credentialConnector(credentialId: string) {
+  return { credentialId, encryptedApiKey: null }
+}
+
+describe('connectorServiceAccountScopes', () => {
+  it('falls back to the interactive scopes when the sets coincide', () => {
+    expect(connectorServiceAccountScopes(OAUTH_AUTH)).toEqual([
+      'https://www.googleapis.com/auth/drive',
+    ])
+  })
+
+  it('prefers the declared domain-wide-delegation set over the consent set', () => {
+    expect(
+      connectorServiceAccountScopes({
+        ...OAUTH_AUTH,
+        serviceAccountScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+      })
+    ).toEqual(['https://www.googleapis.com/auth/drive.readonly'])
+  })
+
+  it('has no scopes for an API-key connector', () => {
+    expect(connectorServiceAccountScopes({ mode: 'apiKey' })).toBeUndefined()
+  })
+})
+
+describe('resolveConnectorAccessToken', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDecryptApiKey.mockResolvedValue({ decrypted: 'plaintext-key' })
+    mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
+  })
+
+  it('decrypts the stored key for an API-key connector', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: { mode: 'apiKey' },
+        connector: { credentialId: null, encryptedApiKey: 'cipher' },
+        userId: 'user-1',
+        requestId: 'req-1',
+      })
+    ).resolves.toEqual({ accessToken: 'plaintext-key' })
+    expect(mockResolveTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it('resolves an empty token for an optional API-key connector with no key', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: { mode: 'apiKey', optional: true },
+        connector: NO_CREDENTIAL,
+        userId: 'user-1',
+        requestId: 'req-1',
+      })
+    ).resolves.toEqual({ accessToken: '' })
+  })
+
+  it('refuses an API-key connector that requires a key it does not have', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: { mode: 'apiKey' },
+        connector: NO_CREDENTIAL,
+        userId: 'user-1',
+        requestId: 'req-1',
+      })
+    ).rejects.toThrow('missing encrypted API key')
+  })
+
+  it('refuses an OAuth connector with no credential', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: OAUTH_AUTH,
+        connector: NO_CREDENTIAL,
+        userId: 'user-1',
+        requestId: 'req-1',
+      })
+    ).rejects.toThrow('missing credential ID')
+  })
+
+  /**
+   * The regression this module exists for: a service-account credential mints
+   * against scopes it is told, and Google's resolver throws outright when the
+   * caller passes none.
+   */
+  it('passes the connector scopes through so a service account can mint', async () => {
+    await resolveConnectorAccessToken({
+      auth: OAUTH_AUTH,
+      connector: credentialConnector('credential-1'),
+      userId: 'credential-owner',
+      requestId: 'req-1',
+    })
+    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
+      'credential-1',
+      'credential-owner',
+      'req-1',
+      ['https://www.googleapis.com/auth/drive']
+    )
+  })
+
+  it('carries the credential cloud id so the connector skips discovering it', async () => {
+    mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token', cloudId: 'cloud-1' })
+    await expect(
+      resolveConnectorAccessToken({
+        auth: { mode: 'oauth', provider: 'confluence' },
+        connector: credentialConnector('credential-1'),
+        userId: 'credential-owner',
+        requestId: 'req-1',
+      })
+    ).resolves.toEqual({ accessToken: 'access-token', cloudId: 'cloud-1' })
+  })
+
+  it('omits the cloud id rather than carrying an empty one', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: OAUTH_AUTH,
+        connector: credentialConnector('credential-1'),
+        userId: 'credential-owner',
+        requestId: 'req-1',
+      })
+    ).resolves.toEqual({ accessToken: 'access-token' })
+  })
+
+  it.each([
+    ['no bundle', null],
+    ['a bundle with no token', { accessToken: '' }],
+  ])('reports %s as no token rather than throwing', async (_label, bundle) => {
+    mockResolveTokenBundle.mockResolvedValue(bundle)
+    await expect(
+      resolveConnectorAccessToken({
+        auth: OAUTH_AUTH,
+        connector: credentialConnector('credential-1'),
+        userId: 'credential-owner',
+        requestId: 'req-1',
+      })
+    ).resolves.toBeNull()
+  })
+})

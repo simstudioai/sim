@@ -10,12 +10,15 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
-import { decryptApiKey } from '@/lib/api-key/crypto'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import {
+  type ConnectorAccessToken,
+  resolveConnectorAccessToken,
+} from '@/lib/knowledge/connectors/access-token'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -50,7 +53,6 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
-import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { ConnectorAuthConfig, SyncResult } from '@/connectors/types'
 
@@ -497,50 +499,36 @@ export function buildSyncSuccessUpdate(
 }
 
 /**
- * Resolves an access token for a connector based on its auth mode.
- * OAuth connectors refresh via the credential system; API key connectors
- * decrypt the key stored in the dedicated `encryptedApiKey` column.
- *
- * `userId` must be the user who owns the credential's OAuth account — not the
- * knowledge base owner. Workspace-scoped credentials are routinely authorized by
- * a different member, and token reads are scoped to `account.userId`.
+ * Resolves the token a connector syncs with, failing loudly where the shared
+ * resolver reports "no token" — a sync has no reconnect prompt to fall back to.
  */
 async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
   connectorConfig: { auth: ConnectorAuthConfig },
   userId: string
-): Promise<string> {
-  if (connectorConfig.auth.mode === 'apiKey') {
-    if (!connector.encryptedApiKey) {
-      if (connectorConfig.auth.optional) {
-        return ''
-      }
-      throw new Error('API key connector is missing encrypted API key')
-    }
-    const { decrypted } = await decryptApiKey(connector.encryptedApiKey)
-    return decrypted
-  }
-
-  if (!connector.credentialId) {
-    throw new Error('OAuth connector is missing credential ID')
-  }
-
+): Promise<ConnectorAccessToken> {
   const requestId = `sync-${connector.credentialId}`
-  const token = await refreshAccessTokenIfNeeded(connector.credentialId, userId, requestId)
+  const resolved = await resolveConnectorAccessToken({
+    auth: connectorConfig.auth,
+    connector,
+    userId,
+    requestId,
+  })
 
-  if (!token) {
-    logger.error(`[${requestId}] refreshAccessTokenIfNeeded returned null`, {
+  if (!resolved) {
+    const provider = connectorConfig.auth.mode === 'oauth' ? connectorConfig.auth.provider : null
+    logger.error(`[${requestId}] Connector credential resolved no access token`, {
       credentialId: connector.credentialId,
       userId,
       authMode: connectorConfig.auth.mode,
-      authProvider: connectorConfig.auth.provider,
+      authProvider: provider,
     })
     throw new Error(
-      `Failed to obtain access token for credential ${connector.credentialId} (provider: ${connectorConfig.auth.provider})`
+      `Failed to obtain access token for credential ${connector.credentialId} (provider: ${provider})`
     )
   }
 
-  return token
+  return resolved
 }
 
 /**
@@ -786,15 +774,25 @@ export async function executeSync(
       }
     }
 
-    let accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
+    let credentialToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
     /** Re-resolves the token for every OAuth call after the first, so a long run outlives a short-lived token. */
     const refreshOAuthToken = async (): Promise<void> => {
       if (connectorConfig.auth.mode === 'oauth') {
-        accessToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
+        credentialToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
       }
     }
 
-    const syncContext: Record<string, unknown> = { syncRunId: generateId() }
+    /**
+     * A credential that already knows its cloud id seeds the same `syncContext`
+     * slot the connector would otherwise memoise it into. Confluence discovers
+     * it by calling `accessible-resources` with a bearer token; an Atlassian
+     * service account holds an API token that cannot make that call, so for it
+     * the seed is the only source. Connectors need no service-account branch.
+     */
+    const syncContext: Record<string, unknown> = {
+      syncRunId: generateId(),
+      ...(credentialToken.cloudId ? { cloudId: credentialToken.cloudId } : {}),
+    }
 
     // Shared cutoff for both the tombstone-retry bound below and the stuck-document
     // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
@@ -872,7 +870,7 @@ export async function executeSync(
       beforePage: lease.beatIfDue,
       getAccessToken: async (pageNum) => {
         if (pageNum > 0) await refreshOAuthToken()
-        return accessToken
+        return credentialToken.accessToken
       },
     })
     const externalDocs = listing.documents
@@ -915,7 +913,12 @@ export async function executeSync(
       hydration: {
         beforeHydration: refreshOAuthToken,
         getDocument: (externalId) =>
-          connectorConfig.getDocument(accessToken, sourceConfig, externalId, syncContext),
+          connectorConfig.getDocument(
+            credentialToken.accessToken,
+            sourceConfig,
+            externalId,
+            syncContext
+          ),
       },
       lease,
       documentAccess: 'workspace',

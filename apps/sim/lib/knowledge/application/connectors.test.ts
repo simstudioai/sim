@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   getCredentialActorContext: vi.fn(),
   canUseCredential: vi.fn(),
   resolveTokenIdentity: vi.fn(),
-  refreshToken: vi.fn(),
+  resolveTokenBundle: vi.fn(),
   validateConnectorConfig: vi.fn(),
   recordAudit: vi.fn(),
   getUserPermissionConfig: vi.fn(),
@@ -70,7 +70,7 @@ vi.mock('@/lib/credentials/access', () => ({
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => ({
-  refreshAccessTokenIfNeeded: mocks.refreshToken,
+  resolveCredentialTokenBundle: mocks.resolveTokenBundle,
 }))
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
@@ -80,7 +80,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     confluence: {
-      auth: { mode: 'oauth' },
+      auth: { mode: 'oauth', requiredScopes: ['read:confluence-content.all'] },
       validateConfig: mocks.validateConnectorConfig,
     },
   },
@@ -151,7 +151,7 @@ describe('knowledge connector application use cases', () => {
         access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin)
     )
     mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'oauth', userId: 'credential-owner' })
-    mocks.refreshToken.mockResolvedValue('access-token')
+    mocks.resolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
     mocks.resolveBilling.mockResolvedValue(BILLING)
     mocks.getUserPermissionConfig.mockResolvedValue(null)
@@ -336,10 +336,11 @@ describe('knowledge connector application use cases', () => {
     )
     expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'shared-user')
     expect(mocks.resolveTokenIdentity).toHaveBeenCalledWith('credential-1', 'workspace-a')
-    expect(mocks.refreshToken).toHaveBeenCalledWith(
+    expect(mocks.resolveTokenBundle).toHaveBeenCalledWith(
       'credential-1',
       'credential-owner',
-      expect.any(String)
+      expect.any(String),
+      ['read:confluence-content.all']
     )
     expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('access-token', { space: 'ENG' })
     expect(mocks.resolveBilling).toHaveBeenCalledWith('workspace-a')
@@ -395,7 +396,7 @@ describe('knowledge connector application use cases', () => {
 
     expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'shared-user')
     expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
-    expect(mocks.refreshToken).not.toHaveBeenCalled()
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
   })
 
   it('rejects source-config revalidation after credential membership is removed', async () => {
@@ -457,7 +458,7 @@ describe('knowledge connector application use cases', () => {
         'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
     })
     expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
-    expect(mocks.refreshToken).not.toHaveBeenCalled()
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
     expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
   })
 

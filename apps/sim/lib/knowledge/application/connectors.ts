@@ -11,7 +11,6 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -36,6 +35,10 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import {
+  connectorServiceAccountScopes,
+  resolveConnectorAccessToken,
+} from '@/lib/knowledge/connectors/access-token'
 import {
   resolveViewerConnectorMemberships,
   type ViewerConnectorMembership,
@@ -65,10 +68,11 @@ import type {
 } from '@/lib/knowledge/orchestration/shared'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
-import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getConnectorMeta } from '@/connectors/registry'
+import type { ConnectorAuthConfig } from '@/connectors/types'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -240,14 +244,23 @@ export async function resolveConnectorCredentialAccessToken(input: {
   actingUserId: string
   requestId: string
   service?: ServiceProviderIdentity
+  /**
+   * The connector's declared auth, when the caller knows which connector the
+   * credential is being resolved for. A service-account credential mints
+   * against the scopes it names; without it such a credential cannot resolve a
+   * token at all.
+   */
+  auth?: ConnectorAuthConfig
 }): Promise<string | null> {
   const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
   if (!identity) return null
-  return refreshAccessTokenIfNeeded(
+  const bundle = await resolveCredentialTokenBundle(
     input.credentialId,
     identity.kind === 'oauth' ? identity.userId : input.actingUserId,
-    input.requestId
+    input.requestId,
+    input.auth ? connectorServiceAccountScopes(input.auth) : undefined
   )
+  return bundle?.accessToken ?? null
 }
 
 async function validateConnectorSourceConfig(input: {
@@ -266,18 +279,18 @@ async function validateConnectorSourceConfig(input: {
     }
   }
 
-  let accessToken: string | null = null
+  /**
+   * The user the token resolves under: whoever owns the OAuth account behind
+   * the credential, since token reads are scoped to `account.userId`. An API
+   * key and a service account both ignore it.
+   */
+  let tokenUserId = input.actingUserId
   if (connectorConfig.auth.mode === 'apiKey') {
-    if (!input.connector.encryptedApiKey) {
-      if (!connectorConfig.auth.optional) {
-        return {
-          message: 'API key not found. Please reconfigure the connector.',
-          errorCode: 'validation',
-        }
+    if (!input.connector.encryptedApiKey && !connectorConfig.auth.optional) {
+      return {
+        message: 'API key not found. Please reconfigure the connector.',
+        errorCode: 'validation',
       }
-      accessToken = ''
-    } else {
-      accessToken = (await decryptApiKey(input.connector.encryptedApiKey)).decrypted
     }
   } else {
     if (!input.connector.credentialId) {
@@ -297,20 +310,23 @@ async function validateConnectorSourceConfig(input: {
         errorCode: 'validation',
       }
     }
-    accessToken = await refreshAccessTokenIfNeeded(
-      input.connector.credentialId,
-      identity.kind === 'oauth' ? identity.userId : input.actingUserId,
-      input.requestId
-    )
-    if (!accessToken) {
-      return {
-        message: 'Failed to refresh access token. Please reconnect your account.',
-        errorCode: 'unauthorized',
-      }
+    if (identity.kind === 'oauth') tokenUserId = identity.userId
+  }
+
+  const resolved = await resolveConnectorAccessToken({
+    auth: connectorConfig.auth,
+    connector: input.connector,
+    userId: tokenUserId,
+    requestId: input.requestId,
+  })
+  if (!resolved) {
+    return {
+      message: 'Failed to refresh access token. Please reconnect your account.',
+      errorCode: 'unauthorized',
     }
   }
 
-  const validation = await connectorConfig.validateConfig(accessToken, input.sourceConfig)
+  const validation = await connectorConfig.validateConfig(resolved.accessToken, input.sourceConfig)
   return validation.valid
     ? null
     : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }
@@ -570,6 +586,10 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       workspaceId,
       input.connectorType
     )
+    const connectorMeta = getConnectorMeta(input.connectorType)
+    if (!connectorMeta) {
+      throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
+    }
     let membersBinding: ResolvedMembersBinding | undefined
     if (input.accessMode === 'members') {
       /**
@@ -590,10 +610,6 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
         )
       }
       await requireCurrentHumanRole(subjectUserId, context, 'admin')
-      const connectorMeta = getConnectorMeta(input.connectorType)
-      if (!connectorMeta) {
-        throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
-      }
       membersBinding = await resolveKnowledgeConnectorMembersBinding({
         workspaceId,
         connectorMeta,
@@ -626,6 +642,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
           workspaceId,
           actingUserId,
           requestId,
+          auth: connectorMeta.auth,
         }),
       userId: actingUserId,
       source: input.source ?? 'agent',

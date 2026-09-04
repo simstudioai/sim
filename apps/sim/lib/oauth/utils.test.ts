@@ -729,6 +729,16 @@ describe('getMissingRequiredScopes', () => {
     expect(missing).toEqual(['read', 'write'])
   })
 
+  it.concurrent(
+    'should report nothing missing for a service account, which grants no scopes',
+    () => {
+      const credential = { type: 'service_account', scopes: undefined }
+      const missing = getMissingRequiredScopes(credential, ['read', 'write'])
+
+      expect(missing).toEqual([])
+    }
+  )
+
   it.concurrent('should return all required scopes when credential has undefined scopes', () => {
     const missing = getMissingRequiredScopes({ scopes: undefined }, ['read', 'write'])
 

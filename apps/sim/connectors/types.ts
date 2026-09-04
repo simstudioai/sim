@@ -7,7 +7,23 @@ import type { SelectorKey } from '@/lib/selectors/manifest'
  * API key connectors store an encrypted key in the `encryptedApiKey` column.
  */
 export type ConnectorAuthConfig =
-  | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
+  | {
+      mode: 'oauth'
+      provider: OAuthService
+      requiredScopes?: string[]
+      /**
+       * Scopes to mint with when the connector's credential is a service
+       * account rather than a person's OAuth account.
+       *
+       * A service account authorizes through a signed JWT that names its own
+       * scopes, so it has no granted-scope list to inherit from
+       * {@link requiredScopes} — that set describes an interactive consent
+       * screen, and a provider may accept scopes there that it refuses in a
+       * two-legged grant. Defaults to `requiredScopes` where the two sets
+       * genuinely coincide, which is the common case.
+       */
+      serviceAccountScopes?: string[]
+    }
   | {
       mode: 'apiKey'
       label?: string
