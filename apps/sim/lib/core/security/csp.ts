@@ -158,9 +158,10 @@ const STATIC_FRAME_SRC = [
   'https://*.google.com',
   // Google Ads conversion tag — the conversion linker writes its cookie from
   // a hidden iframe on these origins; without them the ping still fires but
-  // cross-domain click attribution silently drops
-  'https://td.doubleclick.net',
-  'https://www.googleadservices.com',
+  // cross-domain click attribution silently drops. Hosted-only, like the
+  // script-src and connect-src entries: the consent provider that loads the
+  // tag never mounts off hosted, so nothing self-hosted can frame these.
+  ...(isHosted ? ['https://td.doubleclick.net', 'https://www.googleadservices.com'] : []),
   'https://www.youtube.com',
   'https://player.vimeo.com',
   'https://www.dailymotion.com',
