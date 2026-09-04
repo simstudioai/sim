@@ -29,6 +29,8 @@ interface ConnectorAccessFieldProps {
   disabled?: boolean
   /** Whether per-member access may be chosen; false leaves only the way back to workspace access. */
   allowMembers?: boolean
+  /** Whether administrator access may be chosen; it needs a connector that mirrors source permissions. */
+  allowAdmin?: boolean
   /**
    * Whether the connector already syncs per member, so any matching group may
    * be chosen, not only when several make the choice necessary.
@@ -73,12 +75,17 @@ export function ConnectorAccessField({
   canAdmin,
   disabled = false,
   allowMembers = true,
+  allowAdmin = false,
   canRebind = false,
   footer,
 }: ConnectorAccessFieldProps) {
-  if (!groupOptions.supported) return null
-
-  const allowAdmin = Boolean(connectorConfig.mirrorsSourceAcls)
+  /**
+   * Per-member access needs a Credential Group for the provider; administrator
+   * access does not, so a provider without one still offers it.
+   */
+  const membersSupported = groupOptions.supported
+  const showAdmin = allowAdmin && Boolean(connectorConfig.mirrorsSourceAcls)
+  if (!membersSupported && !showAdmin) return null
 
   if (!canAdmin) {
     if (value.accessMode === 'workspace') return null
@@ -88,10 +95,12 @@ export function ConnectorAccessField({
           <ButtonGroupItem value='workspace' disabled>
             Workspace
           </ButtonGroupItem>
-          <ButtonGroupItem value='members' disabled>
-            Per member
-          </ButtonGroupItem>
-          {allowAdmin ? (
+          {membersSupported ? (
+            <ButtonGroupItem value='members' disabled>
+              Per member
+            </ButtonGroupItem>
+          ) : null}
+          {showAdmin ? (
             <ButtonGroupItem value='admin' disabled>
               Mirror source
             </ButtonGroupItem>
@@ -125,10 +134,12 @@ export function ConnectorAccessField({
           <ButtonGroupItem value='workspace' disabled={disabled}>
             Workspace
           </ButtonGroupItem>
-          <ButtonGroupItem value='members' disabled={disabled || !allowMembers}>
-            Per member
-          </ButtonGroupItem>
-          {allowAdmin ? (
+          {membersSupported ? (
+            <ButtonGroupItem value='members' disabled={disabled || !allowMembers}>
+              Per member
+            </ButtonGroupItem>
+          ) : null}
+          {showAdmin ? (
             <ButtonGroupItem value='admin' disabled={disabled}>
               Mirror source
             </ButtonGroupItem>

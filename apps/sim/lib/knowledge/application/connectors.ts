@@ -11,7 +11,6 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -29,7 +28,6 @@ import {
   resolveKnowledgeAttributedUserId,
   resolveKnowledgeBillingAttribution,
 } from '@/lib/knowledge/application/billing'
-import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/application/connector-access'
 import {
   type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeConnectorContext,
@@ -37,11 +35,13 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { resolveConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
 import {
   resolveViewerConnectorMemberships,
   type ViewerConnectorMembership,
 } from '@/lib/knowledge/connectors/member-provisioning'
+import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,

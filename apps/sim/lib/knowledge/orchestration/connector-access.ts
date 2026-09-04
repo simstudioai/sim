@@ -4,13 +4,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   grantKnowledgeConnectorCredentialAccess,
   revokeKnowledgeConnectorCredentialAccess,
@@ -476,11 +476,25 @@ export async function performUpdateKnowledgeConnectorAccess(
     }
 
     /**
-     * The flip lands first, still under the lease and with the rewrite marked
-     * pending, so an interruption anywhere after it leaves a workspace-mode
-     * connector whose next content sync finishes the rewrite; documents are
-     * hidden until then, never shown under the wrong mode.
+     * Where the flip sits relative to the rewrite follows from which way the
+     * entry ACL moves. Entering a mode that hides on entry (admin) rewrites
+     * *before* the flip, as the members path does: an interruption leaves a
+     * workspace-mode connector with some documents hidden, which its next
+     * content sync restores. Entering workspace mode, which shows on entry,
+     * rewrites *after* the flip, so no document is shown under the mode it is
+     * leaving. Either way, documents are hidden until the rewrite lands, never
+     * shown under the wrong mode, and a rewrite that outgrows the request
+     * budget is marked pending for the content engine to finish before it
+     * lists anything.
      */
+    const entryAcl = MODE_ENTRY_ACL[target.accessMode]
+    const hidesOnEntry = entryAcl.length === 0
+    const rewriteEntryAcls = () =>
+      rewriteConnectorAcls(connectorId, entryAcl, {
+        deadlineAt: deadlineAt,
+        lease: { stillHeld: () => switchLeaseHeld(connectorId, switchId) },
+      })
+    const rewrittenBeforeFlip = hidesOnEntry ? await rewriteEntryAcls() : false
     const flippedAt = new Date()
     await db.transaction(async (tx) => {
       await tx
@@ -493,7 +507,7 @@ export async function performUpdateKnowledgeConnectorAccess(
           credentialId: target.credentialId,
           credentialGroupId: null,
           credentialGroupOptionId: null,
-          accessRewritePending: true,
+          accessRewritePending: hidesOnEntry ? !rewrittenBeforeFlip : true,
           /**
            * The next content sync must list everything and reconcile: the
            * union of every member's documents may hold documents the
@@ -512,10 +526,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         .returning({ id: knowledgeConnector.id })
       if (!row) throw new SwitchLeaseLostError()
     })
-    const rewritten = await rewriteConnectorAcls(connectorId, MODE_ENTRY_ACL[target.accessMode], {
-      deadlineAt: deadlineAt,
-      lease: { stillHeld: () => switchLeaseHeld(connectorId, switchId) },
-    })
+    const rewritten = hidesOnEntry ? rewrittenBeforeFlip : await rewriteEntryAcls()
     if (existing.credentialGroupId) {
       await revokeKnowledgeConnectorCredentialAccess(
         { workspaceId: kb.workspaceId, credentialGroupId: existing.credentialGroupId, connectorId },

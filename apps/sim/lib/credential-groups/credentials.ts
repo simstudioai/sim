@@ -5,6 +5,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  foldedEmail,
   user,
 } from '@sim/db/schema'
 import { and, asc, eq, gt, inArray, or, type SQL, sql } from 'drizzle-orm'
@@ -125,7 +126,7 @@ export async function loadCredentialGroupEnrollmentAccess(
       email: credentialGroupEnrollment.email,
     })
     .from(credentialGroupEnrollment)
-    .innerJoin(user, eq(sql<string>`lower(btrim(${user.email}))`, credentialGroupEnrollment.email))
+    .innerJoin(user, eq(foldedEmail(user.email), credentialGroupEnrollment.email))
     .where(
       and(
         eq(user.id, userId),

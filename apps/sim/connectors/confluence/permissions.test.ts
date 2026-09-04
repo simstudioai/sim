@@ -156,7 +156,7 @@ describe('listAncestorIds', () => {
   /** The closest parent decides, and Confluence returns ancestors root-first. */
   it('returns ancestors closest parent first', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse({ ancestors: [{ id: 'root' }, { id: 'section' }, { id: 'parent' }] })
+      jsonResponse({ results: [{ id: 'root' }, { id: 'section' }, { id: 'parent' }] })
     )
 
     await expect(listAncestorIds(CLOUD, 'token', 'page-1')).resolves.toEqual([
@@ -164,6 +164,7 @@ describe('listAncestorIds', () => {
       'section',
       'root',
     ])
+    expect(String(mockFetch.mock.calls[0][0])).toContain('/api/v2/pages/page-1/ancestors')
   })
 
   it('reports a top-level page as having no ancestors', async () => {

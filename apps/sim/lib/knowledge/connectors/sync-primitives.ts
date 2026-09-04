@@ -12,6 +12,7 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env, envNumber } from '@/lib/core/config/env'
+import type { SyncDocumentAccess } from '@/lib/knowledge/connectors/access-modes'
 import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   addDocument,
@@ -19,7 +20,6 @@ import {
   type PersistedDocument,
   persistSkippedDocuments,
   persistSkippedRetryHashes,
-  type SyncDocumentAccess,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'

@@ -39,6 +39,16 @@ export function isContentEngineAccessMode(accessMode: string): boolean {
 }
 
 /**
+ * Whether a connector in this mode syncs with one credential of its own —
+ * the one a switch into the mode must name, and the one its row keeps. The
+ * same set as the content engine's: a members-mode connector crawls with its
+ * members' credentials and holds none itself.
+ */
+export function isCredentialBackedAccessMode(accessMode: string): boolean {
+  return isContentEngineAccessMode(accessMode)
+}
+
+/**
  * Who may read a document a sync writes.
  *
  * A workspace-mode connector's documents are visible to the whole workspace on

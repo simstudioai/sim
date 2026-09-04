@@ -25,10 +25,16 @@ import {
 import {
   type ConnectorAccessToken,
   resolveConnectorAccessToken,
+  syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { refreshMirroredDirectory } from '@/lib/knowledge/connectors/external-group-sync'
+import { stripListingCapFields } from '@/lib/knowledge/connectors/member-access'
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
-import { mergeMirroredAcls, unansweredByListing } from '@/lib/knowledge/connectors/mirrored-acls'
+import {
+  hideUnlistedDocuments,
+  mergeMirroredAcls,
+  unansweredByListing,
+} from '@/lib/knowledge/connectors/mirrored-acls'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -40,6 +46,7 @@ import {
   createContentSyncLease,
   holdsSyncLockToken,
   LOCKABLE_CONNECTOR_STATUSES,
+  RUNNABLE_CONNECTOR_STATUSES,
   SyncLockLostException,
   stillHoldsSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
@@ -82,8 +89,6 @@ export {
   worstCaseProcessingMinutes,
 } from '@/lib/knowledge/documents/types'
 
-const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
-
 /**
  * Writes the ACLs an admin-mode listing mirrored from the source.
  *
@@ -105,6 +110,8 @@ async function applySourceMirroredAcls(input: {
   syncContext: Record<string, unknown>
   accessToken: string
   externalDocs: readonly ExternalDocument[]
+  /** External ids of every live document the connector owns, listed this run or not. */
+  ownedExternalIds: readonly (string | null)[]
 }): Promise<void> {
   const { connectorId, connectorConfig, externalDocs } = input
 
@@ -125,12 +132,21 @@ async function applySourceMirroredAcls(input: {
         )
       : {}
   const { acls, unattributed } = mergeMirroredAcls(externalDocs, fetched)
+  const listed = acls.size
+  /**
+   * A document this run did not list has no ACL this run can vouch for, so it
+   * is hidden rather than left under the last one it was given. Deletion
+   * reconciliation decides separately, and later, whether it is gone; a held
+   * reconciliation keeps the row, but never keeps it readable.
+   */
+  const unlisted = hideUnlistedDocuments(acls, input.ownedExternalIds)
 
   const written = await persistDocumentAcls(connectorId, acls)
   logger.info('Mirrored source permissions onto connector documents', {
     connectorId,
-    listed: acls.size,
+    listed,
     ...written,
+    ...(unlisted > 0 ? { unlisted } : {}),
     ...(unattributed > 0 ? { unattributed } : {}),
   })
   if (unattributed > 0) {
@@ -814,7 +830,16 @@ export async function executeSync(
    * and conflicts instead of letting this worker process stale configuration.
    */
   const connector = lockResult[0]
-  const sourceConfig = connector.sourceConfig as Record<string, unknown>
+  const mirrorsSourceAcls = connector.accessMode === 'admin'
+  /**
+   * A listing cap has no meaning once every document's visibility is its
+   * source ACL: a capped listing would hide everything past the cap and never
+   * see a removal. Cleared here, at the one place the listing runs, so it
+   * holds however the connector reached this mode.
+   */
+  const sourceConfig = mirrorsSourceAcls
+    ? stripListingCapFields(connectorConfig, connector.sourceConfig as Record<string, unknown>)
+    : (connector.sourceConfig as Record<string, unknown>)
   const syncStartedAt = new Date()
   const lease = createContentSyncLease(connectorId, syncLogId)
   await db.insert(knowledgeConnectorSyncLog).values({
@@ -876,7 +901,7 @@ export async function executeSync(
      */
     const syncContext: Record<string, unknown> = {
       syncRunId: generateId(),
-      ...(credentialToken.cloudId ? { cloudId: credentialToken.cloudId } : {}),
+      ...syncContextForToken(credentialToken),
     }
 
     // Shared cutoff for both the tombstone-retry bound below and the stuck-document
@@ -923,7 +948,7 @@ export async function executeSync(
      * listing would omit those unchanged containers, so they'd never be re-fetched.
      */
     const isIncremental =
-      !requiresFullListing(connectorBeforeLock.accessMode) &&
+      !requiresFullListing(connector.accessMode) &&
       shouldRunIncrementalSync(
         connectorConfig.supportsIncrementalSync,
         connector.syncMode,
@@ -947,6 +972,37 @@ export async function executeSync(
     const forceRehydrate = Boolean(
       (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
     )
+
+    if (mirrorsSourceAcls) {
+      /**
+       * A switch into this mode hides every document before it flips, and one
+       * whose rewrite outgrew its request budget leaves the rest for the next
+       * run. It has to be finished *before this run lists anything*: the
+       * documents it did not reach are still readable by the whole workspace,
+       * and the completion write below clears the flag on the strength of this
+       * pass having left none under the mode the connector came from. The
+       * workspace-mode equivalent runs at completion instead, because restoring
+       * is safe to do last; hiding is not.
+       */
+      if (connector.accessRewritePending) {
+        await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
+          beforeBatch: lease.beatIfDue,
+          lease,
+        })
+      }
+      /**
+       * Before the listing rather than after: a group grant this crawl writes
+       * must never point at membership nobody has read, and the scheduler's
+       * refresh is a cadence, not a guarantee.
+       */
+      await refreshMirroredDirectory({
+        workspaceId: kbOwner.workspaceId,
+        connectorConfig,
+        sourceConfig,
+        syncContext,
+        accessToken: credentialToken.accessToken,
+      })
+    }
 
     const listing = await runListingPass({
       connectorId,
@@ -1008,7 +1064,7 @@ export async function executeSync(
           ),
       },
       lease,
-      documentAccess: documentAccessForMode(connectorBeforeLock.accessMode),
+      documentAccess: documentAccessForMode(connector.accessMode),
     })
 
     /**
@@ -1016,29 +1072,7 @@ export async function executeSync(
      * — is present to be made readable, and before reconciliation, so a
      * revoked grant lands even on a run that removes nothing.
      */
-    if (connectorBeforeLock.accessMode === 'admin') {
-      /**
-       * A switch into this mode hides every document on entry, and one whose
-       * rewrite outgrew its request budget leaves the rest for the next run to
-       * finish. It has to be finished *here*, before this run writes real ACLs
-       * — the completion write below clears the flag, and it does so on the
-       * strength of this pass having left no document under the mode it came
-       * from. The workspace-mode equivalent runs at completion instead, because
-       * restoring is safe to do last; hiding is not.
-       */
-      if (connectorBeforeLock.accessRewritePending) {
-        await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
-          beforeBatch: lease.beatIfDue,
-          lease,
-        })
-      }
-      await refreshMirroredDirectory({
-        workspaceId: kbOwner.workspaceId,
-        connectorConfig,
-        sourceConfig,
-        syncContext,
-        accessToken: credentialToken.accessToken,
-      })
+    if (mirrorsSourceAcls) {
       await applySourceMirroredAcls({
         connectorId,
         connectorConfig,
@@ -1046,6 +1080,7 @@ export async function executeSync(
         syncContext,
         accessToken: credentialToken.accessToken,
         externalDocs,
+        ownedExternalIds: corpus.existingDocs.map((doc) => doc.externalId),
       })
     }
 

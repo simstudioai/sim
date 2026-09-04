@@ -471,3 +471,125 @@ describe('confluence incremental CQL listing', () => {
     expect(cqlOfCall(1)).toBe(cqlOfCall(0))
   })
 })
+
+describe('confluence mirrored permissions', () => {
+  const fetchMock =
+    vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
+
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  /** A two-space site where each space is readable by one different person. */
+  function site() {
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      const path = url.pathname
+      if (path.endsWith('/api/v2/spaces')) {
+        const key = url.searchParams.get('keys')
+        return jsonResponse({ results: [{ id: key === 'ENG' ? '1' : '2', key }] })
+      }
+      if (path.endsWith('/spaces/1/permissions')) {
+        return jsonResponse({
+          results: [
+            {
+              principal: { type: 'user', id: 'acc-eng' },
+              operation: { key: 'read', targetType: 'space' },
+            },
+          ],
+        })
+      }
+      if (path.endsWith('/spaces/2/permissions')) {
+        return jsonResponse({
+          results: [
+            {
+              principal: { type: 'user', id: 'acc-hr' },
+              operation: { key: 'read', targetType: 'space' },
+            },
+          ],
+        })
+      }
+      if (path.includes('/restriction/byOperation/read')) {
+        return jsonResponse({ restrictions: { user: { results: [] }, group: { results: [] } } })
+      }
+      if (path.endsWith('/ancestors')) return jsonResponse({ results: [] })
+      if (path.endsWith('/rest/api/user/bulk')) {
+        return jsonResponse({
+          results: [
+            { accountId: 'acc-eng', email: 'eng@corp.com' },
+            { accountId: 'acc-hr', email: 'hr@corp.com' },
+          ],
+        })
+      }
+      return jsonResponse({ error: `unexpected ${path}` }, 500)
+    })
+  }
+
+  function page(externalId: string, spaceKey: string, contentType = 'page') {
+    return {
+      externalId,
+      title: externalId,
+      content: '',
+      mimeType: 'text/plain',
+      contentHash: externalId,
+      metadata: { spaceKey, contentType },
+    }
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /**
+   * The bug this pins: a connector over two spaces once pooled every space's
+   * readers and gave the pool to every unrestricted page, so a reader of one
+   * space could read the other's pages.
+   */
+  it("gives an unrestricted page its own space's readers, never another space's", async () => {
+    site()
+
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: ['ENG', 'HR'] },
+      [page('eng-page', 'ENG'), page('hr-post', 'HR', 'blogpost')],
+      { cloudId: 'cloud-1' }
+    )
+
+    expect(acls).toEqual({
+      'eng-page': ['u:eng@corp.com'],
+      'hr-post': ['u:hr@corp.com'],
+    })
+    /** A blog post has no ancestors and is never asked for them. */
+    const asked = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname)
+    expect(asked.some((path) => path.includes('/blogposts/hr-post/ancestors'))).toBe(false)
+    expect(asked.some((path) => path.includes('/pages/eng-page/ancestors'))).toBe(true)
+  })
+
+  it('omits a page whose permissions could not be read and still answers for the rest', async () => {
+    site()
+    const healthy = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).includes('/content/broken/restriction')) {
+        return jsonResponse({ error: 'nope' }, 404)
+      }
+      return healthy(input, init)
+    })
+
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: 'ENG' },
+      [page('eng-page', 'ENG'), page('broken', 'ENG')],
+      { cloudId: 'cloud-1' }
+    )
+
+    expect(acls).toEqual({ 'eng-page': ['u:eng@corp.com'] })
+  })
+})

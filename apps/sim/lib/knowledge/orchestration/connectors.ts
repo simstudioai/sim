@@ -12,7 +12,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
@@ -20,11 +19,17 @@ import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orch
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  aclIsDerived,
+  type ConnectorAccessMode,
+  isConnectorAccessMode,
+} from '@/lib/knowledge/connectors/access-modes'
+import {
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
   revokeKnowledgeConnectorCredentialAccess,
   stripListingCapFields,
 } from '@/lib/knowledge/connectors/member-access'
+import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import {
@@ -691,10 +696,33 @@ export async function performUpdateKnowledgeConnector(
       if (connectorConfig) {
         sourceConfigToStore = stripListingCapFields(connectorConfig, updates.sourceConfig)
       }
-    } else if (validateSourceConfig) {
-      const rejection = await validateSourceConfig(existing, updates.sourceConfig)
-      if (rejection) {
-        return fail(rejection.message, rejection.errorCode)
+    } else {
+      /**
+       * An administrator-mode connector must keep naming whose eyes it crawls
+       * through: a config edit that blanked the administrator would mint a
+       * token with no subject and silently stop mirroring on the next run.
+       */
+      if (existing.accessMode === 'admin' && kb.workspaceId) {
+        const { CONNECTOR_META_REGISTRY } = await import('@/connectors/registry')
+        const connectorMeta = CONNECTOR_META_REGISTRY[existing.connectorType]
+        if (connectorMeta) {
+          try {
+            await assertConnectorMirrorsSourceAcls(
+              connectorMeta,
+              updates.sourceConfig,
+              kb.workspaceId
+            )
+          } catch (error) {
+            if (error instanceof OrchestrationError) return fail(error.message, error.code)
+            throw error
+          }
+        }
+      }
+      if (validateSourceConfig) {
+        const rejection = await validateSourceConfig(existing, updates.sourceConfig)
+        if (rejection) {
+          return fail(rejection.message, rejection.errorCode)
+        }
       }
     }
   }
@@ -917,13 +945,19 @@ export async function performDeleteKnowledgeConnector(
     return fail('Connector not found', 'not_found')
   }
   /**
-   * A members-mode document's visibility is its observers; detached from the
-   * connector it would keep an ACL nothing maintains, or become hidden to
-   * everyone. Neither is a standalone entry anyone asked for.
+   * A derived ACL is maintained by the connector's sync — observers in
+   * members mode, the source's own grants in administrator mode. Detached from
+   * the connector a document would keep an ACL nothing maintains: a person the
+   * source un-shares from keeps reading, forever. Not a standalone entry
+   * anyone asked for.
    */
-  if (existing.accessMode === 'members' && !deleteDocuments) {
+  if (
+    isConnectorAccessMode(existing.accessMode) &&
+    aclIsDerived(existing.accessMode) &&
+    !deleteDocuments
+  ) {
     return fail(
-      'Documents of a connector that syncs per member cannot be kept; delete them with the connector',
+      'Documents of a connector whose access is derived from the source cannot be kept; delete them with the connector',
       'conflict'
     )
   }

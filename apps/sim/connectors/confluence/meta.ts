@@ -36,6 +36,8 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       'search:confluence',
       'read:confluence-space.summary',
       'read:confluence-user',
+      'read:user:confluence',
+      'read:email-address:confluence',
       'read:group:confluence',
     ],
   },

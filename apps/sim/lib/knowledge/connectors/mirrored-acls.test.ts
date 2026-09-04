@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { mergeMirroredAcls, unansweredByListing } from '@/lib/knowledge/connectors/mirrored-acls'
+import {
+  hideUnlistedDocuments,
+  mergeMirroredAcls,
+  unansweredByListing,
+} from '@/lib/knowledge/connectors/mirrored-acls'
 import type { ExternalDocument } from '@/connectors/types'
 
 function doc(externalId: string, acl?: readonly string[]): ExternalDocument {
@@ -19,7 +23,9 @@ function doc(externalId: string, acl?: readonly string[]): ExternalDocument {
 describe('unansweredByListing', () => {
   it('names exactly the documents the listing left without an ACL', () => {
     expect(
-      unansweredByListing([doc('a', ['u:alice@corp.com']), doc('b'), doc('c', []), doc('d')])
+      unansweredByListing([doc('a', ['u:alice@corp.com']), doc('b'), doc('c', []), doc('d')]).map(
+        (d) => d.externalId
+      )
     ).toEqual(['b', 'd'])
   })
 })
@@ -66,5 +72,18 @@ describe('mergeMirroredAcls', () => {
     const { acls } = mergeMirroredAcls([doc('z', ['pub']), doc('a')], {})
 
     expect([...acls.keys()]).toEqual(['z', 'a'])
+  })
+})
+
+describe('hideUnlistedDocuments', () => {
+  it('hides every owned document the listing did not name and leaves the listed ones alone', () => {
+    const acls = new Map<string, readonly string[]>([['a', ['u:alice@corp.com']]])
+
+    const hidden = hideUnlistedDocuments(acls, ['a', 'b', null, 'c'])
+
+    expect(hidden).toBe(2)
+    expect(acls.get('a')).toEqual(['u:alice@corp.com'])
+    expect(acls.get('b')).toEqual([])
+    expect(acls.get('c')).toEqual([])
   })
 })

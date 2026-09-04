@@ -108,3 +108,14 @@ export async function resolveConnectorAccessToken(params: {
     ...(bundle.cloudId ? { cloudId: bundle.cloudId } : {}),
   }
 }
+
+/**
+ * What a run's `syncContext` is seeded with from the token: the site a
+ * service account already knows, so a connector never has to discover with a
+ * token that cannot. Every path that opens a connector with a token — the
+ * content engine, the directory refresh, config validation — seeds the same
+ * way, so a connector behaves identically on all of them.
+ */
+export function syncContextForToken(token: ConnectorAccessToken): Record<string, unknown> {
+  return token.cloudId ? { cloudId: token.cloudId } : {}
+}

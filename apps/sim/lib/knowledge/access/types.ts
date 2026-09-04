@@ -30,7 +30,11 @@ export interface WorkspaceAccessScope {
 export interface UserAccessScope {
   kind: 'user'
   userId: string
-  /** `pub`, `ws`, and one `s:` token per active managed credential the person holds here. */
+  /**
+   * `pub`, `ws`, one `s:` token per active managed credential the person holds
+   * here, their own `u:` token, and one `g:` token per mirrored directory group
+   * they belong to.
+   */
   tokens: readonly string[]
 }
 

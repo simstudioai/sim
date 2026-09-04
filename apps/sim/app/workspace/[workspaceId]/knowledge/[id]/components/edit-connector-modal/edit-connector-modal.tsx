@@ -20,7 +20,10 @@ import {
 import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import {
+  type ConnectorAccessMode,
+  isCredentialBackedAccessMode,
+} from '@/lib/knowledge/connectors/access-modes'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import {
   ConnectorAccessField,
@@ -251,19 +254,24 @@ export function EditConnectorModal({
    * still bring it back to workspace mode; per-member cannot be re-chosen.
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
-  const showAccessField = memberAccessAvailable || connector.accessMode === 'members'
+  const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
+  const persistedAccess = currentAccess(connector)
+  const showAccessField =
+    memberAccessAvailable || mirroredAccessAvailable || persistedAccess.accessMode !== 'workspace'
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
-  const accessDirty = accessChanged(currentAccess(connector), access)
+  const accessDirty = accessChanged(persistedAccess, access)
   const groupOptions = useConnectorMemberGroupOptions({
     workspaceId,
     connectorConfig,
     enabled: canAdmin && memberAccessAvailable,
   })
-  /** Leaving members mode needs the credential the connector syncs as from then on. */
+  /** Leaving members mode for a mode that syncs with one credential needs that credential. */
   const needsWorkspaceCredential =
-    accessDirty && access.accessMode === 'workspace' && connector.accessMode === 'members'
+    accessDirty &&
+    isCredentialBackedAccessMode(access.accessMode) &&
+    persistedAccess.accessMode === 'members'
   const accessComplete =
     !accessDirty ||
     (access.accessMode === 'members'
@@ -359,8 +367,8 @@ export function EditConnectorModal({
                 credentialGroupOptionId: access.credentialGroupOptionId,
               }
             : {
-                accessMode: 'workspace',
-                credentialId: workspaceCredentialId ?? undefined,
+                accessMode: access.accessMode,
+                credentialId: workspaceCredentialId ?? connector.credentialId ?? undefined,
               },
       },
       {
@@ -403,7 +411,7 @@ export function EditConnectorModal({
         {activeTab === 'settings' ? (
           <SettingsTab
             connectorConfig={connectorConfig}
-            persistedAccessMode={connector.accessMode === 'members' ? 'members' : 'workspace'}
+            persistedAccessMode={persistedAccess.accessMode}
             sourceConfig={sourceConfig}
             credentialId={connector.credentialId}
             canonicalGroups={canonicalGroups}
@@ -421,6 +429,7 @@ export function EditConnectorModal({
             canAdmin={canAdmin}
             showAccessField={showAccessField}
             allowMembers={memberAccessAvailable}
+            allowAdmin={mirroredAccessAvailable}
             groupOptions={groupOptions}
             canReenableMemberSync={canReenableMemberSync}
             accessDirty={accessDirty}
@@ -474,6 +483,7 @@ interface SettingsTabProps {
   canAdmin: boolean
   showAccessField: boolean
   allowMembers: boolean
+  allowAdmin: boolean
   groupOptions: ReturnType<typeof useConnectorMemberGroupOptions>
   canReenableMemberSync: boolean
   accessDirty: boolean
@@ -507,6 +517,7 @@ function SettingsTab({
   canAdmin,
   showAccessField,
   allowMembers,
+  allowAdmin,
   groupOptions,
   canReenableMemberSync,
   accessDirty,
@@ -535,12 +546,10 @@ function SettingsTab({
   const selectorCredentialId = syncsPerMember ? browseCredentialId : credentialId
   const credentialOptions = useMemo<ComboboxOption[]>(
     () =>
-      rawCredentials
-        .filter((credential) => credential.type !== 'service_account')
-        .map((credential) => ({
-          label: credential.name || credential.provider,
-          value: credential.id,
-        })),
+      rawCredentials.map((credential) => ({
+        label: credential.name || credential.provider,
+        value: credential.id,
+      })),
     [rawCredentials]
   )
 
@@ -553,6 +562,7 @@ function SettingsTab({
           onChange={onAccessChange}
           canAdmin={canAdmin}
           allowMembers={allowMembers}
+          allowAdmin={allowAdmin}
           canRebind={persistedAccessMode === 'members'}
           groupOptions={groupOptions}
           disabled={isSaving}
@@ -600,7 +610,9 @@ function SettingsTab({
                         ? 'Change credential group'
                         : access.accessMode === 'members'
                           ? 'Switch to per-member access'
-                          : 'Switch to workspace access'}
+                          : access.accessMode === 'admin'
+                            ? 'Switch to mirrored access'
+                            : 'Switch to workspace access'}
                   </Button>
                   <Button variant='default' size='sm' onClick={onResetAccess} disabled={isSaving}>
                     Cancel
@@ -611,7 +623,9 @@ function SettingsTab({
                     ? 'Members of the previous group lose access; members of the new group are invited to connect.'
                     : access.accessMode === 'members'
                       ? 'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.'
-                      : 'Every workspace member can read every synced document once the next sync completes.'}
+                      : access.accessMode === 'admin'
+                        ? 'Documents stay hidden until the next sync mirrors their permissions from the source; listing caps are cleared.'
+                        : 'Every workspace member can read every synced document once the next sync completes.'}
                 </p>
               </div>
             ) : undefined

@@ -1,13 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import {
-  requireKnowledgeMemberAccessAvailable,
-  requireSourceMirroredAccessAvailable,
-} from '@/lib/knowledge/access/availability'
+import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -20,8 +16,9 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { connectorServiceAccountSubject } from '@/lib/knowledge/connectors/access-token'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { createViewerConnectorEnrollmentLink } from '@/lib/knowledge/connectors/member-provisioning'
+import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import {
   type ConnectorAccessTarget,
   performUpdateKnowledgeConnectorAccess,
@@ -71,42 +68,6 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     return { url }
   },
 })
-
-/**
- * Refuses admin mode on a connector that cannot mirror the source's
- * permissions, or that has not been told whose eyes to crawl through.
- *
- * Both are refusals rather than warnings because the alternative is a corpus
- * indexed with no ACL at all: every document readable by nobody, which looks
- * exactly like a broken sync. Failing at the moment the mode is chosen says
- * what is missing while the person choosing it can still supply it.
- */
-export async function assertConnectorMirrorsSourceAcls(
-  connectorMeta: ConnectorMeta,
-  sourceConfig: Record<string, unknown>,
-  workspaceId: string
-): Promise<void> {
-  await requireSourceMirroredAccessAvailable({ workspaceId })
-  if (!connectorMeta.mirrorsSourceAcls) {
-    throw new OrchestrationError(
-      'validation',
-      `${connectorMeta.name} cannot mirror source permissions, so it has no administrator mode`
-    )
-  }
-  /**
-   * Only a connector that impersonates needs a subject. A Drive service account
-   * sees nothing until it acts as an administrator; an Atlassian one holds an
-   * API token that already speaks for the site.
-   */
-  const { auth } = connectorMeta
-  const impersonates = auth.mode === 'oauth' && Boolean(auth.serviceAccountSubjectFieldId)
-  if (impersonates && !connectorServiceAccountSubject(auth, sourceConfig)) {
-    throw new OrchestrationError(
-      'validation',
-      `${connectorMeta.name} needs the administrator to crawl as before it can mirror permissions`
-    )
-  }
-}
 
 export interface UpdateKnowledgeConnectorAccessInput {
   knowledgeBaseId: string
@@ -248,7 +209,10 @@ async function requireUsableCredential(input: {
     throw new OrchestrationError('validation', 'Only OAuth connectors can change access mode')
   }
   if (!input.credentialId) {
-    throw new OrchestrationError('validation', 'credentialId is required for workspace mode')
+    throw new OrchestrationError(
+      'validation',
+      'credentialId is required for a mode that syncs with one credential'
+    )
   }
   const service =
     getServiceConfigByServiceId(auth.provider) ?? getServiceConfigByProviderId(auth.provider)

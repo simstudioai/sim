@@ -1,11 +1,22 @@
 import { db } from '@sim/db'
-import { knowledgeExternalGroup, knowledgeExternalGroupMember } from '@sim/db/schema'
+import {
+  knowledgeBase,
+  knowledgeConnector,
+  knowledgeExternalGroup,
+  knowledgeExternalGroupMember,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, notInArray, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, notInArray } from 'drizzle-orm'
+import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
 import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
+import {
+  resolveConnectorAccessToken,
+  syncContextForToken,
+} from '@/lib/knowledge/connectors/access-token'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorConfig,
   ConnectorDirectory,
@@ -44,11 +55,10 @@ export interface DirectorySyncResult {
  */
 export async function syncExternalDirectoryGroups(input: {
   workspaceId: string
-  providerId: string
   directory: ConnectorDirectory
 }): Promise<DirectorySyncResult> {
-  const { workspaceId, providerId, directory } = input
-  const tenantId = directory.tenantId
+  const { workspaceId, directory } = input
+  const { providerId, tenantId } = directory
 
   if (await directoryReadRecently(workspaceId, providerId, tenantId)) {
     return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true }
@@ -101,10 +111,15 @@ export async function syncExternalDirectoryGroups(input: {
 }
 
 /**
- * Whether every group of this directory was confirmed within the sync interval.
+ * Whether this directory was walked within the sync interval.
  *
- * Keyed off the *least* recently synced group, so one group that failed keeps
- * the directory due rather than being masked by its healthy siblings.
+ * Keyed off the *most* recently confirmed group: a walk confirms every group
+ * it can read, so one confirmed within the interval means the walk ran then.
+ * Keying off the least recent would make one group the service account can
+ * never read — a permanent 403 — keep the whole directory due forever, and
+ * re-walk it every tick. That group still stays on its last-known-good
+ * membership and ages out on the read side like any other. No groups at all
+ * is a directory that has never been read, not a fresh one.
  */
 async function directoryReadRecently(
   workspaceId: string,
@@ -112,24 +127,19 @@ async function directoryReadRecently(
   tenantId: string
 ): Promise<boolean> {
   const freshEnough = new Date(Date.now() - EXTERNAL_GROUP_SYNC_INTERVAL_MS)
-  const [counts] = await db
-    .select({
-      total: count(),
-      stale: count(
-        sql`CASE WHEN ${knowledgeExternalGroup.lastSyncedAt} IS NULL OR ${knowledgeExternalGroup.lastSyncedAt} < ${sql.param(freshEnough, knowledgeExternalGroup.lastSyncedAt)} THEN 1 END`
-      ),
-    })
+  const [recent] = await db
+    .select({ id: knowledgeExternalGroup.id })
     .from(knowledgeExternalGroup)
     .where(
       and(
         eq(knowledgeExternalGroup.workspaceId, workspaceId),
         eq(knowledgeExternalGroup.providerId, providerId),
-        eq(knowledgeExternalGroup.tenantId, tenantId)
+        eq(knowledgeExternalGroup.tenantId, tenantId),
+        gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
       )
     )
-
-  /** No groups at all is a directory that has never been read, not a fresh one. */
-  return counts.total > 0 && counts.stale === 0
+    .limit(1)
+  return Boolean(recent)
 }
 
 async function upsertGroup(input: {
@@ -259,11 +269,7 @@ export async function refreshMirroredDirectory(input: {
       })
       return
     }
-    const result = await syncExternalDirectoryGroups({
-      workspaceId,
-      providerId: connectorConfig.auth.provider,
-      directory,
-    })
+    const result = await syncExternalDirectoryGroups({ workspaceId, directory })
     logger.info('Refreshed mirrored directory groups', {
       workspaceId,
       tenantId: directory.tenantId,
@@ -276,4 +282,76 @@ export async function refreshMirroredDirectory(input: {
       error: getErrorMessage(error),
     })
   }
+}
+
+export type ConnectorDirectoryRefreshOutcome = 'refreshed' | 'skipped' | 'unusable'
+
+/**
+ * Refreshes the directory one admin-mode connector mirrors, from its row.
+ *
+ * The scheduler's unit of work, run in the background. Resolves the credential
+ * the connector syncs as — the credential's own account owner, not the
+ * knowledge base owner, since token reads are scoped to `account.userId` and a
+ * service account ignores the argument entirely — and opens the directory with
+ * the same context a content sync would.
+ */
+export async function refreshConnectorDirectory(
+  connectorId: string,
+  requestId: string
+): Promise<ConnectorDirectoryRefreshOutcome> {
+  const [connector] = await db
+    .select({
+      id: knowledgeConnector.id,
+      connectorType: knowledgeConnector.connectorType,
+      accessMode: knowledgeConnector.accessMode,
+      credentialId: knowledgeConnector.credentialId,
+      encryptedApiKey: knowledgeConnector.encryptedApiKey,
+      sourceConfig: knowledgeConnector.sourceConfig,
+      workspaceId: knowledgeBase.workspaceId,
+      knowledgeBaseOwnerId: knowledgeBase.userId,
+    })
+    .from(knowledgeConnector)
+    .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
+    .where(
+      and(
+        eq(knowledgeConnector.id, connectorId),
+        isNull(knowledgeConnector.archivedAt),
+        isNull(knowledgeConnector.deletedAt),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!connector || connector.accessMode !== 'admin' || !connector.workspaceId) return 'skipped'
+
+  const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
+  if (!connectorConfig?.openDirectory) return 'skipped'
+
+  let credentialUserId = connector.knowledgeBaseOwnerId
+  if (connector.credentialId) {
+    const identity = await resolveCredentialTokenIdentity(
+      connector.credentialId,
+      connector.workspaceId
+    )
+    if (!identity) return 'unusable'
+    if (identity.kind === 'oauth') credentialUserId = identity.userId
+  }
+
+  const sourceConfig = connector.sourceConfig as Record<string, unknown>
+  const token = await resolveConnectorAccessToken({
+    auth: connectorConfig.auth,
+    connector,
+    userId: credentialUserId,
+    requestId,
+    sourceConfig,
+  })
+  if (!token) return 'unusable'
+
+  await refreshMirroredDirectory({
+    workspaceId: connector.workspaceId,
+    connectorConfig,
+    sourceConfig,
+    syncContext: syncContextForToken(token),
+    accessToken: token.accessToken,
+  })
+  return 'refreshed'
 }

@@ -95,6 +95,7 @@ export function AddConnectorModal({
   const { ownerBilling, features } = useWorkspaceHostContext()
   const { canAdmin } = useUserPermissionsContext()
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
@@ -247,7 +248,7 @@ export function AddConnectorModal({
                 credentialGroupId: access.credentialGroupId,
                 credentialGroupOptionId: access.credentialGroupOptionId,
               }
-            : { credentialId: effectiveCredentialId! }),
+            : { accessMode: access.accessMode, credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
         syncIntervalMinutes: syncInterval,
       },
@@ -333,13 +334,15 @@ export function AddConnectorModal({
             </div>
           ) : connectorConfig ? (
             <>
-              {!isApiKeyMode && memberAccessAvailable && (
+              {!isApiKeyMode && (memberAccessAvailable || mirroredAccessAvailable) && (
                 <ConnectorAccessField
                   connectorConfig={connectorConfig}
                   value={access}
                   onChange={setAccess}
                   groupOptions={groupOptions}
                   canAdmin={canAdmin}
+                  allowMembers={memberAccessAvailable}
+                  allowAdmin={mirroredAccessAvailable}
                   disabled={isCreating}
                 />
               )}

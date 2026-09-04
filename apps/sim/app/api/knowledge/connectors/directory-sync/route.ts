@@ -2,24 +2,20 @@ import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
-import { resolveConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
-import { refreshMirroredDirectory } from '@/lib/knowledge/connectors/external-group-sync'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
+import { dispatchDirectorySync } from '@/lib/knowledge/connectors/directory-queue'
+import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ConnectorDirectorySyncSchedulerAPI')
 
-/** Directories refreshed per tick, and how many at once. */
+/** Directories dispatched per tick. */
 const MAX_DIRECTORIES_PER_TICK = 200
-const REFRESH_CONCURRENCY = 4
 
 /**
  * Refreshes the external directories that admin-mode connectors mirror.
@@ -30,15 +26,15 @@ const REFRESH_CONCURRENCY = 4
  * admin crawl refreshes the directory too — so a crawl can never publish grants
  * against membership nobody has read — but that is a floor, not the cadence.
  *
- * Every eligible connector is offered each tick; `syncExternalDirectoryGroups`
- * decides whether its directory is actually due. Connectors sharing a directory
- * therefore cost one refresh between them: the first brings it up to date and
- * the rest skip. Two ticks overlapping on one directory would both enumerate
- * and write the same rows — wasteful, never wrong, and not worth a lease to
- * prevent, since every write here is idempotent.
+ * Connectors sharing a directory cost one refresh between them: the tick
+ * dispatches one connector per workspace and provider, and
+ * `syncExternalDirectoryGroups` decides whether that directory is actually
+ * due. The walk itself runs in the background, like every other connector
+ * job, because a large domain takes longer than a scheduler request lives.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
+  const tickAt = new Date()
   logger.info(`[${requestId}] Connector directory sync scheduler triggered`)
 
   const authError = verifyCronAuth(request, 'Connector directory sync scheduler')
@@ -48,83 +44,50 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     .select({
       id: knowledgeConnector.id,
       connectorType: knowledgeConnector.connectorType,
-      credentialId: knowledgeConnector.credentialId,
-      encryptedApiKey: knowledgeConnector.encryptedApiKey,
-      sourceConfig: knowledgeConnector.sourceConfig,
       workspaceId: knowledgeBase.workspaceId,
-      knowledgeBaseOwnerId: knowledgeBase.userId,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
     .where(
       and(
         eq(knowledgeConnector.accessMode, 'admin'),
+        inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
         isNull(knowledgeBase.deletedAt)
       )
     )
-    .limit(MAX_DIRECTORIES_PER_TICK)
+    .orderBy(asc(knowledgeConnector.createdAt))
 
-  const outcomes = await mapWithConcurrency(connectors, REFRESH_CONCURRENCY, async (connector) => {
-    /**
-     * Every failure is contained here. One workspace whose credential lapsed
-     * must not stop the tick refreshing every other workspace's directory.
-     */
+  /**
+   * One connector per directory. A connector type implies its provider, and
+   * two connectors of one type in one workspace share a directory by
+   * construction — the first to be created stands for it.
+   */
+  const representatives = new Map<string, string>()
+  for (const connector of connectors) {
+    if (!connector.workspaceId) continue
+    const key = `${connector.workspaceId}:${connector.connectorType}`
+    if (!representatives.has(key)) representatives.set(key, connector.id)
+  }
+  const due = [...representatives.values()].slice(0, MAX_DIRECTORIES_PER_TICK)
+
+  let dispatched = 0
+  let failed = 0
+  for (const connectorId of due) {
     try {
-      if (!connector.workspaceId) return 'skipped'
-      const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
-      if (!connectorConfig?.openDirectory) return 'skipped'
-
-      /**
-       * The credential's own account owner, not the knowledge base owner —
-       * token reads are scoped to `account.userId`, and a service account
-       * ignores the argument entirely.
-       */
-      let credentialUserId = connector.knowledgeBaseOwnerId
-      if (connector.credentialId) {
-        const identity = await resolveCredentialTokenIdentity(
-          connector.credentialId,
-          connector.workspaceId
-        )
-        if (!identity) return 'unusable'
-        if (identity.kind === 'oauth') credentialUserId = identity.userId
-      }
-
-      const sourceConfig = connector.sourceConfig as Record<string, unknown>
-      const token = await resolveConnectorAccessToken({
-        auth: connectorConfig.auth,
-        connector,
-        userId: credentialUserId,
-        requestId,
-        sourceConfig,
-      })
-      if (!token) return 'unusable'
-
-      await refreshMirroredDirectory({
-        workspaceId: connector.workspaceId,
-        connectorConfig,
-        sourceConfig,
-        syncContext: {},
-        accessToken: token.accessToken,
-      })
-      return 'refreshed'
+      await dispatchDirectorySync(connectorId, { requestId, tickAt })
+      dispatched += 1
     } catch (error) {
-      logger.error(`[${requestId}] Directory refresh failed for a connector`, {
-        connectorId: connector.id,
+      failed += 1
+      logger.error(`[${requestId}] Failed to dispatch a directory refresh`, {
+        connectorId,
         error: getErrorMessage(error),
       })
-      return 'failed'
     }
-  })
-
-  const summary = {
-    considered: connectors.length,
-    refreshed: outcomes.filter((outcome) => outcome === 'refreshed').length,
-    skipped: outcomes.filter((outcome) => outcome === 'skipped').length,
-    unusable: outcomes.filter((outcome) => outcome === 'unusable').length,
-    failed: outcomes.filter((outcome) => outcome === 'failed').length,
   }
+
+  const summary = { considered: connectors.length, directories: due.length, dispatched, failed }
   logger.info(`[${requestId}] Connector directory sync scheduler finished`, summary)
   return Response.json({ success: true, ...summary })
 })

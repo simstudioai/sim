@@ -7,6 +7,10 @@ import {
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  CONNECTOR_ACCESS_MODES,
+  isCredentialBackedAccessMode,
+} from '@/lib/knowledge/connectors/access-modes'
+import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
@@ -22,7 +26,7 @@ import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
  * crawls once under an administrative credential and mirrors the source's own
  * permissions onto each document.
  */
-export const connectorAccessModeSchema = z.enum(['workspace', 'members', 'admin'])
+export const connectorAccessModeSchema = z.enum(CONNECTOR_ACCESS_MODES)
 export type ConnectorAccessMode = z.output<typeof connectorAccessModeSchema>
 
 /** The modes a caller may put a connector into. */
@@ -85,8 +89,9 @@ export const createConnectorBodySchema = z
   })
 
 /**
- * Moves a connector between access modes. Switching to workspace mode needs
- * the credential the connector will sync as from then on.
+ * Moves a connector between access modes. Switching into a mode that syncs
+ * with one credential — workspace or administrator — names the credential the
+ * connector will sync as from then on.
  */
 export const updateConnectorAccessBodySchema = z
   .object({
@@ -104,11 +109,11 @@ export const updateConnectorAccessBodySchema = z
         message: 'A members-mode connector crawls with member credentials, not a credentialId',
       })
     }
-    if (value.accessMode === 'workspace' && !value.credentialId) {
+    if (isCredentialBackedAccessMode(value.accessMode) && !value.credentialId) {
       ctx.addIssue({
         code: 'custom',
         path: ['credentialId'],
-        message: 'Switching to workspace mode needs the credentialId the connector syncs as',
+        message: `Switching to ${value.accessMode} mode needs the credentialId the connector syncs as`,
       })
     }
   })

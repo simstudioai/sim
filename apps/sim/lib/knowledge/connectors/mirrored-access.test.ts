@@ -9,39 +9,9 @@ const { mockRequireSourceMirrored } = vi.hoisted(() => ({
 
 vi.mock('@/lib/knowledge/access/availability', () => ({
   requireSourceMirroredAccessAvailable: mockRequireSourceMirrored,
-  requireKnowledgeMemberAccessAvailable: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/application/authorized-knowledge-use-case', () => ({
-  defineAuthorizedKnowledgeUseCase: (definition: unknown) => definition,
-}))
-vi.mock('@/lib/knowledge/application/operations', () => ({ knowledgeOperations: {} }))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeConnectorContext: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/application/connectors', () => ({
-  requireConnectorWorkspaceId: vi.fn(),
-  requireSuccessfulOutcome: vi.fn(),
-  resolveConnectorCredentialAccessToken: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/application/billing', () => ({
-  resolveKnowledgeAttributedUserId: vi.fn(),
-  resolveKnowledgeBillingAttribution: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  createViewerConnectorEnrollmentLink: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/orchestration/connector-access', () => ({
-  performUpdateKnowledgeConnectorAccess: vi.fn(),
-  resolveKnowledgeConnectorMembersBinding: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/orchestration/connectors', () => ({ getKnowledgeConnector: vi.fn() }))
-vi.mock('@/lib/oauth', () => ({
-  getServiceConfigByProviderId: vi.fn(),
-  getServiceConfigByServiceId: vi.fn(),
-}))
-vi.mock('@/connectors/registry', () => ({ getConnectorMeta: vi.fn() }))
 
-import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/application/connector-access'
+import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import type { ConnectorMeta } from '@/connectors/types'
 
 const impersonating: ConnectorMeta = {

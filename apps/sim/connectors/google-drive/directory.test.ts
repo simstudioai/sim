@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listDomainGroups, listGroupMembers } from '@/connectors/google-drive/directory'
+import {
+  listDomainGroups,
+  listGroupMembers,
+  openGoogleDirectory,
+} from '@/connectors/google-drive/directory'
 
 const mockFetch = vi.fn()
 
@@ -21,6 +25,14 @@ function directory(members: Record<string, unknown[]>, groups: unknown[] = []) {
     if (match) {
       const key = decodeURIComponent(match[1])
       return jsonResponse({ members: members[key] ?? [] })
+    }
+    if (path.endsWith('/customer/my_customer/domains')) {
+      return jsonResponse({
+        domains: [
+          { domainName: 'Corp.com', domainAliases: [{ domainAliasName: 'corp.io' }] },
+          { domainName: 'sub.corp.com' },
+        ],
+      })
     }
     return jsonResponse({ groups })
   })
@@ -76,7 +88,7 @@ describe('listGroupMembers', () => {
   it('reports the people in a flat group, case-folded', async () => {
     directory({ 'eng@corp.com': [USER('Alice@Corp.com'), USER('bob@corp.com')] })
 
-    await expect(listGroupMembers('token', GROUP)).resolves.toEqual({
+    await expect(listGroupMembers('token', GROUP, [])).resolves.toEqual({
       group: GROUP,
       memberEmails: ['alice@corp.com', 'bob@corp.com'],
       complete: true,
@@ -95,7 +107,7 @@ describe('listGroupMembers', () => {
       'platform@corp.com': [USER('carol@corp.com')],
     })
 
-    const { memberEmails, complete } = await listGroupMembers('token', GROUP)
+    const { memberEmails, complete } = await listGroupMembers('token', GROUP, [])
 
     expect(memberEmails.sort()).toEqual(['alice@corp.com', 'bob@corp.com', 'carol@corp.com'])
     expect(complete).toBe(true)
@@ -107,7 +119,7 @@ describe('listGroupMembers', () => {
       'backend@corp.com': [USER('bob@corp.com'), NESTED('eng@corp.com')],
     })
 
-    const { memberEmails, complete } = await listGroupMembers('token', GROUP)
+    const { memberEmails, complete } = await listGroupMembers('token', GROUP, [])
 
     expect(memberEmails.sort()).toEqual(['alice@corp.com', 'bob@corp.com'])
     expect(complete).toBe(true)
@@ -120,7 +132,7 @@ describe('listGroupMembers', () => {
     }
     directory(members)
 
-    const { complete } = await listGroupMembers('token', { id: 'g0@corp.com' })
+    const { complete } = await listGroupMembers('token', { id: 'g0@corp.com' }, [])
 
     expect(complete).toBe(false)
   })
@@ -133,7 +145,7 @@ describe('listGroupMembers', () => {
       ],
     })
 
-    await expect(listGroupMembers('token', GROUP)).resolves.toMatchObject({
+    await expect(listGroupMembers('token', GROUP, [])).resolves.toMatchObject({
       memberEmails: ['alice@corp.com'],
     })
   })
@@ -142,7 +154,7 @@ describe('listGroupMembers', () => {
     mockFetch.mockReset()
     mockFetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'gone' } }, 404))
 
-    await expect(listGroupMembers('token', GROUP)).rejects.toThrow()
+    await expect(listGroupMembers('token', GROUP, [])).rejects.toThrow()
   })
 
   /** A directory that hiccups must not cost a group its membership; transient errors are retried. */
@@ -154,10 +166,65 @@ describe('listGroupMembers', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ members: [USER('alice@corp.com')] }))
 
-    await expect(listGroupMembers('token', GROUP)).resolves.toMatchObject({
+    await expect(listGroupMembers('token', GROUP, [])).resolves.toMatchObject({
       memberEmails: ['alice@corp.com'],
       complete: true,
     })
     expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('openGoogleDirectory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  it('lists one synthetic group per domain the customer owns, after the real groups', async () => {
+    directory({}, [{ email: 'eng@corp.com' }])
+    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
+
+    await expect(dir?.listGroups()).resolves.toEqual([
+      { id: 'eng@corp.com' },
+      { id: 'domain:corp.com' },
+      { id: 'domain:corp.io' },
+      { id: 'domain:sub.corp.com' },
+    ])
+  })
+
+  /** The wildcard is what a reader at that domain matches; nobody is enumerated. */
+  it('answers a synthetic domain group with its wildcard member and no directory call', async () => {
+    directory({})
+    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
+
+    await expect(dir?.listGroupMembers({ id: 'domain:corp.com' })).resolves.toEqual({
+      group: { id: 'domain:corp.com' },
+      memberEmails: ['*@corp.com'],
+      complete: true,
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('stores a CUSTOMER member as the wildcard of every domain the customer owns', async () => {
+    directory({ 'all@corp.com': [{ type: 'CUSTOMER', status: 'ACTIVE' }, USER('bob@corp.com')] })
+    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
+
+    const { memberEmails, complete } = await dir!.listGroupMembers({ id: 'all@corp.com' })
+
+    expect(complete).toBe(true)
+    expect(memberEmails.sort()).toEqual([
+      '*@corp.com',
+      '*@corp.io',
+      '*@sub.corp.com',
+      'bob@corp.com',
+    ])
+  })
+
+  it('carries the provider and tenant every token of the directory names', () => {
+    expect(openGoogleDirectory('google-drive', 'token', 'Admin@Corp.com')).toMatchObject({
+      providerId: 'google-drive',
+      tenantId: 'corp.com',
+    })
+    expect(openGoogleDirectory('google-drive', 'token', undefined)).toBeNull()
   })
 })

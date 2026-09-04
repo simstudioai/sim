@@ -295,6 +295,29 @@ describe('tokens mirrored from a source directory', () => {
     })
   })
 
+  /**
+   * A domain share is stored as a group with one wildcard member; a reader at
+   * that domain holds the group's token without ever being enumerated.
+   */
+  it('gives a person the groups their domain wildcard is a member of', async () => {
+    queueSubjects([
+      {
+        email: 'alice@corp.com',
+        providerId: null,
+        providerTenantId: null,
+        providerSubjectId: null,
+      },
+    ])
+    queueGroups([
+      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'domain:corp.com' },
+    ])
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toMatchObject({
+      tokens: expect.arrayContaining(['g:google-drive:corp.com:domain:corp.com']),
+    })
+    expect(dbChainMockFns.where).toHaveBeenCalled()
+  })
+
   it('still gives a person their own address when they are in no group', async () => {
     queueSubjects([
       {

@@ -449,6 +449,69 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
   })
 
+  /**
+   * The bug this pins: administrator mode hides on entry, and a flip that
+   * landed before the rewrite showed every workspace-visible document under a
+   * mode whose reader expects source ACLs. The rewrite must precede the flip,
+   * exactly as it does for members mode.
+   */
+  it('hides the documents before flipping to administrator mode, then queues a content sync', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+      .mockResolvedValueOnce([
+        { ...WORKSPACE_CONNECTOR, accessMode: 'admin', credentialId: 'cred-2' },
+      ])
+
+    const outcome = await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(outcome).toMatchObject({ success: true, changed: true })
+    expect(mocks.rewriteAcls).toHaveBeenCalledWith(
+      'c-1',
+      [],
+      expect.objectContaining({
+        lease: expect.objectContaining({ stillHeld: expect.any(Function) }),
+      })
+    )
+    const flipIndex = dbChainMockFns.set.mock.calls.findIndex(
+      ([values]) => (values as Record<string, unknown>).accessMode !== undefined
+    )
+    const flippedAt = dbChainMockFns.set.mock.invocationCallOrder[flipIndex]
+    const rewrittenAt = mocks.rewriteAcls.mock.invocationCallOrder[0]
+    expect(rewrittenAt).toBeLessThan(flippedAt)
+    expect(setCallWith('accessMode')).toMatchObject({
+      accessMode: 'admin',
+      credentialId: 'cred-2',
+      accessRewritePending: false,
+      lastSyncAt: null,
+      nextSyncAt: expect.any(Date),
+    })
+    expect(mocks.dispatchSync).toHaveBeenCalledWith(
+      'c-1',
+      expect.objectContaining({ requireRunnable: true })
+    )
+    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  it('flips to administrator mode with the rewrite pending when it outgrows the request budget', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
+    mocks.rewriteAcls.mockResolvedValue(false)
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+      .mockResolvedValueOnce([
+        { ...WORKSPACE_CONNECTOR, accessMode: 'admin', credentialId: 'cred-2' },
+      ])
+
+    await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(setCallWith('accessMode')).toMatchObject({
+      accessMode: 'admin',
+      accessRewritePending: true,
+    })
+  })
+
   it('changes a workspace credential without the lease, drops the watermark, and queues a full sync', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { ...WORKSPACE_CONNECTOR, lastSyncAt: new Date('2026-08-01T00:00:00Z') },

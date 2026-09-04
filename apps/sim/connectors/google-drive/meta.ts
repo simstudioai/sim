@@ -1,6 +1,11 @@
 import { GoogleDriveIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
+/** The config field naming the administrator a service account crawls as. */
+export const GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID = 'adminEmail'
+/** The config field saying how far open shares are searchable. */
+export const GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID = 'openSharing'
+
 export const googleDriveConnectorMeta: ConnectorMeta = {
   id: 'google_drive',
   name: 'Google Drive',
@@ -23,8 +28,9 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
       'https://www.googleapis.com/auth/drive.metadata.readonly',
       'https://www.googleapis.com/auth/admin.directory.group.readonly',
       'https://www.googleapis.com/auth/admin.directory.user.readonly',
+      'https://www.googleapis.com/auth/admin.directory.domain.readonly',
     ],
-    serviceAccountSubjectFieldId: 'adminEmail',
+    serviceAccountSubjectFieldId: GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID,
   },
 
   /** `files.list` under a member's token returns only what that member can open. */
@@ -35,7 +41,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
 
   configFields: [
     {
-      id: 'adminEmail',
+      id: GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID,
       title: 'Crawl as',
       type: 'short-input',
       required: false,
@@ -44,7 +50,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
         'A Google Workspace administrator the service account acts as. Required to mirror Drive permissions; leave blank when syncing with your own Google account.',
     },
     {
-      id: 'openSharing',
+      id: GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID,
       title: 'Openly shared files',
       type: 'dropdown',
       required: false,

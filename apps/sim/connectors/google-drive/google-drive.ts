@@ -13,7 +13,11 @@ import {
   fetchGoogleDriveWithRetry,
   GoogleDriveApiError,
 } from '@/connectors/google-drive/google-drive-errors'
-import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
+import {
+  GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID,
+  GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID,
+  googleDriveConnectorMeta,
+} from '@/connectors/google-drive/meta'
 import type {
   ConnectorConfig,
   ExternalChange,
@@ -434,9 +438,9 @@ interface DriveAclContext {
  * mirroring permissions.
  */
 function driveAclContext(sourceConfig: Record<string, unknown>): DriveAclContext | null {
-  const domain = googleWorkspaceDomain(sourceConfig.adminEmail)
+  const domain = googleWorkspaceDomain(sourceConfig[GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID])
   if (!domain) return null
-  const openSharing = sourceConfig.openSharing
+  const openSharing = sourceConfig[GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID]
   return {
     providerId: GOOGLE_DRIVE_ACL_PROVIDER_ID,
     tenantId: domain,
@@ -689,10 +693,18 @@ export const googleDriveConnector: ConnectorConfig = {
   },
 
   openDirectory: async (accessToken, sourceConfig) =>
-    openGoogleDirectory(accessToken, sourceConfig.adminEmail),
+    openGoogleDirectory(
+      GOOGLE_DRIVE_ACL_PROVIDER_ID,
+      accessToken,
+      sourceConfig[GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID]
+    ),
 
-  getDocumentAcls: (accessToken, sourceConfig, externalIds) =>
-    resolveDriveAcls(accessToken, sourceConfig, externalIds),
+  getDocumentAcls: (accessToken, sourceConfig, documents) =>
+    resolveDriveAcls(
+      accessToken,
+      sourceConfig,
+      documents.map((doc) => doc.externalId)
+    ),
 
   getDocument: async (
     accessToken: string,

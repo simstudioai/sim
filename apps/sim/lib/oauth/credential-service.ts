@@ -235,7 +235,7 @@ export async function getServiceAccountToken(
         }
       : {
           iss: keyData.client_email,
-          sub: impersonateEmail || '(none)',
+          hasSubject: Boolean(impersonateEmail),
           scopes: filteredScopes.join(' '),
           aud: tokenUri,
         }

@@ -245,11 +245,14 @@ async function attachConnectorTypes(
 
   const connectorTypesByKb = new Map<string, string[]>()
   const memberScopedKbIds = new Set<string>()
+  /** Mirrored ACLs scope documents whether or not the feature is on: off, they read as hidden, never as workspace-visible. */
+  const mirroredKbIds = new Set<string>()
   for (const row of connectorRows) {
     const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
     if (!types.includes(row.connectorType)) types.push(row.connectorType)
     connectorTypesByKb.set(row.knowledgeBaseId, types)
     if (row.accessMode === 'members') memberScopedKbIds.add(row.knowledgeBaseId)
+    if (row.accessMode === 'admin') mirroredKbIds.add(row.knowledgeBaseId)
   }
   /**
    * A members-mode connector only scopes documents where the feature is on;
@@ -270,7 +273,7 @@ async function attachConnectorTypes(
   return knowledgeBases.map((kb) => ({
     ...kb,
     connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
-    hasMemberScopedConnector: memberScopedKbIds.has(kb.id),
+    hasMemberScopedConnector: memberScopedKbIds.has(kb.id) || mirroredKbIds.has(kb.id),
   }))
 }
 

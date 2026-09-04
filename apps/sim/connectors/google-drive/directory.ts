@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
+import { domainGroupId, domainOfGroupId } from '@/lib/knowledge/access/drive-permissions'
+import { domainMemberWildcard } from '@/lib/knowledge/access/external-groups'
 import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
 import { fetchGoogleDriveWithRetry } from '@/connectors/google-drive/google-drive-errors'
 import type {
@@ -46,6 +48,14 @@ interface DirectoryListResponse<T> {
   items?: T[]
 }
 
+async function getJson<T>(url: string, accessToken: string): Promise<T> {
+  const response = await fetchGoogleDriveWithRetry(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  })
+  return (await response.json()) as T
+}
+
 /**
  * Reads a paginated Admin SDK collection, following `nextPageToken`, with the
  * same transient-error retry every Drive call gets.
@@ -66,12 +76,10 @@ async function listAll<T>(
     const query = new URLSearchParams({ ...params, maxResults: String(PAGE_SIZE) })
     if (pageToken) query.set('pageToken', pageToken)
 
-    const response = await fetchGoogleDriveWithRetry(`${url}?${query.toString()}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    })
-
-    const body = (await response.json()) as DirectoryListResponse<T> & Record<string, unknown>
+    const body = await getJson<DirectoryListResponse<T> & Record<string, unknown>>(
+      `${url}?${query.toString()}`,
+      accessToken
+    )
     const pageItems = (body[itemsKey] as T[] | undefined) ?? []
     items.push(...pageItems)
 
@@ -89,6 +97,34 @@ interface RawMember {
   email?: string
   type?: string
   status?: string
+}
+
+interface RawDomain {
+  domainName?: string
+  domainAliases?: { domainAliasName?: string }[]
+}
+
+/**
+ * Every domain the Workspace customer owns, aliases included.
+ *
+ * A Drive `domain` share names one of these, and a `CUSTOMER` group member is
+ * everyone on all of them, so each becomes a synthetic group whose one member
+ * is the domain wildcard. The customer's domains are the one thing here read
+ * without pagination: the endpoint returns them all at once.
+ */
+export async function listCustomerDomains(accessToken: string): Promise<string[]> {
+  const body = await getJson<{ domains?: RawDomain[] }>(
+    `${DIRECTORY_BASE}/customer/my_customer/domains`,
+    accessToken
+  )
+  const domains = new Set<string>()
+  for (const domain of body.domains ?? []) {
+    if (domain.domainName) domains.add(normalizeEmail(domain.domainName))
+    for (const alias of domain.domainAliases ?? []) {
+      if (alias.domainAliasName) domains.add(normalizeEmail(alias.domainAliasName))
+    }
+  }
+  return [...domains].filter(Boolean)
 }
 
 /**
@@ -121,11 +157,14 @@ export async function listDomainGroups(accessToken: string): Promise<ConnectorDi
  * contain cycles and will happily report one.
  *
  * A member whose status is not `ACTIVE` is skipped: a suspended or pending
- * member is one the source is not currently granting access to.
+ * member is one the source is not currently granting access to. A `CUSTOMER`
+ * member is everyone in the Workspace, stored as one wildcard per domain the
+ * customer owns.
  */
 export async function listGroupMembers(
   accessToken: string,
-  group: ConnectorDirectoryGroup
+  group: ConnectorDirectoryGroup,
+  customerDomains: readonly string[]
 ): Promise<ConnectorDirectoryMembership> {
   const memberEmails = new Set<string>()
   const visited = new Set<string>([group.id])
@@ -146,11 +185,16 @@ export async function listGroupMembers(
     )
 
     for (const member of members) {
+      if (member.status && member.status.toUpperCase() !== 'ACTIVE') continue
+      const type = member.type?.toUpperCase()
+
+      if (type === 'CUSTOMER') {
+        for (const domain of customerDomains) memberEmails.add(domainMemberWildcard(domain))
+        continue
+      }
       const email = member.email ? normalizeEmail(member.email) : ''
       if (!email) continue
-      if (member.status && member.status.toUpperCase() !== 'ACTIVE') continue
-
-      if (member.type?.toUpperCase() === 'GROUP') {
+      if (type === 'GROUP') {
         if (visited.has(email)) continue
         visited.add(email)
         await walk(email, depth + 1)
@@ -164,16 +208,38 @@ export async function listGroupMembers(
   return { group, memberEmails: [...memberEmails], complete }
 }
 
-/** The Workspace domain the crawl is looking at, as a directory. */
+/**
+ * The Workspace customer the crawl is looking at, as a directory: its real
+ * groups, plus one synthetic group per domain it owns standing for "everyone
+ * at that domain", which is what a Drive domain share grants to.
+ */
 export function openGoogleDirectory(
+  providerId: string,
   accessToken: string,
   adminEmail: unknown
 ): ConnectorDirectory | null {
   const tenantId = googleWorkspaceDomain(adminEmail)
   if (!tenantId) return null
+
+  let domains: Promise<string[]> | undefined
+  const customerDomains = (): Promise<string[]> => {
+    domains ??= listCustomerDomains(accessToken)
+    return domains
+  }
+
   return {
+    providerId,
     tenantId,
-    listGroups: () => listDomainGroups(accessToken),
-    listGroupMembers: (group) => listGroupMembers(accessToken, group),
+    listGroups: async () => {
+      const [groups, owned] = await Promise.all([listDomainGroups(accessToken), customerDomains()])
+      return [...groups, ...owned.map((domain) => ({ id: domainGroupId(domain) }))]
+    },
+    listGroupMembers: async (group) => {
+      const domain = domainOfGroupId(group.id)
+      if (domain) {
+        return { group, memberEmails: [domainMemberWildcard(domain)], complete: true }
+      }
+      return listGroupMembers(accessToken, group, await customerDomains())
+    },
   }
 }

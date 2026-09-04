@@ -18,9 +18,18 @@ import {
   GoogleDriveApiError,
   readGoogleDriveApiError,
 } from '@/connectors/google-drive/google-drive-errors'
+import type { ExternalDocument } from '@/connectors/types'
 import { CONNECTOR_MAX_FILE_BYTES } from '@/connectors/utils'
 
 const FILE_ID = 'drive-file-1'
+/** The listed document the ACL hook is asked about; only its id matters to Drive. */
+const FILE_DOC: ExternalDocument = {
+  externalId: FILE_ID,
+  title: 'File',
+  content: '',
+  mimeType: 'text/plain',
+  contentHash: 'h',
+}
 const GOOGLE_DOCUMENT_MIME_TYPE = 'application/vnd.google-apps.document'
 const GOOGLE_SPREADSHEET_MIME_TYPE = 'application/vnd.google-apps.spreadsheet'
 
@@ -723,7 +732,7 @@ describe('mirroring Drive permissions onto listed documents', () => {
     )
 
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_ID], {})
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], {})
     ).resolves.toEqual({
       [FILE_ID]: ['g:google-drive:corp.com:eng@corp.com', 'u:alice@corp.com'],
     })
@@ -745,7 +754,7 @@ describe('mirroring Drive permissions onto listed documents', () => {
       )
 
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_ID], {})
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], {})
     ).resolves.toEqual({ [FILE_ID]: ['u:alice@corp.com', 'u:bob@corp.com'] })
   })
 
@@ -753,13 +762,13 @@ describe('mirroring Drive permissions onto listed documents', () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 403))
 
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_ID], {})
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], {})
     ).resolves.toEqual({})
   })
 
   it('answers nothing for a crawl that mirrors no permissions', async () => {
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', {}, [FILE_ID], {})
+      googleDriveConnector.getDocumentAcls?.('token', {}, [FILE_DOC], {})
     ).resolves.toEqual({})
     expect(mockFetch).not.toHaveBeenCalled()
   })

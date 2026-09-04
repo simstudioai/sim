@@ -6,9 +6,6 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
-
-export type { SyncDocumentAccess } from '@/lib/knowledge/connectors/access-modes'
-
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import {
   EMPTY_ACL,
@@ -145,7 +142,6 @@ export async function persistDocumentAcls(
           and(
             eq(document.connectorId, connectorId),
             inArray(document.externalId, batch),
-            isNull(document.deletedAt),
             sql`${document.acl} IS DISTINCT FROM ${textArrayLiteral(acl)}`
           )
         )

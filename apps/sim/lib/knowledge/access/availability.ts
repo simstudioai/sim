@@ -69,12 +69,13 @@ export async function resolveKnowledgeAccessAvailability(
 /**
  * Whether members mode is on for this workspace: the `knowledge-member-access`
  * flag, and Credential Groups available to the workspace, which members mode
- * enrolls people through. Every members-mode gate checks this one function —
- * creating and switching connectors, the member engine, the member tokens a
- * reader is granted, and the workspace host context the UI reads — so they can
- * never disagree. When it turns off, member-scoped documents are hidden on the
- * next read, members-mode connectors wait rather than change anything, and
- * search returns to the semantic-only default; nothing is deleted.
+ * enrolls people through. The members-mode gates — creating and switching
+ * connectors, the member engine, the workspace host context the UI reads —
+ * check this; the reader's tokens come from `resolveKnowledgeAccessAvailability`
+ * directly, which this is the `memberScoped` half of, so they can never
+ * disagree. When it turns off, member-scoped documents are hidden on the next
+ * read, members-mode connectors wait rather than change anything, and search
+ * returns to the semantic-only default; nothing is deleted.
  */
 export async function isKnowledgeMemberAccessAvailable(
   context: KnowledgeMemberAccessContext

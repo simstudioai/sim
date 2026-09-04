@@ -4,41 +4,21 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockVerifyCronAuth,
-  mockConnectorRows,
-  mockResolveIdentity,
-  mockResolveToken,
-  mockRefreshDirectory,
-} = vi.hoisted(() => ({
+const { mockVerifyCronAuth, mockConnectorRows, mockDispatch } = vi.hoisted(() => ({
   mockVerifyCronAuth: vi.fn(() => null),
   mockConnectorRows: vi.fn(),
-  mockResolveIdentity: vi.fn(),
-  mockResolveToken: vi.fn(),
-  mockRefreshDirectory: vi.fn(),
+  mockDispatch: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
-vi.mock('@/lib/credentials/access', () => ({
-  resolveCredentialTokenIdentity: mockResolveIdentity,
-}))
-vi.mock('@/lib/knowledge/connectors/access-token', () => ({
-  resolveConnectorAccessToken: mockResolveToken,
-}))
-vi.mock('@/lib/knowledge/connectors/external-group-sync', () => ({
-  refreshMirroredDirectory: mockRefreshDirectory,
-}))
-vi.mock('@/connectors/registry.server', () => ({
-  CONNECTOR_REGISTRY: {
-    google_drive: { auth: { mode: 'oauth', provider: 'google-drive' }, openDirectory: vi.fn() },
-    notion: { auth: { mode: 'oauth', provider: 'notion' } },
-  },
+vi.mock('@/lib/knowledge/connectors/directory-queue', () => ({
+  dispatchDirectorySync: mockDispatch,
 }))
 vi.mock('@sim/db', () => ({
   db: {
     select: () => ({
       from: () => ({
-        innerJoin: () => ({ where: () => ({ limit: () => mockConnectorRows() }) }),
+        innerJoin: () => ({ where: () => ({ orderBy: () => mockConnectorRows() }) }),
       }),
     }),
   },
@@ -50,11 +30,7 @@ function connector(overrides: Record<string, unknown> = {}) {
   return {
     id: 'connector-1',
     connectorType: 'google_drive',
-    credentialId: 'credential-1',
-    encryptedApiKey: null,
-    sourceConfig: { adminEmail: 'admin@corp.com' },
     workspaceId: 'ws-1',
-    knowledgeBaseOwnerId: 'owner-1',
     ...overrides,
   }
 }
@@ -68,57 +44,51 @@ describe('connector directory sync scheduler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockVerifyCronAuth.mockReturnValue(null)
-    mockResolveIdentity.mockResolvedValue({ kind: 'service_account' })
-    mockResolveToken.mockResolvedValue({ accessToken: 'token' })
-    mockRefreshDirectory.mockResolvedValue(undefined)
+    mockDispatch.mockResolvedValue(undefined)
   })
 
-  it('refreshes the directory of every admin-mode connector it finds', async () => {
-    mockConnectorRows.mockResolvedValue([connector(), connector({ id: 'connector-2' })])
+  it('dispatches one refresh per directory an admin-mode connector mirrors', async () => {
+    mockConnectorRows.mockResolvedValue([
+      connector(),
+      connector({ id: 'connector-2', workspaceId: 'ws-2' }),
+    ])
 
-    await expect(run()).resolves.toMatchObject({ considered: 2, refreshed: 2, failed: 0 })
-    expect(mockRefreshDirectory).toHaveBeenCalledTimes(2)
-  })
-
-  /**
-   * The tick refreshes every workspace's directory, so one workspace's lapsed
-   * credential or unreachable source must not stop the others.
-   */
-  it('contains a failure to the connector that caused it', async () => {
-    mockConnectorRows.mockResolvedValue([connector(), connector({ id: 'connector-2' })])
-    mockRefreshDirectory.mockRejectedValueOnce(new Error('directory unreachable'))
-
-    await expect(run()).resolves.toMatchObject({ considered: 2, refreshed: 1, failed: 1 })
-  })
-
-  it('reports a connector whose credential no longer resolves rather than failing', async () => {
-    mockConnectorRows.mockResolvedValue([connector()])
-    mockResolveToken.mockResolvedValue(null)
-
-    await expect(run()).resolves.toMatchObject({ unusable: 1, refreshed: 0 })
-    expect(mockRefreshDirectory).not.toHaveBeenCalled()
-  })
-
-  it('skips a connector whose source has no directory to read', async () => {
-    mockConnectorRows.mockResolvedValue([connector({ connectorType: 'notion' })])
-
-    await expect(run()).resolves.toMatchObject({ skipped: 1, refreshed: 0 })
-    expect(mockRefreshDirectory).not.toHaveBeenCalled()
+    await expect(run()).resolves.toMatchObject({
+      considered: 2,
+      directories: 2,
+      dispatched: 2,
+      failed: 0,
+    })
+    expect(mockDispatch).toHaveBeenCalledTimes(2)
   })
 
   /**
-   * Token reads are scoped to the credential's own account owner, not the
-   * knowledge base owner, who is routinely a different member.
+   * Two connectors of one type in one workspace mirror one directory; walking
+   * it twice per tick would double the Admin SDK cost for nothing.
    */
-  it('resolves the token as the credential owner for an OAuth credential', async () => {
-    mockConnectorRows.mockResolvedValue([connector()])
-    mockResolveIdentity.mockResolvedValue({ kind: 'oauth', userId: 'credential-owner' })
+  it('dispatches once for connectors that share a directory', async () => {
+    mockConnectorRows.mockResolvedValue([connector(), connector({ id: 'connector-2' })])
 
-    await run()
+    await expect(run()).resolves.toMatchObject({ considered: 2, directories: 1, dispatched: 1 })
+    expect(mockDispatch).toHaveBeenCalledTimes(1)
+    expect(mockDispatch).toHaveBeenCalledWith('connector-1', expect.anything())
+  })
 
-    expect(mockResolveToken).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'credential-owner' })
-    )
+  it('contains a dispatch failure to the directory that caused it', async () => {
+    mockConnectorRows.mockResolvedValue([
+      connector(),
+      connector({ id: 'connector-2', workspaceId: 'ws-2' }),
+    ])
+    mockDispatch.mockRejectedValueOnce(new Error('queue unreachable'))
+
+    await expect(run()).resolves.toMatchObject({ dispatched: 1, failed: 1 })
+  })
+
+  it('skips a connector whose knowledge base has no workspace', async () => {
+    mockConnectorRows.mockResolvedValue([connector({ workspaceId: null })])
+
+    await expect(run()).resolves.toMatchObject({ directories: 0, dispatched: 0 })
+    expect(mockDispatch).not.toHaveBeenCalled()
   })
 
   it('refuses an unauthenticated tick', async () => {

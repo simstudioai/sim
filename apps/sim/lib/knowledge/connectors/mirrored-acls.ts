@@ -8,9 +8,9 @@ export interface MirroredAcls {
   unattributed: number
 }
 
-/** The external ids of listed documents whose ACL the listing left unset. */
-export function unansweredByListing(externalDocs: readonly ExternalDocument[]): string[] {
-  return externalDocs.filter((doc) => !doc.acl).map((doc) => doc.externalId)
+/** The listed documents whose ACL the listing left unset. */
+export function unansweredByListing(externalDocs: readonly ExternalDocument[]): ExternalDocument[] {
+  return externalDocs.filter((doc) => !doc.acl)
 }
 
 /**
@@ -37,4 +37,23 @@ export function mergeMirroredAcls(
     acls.set(doc.externalId, acl ?? EMPTY_ACL)
   }
   return { acls, unattributed }
+}
+
+/**
+ * Hides every owned document the listing did not name, and returns how many.
+ *
+ * The listing is the only evidence this run has of who may read what; a
+ * document absent from it keeps no ACL this run can vouch for.
+ */
+export function hideUnlistedDocuments(
+  acls: Map<string, readonly string[]>,
+  ownedExternalIds: readonly (string | null)[]
+): number {
+  let hidden = 0
+  for (const externalId of ownedExternalIds) {
+    if (!externalId || acls.has(externalId)) continue
+    acls.set(externalId, EMPTY_ACL)
+    hidden += 1
+  }
+  return hidden
 }

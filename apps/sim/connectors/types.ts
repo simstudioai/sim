@@ -76,6 +76,12 @@ export interface ConnectorDirectoryMembership {
  * would delete every group past the cut-off.
  */
 export interface ConnectorDirectory {
+  /**
+   * The provider segment of every group token this directory's groups produce
+   * — the same constant the connector's ACL mapper writes, so a stored token
+   * and the group row it names can never spell the provider differently.
+   */
+  providerId: string
   /** The tenant segment of every group token this directory's groups produce. */
   tenantId: string
   listGroups: () => Promise<ConnectorDirectoryGroup[]>
@@ -450,22 +456,26 @@ export interface ConnectorConfig extends ConnectorMeta {
   /**
    * The ACLs of listed documents the listing itself could not answer for.
    *
-   * Called with exactly the external ids whose {@link ExternalDocument.acl}
-   * the listing left unset, after the listing and once for all of them, so the
+   * Called with exactly the documents whose {@link ExternalDocument.acl} the
+   * listing left unset, after the listing and once for all of them, so the
    * round trips are bounded by what the listing could not carry rather than by
-   * the page size. Drive fills the ACL inline for most files and lands here
-   * only for the ones its listing cannot describe — a shared drive's files,
-   * whose permissions Drive serves solely through `permissions.list`.
-   * Confluence carries none inline, so every page lands here.
+   * the page size. The documents come with their listing metadata, which is
+   * where a connector keeps what the permission lookup needs — the space a
+   * page lives in, whether it is a page or a blog post. Drive fills the ACL
+   * inline for most files and lands here only for the ones its listing cannot
+   * describe — a shared drive's files, whose permissions Drive serves solely
+   * through `permissions.list`. Confluence carries none inline, so every page
+   * lands here.
    *
-   * Returns tokens per external id. An id the connector omits is readable by
-   * nobody: a connector declaring {@link ConnectorMeta.mirrorsSourceAcls}
-   * promises an answer for every document it listed.
+   * Returns tokens per external id. A document the connector omits is readable
+   * by nobody: a connector declaring {@link ConnectorMeta.mirrorsSourceAcls}
+   * promises an answer for every document it listed, and one whose permissions
+   * it could not read this run is omitted rather than guessed at.
    */
   getDocumentAcls?: (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalIds: string[],
+    documents: readonly ExternalDocument[],
     syncContext?: Record<string, unknown>
   ) => Promise<Record<string, string[]>>
 

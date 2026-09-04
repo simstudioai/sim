@@ -14,6 +14,7 @@ import {
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import {
+  describeContent,
   getReadRestriction,
   listAncestorIds,
   listSpaceReadPrincipals,
@@ -267,6 +268,10 @@ function pageToStub(
   page: Record<string, unknown>,
   options: {
     spaceId?: unknown
+    /** The space's key, which the permission pass resolves the page's space from. */
+    spaceKey?: string
+    /** `page` or `blogpost`; only a page has ancestors to inherit restrictions from. */
+    contentType?: string
     labels?: string[]
     sourceUrl?: string
   } = {}
@@ -286,6 +291,8 @@ function pageToStub(
     contentHash: `confluence:${CONTENT_REPRESENTATION}:${page.id}:${versionKey}`,
     metadata: {
       spaceId: options.spaceId,
+      spaceKey: options.spaceKey,
+      contentType: options.contentType,
       status: page.status,
       version: versionNumber,
       labels: options.labels ?? [],
@@ -304,8 +311,11 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
   const labelResults = (labelsWrapper?.results || []) as Record<string, unknown>[]
   const labels = labelResults.map((l) => l.name as string)
 
+  const spaceKey = (item.space as Record<string, unknown>)?.key
   return pageToStub(item, {
-    spaceId: (item.space as Record<string, unknown>)?.key,
+    spaceId: spaceKey,
+    spaceKey: typeof spaceKey === 'string' ? spaceKey : undefined,
+    contentType: typeof item.type === 'string' ? item.type : undefined,
     labels,
     sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
   })
@@ -339,60 +349,116 @@ const CONFLUENCE_ACL_PROVIDER_ID = 'confluence'
 /** Pages whose restrictions are resolved at once. Bounded to keep a crawl responsive. */
 const ACL_CONCURRENCY = 8
 
+/** Where a listed piece of content lives, as the permission pass needs it. */
+interface ContentLocation {
+  spaceId: string
+  contentType: string
+}
+
 /**
  * Resolves who may read each listed page.
  *
  * Confluence reports a page's restrictions only when asked for that page, so
  * unlike Drive this cannot ride along with the listing. Three things are cached
- * for the run: the space's read principals (one call per space), each page's
+ * for the run: each space's read principals (one call per space), each page's
  * restriction, and every account id's address — an ancestor's restriction is
  * consulted by many of its descendants, and one person is usually named on
  * several pages.
+ *
+ * A page falls back to *its own* space's readers, never the union of every
+ * configured space: a connector over two spaces must not let a reader of one
+ * into the unrestricted pages of the other.
+ *
+ * A page whose restrictions could not be read this run is omitted, which the
+ * engine stores as readable by nobody, and the rest of the batch still
+ * resolves — the same per-document containment Drive has.
  */
 async function resolveConfluenceAcls(
   accessToken: string,
   sourceConfig: Record<string, unknown>,
-  externalIds: string[],
+  documents: readonly ExternalDocument[],
   syncContext?: Record<string, unknown>
 ): Promise<Record<string, string[]>> {
   const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
-  const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
-  const spacePrincipals: ConfluencePrincipal[] = []
-  for (const spaceKey of spaceKeys) {
-    const spaceId = await resolveSpaceId(cloudId, accessToken, spaceKey)
-    spacePrincipals.push(...(await listSpaceReadPrincipals(cloudId, accessToken, spaceId)))
+  const spaceIdsByKey = new Map<string, Promise<string>>()
+  const spaceIdForKey = (spaceKey: string): Promise<string> => {
+    let pending = spaceIdsByKey.get(spaceKey)
+    if (!pending) {
+      pending = resolveSpaceId(cloudId, accessToken, spaceKey)
+      spaceIdsByKey.set(spaceKey, pending)
+    }
+    return pending
+  }
+  const principalsBySpace = new Map<string, Promise<ConfluencePrincipal[]>>()
+  const spacePrincipalsFor = (spaceId: string): Promise<ConfluencePrincipal[]> => {
+    let pending = principalsBySpace.get(spaceId)
+    if (!pending) {
+      pending = listSpaceReadPrincipals(cloudId, accessToken, spaceId)
+      principalsBySpace.set(spaceId, pending)
+    }
+    return pending
   }
 
-  const restrictions = new Map<string, ConfluenceRestriction>()
+  const restrictions = new Map<string, Promise<ConfluenceRestriction>>()
+  const readRestriction = (contentId: string): Promise<ConfluenceRestriction> => {
+    let pending = restrictions.get(contentId)
+    if (!pending) {
+      pending = getReadRestriction(cloudId, accessToken, contentId)
+      restrictions.set(contentId, pending)
+    }
+    return pending
+  }
+
+  /** The listing usually says where a page lives; anything it did not describe is asked. */
+  const locate = async (doc: ExternalDocument): Promise<ContentLocation | null> => {
+    const spaceKey = doc.metadata?.spaceKey
+    const contentType = doc.metadata?.contentType
+    if (typeof spaceKey === 'string' && spaceKey) {
+      return {
+        spaceId: await spaceIdForKey(spaceKey),
+        contentType: typeof contentType === 'string' ? contentType : 'page',
+      }
+    }
+    return describeContent(cloudId, accessToken, doc.externalId)
+  }
+
+  const located = new Map<string, ContentLocation>()
   const chains = new Map<string, ConfluenceRestriction[]>()
-
-  const readRestriction = async (contentId: string): Promise<ConfluenceRestriction> => {
-    const cached = restrictions.get(contentId)
-    if (cached !== undefined) return cached
-    const restriction = await getReadRestriction(cloudId, accessToken, contentId)
-    restrictions.set(contentId, restriction)
-    return restriction
-  }
-
-  await mapWithConcurrency(externalIds, ACL_CONCURRENCY, async (externalId) => {
-    const own = await readRestriction(externalId)
-    /**
-     * A page carrying its own restriction decides on the spot; only an
-     * unrestricted page needs its ancestry, which is the expensive lookup.
-     */
-    if (own !== null) {
-      chains.set(externalId, [own])
-      return
+  let unreadable = 0
+  await mapWithConcurrency(documents, ACL_CONCURRENCY, async (doc) => {
+    const externalId = doc.externalId
+    try {
+      const location = await locate(doc)
+      if (!location) {
+        unreadable += 1
+        return
+      }
+      const own = await readRestriction(externalId)
+      /**
+       * A page carrying its own restriction decides on the spot; only an
+       * unrestricted page needs its ancestry, which is the expensive lookup.
+       * A blog post has no ancestors to inherit from.
+       */
+      const chain: ConfluenceRestriction[] = [own]
+      if (own === null && location.contentType !== 'blogpost') {
+        for (const ancestorId of await listAncestorIds(cloudId, accessToken, externalId)) {
+          const restriction = await readRestriction(ancestorId)
+          chain.push(restriction)
+          if (restriction !== null) break
+        }
+      }
+      await spacePrincipalsFor(location.spaceId)
+      located.set(externalId, location)
+      chains.set(externalId, chain)
+    } catch (error) {
+      unreadable += 1
+      logger.warn("Could not read a page's permissions; it stays readable by nobody", {
+        cloudId,
+        externalId,
+        error: toError(error).message,
+      })
     }
-    const ancestorIds = await listAncestorIds(cloudId, accessToken, externalId)
-    const chain: ConfluenceRestriction[] = [null]
-    for (const ancestorId of ancestorIds) {
-      const restriction = await readRestriction(ancestorId)
-      chain.push(restriction)
-      if (restriction !== null) break
-    }
-    chains.set(externalId, chain)
   })
 
   /**
@@ -402,12 +468,20 @@ async function resolveConfluenceAcls(
    * that walked through it.
    */
   const accountIds = new Set<string>()
-  for (const principal of spacePrincipals) {
-    if (principal.kind === 'user') accountIds.add(principal.id)
-  }
-  for (const restriction of restrictions.values()) {
-    for (const principal of restriction ?? []) {
+  const settledPrincipals = new Map<string, ConfluencePrincipal[]>()
+  for (const [spaceId, pending] of principalsBySpace) {
+    const principals = await pending.catch(() => null)
+    if (!principals) continue
+    settledPrincipals.set(spaceId, principals)
+    for (const principal of principals) {
       if (principal.kind === 'user') accountIds.add(principal.id)
+    }
+  }
+  for (const chain of chains.values()) {
+    for (const restriction of chain) {
+      for (const principal of restriction ?? []) {
+        if (principal.kind === 'user') accountIds.add(principal.id)
+      }
     }
   }
   const emails = await resolveUserEmails(cloudId, accessToken, [...accountIds])
@@ -417,17 +491,23 @@ async function resolveConfluenceAcls(
       if (principal.kind === 'user') principal.email = emails.get(principal.id) ?? principal.email
     }
   }
-  withEmail(spacePrincipals)
-  for (const restriction of restrictions.values()) {
-    if (restriction !== null) withEmail(restriction)
+  for (const principals of settledPrincipals.values()) withEmail(principals)
+  for (const chain of chains.values()) {
+    for (const restriction of chain) {
+      if (restriction !== null) withEmail(restriction)
+    }
   }
 
   const acls: Record<string, string[]> = {}
   let unattributed = 0
-  for (const externalId of externalIds) {
-    const chain = chains.get(externalId)
-    /** A page whose restrictions could not be read is readable by nobody, not by everyone. */
-    if (!chain) continue
+  for (const [externalId, chain] of chains) {
+    const location = located.get(externalId)
+    const spacePrincipals = location ? settledPrincipals.get(location.spaceId) : undefined
+    /** A space whose readers could not be listed leaves its pages readable by nobody. */
+    if (!spacePrincipals) {
+      unreadable += 1
+      continue
+    }
     const result = confluencePageAcl({
       spacePrincipals,
       restrictionChain: chain,
@@ -438,6 +518,12 @@ async function resolveConfluenceAcls(
     unattributed += result.unattributedUsers
   }
 
+  if (unreadable > 0) {
+    logger.warn('Some Confluence pages had unreadable permissions and stay readable by nobody', {
+      cloudId,
+      unreadable,
+    })
+  }
   if (unattributed > 0) {
     logger.warn('Confluence withheld addresses for some granted users; those grants were dropped', {
       cloudId,
@@ -528,6 +614,7 @@ export const confluenceConnector: ConnectorConfig = {
 
   openDirectory: async (accessToken, sourceConfig, syncContext) =>
     openConfluenceDirectory(
+      CONFLUENCE_ACL_PROVIDER_ID,
       await resolveCloudId(accessToken, sourceConfig, syncContext),
       accessToken
     ),
@@ -727,6 +814,8 @@ async function listDocumentsV2(
       const links = page._links as Record<string, string> | undefined
       return pageToStub(page, {
         spaceId: page.spaceId,
+        spaceKey,
+        contentType,
         sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
       })
     })

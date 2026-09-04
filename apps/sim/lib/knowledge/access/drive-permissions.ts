@@ -51,7 +51,15 @@ export const CLOSED_OPEN_SHARING: OpenSharingPolicy = Object.freeze({
  * decided by the reader's own email domain rather than a second predicate.
  */
 export function domainGroupId(domain: string): string {
-  return `domain:${normalizeEmail(domain)}`
+  return `${DOMAIN_GROUP_PREFIX}${normalizeEmail(domain)}`
+}
+
+const DOMAIN_GROUP_PREFIX = 'domain:'
+
+/** The domain a synthetic domain group stands for, or null for a real group. */
+export function domainOfGroupId(groupId: string): string | null {
+  if (!groupId.startsWith(DOMAIN_GROUP_PREFIX)) return null
+  return groupId.slice(DOMAIN_GROUP_PREFIX.length) || null
 }
 
 export interface DriveAclInput {

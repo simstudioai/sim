@@ -15,7 +15,11 @@ import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
-import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
+import {
+  domainMemberWildcard,
+  EXTERNAL_GROUP_STALE_AFTER_MS,
+  emailDomain,
+} from '@/lib/knowledge/access/external-groups'
 import {
   groupToken,
   sortAccessTokens,
@@ -86,7 +90,11 @@ async function loadExternalGroupTokens(email: string, workspaceId: string): Prom
     )
     .where(
       and(
-        eq(knowledgeExternalGroupMember.email, email),
+        /** Their own address, and the wildcard standing for everyone at its domain. */
+        inArray(knowledgeExternalGroupMember.email, [
+          email,
+          domainMemberWildcard(emailDomain(email)),
+        ]),
         eq(knowledgeExternalGroup.workspaceId, workspaceId),
         gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
       )
