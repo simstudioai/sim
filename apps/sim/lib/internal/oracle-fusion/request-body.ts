@@ -134,11 +134,18 @@ function isRecordLike(value: unknown): value is Record<string, unknown> {
 }
 
 function assertContainerIsPlain(value: object): void {
+  for (
+    let candidate: object | null = value;
+    candidate;
+    candidate = Object.getPrototypeOf(candidate)
+  ) {
+    if (Object.hasOwn(candidate, 'toJSON')) throwNonPlainJsonError()
+  }
   for (const key of Reflect.ownKeys(value)) {
     if (typeof key === 'symbol') throwNonPlainJsonError()
     if (key === 'length' && Array.isArray(value)) continue
     const descriptor = Object.getOwnPropertyDescriptor(value, key)
-    if (descriptor?.get || descriptor?.set || key === 'toJSON') throwNonPlainJsonError()
+    if (descriptor?.get || descriptor?.set) throwNonPlainJsonError()
     if (Array.isArray(value)) {
       const index = Number(key)
       if (

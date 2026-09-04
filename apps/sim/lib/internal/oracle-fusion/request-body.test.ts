@@ -64,6 +64,20 @@ describe('serializeOracleFusionJsonBody', () => {
     expect(() => serializeOracleFusionJsonBody(customArray)).toThrow('plain JSON data')
   })
 
+  it('rejects inherited custom serialization before JSON.stringify can invoke it', () => {
+    const previous = Object.getOwnPropertyDescriptor(Array.prototype, 'toJSON')
+    Object.defineProperty(Array.prototype, 'toJSON', {
+      configurable: true,
+      value: () => ({ replaced: true }),
+    })
+    try {
+      expect(() => serializeOracleFusionJsonBody([1])).toThrow('plain JSON data')
+    } finally {
+      if (previous) Object.defineProperty(Array.prototype, 'toJSON', previous)
+      else Reflect.deleteProperty(Array.prototype, 'toJSON')
+    }
+  })
+
   it('rejects cycles, excessive nesting, and excessive complexity', () => {
     const cycle: unknown[] = []
     cycle.push(cycle)

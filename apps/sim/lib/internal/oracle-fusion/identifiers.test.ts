@@ -70,4 +70,12 @@ describe('normalizeOracleFusionDecimalIdentifier', () => {
       normalizeOracleFusionDecimalIdentifier('1', { maxDigits: 129, maxSourceLength: 128 })
     ).toThrow('limits are invalid')
   })
+
+  it('checks the digit limit after removing an exact fractional suffix', () => {
+    expect(
+      normalizeOracleFusionDecimalIdentifier('123456000.000', {
+        maxDigits: 8,
+      })
+    ).toBeUndefined()
+  })
 })

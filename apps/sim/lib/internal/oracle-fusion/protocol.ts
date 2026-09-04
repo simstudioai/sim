@@ -7,6 +7,20 @@ import {
 const OPAQUE_KEY_MAX_LENGTH = 2048
 const UNSAFE_OPAQUE_KEY = /[\\/?#\u0000-\u001f\u007f]/
 
+function hasWellFormedUtf16(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index)
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false
+      index++
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      return false
+    }
+  }
+  return true
+}
+
 export interface OracleFusionCollection<T> {
   items: T[]
   count: number
@@ -111,7 +125,9 @@ function getOnlySelfLink(value: unknown): URL {
     throw new Error('Oracle response must include exactly one self link')
   }
   const href = (selfLinks[0] as Record<string, unknown>).href
-  if (typeof href !== 'string') throw new Error('Oracle self link is malformed')
+  if (typeof href !== 'string' || !hasWellFormedUtf16(href)) {
+    throw new Error('Oracle self link is malformed')
+  }
   try {
     return new URL(href)
   } catch {
@@ -157,17 +173,8 @@ function validateOpaqueKey(key: string): string {
   ) {
     throw new Error('Oracle resource key is not a safe opaque path segment')
   }
-  for (let index = 0; index < key.length; index++) {
-    const codeUnit = key.charCodeAt(index)
-    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
-      const next = key.charCodeAt(index + 1)
-      if (!(next >= 0xdc00 && next <= 0xdfff)) {
-        throw new Error('Oracle resource key contains malformed Unicode')
-      }
-      index++
-    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
-      throw new Error('Oracle resource key contains malformed Unicode')
-    }
+  if (!hasWellFormedUtf16(key)) {
+    throw new Error('Oracle resource key contains malformed Unicode')
   }
   return key
 }

@@ -170,6 +170,16 @@ describe('Oracle self links', () => {
     )
   })
 
+  it('rejects a self-link href containing malformed Unicode before URL parsing', () => {
+    expect(() =>
+      extractOracleFusionOpaqueKey(
+        resource(`${ORIGIN}${COLLECTION}/bad\ud800key`),
+        ORIGIN,
+        COLLECTION_ADDRESS
+      )
+    ).toThrow('Oracle self link is malformed')
+  })
+
   it.each([
     [`${ORIGIN}/other/abc`, 'collection path'],
     [`${ORIGIN}${COLLECTION}/a/b`, 'one opaque key'],

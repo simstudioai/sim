@@ -103,5 +103,7 @@ export function normalizeOracleFusionDecimalIdentifier(
   if (fractionalDigits > significantCoefficient.length) return undefined
   const suffix = significantCoefficient.slice(significantCoefficient.length - fractionalDigits)
   if (!/^0*$/.test(suffix)) return undefined
-  return significantCoefficient.slice(0, significantCoefficient.length - fractionalDigits) || '0'
+  const normalized =
+    significantCoefficient.slice(0, significantCoefficient.length - fractionalDigits) || '0'
+  return normalized.length <= options.maxDigits ? normalized : undefined
 }
