@@ -15,8 +15,10 @@ import { and, eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
+  type SecureFetchOptions,
   type SecureFetchResponse,
-  secureFetchWithValidation,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -688,6 +690,23 @@ async function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void>
   await raceWithAbort(() => sleep(delayMs), signal)
 }
 
+async function secureOciFetch(
+  url: string,
+  options: SecureFetchOptions,
+  paramName: string,
+  signal: AbortSignal
+): Promise<SecureFetchResponse> {
+  const validation = await raceWithAbort(
+    () =>
+      validateUrlWithDNS(url, paramName, options.profile, {
+        logDetails: options.logUrlValidationDetails,
+      }),
+    signal
+  )
+  if (!validation.isValid) throw new Error(validation.error)
+  return raceWithAbort(() => secureFetchWithPinnedIP(url, validation.resolvedIP, options), signal)
+}
+
 /** Creates a lazily loaded OCI client bound to trusted workspace and service context. */
 export async function createOciClient(params: CreateOciClientParams): Promise<OciClient> {
   const service = getServiceConfigByServiceId(params.serviceId)
@@ -788,23 +807,20 @@ export async function createOciClient(params: CreateOciClientParams): Promise<Oc
 
           let response: SecureFetchResponse
           try {
-            response = await raceWithAbort(
-              () =>
-                secureFetchWithValidation(
-                  signed.url,
-                  {
-                    method: request.method,
-                    headers: { ...signed.headers },
-                    ...(signed.body !== undefined ? { body: new Uint8Array(signed.body) } : {}),
-                    timeout: Math.max(1, Math.floor(remainingMs)),
-                    maxResponseBytes: request.maxResponseBytes,
-                    maxRedirects: 0,
-                    signal: deadline.signal,
-                    profile: 'configuredEndpoint',
-                    logUrlValidationDetails: false,
-                  },
-                  'OCI destination'
-                ),
+            response = await secureOciFetch(
+              signed.url,
+              {
+                method: request.method,
+                headers: { ...signed.headers },
+                ...(signed.body !== undefined ? { body: new Uint8Array(signed.body) } : {}),
+                timeout: Math.max(1, Math.floor(remainingMs)),
+                maxResponseBytes: request.maxResponseBytes,
+                maxRedirects: 0,
+                signal: deadline.signal,
+                profile: 'configuredEndpoint',
+                logUrlValidationDetails: false,
+              },
+              'OCI destination',
               deadline.signal
             )
           } catch (error) {
@@ -914,22 +930,19 @@ export async function verifyOciApiKeyCredentialForSetup(
       headers: { accept: 'application/json' },
       signingDate: new Date(),
     })
-    const response = await raceWithAbort(
-      () =>
-        secureFetchWithValidation(
-          signed.url,
-          {
-            method: 'GET',
-            headers: { ...signed.headers },
-            timeout: SETUP_VERIFICATION_TIMEOUT_MS,
-            maxResponseBytes: SETUP_VERIFICATION_RESPONSE_BYTES,
-            maxRedirects: 0,
-            signal: deadline.signal,
-            profile: 'configuredEndpoint',
-            logUrlValidationDetails: false,
-          },
-          'OCI credential verification destination'
-        ),
+    const response = await secureOciFetch(
+      signed.url,
+      {
+        method: 'GET',
+        headers: { ...signed.headers },
+        timeout: SETUP_VERIFICATION_TIMEOUT_MS,
+        maxResponseBytes: SETUP_VERIFICATION_RESPONSE_BYTES,
+        maxRedirects: 0,
+        signal: deadline.signal,
+        profile: 'configuredEndpoint',
+        logUrlValidationDetails: false,
+      },
+      'OCI credential verification destination',
       deadline.signal
     )
     if (!response.ok) {
