@@ -866,7 +866,7 @@ export const openClawProfile: CompetitorProfile = {
       },
       compliance: {
         value:
-          'No compliance certifications (no SOC 2, HIPAA, ISO 27001, GDPR-specific attestation, PCI, or FedRAMP). As open-source, self-hosted software from a non-profit Foundation, OpenClaw is not the kind of vendor entity that typically pursues these certifications; compliance posture depends entirely on how and where the operator self-hosts it.',
+          'OpenClaw publishes no compliance certifications (no SOC 2, HIPAA, ISO 27001, GDPR-specific attestation, PCI, or FedRAMP). As open-source, self-hosted software from a non-profit Foundation, OpenClaw is not the kind of vendor entity that typically pursues these certifications; compliance posture depends entirely on how and where the operator self-hosts it.',
         detail:
           "OpenClaw publishes no SOC 2 attestation, trust center, or audit report; responsibility for infrastructure security and compliance rests entirely with the self-hosting operator. China restricted state enterprises and government agencies from deploying OpenClaw in March 2026 over security concerns, per Wikipedia's history summary, a data point on the compliance/trust landscape rather than a certification.",
         shortValue: 'No SOC 2 or other certifications; compliance depends on self-hosting operator',

@@ -893,18 +893,23 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       compliance: {
         value:
-          'FedRAMP Moderate Authorization (ChatGPT Enterprise and API Platform), PCI DSS v4.0.1, SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019; supports customer HIPAA compliance via BAA and GDPR/CCPA via DPA; FERPA covered via a separate Student Data Privacy Agreement for ChatGPT Edu',
+          'FedRAMP Moderate Authorization (ChatGPT Enterprise and API Platform), PCI DSS v4.0.1, SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, and ISO/IEC 42001:2023; supports customer HIPAA compliance via BAA and GDPR/CCPA via DPA; FERPA covered via a separate Student Data Privacy Agreement for ChatGPT Edu',
         detail:
-          "OpenAI's ChatGPT Enterprise and API Platform hold FedRAMP Moderate (Class C) authorization per the FedRAMP Marketplace listing. OpenAI's most recent SOC 2 report covers January 1, 2025 through June 30, 2025 for the Security, Availability, Confidentiality, and Privacy Trust Services Criteria across the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team. OpenAI's trust portal also lists PCI DSS v4.0.1 for payment-processing components, plus ISO/IEC 27001:2022, 27017:2015, 27018:2019, and 27701:2019 certifications, and lists GDPR and CCPA. OpenAI offers a Data Processing Addendum for GDPR/CCPA and a Business Associate Agreement for HIPAA-regulated customers on ChatGPT Enterprise/Edu and the API (not standard ChatGPT Business); this is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. FERPA compliance for ChatGPT Edu/for Teachers runs through a separate Student Data Privacy Agreement rather than the general DPA.",
-        shortValue: 'FedRAMP Moderate, PCI DSS, SOC 2, ISO 27001/27701, HIPAA BAA',
+          "OpenAI's ChatGPT Enterprise and API Platform hold FedRAMP Moderate (Class C) authorization per the FedRAMP Marketplace listing. OpenAI's most recent SOC 2 report covers July 1, 2025 through June 30, 2026 for the Security, Availability, Confidentiality, and Privacy Trust Services Criteria across ChatGPT Business, ChatGPT Enterprise, ChatGPT for Education, ChatGPT for Healthcare, ChatGPT for Teachers, the API Platform, Codex, and OpenAI Presence, as listed in OpenAI's current Product Compliance Status matrix. OpenAI's trust portal also lists PCI DSS v4.0.1 for payment-processing components, plus ISO/IEC 27001:2022, 27017:2015, 27018:2019, and 27701:2019 certifications, and lists GDPR and CCPA. OpenAI also maintains an ISO/IEC 42001:2023 AI Management System covering its consumer and business AI products and models. OpenAI offers a Data Processing Addendum for GDPR/CCPA and a Business Associate Agreement for HIPAA-regulated customers on ChatGPT Enterprise/Edu and the API (not standard ChatGPT Business); this is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. FERPA compliance for ChatGPT Edu/for Teachers runs through a separate Student Data Privacy Agreement rather than the general DPA.",
+        shortValue: 'FedRAMP Moderate, PCI DSS, SOC 2, ISO 27001/27701/42001, HIPAA BAA',
         confidence: 'verified',
         sources: [
+          { url: 'https://trust.openai.com/', label: 'OpenAI Trust Portal', asOf: '2026-09-04' },
+          {
+            url: 'https://openai.com/product-compliance-status/',
+            label: 'Product compliance status | OpenAI',
+            asOf: '2026-09-04',
+          },
           {
             url: 'https://www.fedramp.gov/marketplace/products/FR2533155773/',
             label: 'ChatGPT Enterprise and API Platform | FedRAMP Marketplace',
-            asOf: '2026-07-08',
+            asOf: '2026-09-04',
           },
-          { url: 'https://trust.openai.com/', label: 'OpenAI Trust Portal', asOf: '2026-07-08' },
           {
             url: 'https://help.openai.com/en/articles/8660679-how-can-i-get-a-business-associate-agreement-baa-with-openai',
             label:
@@ -914,7 +919,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           {
             url: 'https://openai.com/security-and-privacy/',
             label: 'Security and privacy at OpenAI',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },

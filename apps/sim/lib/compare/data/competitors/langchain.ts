@@ -822,21 +822,27 @@ export const langchainProfile: CompetitorProfile = {
       },
       compliance: {
         value:
-          "LangSmith is SOC 2 Type II, HIPAA, and GDPR compliant; LangGraph Platform (now LangSmith Deployment) shares LangSmith's SOC 2 attestation and compliance posture",
+          "LangSmith is SOC 2 Type II, ISO/IEC 27001:2022, HIPAA, and GDPR compliant; LangGraph Platform (now LangSmith Deployment) shares LangSmith's SOC 2 attestation and compliance posture, and LangChain says its 2026 SOC 2 Type II report spans the entire LangSmith offering",
         detail:
-          "LangChain's own docs and Trust Center state LangSmith is SOC 2 Type II, HIPAA compliant, and GDPR compliant; no ISO 27001, PCI-DSS, or FedRAMP attestation was found on LangChain's own compliance materials. The Trust Center is the canonical source but renders via client-side JavaScript, so it could not be directly verified by an automated fetch; the LangSmith certification is independently confirmed on the static Regions FAQ page.",
-        shortValue: 'LangSmith/LangGraph SOC 2 Type II; HIPAA and GDPR compliant',
+          "LangChain's own docs and Trust Center state LangSmith is SOC 2 Type II, ISO/IEC 27001:2022, HIPAA, and GDPR compliant. The 2026 SOC 2 Type II report covers Security, Availability, and Confidentiality for July 1, 2025 through June 30, 2026, with an unqualified opinion and no exceptions noted. Advantage Partners performed that examination and issued the ISO certification, which covers the systems, teams, and information assets supporting LangSmith and its LLM application tooling. The Trust Center is the canonical source, and the static Regions FAQ independently confirms SOC 2 Type II, HIPAA, and GDPR compliance. No PCI-DSS or FedRAMP attestation was found.",
+        shortValue:
+          'LangSmith/LangGraph SOC 2 Type II and ISO 27001:2022; HIPAA and GDPR compliant',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/regions-faq',
-            label: 'Regions FAQ - Docs by LangChain',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://trust.langchain.com/',
             label: 'LangChain Trust Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-03',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/regions-faq',
+            label: 'Regions FAQ - Docs by LangChain',
+            asOf: '2026-09-03',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/deployment',
+            label: 'LangSmith Deployment - Docs by LangChain',
+            asOf: '2026-09-03',
           },
         ],
       },
