@@ -587,6 +587,22 @@ describe('credential-bound OCI client', () => {
     expect(mocks.secureFetch).toHaveBeenCalledOnce()
   })
 
+  it('retries the bounded transport timeout', async () => {
+    mocks.secureFetch
+      .mockRejectedValueOnce(new Error('Request timed out after 9000ms'))
+      .mockResolvedValueOnce(secureResponse({ status: 200 }))
+    const { client, endpoint } = await createPreparedClient()
+    await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      retry: { kind: 'safe', maxAttempts: 2 },
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect(mocks.secureFetch).toHaveBeenCalledTimes(2)
+  })
+
   it('discards provider messages and exposes only safe status and request IDs', async () => {
     const opaqueProviderSecret = 'opaque-diagnostic-secret-7f3a'
     mocks.secureFetch.mockResolvedValueOnce(
@@ -727,6 +743,37 @@ describe('credential-bound OCI client', () => {
         body: new Uint8Array(),
       } as OciAuthenticatedResponse)
     ).rejects.toMatchObject({ code: 'invalid_endpoint' })
+  })
+
+  it('prepares discovery from the retained safe Location header', async () => {
+    const policy = createOciDiscoveredEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'database',
+      hostnameTemplate: 'regional',
+      responsePolicy: STATIC_POLICY,
+      source: { kind: 'header', name: 'location' },
+    })
+    const { client, endpoint } = await createPreparedClient()
+    mocks.secureFetch.mockResolvedValueOnce(
+      secureResponse({
+        headers: {
+          location: 'https://resource.database.us-ashburn-1.oraclecloud.com',
+          'x-provider-secret': 'hidden',
+        },
+      })
+    )
+    const response = await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      responseHeaders: ['location'],
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect((await client.prepareDiscoveredEndpoint(policy, response)).origin).toBe(
+      'https://resource.database.us-ashburn-1.oraclecloud.com'
+    )
+    expect(response.headers).not.toHaveProperty('x-provider-secret')
   })
 
   it('propagates caller abort without leaking a transport failure', async () => {
