@@ -308,71 +308,82 @@ describe('Oracle EPM guarded client', () => {
     expect(mockSecureFetch).not.toHaveBeenCalled()
   })
 
-  it('returns an opaque same-client link capability and keeps query secrets out of serialization', async () => {
-    const download = routes.defineEndpoint({
-      method: 'GET',
-      version: 'v3',
-      path: [oracleEpmLiteral('files'), oracleEpmPathParameter('fileId', { maxBytes: 32 })],
-      query: { token: oracleEpmQuery.string({ required: true, maxBytes: 128 }) },
-      body: 'none',
-      response: 'stream',
-      timeoutMs: 5_000,
-      maxResponseBytes: 4_096,
-    })
+  it.each(['download', 'Job Status'])(
+    'keeps %s links opaque and client-owned',
+    async (relation) => {
+      const download = routes.defineEndpoint({
+        method: 'GET',
+        version: 'v3',
+        path: [oracleEpmLiteral('files'), oracleEpmPathParameter('fileId', { maxBytes: 32 })],
+        query: { token: oracleEpmQuery.string({ required: true, maxBytes: 128 }) },
+        body: 'none',
+        response: 'stream',
+        timeoutMs: 5_000,
+        maxResponseBytes: 4_096,
+      })
+      const policy = routes.defineReturnedLinkPolicy({
+        relation,
+        method: 'GET',
+        endpoint: download,
+        preserveGatewayBasePath: true,
+      })
+      const client = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com/gateway',
+        accessToken: Buffer.from('user:password').toString('base64'),
+      })
+      const secret = 'signed-query-secret'
+      const link = client.validateReturnedLink(policy, {
+        rel: relation,
+        href: `https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=${secret}`,
+      })
+
+      expect(Object.isFrozen(link)).toBe(true)
+      expect(Object.keys(link)).toEqual([])
+      expect(JSON.stringify(link)).toBe('{}')
+      expect(String(link)).not.toContain(secret)
+
+      mockSecureFetch.mockResolvedValue(secureResponse({ body: new ReadableStream() }))
+      await client.requestValidatedLink(link)
+      expect(mockSecureFetch).toHaveBeenCalledWith(
+        `https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=${secret}`,
+        '203.0.113.10',
+        expect.objectContaining({ method: 'GET' })
+      )
+
+      const otherClient = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com/gateway',
+        accessToken: Buffer.from('other:password').toString('base64'),
+      })
+      await expect(otherClient.requestValidatedLink(link)).rejects.toBeInstanceOf(OracleEpmError)
+      expect(mockValidateUrl).toHaveBeenCalledTimes(1)
+      expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each(
+    [
+      'https://evil.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
+      'https://user@epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
+      'https://epm.example.com/SyntheticAlpha/rest/v3/files/abc?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x&token=y',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?unknown=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#fragment',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/ab\nc?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/\uD800?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest//v3/files/abc?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc/?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/./abc?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%2e%2e?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%2e.?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%252e%252e?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%2Fabc?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%5Cabc?token=x',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files\\abc?token=x',
+    ].flatMap((href) => ['download', 'Job Status'].map((relation) => ({ relation, href })))
+  )('rejects unsafe $relation link $href', ({ relation, href }) => {
     const policy = routes.defineReturnedLinkPolicy({
-      relation: 'download',
-      method: 'GET',
-      endpoint: download,
-      preserveGatewayBasePath: true,
-    })
-    const client = createOracleEpmClient({
-      instanceUrl: 'https://epm.example.com/gateway',
-      accessToken: Buffer.from('user:password').toString('base64'),
-    })
-    const secret = 'signed-query-secret'
-    const link = client.validateReturnedLink(policy, {
-      rel: 'download',
-      href: `https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=${secret}`,
-    })
-
-    expect(Object.isFrozen(link)).toBe(true)
-    expect(Object.keys(link)).toEqual([])
-    expect(JSON.stringify(link)).toBe('{}')
-    expect(String(link)).not.toContain(secret)
-
-    mockSecureFetch.mockResolvedValue(secureResponse({ body: new ReadableStream() }))
-    await client.requestValidatedLink(link)
-    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
-
-    const otherClient = createOracleEpmClient({
-      instanceUrl: 'https://epm.example.com/gateway',
-      accessToken: Buffer.from('other:password').toString('base64'),
-    })
-    await expect(otherClient.requestValidatedLink(link)).rejects.toBeInstanceOf(OracleEpmError)
-  })
-
-  it.each([
-    'https://evil.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
-    'https://user@epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
-    'https://epm.example.com/SyntheticAlpha/rest/v3/files/abc?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x&token=y',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?unknown=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#fragment',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/ab\nc?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/\uD800?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest//v3/files/abc?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc/?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/./abc?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%2e%2e?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%2e.?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%252e%252e?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%2Fabc?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%5Cabc?token=x',
-    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files\\abc?token=x',
-  ])('rejects unsafe returned link %j', (href) => {
-    const policy = routes.defineReturnedLinkPolicy({
-      relation: 'download',
+      relation,
       method: 'GET',
       version: 'v3',
       path: [oracleEpmLiteral('files'), oracleEpmPathParameter('fileId', { maxBytes: 32 })],
@@ -386,12 +397,14 @@ describe('Oracle EPM guarded client', () => {
       instanceUrl: 'https://epm.example.com/gateway',
       accessToken: Buffer.from('u:p').toString('base64'),
     })
-    expect(() => client.validateReturnedLink(policy, { rel: 'download', href })).toThrow()
+    expect(() => client.validateReturnedLink(policy, { rel: relation, href })).toThrow()
+    expect(mockValidateUrl).not.toHaveBeenCalled()
+    expect(mockSecureFetch).not.toHaveBeenCalled()
   })
 
-  it('rejects an incorrect returned-link method', () => {
+  it.each(['download', 'Job Status'])('rejects an incorrect %s link method', (relation) => {
     const policy = routes.defineReturnedLinkPolicy({
-      relation: 'download',
+      relation,
       method: 'GET',
       version: 'v3',
       path: [oracleEpmLiteral('files'), oracleEpmPathParameter('fileId', { maxBytes: 32 })],
@@ -406,11 +419,45 @@ describe('Oracle EPM guarded client', () => {
     })
     expect(() =>
       client.validateReturnedLink(policy, {
-        rel: 'download',
+        rel: relation,
         method: 'POST',
         href: 'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc',
       })
     ).toThrow()
+    expect(mockValidateUrl).not.toHaveBeenCalled()
+    expect(mockSecureFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'job status',
+    'Job status',
+    ' Job Status',
+    'Job Status ',
+    'Job  Status',
+    'Job\tStatus',
+    'Job Status\n',
+    'download',
+  ])('rejects nonmatching relation %j before DNS or network access', (rel) => {
+    const policy = routes.defineReturnedLinkPolicy({
+      relation: 'Job Status',
+      method: 'GET',
+      endpoint: getJob,
+      preserveGatewayBasePath: true,
+    })
+    const client = createOracleEpmClient({
+      instanceUrl: 'https://epm.example.com/gateway',
+      accessToken: Buffer.from('u:p').toString('base64'),
+    })
+
+    expect(() =>
+      client.validateReturnedLink(policy, {
+        rel,
+        method: 'GET',
+        href: 'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/jobs/42',
+      })
+    ).toThrow(OracleEpmError)
+    expect(mockValidateUrl).not.toHaveBeenCalled()
+    expect(mockSecureFetch).not.toHaveBeenCalled()
   })
 
   it('rejects forged validated-link handles', async () => {

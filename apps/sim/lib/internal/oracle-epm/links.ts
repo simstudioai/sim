@@ -12,7 +12,8 @@ import type {
 } from '@/lib/internal/oracle-epm/types'
 
 const policies = new WeakMap<object, OracleEpmReturnedLinkPolicyDefinition>()
-const RELATION = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/
+/** Single ASCII spaces separate words; the final assertion rejects trailing line breaks too. */
+const RELATION = /^[A-Za-z][A-Za-z0-9._-]*(?: [A-Za-z0-9._-]+)*(?![\s\S])/
 
 /** Internal frozen link policy available only after runtime-brand validation. */
 export interface OracleEpmReturnedLinkPolicyDefinition {
@@ -32,7 +33,11 @@ export function defineOracleEpmReturnedLinkPolicy(
   declaration: OracleEpmReturnedLinkPolicyDeclaration
 ): OracleEpmReturnedLinkPolicy {
   const route = getOracleEpmRouteSpace(routeSpace)
-  if (!RELATION.test(declaration.relation))
+  if (
+    typeof declaration.relation !== 'string' ||
+    declaration.relation.length > 64 ||
+    !RELATION.test(declaration.relation)
+  )
     throw new Error('Oracle EPM returned-link relation is invalid')
   if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].includes(declaration.method))
     throw new Error('Oracle EPM returned-link method is invalid')
