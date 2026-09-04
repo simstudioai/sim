@@ -22,12 +22,8 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
-import {
-  getOrCreateOauthRow,
-  loadPreregisteredClient,
-  SimMcpOauthProvider,
-  withMcpOauthRefreshLock,
-} from '@/lib/mcp/oauth'
+import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
+import type { McpOauthCredentials } from '@/lib/mcp/oauth/coordinated-fetch'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
@@ -431,12 +427,7 @@ class McpService {
     }
     const workspaceId = config.workspaceId
 
-    // Load the row inside the refresh lock so concurrent callers observe tokens
-    // written by a predecessor refresh, rather than a stale snapshot. Without
-    // this, the second caller's provider would hold a rotated-out refresh token
-    // and the SDK would trip `invalid_grant`. The lock is keyed on serverId
-    // since the row is per-server.
-    return withMcpOauthRefreshLock(config.id, async () => {
+    const loadProvider = async () => {
       const row = await getOrCreateOauthRow({
         mcpServerId: config.id,
         userId,
@@ -446,22 +437,26 @@ class McpService {
         throw new McpOauthAuthorizationRequiredError(config.id, config.name)
       }
       const preregistered = await loadPreregisteredClient(config.id)
-      const authProvider = new SimMcpOauthProvider({ row, preregistered })
-      const client = new McpClient({
-        config,
-        securityPolicy,
-        authProvider,
-        resolvedIP: resolvedIP ?? undefined,
-        resolvedSecretTraceProvenance,
-      })
-      await client.connect({ signal })
-      return client
+      return new SimMcpOauthProvider({ row, preregistered })
+    }
+    const client = new McpClient({
+      config,
+      securityPolicy,
+      oauthCredentials: {
+        credentialId: config.id,
+        loadProvider,
+        initialProvider: await loadProvider(),
+      },
+      resolvedIP: resolvedIP ?? undefined,
+      resolvedSecretTraceProvenance,
     })
+    await client.connect({ signal })
+    return client
   }
 
   private async createManagedOauthClient(
     config: McpServerConfig,
-    authProvider: OAuthClientProvider,
+    auth: OAuthClientProvider | McpOauthCredentials,
     signal?: AbortSignal
   ): Promise<McpClient> {
     if (config.authType !== 'oauth' || !config.url) {
@@ -484,7 +479,9 @@ class McpService {
         maxToolExecutionsPerHour: 1000,
         allowedOrigins: [new URL(config.url).origin],
       },
-      authProvider,
+      ...('loadProvider' in auth
+        ? { oauthCredentials: { ...auth, initialProvider: await auth.loadProvider() } }
+        : { authProvider: auth }),
       resolvedIP: resolvedIP ?? undefined,
     })
     await client.connect({ signal })
@@ -494,7 +491,7 @@ class McpService {
   async discoverManagedMcpTools(
     serverId: string,
     workspaceId: string,
-    authProvider: OAuthClientProvider,
+    auth: OAuthClientProvider | McpOauthCredentials,
     signal?: AbortSignal,
     options: { requireComplete?: boolean } = {}
   ): Promise<McpTool[]> {
@@ -502,7 +499,7 @@ class McpService {
     if (!config) throw new Error('Managed MCP server is unavailable')
     return this.withServerClient(
       { key: '', serverId, allowPool: false },
-      () => this.createManagedOauthClient(config, authProvider, signal),
+      () => this.createManagedOauthClient(config, auth, signal),
       (client) =>
         options.requireComplete
           ? client.listTools(signal, { requireComplete: true })
@@ -525,21 +522,19 @@ class McpService {
     const effectiveConfig = params.extraHeaders
       ? { ...config, headers: { ...config.headers, ...params.extraHeaders } }
       : config
-    return withMcpOauthRefreshLock(params.connectionId, () =>
-      this.withServerClient(
-        { key: '', serverId: params.serverId, allowPool: false },
-        async () =>
-          this.createManagedOauthClient(
-            effectiveConfig,
-            await params.loadAuthProvider(),
-            params.signal
-          ),
-        (client) =>
-          client.callTool(params.toolCall, {
-            signal: params.signal,
-            timeoutMs: params.timeoutMs,
-          })
-      )
+    return this.withServerClient(
+      { key: '', serverId: params.serverId, allowPool: false },
+      () =>
+        this.createManagedOauthClient(
+          effectiveConfig,
+          { credentialId: params.connectionId, loadProvider: params.loadAuthProvider },
+          params.signal
+        ),
+      (client) =>
+        client.callTool(params.toolCall, {
+          signal: params.signal,
+          timeoutMs: params.timeoutMs,
+        })
     )
   }
 

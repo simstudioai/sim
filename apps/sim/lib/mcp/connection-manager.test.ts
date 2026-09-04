@@ -63,6 +63,7 @@ vi.mock('@/lib/mcp/oauth', () => ({
 }))
 
 import { McpConnectionManager } from '@/lib/mcp/connection-manager'
+import type { McpClientOptions } from '@/lib/mcp/types'
 
 beforeAll(() => {
   setEnvFlags({ isTest: false })
@@ -168,6 +169,11 @@ describe('McpConnectionManager', () => {
         userId: 'user-1',
         workspaceId: 'ws-1',
       })
+      const options: McpClientOptions = MockMcpClientConstructor.mock.calls[0][0]
+      expect(options.authProvider).toBeUndefined()
+      expect(options.oauthCredentials?.credentialId).toBe('server-oauth')
+      await options.oauthCredentials?.loadProvider()
+      expect(mockGetOrCreateOauthRow).toHaveBeenCalledTimes(2)
     })
 
     it('allows a new connect() after a previous one completes', async () => {
