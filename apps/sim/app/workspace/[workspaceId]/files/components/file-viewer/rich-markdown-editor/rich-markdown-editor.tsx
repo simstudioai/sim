@@ -30,7 +30,7 @@ import {
   beginAgentStream,
   endAgentStream,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown'
-import { nextCollabReadiness } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/readiness'
+import { isCollabReady } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/readiness'
 import { useFileDocCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
 import { useMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
@@ -363,6 +363,8 @@ interface LoadedRichMarkdownEditorProps {
   onEditSource?: () => void
 }
 
+type CollaborationStatus = 'connecting' | 'ready' | 'reconnecting' | 'fatal'
+
 interface SettledContent {
   frontmatter: string
   verdict: boolean
@@ -437,7 +439,10 @@ export function LoadedRichMarkdownEditor({
    * autosave gated until the shared content has arrived (a user must not type into an
    * empty, unsynced doc, which the seed would then discard) — and `true` for a local one.
    */
-  const [collabReady, setCollabReady] = useState(!collaborationEnabled)
+  const [collabStatus, setCollabStatus] = useState<CollaborationStatus>(() =>
+    collaborationEnabled ? 'connecting' : 'ready'
+  )
+  const collabReady = collabStatus === 'ready'
   const isEditable = canEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   const collaboration = useFileDocCollaboration({
@@ -859,9 +864,13 @@ export function LoadedRichMarkdownEditor({
      * document that was already correct, and it opens mid-flight anyway whenever the updates arrive
      * more than a frame apart (which is what a remote Redis and a long room history produce).
      */
-    const setReady = (ready: boolean) => {
+    const setReady = (ready: boolean, fatal = false) => {
       // Child-local: gates editability (a user must never type into an unsynced/unseeded doc).
-      setCollabReady(ready)
+      setCollabStatus((previous) => {
+        if (fatal) return 'fatal'
+        if (ready) return 'ready'
+        return previous === 'ready' || previous === 'reconnecting' ? 'reconnecting' : 'connecting'
+      })
       // Parent: gates CLIENT autosave. In a collaborative session the relay persists the doc to
       // markdown server-side (debounced + on last-disconnect), so the client must NOT also autosave —
       // a stale keystroke saving over a server/copilot edit is the clobber the server path closes.
@@ -879,9 +888,6 @@ export function LoadedRichMarkdownEditor({
     }
     const config = doc.getMap(FILE_DOC_SEED.configMap)
 
-    // Readiness LATCHES so a post-seed `synced` flap can't re-gate a new file's agent stream — see
-    // {@link nextCollabReadiness} for the full rationale. `offlineSeed` marks a local (read-only) seed.
-    let syncedOnce = false
     let offlineSeed = false
 
     const seedFromLoaded = () => {
@@ -907,9 +913,7 @@ export function LoadedRichMarkdownEditor({
       // `joinError` is latched ONLY on the provider's fatal paths (non-retryable rejection, access
       // revocation, readiness deadline), so it is exactly "this document is abandoned".
       const fatal = provider.joinError !== null
-      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed, fatal })
-      syncedOnce = next.syncedOnce
-      setReady(next.ready)
+      setReady(isCollabReady({ synced, seeded, offlineSeed, fatal }), fatal)
     }
     /**
      * Re-report unconditionally, not just when the fallback seeds. A fatal that arrives on an ALREADY
@@ -936,7 +940,7 @@ export function LoadedRichMarkdownEditor({
       // ungate it while the doc is unready.
       onClientAutosaveChange(false)
     }
-  }, [collaboration, editor, onClientAutosaveChange, setCollabReady])
+  }, [collaboration, editor, onClientAutosaveChange])
 
   /**
    * Owns editability for the collaborative lifecycle: `useEditor`'s `editable` is only the initial
@@ -1307,11 +1311,9 @@ export function LoadedRichMarkdownEditor({
 
   useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
 
-  // Show the read-only placeholder (the already-fetched markdown) whenever a collaborative doc has not yet
-  // seeded — including during an agent stream that begins before the seed lands. Streamed diffs are held
-  // until `collabReady` (see the streaming effect), so before then the editor is empty; the placeholder
-  // shows the base content until the seed swaps it in, avoiding both a blank frame and a garbled merge.
-  const showPlaceholder = collaborationEnabled && !collabReady
+  /** Use the stored-content placeholder only while the live document is bootstrapping. */
+  const showPlaceholder = collaborationEnabled && collabStatus === 'connecting'
+  const showReconnecting = collaborationEnabled && collabStatus === 'reconnecting'
 
   /**
    * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own
@@ -1334,6 +1336,15 @@ export function LoadedRichMarkdownEditor({
             This document needs source editing to preserve its content or handle its size.
           </p>
           <Chip onClick={onEditSource}>Edit source</Chip>
+        </div>
+      )}
+      {showReconnecting && (
+        <div
+          role='status'
+          aria-live='polite'
+          className='border-[var(--border)] border-b px-4 py-2 text-[var(--text-muted)] text-small'
+        >
+          Reconnecting…
         </div>
       )}
       {find.isOpen && (

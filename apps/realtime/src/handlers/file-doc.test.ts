@@ -545,6 +545,10 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     expect(socket.join).toHaveBeenCalledWith(ROOM_NAME)
     expect(joinSuccessFileId(socket)).toBe('file-1')
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_SUCCESS,
+      expect.objectContaining({ fileId: 'file-1', clientId: 1 })
+    )
 
     // A binary sync-step-1 message (type tag 0) is sent to kick off the handshake.
     const syncMessage = socket.emit.mock.calls.find(
@@ -843,7 +847,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(2)
   })
 
-  it('relays a document update to the rest of the room, excluding the sender', async () => {
+  it('relays a document update to every provider, including siblings on the sender socket', async () => {
     const { io, sent } = createIo()
     const a = setup('socket-a', io)
     const b = setup('socket-b', io)
@@ -860,7 +864,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const relayed = sent.find((m) => m.event === FILE_DOC_EVENTS.MESSAGE)
     expect(relayed?.target).toBe(ROOM_NAME)
-    expect(relayed?.except).toBe('socket-a')
+    expect(relayed?.except).toBeUndefined()
     expect((relayed?.payload as Uint8Array)[0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
   })
 
@@ -957,6 +961,35 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(relayedFor(501)).toBeDefined()
     // A client id this socket does NOT own is still dropped (ownership is not blanket-allowed).
     expect(relayedFor(999)).toBeUndefined()
+  })
+
+  it('accepts concurrent joins from co-mounted providers for the same file', async () => {
+    let resolveFirstAuth: (value: unknown) => void = () => {}
+    mockAuthorizeRoom.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirstAuth = resolve
+      })
+    )
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-a', io)
+
+    const first = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 500 })
+    await Promise.resolve()
+    const second = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 501 })
+    await second
+
+    resolveFirstAuth({
+      allowed: true,
+      status: 200,
+      workspaceId: 'ws-1',
+      workspacePermission: 'write',
+    })
+    await first
+
+    const acceptedClientIds = socket.emit.mock.calls
+      .filter(([event]) => event === FILE_DOC_EVENTS.JOIN_SUCCESS)
+      .map(([, payload]) => (payload as { clientId: number }).clientId)
+    expect(acceptedClientIds).toEqual(expect.arrayContaining([500, 501]))
   })
 
   it('preserves the existing caret when a rebind to a foreign client id is rejected', async () => {

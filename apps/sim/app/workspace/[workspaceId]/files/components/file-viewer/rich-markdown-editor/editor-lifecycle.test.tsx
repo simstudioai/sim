@@ -1,10 +1,13 @@
 /** @vitest-environment jsdom */
 import { act, Suspense, startTransition } from 'react'
 import { toast } from '@sim/emcn'
+import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { type Editor, Extension } from '@tiptap/core'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Awareness } from 'y-protocols/awareness'
+import * as Y from 'yjs'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
@@ -14,7 +17,10 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor'
 
-const { uploadFile } = vi.hoisted(() => ({ uploadFile: vi.fn() }))
+const { collaborationRef, uploadFile } = vi.hoisted(() => ({
+  collaborationRef: { current: null as unknown },
+  uploadFile: vi.fn(),
+}))
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => ({ data: null, isPending: false }) }))
@@ -52,7 +58,7 @@ vi.mock(
 )
 vi.mock(
   '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/use-file-doc-collaboration',
-  () => ({ useFileDocCollaboration: () => null })
+  () => ({ useFileDocCollaboration: () => collaborationRef.current })
 )
 vi.mock(
   '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find',
@@ -107,7 +113,38 @@ function SuspendAfterEditor({ active }: SuspendAfterEditorProps) {
   return null
 }
 
+class FakeFileDocProvider {
+  synced = false
+  joinError: JoinFileDocError | null = null
+  private readonly listeners = new Map<string, Set<(value: unknown) => void>>()
+
+  on(event: string, listener: (value: unknown) => void) {
+    let eventListeners = this.listeners.get(event)
+    if (!eventListeners) {
+      eventListeners = new Set()
+      this.listeners.set(event, eventListeners)
+    }
+    eventListeners.add(listener)
+  }
+
+  off(event: string, listener: (value: unknown) => void) {
+    this.listeners.get(event)?.delete(listener)
+  }
+
+  setSynced(synced: boolean) {
+    this.synced = synced
+    for (const listener of this.listeners.get('synced') ?? []) listener(synced)
+  }
+
+  fail(error: JoinFileDocError) {
+    this.joinError = error
+    this.synced = false
+    for (const listener of this.listeners.get('join-error') ?? []) listener(error)
+  }
+}
+
 interface RenderOptions {
+  collaborative?: boolean
   onChange?: typeof onChange
   onSaveShortcut?: typeof onSaveShortcut
   suspend?: boolean
@@ -132,6 +169,7 @@ async function render(
             canEdit={canEdit}
             userId='user-1'
             userName='User'
+            collaborative={options.collaborative}
             enableFind={false}
             onChange={options.onChange ?? onChange}
             onEditSource={onEditSource}
@@ -169,6 +207,7 @@ async function pasteImage(editor: Editor) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  collaborationRef.current = null
   vi.spyOn(toast, 'warning').mockReturnValue('test-toast')
   vi.spyOn(toast, 'info').mockReturnValue('uploading-toast')
   vi.spyOn(toast, 'dismiss').mockImplementation(() => {})
@@ -184,6 +223,99 @@ afterEach(async () => {
 })
 
 describe('loaded rich editor lifecycle', () => {
+  it('pauses editing while reconnecting and resumes after the document resyncs', async () => {
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    collaborationRef.current = {
+      doc,
+      awareness: new Awareness(doc),
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    await render('body', 'body', true, { collaborative: true })
+
+    await act(async () => provider.setSynced(true))
+    const editor = getEditor()
+    expect(editor.isEditable).toBe(true)
+
+    await act(async () => editor.commands.insertContent('local change '))
+    await act(async () => provider.setSynced(false))
+
+    expect(editor.isEditable).toBe(false)
+    expect(editor.view.dom.getAttribute('aria-readonly')).toBe('true')
+    expect(editor.getText()).toContain('local change')
+    expect(container.textContent).toContain('Reconnecting…')
+    expect(editor.view.dom.closest('.hidden')).toBeNull()
+
+    await act(async () => provider.setSynced(true))
+
+    expect(editor.isEditable).toBe(true)
+    expect(editor.view.dom.getAttribute('aria-readonly')).toBe('false')
+    expect(container.textContent).not.toContain('Reconnecting…')
+  })
+
+  it('keeps the live document visible and read-only after a fatal collaboration error', async () => {
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    collaborationRef.current = {
+      doc,
+      awareness: new Awareness(doc),
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    await render('stale opening snapshot', 'stale opening snapshot', true, { collaborative: true })
+
+    await act(async () => provider.setSynced(true))
+    const editor = getEditor()
+    await act(async () => editor.commands.insertContent('live local change'))
+
+    await act(async () =>
+      provider.fail({
+        fileId: 'file-1',
+        error: 'Access denied',
+        code: 'ACCESS_DENIED',
+        retryable: false,
+      })
+    )
+
+    expect(editor.isEditable).toBe(false)
+    expect(editor.view.dom.getAttribute('aria-readonly')).toBe('true')
+    expect(editor.getText()).toContain('live local change')
+    expect(editor.view.dom.closest('.hidden')).toBeNull()
+    expect(container.textContent).not.toContain('stale opening snapshot')
+    expect(container.textContent).not.toContain('Reconnecting…')
+  })
+
+  it('shows stored content read-only when collaboration fails before the first sync', async () => {
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    collaborationRef.current = {
+      doc,
+      awareness: new Awareness(doc),
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    await render('stored body', 'stored body', true, { collaborative: true })
+
+    await act(async () =>
+      provider.fail({
+        fileId: 'file-1',
+        error: 'Access denied',
+        code: 'ACCESS_DENIED',
+        retryable: false,
+      })
+    )
+
+    const editor = getEditor()
+    expect(editor.isEditable).toBe(false)
+    expect(editor.view.dom.getAttribute('aria-readonly')).toBe('true')
+    expect(editor.getText()).toContain('stored body')
+    expect(editor.view.dom.closest('.hidden')).toBeNull()
+    expect(container.textContent).not.toContain('Reconnecting…')
+  })
+
   it('explains a picker selection whose insertion anchor was invalidated', async () => {
     await render('before TARGET after')
     const editor = getEditor()

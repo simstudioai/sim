@@ -12,6 +12,7 @@ import {
   toFileDocBytes,
 } from '@sim/realtime-protocol/file-doc'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { backoffWithJitter } from '@sim/utils/retry'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import { ObservableV2 } from 'lib0/observable'
@@ -45,6 +46,8 @@ interface FileDocProviderEvents {
  * relay's seed-fetch timeout — see `FILE_DOC_TIMEOUTS` and its ordering test.
  */
 const READINESS_DEADLINE_MS = FILE_DOC_TIMEOUTS.readinessDeadlineMs
+const JOIN_RETRY_BASE_MS = 500
+const JOIN_RETRY_MAX_MS = 5_000
 
 /**
  * Live-provider counts per file, per shared socket. Two surfaces in one tab (the Files editor and the
@@ -112,6 +115,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private fatal = false
   /** Deadline for reaching readiness (synced + seeded); fires the fallback if it is never reached. */
   private readinessTimer: ReturnType<typeof setTimeout> | null = null
+  private joinAccepted = false
+  private joinPending = false
+  private joinRetryAttempt = 0
+  private joinRetryTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly socket: Socket,
@@ -138,6 +145,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     socket.on(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
     socket.on(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)
     socket.on('connect', this.handleConnect)
+    socket.on('disconnect', this.handleDisconnect)
     doc.on('update', this.handleDocUpdate)
     awareness.on('update', this.handleAwarenessUpdate)
     // Watch the seed flag so reaching "seeded" (server seed applied) can clear the readiness deadline.
@@ -188,10 +196,34 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
   }
 
+  private clearJoinRetryTimer() {
+    if (this.joinRetryTimer !== null) {
+      clearTimeout(this.joinRetryTimer)
+      this.joinRetryTimer = null
+    }
+  }
+
   /** Join the room, binding our client id so the server only accepts awareness we own. */
   private join = () => {
-    if (this.fatal) return
+    if (this.fatal || this.disposed || !this.socket.connected || this.joinPending) return
+    this.joinPending = true
     this.socket.emit(FILE_DOC_EVENTS.JOIN, { fileId: this.fileId, clientId: this.doc.clientID })
+  }
+
+  private scheduleJoinRetry() {
+    this.clearJoinRetryTimer()
+    if (this.fatal || this.disposed || !this.socket.connected) return
+    this.joinRetryAttempt += 1
+    this.joinRetryTimer = setTimeout(
+      () => {
+        this.joinRetryTimer = null
+        this.join()
+      },
+      backoffWithJitter(this.joinRetryAttempt, null, {
+        baseMs: JOIN_RETRY_BASE_MS,
+        maxMs: JOIN_RETRY_MAX_MS,
+      })
+    )
   }
 
   /**
@@ -200,8 +232,30 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    */
   private handleConnect = () => {
     if (this.fatal) return
+    this.clearJoinRetryTimer()
+    this.joinAccepted = false
+    this.joinPending = false
+    this.joinRetryAttempt = 0
     this.setSynced(false)
     this.join()
+  }
+
+  private handleDisconnect = () => {
+    this.clearJoinRetryTimer()
+    this.joinAccepted = false
+    this.joinPending = false
+    this.setSynced(false)
+
+    const remoteClientIds = [...this.awareness.getStates().keys()].filter(
+      (clientId) => clientId !== this.doc.clientID
+    )
+    if (remoteClientIds.length > 0) {
+      awarenessProtocol.removeAwarenessStates(
+        this.awareness,
+        remoteClientIds,
+        'provider-disconnect'
+      )
+    }
   }
 
   /**
@@ -217,7 +271,15 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    * A reload binds a fresh document and recovers.
    */
   private handleJoinSuccess = (data: JoinFileDocSuccess) => {
-    if (data.fileId !== this.fileId) return
+    if (
+      data.fileId !== this.fileId ||
+      !this.joinPending ||
+      (data.clientId !== undefined && data.clientId !== this.doc.clientID)
+    )
+      return
+    this.joinPending = false
+    this.joinRetryAttempt = 0
+    this.clearJoinRetryTimer()
     const local = this.docId()
     if (local !== undefined && data.docId !== undefined && data.docId !== local) {
       this.failFatally(
@@ -226,6 +288,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       )
       return
     }
+    this.joinAccepted = true
     this.sendSyncStep1()
     this.sendLocalAwareness()
   }
@@ -252,6 +315,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.fatal = true
     this.joinError = error
     this.clearReadinessTimer()
+    this.clearJoinRetryTimer()
+    this.joinAccepted = false
+    this.joinPending = false
     this.setSynced(false)
     this.emit('join-error', [error])
   }
@@ -262,11 +328,23 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    * owner fall back to the non-collaborative view.
    */
   private handleJoinError = (data: JoinFileDocError) => {
-    if (data.fileId !== this.fileId) return
+    if (
+      data.fileId !== this.fileId ||
+      !this.joinPending ||
+      (data.clientId !== undefined && data.clientId !== this.doc.clientID)
+    )
+      return
+    this.joinAccepted = false
+    this.joinPending = false
     if (data.retryable === false) {
       this.fatal = true
       this.joinError = data
       this.clearReadinessTimer()
+      this.clearJoinRetryTimer()
+      this.setSynced(false)
+    } else {
+      this.setSynced(false)
+      this.scheduleJoinRetry()
     }
     this.emit('join-error', [data])
   }
@@ -291,7 +369,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     // duplicating content — and flip `synced` true, which un-gates autosave and would persist the
     // duplicate back to the real file. `fatal` guarding (re)join alone is not enough; it must also
     // stop applying sync here.
-    if (this.fatal) return
+    if (this.fatal || !this.joinAccepted) return
     const bytes = toFileDocBytes(data)
     if (!bytes) return
 
@@ -327,7 +405,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     // the stored content into the doc locally as its read-only fallback. Never relay those local
     // writes — the server never seeded this doc, so echoing them would push unseeded content to peers
     // (and each fallen-back client would do so, union-duplicating). A fatal client is fully local.
-    if (this.fatal) return
+    if (this.fatal || !this.joinAccepted || !this.socket.connected) return
     // Updates we applied from the server carry `this` as origin — don't echo them.
     if (origin === this) return
     // Agent-streamed frames must reach peers (so a collaborator sees the stream live) but must NOT be
@@ -352,7 +430,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     // removals for remote peers — forwarding either would be a frame for a client
     // id we don't own, which the server (correctly) rejects. Filter to our own id
     // so honest traffic never trips the ownership guard.
-    if (origin === this) return
+    // Socket.IO buffers emits while disconnected and flushes them before the reconnect callback can
+    // rejoin this room. Suppress those stale frames; the accepted join republishes the latest state.
+    if (origin === this || this.fatal || !this.joinAccepted || !this.socket.connected) return
     const localId = this.doc.clientID
     const changed = [...added, ...updated, ...removed].filter((id) => id === localId)
     if (changed.length === 0) return
@@ -404,6 +484,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
     this.disposed = true
     this.clearReadinessTimer()
+    this.clearJoinRetryTimer()
+    this.joinAccepted = false
+    this.joinPending = false
 
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'provider-destroy')
 
@@ -417,6 +500,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.socket.off(FILE_DOC_EVENTS.JOIN_ERROR, this.handleJoinError)
     this.socket.off(ROOM_ACCESS_REVOKED_EVENT, this.handleAccessRevoked)
     this.socket.off('connect', this.handleConnect)
+    this.socket.off('disconnect', this.handleDisconnect)
     this.doc.off('update', this.handleDocUpdate)
     this.doc.getMap(FILE_DOC_SEED.configMap).unobserve(this.handleConfigChange)
     this.awareness.off('update', this.handleAwarenessUpdate)
