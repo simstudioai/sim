@@ -485,10 +485,12 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.disposed = true
     this.clearReadinessTimer()
     this.clearJoinRetryTimer()
-    this.joinAccepted = false
     this.joinPending = false
 
+    // Publish our final awareness removal while this provider is still admitted. A co-mounted sibling
+    // keeps the socket in the room, so LEAVE cannot clear this provider's caret on its behalf.
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'provider-destroy')
+    this.joinAccepted = false
 
     // Only actually leave the room when this was the last provider for the file on the shared socket —
     // otherwise a sibling surface (e.g. the Files editor vs. the embedded chat panel) would be stranded.

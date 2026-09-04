@@ -572,7 +572,7 @@ describe('FileDocProvider', () => {
     // Two surfaces in one tab (Files editor + embedded chat panel) share one socket and both open the
     // same file. Tearing the first down must NOT strand the second — the server drops the socket from
     // the room on any LEAVE, so LEAVE may fire only when the last provider goes away.
-    const { socket, emit } = createSocket(true)
+    const { socket, emit, fire } = createSocket(true)
     const docA = new Y.Doc()
     const docB = new Y.Doc()
     const first = new FileDocProvider(
@@ -587,9 +587,20 @@ describe('FileDocProvider', () => {
       docB,
       new awarenessProtocol.Awareness(docB)
     )
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      fileId: 'shared-file',
+      clientId: docA.clientID,
+    })
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      fileId: 'shared-file',
+      clientId: docB.clientID,
+    })
     emit.mockClear()
 
     first.destroy()
+    expect(
+      emittedMessages(emit).some((message) => message[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS)
+    ).toBe(true)
     expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, expect.anything())
 
     second.destroy()

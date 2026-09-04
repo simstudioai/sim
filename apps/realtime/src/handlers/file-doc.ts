@@ -192,15 +192,19 @@ const fileDocRooms = new Map<string, FileDocRoom>()
 /** socketId → its current file-doc room name (a socket edits at most one doc). */
 const socketToRoomName = new Map<string, string>()
 /**
- * socketId → a monotonic join generation. A JOIN bumps it on arrival and, after
- * the async authorization, proceeds only if the generation is still its own — so
- * a newer JOIN (a fast document switch) or a disconnect (which drops the entry in
- * cleanup) that occurred during authorization aborts the now-stale JOIN. Without
- * this, an out-of-order authorize completion could bind the socket to the wrong
- * document, or a disconnect-during-authorize could register a dead socket and
- * leak its room.
+ * socketId → a monotonic file-intent generation. Switching files or leaving the
+ * intended file advances it; co-mounted providers joining the same file share it.
+ * After async authorization, a join proceeds only while its generation is current,
+ * preventing an out-of-order completion from binding the socket to the wrong file.
  */
 const joinGeneration = new Map<string, number>()
+const MAX_YJS_CLIENT_ID = 0xffff_ffff
+
+function isYjsClientId(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_YJS_CLIENT_ID
+  )
+}
 
 interface AwarenessChange {
   added: number[]
@@ -227,10 +231,8 @@ function originSocketId(origin: unknown): string | null {
  * The transaction origin stamped on an agent-streamed frame (a {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}
  * apply). A non-string sentinel, so `originSocketId` returns `null` for it and the update never triggers
  * `edited`/`schedulePersist` (the copilot's final `edit_content` write is the durable persist). Unlike a
- * client edit, an agent frame is broadcast to the WHOLE room (its originating socket is NOT excluded), so a
- * second {@link FileDocProvider} on the same socket — e.g. the chat preview alongside the Files editor —
- * also receives the mid-stream ops. The emitting provider no-ops on its own echo (the ops are already
- * applied locally), so broadcasting back to the sender is harmless.
+ * client edit, it is marked so peers do not treat it as a durable user edit. The emitting provider no-ops
+ * on its own echo because the operations are already applied locally.
  */
 const AGENT_SYNC_ORIGIN = Symbol('file-doc-agent-sync')
 
@@ -897,10 +899,7 @@ function emitJoinError(
   code: string,
   retryable: boolean
 ) {
-  const normalizedClientId =
-    typeof clientId === 'number' && Number.isInteger(clientId) && clientId >= 0
-      ? clientId
-      : undefined
+  const normalizedClientId = isYjsClientId(clientId) ? clientId : undefined
   socket.emit(FILE_DOC_EVENTS.JOIN_ERROR, {
     fileId: typeof fileId === 'string' ? fileId : '',
     clientId: normalizedClientId,
@@ -1137,10 +1136,8 @@ export function setupWorkspaceFileDocHandlers(
       if (
         typeof fileId !== 'string' ||
         fileId.length === 0 ||
-        // A Yjs clientID is a uint32; reject NaN/Infinity/negative/non-integer so a malformed id
-        // can't become a bogus ownership key.
-        !Number.isInteger(clientId) ||
-        clientId < 0
+        // A Yjs clientID is a uint32; reject malformed values before they can become ownership keys.
+        !isYjsClientId(clientId)
       ) {
         emitJoinError(socket, fileId, clientId, 'Invalid join payload', 'INVALID_PAYLOAD', false)
         return

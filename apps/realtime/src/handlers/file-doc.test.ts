@@ -233,12 +233,13 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
   })
 
-  it('rejects a payload missing the file id or client id before authorizing', async () => {
+  it('rejects a payload with a missing or out-of-range client id before authorizing', async () => {
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
 
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: '', clientId: 1 })
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1' })
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 0x1_0000_0000 })
 
     expect(socket.emit).toHaveBeenCalledWith(
       FILE_DOC_EVENTS.JOIN_ERROR,
