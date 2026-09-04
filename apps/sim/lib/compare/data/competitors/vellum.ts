@@ -23,8 +23,8 @@ export const vellumProfile: CompetitorProfile = {
         'Vellum is HIPAA compliant and enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study. Sim does not currently offer HIPAA compliance (both platforms hold SOC 2 Type 2).',
       shortDescription: 'HIPAA compliant with a signable BAA; Sim does not offer HIPAA.',
       source: {
-        url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
-        label: 'Vellum Docs: Data Privacy and Storage',
+        url: 'https://drata.com/customers/vellum',
+        label: 'Vellum Case Study: Drata',
         asOf: '2026-09-03',
       },
     },
