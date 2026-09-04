@@ -15,8 +15,8 @@ const PROVIDER = 'google-drive'
 const TENANT = 'C01abcdef'
 const OPEN: OpenSharingPolicy = { domain: true, anyone: true }
 
-function acl(permissions: DrivePermission[], policy = CLOSED_OPEN_SHARING, driveId?: string) {
-  return driveFileAcl({ permissions, providerId: PROVIDER, tenantId: TENANT, policy, driveId })
+function acl(permissions: DrivePermission[], policy = CLOSED_OPEN_SHARING) {
+  return driveFileAcl({ permissions, providerId: PROVIDER, tenantId: TENANT, policy })
 }
 
 describe('driveFileAcl', () => {
@@ -44,12 +44,6 @@ describe('driveFileAcl', () => {
     expect(
       acl([{ type: 'group', emailAddress: 'eng@corp.com', permittedBy: ['folder-1'] }])
     ).toEqual([`g:${PROVIDER}:${TENANT}:eng@corp.com`])
-  })
-
-  it('records the shared drive as a group rather than expanding its membership', () => {
-    expect(
-      acl([{ type: 'user', emailAddress: 'alice@corp.com' }], CLOSED_OPEN_SHARING, 'drive-1')
-    ).toEqual([`g:${PROVIDER}:${TENANT}:drive-1`, 'u:alice@corp.com'])
   })
 
   describe('open sharing is closed by default', () => {
@@ -138,8 +132,7 @@ describe('driveFileAcl', () => {
         { type: 'domain', domain: 'corp.com' },
         { type: 'anyone' },
       ],
-      OPEN,
-      'drive-1'
+      OPEN
     )
     for (const token of tokens) expect(token).toMatch(ACCESS_TOKEN_PATTERN)
   })

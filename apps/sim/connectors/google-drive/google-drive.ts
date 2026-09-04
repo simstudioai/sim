@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   type DrivePermission,
   driveFileAcl,
@@ -225,7 +226,6 @@ interface DriveFile {
    * its real grants.
    */
   permissionIds?: string[]
-  driveId?: string
 }
 
 interface DriveChange {
@@ -485,14 +485,15 @@ function driveAclContext(sourceConfig: Record<string, unknown>): DriveAclContext
 }
 
 /**
- * The file's mirrored ACL, or undefined when this crawl cannot speak for it.
+ * The file's mirrored ACL from its listing, or undefined when the listing
+ * cannot speak for it and {@link resolveDriveAcls} must.
  *
- * Drive sometimes returns fewer expanded permissions than it reports ids for,
- * which is why both are requested. Mirroring the subset that did arrive would
- * store the file under narrower grants than it really has — which sounds like
- * the safe direction but is not, because the grants that went missing are
- * exactly the ones nobody verified. Undefined leaves the file readable by
- * nobody until a crawl sees the whole set.
+ * Drive does not populate `permissions` for a file on a shared drive at all,
+ * and sometimes returns fewer expanded entries than it reports ids for — which
+ * is why both are requested. Mirroring the subset that did arrive would store
+ * the file under narrower grants than it really has, which sounds like the
+ * safe direction but is not, because the grants that went missing are exactly
+ * the ones nobody verified. Undefined sends the file to `permissions.list`.
  */
 function fileAcl(file: DriveFile, context: DriveAclContext | null): string[] | undefined {
   if (!context || !file.permissions) return undefined
@@ -502,8 +503,92 @@ function fileAcl(file: DriveFile, context: DriveAclContext | null): string[] | u
     providerId: context.providerId,
     tenantId: context.tenantId,
     policy: context.policy,
-    driveId: file.driveId,
   })
+}
+
+/** Files whose permissions are fetched at once. Bounded to keep a crawl responsive. */
+const PERMISSION_FETCH_CONCURRENCY = 8
+
+/** Guards against a file that keeps paginating; far above any real permission list. */
+const MAX_PERMISSION_PAGES = 50
+
+/**
+ * A file's full permission list, from the one endpoint that serves it for every
+ * file — including those on a shared drive, whose listing carries none.
+ *
+ * Throws rather than returning a partial list: a file mirrored under the
+ * permissions that happened to arrive is a file whose missing grants nobody
+ * verified.
+ */
+async function listFilePermissions(
+  accessToken: string,
+  fileId: string
+): Promise<DrivePermission[]> {
+  const permissions: DrivePermission[] = []
+  let pageToken: string | undefined
+  for (let page = 0; page < MAX_PERMISSION_PAGES; page += 1) {
+    const query = new URLSearchParams({
+      fields: 'nextPageToken,permissions(id,type,emailAddress,domain,role,allowFileDiscovery)',
+      pageSize: '100',
+      supportsAllDrives: 'true',
+    })
+    if (pageToken) query.set('pageToken', pageToken)
+
+    const response = await fetchGoogleDriveWithRetry(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?${query.toString()}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      }
+    )
+    if (!response.ok) {
+      throw new Error(`Google Drive permissions request failed: ${response.status}`)
+    }
+    const body = (await response.json()) as {
+      permissions?: DrivePermission[]
+      nextPageToken?: string
+    }
+    permissions.push(...(body.permissions ?? []))
+    pageToken = body.nextPageToken
+    if (!pageToken) return permissions
+  }
+  throw new Error(`Google Drive permissions exceeded ${MAX_PERMISSION_PAGES} pages`)
+}
+
+/**
+ * The ACLs of files whose listing could not describe them — every file on a
+ * shared drive, and any whose inline permissions were incomplete.
+ *
+ * A file whose permissions cannot be read is omitted, which leaves it readable
+ * by nobody until a run can read them: the failure is logged per file and the
+ * rest of the batch still resolves.
+ */
+async function resolveDriveAcls(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  externalIds: string[]
+): Promise<Record<string, string[]>> {
+  const context = driveAclContext(sourceConfig)
+  if (!context) return {}
+
+  const acls: Record<string, string[]> = {}
+  await mapWithConcurrency(externalIds, PERMISSION_FETCH_CONCURRENCY, async (fileId) => {
+    try {
+      const permissions = await listFilePermissions(accessToken, fileId)
+      acls[fileId] = driveFileAcl({
+        permissions,
+        providerId: context.providerId,
+        tenantId: context.tenantId,
+        policy: context.policy,
+      })
+    } catch (error) {
+      logger.warn("Could not read a file's permissions; it stays readable by nobody", {
+        fileId,
+        ...googleDriveErrorLogFields(error),
+      })
+    }
+  })
+  return acls
 }
 
 function fileToStub(file: DriveFile, acl?: string[]): ExternalDocument {
@@ -563,7 +648,7 @@ export const googleDriveConnector: ConnectorConfig = {
       pageSize: String(effectivePageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents,driveId,permissionIds,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,permittedBy))',
+        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents,permissionIds,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,permittedBy))',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -645,6 +730,9 @@ export const googleDriveConnector: ConnectorConfig = {
 
   openDirectory: async (accessToken, sourceConfig) =>
     openGoogleDirectory(accessToken, sourceConfig.adminEmail),
+
+  getDocumentAcls: (accessToken, sourceConfig, externalIds) =>
+    resolveDriveAcls(accessToken, sourceConfig, externalIds),
 
   getDocument: async (
     accessToken: string,

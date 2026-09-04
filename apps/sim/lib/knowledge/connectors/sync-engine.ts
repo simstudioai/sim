@@ -27,6 +27,8 @@ import {
   resolveConnectorAccessToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { refreshMirroredDirectory } from '@/lib/knowledge/connectors/external-group-sync'
+import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
+import { mergeMirroredAcls, unansweredByListing } from '@/lib/knowledge/connectors/mirrored-acls'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -107,27 +109,22 @@ async function applySourceMirroredAcls(input: {
   const { connectorId, connectorConfig, externalDocs } = input
 
   /**
-   * A source that reports permissions only on request answers here, once for
-   * the whole listing. Its failure is deliberately not caught: an ACL pass that
-   * resolved nothing would hide the entire corpus, which is far worse than
-   * leaving the previous ACLs in place until the next run.
+   * Whatever the listing could not answer is asked for once, in one batch. Its
+   * failure is deliberately not caught: an ACL pass that resolved nothing would
+   * hide the entire corpus, which is far worse than leaving the previous ACLs in
+   * place until the next run.
    */
-  const resolved = connectorConfig.getDocumentAcls
-    ? await connectorConfig.getDocumentAcls(
-        input.accessToken,
-        input.sourceConfig,
-        externalDocs.map((doc) => doc.externalId),
-        input.syncContext
-      )
-    : undefined
-
-  const acls = new Map<string, readonly string[]>()
-  let unattributed = 0
-  for (const doc of externalDocs) {
-    const acl = resolved ? resolved[doc.externalId] : doc.acl
-    if (!acl) unattributed += 1
-    acls.set(doc.externalId, acl ?? EMPTY_ACL)
-  }
+  const unanswered = unansweredByListing(externalDocs)
+  const fetched =
+    unanswered.length > 0 && connectorConfig.getDocumentAcls
+      ? await connectorConfig.getDocumentAcls(
+          input.accessToken,
+          input.sourceConfig,
+          unanswered,
+          input.syncContext
+        )
+      : {}
+  const { acls, unattributed } = mergeMirroredAcls(externalDocs, fetched)
 
   const written = await persistDocumentAcls(connectorId, acls)
   logger.info('Mirrored source permissions onto connector documents', {
@@ -348,7 +345,7 @@ export async function completeSuccessfulSync(
             reconciliationHoldNotice,
             result.docsFailed === 0
           ),
-          /** Restored above, under this same lock. */
+          /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
           accessRewritePending: false,
         })
         .where(stillHoldsSyncLock(connectorId, syncLogId))
@@ -1020,6 +1017,21 @@ export async function executeSync(
      * revoked grant lands even on a run that removes nothing.
      */
     if (connectorBeforeLock.accessMode === 'admin') {
+      /**
+       * A switch into this mode hides every document on entry, and one whose
+       * rewrite outgrew its request budget leaves the rest for the next run to
+       * finish. It has to be finished *here*, before this run writes real ACLs
+       * — the completion write below clears the flag, and it does so on the
+       * strength of this pass having left no document under the mode it came
+       * from. The workspace-mode equivalent runs at completion instead, because
+       * restoring is safe to do last; hiding is not.
+       */
+      if (connectorBeforeLock.accessRewritePending) {
+        await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
+          beforeBatch: lease.beatIfDue,
+          lease,
+        })
+      }
       await refreshMirroredDirectory({
         workspaceId: kbOwner.workspaceId,
         connectorConfig,

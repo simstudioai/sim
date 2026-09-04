@@ -60,21 +60,16 @@ export interface DriveAclInput {
   /** The Google Workspace customer the crawl runs against. */
   tenantId: string | null
   policy: OpenSharingPolicy
-  /**
-   * The shared drive the file lives on, if any. Recorded as a group rather than
-   * expanded here: a shared drive's membership is directory state, and
-   * resolving it during the crawl would re-read it once per file.
-   */
-  driveId?: string | null
 }
 
 /**
  * The ACL of one Drive file, from the permissions the listing returned.
  *
- * Inheritance is deliberately not resolved here. A grant that descends from a
- * folder still arrives in `permissions[]` with `permittedBy` naming its source,
- * so it maps like any other; what is *not* resolved is group membership, which
- * belongs to the directory sync. That keeps the crawl one pass over files.
+ * Inheritance needs no resolving here. A grant that descends from a folder or
+ * from shared-drive membership arrives in `permissions[]` as an ordinary
+ * principal, so it maps like any other; what is *not* resolved is group
+ * membership, which belongs to the directory sync. That keeps the crawl one
+ * pass over files.
  *
  * A file whose every grant is unrepresentable — an `anyone` share that is
  * link-only, a principal with no email — resolves to a single `link` token
@@ -129,11 +124,6 @@ export function driveFileAcl(input: DriveAclInput): string[] {
       default:
         break
     }
-  }
-
-  if (input.driveId) {
-    const token = groupToken({ providerId, tenantId, groupId: input.driveId })
-    if (token) tokens.add(token)
   }
 
   if (tokens.size === 0) return [LINK_ACCESS_TOKEN]

@@ -649,7 +649,6 @@ describe('mirroring Drive permissions onto listed documents', () => {
     const url = String(mockFetch.mock.calls[0][0])
     expect(decodeURIComponent(url)).toContain('permissions(id,type,emailAddress,domain,role,')
     expect(decodeURIComponent(url)).toContain('permissionIds')
-    expect(decodeURIComponent(url)).toContain('driveId')
   })
 
   it('tags each document with who may read it', async () => {
@@ -735,15 +734,63 @@ describe('mirroring Drive permissions onto listed documents', () => {
     expect(doc.acl).toEqual(['link'])
   })
 
-  it('records the shared drive a file lives on', async () => {
-    const doc = await listWith(
-      driveFile({
-        driveId: 'shared-drive-1',
-        permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }],
-      }),
-      ADMIN
+  /**
+   * Drive does not populate `permissions` for a file on a shared drive; the
+   * only source is `permissions.list`. A listing that left the ACL unset must
+   * therefore be answered by the fallback, not treated as readable by nobody.
+   */
+  it('resolves a file the listing could not describe through permissions.list', async () => {
+    const doc = await listWith(driveFile({}), ADMIN)
+    expect(doc.acl).toBeUndefined()
+
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        permissions: [
+          { id: 'p1', type: 'user', emailAddress: 'alice@corp.com' },
+          { id: 'p2', type: 'group', emailAddress: 'eng@corp.com' },
+        ],
+      })
     )
 
-    expect(doc.acl).toEqual(['g:google-drive:corp.com:shared-drive-1', 'u:alice@corp.com'])
+    await expect(
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_ID], {})
+    ).resolves.toEqual({
+      [FILE_ID]: ['g:google-drive:corp.com:eng@corp.com', 'u:alice@corp.com'],
+    })
+    const url = String(mockFetch.mock.calls[1][0])
+    expect(url).toContain(`/files/${FILE_ID}/permissions`)
+    expect(url).toContain('supportsAllDrives=true')
+  })
+
+  it('follows the permission list across pages', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }],
+          nextPageToken: 'p2',
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ permissions: [{ id: 'p2', type: 'user', emailAddress: 'bob@corp.com' }] })
+      )
+
+    await expect(
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_ID], {})
+    ).resolves.toEqual({ [FILE_ID]: ['u:alice@corp.com', 'u:bob@corp.com'] })
+  })
+
+  it('omits a file whose permissions could not be read, so it stays hidden', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 403))
+
+    await expect(
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_ID], {})
+    ).resolves.toEqual({})
+  })
+
+  it('answers nothing for a crawl that mirrors no permissions', async () => {
+    await expect(
+      googleDriveConnector.getDocumentAcls?.('token', {}, [FILE_ID], {})
+    ).resolves.toEqual({})
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

@@ -448,14 +448,15 @@ export interface ConnectorConfig extends ConnectorMeta {
   ) => Promise<ConnectorDirectory | null>
 
   /**
-   * The ACLs of a batch of already-listed documents, for a source whose
-   * permissions do not come back with its listing.
+   * The ACLs of listed documents the listing itself could not answer for.
    *
-   * Drive reports each file's permissions in the same page that lists it, so it
-   * fills {@link ExternalDocument.acl} directly and needs none of this.
-   * Confluence reports a page's restrictions only when asked for that page, so
-   * it resolves them here — batched, and after the listing, so the round trips
-   * are bounded by the corpus rather than by the page size.
+   * Called with exactly the external ids whose {@link ExternalDocument.acl}
+   * the listing left unset, after the listing and once for all of them, so the
+   * round trips are bounded by what the listing could not carry rather than by
+   * the page size. Drive fills the ACL inline for most files and lands here
+   * only for the ones its listing cannot describe — a shared drive's files,
+   * whose permissions Drive serves solely through `permissions.list`.
+   * Confluence carries none inline, so every page lands here.
    *
    * Returns tokens per external id. An id the connector omits is readable by
    * nobody: a connector declaring {@link ConnectorMeta.mirrorsSourceAcls}
