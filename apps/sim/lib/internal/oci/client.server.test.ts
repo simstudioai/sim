@@ -1,684 +1,809 @@
 /**
  * @vitest-environment node
  */
-import { generateKeyPairSync } from 'node:crypto'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPublicKey, verify } from 'node:crypto'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const secureFetchMock = vi.hoisted(() => vi.fn())
+const mocks = vi.hoisted(() => ({
+  backoff: vi.fn(),
+  decryptSecret: vi.fn(),
+  predicates: undefined as unknown,
+  rows: [] as { encryptedServiceAccountKey: string | null }[],
+  secureFetch: vi.fn(),
+}))
+
+vi.mock('@sim/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn((predicate: unknown) => {
+          mocks.predicates = predicate
+          return { limit: vi.fn(async () => mocks.rows) }
+        }),
+      })),
+    })),
+  },
+}))
+
+vi.mock('@sim/db/schema', () => ({
+  credential: {
+    encryptedServiceAccountKey: 'credential.encryptedServiceAccountKey',
+    id: 'credential.id',
+    providerId: 'credential.providerId',
+    type: 'credential.type',
+    workspaceId: 'credential.workspaceId',
+  },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...predicates: unknown[]) => predicates),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decryptSecret }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   DEFAULT_MAX_RESPONSE_BYTES: 100 * 1024 * 1024,
-  secureFetchWithValidation: secureFetchMock,
+  secureFetchWithValidation: mocks.secureFetch,
+}))
+
+vi.mock('@sim/utils/retry', () => ({
+  backoffWithJitter: mocks.backoff,
+  parseRetryAfter: vi.fn(() => null),
+}))
+
+vi.mock('@/lib/oauth/utils', () => ({
+  getServiceConfigByServiceId: vi.fn((serviceId: string) =>
+    serviceId === 'oci'
+      ? { serviceAccountProviderId: 'oci-api-key-service-account' }
+      : serviceId === 'slack'
+        ? { serviceAccountProviderId: 'slack-custom-bot' }
+        : null
+  ),
 }))
 
 import {
-  buildOciRequestUrl,
-  sendOciRequest,
-  serializeOciQueryPairs,
+  createOciClient,
+  type OciAuthenticatedResponse,
+  type OciClient,
+  type OciRequest,
 } from '@/lib/internal/oci/client.server'
-import { getOciRegion, objectStorageOciDestination } from '@/lib/internal/oci/endpoints'
-import { OciRequestError } from '@/lib/internal/oci/errors'
-import type { OciSigningCredentials } from '@/lib/internal/oci/signing.server'
+import {
+  createOciDiscoveredEndpointPolicy,
+  createOciStaticEndpointPolicy,
+} from '@/lib/internal/oci/endpoints'
+import { OciClientError } from '@/lib/internal/oci/errors'
+import { OCI_SERVICE_ID } from '@/lib/oauth/types'
+
+// Fixed test material. The expected signatures were generated independently with
+// OpenSSL 3 against Oracle's Request Signatures specification (retrieved 2026-09-03):
+// https://docs.oracle.com/en-us/iaas/Content/API/Concepts/signingrequests.htm
+// The canonical header order is cross-checked against oci-common 2.140.0.
+const PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDGu21M7TuK4Jr6
+s8luoTzVRltBhYM078Z0JNpg3/uwqLIYtmNFDLg9AJ4NY9piBfZoE4b9EhrVzwkW
++wIWdSflJPfnlWFD7nLBk+n69dyU1wwUuEw0PYZOliFvCmlegg9qE+vZK13o5e1m
+08ZEq7oxfArlHH3NZXuwoZJiraP/mtGurDrcAJLUKuTMfEp+zUOUdmupeZjmNWj9
+B8xbgRoQ3vQVk+7q+ltMvsUdZB2La+IEhTg6PMCrSsRV0v/xqJiSQ34iPkxq2LrD
+AUKxypwmX8X0c2VWYQh/ho3x3pT5XPxC3x/plkM8DxC7Ejjg1qa0jyl0JLzMWNnh
+V79UvkKRAgMBAAECggEAO3ueG4hmagsQWDm38QUR0ERezB3KR+382IavVo+0JgxY
+Qk1VKTXFb3zf0eIxW2WtezldDiJ9JcHyVo6K8W3foxaNnSN5GXwlnQtI3XT5sRMs
+6oa/SGOh76PAHhxfrYoAUx/jV/1C/pLTnBOHJMbB1E3sdOcyQGg/vX6e8ipHDBoj
+24tljd5fvmDWkR/WYHwjn2xaY8Ee3/EfIoBw5r+WrXLjpj5FuGUo+pxyqbSI2qE/
+mpOMEi/+KprpUU8N5e33+cihyrneAKLyqyxS7NPWmbc5+ut0g4uzIu1NmyAhfa2o
+c1MbQqh+C2R96tbhPAJQHeRClV1YKUpOiXj6EvpmAQKBgQDmEoNkMSWfX0gJMOdM
+8kh641t3KBqyyGt3kx2xTaeybq8MFilQCahSTjfndkT8tlW1eRh2BiMUvvdSpCPM
+wRH7BGW4h8J6ALmMnj0nsl8ebJc7g0hzacRG+SAVD8IbQqIzc0rY/DUfuoIuL5Ce
+R0l9p85r2ZBGNrnM9dIUkfNj/QKBgQDdIMNXzKGPRUUkdN5kskfCEV3a0geVFaU0
+ZOiZf6TRidcl5RTaTcJbRJ2pXsealDlURdmrk8lGgy0uTE181Zn71bBPKjN1xmct
+H8SMQvxcI62OYaUbEpzgp83TZXtRpqmVA2v+0BjhrjPPjVKsT5YwkHRPb5DyHOW8
+D8HB/dO7JQKBgQDbW6lknKtHUZwoDzVpGtPaPu2VJWqXLRmxr1WvF+Ac8wT43CRV
+iG+w0ZzhldTesaX0WVnmJaHLBOxgIdl0Ply7XQzzLJVSp2BB3xllwN6J7nUeq+Qn
+Dh+yn5JkIlsqjJSDw5gIXCb2cmfuSzFyh3tdT+Iy2AODvmfWMEY1kJZjrQKBgDUO
+wHBXtEg5Ob7mn9oPgPJK0ndHv/QArpQkxj7WhsiUR2BbWCaNU94sV5wlFsW7XQog
+fHsTyc62eOfL/Se/5OOtQVGtcY2H3ofQQIvbIsxE70bjnQci7ytkeBmKFw3fbH9J
+w+bvLZkxAFODuFuJ+SKL9qx8u42sa181dKtEaUJVAoGBALuFS1q/ihZw8M5AoofY
+llBvP7/pHwT8XR2gWl5sZFOt6kvrMQqcI3u/9BkVR9au1I2K7xJOQmt9KEL4HkgP
+6cqql61lZNv8GgYlJPu8ipN0IUxf1V7K+9xw0t1am57WATCW+bqkfyvYoBXhLwx6
+7z8JESybW/3kkmWIOy5WHvzv
+-----END PRIVATE KEY-----
+`
+
+const SECRET = JSON.stringify({
+  type: 'oci_api_signing_key_v1',
+  providerId: 'oci-api-key-service-account',
+  tenancyOcid: 'ocid1.tenancy.oc1..aaaaaaaafixedvector',
+  userOcid: 'ocid1.user.oc1..aaaaaaaafixedvector',
+  fingerprint: '25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6',
+  privateKey: PRIVATE_KEY,
+  region: 'us-ashburn-1',
+  metadata: {
+    principalKind: 'user',
+    principalId: 'ocid1.user.oc1..aaaaaaaafixedvector',
+  },
+})
+
+const STATIC_POLICY = createOciStaticEndpointPolicy({
+  serviceId: OCI_SERVICE_ID,
+  serviceName: 'identity',
+})
 
 function secureResponse(params: {
-  ok: boolean
-  status: number
-  body?: string
-  responseBody?: ReadableStream<Uint8Array> | null
-  opcRequestId?: string
+  status?: number
+  body?: Uint8Array | string
+  headers?: Record<string, string>
 }) {
+  const bytes =
+    typeof params.body === 'string'
+      ? new TextEncoder().encode(params.body)
+      : (params.body ?? new Uint8Array())
   return {
-    ok: params.ok,
-    status: params.status,
+    ok: (params.status ?? 200) >= 200 && (params.status ?? 200) < 300,
+    status: params.status ?? 200,
     statusText: '',
-    headers: {
-      get: (name: string) =>
-        name.toLowerCase() === 'opc-request-id' ? (params.opcRequestId ?? null) : null,
-    },
-    body: params.responseBody ?? null,
-    text: vi.fn().mockResolvedValue(params.body ?? ''),
-    json: vi.fn(),
-    arrayBuffer: vi.fn(),
+    headers: new Headers({ 'content-length': String(bytes.byteLength), ...params.headers }),
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        if (bytes.byteLength > 0) controller.enqueue(bytes)
+        controller.close()
+      },
+    }),
+    text: vi.fn(async () => Buffer.from(bytes).toString('utf8')),
+    json: vi.fn(async () => JSON.parse(Buffer.from(bytes).toString('utf8'))),
+    arrayBuffer: vi.fn(async () => bytes.buffer.slice(0)),
   }
 }
 
-describe('OCI request client', () => {
-  let credentials: OciSigningCredentials
-  const destination = objectStorageOciDestination(getOciRegion('us-ashburn-1'))
-
-  beforeAll(() => {
-    const pair = generateKeyPairSync('rsa', { modulusLength: 2048 })
-    credentials = {
-      tenancyId: 'ocid1.tenancy.oc1..clienttest',
-      userId: 'ocid1.user.oc1..clienttest',
-      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
-      privateKey: pair.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString(),
-      passphrase: 'client-secret-passphrase',
-    }
+async function createPreparedClient(params: { region?: string } = {}): Promise<{
+  client: OciClient
+  endpoint: Awaited<ReturnType<OciClient['prepareStaticEndpoint']>>
+}> {
+  const client = await createOciClient({
+    credentialId: 'credential-authoritative',
+    workspaceId: 'workspace-trusted',
+    serviceId: OCI_SERVICE_ID,
+    ...params,
   })
+  const endpoint = await client.prepareStaticEndpoint(STATIC_POLICY)
+  return { client, endpoint }
+}
 
+function authorizationFromLastRequest(): string {
+  const options = mocks.secureFetch.mock.calls.at(-1)?.[1] as { headers: Record<string, string> }
+  return options.headers.authorization
+}
+
+describe('credential-bound OCI client', () => {
   beforeEach(() => {
-    secureFetchMock.mockReset()
-    secureFetchMock.mockResolvedValue(secureResponse({ ok: true, status: 200 }))
+    mocks.predicates = undefined
+    mocks.rows = [{ encryptedServiceAccountKey: 'encrypted-secret' }]
+    mocks.decryptSecret.mockReset().mockResolvedValue({ decrypted: SECRET })
+    mocks.backoff.mockReset().mockReturnValue(0)
+    mocks.secureFetch.mockReset().mockResolvedValue(secureResponse({}))
   })
 
-  it('serializes ordered duplicate and Unicode query pairs with RFC 3986 encoding', () => {
-    expect(
-      serializeOciQueryPairs([
-        ['z', 'last'],
-        ['a', 'one'],
-        ['a', ''],
-        ['space', 'a b'],
-        ['unicode', '☃'],
-        ["!'()*", "!'()*"],
-      ])
-    ).toBe('z=last&a=one&a=&space=a%20b&unicode=%E2%98%83&%21%27%28%29%2A=%21%27%28%29%2A')
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
-  it('transmits the exact URL, finalized body, and headers that were signed', async () => {
-    const body = '{"message":"héllo ☃"}'
-    await sendOciRequest({
-      destination,
-      credentials,
-      method: 'POST',
-      encodedPath: '/n/tenant/b',
-      queryPairs: [
-        ['z', 'last'],
-        ['a', 'one'],
-        ['a', ''],
-        ['unicode', '☃'],
-      ],
-      timeout: 12_345,
-      maxResponseBytes: 54_321,
-      serviceHeaders: { accept: 'application/json', 'opc-retry-token': 'fixed-token' },
-      body,
-    })
+  it('loads only an exact credential/workspace/type/provider row before decryption', async () => {
+    await createPreparedClient()
 
-    expect(secureFetchMock).toHaveBeenCalledOnce()
-    const [url, options, paramName] = secureFetchMock.mock.calls[0]
-    expect(url).toBe(
-      'https://objectstorage.us-ashburn-1.oraclecloud.com/n/tenant/b?z=last&a=one&a=&unicode=%E2%98%83'
-    )
-    expect(paramName).toBe('OCI destination')
-    expect(options).toMatchObject({
-      method: 'POST',
-      body,
-      timeout: 12_345,
-      maxResponseBytes: 54_321,
-      maxRedirects: 0,
-      profile: 'configuredEndpoint',
-      logUrlValidationDetails: false,
-    })
-    expect(options.headers.accept).toBe('application/json')
-    expect(options.headers['opc-retry-token']).toBe('fixed-token')
-    expect(options.headers.authorization).toContain('Signature version="1"')
-    expect(options.headers['content-length']).toBe(String(Buffer.byteLength(body, 'utf8')))
-    expect(options.headers).not.toHaveProperty('date')
-  })
-
-  it('forwards cancellation and always disables redirects', async () => {
-    const controller = new AbortController()
-    await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-      signal: controller.signal,
-    })
-    expect(secureFetchMock.mock.calls[0][1]).toMatchObject({
-      signal: controller.signal,
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-      maxRedirects: 0,
-    })
-  })
-
-  it('returns bounded successful responses and the OCI request id without imposing a schema', async () => {
-    const response = secureResponse({
-      ok: true,
-      status: 202,
-      body: 'service-specific bytes',
-      opcRequestId: 'request-123',
-    })
-    secureFetchMock.mockResolvedValueOnce(response)
-    const result = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    })
-    expect(result).toEqual({ response, opcRequestId: 'request-123' })
-    expect(response.text).not.toHaveBeenCalled()
-  })
-
-  it('retains bounded OCI error fields and request ids while redacting echoed secrets', async () => {
-    const echoedUrl = 'https://objectstorage.us-ashburn-1.oraclecloud.com/n/'
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        opcRequestId: 'request-401',
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: `provider echoed ${credentials.passphrase} ${credentials.privateKey} ${echoedUrl}\n`,
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(OciRequestError)
-    expect(failure).toMatchObject({
-      status: 401,
-      code: 'NotAuthenticated',
-      opcRequestId: 'request-401',
-    })
-    expect((failure as Error).message).toContain('[REDACTED]')
-    expect((failure as Error).message).not.toContain('client-secret-passphrase')
-    expect((failure as Error).message).not.toContain('BEGIN PRIVATE KEY')
-    expect((failure as Error).message).not.toContain('objectstorage.us-ashburn-1')
-    expect((failure as Error).message.length).toBeLessThanOrEqual(1050)
-  })
-
-  it('does not expose malformed response bodies or signed request details', async () => {
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 502,
-        opcRequestId: 'request-502',
-        body: `<html>${credentials.privateKey}</html>`,
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(OciRequestError)
-    expect((failure as Error).message).toBe('OCI request failed with status 502')
-    expect((failure as OciRequestError).opcRequestId).toBe('request-502')
-  })
-
-  it('redacts authorization material embedded in a serialized JSON message', async () => {
-    const echoedAuthorization = 'opaque-authorization-value'
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: JSON.stringify({ authorization: echoedAuthorization }),
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(OciRequestError)
-    expect((failure as Error).message).toContain('[REDACTED]')
-    expect((failure as Error).message).not.toContain(echoedAuthorization)
-  })
-
-  it('redacts encoded credentials instead of falling through to a status-only error', async () => {
-    const encodedFingerprint = encodeURIComponent(credentials.fingerprint)
-    const escapedPassphrase = 'secret "pass"'
-    const encodedPassphrase = encodeURIComponent(escapedPassphrase)
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: `provider echoed ${encodedFingerprint} ${encodedPassphrase}`,
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials: { ...credentials, passphrase: escapedPassphrase },
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toContain('provider echoed')
-    expect((failure as Error).message).toContain('[REDACTED]')
-    expect((failure as Error).message).not.toContain(encodedFingerprint)
-    expect((failure as Error).message).not.toContain(encodedPassphrase)
-    expect((failure as Error).message).not.toContain(escapedPassphrase)
-  })
-
-  it('redacts an encoded signed request URL instead of returning it', async () => {
-    const encodedRequestUrl = encodeURIComponent(`${destination.origin}/n/`)
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: `provider echoed ${encodedRequestUrl}`,
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toContain('provider echoed')
-    expect((failure as Error).message).toContain('[REDACTED]')
-    expect((failure as Error).message).not.toContain(encodedRequestUrl)
-  })
-
-  it('redacts caller-supplied service header values echoed by the provider', async () => {
-    const serviceHeaderSecret = 'opaque-service-header-secret'
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: `provider echoed ${serviceHeaderSecret}`,
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-      serviceHeaders: { 'opc-client-info': serviceHeaderSecret },
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toContain('[REDACTED]')
-    expect((failure as Error).message).not.toContain(serviceHeaderSecret)
-  })
-
-  it('redacts an echoed finalized request body from provider diagnostics', async () => {
-    const requestBody = 'opaque-request-body-secret'
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 400,
-        body: JSON.stringify({
-          code: 'InvalidParameter',
-          message: `provider echoed ${requestBody}`,
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'POST',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-      body: requestBody,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toContain('[REDACTED]')
-    expect((failure as Error).message).not.toContain(requestBody)
-  })
-
-  it('fails closed instead of redacting an unbounded request body', async () => {
-    const requestBody = 's'.repeat(65_537)
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 400,
-        opcRequestId: 'request-body-echo',
-        body: JSON.stringify({
-          code: 'InvalidParameter',
-          message: `provider echoed ${requestBody.slice(0, 1024)}`,
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'POST',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-      body: requestBody,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 400')
-    expect((failure as OciRequestError).opcRequestId).toBeUndefined()
-  })
-
-  it('redacts a maximum-size passphrase before bounding an encoded diagnostic', async () => {
-    const longPassphrase = ' '.repeat(4096)
-    const encodedPassphrase = new URLSearchParams({ value: longPassphrase })
-      .toString()
-      .slice('value='.length)
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: `provider echoed ${encodedPassphrase}`,
-        }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials: { ...credentials, passphrase: longPassphrase },
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toContain('[REDACTED]')
-    expect((failure as Error).message).not.toContain('+'.repeat(1024))
+    expect(mocks.predicates).toEqual([
+      { field: 'credential.id', value: 'credential-authoritative' },
+      { field: 'credential.workspaceId', value: 'workspace-trusted' },
+      { field: 'credential.type', value: 'service_account' },
+      { field: 'credential.providerId', value: 'oci-api-key-service-account' },
+    ])
+    expect(mocks.decryptSecret).toHaveBeenCalledOnce()
   })
 
   it.each([
-    encodeURIComponent('-----BEGIN PRIVATE KEY-----\ntruncated'),
-    encodeURIComponent(`${destination.origin}/n/truncated`),
-    '----%2DBEGIN PRIVATE KEY-----',
-    'https:%2F%2Fobjectstorage.us-ashburn-1.oraclecloud.com/n/',
-  ])('fails closed for encoded key or URL prefixes', async (message) => {
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({ code: 'NotAuthenticated', message }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 401')
+    ['missing row', () => (mocks.rows = [])],
+    ['null secret', () => (mocks.rows = [{ encryptedServiceAccountKey: null }])],
+    ['decrypt failure', () => mocks.decryptSecret.mockRejectedValueOnce(new Error('ciphertext'))],
+    ['malformed secret', () => mocks.decryptSecret.mockResolvedValueOnce({ decrypted: '{}' })],
+  ])('projects %s as the same credential-unavailable failure', async (_name, arrange) => {
+    arrange()
+    const client = await createOciClient({
+      credentialId: 'raw-id-is-not-authority',
+      workspaceId: 'wrong-or-right-workspace',
+      serviceId: OCI_SERVICE_ID,
+    })
+    await expect(client.prepareStaticEndpoint(STATIC_POLICY)).rejects.toMatchObject({
+      code: 'credential_unavailable',
+      message: 'OCI credential is unavailable',
+    })
   })
 
-  it('redacts generic, spaced, and OCI-specific sensitive JSON fields', async () => {
-    const echoedSecrets = [
-      'access-value',
-      'token-value',
-      'secret-value',
-      'password-value',
-      'signing-string-value',
-      'private-key-value',
-      'api-key-value',
-      'signature-value',
+  it('fails a registered-service mismatch before loading or network work', async () => {
+    await expect(
+      createOciClient({
+        credentialId: 'credential-authoritative',
+        workspaceId: 'workspace-trusted',
+        serviceId: 'slack',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_endpoint' })
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
+  })
+
+  it('fails a policy/client owner mismatch before loading or network work', async () => {
+    const client = await createOciClient({
+      credentialId: 'credential-authoritative',
+      workspaceId: 'workspace-trusted',
+      serviceId: OCI_SERVICE_ID,
+    })
+    const wrongPolicy = createOciStaticEndpointPolicy({
+      serviceId: 'slack',
+      serviceName: 'identity',
+    })
+    await expect(client.prepareStaticEndpoint(wrongPolicy)).rejects.toMatchObject({
+      code: 'invalid_endpoint',
+    })
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
+  })
+
+  it('enforces realm-compatible region overrides', async () => {
+    await expect(createPreparedClient({ region: 'us-gov-ashburn-1' })).rejects.toMatchObject({
+      code: 'invalid_endpoint',
+    })
+    expect((await createPreparedClient({ region: 'eu-frankfurt-1' })).endpoint.origin).toBe(
+      'https://identity.eu-frankfurt-1.oraclecloud.com'
+    )
+  })
+
+  it('matches the fixed Oracle canonical signing fixture', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-03T19:00:00.000Z'))
+    const { client, endpoint } = await createPreparedClient()
+    await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/20160918/users',
+      queryPairs: [
+        ['limit', '10'],
+        ['name', 'Team X'],
+      ],
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+
+    const authorization = authorizationFromLastRequest()
+    expect(authorization).toBe(
+      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host",signature="pcMhip57/dPnKl/dfg5usN7oT/illXEGUp9Oj2d9bpGb0aRMBJclgVFKRYdYXciUGPM/9vKluD5/eGPBO1Oh7w/6NCB8UX2Ejh/lw8merU1QalZ/OfHyj+wKNVOpqwQjNqettRUzSVMhCqImDnvgx8ygmVCvdc0CeLXf2ZF9iT1bYlDjOiuxOcWreN2rs1ZmfLCfal204nAjrNAvoBSgHCPVquAYnfsT2auOWP4QeHN/Hd/v7TvNqsWBFIaLCyWZOvRzpsw/ZLgLzB+jkuPTdL7l4hOZATUd7xy1QPFTJ0P1RlLHjZE1sH7hbrqVGORNXrVhA1LaArObz6GWPOOghA=="'
+    )
+
+    const signature = /signature="([^"]+)"/.exec(authorization)?.[1]
+    expect(signature).toBeDefined()
+    expect(
+      verify(
+        'RSA-SHA256',
+        'x-date: Thu, 03 Sep 2026 19:00:00 GMT\n(request-target): get /20160918/users?limit=10&name=Team%20X\nhost: identity.us-ashburn-1.oraclecloud.com',
+        createPublicKey(PRIVATE_KEY),
+        Buffer.from(signature!, 'base64')
+      )
+    ).toBe(true)
+  })
+
+  it('matches the fixed Oracle body-signing fixture for an empty body', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-03T19:00:00.000Z'))
+    const { client, endpoint } = await createPreparedClient()
+    await client.request({
+      endpoint,
+      method: 'POST',
+      encodedPath: '/20160918/users',
+      body: new Uint8Array(),
+      contentType: 'application/json',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+
+    expect(authorizationFromLastRequest()).toBe(
+      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host content-type content-length x-content-sha256",signature="vyhrwd21evtwFet82VT1FvKEeZV+JSa3VZuS5p4Pj8K2zeU88GO+tGx/voUK9TFHijF7eG5gGS6WWc6tigrByTocbVOHpLtPNgBo2+1NbTbGHGUZIzCOR5CZ1ite74Ak43xZjyKBm+vZHrvS22leVOJe43V/HjqCxqyPn3WkKd7npqo9eFM1sibdj1h3Cmi79b5nXSPFe5KE+rnMRPTOB4nl7iFELvubg/Y7Y8w5hRYEe13w09zw9tTBdGJtZIuMoYwZYzPdZo5wbrN5WM6ylHC2euVh2PSazZZU99q55uhxiR6OaCQWLM0buytCqja8FeiEY8Iw3GuEbKUECKaM8Q=="'
+    )
+    expect(mocks.secureFetch.mock.calls[0][1].headers).toMatchObject({
+      'content-length': '0',
+      'content-type': 'application/json',
+      'x-content-sha256': '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+    })
+  })
+
+  it('preserves ordered duplicate queries and exact binary request bytes', async () => {
+    const { client, endpoint } = await createPreparedClient()
+    const body = new Uint8Array([0, 255, 1, 240, 159, 140, 131])
+    await client.request({
+      endpoint,
+      method: 'POST',
+      encodedPath: '/v1/%E2%98%83',
+      queryPairs: [
+        ['z', 'last'],
+        ['a', ''],
+        ['a', " !'()*"],
+      ],
+      headers: { accept: 'application/json' },
+      body,
+      contentType: 'application/octet-stream',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+
+    const [url, options] = mocks.secureFetch.mock.calls[0] as [
+      string,
+      { body: Uint8Array; headers: Record<string, string> },
     ]
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: JSON.stringify({
-            access_token: echoedSecrets[0],
-            token: echoedSecrets[1],
-            secret: echoedSecrets[2],
-            passphrase: echoedSecrets[3],
-            signing_string: echoedSecrets[4],
-            'private key': echoedSecrets[5],
-            'api key': echoedSecrets[6],
-            signature: echoedSecrets[7],
-          }),
-        }),
-      })
+    expect(url).toBe(
+      'https://identity.us-ashburn-1.oraclecloud.com/v1/%E2%98%83?z=last&a=&a=%20%21%27%28%29%2A'
     )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toContain('[REDACTED]')
-    for (const secret of echoedSecrets) expect((failure as Error).message).not.toContain(secret)
+    expect([...options.body]).toEqual([...body])
+    expect(options.body).not.toBe(body)
+    expect(options.headers).toMatchObject({
+      'content-length': '7',
+      'content-type': 'application/octet-stream',
+      'x-content-sha256': 'ujM2KRiewv2gytZWgW9aE6ZPWa2LOxmcemXv0wuwcrs=',
+    })
   })
 
-  it('fails closed for authorization signatures with flexible parameter spacing', async () => {
-    const echoedSignature = 'unknown-provider-signature'
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: `provider echoed Signature version = "1", keyId = "unknown", signature = "${echoedSignature}"`,
-        }),
+  it.each(['GET', 'HEAD', 'DELETE'] as const)('rejects bodies for %s', async (method) => {
+    const { client, endpoint } = await createPreparedClient()
+    await expect(
+      client.request({
+        endpoint,
+        method,
+        encodedPath: '/v1/test',
+        body: new Uint8Array(),
+        contentType: 'application/json',
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
       })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 401')
-    expect((failure as Error).message).not.toContain(echoedSignature)
+    ).rejects.toMatchObject({ code: 'invalid_request' })
   })
 
-  it('bounds non-success response bodies independently of the caller response ceiling', async () => {
+  it.each(['GET', 'HEAD', 'DELETE'] as const)(
+    'sends a bodyless %s without body signing headers',
+    async (method) => {
+      const { client, endpoint } = await createPreparedClient()
+      await client.request({
+        endpoint,
+        method,
+        encodedPath: '/v1/test',
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+      const options = mocks.secureFetch.mock.calls.at(-1)?.[1]
+      expect(options.method).toBe(method)
+      expect(options).not.toHaveProperty('body')
+      expect(options.headers).not.toHaveProperty('content-length')
+      expect(options.headers).not.toHaveProperty('x-content-sha256')
+    }
+  )
+
+  it.each(['POST', 'PUT', 'PATCH'] as const)(
+    'requires an exact body and content type for %s, including empty bodies',
+    async (method) => {
+      const { client, endpoint } = await createPreparedClient()
+      await expect(
+        client.request({
+          endpoint,
+          method,
+          encodedPath: '/v1/test',
+          timeoutMs: 10_000,
+          maxResponseBytes: 1024,
+        })
+      ).rejects.toMatchObject({ code: 'invalid_request' })
+      await client.request({
+        endpoint,
+        method,
+        encodedPath: '/v1/test',
+        body: new Uint8Array(),
+        contentType: 'application/json',
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+      expect(mocks.secureFetch.mock.calls.at(-1)?.[1].headers['content-length']).toBe('0')
+    }
+  )
+
+  it.each([
+    'relative',
+    '//host/path',
+    '/double//slash',
+    '/query?x=1',
+    '/back\\slash',
+    '/encoded%2Fslash',
+    '/encoded%5Cbackslash',
+    '/encoded%00control',
+    '/encoded%1fcontrol',
+    '/encoded%7Fcontrol',
+    '/bad%2',
+  ])('rejects ambiguous encoded paths: %s', async (encodedPath) => {
+    const { client, endpoint } = await createPreparedClient()
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath,
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_request' })
+  })
+
+  it('rejects signing-controlled headers', async () => {
+    const { client, endpoint } = await createPreparedClient()
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/test',
+        headers: { Authorization: 'forged' },
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_request' })
+  })
+
+  it('fails closed on malformed runtime request shapes', async () => {
+    const { client, endpoint } = await createPreparedClient()
+    const base = {
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    }
+    const invalidRequests = [
+      { ...base, method: 'TRACE' },
+      { ...base, encodedPath: 42 },
+      { ...base, headers: [] },
+      { ...base, queryPairs: [['only-key']] },
+      { ...base, queryPairs: [['\ud800', 'value']] },
+      { ...base, retry: { kind: 'unknown', maxAttempts: 2 } },
+      { ...base, retry: { kind: 'safe', maxAttempts: 2, retryToken: 'forged' } },
+      { ...base, responseHeaders: [42] },
+    ]
+
+    for (const request of invalidRequests) {
+      await expect(client.request(request as unknown as OciRequest)).rejects.toMatchObject({
+        code: 'invalid_request',
+      })
+    }
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
+  })
+
+  it('does not retry unless the operation opts in', async () => {
+    mocks.secureFetch.mockResolvedValue(
+      secureResponse({ status: 503, body: '{"message":"secret"}' })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/test',
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+    ).rejects.toMatchObject({ code: 'request_failed', status: 503 })
+    expect(mocks.secureFetch).toHaveBeenCalledOnce()
+  })
+
+  it('re-signs every retry while preserving exact bytes and retry token', async () => {
+    mocks.secureFetch
+      .mockResolvedValueOnce(secureResponse({ status: 503, body: '{"code":"Busy"}' }))
+      .mockResolvedValueOnce(secureResponse({ status: 200, body: 'ok' }))
+    const { client, endpoint } = await createPreparedClient()
+    const body = new Uint8Array([9, 8, 7])
+    await client.request({
+      endpoint,
+      method: 'PUT',
+      encodedPath: '/v1/test',
+      body,
+      contentType: 'application/octet-stream',
+      retry: { kind: 'tokenized', maxAttempts: 2, retryToken: 'operation-token' },
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+
+    const first = mocks.secureFetch.mock.calls[0][1]
+    const second = mocks.secureFetch.mock.calls[1][1]
+    expect([...first.body]).toEqual([...second.body])
+    expect(first.headers['opc-retry-token']).toBe('operation-token')
+    expect(second.headers['opc-retry-token']).toBe('operation-token')
+    expect(first.headers['x-date']).not.toBe(second.headers['x-date'])
+    expect(first.headers.authorization).not.toBe(second.headers.authorization)
+  })
+
+  it('retries only the exact internal IncorrectState 409 classification', async () => {
+    mocks.secureFetch
+      .mockResolvedValueOnce(secureResponse({ status: 409, body: '{"code":"IncorrectState"}' }))
+      .mockResolvedValueOnce(secureResponse({ status: 200 }))
+    const { client, endpoint } = await createPreparedClient()
+    await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      retry: { kind: 'safe', maxAttempts: 2 },
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect(mocks.secureFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry another provider 409 classification', async () => {
+    mocks.secureFetch.mockResolvedValue(
+      secureResponse({ status: 409, body: '{"code":"Conflict"}' })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/test',
+        retry: { kind: 'safe', maxAttempts: 2 },
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+    ).rejects.toMatchObject({ code: 'request_failed', status: 409 })
+    expect(mocks.secureFetch).toHaveBeenCalledOnce()
+  })
+
+  it('retries eligible transport failures and rejects unclassified failures', async () => {
+    const retryable = Object.assign(new Error('socket reset'), { code: 'ECONNRESET' })
+    mocks.secureFetch
+      .mockRejectedValueOnce(retryable)
+      .mockResolvedValueOnce(secureResponse({ status: 200 }))
+    const { client, endpoint } = await createPreparedClient()
+    await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      retry: { kind: 'safe', maxAttempts: 2 },
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect(mocks.secureFetch).toHaveBeenCalledTimes(2)
+
+    mocks.secureFetch.mockReset().mockRejectedValue(new Error('provider diagnostic'))
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/test',
+        retry: { kind: 'safe', maxAttempts: 2 },
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+    ).rejects.toMatchObject({ code: 'request_failed', message: 'OCI request failed' })
+    expect(mocks.secureFetch).toHaveBeenCalledOnce()
+  })
+
+  it('discards provider messages and exposes only safe status and request IDs', async () => {
+    mocks.secureFetch.mockResolvedValueOnce(
+      secureResponse({
+        status: 401,
+        body: JSON.stringify({ message: PRIVATE_KEY, nested: { authorization: 'secret' } }),
+        headers: { 'opc-request-id': 'request-401' },
+      })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    const failure = await client
+      .request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/test',
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+      .catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(OciClientError)
+    expect(failure).toMatchObject({
+      code: 'request_failed',
+      message: 'OCI request failed',
+      status: 401,
+      opcRequestId: 'request-401',
+    })
+    expect(JSON.stringify(failure)).not.toContain('BEGIN PRIVATE KEY')
+    expect(JSON.stringify(failure)).not.toContain('authorization')
+  })
+
+  it('returns only selected safe headers and bounded Uint8Array bodies', async () => {
+    mocks.secureFetch.mockResolvedValueOnce(
+      secureResponse({
+        status: 200,
+        body: new Uint8Array([1, 2, 3]),
+        headers: { etag: 'etag-1', 'x-provider-secret': 'hidden' },
+      })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    const result = await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      responseHeaders: ['etag'],
+      timeoutMs: 10_000,
+      maxResponseBytes: 3,
+    })
+    expect([...result.body]).toEqual([1, 2, 3])
+    expect(result.headers.etag).toBe('etag-1')
+    expect(result.headers).not.toHaveProperty('x-provider-secret')
+  })
+
+  it('cancels and classifies a success body beyond the operation limit', async () => {
     const cancel = vi.fn()
-    const response = secureResponse({
-      ok: false,
-      status: 502,
-      opcRequestId: 'request-oversized',
-      responseBody: new ReadableStream<Uint8Array>({
+    mocks.secureFetch.mockResolvedValueOnce({
+      ...secureResponse({ body: new Uint8Array([1, 2, 3, 4]) }),
+      body: new ReadableStream<Uint8Array>({
         start(controller) {
-          controller.enqueue(new Uint8Array(65_537))
+          controller.enqueue(new Uint8Array([1, 2, 3, 4]))
         },
         cancel,
       }),
     })
-    secureFetchMock.mockResolvedValueOnce(response)
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 1024 * 1024,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 502')
-    expect((failure as OciRequestError).opcRequestId).toBe('request-oversized')
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(response.text).not.toHaveBeenCalled()
+    const { client, endpoint } = await createPreparedClient()
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/test',
+        timeoutMs: 10_000,
+        maxResponseBytes: 3,
+      })
+    ).rejects.toMatchObject({ code: 'response_too_large' })
+    expect(cancel).toHaveBeenCalled()
   })
 
-  it('fails closed for a percent-encoded sensitive JSON key', async () => {
-    secureFetchMock.mockResolvedValueOnce(
+  it('rejects fabricated and cross-client authenticated discovery responses', async () => {
+    const policy = createOciDiscoveredEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'database',
+      responsePolicy: STATIC_POLICY,
+      source: { kind: 'json', path: ['endpoint'] },
+    })
+    const first = await createPreparedClient()
+    const second = await createPreparedClient()
+    mocks.secureFetch.mockResolvedValueOnce(
       secureResponse({
-        ok: false,
-        status: 401,
         body: JSON.stringify({
-          code: 'NotAuthenticated',
-          message: JSON.stringify({ 'pass%70hrase': 'provider-echo' }),
+          endpoint: 'https://resource.database.us-ashburn-1.oraclecloud.com',
         }),
       })
     )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
+    const response = await first.client.request({
+      endpoint: first.endpoint,
       method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 401')
-  })
-
-  it('fails closed when structured JSON follows a plain-text prefix', async () => {
-    const message = `provider failed: ${JSON.stringify({ authorization: 'provider-echo' })}`
-    secureFetchMock.mockResolvedValueOnce(
+      encodedPath: '/v1/test',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect((await first.client.prepareDiscoveredEndpoint(policy, response)).origin).toBe(
+      'https://resource.database.us-ashburn-1.oraclecloud.com'
+    )
+    await expect(second.client.prepareDiscoveredEndpoint(policy, response)).rejects.toMatchObject({
+      code: 'invalid_endpoint',
+    })
+    const otherPolicy = createOciStaticEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'compute',
+    })
+    const otherEndpoint = await first.client.prepareStaticEndpoint(otherPolicy)
+    mocks.secureFetch.mockResolvedValueOnce(
       secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({ code: 'NotAuthenticated', message }),
+        body: JSON.stringify({
+          endpoint: 'https://resource.database.us-ashburn-1.oraclecloud.com',
+        }),
       })
     )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
+    const wrongResourceResponse = await first.client.request({
+      endpoint: otherEndpoint,
       method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 401')
-  })
-
-  it.each([
-    `provider failed: ${JSON.stringify(JSON.stringify({ authorization: 'provider-echo' }))}`,
-    'provider failed: \\"authorization\\":\\"provider-echo\\"',
-    'signed headers: (request-target) host x-date',
-    'signed headers: host x-content-sha256',
-  ])('fails closed for escaped structured or signing diagnostics', async (message) => {
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({ code: 'NotAuthenticated', message }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 401')
-  })
-
-  it.each([
-    'provider echoed \\u0028request-target\\u0029 host x-date',
-    'provider echoed \\u0068ttps\\u003a\\u002f\\u002fexample.com',
-    'provider echoed \\x28request-target\\x29',
-  ])('fails closed for Unicode-escaped diagnostics', async (message) => {
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({ code: 'NotAuthenticated', message }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 401')
-  })
-
-  it.each([
-    '{"authorization":"Signature version=\\"1\\",signature=\\"echoed\\"',
-    JSON.stringify({ level1: { level2: { level3: { authorization: 'echoed' } } } }),
-    JSON.stringify({ 'pass%25252570hrase': 'echoed' }),
-  ])('fails closed for malformed or over-depth structured diagnostics', async (message) => {
-    secureFetchMock.mockResolvedValueOnce(
-      secureResponse({
-        ok: false,
-        status: 401,
-        body: JSON.stringify({ code: 'NotAuthenticated', message }),
-      })
-    )
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
-      method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 65_536,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('OCI request failed with status 401')
-  })
-
-  it.each([
-    '//attacker.example/path',
-    '/safe//attacker',
-    '/path?injected=true',
-    '/path#fragment',
-    '/path\\replacement',
-    '/path%ZZ',
-    '/n/../tenant',
-    '/n/./tenant',
-    '/n/%2e/tenant',
-    '/n/%2E%2E/tenant',
-    '/n/.%2e/tenant',
-  ])('rejects unsafe encoded paths: %s', (encodedPath) => {
-    expect(() => buildOciRequestUrl(destination, encodedPath)).toThrow(
-      'single encoded absolute path'
-    )
-  })
-
-  it('rejects invalid transport bounds before signing or sending', async () => {
-    for (const invalid of [0, -1, Number.NaN, 300_001]) {
-      await expect(
-        sendOciRequest({
-          destination,
-          credentials,
-          method: 'GET',
-          encodedPath: '/n/',
-          timeout: invalid,
-          maxResponseBytes: 65_536,
-        })
-      ).rejects.toThrow('timeout')
-    }
+      encodedPath: '/v1/test',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
     await expect(
-      sendOciRequest({
-        destination,
-        credentials,
-        method: 'GET',
-        encodedPath: '/n/',
-        timeout: 10_000,
-        maxResponseBytes: 100 * 1024 * 1024 + 1,
-      })
-    ).rejects.toThrow('response ceiling')
-    expect(secureFetchMock).not.toHaveBeenCalled()
+      first.client.prepareDiscoveredEndpoint(policy, wrongResourceResponse)
+    ).rejects.toMatchObject({ code: 'invalid_endpoint' })
+    await expect(
+      first.client.prepareDiscoveredEndpoint(policy, {
+        status: 200,
+        headers: {},
+        body: new Uint8Array(),
+      } as OciAuthenticatedResponse)
+    ).rejects.toMatchObject({ code: 'invalid_endpoint' })
   })
 
-  it('propagates a bounded response-ceiling failure without adding request material', async () => {
-    secureFetchMock.mockRejectedValueOnce(new Error('Response exceeded the configured byte limit'))
-    const failure = await sendOciRequest({
-      destination,
-      credentials,
+  it('propagates caller abort without leaking a transport failure', async () => {
+    const controller = new AbortController()
+    mocks.secureFetch.mockImplementationOnce(
+      (_url: string, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), {
+            once: true,
+          })
+        })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
       method: 'GET',
-      encodedPath: '/n/',
-      timeout: 10_000,
-      maxResponseBytes: 64,
-    }).catch((error: unknown) => error)
-    expect((failure as Error).message).toBe('Response exceeded the configured byte limit')
-    expect((failure as Error).message).not.toContain('authorization')
-    expect((failure as Error).message).not.toContain(destination.hostname)
+      encodedPath: '/v1/test',
+      signal: controller.signal,
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'aborted' })
+  })
+
+  it('applies one deadline to in-flight transport work', async () => {
+    vi.useFakeTimers()
+    mocks.secureFetch.mockImplementationOnce(
+      (_url: string, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), {
+            once: true,
+          })
+        })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      timeoutMs: 100,
+      maxResponseBytes: 1024,
+    })
+    const assertion = expect(pending).rejects.toMatchObject({ code: 'deadline_exceeded' })
+    await vi.advanceTimersByTimeAsync(101)
+    await assertion
+  })
+
+  it('applies the same deadline while reading the response body', async () => {
+    vi.useFakeTimers()
+    const cancel = vi.fn()
+    mocks.secureFetch.mockResolvedValueOnce({
+      ...secureResponse({}),
+      headers: new Headers(),
+      body: new ReadableStream<Uint8Array>({ cancel }),
+    })
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      timeoutMs: 100,
+      maxResponseBytes: 1024,
+    })
+    const assertion = expect(pending).rejects.toMatchObject({ code: 'deadline_exceeded' })
+    await vi.advanceTimersByTimeAsync(101)
+    await assertion
+    expect(cancel).toHaveBeenCalled()
+  })
+
+  it('propagates caller abort during retry backoff', async () => {
+    vi.useFakeTimers()
+    mocks.backoff.mockReturnValue(1000)
+    mocks.secureFetch.mockResolvedValueOnce(
+      secureResponse({ status: 503, body: '{"code":"Busy"}' })
+    )
+    const controller = new AbortController()
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      retry: { kind: 'safe', maxAttempts: 2 },
+      signal: controller.signal,
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    const assertion = expect(pending).rejects.toMatchObject({ code: 'aborted' })
+    await vi.advanceTimersByTimeAsync(1)
+    controller.abort()
+    await assertion
+    expect(mocks.secureFetch).toHaveBeenCalledOnce()
   })
 })

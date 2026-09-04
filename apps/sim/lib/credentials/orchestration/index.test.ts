@@ -160,6 +160,58 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(result.previousDisplayName).toBe(OLD_EMAIL)
   })
 
+  it('requires the complete OCI tuple and treats an omitted passphrase as clearing it', async () => {
+    mockCredential({
+      providerId: 'oci-api-key-service-account',
+      displayName: 'OCI production signer',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'oci-api-key-service-account',
+      encryptedServiceAccountKey: 'new-oci-cipher',
+      displayName: 'ocid1.user.oc1..replacement',
+      auditMetadata: {
+        principalKind: 'user',
+        principalId: 'ocid1.user.oc1..replacement',
+      },
+      principal: { kind: 'user', id: 'ocid1.user.oc1..replacement' },
+    })
+
+    const incomplete = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      privateKey: 'replacement-key',
+    })
+    expect(incomplete).toMatchObject({
+      success: false,
+      errorCode: 'validation',
+      error: expect.stringContaining('complete signing tuple'),
+    })
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+
+    const complete = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+      userOcid: 'ocid1.user.oc1..replacement',
+      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+      privateKey: 'replacement-key',
+      region: 'us-ashburn-1',
+    })
+    expect(complete.success).toBe(true)
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'oci-api-key-service-account',
+      expect.objectContaining({
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..replacement',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'replacement-key',
+        privateKeyPassphrase: undefined,
+        region: 'us-ashburn-1',
+      })
+    )
+    expect(updatePayload().encryptedServiceAccountKey).toBe('new-oci-cipher')
+  })
+
   it('keeps a label the user typed instead of the derived identity', async () => {
     mockCredential({ displayName: 'Prod billing exporter' })
     mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })
