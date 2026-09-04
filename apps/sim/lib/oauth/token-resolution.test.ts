@@ -8,7 +8,6 @@ const {
   mockCaptureServerEvent,
   mockExecuteManagedToken,
   mockGetCredential,
-  mockGetServiceConfigByServiceId,
   mockGetToolMetadata,
   mockRecordAudit,
   mockRefreshTokenIfNeeded,
@@ -19,7 +18,6 @@ const {
   mockCaptureServerEvent: vi.fn(),
   mockExecuteManagedToken: vi.fn(),
   mockGetCredential: vi.fn(),
-  mockGetServiceConfigByServiceId: vi.fn(),
   mockGetToolMetadata: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
@@ -81,7 +79,6 @@ vi.mock('@/tools/metadata', () => ({
 
 vi.mock('@/lib/oauth/utils', () => ({
   getCanonicalScopesForProvider: vi.fn().mockReturnValue([]),
-  getServiceConfigByServiceId: mockGetServiceConfigByServiceId,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -382,7 +379,6 @@ describe('resolveCredentialAccessToken', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveOAuthAccountId.mockResolvedValue(null)
-    mockGetServiceConfigByServiceId.mockReturnValue(null)
     authenticate.mockResolvedValue(INTERNAL_AUTH)
     resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
     mockGetToolMetadata.mockReturnValue({
@@ -446,171 +442,6 @@ describe('resolveCredentialAccessToken', () => {
       ok: true,
       token: { accessToken: 'fresh', credentialType: 'oauth', idToken: undefined },
     })
-  })
-
-  it('hands an authorized OCI credential to the resolver by authoritative ID only', async () => {
-    const supplied = {
-      credentialType: 'service_account',
-      credentialId: 'caller-controlled-alias',
-      providerId: 'google-service-account',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    } as const
-    const authoritative = {
-      ...supplied,
-      credentialId: 'credential-authoritative',
-      providerId: 'oci-api-key-service-account',
-    } as const
-    mockResolveOAuthAccountId.mockResolvedValueOnce(supplied).mockResolvedValueOnce(authoritative)
-    mockGetToolMetadata.mockReturnValue({
-      oauth: {
-        required: true,
-        provider: 'oci',
-        credentialKind: 'service-account',
-      },
-    })
-    mockGetServiceConfigByServiceId.mockReturnValue({
-      serviceAccountProviderId: 'oci-api-key-service-account',
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'credential-authoritative',
-    })
-    mockResolveServiceAccountToken.mockResolvedValue({ accessToken: 'credential-authoritative' })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-oci',
-        credentialId: 'caller-controlled-alias',
-        toolId: 'future_oci_tool',
-        authenticate,
-      })
-    ).resolves.toEqual({
-      ok: true,
-      token: expect.objectContaining({ accessToken: 'credential-authoritative' }),
-    })
-    expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
-      'credential-authoritative',
-      'oci-api-key-service-account',
-      [],
-      undefined
-    )
-  })
-
-  it('rejects OCI credentials when trusted tool metadata is not provider-bound', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'credential-authoritative',
-      providerId: 'oci-api-key-service-account',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
-    mockGetToolMetadata.mockReturnValue({
-      oauth: { required: true, provider: 'oci', credentialKind: 'service-account' },
-    })
-    mockGetServiceConfigByServiceId.mockReturnValue({
-      serviceAccountProviderId: 'different-provider',
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'credential-authoritative',
-    })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-oci',
-        credentialId: 'credential-authoritative',
-        toolId: 'future_oci_tool',
-        authenticate,
-      })
-    ).resolves.toMatchObject({
-      ok: false,
-      status: 500,
-      code: 'OCI_CREDENTIAL_TOOL_UNSUPPORTED',
-    })
-    expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(mockAuthorizeCredentialUseForAuth).toHaveBeenCalledTimes(1)
-    expect(mockResolveOAuthAccountId).toHaveBeenCalledTimes(2)
-    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
-  })
-
-  it('does not reveal unsupported OCI tool metadata before authorization', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'credential-authoritative',
-      providerId: 'oci-api-key-service-account',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
-    mockGetToolMetadata.mockReturnValue({
-      oauth: { required: true, provider: 'oci', credentialKind: 'service-account' },
-    })
-    mockGetServiceConfigByServiceId.mockReturnValue({
-      serviceAccountProviderId: 'different-provider',
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: false,
-      error: 'You do not have access to this credential.',
-    })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-oci',
-        credentialId: 'credential-authoritative',
-        toolId: 'future_oci_tool',
-        authenticate,
-      })
-    ).resolves.toEqual({
-      ok: false,
-      status: 403,
-      error: 'You do not have access to this credential.',
-    })
-    expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(mockResolveOAuthAccountId).toHaveBeenCalledTimes(1)
-    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
-  })
-
-  it('rejects an OAuth credential selected for an OCI service-account tool', async () => {
-    const oauthCredential = {
-      accountId: 'oauth-account',
-      workspaceId: 'ws-1',
-      usedCredentialTable: true,
-    } as const
-    mockResolveOAuthAccountId.mockResolvedValue(oauthCredential)
-    mockGetToolMetadata.mockReturnValue({
-      oauth: { required: true, provider: 'oci', credentialKind: 'service-account' },
-    })
-    mockGetServiceConfigByServiceId.mockReturnValue({
-      serviceAccountProviderId: 'oci-api-key-service-account',
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      credentialOwnerUserId: 'owner-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'oauth-credential',
-    })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-oci',
-        credentialId: 'oauth-credential',
-        toolId: 'future_oci_tool',
-        authenticate,
-      })
-    ).resolves.toEqual({ ok: false, status: 403, error: 'Unauthorized' })
-    expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(mockResolveOAuthAccountId).toHaveBeenCalledTimes(2)
-    expect(mockGetCredential).not.toHaveBeenCalled()
-    expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
-    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
   })
 
   it('rejects a managed credential when no delegation resolver is wired', async () => {

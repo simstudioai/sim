@@ -13,6 +13,7 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext, requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { getCredentialCreationWorkspaceContext } from '@/lib/credentials/environment'
+import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
 import type { CredentialOrchestrationErrorCode } from '@/lib/credentials/orchestration'
 import {
   ServiceAccountSecretError,
@@ -295,10 +296,7 @@ export async function createCredentialRecord(
         Object.assign(extraAuditMetadata, secret.auditMetadata)
       } catch (error) {
         if (error instanceof ServiceAccountSecretError) {
-          return failure(error.message, 'validation', {
-            providerErrorCode: error.providerErrorCode,
-            providerUnavailable: isProviderOutageCode(error.providerErrorCode),
-          })
+          return failure(error.message, 'validation')
         }
         throw error
       }
@@ -540,6 +538,18 @@ export async function createCredentialRecord(
 
     return { success: true, credential: created, created: true, auditMetadata: extraAuditMetadata }
   } catch (error: unknown) {
+    if (error instanceof OciCredentialVerificationError) {
+      const providerUnavailable = error.code !== 'invalid_credentials'
+      const providerErrorCode = providerUnavailable ? 'provider_unavailable' : 'invalid_credentials'
+      logger.warn(`OCI credential rejected: ${error.code}`)
+      return failure(
+        providerUnavailable
+          ? 'OCI is temporarily unavailable for credential verification'
+          : 'OCI rejected the API-key credential',
+        'validation',
+        { providerErrorCode, providerUnavailable }
+      )
+    }
     if (error instanceof AtlassianValidationError) {
       logger.warn(`Atlassian credential rejected: ${error.code}`, {
         code: error.code,
