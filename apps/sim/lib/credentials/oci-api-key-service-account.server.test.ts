@@ -181,6 +181,14 @@ describe('OCI API-key credential setup', () => {
     expect(dependencies.encryptSecret).not.toHaveBeenCalled()
   })
 
+  it('preserves an encryption failure after successful provider verification', async () => {
+    const encryptionFailure = new Error('internal encryption failure')
+    dependencies.encryptSecret.mockRejectedValueOnce(encryptionFailure)
+
+    await expect(verifyAndEncryptOciApiKeyCredential(fields())).rejects.toBe(encryptionFailure)
+    expect(dependencies.verifySetup).toHaveBeenCalledOnce()
+  })
+
   it('forwards cancellation and never encrypts an aborted verification', async () => {
     const controller = new AbortController()
     const reason = new DOMException('canceled', 'AbortError')

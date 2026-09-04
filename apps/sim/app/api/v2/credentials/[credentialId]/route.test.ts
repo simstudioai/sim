@@ -127,7 +127,7 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
     expect(body).not.toContain('MUST_NOT_LEAK_CIPHERTEXT')
   })
 
-  it('forwards a complete OCI rotation tuple and preserves explicit passphrase clearing', async () => {
+  it('forwards a complete OCI rotation tuple with an omitted replacement passphrase', async () => {
     const request = patchRequest({
       tenancyOcid: 'ocid1.tenancy.oc1..tenant',
       userOcid: 'ocid1.user.oc1..replacement',

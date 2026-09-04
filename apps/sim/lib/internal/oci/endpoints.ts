@@ -182,10 +182,10 @@ export function getOciRegion(regionId: string): OciRegion {
     ? REGION_REALMS[normalized as keyof typeof REGION_REALMS]
     : undefined
   if (!realmId) throw new Error('OCI region is not recognized')
-  return {
+  return Object.freeze({
     id: normalized,
-    realm: { id: realmId, domain: REALM_DOMAINS[realmId] },
-  }
+    realm: Object.freeze({ id: realmId, domain: REALM_DOMAINS[realmId] }),
+  })
 }
 
 export function resolveEffectiveOciRegion(defaultRegion: string, override?: string): OciRegion {
@@ -312,14 +312,14 @@ function validateOciOrigin(params: {
   if (!hostnameMatches) {
     throw new Error('OCI destination hostname is not owned by the requested service')
   }
-  return {
+  return Object.freeze({
     origin: url.origin,
     hostname: url.hostname,
     serviceId: params.policy.serviceId,
     serviceName: params.policy.serviceName,
     region: knownRegion,
     provenance: params.provenance,
-  } as OciPreparedEndpoint
+  }) as OciPreparedEndpoint
 }
 
 /** Resolves a static policy exclusively from its service and validated region. */

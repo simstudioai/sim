@@ -583,8 +583,9 @@ async function readFailureCode(
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
     const code = (parsed as Record<string, unknown>).code
     return typeof code === 'string' && code.length <= 128 ? code : undefined
-  } catch {
+  } catch (error) {
     await response.body?.cancel().catch(() => {})
+    if (signal.aborted) throw toError(signal.reason ?? error)
     return undefined
   }
 }
