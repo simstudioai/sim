@@ -599,7 +599,7 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
     profiles: {
       type: 'json',
       description:
-        'Browser Context Profiles a run can start from [{profileId, name, proxyCountryCode, fingerprintSeed, createdAt, isDefault}]',
+        'Browser Context Profiles a run can start from [{profileId, name, proxyCountryCode, fingerprintSeed, createdAt, isDefault}]. Every field but profileId and name can be null when the API omits it',
     },
   },
 }

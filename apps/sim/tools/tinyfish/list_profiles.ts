@@ -95,24 +95,28 @@ export const listProfilesTool: ToolConfig<
             type: 'string',
             description: 'Country the profile proxies through, null when it has no proxy',
             optional: true,
+            nullable: true,
           },
           fingerprintSeed: {
             type: 'string',
             description:
               'Seed for the browser fingerprint the profile replays, null when the API omits it',
             optional: true,
+            nullable: true,
           },
           createdAt: {
             type: 'string',
             description:
               'ISO 8601 timestamp when the profile was created, null when the API omits it',
             optional: true,
+            nullable: true,
           },
           isDefault: {
             type: 'boolean',
             description:
               'Whether runs with no Browser Profile ID use this one, null when the API does not report it',
             optional: true,
+            nullable: true,
           },
         },
       },
