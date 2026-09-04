@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -47,7 +53,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))
 
-import { runWakeTurn, validateWake } from './wake'
+import { resolveTaskPill, runWakeTurn, validateWake } from './wake'
 
 const WAKE = {
   taskId: '22222222-2222-4222-8222-222222222222',
@@ -118,6 +124,44 @@ describe('copilot task wake', () => {
     expect(mockPublishStatusChanged).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'completed', chatId: 'chat-1', streamId: WAKE.taskId })
     )
+  })
+
+  it('resolves the pill in the arming message before the wake turn lands', async () => {
+    queueTableRows(schemaMock.copilotMessages, [
+      {
+        id: 'row-1',
+        content: {
+          id: 'assistant-1',
+          role: 'assistant',
+          contentBlocks: [
+            { type: 'text', content: 'armed' },
+            {
+              type: 'task',
+              task: {
+                taskId: WAKE.taskId,
+                kind: 'timer',
+                target: {},
+                note: 'n',
+                status: 'pending',
+              },
+            },
+          ],
+        },
+      },
+    ])
+    await resolveTaskPill('chat-1', WAKE.taskId, 'completed', 'Timer elapsed')
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.copilotMessages)
+    const [setArg] = dbChainMockFns.set.mock.calls[0] as [
+      {
+        content: {
+          contentBlocks: Array<{ type: string; task?: { status?: string; summary?: string } }>
+        }
+      },
+    ]
+    expect(setArg.content.contentBlocks[1]?.task).toMatchObject({
+      status: 'completed',
+      summary: 'Timer elapsed',
+    })
   })
 
   it('skips the turn when another stream holds the chat', async () => {
