@@ -31,6 +31,13 @@ export const KB_EMBEDDING_STORAGE_DIMENSIONS = [3072, 1536, 1024, 768, 384] as c
 export type KbEmbeddingDimensions = (typeof KB_EMBEDDING_STORAGE_DIMENSIONS)[number]
 
 /**
+ * Widest width a knowledge base can be created at. Anything sized for "the
+ * largest response a base could produce" has to use this rather than the
+ * default, because the per-request item ceiling falls as the width grows.
+ */
+export const MAX_KB_EMBEDDING_DIMENSIONS: KbEmbeddingDimensions = KB_EMBEDDING_STORAGE_DIMENSIONS[0]
+
+/**
  * Width a knowledge base is created at when the deployment names no other one.
  * Matches the `embedding.embedding` column every base predating multi-width
  * storage was written into, so an unconfigured deployment keeps its behavior.
@@ -286,7 +293,12 @@ export function getEmbeddingModelInfo(model: string): EmbeddingModelInfo {
 
 export function findEmbeddingModelInfo(model: string): EmbeddingModelInfo | undefined {
   if (isOllamaEmbeddingModel(model)) return buildOllamaEmbeddingModelInfo(model)
-  return EMBEDDING_MODELS[model]
+  /**
+   * Own-property lookup, not indexing: the record's prototype is
+   * `Object.prototype`, so `EMBEDDING_MODELS['toString']` would otherwise hand
+   * back an inherited function that every downstream field read then crashes on.
+   */
+  return Object.hasOwn(EMBEDDING_MODELS, model) ? EMBEDDING_MODELS[model] : undefined
 }
 
 export function getModelsForProvider(provider: KeyedEmbeddingProvider): string[] {

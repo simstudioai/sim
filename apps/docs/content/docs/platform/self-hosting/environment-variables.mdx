@@ -211,13 +211,16 @@ document rather than a rejected configuration. Common pairings:
 | `1536` | `text-embedding-3-small`, `text-embedding-3-large`, `gemini-embedding-001` |
 | `3072` | `text-embedding-3-large`, `gemini-embedding-001` |
 
-`sim-setup add knowledge-embeddings` walks through all of this — pick OpenAI, Azure OpenAI, Gemini,
-or Ollama and it writes the variables that family needs. `sim-setup status` then reports the one
-family your `KB_EMBEDDING_MODEL` actually selects, rather than every provider you happen to hold a
-key for.
+On a Compose install or source checkout, `sim-setup add knowledge-embeddings` walks through all of
+this — pick OpenAI, Azure OpenAI, Gemini, or Ollama and it writes the variables that family needs.
+`sim-setup config` then reports the one family your `KB_EMBEDDING_MODEL` actually selects, rather
+than every provider you happen to hold a key for. Helm releases set these values through your own
+chart values instead, and an Ollama server is yours to run either way — `sim-setup` configures Sim
+to reach one, never installs it.
 
-The Embeddings block reads the same `OLLAMA_URL`. It lists the embedding-capable models installed on
-that server with the width each one emits, so a workflow can embed locally without an API key.
+The Embeddings block reads the same `OLLAMA_URL`. It lists the models on that server that report an
+embedding capability, with the width each one emits where Ollama reports it, so a workflow can embed
+locally without an API key.
 
 ## Chat & PII
 

@@ -19,7 +19,7 @@ Models differ in what they are good at and what they cost. `text-embedding-3-sma
 
 Two things worth knowing before you build on it. Vectors are only comparable when they come from the same model at the same size, so changing either means re-embedding everything you intend to compare. And input longer than the model's limit is shortened to fit rather than rejected, with a warning in the run, so chunk long documents yourself when the tail matters.
 
-Ollama is the exception to most of the above. It runs on your own deployment, so it needs no API key and costs nothing, and the model list is whatever you have pulled onto that server rather than a catalog Sim maintains — the block reads it live, filters it to models that can actually embed, and shows each one's vector width next to its name. Ollama accepts neither a task type nor a size reduction, so the block does not offer those controls for it. Self-hosted deployments configure the server with `OLLAMA_URL`; on Sim Cloud there is no Ollama to reach, so the list comes back empty.
+Ollama is the exception to most of the above. It runs on your own deployment, so it needs no API key and costs nothing, and the model list is whatever you have pulled onto that server rather than a catalog Sim maintains — the block reads it live, drops the models that report a non-embedding capability, and shows each one's vector width next to its name where Ollama reports one. A server too old to report either will list its chat models too and label none of them, so check the model you pick. Ollama accepts neither a task type nor a size reduction, so the block does not offer those controls for it. Self-hosted deployments configure the server with `OLLAMA_URL`; on Sim Cloud there is no Ollama to reach, so the list comes back empty.
 
 Sim's knowledge bases embed separately: a base fixes one model and one vector width when it is created, from a smaller set of models. This block is for embedding text yourself inside a workflow.
 {/* MANUAL-CONTENT-END */}
@@ -27,7 +27,7 @@ Sim's knowledge bases embed separately: a base fixes one model and one vector wi
 
 ## Usage Instructions
 
-Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus any model on a self-hosted Ollama.
+Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.
 
 
 

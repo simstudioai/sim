@@ -28,6 +28,7 @@ export {
   DEFAULT_KB_EMBEDDING_DIMENSIONS,
   isKbEmbeddingDimensions,
   KB_EMBEDDING_STORAGE_DIMENSIONS,
+  MAX_KB_EMBEDDING_DIMENSIONS,
 } from '@/lib/embeddings/catalog'
 
 export const DEFAULT_EMBEDDING_MODEL = CATALOG_DEFAULT_EMBEDDING_MODEL
@@ -70,10 +71,21 @@ export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelIn
       .filter(([, info]) => info.dimensions.length > 0)
   )
 
+/**
+ * Own-property lookup, not indexing: the record inherits from
+ * `Object.prototype`, so `SUPPORTED_EMBEDDING_MODELS['toString']` would
+ * otherwise resolve to an inherited function and read as a supported model.
+ */
+function findKbModelInfo(model: string): EmbeddingModelInfo | undefined {
+  return Object.hasOwn(SUPPORTED_EMBEDDING_MODELS, model)
+    ? SUPPORTED_EMBEDDING_MODELS[model]
+    : undefined
+}
+
 /** True when `model` may be recorded on a knowledge base, whatever its width. */
 export function isKbEmbeddingModel(model: string): boolean {
   if (isOllamaEmbeddingModel(model)) return findEmbeddingModelInfo(model) !== undefined
-  return SUPPORTED_EMBEDDING_MODELS[model] !== undefined
+  return findKbModelInfo(model) !== undefined
 }
 
 /**
@@ -91,7 +103,7 @@ export function assertKbEmbeddingModel(model: string, dimensions: number): void 
 }
 
 export function getEmbeddingModelInfo(model: string): EmbeddingModelInfo {
-  const info = SUPPORTED_EMBEDDING_MODELS[model]
+  const info = findKbModelInfo(model)
   if (info) return info
 
   /**

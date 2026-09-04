@@ -157,7 +157,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   description: 'Generate embeddings',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus any model on a self-hosted Ollama.',
+    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.',
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/embeddings',

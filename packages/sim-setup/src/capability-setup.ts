@@ -408,7 +408,7 @@ async function promptField(
   const validate = (value: string): string | undefined => {
     if (!value) return prompt.required && !existing ? 'required' : undefined
     return prompt.validate
-      ? validateCapabilityFieldInput(state.setup.definition, prompt.key, value)
+      ? validateCapabilityFieldInput(state.setup.definition, prompt.key, value, state.optionId)
       : undefined
   }
 

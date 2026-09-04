@@ -42,7 +42,7 @@ vi.mock('@/lib/knowledge/documents/document-processor', () => ({
 }))
 
 vi.mock('@/lib/knowledge/embedding-models', () => ({
-  DEFAULT_KB_EMBEDDING_DIMENSIONS: 1536,
+  MAX_KB_EMBEDDING_DIMENSIONS: 3072,
   toKbEmbeddingDimensions: (value: number) => value,
   getEmbeddingModelInfo: vi.fn(() => ({ tokenizerProvider: 'openai' })),
 }))

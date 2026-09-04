@@ -844,6 +844,7 @@ export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDD
           input: 'secret',
           required: true,
         },
+        ...OPENAI_EMBEDDING_MODEL_PROMPTS,
       ],
     },
     gemini: {

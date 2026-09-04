@@ -122,8 +122,8 @@ import {
   type SortOrder,
 } from '@/lib/knowledge/documents/types'
 import {
-  DEFAULT_KB_EMBEDDING_DIMENSIONS,
   getEmbeddingModelInfo,
+  MAX_KB_EMBEDDING_DIMENSIONS,
   toKbEmbeddingDimensions,
 } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
@@ -324,14 +324,16 @@ const TIMEOUTS = {
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
   /**
-   * Sized against the platform default width rather than the base's own, which
-   * is not known at module load. The item limit only falls as the width grows,
-   * so a wider base is additionally bounded by the embedding client's own
-   * aggregate guard rather than by an under-tight ceiling here.
+   * One module-level constant serves every knowledge base, whose width is not
+   * known here, so it is sized for the widest one that can exist. The item
+   * ceiling falls as the width grows — 2,126 items at 1,536 but 1,064 at 3,072 —
+   * and `generateEmbeddings` *rejects* an oversized batch rather than splitting
+   * it, so sizing this against the default width would fail every 3,072-wide
+   * document past that many chunks.
    */
   MAX_EMBEDDING_BATCH: Math.min(
     envNumber(env.KB_CONFIG_BATCH_SIZE, 2000, { min: 1, integer: true }),
-    getEmbeddingAggregateItemLimit(DEFAULT_KB_EMBEDDING_DIMENSIONS)
+    getEmbeddingAggregateItemLimit(MAX_KB_EMBEDDING_DIMENSIONS)
   ),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
 }

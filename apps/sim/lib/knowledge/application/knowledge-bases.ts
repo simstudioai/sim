@@ -315,7 +315,7 @@ async function executeCreateKnowledgeBase(args: {
     ...DEFAULT_CHUNKING_CONFIG,
     ...args.input.chunkingConfig,
   }
-  const { model: embeddingModel, dimensions: embeddingDimension } = getConfiguredKbEmbedding()
+  const { model: embeddingModel, dimensions: embeddingDimension } = await getConfiguredKbEmbedding()
   const knowledgeBase = await createAuthorizedKnowledgeBase(
     {
       name: args.input.name,

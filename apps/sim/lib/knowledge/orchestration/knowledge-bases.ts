@@ -55,7 +55,7 @@ export async function performCreateKnowledgeBase(
   const { workspaceId, name, description, folderId, request, source } = params
   const requestId = params.requestId ?? generateRequestId()
   const chunkingConfig: ChunkingConfig = { ...DEFAULT_CHUNKING_CONFIG, ...params.chunkingConfig }
-  const { model: embeddingModel, dimensions: embeddingDimension } = getConfiguredKbEmbedding()
+  const { model: embeddingModel, dimensions: embeddingDimension } = await getConfiguredKbEmbedding()
 
   let created: KnowledgeBaseWithCounts
   try {

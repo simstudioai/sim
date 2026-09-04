@@ -972,13 +972,17 @@ export async function embedKnowledgeForDeployment(
   const capabilityValues = {
     ...env,
     /**
-     * The capability gates its providers on the family `KB_EMBEDDING_MODEL`
-     * names, but what matters here is the model this call actually embeds with:
-     * a knowledge base keeps the model it was created with, so one created
-     * before the deployment default changed must still resolve its own family's
-     * transports. Substituting it evaluates the chain for the model at hand.
+     * The capability gates its providers on the model and width
+     * `KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS` name, but what matters
+     * here is the target this call actually embeds with: a knowledge base keeps
+     * the model and width it was created with, so one created before the
+     * deployment default changed must still resolve its own family's transports.
+     * Both are substituted — the model alone would leave the deployment's width
+     * being validated against this base's family, which rejects the chain
+     * outright for a base whose family accepts a width the deployment's does not.
      */
     KB_EMBEDDING_MODEL: model,
+    EMBEDDING_OUTPUT_DIMS: String(dimensions),
     ...(workspaceKey ? { OPENAI_API_KEY: workspaceKey.apiKey } : {}),
   }
 

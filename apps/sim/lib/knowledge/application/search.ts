@@ -279,11 +279,15 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
      * be indexed the same way. The width is part of that: it selects the
      * pgvector column each comparison reads, and two bases on the same model at
      * different widths still live in different columns.
+     *
+     * Built only for a query search. A tag-only request never embeds anything,
+     * so resolving a width it will not use would let one base recorded at an
+     * unstorable width fail a request that does not depend on it.
      */
-    const embeddingTargets = new Map<string, KbEmbeddingTarget>(
+    const embeddingTargets = new Map(
       context.knowledgeBases.map((kb) => [
         `${kb.embeddingModel}:${kb.embeddingDimension}`,
-        { model: kb.embeddingModel, dimensions: toKbEmbeddingDimensions(kb.embeddingDimension) },
+        { model: kb.embeddingModel, dimensions: kb.embeddingDimension },
       ])
     )
     if (hasQuery && embeddingTargets.size > 1) {
@@ -292,15 +296,26 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         'Selected knowledge bases use different embedding models or vector widths and cannot be searched together. Search them separately.'
       )
     }
-    const embeddingTarget = [...embeddingTargets.values()][0]
-    const embeddingModel = embeddingTarget.model
+    const selectedTarget = [...embeddingTargets.values()][0]
+    const embeddingModel = selectedTarget.model
+    /**
+     * The width is narrowed to a storable one only for a query search, which is
+     * the only kind that reads a vector column. A tag-only search must not fail
+     * on a width it never uses.
+     */
+    const embeddingTarget: KbEmbeddingTarget | undefined = hasQuery
+      ? {
+          model: selectedTarget.model,
+          dimensions: toKbEmbeddingDimensions(selectedTarget.dimensions),
+        }
+      : undefined
     const preparedRegistry = input.prepareModelInputProvenance
       ? await input.prepareModelInputProvenance({ userId, workspaceId: context.workspaceId })
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
     const queryEmbeddingPromise = hasQuery
       ? runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
-          generateSearchEmbedding(input.query!, embeddingTarget, context.workspaceId)
+          generateSearchEmbedding(input.query!, embeddingTarget!, context.workspaceId)
         )
       : Promise.resolve(null)
     /** Resolved alongside the embedding call; both are needed before the first leg runs. */
@@ -331,7 +346,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       queryVector: hasQuery
         ? {
             vector: JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null),
-            dimensions: embeddingTarget.dimensions,
+            dimensions: embeddingTarget!.dimensions,
           }
         : undefined,
       structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,

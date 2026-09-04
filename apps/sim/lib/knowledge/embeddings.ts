@@ -8,6 +8,8 @@ import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env, envNumber } from '@/lib/core/config/env'
 import { embedKnowledge } from '@/lib/embeddings'
+import { isOllamaEmbeddingModel } from '@/lib/embeddings/catalog'
+import { getOllamaEmbeddingModelMetadata } from '@/lib/embeddings/ollama-model-catalog.server'
 import {
   assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,
@@ -94,9 +96,34 @@ function resolveConfiguredEmbeddingDimensions(model: string): KbEmbeddingDimensi
   return configured
 }
 
-/** Model and vector width every knowledge base created on this deployment uses. */
-export function getConfiguredKbEmbedding(): KbEmbeddingTarget {
+/**
+ * Model and vector width every knowledge base created on this deployment uses.
+ *
+ * Asynchronous for one case: an Ollama model whose width the deployment did not
+ * state. Sim can read that from the server the model is installed on, and doing
+ * so is much better than the platform default, which would silently create every
+ * base at 1,536 and fail each document against a 768-wide model.
+ */
+export async function getConfiguredKbEmbedding(): Promise<KbEmbeddingTarget> {
   const model = resolveConfiguredEmbeddingModel()
+  const configured = env.EMBEDDING_OUTPUT_DIMS
+  const stated = configured !== undefined && String(configured).trim() !== ''
+
+  if (isOllamaEmbeddingModel(model) && !stated) {
+    try {
+      const { dimensions } = await getOllamaEmbeddingModelMetadata(model)
+      if (isKbEmbeddingDimensions(dimensions)) return { model, dimensions }
+      logger.warn(
+        `${model} emits ${dimensions}-dimensional vectors, which knowledge bases cannot store. Supported: ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}`
+      )
+    } catch (error) {
+      logger.warn('Could not read the width of the configured Ollama embedding model', {
+        model,
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+    }
+  }
+
   return { model, dimensions: resolveConfiguredEmbeddingDimensions(model) }
 }
 

@@ -832,13 +832,25 @@ function findFieldRequirement(
 }
 
 /** Validates a candidate environment value with the runtime field rule. */
+/**
+ * Validates one field's input against the provider being configured.
+ *
+ * `providerId` matters whenever two providers declare the same key with
+ * different rules — knowledge embeddings accept different vector widths per
+ * family — because without it the first provider declaring the key wins and
+ * rejects values that are valid for the one the operator actually chose.
+ */
 export function validateCapabilityFieldInput(
   definition: CapabilityDefinition,
   key: string,
-  value: string
+  value: string,
+  providerId?: string
 ): string | undefined {
   if (!value) return 'required'
-  for (const provider of definition.providers) {
+  const providers = providerId
+    ? definition.providers.filter((provider) => provider.id === providerId)
+    : definition.providers
+  for (const provider of providers) {
     const field =
       findFieldRequirement(provider.requires, key) ??
       provider.optionalFields?.find((candidate) => candidate.key === key)
@@ -848,6 +860,11 @@ export function validateCapabilityFieldInput(
     }
     return field.validation.message
   }
+  /**
+   * A named provider that does not declare the key has nothing to say about it;
+   * only a capability that declares it nowhere is a definition error.
+   */
+  if (providerId) return undefined
   throw new Error(`${definition.label} has no validation definition for ${key}`)
 }
 
@@ -1224,23 +1241,36 @@ export const OCR_CAPABILITY = defineCapability({
  * Model families a knowledge base can be indexed with.
  *
  * `KB_EMBEDDING_MODEL` names a model rather than a provider, so the family is
- * read off the id: an `ollama/` prefix routes to the deployment's own server, a
- * `gemini` prefix to Google, and everything else — including an unset variable,
- * whose default is `text-embedding-3-small` — to the OpenAI-compatible
- * transports.
+ * read off the id. The match has to be exactly as strict as the runtime's,
+ * which keeps the configured id only when it is one a knowledge base can
+ * actually use and otherwise falls back to `text-embedding-3-small`: a looser
+ * rule here reports a family as configured that the runtime will not use, so a
+ * deployment holding only that family's credentials passes its status check and
+ * then fails every embedding call. So no prefix matching for the catalogued
+ * families and no case folding — `Gemini-Embedding-001` is not a model the
+ * runtime accepts, and neither is `gemini-embedding-999`.
+ *
+ * Ollama is the one open-ended family: its models are whatever the operator
+ * pulled, so any id under the exact `ollama/` prefix counts, matching
+ * `isOllamaEmbeddingModel`.
  *
  * This mirrors `apps/sim/lib/embeddings/catalog.ts`, which packages cannot
  * import. `apps/sim/lib/embeddings/knowledge-embedding-family.test.ts` pins the
- * two together for every model a knowledge base can be created with.
+ * two together, including for ids the runtime rejects.
  */
 export type KnowledgeEmbeddingFamily = 'openai' | 'gemini' | 'ollama'
 
+const OLLAMA_EMBEDDING_MODEL_PREFIX = 'ollama/'
+
+/** Knowledge-base-eligible Gemini model ids, as the app catalog defines them. */
+const GEMINI_KB_EMBEDDING_MODELS: readonly string[] = ['gemini-embedding-001']
+
 export function knowledgeEmbeddingFamily(values: EnvCapabilityValues): KnowledgeEmbeddingFamily {
-  const model = String(readValue(values, 'KB_EMBEDDING_MODEL') ?? '')
-    .trim()
-    .toLowerCase()
-  if (model.startsWith('ollama/')) return 'ollama'
-  if (model.startsWith('gemini')) return 'gemini'
+  const model = String(readValue(values, 'KB_EMBEDDING_MODEL') ?? '').trim()
+  if (model.startsWith(OLLAMA_EMBEDDING_MODEL_PREFIX)) {
+    return model.length > OLLAMA_EMBEDDING_MODEL_PREFIX.length ? 'ollama' : 'openai'
+  }
+  if (GEMINI_KB_EMBEDDING_MODELS.includes(model)) return 'gemini'
   return 'openai'
 }
 
@@ -1337,6 +1367,15 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
       activation: { mode: 'any-present', keys: ['OPENROUTER_API_KEY'] },
       activeWhen: embeddingFamilyIs('openai'),
       requires: envField('OPENROUTER_API_KEY'),
+      /**
+       * The same optional fields as the other OpenAI-family transports. Without
+       * them a deployment whose only transport is OpenRouter reports an
+       * unsupported width as configured, because no active provider validates it.
+       */
+      optionalFields: [
+        envField('KB_EMBEDDING_MODEL'),
+        embeddingOutputDimsField(OPENAI_EMBEDDING_WIDTHS),
+      ],
     },
     {
       id: 'gemini',

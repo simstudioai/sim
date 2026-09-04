@@ -36,6 +36,14 @@ export class OllamaEmbeddingModelNotFoundError extends Error {
   }
 }
 
+/** The configured server could not be reached at all — an outage, not a bad model id. */
+export class OllamaUnreachableError extends Error {
+  constructor(cause: string) {
+    super(`The configured Ollama server could not be reached: ${cause}`)
+    this.name = 'OllamaUnreachableError'
+  }
+}
+
 export class OllamaEmbeddingWidthUnknownError extends Error {
   constructor(model: string) {
     super(
@@ -88,12 +96,23 @@ function readEmbeddingLength(modelInfo: Record<string, unknown> | undefined): nu
 export async function fetchOllamaEmbeddingModelCatalog(
   signal?: AbortSignal
 ): Promise<OllamaEmbeddingModel[]> {
+  return (await loadOllamaEmbeddingModelCatalog(signal)).models
+}
+
+/**
+ * The catalog plus why it is empty, so a caller resolving one specific model can
+ * tell "not installed" apart from "no server answered". The selector only needs
+ * the list; the tool needs the distinction to pick a status code.
+ */
+async function loadOllamaEmbeddingModelCatalog(
+  signal?: AbortSignal
+): Promise<{ models: OllamaEmbeddingModel[]; unreachable?: string }> {
   /**
    * Hosted Sim runs no Ollama, and the loopback default cannot answer there, so
    * an unconfigured hosted deployment is not dialled at all. An explicit
    * `OLLAMA_URL` states an intent to reach a real server and is still honoured.
    */
-  if (isHosted && !isOllamaUrlConfigured()) return []
+  if (isHosted && !isOllamaUrlConfigured()) return { models: [] }
 
   let names: string[]
   try {
@@ -103,10 +122,9 @@ export async function fetchOllamaEmbeddingModelCatalog(
     names = tags.models.map((model) => model.name)
   } catch (error) {
     signal?.throwIfAborted()
-    logger.info('Ollama is not reachable; offering no embedding models', {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return []
+    const cause = getErrorMessage(error, 'Unknown error')
+    logger.info('Ollama is not reachable; offering no embedding models', { error: cause })
+    return { models: [], unreachable: cause }
   }
 
   const resolved = await mapWithConcurrency(names, OLLAMA_SHOW_CONCURRENCY, async (name) => {
@@ -132,7 +150,7 @@ export async function fetchOllamaEmbeddingModelCatalog(
     }
   })
 
-  return resolved.filter((model): model is OllamaEmbeddingModel => model !== null)
+  return { models: resolved.filter((model): model is OllamaEmbeddingModel => model !== null) }
 }
 
 /**
@@ -149,9 +167,11 @@ export async function getOllamaEmbeddingModelMetadata(
   signal?: AbortSignal
 ): Promise<Required<OllamaEmbeddingModel>> {
   const name = isOllamaEmbeddingModel(model) ? ollamaEmbeddingModelName(model) : model
-  const catalog = await fetchOllamaEmbeddingModelCatalog(signal)
+  const { models, unreachable } = await loadOllamaEmbeddingModelCatalog(signal)
+  /** An empty catalog because nothing answered is an outage, not a missing model. */
+  if (unreachable !== undefined) throw new OllamaUnreachableError(unreachable)
   /** Ollama resolves a bare name to its `:latest` tag, so both spellings match. */
-  const metadata = catalog.find(
+  const metadata = models.find(
     (candidate) => candidate.id === name || candidate.id === `${name}:latest`
   )
   if (!metadata) throw new OllamaEmbeddingModelNotFoundError(name)

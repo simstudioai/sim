@@ -8,6 +8,7 @@ import {
   getEmbeddingModelInfo,
   getKbEligibleModels,
 } from '@/lib/embeddings/catalog'
+import { isKbEmbeddingModel } from '@/lib/knowledge/embedding-models'
 
 /**
  * `knowledgeEmbeddingFamily` decides which credential the setup CLI and the
@@ -28,16 +29,36 @@ describe('knowledgeEmbeddingFamily', () => {
   })
 
   it('classifies any model on the deployment’s own Ollama by its routing prefix', () => {
-    for (const model of ['ollama/nomic-embed-text', 'ollama/mxbai-embed-large:335m', 'OLLAMA/x']) {
+    for (const model of ['ollama/nomic-embed-text', 'ollama/mxbai-embed-large:335m']) {
       expect(knowledgeEmbeddingFamily({ KB_EMBEDDING_MODEL: model }), model).toBe('ollama')
     }
   })
 
-  it('falls back to the family of the model an unset variable defaults to', () => {
+  /**
+   * The classifier decides which credential the CLI reports as serving knowledge
+   * embeddings; the runtime decides which one actually gets used. An id the
+   * runtime rejects falls back to the default model, so the classifier has to
+   * call it that family too — otherwise a deployment holding only the credential
+   * it names passes its status check and fails every embedding call.
+   */
+  it('agrees with the runtime on ids the runtime does not accept', () => {
     const defaultFamily = getEmbeddingModelInfo(DEFAULT_EMBEDDING_MODEL).provider
+    const rejected = [
+      '',
+      '   ',
+      'not-a-model',
+      'gemini-embedding-999',
+      'Gemini-Embedding-001',
+      'gemini',
+      'OLLAMA/nomic-embed-text',
+      'ollama/',
+      'toString',
+      'constructor',
+    ]
+    for (const model of rejected) {
+      expect(isKbEmbeddingModel(model), `${model} must not be a KB model`).toBe(false)
+      expect(knowledgeEmbeddingFamily({ KB_EMBEDDING_MODEL: model }), model).toBe(defaultFamily)
+    }
     expect(knowledgeEmbeddingFamily({})).toBe(defaultFamily)
-    expect(knowledgeEmbeddingFamily({ KB_EMBEDDING_MODEL: '   ' })).toBe(defaultFamily)
-    /** An unrecognised id falls back to the default model, which is OpenAI's. */
-    expect(knowledgeEmbeddingFamily({ KB_EMBEDDING_MODEL: 'not-a-model' })).toBe(defaultFamily)
   })
 })

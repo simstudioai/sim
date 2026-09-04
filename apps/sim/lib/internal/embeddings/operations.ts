@@ -96,6 +96,11 @@ export async function executeEmbedding(
         .dimensions
     } catch (error) {
       context.signal?.throwIfAborted()
+      /**
+       * A model the caller can fix (not installed, or one whose width Ollama
+       * will not report) is a 400; anything else — an unreachable server above
+       * all — is an upstream failure and must not read as a bad request.
+       */
       const userError =
         error instanceof OllamaEmbeddingModelNotFoundError ||
         error instanceof OllamaEmbeddingWidthUnknownError
