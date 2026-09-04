@@ -5,7 +5,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, notInArray, or } from 'drizzle-orm'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
-import type { ConnectorDirectory, ConnectorDirectoryGroup } from '@/connectors/types'
+import type {
+  ConnectorConfig,
+  ConnectorDirectory,
+  ConnectorDirectoryGroup,
+} from '@/connectors/types'
 
 const logger = createLogger('ExternalGroupSync')
 
@@ -228,4 +232,59 @@ async function pruneRemovedGroups(input: {
     )
     .returning({ id: knowledgeExternalGroup.id })
   return removed.length
+}
+
+/**
+ * Refreshes the directory groups the mirrored ACLs refer to.
+ *
+ * A `g:` token grants nobody until the directory says who is in that group, so
+ * the refresh runs in the same pass that writes the tokens — a crawl can never
+ * publish grants against membership this workspace has never read.
+ *
+ * It is rate-limited on its own clock rather than the connector's, so a
+ * frequently-syncing connector does not re-read the whole directory every run.
+ * A failure is logged rather than thrown: last-known-good membership is still
+ * serving reads, and failing the content sync over it would strand the
+ * documents as well as the groups.
+ */
+export async function refreshMirroredDirectory(input: {
+  workspaceId: string
+  connectorConfig: ConnectorConfig
+  sourceConfig: Record<string, unknown>
+  syncContext: Record<string, unknown>
+  accessToken: string
+}): Promise<void> {
+  const { workspaceId, connectorConfig } = input
+  if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.openDirectory) return
+
+  try {
+    const directory = await connectorConfig.openDirectory(
+      input.accessToken,
+      input.sourceConfig,
+      input.syncContext
+    )
+    if (!directory) {
+      logger.warn('Skipping directory refresh: the connector names no directory', {
+        workspaceId,
+        connector: connectorConfig.id,
+      })
+      return
+    }
+    const result = await syncExternalDirectoryGroups({
+      workspaceId,
+      providerId: connectorConfig.auth.provider,
+      directory,
+    })
+    logger.info('Refreshed mirrored directory groups', {
+      workspaceId,
+      tenantId: directory.tenantId,
+      ...result,
+    })
+  } catch (error) {
+    logger.error('Directory refresh failed; serving last-known-good group membership', {
+      workspaceId,
+      connector: connectorConfig.id,
+      error: getErrorMessage(error),
+    })
+  }
 }

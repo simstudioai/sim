@@ -6,7 +6,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
@@ -25,7 +25,7 @@ import {
   type ConnectorAccessToken,
   resolveConnectorAccessToken,
 } from '@/lib/knowledge/connectors/access-token'
-import { syncExternalDirectoryGroups } from '@/lib/knowledge/connectors/external-group-sync'
+import { refreshMirroredDirectory } from '@/lib/knowledge/connectors/external-group-sync'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -80,61 +80,6 @@ export {
 } from '@/lib/knowledge/documents/types'
 
 const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
-
-/**
- * Refreshes the directory groups the mirrored ACLs refer to.
- *
- * A `g:` token grants nobody until the directory says who is in that group, so
- * the refresh runs in the same pass that writes the tokens — a crawl can never
- * publish grants against membership this workspace has never read.
- *
- * It is rate-limited on its own clock rather than the connector's, so a
- * frequently-syncing connector does not re-read the whole directory every run.
- * A failure is logged rather than thrown: last-known-good membership is still
- * serving reads, and failing the content sync over it would strand the
- * documents as well as the groups.
- */
-async function refreshMirroredDirectory(input: {
-  workspaceId: string
-  connectorConfig: ConnectorConfig
-  sourceConfig: Record<string, unknown>
-  syncContext: Record<string, unknown>
-  accessToken: string
-}): Promise<void> {
-  const { workspaceId, connectorConfig } = input
-  if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.openDirectory) return
-
-  try {
-    const directory = await connectorConfig.openDirectory(
-      input.accessToken,
-      input.sourceConfig,
-      input.syncContext
-    )
-    if (!directory) {
-      logger.warn('Skipping directory refresh: the connector names no directory', {
-        workspaceId,
-        connector: connectorConfig.id,
-      })
-      return
-    }
-    const result = await syncExternalDirectoryGroups({
-      workspaceId,
-      providerId: connectorConfig.auth.provider,
-      directory,
-    })
-    logger.info('Refreshed mirrored directory groups', {
-      workspaceId,
-      tenantId: directory.tenantId,
-      ...result,
-    })
-  } catch (error) {
-    logger.error('Directory refresh failed; serving last-known-good group membership', {
-      workspaceId,
-      connector: connectorConfig.id,
-      error: getErrorMessage(error),
-    })
-  }
-}
 
 /**
  * Writes the ACLs an admin-mode listing mirrored from the source.

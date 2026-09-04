@@ -5,6 +5,7 @@ import {
   AtlassianSiteNotAccessibleError,
   AtlassianSiteNotMatchedError,
 } from '@/lib/atlassian/discovery'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   type ConfluencePrincipal,
   type ConfluenceRestriction,
@@ -422,23 +423,6 @@ async function resolveConfluenceAcls(
     })
   }
   return acls
-}
-
-/** Runs `worker` over `items`, at most `limit` at a time, preserving no order. */
-async function mapWithConcurrency<T>(
-  items: readonly T[],
-  limit: number,
-  worker: (item: T) => Promise<void>
-): Promise<void> {
-  let cursor = 0
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const index = cursor++
-      if (index >= items.length) return
-      await worker(items[index])
-    }
-  })
-  await Promise.all(runners)
 }
 
 export const confluenceConnector: ConnectorConfig = {
