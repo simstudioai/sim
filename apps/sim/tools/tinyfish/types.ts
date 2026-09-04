@@ -1,6 +1,12 @@
 import type { ToolResponse } from '@/tools/types'
 
-/** Browser engine TinyFish runs the agent in. */
+/**
+ * Browser engine TinyFish runs the agent in.
+ *
+ * This is TinyFish's `browser_profile` field and is unrelated to a Browser
+ * Context Profile, which is saved logged-in state selected with `use_profile`
+ * and `profile_id`.
+ */
 export type TinyFishBrowserProfile = 'lite' | 'stealth'
 
 /** Agent behavior mode. `strict` fails fast, which suits test automation. */
@@ -35,6 +41,8 @@ interface TinyFishAutomationParams extends TinyFishApiKeyParams {
   proxyCountryCode?: string
   useVault?: boolean
   credentialItemIds?: string | string[]
+  useProfile?: boolean
+  profileId?: string
 }
 
 export interface TinyFishRunParams extends TinyFishAutomationParams {}
@@ -62,6 +70,8 @@ export interface TinyFishListRunsParams extends TinyFishApiKeyParams {
 }
 
 export interface TinyFishListVaultItemsParams extends TinyFishApiKeyParams {}
+
+export interface TinyFishListProfilesParams extends TinyFishApiKeyParams {}
 
 export interface TinyFishSearchParams extends TinyFishApiKeyParams {
   query: string
@@ -197,6 +207,22 @@ interface TinyFishVaultItem {
 export interface TinyFishListVaultItemsResponse extends ToolResponse {
   output: {
     items: TinyFishVaultItem[]
+  }
+}
+
+/** A saved Browser Context Profile the agent can start a run from. */
+interface TinyFishProfile {
+  profileId: string
+  name: string
+  proxyCountryCode: string | null
+  fingerprintSeed: string | null
+  createdAt: string | null
+  isDefault: boolean | null
+}
+
+export interface TinyFishListProfilesResponse extends ToolResponse {
+  output: {
+    profiles: TinyFishProfile[]
   }
 }
 
@@ -364,6 +390,29 @@ export interface TinyFishRawFetch {
     latency_ms?: number | null
   }> | null
   errors?: Array<{ url?: string | null; error?: string | null }> | null
+}
+
+/**
+ * Raw list-profiles payload.
+ *
+ * TinyFish documents the profile object only through the create-profile
+ * response (`id`, `name`, `proxy_country_code`, `fingerprint_seed`,
+ * `created_at`) and publishes no example for the list envelope, so both the
+ * envelope and the default marker are read tolerantly rather than assumed.
+ */
+export interface TinyFishRawProfile {
+  id?: string | null
+  name?: string | null
+  proxy_country_code?: string | null
+  fingerprint_seed?: string | null
+  created_at?: string | null
+  set_as_default?: boolean | null
+  is_default?: boolean | null
+}
+
+export interface TinyFishRawProfiles {
+  profiles?: TinyFishRawProfile[] | null
+  data?: TinyFishRawProfile[] | null
 }
 
 export interface TinyFishRawVaultItems {

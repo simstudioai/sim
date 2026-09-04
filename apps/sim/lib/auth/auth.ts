@@ -1313,6 +1313,13 @@ export const auth = betterAuth({
             consentPage: '/oauth/consent',
             scopes: [...OAUTH_SCOPES],
             grantTypes: ['authorization_code', 'refresh_token'],
+            /**
+             * Lets the consent page resolve the display-safe client metadata
+             * through the plugin's signed-query endpoint. The endpoint remains
+             * unusable for handwritten or expired authorization URLs because
+             * Better Auth verifies `oauth_query` before reading the client.
+             */
+            allowPublicClientPrelogin: true,
             allowDynamicClientRegistration: false,
             allowUnauthenticatedClientRegistration: false,
             /**
@@ -1324,8 +1331,9 @@ export const auth = betterAuth({
              * `GET` readers it cannot see, and what keeps a future plugin
              * version from mounting a seventh endpoint into an open door.
              *
-             * The consent page's client lookup is unaffected: `public-client`
-             * does not consult this hook.
+             * The consent page's client lookup is unaffected:
+             * `public-client-prelogin` does not consult this hook and instead
+             * requires the signed authorization query.
              */
             clientPrivileges: () => false,
             /**

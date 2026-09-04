@@ -35,24 +35,34 @@ export async function refreshStoredOAuth(
 ): Promise<StoredOAuthCredential> {
   return withCredentialsLock(async () => {
     const stored = readStoredOAuth(readCredentialsProfile(profile.authProfile))
-    if (stored && stored.refreshToken !== current.refreshToken) return stored
+    if (!stored || stored.loginId !== current.loginId) {
+      throw new SimApiError(
+        `The stored login changed while this command was waiting to refresh it. Retry the command with the active login for profile ${profile.authProfile}.`,
+        401
+      )
+    }
+    if (stored.refreshToken !== current.refreshToken) return stored
 
     let tokens: StoredOAuthCredential
     try {
       const refreshed = await refreshTokens(
         profile.endpoint,
         current.refreshToken,
+        current.scope.split(' ').filter(Boolean),
         AbortSignal.timeout(REFRESH_TIMEOUT_MS)
       )
       tokens = {
         accessToken: refreshed.accessToken,
         refreshToken: refreshed.refreshToken,
         expiresAt: refreshed.expiresAt,
+        issuer: current.issuer,
+        loginId: current.loginId,
+        scope: refreshed.scope,
       }
     } catch (error) {
       if (error instanceof OAuthTokenError && error.oauthError === 'invalid_grant') {
         throw new SimApiError(
-          `Your Sim login has expired or was revoked. Run: sim login --profile ${profile.authProfile}`,
+          `Your Sim login has expired or was revoked. Run sim logout --profile ${profile.authProfile}, then sim login --profile ${profile.authProfile}.`,
           401
         )
       }

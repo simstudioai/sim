@@ -4,7 +4,7 @@ import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-
 
 export type McpTransport = 'streamable-http'
 
-/** `oauth` uses the SDK's authProvider; `headers` is a static map; `none` is unauthenticated. */
+/** `oauth` uses an OAuth grant; `headers` is a static map; `none` is unauthenticated. */
 export type McpAuthType = 'none' | 'headers' | 'oauth'
 
 export interface McpServerStatusConfig {
@@ -203,12 +203,13 @@ export interface McpClientOptions {
    */
   resolvedIP?: string
   /**
-   * SDK-compatible OAuth client provider. When provided, the underlying
-   * StreamableHTTPClientTransport delegates token discovery, refresh, and
-   * 401 recovery to it. Should be supplied for `authType === 'oauth'`
-   * server configs.
+   * SDK provider for an enrollment whose grant has not been persisted yet.
+   * Persisted runtime grants must use oauthCredentials to coordinate refreshes.
+   * Supply exactly one of these for an OAuth server.
    */
   authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
+  /** Runtime OAuth grants coordinate refreshes across clients using persisted credentials. */
+  oauthCredentials?: import('@/lib/mcp/oauth/coordinated-fetch').McpOauthSession
   /** Encrypted-only provenance for Secrets-tab references resolved into this connection. */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }

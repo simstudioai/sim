@@ -154,8 +154,6 @@ export const createKnowledgeBaseBodySchema = z.object({
    * `null` (or omitted) creates it at the workspace root.
    */
   folderId: z.string().min(1, 'Folder ID cannot be empty').nullable().optional(),
-  embeddingModel: z.literal('text-embedding-3-small').default('text-embedding-3-small'),
-  embeddingDimension: z.literal(1536).default(1536),
   chunkingConfig: chunkingConfigSchema.default(DEFAULT_CHUNKING_CONFIG),
 })
 
@@ -173,8 +171,6 @@ export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
      */
     folderId: z.string().min(1, 'Folder ID cannot be empty').nullable().optional(),
     workspaceId: z.string().nullable().optional(),
-    embeddingModel: z.literal('text-embedding-3-small').optional(),
-    embeddingDimension: z.literal(1536).optional(),
   })
 
 const knowledgeChunkingConfigSchema = z

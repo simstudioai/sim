@@ -10,7 +10,8 @@ import { client } from '@/lib/auth/auth-client'
 export const oauthProviderKeys = {
   all: ['oauth-provider'] as const,
   clients: () => [...oauthProviderKeys.all, 'client'] as const,
-  client: (clientId?: string) => [...oauthProviderKeys.clients(), clientId ?? ''] as const,
+  client: (clientId?: string, authorizationRequestKey?: string) =>
+    [...oauthProviderKeys.clients(), clientId ?? '', authorizationRequestKey ?? ''] as const,
   authorizedApps: () => [...oauthProviderKeys.all, 'authorized-apps'] as const,
 }
 
@@ -58,8 +59,8 @@ async function fetchPublicClient(
   clientId: string,
   signal?: AbortSignal
 ): Promise<OAuthPublicClient> {
-  const { data, error } = await client.oauth2.publicClient({
-    query: { client_id: clientId },
+  const { data, error } = await client.oauth2.publicClientPrelogin({
+    client_id: clientId,
     fetchOptions: { signal },
   })
   if (error || !data) {
@@ -68,11 +69,11 @@ async function fetchPublicClient(
   return { clientId: data.client_id, name: data.client_name ?? null }
 }
 
-export function useOAuthPublicClient(clientId?: string) {
+export function useOAuthPublicClient(clientId?: string, authorizationRequestKey?: string) {
   return useQuery({
-    queryKey: oauthProviderKeys.client(clientId),
+    queryKey: oauthProviderKeys.client(clientId, authorizationRequestKey),
     queryFn: ({ signal }) => fetchPublicClient(clientId as string, signal),
-    enabled: Boolean(clientId),
+    enabled: Boolean(clientId && authorizationRequestKey),
     staleTime: OAUTH_PUBLIC_CLIENT_STALE_TIME,
   })
 }

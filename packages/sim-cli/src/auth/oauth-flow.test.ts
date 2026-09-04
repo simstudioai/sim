@@ -24,7 +24,7 @@ const TOKENS = {
   access_token: 'sim_oat_access',
   refresh_token: 'sim_ort_refresh',
   expires_in: 3600,
-  scope: 'openid api:read',
+  scope: 'offline_access api:read',
   token_type: 'Bearer',
 }
 
@@ -51,7 +51,7 @@ describe('buildAuthorizeUrl', () => {
     const url = new URL(
       buildAuthorizeUrl(ENDPOINT, {
         redirectUri: buildRedirectUri(54321),
-        scopes: ['openid', 'api:read'],
+        scopes: ['offline_access', 'api:read'],
         pkce,
       })
     )
@@ -59,7 +59,7 @@ describe('buildAuthorizeUrl', () => {
     expect(url.searchParams.get('client_id')).toBe(OAUTH_CLIENT_ID)
     expect(url.searchParams.get('response_type')).toBe('code')
     expect(url.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:54321/callback')
-    expect(url.searchParams.get('scope')).toBe('openid api:read')
+    expect(url.searchParams.get('scope')).toBe('offline_access api:read')
     expect(url.searchParams.get('code_challenge')).toBe(pkce.challenge)
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     expect(url.searchParams.get('state')).toBe(pkce.state)
@@ -69,7 +69,10 @@ describe('buildAuthorizeUrl', () => {
 describe('discoverOAuthProvider', () => {
   it('reports a server that publishes a token endpoint as available', async () => {
     vi.stubGlobal('fetch', async () =>
-      reply(200, { token_endpoint: `${ENDPOINT}/api/auth/oauth2/token` })
+      reply(200, {
+        issuer: `${ENDPOINT}/api/auth`,
+        token_endpoint: `${ENDPOINT}/api/auth/oauth2/token`,
+      })
     )
     await expect(discoverOAuthProvider(ENDPOINT)).resolves.toBe('available')
   })
@@ -97,6 +100,7 @@ describe('token endpoint', () => {
       code: 'abc',
       redirectUri: 'http://127.0.0.1:1/callback',
       verifier: 'v',
+      requestedScopes: ['offline_access', 'api:read'],
     })
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
@@ -147,7 +151,7 @@ describe('loginWithBrowser', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const login = loginWithBrowser(ENDPOINT, {
-      scopes: ['openid', 'api:read'],
+      scopes: ['offline_access', 'api:read'],
       onAuthorizeUrl: (url) => {
         const authorize = new URL(url)
         const redirectUri = new URL(authorize.searchParams.get('redirect_uri') as string)
@@ -197,7 +201,7 @@ describe('loginWithBrowser', () => {
 
     let forgedStatus: number | undefined
     const login = loginWithBrowser(ENDPOINT, {
-      scopes: ['openid', 'api:read'],
+      scopes: ['offline_access', 'api:read'],
       onAuthorizeUrl: (url) => {
         const authorize = new URL(url)
         const redirectUri = new URL(authorize.searchParams.get('redirect_uri') as string)
@@ -245,7 +249,11 @@ describe('loginWithBrowser', () => {
   it('gives up after the timeout with the browserless fallback named', async () => {
     vi.stubGlobal('fetch', vi.fn())
     await expect(
-      loginWithBrowser(ENDPOINT, { scopes: ['openid'], onAuthorizeUrl: () => {}, timeoutMs: 20 })
+      loginWithBrowser(ENDPOINT, {
+        scopes: ['offline_access', 'api:read'],
+        onAuthorizeUrl: () => {},
+        timeoutMs: 20,
+      })
     ).rejects.toThrow('--browserless')
   })
 })

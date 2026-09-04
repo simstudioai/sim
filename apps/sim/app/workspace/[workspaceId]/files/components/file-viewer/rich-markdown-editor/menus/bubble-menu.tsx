@@ -278,7 +278,12 @@ export function EditorBubbleMenu({
           <>
             {onAddToChat && (
               <>
-                <ToolbarButton icon={Blimp} label='Add to Chat' onClick={onAddToChat} />
+                <ToolbarButton
+                  icon={Blimp}
+                  iconSize='compact'
+                  label='Add to Chat'
+                  onClick={onAddToChat}
+                />
                 <ToolbarDivider />
               </>
             )}

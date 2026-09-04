@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { oauthAccessToken, oauthRefreshToken } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { inArray, lt } from 'drizzle-orm'
+import { asc, inArray, lt } from 'drizzle-orm'
 
 const logger = createLogger('CleanupOAuthTokens')
 
@@ -15,11 +15,12 @@ const logger = createLogger('CleanupOAuthTokens')
 export const OAUTH_TOKEN_RETENTION_DAYS = 7
 
 /**
- * Rows removed per table per run, so one sweep cannot hold a long transaction
- * over the busiest tables the provider writes. Whatever is left is collected on
- * the next run.
+ * Rows removed per statement. A run drains several bounded pages so routine
+ * rotation volume cannot create a permanent backlog, while every delete keeps
+ * a predictable lock footprint.
  */
 const OAUTH_TOKEN_SWEEP_LIMIT = 5_000
+const OAUTH_TOKEN_SWEEP_MAX_PAGES = 10
 
 export interface CleanupOAuthTokensResult {
   refreshTokens: number
@@ -42,38 +43,54 @@ export interface CleanupOAuthTokensResult {
  */
 export async function runCleanupOAuthTokens(): Promise<CleanupOAuthTokensResult> {
   const cutoff = new Date(Date.now() - OAUTH_TOKEN_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+  let refreshTokens = 0
+  let accessTokens = 0
 
-  const staleRefresh = await db
-    .select({ id: oauthRefreshToken.id })
-    .from(oauthRefreshToken)
-    .where(lt(oauthRefreshToken.expiresAt, cutoff))
-    .limit(OAUTH_TOKEN_SWEEP_LIMIT)
+  for (let page = 0; page < OAUTH_TOKEN_SWEEP_MAX_PAGES; page += 1) {
+    const staleRefresh = await db
+      .select({ id: oauthRefreshToken.id })
+      .from(oauthRefreshToken)
+      .where(lt(oauthRefreshToken.expiresAt, cutoff))
+      .orderBy(asc(oauthRefreshToken.expiresAt), asc(oauthRefreshToken.id))
+      .limit(OAUTH_TOKEN_SWEEP_LIMIT)
+    if (staleRefresh.length === 0) break
 
-  if (staleRefresh.length > 0) {
-    await db.delete(oauthRefreshToken).where(
-      inArray(
-        oauthRefreshToken.id,
-        staleRefresh.map((row) => row.id)
+    const deleted = await db
+      .delete(oauthRefreshToken)
+      .where(
+        inArray(
+          oauthRefreshToken.id,
+          staleRefresh.map((row) => row.id)
+        )
       )
-    )
+      .returning({ id: oauthRefreshToken.id })
+    refreshTokens += deleted.length
+    if (staleRefresh.length < OAUTH_TOKEN_SWEEP_LIMIT) break
   }
 
-  const staleAccess = await db
-    .select({ id: oauthAccessToken.id })
-    .from(oauthAccessToken)
-    .where(lt(oauthAccessToken.expiresAt, cutoff))
-    .limit(OAUTH_TOKEN_SWEEP_LIMIT)
+  for (let page = 0; page < OAUTH_TOKEN_SWEEP_MAX_PAGES; page += 1) {
+    const staleAccess = await db
+      .select({ id: oauthAccessToken.id })
+      .from(oauthAccessToken)
+      .where(lt(oauthAccessToken.expiresAt, cutoff))
+      .orderBy(asc(oauthAccessToken.expiresAt), asc(oauthAccessToken.id))
+      .limit(OAUTH_TOKEN_SWEEP_LIMIT)
+    if (staleAccess.length === 0) break
 
-  if (staleAccess.length > 0) {
-    await db.delete(oauthAccessToken).where(
-      inArray(
-        oauthAccessToken.id,
-        staleAccess.map((row) => row.id)
+    const deleted = await db
+      .delete(oauthAccessToken)
+      .where(
+        inArray(
+          oauthAccessToken.id,
+          staleAccess.map((row) => row.id)
+        )
       )
-    )
+      .returning({ id: oauthAccessToken.id })
+    accessTokens += deleted.length
+    if (staleAccess.length < OAUTH_TOKEN_SWEEP_LIMIT) break
   }
 
-  const result = { refreshTokens: staleRefresh.length, accessTokens: staleAccess.length }
+  const result = { refreshTokens, accessTokens }
   logger.info('Swept expired OAuth tokens', {
     ...result,
     retentionDays: OAUTH_TOKEN_RETENTION_DAYS,

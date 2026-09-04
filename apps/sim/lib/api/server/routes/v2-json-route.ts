@@ -357,6 +357,8 @@ export interface V2ScopePolicy {
    * the route definition rather than inferred, and the reason belongs beside it.
    */
   readOnly?: boolean
+  /** Whether a safe-method route still performs externally visible work or persistence. */
+  write?: boolean
 }
 
 /**
@@ -384,7 +386,9 @@ function refuseOutOfScopeRequest(
   scopePolicy: V2ScopePolicy | undefined
 ): NextResponse | null {
   if (auth.principal.kind !== 'oauth_access_token') return null
-  const writes = !scopePolicy?.readOnly && !SAFE_HTTP_METHODS.has(request.method)
+  const writes =
+    scopePolicy?.write === true ||
+    (!scopePolicy?.readOnly && !SAFE_HTTP_METHODS.has(request.method))
   const required = writes ? OAUTH_API_WRITE_SCOPE : OAUTH_API_READ_SCOPE
   if (oauthScopeSatisfies(auth.principal.scopes, required)) return null
   return v2InsufficientScope(new InsufficientScopeError(required))
@@ -406,7 +410,9 @@ async function admitAuthenticatedV2Request(
     if (error instanceof V2ApiKeyUnauthenticatedError) {
       return {
         success: false,
-        response: v2Error('UNAUTHORIZED', error.message, { authChallenge: error.challenge }),
+        response: v2Error('UNAUTHORIZED', error.message, {
+          authChallenge: error.challenge,
+        }),
       }
     }
     throw new V2RouteInfrastructureError('authentication', error)
@@ -438,25 +444,27 @@ export async function admitV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  scopePolicy?: V2ScopePolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
-  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy)
+  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy, scopePolicy)
 }
 
 export async function admitOptionalV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  scopePolicy?: V2ScopePolicy
 ): Promise<
   { success: true; auth?: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   if (!hasV2Credential(request.headers)) return { success: true }
-  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy, scopePolicy)
 }
 
 /**
@@ -525,6 +533,11 @@ export function defineV2JsonRoute<
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
   requireUnsafeMethodForReadOnly(options.contract, options.readOnly)
+  if (options.readOnly && options.write) {
+    throw new Error(
+      `V2 route ${options.contract.method} ${options.contract.path} cannot declare both readOnly and write.`
+    )
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
@@ -539,7 +552,7 @@ export function defineV2JsonRoute<
         options.operation,
         options.auth,
         options.rateLimit,
-        { readOnly: options.readOnly }
+        { readOnly: options.readOnly, write: options.write }
       )
       if (!admission.success) return admission.response
       const { auth } = admission
@@ -547,7 +560,11 @@ export function defineV2JsonRoute<
       if (options.beforeParse) {
         const rawParams = context?.params ? await context.params : {}
         try {
-          await options.beforeParse({ request, principal: auth.principal, params: rawParams })
+          await options.beforeParse({
+            request,
+            principal: auth.principal,
+            params: rawParams,
+          })
         } catch (error) {
           const response = options.errorPolicy.render(error)
           if (response) return response

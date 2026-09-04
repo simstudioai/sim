@@ -93,6 +93,8 @@ OAUTH_PROVIDER_ENABLED=false
 
 With it off, the discovery document at `/.well-known/oauth-authorization-server`
 returns 404 and the CLI falls back to the pairing-code handoff on its own.
+`DISABLE_AUTH=true` also forces the provider off because the authorization flow
+requires a real Better Auth user session.
 
 Access tokens are opaque and last an hour; refresh tokens rotate on every use
 and expire after thirty days. Nothing is cached, so revoking a grant under
@@ -109,12 +111,16 @@ BETTER_AUTH_SECRET=… \
 OAUTH_CLIENT_ID=my-app \
 OAUTH_CLIENT_NAME="My App" \
 OAUTH_REDIRECT_URIS=https://my-app.example/callback \
+OAUTH_SCOPES=api:read \
 bun run apps/sim/scripts/create-oauth-client.ts
 ```
 
 Add `OAUTH_CLIENT_PUBLIC=true` for a native or CLI app that cannot keep a
-secret; it then authenticates with PKCE alone. A confidential client's secret is
-printed once and cannot be read back.
+secret; it then authenticates with PKCE alone. Public clients are API clients in
+this configuration and may request `offline_access`, `api:read`, and
+`api:write`, but not the OpenID identity scopes because public clients cannot
+receive an ID token while JWT signing is disabled. A confidential client's
+secret is printed once and cannot be read back.
 
 Redirect URIs must be `https`, or `http` on a loopback address, and are matched
 exactly — except a loopback URI, where any port matches, because a native app

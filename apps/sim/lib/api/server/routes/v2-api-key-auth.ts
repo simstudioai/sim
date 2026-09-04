@@ -198,5 +198,8 @@ export async function authenticateV2ApiKey(
   }
   if (credential.apiKey) return authenticateApiKey(credential.apiKey)
   if (credential.bearer) return authenticateBearer(credential.bearer)
+  if (credential.malformedOAuthBearer) {
+    throw new V2ApiKeyUnauthenticatedError('Invalid access token', 'bearer')
+  }
   throw new V2ApiKeyUnauthenticatedError('API key required')
 }

@@ -23,6 +23,7 @@ function selectChain(rows: unknown[], captured: unknown[]) {
     captured.push(clause)
     return chain
   }
+  chain.orderBy = () => chain
   chain.limit = () => chain
   chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve)
   return chain
@@ -38,10 +39,11 @@ describe('runCleanupOAuthTokens', () => {
     mocks.select
       .mockReturnValueOnce(selectChain([{ id: 'r1' }, { id: 'r2' }], []))
       .mockReturnValueOnce(selectChain([{ id: 'a1' }], []))
+    const returned = [[{ id: 'r1' }, { id: 'r2' }], [{ id: 'a1' }]]
     mocks.delete.mockImplementation((table: unknown) => ({
       where: (clause: unknown) => {
         deletedFrom.push([table, clause])
-        return Promise.resolve()
+        return { returning: () => Promise.resolve(returned.shift() ?? []) }
       },
     }))
 

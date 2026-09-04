@@ -14,11 +14,12 @@ const mocks = vi.hoisted(() => ({
     async () => 'unavailable' as 'available' | 'unavailable' | 'unreachable'
   ),
   isLikelyRemoteSession: vi.fn(() => false),
+  requireSecureEndpoint: vi.fn(),
   loginWithBrowser: vi.fn(async () => ({
     accessToken: 'sim_oat_access',
     refreshToken: 'sim_ort_refresh',
     expiresAt: 1_800_000_000_000,
-    scope: 'openid profile email offline_access api:read api:write',
+    scope: 'offline_access api:read api:write',
   })),
   revokeToken: vi.fn(async () => undefined),
   grantsWriteAccess: vi.fn((scope: string) => scope.split(' ').includes('api:write')),
@@ -60,11 +61,12 @@ vi.mock('../auth/device-flow', () => ({
 vi.mock('../auth/oauth-flow', () => ({
   discoverOAuthProvider: mocks.discoverOAuthProvider,
   isLikelyRemoteSession: mocks.isLikelyRemoteSession,
+  requireSecureEndpoint: mocks.requireSecureEndpoint,
   loginWithBrowser: mocks.loginWithBrowser,
   revokeToken: mocks.revokeToken,
   grantsWriteAccess: mocks.grantsWriteAccess,
-  OAUTH_SCOPES_FULL: ['openid', 'profile', 'email', 'offline_access', 'api:read', 'api:write'],
-  OAUTH_SCOPES_READ_ONLY: ['openid', 'profile', 'email', 'offline_access', 'api:read'],
+  OAUTH_SCOPES_FULL: ['offline_access', 'api:read', 'api:write'],
+  OAUTH_SCOPES_READ_ONLY: ['offline_access', 'api:read'],
 }))
 /**
  * The validators and the format list come from the real module rather than a
@@ -95,6 +97,7 @@ vi.mock('../config/index', async () => ({
   listAuthenticationDependents: mocks.listAuthenticationDependents,
   listProfiles: mocks.listProfiles,
   readCredentialsProfile: mocks.readCredentialsProfile,
+  oauthIssuerForEndpoint: (endpoint: string) => `${endpoint}/api/auth`,
   /**
    * Derived from the section mock so a test that seeds `{ api_key }` or the
    * OAuth keys sees the same credential the shipped reader would.
@@ -108,6 +111,9 @@ vi.mock('../config/index', async () => ({
           accessToken: section.access_token,
           refreshToken: section.refresh_token,
           expiresAt: Number(section.token_expires_at ?? 0),
+          issuer: section.oauth_issuer ?? 'https://sim.ai/api/auth',
+          loginId: section.oauth_login_id ?? 'login-1',
+          scope: section.oauth_scope ?? 'offline_access api:read api:write',
         },
       }
     }
@@ -1113,7 +1119,7 @@ describe('login command — OAuth', () => {
     expect(mocks.loginWithBrowser).toHaveBeenCalledWith(
       'https://sim.ai',
       expect.objectContaining({
-        scopes: ['openid', 'profile', 'email', 'offline_access', 'api:read', 'api:write'],
+        scopes: ['offline_access', 'api:read', 'api:write'],
       })
     )
     expect(mocks.createAuthRequest).not.toHaveBeenCalled()
@@ -1126,6 +1132,9 @@ describe('login command — OAuth', () => {
         accessToken: 'sim_oat_access',
         refreshToken: 'sim_ort_refresh',
         expiresAt: 1_800_000_000_000,
+        issuer: 'https://sim.ai/api/auth',
+        loginId: expect.any(String),
+        scope: 'offline_access api:read api:write',
       },
     })
   })
@@ -1137,7 +1146,7 @@ describe('login command — OAuth', () => {
     expect(mocks.loginWithBrowser).toHaveBeenCalledWith(
       'https://sim.ai',
       expect.objectContaining({
-        scopes: ['openid', 'profile', 'email', 'offline_access', 'api:read'],
+        scopes: ['offline_access', 'api:read'],
       })
     )
   })
@@ -1192,7 +1201,7 @@ describe('login command — OAuth', () => {
     expect(mocks.pollForKey).not.toHaveBeenCalled()
   })
 
-  it('prompts before replacing a stored OAuth login', async () => {
+  it('requires logout before replacing a stored OAuth login', async () => {
     setInteractive(false)
     mocks.readCredentialsProfile.mockReturnValue({
       access_token: 'a',
@@ -1200,7 +1209,10 @@ describe('login command — OAuth', () => {
       token_expires_at: '1',
     })
 
-    await expect(login()).rejects.toThrow('Re-run with --yes')
+    await expect(login()).rejects.toThrow('Run sim logout --profile default')
+    await expect(login('--yes')).rejects.toThrow('Run sim logout --profile default')
+    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.pollForKey).not.toHaveBeenCalled()
   })
 })
 

@@ -12,7 +12,7 @@ vi.mock('@/lib/core/config/env', () =>
 import { resolveApiCorsPolicy } from '@/proxy'
 
 const EXPOSED_HEADERS =
-  'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
+  'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
 function makeRequest(pathname: string, origin?: string): NextRequest {
   return {
@@ -130,6 +130,7 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.credentials).toBe(false)
     expect(policy.headers).toContain('X-Run-Id')
     expect(policy.headers).toContain('X-Sim-Stream-Protocol')
+    expect(policy.headers).toContain('Authorization')
     expect(policy.headers).not.toContain('X-Execution-Id')
     // Async is body-selected on v2 — the mode header is deliberately absent.
     expect(policy.headers).not.toContain('X-Execution-Mode')
@@ -159,8 +160,7 @@ describe('resolveApiCorsPolicy', () => {
       origin: 'https://app.sim.test',
       credentials: true,
       methods: 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
-      exposeHeaders:
-        'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id',
+      exposeHeaders: EXPOSED_HEADERS,
       headers: expect.stringContaining('Authorization'),
     })
   })

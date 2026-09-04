@@ -20,9 +20,10 @@ import { OAuthConsentLoading } from '@/app/(auth)/oauth/consent/loading'
 import { useOAuthConsent, useOAuthPublicClient } from '@/hooks/queries/oauth-provider'
 
 /** Why the page refuses to render a grant, when it does. */
-export type OAuthConsentRefusal = 'missing' | 'tampered' | 'unsigned'
+export type OAuthConsentRefusal = 'expired' | 'missing' | 'tampered' | 'unsigned'
 
 const REFUSAL_MESSAGES: Record<OAuthConsentRefusal, string> = {
+  expired: 'This authorization request has expired. Start sign-in again from the app.',
   missing: 'The authorization request is missing its client identifier.',
   tampered: 'This authorization request was altered on its way here.',
   unsigned: 'This authorization request did not come from Sim.',
@@ -32,6 +33,8 @@ interface OAuthConsentViewProps {
   /** Set when the page already knows the request is not a real one. */
   refusal: OAuthConsentRefusal | null
   clientId: string | null
+  /** Isolates cached client metadata to every parameter in this signed request. */
+  authorizationRequestKey: string | null
   scope: string | null
   /** Where the code will be sent, shown so a lookalike app is visible as one. */
   redirectUri: string | null
@@ -70,11 +73,12 @@ function describeDestination(redirectUri: string | null): string | null {
 export function OAuthConsentView({
   refusal,
   clientId,
+  authorizationRequestKey,
   scope,
   redirectUri,
   email,
 }: OAuthConsentViewProps) {
-  const client = useOAuthPublicClient(clientId ?? undefined)
+  const client = useOAuthPublicClient(clientId ?? undefined, authorizationRequestKey ?? undefined)
   const consent = useOAuthConsent()
 
   /**
@@ -111,7 +115,20 @@ export function OAuthConsentView({
    * a name asserted by the URL: the id is what an impostor controls, so a
    * client the server declines to name is one this card must not vouch for.
    */
-  const appName = client.data?.name ?? 'this app'
+  const appName = client.data?.name?.trim()
+  if (!appName) {
+    return (
+      <div className='space-y-6'>
+        <AuthHeader
+          title='Invalid request'
+          description='This page can only be opened by an app registered with a display name.'
+        />
+        <AuthFormMessage type='error' align='center'>
+          Sim could not identify the app asking for access.
+        </AuthFormMessage>
+      </div>
+    )
+  }
   const scopes = visibleOAuthScopes((scope ?? '').split(' ').filter(Boolean))
   const destination = describeDestination(redirectUri)
 

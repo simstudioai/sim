@@ -200,7 +200,7 @@ describe('generated OpenAPI documents', () => {
       'Workflow Runs',
     ])
     expect(execute.tags).toEqual(['Workflows'])
-    expect(execute.security).toEqual([{ apiKey: [] }, {}])
+    expect(execute.security).toEqual([{ apiKey: [] }, { oauthBearer: [] }, {}])
     expect(Object.keys(executeOkContent).sort()).toEqual(['application/json', 'text/event-stream'])
     expect(Object.keys(executeQueuedContent)).toEqual(['application/json'])
 

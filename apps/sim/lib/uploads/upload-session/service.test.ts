@@ -224,6 +224,33 @@ describe('upload sessions', () => {
     }
   )
 
+  it('keeps an OAuth upload bound across access-token rotation for the same client', () => {
+    const original: Principal = {
+      kind: 'oauth_access_token',
+      userId: 'user-1',
+      clientId: 'sim-cli',
+      tokenId: 'token-1',
+      scopes: ['api:write'],
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    }
+    const session = sessionRecord({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      metadata: { authBinding: createUploadSessionAuthBinding(original, WORKSPACE_ID) },
+    })
+    const rotated: Principal = { ...original, tokenId: 'token-2' }
+    const otherClient: Principal = { ...original, clientId: 'other-client', tokenId: 'token-3' }
+    const otherUser: Principal = { ...original, userId: 'user-2', tokenId: 'token-4' }
+
+    expect(() => assertUploadSessionAuthBinding(session, rotated)).not.toThrow()
+    expect(() => assertUploadSessionAuthBinding(session, otherClient)).toThrow(
+      'Upload session not found'
+    )
+    expect(() => assertUploadSessionAuthBinding(session, otherUser)).toThrow(
+      'Upload session not found'
+    )
+  })
+
   it('allocates distinct keys for same-named execution attachments', async () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce([

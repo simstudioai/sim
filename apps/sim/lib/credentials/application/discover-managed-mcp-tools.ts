@@ -10,7 +10,6 @@ import {
   saveManagedMcpToolSnapshot,
 } from '@/lib/credentials/managed-mcp'
 import { loadManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
-import { withMcpOauthRefreshLock } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 
 export interface DiscoverManagedMcpToolsInput {
@@ -35,14 +34,15 @@ export const discoverManagedMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ input, context }) {
     input.signal?.throwIfAborted()
     const runtime = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
-    const tools = await withMcpOauthRefreshLock(runtime.credentialId, async () =>
-      mcpService.discoverManagedMcpTools(
-        runtime.mcpServerId,
-        runtime.workspaceId,
-        await loadManagedMcpAuthProvider(runtime.credentialId, runtime.workspaceId),
-        input.signal,
-        { requireComplete: true }
-      )
+    const tools = await mcpService.discoverManagedMcpTools(
+      runtime.mcpServerId,
+      runtime.workspaceId,
+      {
+        credentialId: runtime.credentialId,
+        loadProvider: () => loadManagedMcpAuthProvider(runtime.credentialId, runtime.workspaceId),
+      },
+      input.signal,
+      { requireComplete: true }
     )
     await saveManagedMcpToolSnapshot(
       runtime.credentialId,

@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { oauthAccessToken, oauthClient, oauthConsent, oauthRefreshToken } from '@sim/db/schema'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import type { AuthorizedApp } from '@/lib/api/contracts/user'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -80,15 +80,8 @@ export const revokeAuthorizedAppUseCase: OperationUseCase<
         .delete(oauthConsent)
         .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, clientId)))
       await tx
-        .update(oauthRefreshToken)
-        .set({ revoked: new Date() })
-        .where(
-          and(
-            eq(oauthRefreshToken.userId, userId),
-            eq(oauthRefreshToken.clientId, clientId),
-            isNull(oauthRefreshToken.revoked)
-          )
-        )
+        .delete(oauthRefreshToken)
+        .where(and(eq(oauthRefreshToken.userId, userId), eq(oauthRefreshToken.clientId, clientId)))
       await tx
         .delete(oauthAccessToken)
         .where(and(eq(oauthAccessToken.userId, userId), eq(oauthAccessToken.clientId, clientId)))

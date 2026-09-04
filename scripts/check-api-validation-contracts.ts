@@ -61,6 +61,9 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/tools/docusign/route.ts',
   // Better Auth handles its own validation for the catch-all route below.
   'apps/sim/app/api/auth/[...all]/route.ts',
+  // Input-less RFC 8414 metadata alias. Better Auth produces the provider
+  // document; the route only adds the public-client auth method and headers.
+  'apps/sim/app/api/auth/.well-known/oauth-authorization-server/route.ts',
   // Better Auth handles validation for the Stripe webhook handler.
   'apps/sim/app/api/auth/webhook/stripe/route.ts',
   // Routes with no client-supplied input that previously had no-op

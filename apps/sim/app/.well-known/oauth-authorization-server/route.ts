@@ -1,6 +1,4 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
-import { isOAuthProviderEnabled } from '@/lib/core/config/env-flags'
+import { getOAuthProviderMetadataResponse } from '@/lib/auth/oauth-provider-metadata'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 /**
@@ -14,25 +12,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
  * Note the issuer this document names is `<origin>/api/auth`, which is where
  * Better Auth mounts the provider — so a client following RFC 8414 §3.1 to the
  * letter would look under `/.well-known/oauth-authorization-server/api/auth`.
- * This copy is the probe; that path is served by the plugin.
+ * This copy is the probe; Sim serves the issuer-derived alias from the same
+ * response helper so every discovery path stays byte-for-byte equivalent.
  */
-/** Metadata changes only on deploy, and a client re-reads it per connection. */
-const DISCOVERY_CACHE_SECONDS = 300
-
-/**
- * Readable from any origin, like every other authorization-server metadata
- * document. It is served from the origin root rather than under `/api/`, which
- * is the only path the proxy's CORS layer covers, so the header is set here.
- */
-const DISCOVERY_HEADERS = {
-  'Cache-Control': `public, max-age=${DISCOVERY_CACHE_SECONDS}`,
-  'Access-Control-Allow-Origin': '*',
-} as const
-
-export const GET = withRouteHandler(async () => {
-  if (!isOAuthProviderEnabled) {
-    return NextResponse.json({ error: 'OAuth provider is not enabled' }, { status: 404 })
-  }
-  const metadata = await auth.api.getOAuthServerConfig()
-  return NextResponse.json(metadata, { headers: DISCOVERY_HEADERS })
-})
+export const GET = withRouteHandler(getOAuthProviderMetadataResponse)

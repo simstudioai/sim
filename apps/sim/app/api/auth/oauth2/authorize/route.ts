@@ -22,21 +22,47 @@ export const dynamic = 'force-dynamic'
 
 const { GET: betterAuthGET } = toNextJsHandler(auth.handler)
 
+const OAUTH_AUTHORIZE_PARAMETERS = new Set([
+  'response_type',
+  'client_id',
+  'redirect_uri',
+  'scope',
+  'state',
+  'request_uri',
+  'code_challenge',
+  'code_challenge_method',
+  'nonce',
+  'prompt',
+])
+
+/** OAuth authorization parameters are single-valued. */
+function rejectRepeatedOAuthAuthorizeParameter(request: NextRequest): NextResponse | null {
+  for (const name of OAUTH_AUTHORIZE_PARAMETERS) {
+    if (request.nextUrl.searchParams.getAll(name).length <= 1) continue
+    return NextResponse.json(
+      {
+        error: 'invalid_request',
+        error_description: `OAuth parameter ${name} appears more than once.`,
+      },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+    )
+  }
+  return null
+}
+
 /**
  * Whether this is a client asking Sim to sign its user in — the OAuth provider's
  * authorize request — rather than a user linking an external account.
  *
  * This route sits on the same path Better Auth mounts the provider's authorize
- * endpoint, so the catch-all never sees it. The two requests cannot be
- * confused: a provider request names a `client_id`, while a connector link
- * names either a `providerId` or a `draftId` — the draft leg resolves its
- * provider server-side and so carries no `providerId`, which is why both are
- * checked — and never a `client_id`. Whether the id is registered is not
- * decided here; an unknown one is the plugin's error to return.
+ * endpoint, so the catch-all never sees it. A `client_id` is the unambiguous
+ * provider discriminator: connector links never send it, and extra connector
+ * parameters on a provider request must not reroute signed-in users into the
+ * credential-linking flow. Whether the id is registered is the plugin's
+ * decision.
  */
 function isOAuthProviderAuthorize(request: NextRequest): boolean {
-  const query = request.nextUrl.searchParams
-  return query.has('client_id') && !query.has('providerId') && !query.has('draftId')
+  return request.nextUrl.searchParams.has('client_id')
 }
 
 /**
@@ -48,6 +74,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!isOAuthProviderEnabled) {
       return NextResponse.json({ error: 'OAuth provider is not enabled' }, { status: 404 })
     }
+    const repeatedParameter = rejectRepeatedOAuthAuthorizeParameter(request)
+    if (repeatedParameter) return repeatedParameter
     return betterAuthGET(request)
   }
 

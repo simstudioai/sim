@@ -18,9 +18,11 @@
  *
  * Optional:
  *   OAUTH_CLIENT_PUBLIC=true          A native/CLI app that cannot keep a secret (PKCE only, no secret issued)
- *   OAUTH_CLIENT_URI=https://…        Homepage link on the consent page
- *   OAUTH_CLIENT_LOGO_URI=https://…   Logo on the consent page
- *   OAUTH_SCOPES=openid,profile,email,offline_access,api:read,api:write   Scopes the client may request
+ *   OAUTH_CLIENT_URI=https://…        Homepage stored in the client's metadata
+ *   OAUTH_CLIENT_LOGO_URI=https://…   Logo stored in the client's metadata
+ *
+ * Required for least privilege:
+ *   OAUTH_SCOPES=api:read             Comma-separated scopes the client may request
  *
  * A confidential client's secret is generated here, encrypted the way the
  * provider stores it, and printed exactly once.
@@ -41,7 +43,7 @@ import { symmetricEncrypt } from 'better-auth/crypto'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { OAUTH_SCOPES } from '@/lib/auth/oauth-provider'
+import { OAUTH_PUBLIC_CLIENT_SCOPES, OAUTH_SCOPES } from '@/lib/auth/oauth-provider'
 
 /**
  * Read from the provider's own list rather than copied, and every requested
@@ -57,7 +59,7 @@ function requireEnv(name: string): string {
   return value
 }
 
-function parseList(value: string | undefined, fallback: string[]): string[] {
+export function parseList(value: string | undefined, fallback: string[]): string[] {
   const items = (value ?? '')
     .split(',')
     .map((item) => item.trim())
@@ -65,7 +67,22 @@ function parseList(value: string | undefined, fallback: string[]): string[] {
   return items.length > 0 ? items : fallback
 }
 
-function assertRedirectUri(uri: string): void {
+export function parseOptionalBoolean(name: string, input: string | undefined): boolean {
+  const value = input?.trim().toLowerCase()
+  if (!value) return false
+  if (value === 'true') return true
+  if (value === 'false') return false
+  throw new Error(`${name} must be true or false`)
+}
+
+export function assertTerminalSafe(name: string, value: string): void {
+  if (/[\u0000-\u001f\u007f-\u009f]/u.test(value)) {
+    throw new Error(`${name} cannot contain control characters`)
+  }
+}
+
+export function assertRedirectUri(uri: string): void {
+  assertTerminalSafe('Redirect URI', uri)
   let parsed: URL
   try {
     parsed = new URL(uri)
@@ -79,19 +96,31 @@ function assertRedirectUri(uri: string): void {
   if (parsed.hash) throw new Error(`Redirect URI cannot carry a fragment: ${uri}`)
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const clientId = requireEnv('OAUTH_CLIENT_ID')
   const name = requireEnv('OAUTH_CLIENT_NAME')
+  assertTerminalSafe('OAUTH_CLIENT_ID', clientId)
+  assertTerminalSafe('OAUTH_CLIENT_NAME', name)
   const redirectUris = parseList(process.env.OAUTH_REDIRECT_URIS, [])
   if (redirectUris.length === 0) throw new Error('OAUTH_REDIRECT_URIS is required')
   for (const uri of redirectUris) assertRedirectUri(uri)
 
-  const isPublic = process.env.OAUTH_CLIENT_PUBLIC === 'true'
-  const scopes = parseList(process.env.OAUTH_SCOPES, [...DEFAULT_SCOPES])
+  const isPublic = parseOptionalBoolean('OAUTH_CLIENT_PUBLIC', process.env.OAUTH_CLIENT_PUBLIC)
+  const scopes = parseList(process.env.OAUTH_SCOPES, [])
+  if (scopes.length === 0) throw new Error('OAUTH_SCOPES is required')
+  for (const scope of scopes) assertTerminalSafe('OAuth scope', scope)
   const unknownScopes = scopes.filter((scope) => !DEFAULT_SCOPES.includes(scope))
   if (unknownScopes.length > 0) {
     throw new Error(
       `Unknown scope(s): ${unknownScopes.join(', ')}. Sim's provider declares: ${DEFAULT_SCOPES.join(', ')}`
+    )
+  }
+  const unsupportedPublicScopes = scopes.filter(
+    (scope) => !(OAUTH_PUBLIC_CLIENT_SCOPES as readonly string[]).includes(scope)
+  )
+  if (isPublic && unsupportedPublicScopes.length > 0) {
+    throw new Error(
+      `Public clients cannot request identity scope(s) ${unsupportedPublicScopes.join(', ')} while JWT signing is disabled. Use a confidential client, or request only: ${OAUTH_PUBLIC_CLIENT_SCOPES.join(', ')}`
     )
   }
   const secret = isPublic ? null : randomBytes(32).toString('base64url')
@@ -121,13 +150,18 @@ async function main(): Promise<void> {
     }
 
     const now = new Date()
+    const clientUri = process.env.OAUTH_CLIENT_URI?.trim() || null
+    const logoUri = process.env.OAUTH_CLIENT_LOGO_URI?.trim() || null
+    if (clientUri) assertTerminalSafe('OAUTH_CLIENT_URI', clientUri)
+    if (logoUri) assertTerminalSafe('OAUTH_CLIENT_LOGO_URI', logoUri)
+
     await db.insert(oauthClient).values({
       id: generateId(),
       clientId,
       clientSecret: storedSecret,
       name,
-      uri: process.env.OAUTH_CLIENT_URI?.trim() || null,
-      icon: process.env.OAUTH_CLIENT_LOGO_URI?.trim() || null,
+      uri: clientUri,
+      icon: logoUri,
       disabled: false,
       skipConsent: false,
       public: isPublic,
@@ -142,21 +176,28 @@ async function main(): Promise<void> {
       updatedAt: now,
     })
 
-    console.log(`Created OAuth client "${name}"`)
-    console.log(`  client_id:     ${clientId}`)
-    console.log(`  type:          ${isPublic ? 'public (PKCE only)' : 'confidential'}`)
-    console.log(`  redirect_uris: ${redirectUris.join(', ')}`)
-    console.log(`  scopes:        ${scopes.join(' ')}`)
+    const output = [
+      `Created OAuth client "${name}"`,
+      `  client_id:     ${clientId}`,
+      `  type:          ${isPublic ? 'public (PKCE only)' : 'confidential'}`,
+      `  redirect_uris: ${redirectUris.join(', ')}`,
+      `  scopes:        ${scopes.join(' ')}`,
+    ]
     if (secret) {
-      console.log(`  client_secret: ${secret}`)
-      console.log('  The secret is shown once and cannot be read back; keep it now.')
+      output.push(
+        `  client_secret: ${secret}`,
+        '  The secret is shown once and cannot be read back; keep it now.'
+      )
     }
+    process.stdout.write(`${output.join('\n')}\n`)
   } finally {
     await postgresClient.end()
   }
 }
 
-main().catch((error) => {
-  console.error(`Failed to create OAuth client: ${getErrorMessage(error)}`)
-  process.exit(1)
-})
+if (import.meta.main) {
+  main().catch((error) => {
+    process.stderr.write(`Failed to create OAuth client: ${getErrorMessage(error)}\n`)
+    process.exit(1)
+  })
+}

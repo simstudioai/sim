@@ -39,14 +39,11 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const { children, plane } = props
   useSettingsBeforeUnload()
   const pathname = usePathname()
-  const { hosted, billingEnabled, features } = useDeploymentShape()
+  const { hosted, billingEnabled } = useDeploymentShape()
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false
 
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
     if (item.id === 'billing' && !billingEnabled) return false
-    // Nothing can authorize an app on a deployment that is not an OAuth
-    // provider, so the section would only ever be empty.
-    if (item.id === 'authorized-apps' && !features.oauthProvider) return false
     if ((item.id === 'admin' || item.id === 'mothership') && !isSuperUser) return false
     return true
   })

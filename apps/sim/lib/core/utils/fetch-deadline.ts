@@ -35,8 +35,9 @@ import { Agent, type Dispatcher } from 'undici'
  * disagree.
  *
  * Bun accepts only the boolean/zero form of `timeout`. Measured on Bun 1.3.14
- * against a server that withholds response headers, so the numbers below are
- * the real deadline rather than an inferred one:
+ * against a server that withholds response headers, with the numeric behavior
+ * rechecked on Bun 1.4.1, so the numbers below are the real deadline rather
+ * than an inferred one:
  *
  *   no option      -> THREW 300028ms (TimeoutError)   <- the 300s default
  *   timeout: false -> RESOLVED 310031ms               <- disarmed
@@ -56,10 +57,10 @@ import { Agent, type Dispatcher } from 'undici'
  *   dispatcher armed at 200ms            -> THREW 1011ms          <- honored
  *   dispatcher with 0/0 vs a 310s server -> RESOLVED 310016ms     <- disarmed
  *
- * `bun-types@1.3.14` does not declare `timeout` on `BunFetchRequestInit`, and
- * the DOM lib does not declare undici's `dispatcher`, even though each runtime
- * honors its respective option — the types lag the runtimes, which is why the
- * interface below is declared locally rather than imported.
+ * `bun-types@1.4.1` declares `timeout` on `BunFetchRequestInit`, but the shared
+ * DOM lib does not declare that Bun extension or undici's `dispatcher`. The
+ * interface below therefore stays local so this cross-runtime helper does not
+ * depend on either runtime's ambient types.
  */
 
 /**

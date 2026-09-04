@@ -474,7 +474,7 @@ export class SimClient {
     const refresh = this.options.refreshOAuth
     if (!refresh) {
       throw new SimApiError(
-        `Your Sim login has expired. Run: sim login --profile ${this.profile.name}`,
+        `Your Sim login has expired. Run sim logout --profile ${this.profile.name}, then sim login --profile ${this.profile.name}.`,
         401
       )
     }

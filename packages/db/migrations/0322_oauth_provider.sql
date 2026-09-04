@@ -53,7 +53,8 @@ CREATE TABLE "oauth_consent" (
 	"reference_id" text,
 	"scopes" text[] NOT NULL,
 	"created_at" timestamp NOT NULL,
-	"updated_at" timestamp NOT NULL
+	"updated_at" timestamp NOT NULL,
+	CONSTRAINT "oauth_consent_user_client_reference_unique" UNIQUE NULLS NOT DISTINCT("user_id","client_id","reference_id")
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_refresh_token" (
@@ -85,12 +86,119 @@ CREATE INDEX "oauth_access_token_client_id_idx" ON "oauth_access_token" USING bt
 CREATE INDEX "oauth_access_token_session_id_idx" ON "oauth_access_token" USING btree ("session_id");--> statement-breakpoint
 CREATE INDEX "oauth_access_token_refresh_id_idx" ON "oauth_access_token" USING btree ("refresh_id");--> statement-breakpoint
 CREATE INDEX "oauth_access_token_user_client_idx" ON "oauth_access_token" USING btree ("user_id","client_id");--> statement-breakpoint
+CREATE INDEX "oauth_access_token_expires_at_idx" ON "oauth_access_token" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "oauth_client_user_id_idx" ON "oauth_client" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "oauth_consent_client_id_idx" ON "oauth_consent" USING btree ("client_id");--> statement-breakpoint
-CREATE INDEX "oauth_consent_user_client_idx" ON "oauth_consent" USING btree ("user_id","client_id");--> statement-breakpoint
 CREATE INDEX "oauth_refresh_token_client_id_idx" ON "oauth_refresh_token" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "oauth_refresh_token_session_id_idx" ON "oauth_refresh_token" USING btree ("session_id");--> statement-breakpoint
 CREATE INDEX "oauth_refresh_token_user_client_idx" ON "oauth_refresh_token" USING btree ("user_id","client_id");--> statement-breakpoint
+CREATE INDEX "oauth_refresh_token_expires_at_idx" ON "oauth_refresh_token" USING btree ("expires_at");--> statement-breakpoint
+CREATE FUNCTION "oauth_consent_upsert"() RETURNS trigger AS $$
+DECLARE
+	existing_id text;
+BEGIN
+	PERFORM pg_advisory_xact_lock(
+		hashtextextended(
+			concat_ws(E'\x1f', NEW."client_id", NEW."user_id", NEW."reference_id"),
+			0
+		)
+	);
+
+	SELECT "id" INTO existing_id
+	FROM "oauth_consent"
+	WHERE "client_id" = NEW."client_id"
+		AND "user_id" IS NOT DISTINCT FROM NEW."user_id"
+		AND "reference_id" IS NOT DISTINCT FROM NEW."reference_id";
+
+	IF existing_id IS NOT NULL THEN
+		UPDATE "oauth_consent"
+		SET "scopes" = NEW."scopes", "updated_at" = NEW."updated_at"
+		WHERE "id" = existing_id;
+		RETURN NULL;
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
+CREATE TRIGGER "oauth_consent_upsert"
+	BEFORE INSERT ON "oauth_consent"
+	FOR EACH ROW
+	EXECUTE FUNCTION "oauth_consent_upsert"();--> statement-breakpoint
+CREATE FUNCTION "oauth_token_require_active_consent"() RETURNS trigger AS $$
+BEGIN
+	PERFORM 1
+	FROM "oauth_client"
+	WHERE "client_id" = NEW."client_id"
+		AND "skip_consent" IS TRUE;
+
+	IF FOUND THEN
+		RETURN NEW;
+	END IF;
+
+	PERFORM 1
+	FROM "oauth_consent"
+	WHERE "client_id" = NEW."client_id"
+		AND "user_id" IS NOT DISTINCT FROM NEW."user_id"
+		AND "reference_id" IS NOT DISTINCT FROM NEW."reference_id"
+		AND NEW."scopes" <@ "scopes"
+	FOR SHARE;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'OAuth token requires an active consent grant'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
+CREATE TRIGGER "oauth_access_token_require_active_consent"
+	BEFORE INSERT ON "oauth_access_token"
+	FOR EACH ROW
+	EXECUTE FUNCTION "oauth_token_require_active_consent"();--> statement-breakpoint
+CREATE TRIGGER "oauth_refresh_token_require_active_consent"
+	BEFORE INSERT ON "oauth_refresh_token"
+	FOR EACH ROW
+	EXECUTE FUNCTION "oauth_token_require_active_consent"();--> statement-breakpoint
+CREATE FUNCTION "oauth_consent_narrow_tokens"() RETURNS trigger AS $$
+BEGIN
+	IF NEW."scopes" = OLD."scopes" THEN
+		RETURN NEW;
+	END IF;
+
+	DELETE FROM "oauth_refresh_token"
+	WHERE "client_id" = NEW."client_id"
+		AND "user_id" IS NOT DISTINCT FROM NEW."user_id"
+		AND "reference_id" IS NOT DISTINCT FROM NEW."reference_id"
+		AND NOT ("scopes" <@ NEW."scopes");
+
+	DELETE FROM "oauth_access_token"
+	WHERE "client_id" = NEW."client_id"
+		AND "user_id" IS NOT DISTINCT FROM NEW."user_id"
+		AND "reference_id" IS NOT DISTINCT FROM NEW."reference_id"
+		AND NOT ("scopes" <@ NEW."scopes");
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
+CREATE TRIGGER "oauth_consent_narrow_tokens"
+	AFTER UPDATE OF "scopes" ON "oauth_consent"
+	FOR EACH ROW
+	EXECUTE FUNCTION "oauth_consent_narrow_tokens"();--> statement-breakpoint
+CREATE FUNCTION "oauth_consent_delete_tokens"() RETURNS trigger AS $$
+BEGIN
+	DELETE FROM "oauth_refresh_token"
+	WHERE "client_id" = OLD."client_id"
+		AND "user_id" IS NOT DISTINCT FROM OLD."user_id"
+		AND "reference_id" IS NOT DISTINCT FROM OLD."reference_id";
+
+	DELETE FROM "oauth_access_token"
+	WHERE "client_id" = OLD."client_id"
+		AND "user_id" IS NOT DISTINCT FROM OLD."user_id"
+		AND "reference_id" IS NOT DISTINCT FROM OLD."reference_id";
+	RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
+CREATE TRIGGER "oauth_consent_delete_tokens"
+	AFTER DELETE ON "oauth_consent"
+	FOR EACH ROW
+	EXECUTE FUNCTION "oauth_consent_delete_tokens"();--> statement-breakpoint
 -- Seed the first-party Sim CLI as a public (PKCE-only, no secret) OAuth client.
 -- Loopback redirect URIs match any port (RFC 8252 §7.3); consent is never skipped.
 INSERT INTO "oauth_client" (
@@ -101,6 +209,6 @@ INSERT INTO "oauth_client" (
 	'sim-cli', 'sim-cli', 'Sim CLI', false, false, true, 'native',
 	'none', true, ARRAY['authorization_code', 'refresh_token'], ARRAY['code'],
 	ARRAY['http://127.0.0.1/callback', 'http://[::1]/callback'],
-	ARRAY['openid', 'profile', 'email', 'offline_access', 'api:read', 'api:write'],
+	ARRAY['offline_access', 'api:read', 'api:write'],
 	now(), now()
 ) ON CONFLICT ("client_id") DO NOTHING;

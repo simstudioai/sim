@@ -3,6 +3,7 @@ import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, ne, notLike, or, sql } from 'drizzle-orm'
 import { escapeLikePattern } from '@/lib/api/list-query'
+import { DOCS_EMBEDDING_DIMENSIONS } from '@/lib/chunkers/constants'
 import {
   docsPathForSourceDocument,
   isDocsDir,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/copilot/docs/docs-corpus'
 import { docsSourceCandidates, UNMOUNTED_DOCS_SECTIONS } from '@/lib/copilot/docs/docs-path'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { DEFAULT_EMBEDDING_MODEL } from '@/lib/knowledge/embedding-models'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 const logger = createLogger('DocsSearch')
@@ -152,7 +154,10 @@ export async function searchDocs(
     path: options?.path ?? null,
   })
 
-  const { embedding: queryEmbedding } = await generateSearchEmbedding(query)
+  const { embedding: queryEmbedding } = await generateSearchEmbedding(query, {
+    model: DEFAULT_EMBEDDING_MODEL,
+    dimensions: DOCS_EMBEDDING_DIMENSIONS,
+  })
   if (!queryEmbedding || queryEmbedding.length === 0) {
     return { results: [], candidatesConsidered: 0, droppedBelowThreshold: 0, droppedStale: 0 }
   }

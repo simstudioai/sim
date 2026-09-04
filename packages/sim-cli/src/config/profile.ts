@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { randomBytes } from 'node:crypto'
 import {
   chmodSync,
   existsSync,
@@ -7,11 +6,10 @@ import {
   readFileSync,
   renameSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname } from 'node:path'
-import { sleep } from '../helpers'
+import { lock } from 'proper-lockfile'
 import {
   FORBIDDEN_IN_VALUE,
   getSection,
@@ -122,6 +120,12 @@ export interface StoredOAuthCredential {
   accessToken: string
   refreshToken: string
   expiresAt: number
+  /** Authorization server that minted the credential. */
+  issuer: string
+  /** Stable across refresh rotation and replaced by a fresh login. */
+  loginId: string
+  /** Scope last returned by the authorization server. */
+  scope: string
 }
 
 /** What a credentials section holds for a profile, or `null` when it is logged out. */
@@ -374,7 +378,15 @@ export function writeConfigProfile(profile: string, values: Record<string, strin
 }
 
 /** The credentials-file keys one login occupies; a write of either kind clears the other. */
-const CREDENTIAL_KEYS = ['api_key', 'access_token', 'refresh_token', 'token_expires_at'] as const
+const CREDENTIAL_KEYS = [
+  'api_key',
+  'access_token',
+  'refresh_token',
+  'token_expires_at',
+  'oauth_issuer',
+  'oauth_login_id',
+  'oauth_scope',
+] as const
 
 /**
  * Stores a login, replacing whatever the section held, or clears it with
@@ -395,6 +407,9 @@ export function writeCredentialsProfile(
     values.access_token = credential.oauth.accessToken
     values.refresh_token = credential.oauth.refreshToken
     values.token_expires_at = String(credential.oauth.expiresAt)
+    values.oauth_issuer = credential.oauth.issuer
+    values.oauth_login_id = credential.oauth.loginId
+    values.oauth_scope = credential.oauth.scope
   }
   setSectionValues(doc, profile, values)
   writeIni(credentialsPath(), doc, true)
@@ -410,10 +425,25 @@ export function readStoredOAuth(credentials: Record<string, string>): StoredOAut
     access_token: accessToken,
     refresh_token: refreshToken,
     token_expires_at: expires,
+    oauth_issuer: issuer,
+    oauth_login_id: loginId,
+    oauth_scope: scope,
   } = credentials
-  if (!accessToken || !refreshToken) return null
+  if (!accessToken || !refreshToken || !issuer || !loginId || !scope) return null
   const expiresAt = Number(expires)
-  return { accessToken, refreshToken, expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0 }
+  return {
+    accessToken,
+    refreshToken,
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0,
+    issuer,
+    loginId,
+    scope,
+  }
+}
+
+/** The Better Auth issuer mounted below a resolved Sim endpoint. */
+export function oauthIssuerForEndpoint(endpoint: string): string {
+  return new URL(`${endpoint}/api/auth`).toString().replace(/\/$/, '')
 }
 
 /** What the named profile's own credentials section holds. */
@@ -446,10 +476,10 @@ const CREDENTIALS_LOCK_POLL_MS = 50
  * presentation as theft, revoking every token the CLI holds. Two commands run
  * in parallel — a shell loop, a CI matrix, an editor plugin — would each see
  * the same expiring token and both try to refresh it, and the loser logs the
- * user out everywhere. The lock is an `O_EXCL` file beside the credentials, so
- * exactly one process refreshes and the rest re-read what it wrote. A lock
- * older than {@link CREDENTIALS_LOCK_STALE_MS} belonged to a process that
- * died holding it and is reclaimed.
+ * user out everywhere. `proper-lockfile` uses an atomic lock directory and a
+ * heartbeat, so exactly one process refreshes, the rest re-read what it wrote,
+ * and an abandoned lock is reclaimed without a hand-rolled compare/delete
+ * race.
  */
 /**
  * Whether the current async context already holds the lock.
@@ -466,94 +496,36 @@ const heldLock = new AsyncLocalStorage<true>()
 export async function withCredentialsLock<T>(work: () => Promise<T>): Promise<T> {
   if (heldLock.getStore()) return work()
 
-  const lockPath = `${credentialsPath()}.lock`
-  mkdirSync(dirname(lockPath), { recursive: true, mode: 0o700 })
-  const deadline = Date.now() + CREDENTIALS_LOCK_WAIT_MS
-  const owner = `${process.pid}.${randomBytes(8).toString('hex')}`
-
-  for (;;) {
-    try {
-      writeFileSync(lockPath, owner, { flag: 'wx', mode: 0o600 })
-      break
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      let observed: { owner: string; age: number }
-      try {
-        observed = {
-          owner: readFileSync(lockPath, 'utf8'),
-          age: Date.now() - statSync(lockPath).mtimeMs,
-        }
-      } catch {
-        continue
-      }
-      if (observed.age > CREDENTIALS_LOCK_STALE_MS) {
-        reclaimStaleCredentialsLock(lockPath, observed.owner)
-        continue
-      }
-      if (Date.now() > deadline) {
-        throw new ProfileConfigError(
-          `Another sim process has been refreshing the login for ${Math.round(observed.age / 1000)}s. Wait for it to finish and retry.`
-        )
-      }
-      await sleep(CREDENTIALS_LOCK_POLL_MS)
+  const path = credentialsPath()
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+  let release: (() => Promise<void>) | undefined
+  try {
+    release = await lock(path, {
+      realpath: false,
+      stale: CREDENTIALS_LOCK_STALE_MS,
+      update: CREDENTIALS_LOCK_STALE_MS / 3,
+      retries: {
+        retries: Math.ceil(CREDENTIALS_LOCK_WAIT_MS / CREDENTIALS_LOCK_POLL_MS),
+        factor: 1,
+        minTimeout: CREDENTIALS_LOCK_POLL_MS,
+        maxTimeout: CREDENTIALS_LOCK_POLL_MS,
+        randomize: false,
+      },
+    })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ELOCKED') {
+      throw new ProfileConfigError(
+        'Another sim process is updating the stored login. Wait for it to finish and retry.'
+      )
     }
+    throw error
   }
 
   try {
     return await heldLock.run(true, work)
   } finally {
-    releaseCredentialsLock(lockPath, owner)
+    await release()
   }
-}
-
-/**
- * Removes a lock only if it still holds the token the caller saw.
- *
- * Staleness is observed and acted on in two steps, so a waiter can be
- * preempted between them and come back to a lock that a third process has
- * since taken. Deleting on age alone would then drop a *live* lock and let two
- * refreshes run, which is the one outcome this file exists to prevent — the
- * server treats the second presentation of a rotated refresh token as theft
- * and revokes the whole session. Re-reading the token immediately before
- * removing closes that: if it changed, the lock is not the one that looked
- * dead, and the caller simply retries.
- *
- * Not airtight on its own — the read and the unlink are themselves two steps —
- * so the removal goes through a rename to a private name first. Between them a
- * competing reclaimer either loses the rename or sees a token that no longer
- * matches, and only one can do both.
- */
-function reclaimStaleCredentialsLock(lockPath: string, observedOwner: string): void {
-  const scratch = `${lockPath}.${process.pid}.${randomBytes(4).toString('hex')}.stale`
-  try {
-    renameSync(lockPath, scratch)
-  } catch {
-    return
-  }
-  try {
-    if (readFileSync(scratch, 'utf8') !== observedOwner) {
-      // Someone else's live lock: put it back rather than destroying it.
-      renameSync(scratch, lockPath)
-      return
-    }
-  } catch {}
-  rmSync(scratch, { force: true })
-}
-
-/**
- * Drops the lock only if this process still owns it.
- *
- * A hold that ran past the stale window has already been reclaimed by someone
- * else, and the file now belongs to them; removing it on the way out would
- * strand that holder without a lock.
- */
-function releaseCredentialsLock(lockPath: string, owner: string): void {
-  try {
-    if (readFileSync(lockPath, 'utf8') !== owner) return
-  } catch {
-    return
-  }
-  rmSync(lockPath, { force: true })
 }
 
 /** Drops the profile from both files. Returns whether anything was removed. */
@@ -730,6 +702,7 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     'default'
   )
 
+  const normalizedEndpoint = normalizeEndpoint(endpoint.value as string, endpoint.source)
   const storedOAuth = readStoredOAuth(credentials)
   const apiKey = resolve<string>(
     [
@@ -744,6 +717,11 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     'unset'
   )
   const oauth = apiKey.value === null ? storedOAuth : null
+  if (oauth && oauth.issuer !== oauthIssuerForEndpoint(normalizedEndpoint)) {
+    throw new ProfileConfigError(
+      `The stored OAuth login belongs to ${redact(oauth.issuer)}, but this profile resolves to ${redact(normalizedEndpoint)}. OAuth logins cannot be moved between deployments; restore the original endpoint or run sim logout before changing it.`
+    )
+  }
 
   const workspaceId = resolve<string>(
     [
@@ -772,7 +750,7 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
 
   return {
     name,
-    endpoint: normalizeEndpoint(endpoint.value as string, endpoint.source),
+    endpoint: normalizedEndpoint,
     authProfile,
     apiKey: apiKey.value,
     oauth,

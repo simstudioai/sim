@@ -1,11 +1,15 @@
-import type { Principal } from '@sim/auth/principal'
+import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import type { AuditLogOperation, AuditLogPrincipal } from '@/lib/audit-logs/application/operations'
 import {
   resolveDefaultAuditOrganization,
   resolveEnterpriseAuditAccess,
 } from '@/lib/audit-logs/authorization'
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
-import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
+import {
+  ForbiddenOperationError,
+  type OperationUseCase,
+  PersonalApiKeysDisabledError,
+} from '@/lib/core/application'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 
@@ -75,13 +79,17 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
     async execute({ principal, input }) {
       requireAuditLogPrincipal(principal, definition.operation)
       const actorUserId = auditActorUserId(principal)
+      if (
+        isUserCredentialPrincipal(principal) &&
+        (await isCapabilityWithheldForUser(actorUserId, 'personal_api_key.use'))
+      ) {
+        throw new PersonalApiKeysDisabledError()
+      }
       /**
-       * permission-group-enforced: cli.use — this path authorizes itself
-       * against an organization rather than a workspace, so the funnel's
-       * workspace-keyed check never runs for it and a CLI token would keep
-       * reading the organization's audit trail after the capability was
-       * withdrawn. The user-global form is the one that applies without a
-       * workspace to key on.
+       * permission-group-enforced: personal_api_key.use, cli.use — this path
+       * authorizes against an organization rather than a workspace, so the
+       * workspace-keyed funnel never runs. The user-global form is the policy
+       * that applies when there is no workspace key.
        */
       if (
         principal.kind === 'oauth_access_token' &&

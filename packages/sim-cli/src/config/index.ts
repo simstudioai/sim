@@ -10,6 +10,7 @@ export {
   normalizeWorkspaceId,
   OUTPUT_FORMATS,
   type OutputFormat,
+  oauthIssuerForEndpoint,
   PROFILE_NAME_PATTERN,
   ProfileConfigError,
   type ProfileOverrides,

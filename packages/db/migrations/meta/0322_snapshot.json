@@ -1,6 +1,6 @@
 {
-  "id": "ba1c3c42-99d3-4793-96d7-14116a220308",
-  "prevId": "db637a5b-308b-4095-9dae-665f049d936a",
+  "id": "fe125f60-bf7f-41e4-934b-22b28e2443fd",
+  "prevId": "db628744-c7d5-4412-b5d0-44cb6ed4368f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5655,6 +5655,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "embedding_384": {
+          "name": "embedding_384",
+          "type": "vector(384)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embedding_768": {
+          "name": "embedding_768",
+          "type": "vector(768)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embedding_1024": {
+          "name": "embedding_1024",
+          "type": "vector(1024)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embedding_3072": {
+          "name": "embedding_3072",
+          "type": "vector(3072)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "embedding_model": {
           "name": "embedding_model",
           "type": "text",
@@ -5932,6 +5956,81 @@
               "asc": true,
               "nulls": "last",
               "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_384_vector_hnsw_idx": {
+          "name": "embedding_384_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding_384",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_768_vector_hnsw_idx": {
+          "name": "embedding_768_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding_768",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_1024_vector_hnsw_idx": {
+          "name": "embedding_1024_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding_1024",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_3072_vector_hnsw_idx": {
+          "name": "embedding_3072_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "(\"embedding_3072\"::halfvec(3072)) halfvec_cosine_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -6237,9 +6336,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "embedding_not_null_check": {
-          "name": "embedding_not_null_check",
-          "value": "\"embedding\" IS NOT NULL"
+        "embedding_width_check": {
+          "name": "embedding_width_check",
+          "value": "num_nonnulls(\"embedding\", \"embedding_384\", \"embedding_768\", \"embedding_1024\", \"embedding_3072\") = 1"
         }
       },
       "isRLSEnabled": false

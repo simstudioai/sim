@@ -1,14 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 
 const mocks = vi.hoisted(() => ({
+  betterAuthGET: vi.fn(),
   getSession: vi.fn(),
   linkAccount: vi.fn(),
   getBaseUrl: vi.fn(),
@@ -18,9 +19,13 @@ const mocks = vi.hoisted(() => ({
   launchConnection: vi.fn(),
 }))
 
+vi.mock('better-auth/next-js', () => ({
+  toNextJsHandler: () => ({ GET: mocks.betterAuthGET }),
+}))
+
 vi.mock('@/lib/auth/auth', () => ({
   getSession: mocks.getSession,
-  auth: { api: { oAuth2LinkAccount: mocks.linkAccount } },
+  auth: { handler: {}, api: { oAuth2LinkAccount: mocks.linkAccount } },
 }))
 vi.mock('@/lib/core/utils/urls', () => ({
   SITE_URL: 'https://www.sim.ai',
@@ -56,6 +61,8 @@ import { GET } from '@/app/api/auth/oauth2/authorize/route'
 const BASE_URL = 'https://sim.test'
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
+afterAll(resetEnvFlagsMock)
+
 function request(query: Record<string, string>) {
   const url = new URL('/api/auth/oauth2/authorize', BASE_URL)
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
@@ -72,6 +79,7 @@ function linkResponse(url = 'https://provider.example/authorize') {
 describe('OAuth2 authorize route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnvFlags({ isOAuthProviderEnabled: true })
     mocks.getBaseUrl.mockReturnValue(BASE_URL)
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -94,6 +102,56 @@ describe('OAuth2 authorize route', () => {
     })
     mocks.linkAccount.mockResolvedValue(linkResponse())
     mocks.getPerRequestScopes.mockReturnValue(undefined)
+    mocks.betterAuthGET.mockResolvedValue(new Response(null, { status: 302 }))
+  })
+
+  it('forwards a provider request without entering the connector flow', async () => {
+    const providerRequest = request({
+      client_id: 'client-1',
+      providerId: 'google-email',
+      draftId: 'draft-1',
+    })
+
+    const response = await GET(providerRequest)
+
+    expect(response.status).toBe(302)
+    expect(mocks.betterAuthGET).toHaveBeenCalledWith(providerRequest)
+    expect(mocks.getSession).not.toHaveBeenCalled()
+    expect(mocks.launchConnection).not.toHaveBeenCalled()
+    expect(mocks.createConnection).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 without delegation when the provider is disabled', async () => {
+    setEnvFlags({ isOAuthProviderEnabled: false })
+
+    const response = await GET(request({ client_id: 'client-1' }))
+
+    expect(response.status).toBe(404)
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'response_type',
+    'client_id',
+    'redirect_uri',
+    'scope',
+    'state',
+    'request_uri',
+    'code_challenge',
+    'code_challenge_method',
+    'nonce',
+    'prompt',
+  ])('rejects a repeated OAuth provider %s before Better Auth', async (parameter) => {
+    const url = new URL('/api/auth/oauth2/authorize', BASE_URL)
+    url.searchParams.set('client_id', 'sim-cli')
+    url.searchParams.append(parameter, 'first')
+    url.searchParams.append(parameter, 'second')
+
+    const response = await GET(createMockRequest('GET', undefined, {}, url.toString()))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
   })
 
   it('creates a canonical application draft for a legacy connect URL', async () => {

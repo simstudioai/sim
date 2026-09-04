@@ -36,8 +36,8 @@ Cloud, and Cloudflare CLIs use. The browser only ever carries a one-time code;
 the tokens are exchanged over the terminal's own connection and written to
 `~/.sim/credentials` with `0600` permissions. Access tokens last an hour and are
 renewed automatically from a refresh token, so you sign in once and stay signed
-in until you log out, revoke the login, or go thirty days without using it — the
-refresh token expires then and `sim login` starts a fresh one.
+in until you log out, revoke the login, or go thirty days without using it. If
+it expires, run `sim logout` before signing in again.
 
 <Callout type="warn">
 Only approve a consent page you reached by running `sim login` yourself. A
@@ -52,7 +52,7 @@ your login.
 | `--read-only` | Ask only for permission to read, never to change anything |
 | `--callback-port <port>` | Pin the local port the browser returns to, for a container or SSH session that forwards a fixed one |
 | `--scope <scope>` | Key space for the pairing-code handoff. Only `copilot` changes anything, and it forces that flow |
-| `-y, --yes` | Overwrite an existing profile without prompting |
+| `-y, --yes` | Overwrite an existing API-key profile without prompting |
 
 ### Over SSH or in a container
 
@@ -147,10 +147,12 @@ sim logout           # sign out of Sim and remove the stored login
 sim logout --all     # remove the profile entirely, including its settings
 ```
 
-For an OAuth login, `sim logout` revokes the login on the server first, so the
-tokens stop working everywhere, then removes them from disk. You can also revoke
-it from another device under **Settings → Authorized apps**, which signs that
-terminal out on its next request.
+For an OAuth login, `sim logout` revokes the current refresh token and its paired
+access token before removing them from disk, so the login cannot renew. An
+access token copied before an earlier rotation can remain valid until its
+one-hour expiry. For an immediate whole-app cutoff, revoke the grant under
+**Settings → Authorized apps**; that removes every access and refresh token for
+the app.
 
 A workspace profile that shares authentication cannot remove the shared login.
 Remove only that local profile with `sim logout --all --profile <name>`, or log
@@ -236,9 +238,10 @@ Save it to avoid repeating the flag:
 sim configure --set-endpoint http://localhost:3000 --profile local
 ```
 
-A self-hosted deployment offers OAuth sign-in by default; set
-`OAUTH_PROVIDER_ENABLED=false` on the server to switch it off, in which case the
-CLI uses the pairing-code handoff.
+A self-hosted deployment offers OAuth sign-in by default when authentication is
+enabled. Set `OAUTH_PROVIDER_ENABLED=false` on the server to switch it off;
+`DISABLE_AUTH=true` also forces it off. In either case the CLI uses the
+pairing-code handoff.
 
 ## Where the login is stored
 
@@ -251,14 +254,18 @@ Logins live in `~/.sim/credentials`, written `0600`, separate from the non-secre
 access_token = sim_oat_…
 refresh_token = sim_ort_…
 token_expires_at = 1788547200000
+oauth_issuer = https://www.sim.ai/api/auth
+oauth_login_id = …
+oauth_scope = offline_access api:read api:write
 
 [ci-box]
 api_key = sim_…
 ```
 
-A profile holds one login: writing an OAuth login replaces a stored key and
-vice versa. Several `sim` commands running at once share one renewal, so a
-parallel shell loop cannot sign itself out.
+A profile holds one login. A stored API key can be replaced after confirmation
+or with `--yes`; a live OAuth login must be revoked with `sim logout` before
+signing in again. Several `sim` commands running at once share one renewal, so
+a parallel shell loop cannot sign itself out.
 
 ## Organization audit logs
 

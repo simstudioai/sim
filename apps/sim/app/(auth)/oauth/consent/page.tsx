@@ -57,16 +57,22 @@ export default async function OAuthConsentPage({
    * generic error, after the person has already read an authorization request
    * that Sim never issued. Both are caught here so the lie is never rendered.
    */
-  const tampered = Object.values(raw).some((value) => Array.isArray(value))
+  const tampered = Object.entries(raw).some(
+    ([key, value]) => key !== 'ba_param' && Array.isArray(value)
+  )
   const unsigned = typeof raw.sig !== 'string'
-  const refusal = tampered ? 'tampered' : unsigned ? 'unsigned' : null
+  const expiresAtSeconds = typeof raw.exp === 'string' ? Number(raw.exp) : Number.NaN
+  const expired = !Number.isFinite(expiresAtSeconds) || expiresAtSeconds * 1000 < Date.now()
+  const refusal = tampered ? 'tampered' : unsigned ? 'unsigned' : expired ? 'expired' : null
   const params = refusal ? null : oauthConsentSearchParamsCache.parse(raw)
+  const authorizationRequestKey = refusal ? null : JSON.stringify(raw)
 
   return (
     <AuthShell>
       <OAuthConsentView
         refusal={refusal}
         clientId={params?.client_id ?? null}
+        authorizationRequestKey={authorizationRequestKey}
         scope={params?.scope ?? null}
         redirectUri={params?.redirect_uri ?? null}
         email={session.user.email}

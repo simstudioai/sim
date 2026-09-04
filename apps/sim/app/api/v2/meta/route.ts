@@ -11,7 +11,7 @@ import {
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** GET /api/v2/meta — Report the calling key's API availability and lifecycle. */
+/** GET /api/v2/meta — Report the calling credential's API availability and lifecycle. */
 export const GET = defineV2JsonRoute({
   contract: v2GetMetaContract,
   auth: v2ApiKeyAuth,

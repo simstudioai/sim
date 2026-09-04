@@ -19,12 +19,14 @@ export const v2MetaSchema = z
     keyType: v2ApiKeyTypeSchema,
     expiresAt: v2TimestampSchema
       .nullable()
-      .describe('ISO 8601 timestamp when the calling key expires, or null when it never does.'),
+      .describe(
+        'ISO 8601 timestamp when the calling credential expires, or null when it does not.'
+      ),
   })
   .meta({
     id: 'V2Meta',
     title: 'API capabilities',
-    description: 'API availability and lifecycle facts about the calling API key.',
+    description: 'API availability and lifecycle facts about the calling credential.',
   })
 export type V2Meta = z.output<typeof v2MetaSchema>
 

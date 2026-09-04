@@ -71,7 +71,7 @@ See [Sandboxes](/platform/self-hosting/sandboxes) for the provider credentials, 
 
 ## Schedule the background jobs
 
-Two enterprise features are started by a cron-driven HTTP endpoint rather than by the app on its own schedule. What happens next differs: retention's cleanup runs inline in the app process, while each due data drain is handed to a background job. All four endpoints authenticate with a bearer token equal to `CRON_SECRET`, and all four return `401` when it is unset:
+Data drains and retention are started by cron-driven HTTP endpoints rather than by the app on their own schedules. What happens next differs: retention's cleanup runs inline in the app process, while each due data drain is handed to a background job. Every endpoint authenticates with a bearer token equal to `CRON_SECRET` and returns `401` when it is unset:
 
 ```bash
 openssl rand -hex 32
@@ -85,12 +85,12 @@ Persist that value as `CRON_SECRET` on the app **and** on whatever calls these e
 | Retention — logs | `GET /api/logs/cleanup` | Daily | **No** — schedule it yourself |
 | Retention — soft deletes | `GET /api/cron/cleanup-soft-deletes` | Daily | **No** — schedule it yourself |
 | Retention — Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | **No** — schedule it yourself |
-| Retention — OAuth tokens | `GET /api/cron/cleanup-oauth-tokens` | Daily | **No** — schedule it yourself |
+| OAuth token cleanup | `GET /api/cron/cleanup-oauth-tokens` | Hourly | Yes — Helm and Docker Compose both call it |
 
 <Callout type="warn">
-  Both shipped deployments schedule the data-drain dispatcher but **not** the retention cleanup endpoints — neither the Helm chart nor Docker Compose's `cron` service. Setting `DATA_RETENTION_ENABLED=true` alone deletes nothing — the windows are evaluated only when one of those endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
+  Both shipped deployments schedule the data-drain dispatcher and OAuth token cleanup, but **not** the three configurable data-retention endpoints. Setting `DATA_RETENTION_ENABLED=true` alone deletes no retained product data — those windows are evaluated only when one of the three endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
 
-  The OAuth token sweep is the same: with Sim's OAuth provider on, every CLI login leaves a lapsed access-token row behind each hour, and nothing else removes them. It is a no-op when `OAUTH_PROVIDER_ENABLED=false`.
+  OAuth token cleanup continues after `OAUTH_PROVIDER_ENABLED=false` so rows created while the provider was enabled do not become permanent.
 </Callout>
 
 ```bash

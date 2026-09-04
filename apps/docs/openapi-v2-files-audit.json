@@ -33,6 +33,9 @@
   "security": [
     {
       "apiKey": []
+    },
+    {
+      "oauthBearer": []
     }
   ],
   "paths": {
@@ -1467,7 +1470,7 @@
       "get": {
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
-        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1641,7 +1644,7 @@
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
-        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1866,7 +1869,7 @@
       "patch": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. Enabling any mode other than `public` on a file that has never been shared must carry its credential in the same request. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. Enabling any mode other than `public` on a file that has never been shared must carry its credential in the same request. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2809,6 +2812,12 @@
         "in": "header",
         "name": "X-API-Key",
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+      },
+      "oauthBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "OAuth 2.0 access token",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. The token must carry the scope required by the operation."
       }
     },
     "headers": {
@@ -2905,7 +2914,7 @@
         }
       },
       "Unauthorized": {
-        "description": "The API key is missing or invalid.",
+        "description": "The API credential is missing or invalid.",
         "content": {
           "application/json": {
             "schema": {
@@ -2914,7 +2923,7 @@
             "example": {
               "error": {
                 "code": "UNAUTHORIZED",
-                "message": "API key required"
+                "message": "Authentication required"
               }
             }
           }

@@ -22,6 +22,7 @@ export const GET = defineV2JsonRoute({
   operation: mcpServerOperations.discoverTools,
   auth: v2ApiKeyAuth,
   headSafe: false,
+  write: true,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2McpToolDiscoveryErrorPolicy,
   mapInput: ({ params, query }) => ({

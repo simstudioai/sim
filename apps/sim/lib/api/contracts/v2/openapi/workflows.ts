@@ -18,8 +18,8 @@ import {
   RESOURCE_ERRORS,
   RESOURCE_MUTATION_ERRORS,
   RUN_RETENTION,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
@@ -1086,7 +1086,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'executeWorkflowV2',
       summary: 'Execute Workflow',
-      description: `Execute the active deployment by default, or select manual execution of the current saved workflow state with \`run.source: "manual"\`. Manual runs require a personal API key with current write access and support synchronous or Server-Sent Event execution only; workspace keys, anonymous public access, and async manual runs are rejected. A manual run can enter through one runnable trigger (including external integration/webhook triggers) or resume at a named block from the exact same-workflow run identified by \`sourceRunId\`; the server loads that run's persisted snapshot, which is never accepted from the request. Omit a trigger block id only when the saved workflow has exactly one runnable trigger. Public deployed workflows permit anonymous synchronous and streaming execution, while asynchronous deployed execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
+      description: `Execute the active deployment by default, or select manual execution of the current saved workflow state with \`run.source: "manual"\`. Manual runs require a personal API key or OAuth token with current write access and support synchronous or Server-Sent Event execution only; workspace keys, anonymous public access, and async manual runs are rejected. A manual run can enter through one runnable trigger (including external integration/webhook triggers) or resume at a named block from the exact same-workflow run identified by \`sourceRunId\`; the server loads that run's persisted snapshot, which is never accepted from the request. Omit a trigger block id only when the saved workflow has exactly one runnable trigger. Public deployed workflows permit anonymous synchronous and streaming execution, while asynchronous deployed execution requires an API credential. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1100,7 +1100,7 @@ const declaredRoutes = [
         'InternalError',
         'ServiceUnavailable',
       ],
-      security: [...V2_API_KEY_SECURITY, {}],
+      security: [...V2_AUTH_SECURITY, {}],
       success: {
         byStatus: {
           200: {
@@ -1442,8 +1442,8 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
       description: 'Inspect, resume, and cancel workflow runs.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,

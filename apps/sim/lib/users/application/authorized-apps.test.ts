@@ -106,15 +106,9 @@ describe('authorized apps', () => {
 
   it('removes the consent and both token kinds in one transaction, and records the audit', async () => {
     const deleted: unknown[] = []
-    const updated: unknown[] = []
     const tx = {
       select: () => selectChain([{ id: 'consent-1', name: 'Sim CLI' }]),
       delete: (table: unknown) => ({ where: (clause: unknown) => deleted.push([table, clause]) }),
-      update: (table: unknown) => ({
-        set: (values: unknown) => ({
-          where: (clause: unknown) => updated.push([table, values, clause]),
-        }),
-      }),
     }
     mocks.transaction.mockImplementation(async (run: (t: unknown) => unknown) => run(tx))
 
@@ -129,9 +123,9 @@ describe('authorized apps', () => {
      */
     expect(deleted.map(([table]) => table)).toEqual([
       schemaMock.oauthConsent,
+      schemaMock.oauthRefreshToken,
       schemaMock.oauthAccessToken,
     ])
-    expect(updated.map(([table]) => table)).toEqual([schemaMock.oauthRefreshToken])
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'user-1',

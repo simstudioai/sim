@@ -38,8 +38,8 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -543,9 +543,9 @@ const declaredRoutes = [
       operationId: 'listWorkspaces',
       summary: 'List Workspaces',
       description:
-        'List active workspaces available to the API key with opaque cursor pagination. A personal API key sees every accessible workspace that permits personal API keys; a workspace API key sees only its bound workspace.',
+        'List active workspaces available to the calling credential with opaque cursor pagination. A personal API key or OAuth token sees accessible workspaces that permit user-held API credentials; a workspace API key sees only its bound workspace.',
       errors: RESOURCE_ERRORS,
-      success: { description: 'Public metadata for workspaces available to the API key.' },
+      success: { description: 'Public metadata for workspaces available to the credential.' },
     }),
     {
       query: documentedSchema(
@@ -558,7 +558,7 @@ const declaredRoutes = [
         v2ListWorkspacesContract.response.schema,
         'ListWorkspacesResponse',
         'List workspaces response',
-        'Public metadata for workspaces available to the API key.',
+        'Public metadata for workspaces available to the credential.',
         [{ data: [WORKSPACE_EXAMPLE], nextCursor: null }]
       ),
     }
@@ -1673,9 +1673,9 @@ const declaredRoutes = [
       operationId: 'getApiMeta',
       summary: 'Get API Capabilities',
       description:
-        'Report whether v2 is available, whether the calling API key is personal or workspace-scoped, and when it expires. Requires a valid key.',
+        'Report whether v2 is available, what kind of API credential is calling, and when it expires. Requires a valid API key or OAuth access token.',
       errors: META_ERRORS,
-      success: { description: 'Availability and lifecycle facts about the calling key.' },
+      success: { description: 'Availability and lifecycle facts about the calling credential.' },
     }),
     {
       query: v2GetMetaContract.query,
@@ -1683,7 +1683,7 @@ const declaredRoutes = [
         v2GetMetaContract.response.schema,
         'GetApiMetaResponse',
         'API capabilities response',
-        'API availability, key type, and expiry for the calling key.',
+        'API availability, credential type, and expiry for the caller.',
         [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
       ),
     }
@@ -2115,7 +2115,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   tags: [
     {
       name: 'Meta',
-      description: 'Discover what the calling API key can reach.',
+      description: 'Discover what the calling API credential can reach.',
     },
     {
       name: 'Workspaces',
@@ -2152,8 +2152,8 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
       description: 'Discover the blocks, tools, and connector types this workspace can build with.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   /**

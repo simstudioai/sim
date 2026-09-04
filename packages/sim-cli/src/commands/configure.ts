@@ -4,6 +4,7 @@ import {
   configPath,
   OUTPUT_FORMATS,
   readConfigProfile,
+  readStoredCredential,
   resolveAuthenticationProfileName,
   writeConfigProfile,
 } from '../config/index'
@@ -116,11 +117,21 @@ export function configureCommand(): Command {
         if (options.setEndpoint) {
           if (authProfile !== profile.name) {
             throw new SimApiError(
-              `Profile "${profile.name}" shares its endpoint with authentication profile "${authProfile}". Run: sim configure --profile ${authProfile} --set-endpoint ${options.setEndpoint}`,
+              `Profile "${redact(profile.name)}" shares its endpoint with authentication profile "${redact(authProfile)}". Run: sim configure --profile ${quoteProfileArgument(authProfile)} --set-endpoint ${redact(options.setEndpoint)}`,
               0
             )
           }
-          updates.endpoint = normalizeEndpoint(options.setEndpoint, '--set-endpoint')
+          const nextEndpoint = normalizeEndpoint(options.setEndpoint, '--set-endpoint')
+          if (
+            readStoredCredential(authProfile)?.kind === 'oauth' &&
+            nextEndpoint !== profile.endpoint
+          ) {
+            throw new SimApiError(
+              `Profile "${redact(profile.name)}" has an OAuth login bound to ${redact(profile.endpoint)}. Run sim logout before changing its endpoint.`,
+              0
+            )
+          }
+          updates.endpoint = nextEndpoint
         }
         if (options.setWorkspace) {
           updates.workspace = normalizeWorkspaceId(options.setWorkspace, '--set-workspace')
@@ -144,7 +155,17 @@ export function configureCommand(): Command {
           }
           if (key === 'endpoint' && authProfile !== profile.name) {
             throw new SimApiError(
-              `Profile "${profile.name}" shares its endpoint with authentication profile "${authProfile}". Run: sim configure --profile ${authProfile} --unset endpoint`,
+              `Profile "${redact(profile.name)}" shares its endpoint with authentication profile "${redact(authProfile)}". Run: sim configure --profile ${quoteProfileArgument(authProfile)} --unset endpoint`,
+              0
+            )
+          }
+          if (
+            key === 'endpoint' &&
+            readStoredCredential(authProfile)?.kind === 'oauth' &&
+            Object.hasOwn(readConfigProfile(authProfile), 'endpoint')
+          ) {
+            throw new SimApiError(
+              `Profile "${redact(profile.name)}" has an OAuth login bound to ${redact(profile.endpoint)}. Run sim logout before removing its endpoint.`,
               0
             )
           }

@@ -118,7 +118,7 @@ export interface UploadSessionAuthBinding {
   principal:
     | { kind: 'session'; userId: string; sessionId: string }
     | { kind: 'personal_api_key'; userId: string; keyId: string }
-    | { kind: 'oauth_access_token'; userId: string; tokenId: string }
+    | { kind: 'oauth_access_token'; userId: string; clientId: string }
     | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
     | {
         kind: 'delegated'
@@ -442,7 +442,7 @@ export function createUploadSessionAuthBinding(
       return {
         version: 1,
         workspaceId,
-        principal: { kind: principal.kind, userId: principal.userId, tokenId: principal.tokenId },
+        principal: { kind: principal.kind, userId: principal.userId, clientId: principal.clientId },
       }
     case 'workspace_api_key':
       if (principal.workspaceId !== workspaceId) {
@@ -515,7 +515,7 @@ export function assertUploadSessionAuthBinding(
         : bound.kind === 'oauth_access_token'
           ? principal.kind === 'oauth_access_token' &&
             bound.userId === principal.userId &&
-            bound.tokenId === principal.tokenId
+            bound.clientId === principal.clientId
           : bound.kind === 'workspace_api_key'
             ? principal.kind === 'workspace_api_key' &&
               bound.workspaceId === principal.workspaceId &&
@@ -1301,7 +1301,7 @@ function isUploadSessionAuthBinding(value: unknown): value is UploadSessionAuthB
     return typeof principal.userId === 'string' && typeof principal.keyId === 'string'
   }
   if (principal.kind === 'oauth_access_token') {
-    return typeof principal.userId === 'string' && typeof principal.tokenId === 'string'
+    return typeof principal.userId === 'string' && typeof principal.clientId === 'string'
   }
   if (principal.kind === 'delegated') {
     return (

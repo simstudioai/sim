@@ -42,6 +42,7 @@ import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explic
 import type { OrchestratorResult, StreamEvent } from '@/lib/copilot/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import {
+  ForbiddenOperationError,
   forbiddenErrorDetails,
   PersonalApiKeysDisabledError,
   requireUserCredentialCapabilities,
@@ -92,8 +93,9 @@ function deriveConversationTitle(message: string): string | undefined {
 }
 
 /**
- * The two personal-API-key checks `authorizeWorkspaceOperation` applies, for the
- * one route that never reaches it, or `null` when the key may proceed.
+ * The two user-credential checks `authorizeWorkspaceOperation` applies, for
+ * the one route that never reaches it, or `null` when the credential may
+ * proceed.
  *
  * The group half runs through the same {@link requirePersonalApiKeysAllowed} the
  * funnel and the billing reads call, so a third wording of the same refusal
@@ -105,7 +107,7 @@ async function userCredentialPolicyRefusal(
   principal: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
   context: WorkspaceAuthorizationContext
 ): Promise<NextResponse | null> {
-  const refuse = (error: PersonalApiKeysDisabledError) =>
+  const refuse = (error: ForbiddenOperationError) =>
     v2Error('FORBIDDEN', error.message, { details: forbiddenErrorDetails(error) })
 
   if (!context.allowPersonalApiKeys) return refuse(new PersonalApiKeysDisabledError())
@@ -113,7 +115,7 @@ async function userCredentialPolicyRefusal(
   try {
     await requireUserCredentialCapabilities(principal, context)
   } catch (error) {
-    if (error instanceof PersonalApiKeysDisabledError) return refuse(error)
+    if (error instanceof ForbiddenOperationError) return refuse(error)
     throw error
   }
   return null

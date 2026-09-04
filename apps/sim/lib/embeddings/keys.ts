@@ -3,7 +3,7 @@ import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { BYOK_PROVIDER_IDS } from '@/lib/embeddings/catalog'
-import type { EmbeddingCatalogProvider } from '@/lib/embeddings/types'
+import type { KeyedEmbeddingProvider } from '@/lib/embeddings/types'
 import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('EmbeddingKeys')
@@ -28,7 +28,7 @@ interface ProviderKeyConfig {
  * Resolution order per provider is BYOK -> singular env key -> rotating pool.
  * `env` is read lazily through a getter so tests that stub `env` still work.
  */
-const PROVIDER_KEY_CONFIG: Record<EmbeddingCatalogProvider, () => ProviderKeyConfig> = {
+const PROVIDER_KEY_CONFIG: Record<KeyedEmbeddingProvider, () => ProviderKeyConfig> = {
   openai: () => ({
     byokProviderId: BYOK_PROVIDER_IDS.openai,
     envKey: env.OPENAI_API_KEY,
@@ -57,7 +57,7 @@ const PROVIDER_KEY_CONFIG: Record<EmbeddingCatalogProvider, () => ProviderKeyCon
 }
 
 export async function resolveProviderKey(
-  provider: EmbeddingCatalogProvider,
+  provider: KeyedEmbeddingProvider,
   workspaceId?: string | null
 ): Promise<ResolvedEmbeddingKey> {
   const config = PROVIDER_KEY_CONFIG[provider]()

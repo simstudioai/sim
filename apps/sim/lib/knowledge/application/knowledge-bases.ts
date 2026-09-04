@@ -45,7 +45,7 @@ import {
   DEFAULT_CHUNKING_CONFIG,
   MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE,
 } from '@/lib/knowledge/constants'
-import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
+import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 import {
   getRestorableKnowledgeBase,
   performDeleteKnowledgeBase,
@@ -315,6 +315,7 @@ async function executeCreateKnowledgeBase(args: {
     ...DEFAULT_CHUNKING_CONFIG,
     ...args.input.chunkingConfig,
   }
+  const { model: embeddingModel, dimensions: embeddingDimension } = await getConfiguredKbEmbedding()
   const knowledgeBase = await createAuthorizedKnowledgeBase(
     {
       name: args.input.name,
@@ -322,8 +323,8 @@ async function executeCreateKnowledgeBase(args: {
       workspaceId: args.context.workspaceId,
       folderId,
       userId: resolveKnowledgeAttributedUserId(args.principal, args.context),
-      embeddingModel: getConfiguredEmbeddingModel(),
-      embeddingDimension: EMBEDDING_DIMENSIONS,
+      embeddingModel,
+      embeddingDimension,
       chunkingConfig,
     },
     generateRequestId()

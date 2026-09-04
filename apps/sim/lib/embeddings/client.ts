@@ -15,14 +15,17 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { getOllamaUrl } from '@/lib/core/utils/urls'
 import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
   getEmbeddingModelInfo,
   hasApproximateTokenCount,
+  ollamaEmbeddingModelName,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
+import { isOllamaServerConfigured } from '@/lib/embeddings/ollama-model-catalog.server'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
 import { getAdapterFactory } from '@/lib/embeddings/providers'
 import {
@@ -355,6 +358,39 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
       quotaCircuitIdentity: createEmbeddingQuotaCircuitIdentity('openrouter', options.apiKey),
       modelName: model,
       dimensions,
+      isBYOK: true,
+    }
+  }
+
+  /**
+   * Ollama runs on the deployment's own server and takes no credential, so it
+   * resolves before every key-bearing path and ignores a caller-supplied key
+   * rather than pretending one applies.
+   *
+   * A self-hosted deployment may leave `OLLAMA_URL` unset and be served by the
+   * loopback default, exactly as the chat provider is; only hosted Sim, which
+   * runs no Ollama, has to be pointed at one. Requiring the variable everywhere
+   * would have made this stricter than the selector that offers the models.
+   */
+  if (info.provider === 'ollama') {
+    if (!isOllamaServerConfigured()) {
+      throw new Error('OLLAMA_URL must be configured for Ollama embeddings')
+    }
+    const baseUrl = getOllamaUrl().replace(/\/+$/, '')
+    const modelName = ollamaEmbeddingModelName(model)
+    return {
+      adapter: getAdapterFactory('ollama')({
+        modelName,
+        baseUrl,
+        nativeDimensions: info.nativeDimensions,
+      }),
+      info,
+      providerId: 'ollama',
+      /** No credential exists, so the circuit is keyed by the server it protects. */
+      quotaCircuitIdentity: createEmbeddingQuotaCircuitIdentity('ollama', baseUrl),
+      modelName,
+      dimensions,
+      /** Local inference costs Sim nothing, so none of its tokens are billable. */
       isBYOK: true,
     }
   }
@@ -936,7 +972,22 @@ export async function embedKnowledgeForDeployment(
     options.projectInputs
   )
   const workspaceKey = options.workspaceId ? await getBYOKKey(options.workspaceId, 'openai') : null
-  const capabilityValues = workspaceKey ? { ...env, OPENAI_API_KEY: workspaceKey.apiKey } : env
+  const capabilityValues = {
+    ...env,
+    /**
+     * The capability gates its providers on the model and width
+     * `KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS` name, but what matters
+     * here is the target this call actually embeds with: a knowledge base keeps
+     * the model and width it was created with, so one created before the
+     * deployment default changed must still resolve its own family's transports.
+     * Both are substituted — the model alone would leave the deployment's width
+     * being validated against this base's family, which rejects the chain
+     * outright for a base whose family accepts a width the deployment's does not.
+     */
+    KB_EMBEDDING_MODEL: model,
+    EMBEDDING_OUTPUT_DIMS: String(dimensions),
+    ...(workspaceKey ? { OPENAI_API_KEY: workspaceKey.apiKey } : {}),
+  }
 
   const factories = {
     'azure-openai': () => {
@@ -993,6 +1044,17 @@ export async function embedKnowledgeForDeployment(
         isBYOK: false,
       }
     },
+    /**
+     * Gemini and Ollama are declared on the capability because they serve
+     * knowledge embeddings, but never through this chain: it is built only for
+     * OpenAI models (the guard above returns for everything else), and the
+     * capability's own family gating marks them inactive here for the same
+     * reason. `wireFallback` throws if a provider it resolved as ready returns
+     * null, so this stays a loud failure rather than a silent wrong provider if
+     * either assumption ever stops holding.
+     */
+    gemini: () => null,
+    ollama: () => null,
   } satisfies FallbackFactories<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>
 
   const fallback = wireFallback<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>({

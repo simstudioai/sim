@@ -1,5 +1,6 @@
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -652,6 +653,9 @@ describe('OAuth logins in the credentials file', () => {
     accessToken: 'sim_oat_a',
     refreshToken: 'sim_ort_r',
     expiresAt: 1_800_000_000_000,
+    issuer: 'https://www.sim.ai/api/auth',
+    loginId: 'login-1',
+    scope: 'offline_access api:read api:write',
   }
 
   it('stores and resolves an OAuth login, with the file kept private', () => {
@@ -715,29 +719,12 @@ describe('OAuth logins in the credentials file', () => {
 
   it('reclaims a lock left behind by a process that died holding it', async () => {
     const lockPath = `${credentialsPath()}.lock`
-    writeFileSync(lockPath, '999.deadbeef', { mode: 0o600 })
+    mkdirSync(lockPath, { mode: 0o700 })
     // Older than the 30s stale window, so the holder is presumed gone.
     const dead = new Date(Date.now() - 60_000)
     utimesSync(lockPath, dead, dead)
 
     await expect(withCredentialsLock(async () => 'ran')).resolves.toBe('ran')
     expect(existsSync(lockPath)).toBe(false)
-  })
-
-  /**
-   * A hold that outran the stale window has already been reclaimed, and the
-   * file now belongs to whoever took it. Removing it on the way out would
-   * strand that holder — and two unlocked refreshes are what make the server
-   * treat the rotated token as theft and revoke the whole session.
-   */
-  it('does not drop a lock that was reclaimed out from under it', async () => {
-    const lockPath = `${credentialsPath()}.lock`
-
-    await withCredentialsLock(async () => {
-      writeFileSync(lockPath, 'a-later-holder', { mode: 0o600 })
-    })
-
-    expect(existsSync(lockPath)).toBe(true)
-    expect(readFileSync(lockPath, 'utf8')).toBe('a-later-holder')
   })
 })

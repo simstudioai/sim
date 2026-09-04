@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { redact } from '../config/profile'
+import { oauthIssuerForEndpoint, redact } from '../config/profile'
 import { buildUrl, REDIRECT_STATUSES, SimApiError } from '../http/client'
 import { USER_AGENT } from '../version'
 
@@ -22,7 +22,7 @@ import { USER_AGENT } from '../version'
  * path for a terminal whose browser cannot reach it (SSH, containers).
  */
 
-/** The client id migration `0321_oauth_provider` seeds; a public client, no secret. */
+/** The client id migration `0322_oauth_provider` seeds; a public client, no secret. */
 export const OAUTH_CLIENT_ID = 'sim-cli'
 
 /**
@@ -67,7 +67,7 @@ const REQUEST_TIMEOUT_MS = 10 * 1000
  * `sim login` to the pairing-code handoff — which mints a permanent key.
  * Loopback is exempt: it never leaves the machine.
  */
-function requireSecureEndpoint(endpoint: string): void {
+export function requireSecureEndpoint(endpoint: string): void {
   let url: URL
   try {
     url = new URL(endpoint)
@@ -169,13 +169,17 @@ export async function discoverOAuthProvider(endpoint: string): Promise<OAuthProv
    * calling that "no OAuth here" would quietly hand the user a permanent API
    * key from the handoff on a server that does support signing in.
    */
-  if (response.status >= 500 || REDIRECT_STATUSES.has(response.status)) return 'unreachable'
-  if (!response.ok) return 'unavailable'
+  if (response.status === 404) return 'unavailable'
+  if (!response.ok || REDIRECT_STATUSES.has(response.status)) return 'unreachable'
   try {
-    const metadata = (await response.json()) as { token_endpoint?: unknown }
-    return typeof metadata.token_endpoint === 'string' ? 'available' : 'unavailable'
+    const metadata = (await response.json()) as { issuer?: unknown; token_endpoint?: unknown }
+    const expectedIssuer = oauthIssuerForEndpoint(endpoint)
+    const expectedTokenEndpoint = buildUrl(endpoint, TOKEN_PATH)
+    return metadata.issuer === expectedIssuer && metadata.token_endpoint === expectedTokenEndpoint
+      ? 'available'
+      : 'unreachable'
   } catch {
-    return 'unavailable'
+    return 'unreachable'
   }
 }
 
@@ -184,6 +188,7 @@ interface TokenResponse {
   refresh_token?: unknown
   expires_in?: unknown
   scope?: unknown
+  token_type?: unknown
   error?: unknown
   error_description?: unknown
 }
@@ -219,7 +224,11 @@ async function postToken(
   return response
 }
 
-async function readTokens(response: Response, issuedAt: number): Promise<OAuthTokens> {
+async function readTokens(
+  response: Response,
+  issuedAt: number,
+  expectedScopes?: readonly string[]
+): Promise<OAuthTokens> {
   const raw = await response.text()
   let body: TokenResponse
   try {
@@ -246,12 +255,44 @@ async function readTokens(response: Response, issuedAt: number): Promise<OAuthTo
       response.status
     )
   }
+  if (
+    body.token_type !== undefined &&
+    (typeof body.token_type !== 'string' || body.token_type.toLowerCase() !== 'bearer')
+  ) {
+    throw new SimApiError(
+      'The authorization server returned an unsupported token type.',
+      response.status
+    )
+  }
+  if (
+    body.expires_in !== undefined &&
+    (typeof body.expires_in !== 'number' ||
+      !Number.isFinite(body.expires_in) ||
+      body.expires_in <= 0)
+  ) {
+    throw new SimApiError(
+      'The authorization server returned an invalid access-token lifetime.',
+      response.status
+    )
+  }
   const expiresIn = typeof body.expires_in === 'number' ? body.expires_in : 3600
+  const scope =
+    typeof body.scope === 'string' ? body.scope : expectedScopes ? expectedScopes.join(' ') : ''
+  if (expectedScopes) {
+    const granted = new Set(scope.split(' ').filter(Boolean))
+    const unexpected = [...granted].filter((item) => !expectedScopes.includes(item))
+    if (!granted.has('offline_access') || !granted.has('api:read') || unexpected.length > 0) {
+      throw new SimApiError(
+        'The authorization server returned scopes that do not match the login request. Nothing was stored.',
+        response.status
+      )
+    }
+  }
   return {
     accessToken: body.access_token,
     refreshToken: body.refresh_token,
     expiresAt: issuedAt + expiresIn * 1000,
-    scope: typeof body.scope === 'string' ? body.scope : '',
+    scope,
   }
 }
 
@@ -262,7 +303,7 @@ export function grantsWriteAccess(scope: string): boolean {
 /** Redeems an authorization code with its PKCE verifier. */
 export async function exchangeCode(
   endpoint: string,
-  args: { code: string; redirectUri: string; verifier: string },
+  args: { code: string; redirectUri: string; verifier: string; requestedScopes: readonly string[] },
   signal?: AbortSignal
 ): Promise<OAuthTokens> {
   const issuedAt = Date.now()
@@ -278,7 +319,7 @@ export async function exchangeCode(
     },
     signal
   )
-  return readTokens(response, issuedAt)
+  return readTokens(response, issuedAt, args.requestedScopes)
 }
 
 /**
@@ -290,6 +331,7 @@ export async function exchangeCode(
 export async function refreshTokens(
   endpoint: string,
   refreshToken: string,
+  expectedScopes?: readonly string[],
   signal?: AbortSignal
 ): Promise<OAuthTokens> {
   const issuedAt = Date.now()
@@ -299,7 +341,7 @@ export async function refreshTokens(
     { grant_type: 'refresh_token', client_id: OAUTH_CLIENT_ID, refresh_token: refreshToken },
     signal
   )
-  return readTokens(response, issuedAt)
+  return readTokens(response, issuedAt, expectedScopes)
 }
 
 /**
@@ -418,7 +460,9 @@ function listenForCallback(
             error === 'access_denied'
               ? new SimApiError('Sign-in was declined in the browser.', 0)
               : new SimApiError(
-                  description ?? `Sign-in failed (${error ?? 'no code returned'}).`,
+                  description
+                    ? redact(description)
+                    : `Sign-in failed (${redact(error ?? 'no code returned')}).`,
                   0
                 ),
         })
@@ -428,8 +472,8 @@ function listenForCallback(
         .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
         .end(
           callbackPage(
-            "You're signed in to Sim",
-            'You can close this tab and return to your terminal.'
+            'Authorization received',
+            'Return to your terminal while Sim finishes signing you in.'
           )
         )
       finish({ ok: true, value: { code } })
@@ -480,20 +524,33 @@ export async function loginWithBrowser(
 
   const port = (server.address() as AddressInfo).port
   const redirectUri = buildRedirectUri(port)
+  const callbackAbort = new AbortController()
+  const callbackSignal = options.signal
+    ? AbortSignal.any([options.signal, callbackAbort.signal])
+    : callbackAbort.signal
   const pending = listenForCallback(
     server,
     pkce.state,
-    options.signal,
+    callbackSignal,
     options.timeoutMs ?? LOGIN_TIMEOUT_MS
   )
 
-  options.onAuthorizeUrl(buildAuthorizeUrl(endpoint, { redirectUri, scopes: options.scopes, pkce }))
+  try {
+    options.onAuthorizeUrl(
+      buildAuthorizeUrl(endpoint, { redirectUri, scopes: options.scopes, pkce })
+    )
+  } catch (error) {
+    callbackAbort.abort()
+    await pending.catch(() => undefined)
+    throw error
+  }
 
   const { code } = await pending
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   return exchangeCode(
     endpoint,
-    { code, redirectUri, verifier: pkce.verifier },
-    options.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    { code, redirectUri, verifier: pkce.verifier, requestedScopes: options.scopes },
+    options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
   )
 }
 

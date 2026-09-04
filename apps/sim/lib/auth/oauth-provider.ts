@@ -4,7 +4,7 @@
  * "Authorized apps" settings surface.
  */
 
-/** The first-party Sim CLI, seeded by migration `0321_oauth_provider` as a public client. */
+/** The first-party Sim CLI, seeded by migration `0322_oauth_provider` as a public client. */
 export const SIM_CLI_CLIENT_ID = 'sim-cli'
 
 /**
@@ -23,6 +23,13 @@ export const OAUTH_SCOPES = [
   'openid',
   'profile',
   'email',
+  'offline_access',
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+] as const
+
+/** Public clients can call Sim's API but cannot receive an ID token without JWT signing. */
+export const OAUTH_PUBLIC_CLIENT_SCOPES = [
   'offline_access',
   OAUTH_API_READ_SCOPE,
   OAUTH_API_WRITE_SCOPE,
@@ -51,7 +58,7 @@ export const OAUTH_SCOPE_DESCRIPTIONS: Record<OAuthScope, string> = {
   email: 'See your email address',
   offline_access: 'Stay signed in without asking again',
   [OAUTH_API_READ_SCOPE]: 'Read your workspaces, workflows, files, tables, and logs',
-  [OAUTH_API_WRITE_SCOPE]: 'Create, change, run, and delete resources in your workspaces',
+  [OAUTH_API_WRITE_SCOPE]: 'Read, create, change, run, and delete resources in your workspaces',
 }
 
 /**

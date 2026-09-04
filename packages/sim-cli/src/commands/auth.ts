@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { getErrorMessage } from '@sim/utils/errors'
 import chalk from 'chalk'
@@ -16,6 +17,7 @@ import {
   loginWithBrowser,
   OAUTH_SCOPES_FULL,
   OAUTH_SCOPES_READ_ONLY,
+  requireSecureEndpoint,
   revokeToken,
 } from '../auth/oauth-flow'
 import {
@@ -29,11 +31,13 @@ import {
   normalizeWorkspaceId,
   OUTPUT_FORMATS,
   type OutputFormat,
+  oauthIssuerForEndpoint,
   ProfileConfigError,
   type ResolvedProfile,
   readStoredCredential,
   resolveAuthenticationProfileName,
   type SettingSource,
+  type StoredOAuthCredential,
   validateProfileName,
   withCredentialsLock,
   writeConfigProfile,
@@ -212,11 +216,11 @@ async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<Sele
     limit: MAX_INTERACTIVE_WORKSPACES + 1,
   })
   if (workspaces.length === 0) {
-    throw new SimApiError('The active API key cannot access any workspaces.', 0)
+    throw new SimApiError('The active credential cannot access any workspaces.', 0)
   }
   if (workspaces.length > MAX_INTERACTIVE_WORKSPACES) {
     throw new SimApiError(
-      `The active API key can access more than ${MAX_INTERACTIVE_WORKSPACES} workspaces, which is too many to show interactively. Pass --workspace <id> instead.`,
+      `The active credential can access more than ${MAX_INTERACTIVE_WORKSPACES} workspaces, which is too many to show interactively. Pass --workspace <id> instead.`,
       0
     )
   }
@@ -302,6 +306,7 @@ async function chooseLoginFlow(
   options: LoginOptions,
   scope: CliAuthScope
 ): Promise<'oauth' | 'handoff'> {
+  requireSecureEndpoint(profile.endpoint)
   if (options.browserless || scope === 'copilot') return 'handoff'
   if (isLikelyRemoteSession() && options.callbackPort === undefined) {
     console.log(
@@ -373,6 +378,9 @@ async function loginWithOAuth(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresAt: tokens.expiresAt,
+        issuer: oauthIssuerForEndpoint(profile.endpoint),
+        loginId: randomBytes(16).toString('base64url'),
+        scope: tokens.scope,
       },
     })
   })
@@ -413,7 +421,7 @@ export function loginCommand(): Command {
     )
     .option('--read-only', 'Ask only for permission to read, never to change anything')
     .option('--callback-port <port>', 'Pin the local port the browser returns to')
-    .option('-y, --yes', 'Overwrite an existing profile without prompting')
+    .option('-y, --yes', 'Overwrite an existing API-key profile without prompting')
     .action(async (options: LoginOptions, command: Command) => {
       // `login --profile x` is how a profile comes into existence, so the name
       // is allowed to be one resolution would otherwise reject as unknown.
@@ -432,7 +440,14 @@ export function loginCommand(): Command {
       }
       const scope = options.scope as CliAuthScope
 
-      if (readStoredCredential(profile.name) && !options.yes) {
+      const storedCredential = readStoredCredential(profile.name)
+      if (storedCredential?.kind === 'oauth') {
+        throw new SimApiError(
+          `Profile "${redact(profile.name)}" already has an OAuth login. Run sim logout --profile ${redact(profile.name)} before signing in again.`,
+          0
+        )
+      }
+      if (storedCredential && !options.yes) {
         const confirmed = await confirmProfileOverwrite(profile.name)
         if (!confirmed) {
           console.log(chalk.dim('Login cancelled; the existing profile was not changed.'))
@@ -550,16 +565,19 @@ async function loginWithHandoff(
 }
 
 /**
- * Ends an OAuth login server-side before forgetting it locally, so the
- * tokens on disk are dead even if a copy of the file survives. Best effort:
- * an unreachable server must not stop a user from clearing their own machine,
- * but it is said out loud so nobody assumes the session was revoked.
+ * Ends an OAuth login's ability to renew before forgetting it locally. Better
+ * Auth also removes the access token paired with this refresh token; an access
+ * token copied before an earlier rotation can remain valid until its one-hour
+ * expiry, so Settings → Authorized apps remains the immediate whole-app kill
+ * switch. An unreachable server must not stop someone clearing their machine,
+ * but it is said out loud so nobody assumes revocation succeeded.
  */
-async function revokeStoredOAuth(profileName: string, endpoint: string): Promise<void> {
-  const credential = readStoredCredential(profileName)
-  if (credential?.kind !== 'oauth') return
+async function revokeStoredOAuth(
+  endpoint: string,
+  credential: StoredOAuthCredential
+): Promise<void> {
   try {
-    await revokeToken(endpoint, credential.oauth.refreshToken)
+    await revokeToken(endpoint, credential.refreshToken)
     console.log(chalk.dim('  Signed out of Sim; the login can no longer be renewed.'))
   } catch (error) {
     console.log(
@@ -584,13 +602,24 @@ export function logoutCommand(): Command {
             0
           )
         }
-        await revokeStoredOAuth(profileName, profileFrom(command).endpoint)
-        const removed = await withCredentialsLock(async () => deleteProfile(profileName))
+        const endpoint = profileFrom(command).endpoint
+        const { removed, credential } = await withCredentialsLock(async () => {
+          const credential = readStoredCredential(profileName)
+          if (credential?.kind === 'oauth') {
+            await revokeStoredOAuth(endpoint, credential.oauth)
+          }
+          return { removed: deleteProfile(profileName), credential }
+        })
         if (!removed.config && !removed.credentials) {
           console.log(chalk.dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
           return
         }
         console.log(chalk.green(`✓ Removed profile "${safeOneLine(profileName)}".`))
+        if (credential?.kind === 'api_key') {
+          console.log(
+            chalk.dim('  The key itself is still active — revoke it in Settings → API keys.')
+          )
+        }
         return
       }
 
@@ -603,14 +632,20 @@ export function logoutCommand(): Command {
         )
       }
 
-      const credential = readStoredCredential(profile.name)
+      const credential = await withCredentialsLock(async () => {
+        const credential = readStoredCredential(profile.name)
+        if (!credential) return null
+        if (credential.kind === 'oauth') {
+          await revokeStoredOAuth(profile.endpoint, credential.oauth)
+        }
+        writeCredentialsProfile(profile.name, null)
+        return credential
+      })
       if (!credential) {
         console.log(chalk.dim(`No stored login for profile "${safeOneLine(profile.name)}".`))
         return
       }
 
-      await revokeStoredOAuth(profile.name, profile.endpoint)
-      await withCredentialsLock(async () => writeCredentialsProfile(profile.name, null))
       console.log(
         chalk.green(`✓ Removed the stored login for profile "${safeOneLine(profile.name)}".`)
       )

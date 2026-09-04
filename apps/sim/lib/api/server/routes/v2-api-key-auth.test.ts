@@ -213,10 +213,11 @@ describe('v2 bearer token authentication', () => {
   it('reads the credential headers as a pair, ignoring other Authorization schemes', () => {
     expect(
       readV2CredentialHeaders(new Headers({ 'x-api-key': 'k', authorization: 'Bearer t' }))
-    ).toEqual({ apiKey: 'k', bearer: 't' })
+    ).toEqual({ apiKey: 'k', bearer: 't', malformedOAuthBearer: false })
     expect(readV2CredentialHeaders(new Headers({ authorization: 'Basic abc' }))).toEqual({
       apiKey: null,
       bearer: null,
+      malformedOAuthBearer: false,
     })
     expect(hasV2Credential(new Headers({ authorization: 'Bearer sim_oat_t' }))).toBe(true)
     expect(hasV2Credential(new Headers())).toBe(false)
@@ -230,6 +231,18 @@ describe('v2 bearer token authentication', () => {
   it("does not treat somebody else's bearer token as a Sim credential", () => {
     expect(hasV2Credential(new Headers({ authorization: 'Bearer ghp_something' }))).toBe(false)
     expect(hasV2Credential(new Headers({ authorization: 'Bearer sim_oat_t' }))).toBe(true)
+    expect(hasV2Credential(new Headers({ authorization: 'Bearer sim_oat_t extra' }))).toBe(true)
+  })
+
+  it('rejects a malformed Sim bearer instead of treating optional auth as anonymous', async () => {
+    const refused = await authenticateV2ApiKey({
+      apiKey: null,
+      bearer: null,
+      malformedOAuthBearer: true,
+    }).catch((error) => error)
+
+    expect(refused).toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+    expect(refused.challenge).toBe('bearer')
   })
 
   it('authenticates an OAuth token as its user, rate-limited on the user plan', async () => {
