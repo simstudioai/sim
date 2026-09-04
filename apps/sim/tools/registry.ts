@@ -1312,6 +1312,7 @@ import {
   embeddingsCohereTool,
   embeddingsGeminiTool,
   embeddingsMistralTool,
+  embeddingsOllamaTool,
   embeddingsOpenAITool,
   embeddingsOpenRouterTool,
 } from '@/tools/embeddings'
@@ -8329,6 +8330,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   embeddings_cohere: embeddingsCohereTool,
   embeddings_mistral: embeddingsMistralTool,
   embeddings_openrouter: embeddingsOpenRouterTool,
+  embeddings_ollama: embeddingsOllamaTool,
   enrich_check_credits: enrichCheckCreditsTool,
   enrich_company_funding: enrichCompanyFundingTool,
   enrich_company_lookup: enrichCompanyLookupTool,

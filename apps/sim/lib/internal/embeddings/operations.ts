@@ -8,7 +8,13 @@ import {
   embedOpenRouter,
   findEmbeddingModelInfo,
   resolveDimensions,
+  toOllamaEmbeddingModelId,
 } from '@/lib/embeddings'
+import {
+  getOllamaEmbeddingModelMetadata,
+  OllamaEmbeddingModelNotFoundError,
+  OllamaEmbeddingWidthUnknownError,
+} from '@/lib/embeddings/ollama-model-catalog.server'
 import {
   getOpenRouterEmbeddingModelMetadata,
   type OpenRouterEmbeddingModelMetadata,
@@ -48,7 +54,9 @@ export async function executeEmbedding(
   context: EmbeddingOperationContext
 ): Promise<Response> {
   context.signal?.throwIfAborted()
-  const { provider, apiKey, model, taskType, dimensions } = input
+  const { provider, model, taskType, dimensions } = input
+  /** Ollama takes no credential, so its input variant declares no `apiKey` at all. */
+  const apiKey = provider === 'ollama' ? undefined : input.apiKey
   const texts = normalizeEmbeddingInput(input.input)
   if (texts.length === 0) return failureResponse('input must contain at least one text', 400)
   if (texts.length > MAX_EMBEDDING_INPUTS) {
@@ -70,7 +78,33 @@ export async function executeEmbedding(
 
   let resolvedModel: string
   let openRouterModelMetadata: OpenRouterEmbeddingModelMetadata | undefined
-  if (provider === 'openrouter') {
+  /**
+   * Width Ollama reports for the selected model. Resolved from the server rather
+   * than requested by the caller: a local model's width is a property of what
+   * the operator pulled, and it is what the client validates the response
+   * against.
+   */
+  let ollamaDimensions: number | undefined
+  if (provider === 'ollama') {
+    try {
+      resolvedModel = toOllamaEmbeddingModelId(model)
+    } catch (error) {
+      return failureResponse(getErrorMessage(error, 'Invalid Ollama embedding model'), 400)
+    }
+    try {
+      ollamaDimensions = (await getOllamaEmbeddingModelMetadata(resolvedModel, context.signal))
+        .dimensions
+    } catch (error) {
+      context.signal?.throwIfAborted()
+      const userError =
+        error instanceof OllamaEmbeddingModelNotFoundError ||
+        error instanceof OllamaEmbeddingWidthUnknownError
+      return failureResponse(
+        getErrorMessage(error, 'Failed to load Ollama embedding model metadata'),
+        userError ? 400 : 502
+      )
+    }
+  } else if (provider === 'openrouter') {
     try {
       resolvedModel = normalizeOpenRouterEmbeddingModelId(
         model || DEFAULT_OPENROUTER_EMBEDDING_MODEL
@@ -110,13 +144,14 @@ export async function executeEmbedding(
       )
     }
     try {
-      resolveDimensions(info, dimensions)
+      resolveDimensions(info, ollamaDimensions ?? dimensions)
     } catch (error) {
       return failureResponse(getErrorMessage(error, 'Invalid dimensions'), 400)
     }
   }
 
-  logger.info(`Embedding ${texts.length} input(s) with ${provider}/${resolvedModel}`)
+  /** `resolvedModel` already carries a routing prefix for the providers that use one. */
+  logger.info(`Embedding ${texts.length} input(s)`, { provider, model: resolvedModel })
   try {
     let result: EmbedResult
     if (provider === 'openrouter') {
@@ -126,7 +161,7 @@ export async function executeEmbedding(
       result = await embedOpenRouter(texts, {
         model: resolvedModel,
         dimensions,
-        apiKey,
+        apiKey: input.apiKey,
         maxInputTokens: openRouterModelMetadata.maxInputTokens,
         projectInputs: null,
         signal: context.signal,
@@ -135,7 +170,12 @@ export async function executeEmbedding(
       result = await embed(texts, {
         model: resolvedModel,
         taskType,
-        dimensions,
+        /**
+         * Ollama's width comes from the server, never from the caller: the
+         * adapter cannot ask for a reduction, so a requested size could only
+         * ever be an assertion, and the server already knows the answer.
+         */
+        dimensions: ollamaDimensions ?? dimensions,
         apiKey,
         projectInputs: null,
         signal: context.signal,

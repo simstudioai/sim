@@ -250,7 +250,9 @@ The load balancer's backend timeout is closing them. On GKE, attach a `BackendCo
 
 ## Knowledge base upload fails
 
-Embeddings need a hosted provider — set `OPENAI_API_KEY`, configure Azure OpenAI, or set `KB_EMBEDDING_MODEL=gemini-embedding-001` with a Gemini key. There is no local embedding backend, so Ollama or vLLM does not substitute. If a key is set, verify pgvector is installed on the database.
+Embeddings need a provider — set `OPENAI_API_KEY`, configure Azure OpenAI, set `KB_EMBEDDING_MODEL=gemini-embedding-001` with a Gemini key, or set `KB_EMBEDDING_MODEL=ollama/<model>` with `OLLAMA_URL` to embed on your own Ollama. If one is configured, verify pgvector is installed on the database.
+
+A document that fails with `vector 0 has N unexpected dimensions` means `EMBEDDING_OUTPUT_DIMS` does not match what the model actually emits. Sim cannot check this for you — the message names both widths, so set the variable to the one the model returned and recreate the knowledge base. Existing knowledge bases keep the width they were created with.
 
 ## Credentials Unreadable After a Restore
 

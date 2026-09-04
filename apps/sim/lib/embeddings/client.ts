@@ -15,11 +15,13 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { getOllamaUrl, isOllamaUrlConfigured } from '@/lib/core/utils/urls'
 import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
   getEmbeddingModelInfo,
   hasApproximateTokenCount,
+  ollamaEmbeddingModelName,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
@@ -355,6 +357,37 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
       quotaCircuitIdentity: createEmbeddingQuotaCircuitIdentity('openrouter', options.apiKey),
       modelName: model,
       dimensions,
+      isBYOK: true,
+    }
+  }
+
+  /**
+   * Ollama runs on the deployment's own server and takes no credential, so it
+   * resolves before every key-bearing path and ignores a caller-supplied key
+   * rather than pretending one applies. `OLLAMA_URL` must name a server: the
+   * loopback default `getOllamaUrl` falls back to is a development convenience,
+   * and silently indexing a knowledge base against a localhost that answers
+   * nothing is worse than saying so.
+   */
+  if (info.provider === 'ollama') {
+    if (!isOllamaUrlConfigured()) {
+      throw new Error('OLLAMA_URL must be configured for Ollama embeddings')
+    }
+    const baseUrl = getOllamaUrl().replace(/\/+$/, '')
+    const modelName = ollamaEmbeddingModelName(model)
+    return {
+      adapter: getAdapterFactory('ollama')({
+        modelName,
+        baseUrl,
+        nativeDimensions: info.nativeDimensions,
+      }),
+      info,
+      providerId: 'ollama',
+      /** No credential exists, so the circuit is keyed by the server it protects. */
+      quotaCircuitIdentity: createEmbeddingQuotaCircuitIdentity('ollama', baseUrl),
+      modelName,
+      dimensions,
+      /** Local inference costs Sim nothing, so none of its tokens are billable. */
       isBYOK: true,
     }
   }
@@ -936,7 +969,18 @@ export async function embedKnowledgeForDeployment(
     options.projectInputs
   )
   const workspaceKey = options.workspaceId ? await getBYOKKey(options.workspaceId, 'openai') : null
-  const capabilityValues = workspaceKey ? { ...env, OPENAI_API_KEY: workspaceKey.apiKey } : env
+  const capabilityValues = {
+    ...env,
+    /**
+     * The capability gates its providers on the family `KB_EMBEDDING_MODEL`
+     * names, but what matters here is the model this call actually embeds with:
+     * a knowledge base keeps the model it was created with, so one created
+     * before the deployment default changed must still resolve its own family's
+     * transports. Substituting it evaluates the chain for the model at hand.
+     */
+    KB_EMBEDDING_MODEL: model,
+    ...(workspaceKey ? { OPENAI_API_KEY: workspaceKey.apiKey } : {}),
+  }
 
   const factories = {
     'azure-openai': () => {
@@ -993,6 +1037,17 @@ export async function embedKnowledgeForDeployment(
         isBYOK: false,
       }
     },
+    /**
+     * Gemini and Ollama are declared on the capability because they serve
+     * knowledge embeddings, but never through this chain: it is built only for
+     * OpenAI models (the guard above returns for everything else), and the
+     * capability's own family gating marks them inactive here for the same
+     * reason. `wireFallback` throws if a provider it resolved as ready returns
+     * null, so this stays a loud failure rather than a silent wrong provider if
+     * either assumption ever stops holding.
+     */
+    gemini: () => null,
+    ollama: () => null,
   } satisfies FallbackFactories<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>
 
   const fallback = wireFallback<typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY, ResolvedProvider>({

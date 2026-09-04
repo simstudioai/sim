@@ -8,7 +8,12 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
-import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import { toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
+import {
+  generateSearchEmbedding,
+  type KbEmbeddingTarget,
+  recordSearchEmbeddingUsage,
+} from '@/lib/knowledge/embeddings'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   executeKnowledgeSearch,
@@ -183,17 +188,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const hasQuery = query && query.trim().length > 0
     const hasFilters = structuredFilters.length > 0
 
-    const embeddingModels = Array.from(new Set(accessibleKbs.map((kb) => kb.embeddingModel)))
-    if (hasQuery && embeddingModels.length > 1) {
+    /**
+     * One query embedding serves every base in the request, so all of them must
+     * be indexed the same way — including the vector width, which selects the
+     * pgvector column each comparison reads.
+     */
+    const embeddingTargets = new Map<string, KbEmbeddingTarget>(
+      accessibleKbs.map((kb) => [
+        `${kb.embeddingModel}:${kb.embeddingDimension}`,
+        { model: kb.embeddingModel, dimensions: toKbEmbeddingDimensions(kb.embeddingDimension) },
+      ])
+    )
+    if (hasQuery && embeddingTargets.size > 1) {
       return NextResponse.json(
         {
           error:
-            'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.',
+            'Selected knowledge bases use different embedding models or vector widths and cannot be searched together. Search them separately.',
         },
         { status: 400 }
       )
     }
-    const queryEmbeddingModel = embeddingModels[0]
+    const queryEmbeddingTarget = [...embeddingTargets.values()][0]
+    const queryEmbeddingModel = queryEmbeddingTarget.model
 
     let results: SearchResult[]
     let queryEmbeddingIsBYOK: boolean | null = null
@@ -219,11 +235,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } else if (hasQuery) {
       const queryEmbeddingResult = await generateSearchEmbedding(
         query!,
-        queryEmbeddingModel,
+        queryEmbeddingTarget,
         workspaceId
       )
       queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
-      const queryVector = JSON.stringify(queryEmbeddingResult.embedding)
       results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
@@ -231,7 +246,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         searchMode,
         boostRecency,
         query,
-        queryVector,
+        queryVector: {
+          vector: JSON.stringify(queryEmbeddingResult.embedding),
+          dimensions: queryEmbeddingTarget.dimensions,
+        },
         structuredFilters: hasFilters ? structuredFilters : undefined,
       })
     } else {

@@ -163,6 +163,10 @@ function getOllamaUrlImpl(): string {
   return (typeof value === 'string' && value) || DEFAULT_OLLAMA_URL
 }
 
+function isOllamaUrlConfiguredImpl(): boolean {
+  return Boolean(mockEnvObject.OLLAMA_URL)
+}
+
 /**
  * Controllable mock functions for `@/lib/core/utils/urls`. Each defaults to a
  * faithful implementation of the real module that reads through the shared env
@@ -191,6 +195,7 @@ export const urlsMockFns = {
   mockGetSocketServerUrl: vi.fn(getSocketServerUrlImpl),
   mockGetSocketUrl: vi.fn(getSocketUrlImpl),
   mockGetOllamaUrl: vi.fn(getOllamaUrlImpl),
+  mockIsOllamaUrlConfigured: vi.fn(isOllamaUrlConfiguredImpl),
 }
 
 /**
@@ -212,6 +217,7 @@ export function resetUrlsMock(): void {
   urlsMockFns.mockGetSocketServerUrl.mockReset().mockImplementation(getSocketServerUrlImpl)
   urlsMockFns.mockGetSocketUrl.mockReset().mockImplementation(getSocketUrlImpl)
   urlsMockFns.mockGetOllamaUrl.mockReset().mockImplementation(getOllamaUrlImpl)
+  urlsMockFns.mockIsOllamaUrlConfigured.mockReset().mockImplementation(isOllamaUrlConfiguredImpl)
 }
 
 /**
@@ -241,4 +247,5 @@ export const urlsMock = {
   getSocketServerUrl: urlsMockFns.mockGetSocketServerUrl,
   getSocketUrl: urlsMockFns.mockGetSocketUrl,
   getOllamaUrl: urlsMockFns.mockGetOllamaUrl,
+  isOllamaUrlConfigured: urlsMockFns.mockIsOllamaUrlConfigured,
 }

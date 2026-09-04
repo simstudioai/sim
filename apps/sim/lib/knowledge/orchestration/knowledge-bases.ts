@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
-import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
+import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -55,7 +55,7 @@ export async function performCreateKnowledgeBase(
   const { workspaceId, name, description, folderId, request, source } = params
   const requestId = params.requestId ?? generateRequestId()
   const chunkingConfig: ChunkingConfig = { ...DEFAULT_CHUNKING_CONFIG, ...params.chunkingConfig }
-  const embeddingModel = getConfiguredEmbeddingModel()
+  const { model: embeddingModel, dimensions: embeddingDimension } = getConfiguredKbEmbedding()
 
   let created: KnowledgeBaseWithCounts
   try {
@@ -67,7 +67,7 @@ export async function performCreateKnowledgeBase(
         folderId,
         userId: params.userId,
         embeddingModel,
-        embeddingDimension: EMBEDDING_DIMENSIONS,
+        embeddingDimension,
         chunkingConfig,
       },
       requestId
@@ -107,7 +107,7 @@ export async function performCreateKnowledgeBase(
       name: created.name,
       description: created.description,
       embeddingModel,
-      embeddingDimension: EMBEDDING_DIMENSIONS,
+      embeddingDimension,
       chunkingStrategy: chunkingConfig.strategy,
       chunkMaxSize: chunkingConfig.maxSize,
       chunkMinSize: chunkingConfig.minSize,

@@ -7,6 +7,7 @@ import {
   createCohereAdapter,
   createGeminiAdapter,
   createMistralAdapter,
+  createOllamaAdapter,
   createOpenAIAdapter,
   createOpenRouterAdapter,
 } from '@/lib/embeddings/providers'
@@ -221,5 +222,45 @@ describe('Mistral adapter', () => {
       [9, 9],
     ])
     expect(request.parseTokens?.(json)).toBe(4)
+  })
+})
+
+describe('Ollama adapter', () => {
+  const adapter = createOllamaAdapter({
+    modelName: 'nomic-embed-text',
+    baseUrl: 'http://ollama.internal:11434',
+    nativeDimensions: 1536,
+  })
+
+  it('posts the batch to the configured server with no credential header', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
+    expect(request.apiUrl).toBe('http://ollama.internal:11434/api/embed')
+    expect(request.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(request.body).toEqual({
+      model: 'nomic-embed-text',
+      input: INPUTS,
+      truncate: true,
+    })
+  })
+
+  it('never forwards dimensions, which older servers ignore rather than reject', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document', dimensions: 768 })
+    expect(request.body).not.toHaveProperty('dimensions')
+  })
+
+  it('parses vectors and the tokens Ollama reports embedding', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
+    const json = {
+      embeddings: [
+        [1, 2],
+        [3, 4],
+      ],
+      prompt_eval_count: 9,
+    }
+    expect(request.parse(json)).toEqual([
+      [1, 2],
+      [3, 4],
+    ])
+    expect(request.parseTokens?.(json)).toBe(9)
   })
 })

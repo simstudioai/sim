@@ -95,6 +95,14 @@ export interface EnvProviderDefinition<TId extends string = string> {
   id: TId
   label: string
   activation: EnvProviderActivation
+  /**
+   * Narrows {@link activation} for a capability whose providers are chosen by
+   * something a key-presence check cannot express — knowledge embeddings pick a
+   * family from the *value* of `KB_EMBEDDING_MODEL`, so credentials for the
+   * other families must not read as configured. Applied on top of activation,
+   * never instead of it: a provider still needs its own keys present.
+   */
+  activeWhen?: (values: EnvCapabilityValues) => boolean
   requires: EnvRequirement
   pairedFields?: readonly (readonly [string, string])[]
   optionalFields?: readonly EnvFieldRequirement[]
@@ -262,9 +270,11 @@ export function getProviderFields(provider: EnvProviderDefinition): readonly str
 }
 
 function providerIsActive(provider: EnvProviderDefinition, values: EnvCapabilityValues): boolean {
-  return provider.activation.mode === 'enabled'
-    ? isTruthyValue(values, provider.activation.key)
-    : provider.activation.keys.some((key) => hasValue(values, key))
+  const activated =
+    provider.activation.mode === 'enabled'
+      ? isTruthyValue(values, provider.activation.key)
+      : provider.activation.keys.some((key) => hasValue(values, key))
+  return activated && (provider.activeWhen?.(values) ?? true)
 }
 
 function capabilityKeys(definition: CapabilityDefinition): string[] {
@@ -1210,6 +1220,68 @@ export const OCR_CAPABILITY = defineCapability({
   ],
 } as const)
 
+/**
+ * Model families a knowledge base can be indexed with.
+ *
+ * `KB_EMBEDDING_MODEL` names a model rather than a provider, so the family is
+ * read off the id: an `ollama/` prefix routes to the deployment's own server, a
+ * `gemini` prefix to Google, and everything else — including an unset variable,
+ * whose default is `text-embedding-3-small` — to the OpenAI-compatible
+ * transports.
+ *
+ * This mirrors `apps/sim/lib/embeddings/catalog.ts`, which packages cannot
+ * import. `apps/sim/lib/embeddings/knowledge-embedding-family.test.ts` pins the
+ * two together for every model a knowledge base can be created with.
+ */
+export type KnowledgeEmbeddingFamily = 'openai' | 'gemini' | 'ollama'
+
+export function knowledgeEmbeddingFamily(values: EnvCapabilityValues): KnowledgeEmbeddingFamily {
+  const model = String(readValue(values, 'KB_EMBEDDING_MODEL') ?? '')
+    .trim()
+    .toLowerCase()
+  if (model.startsWith('ollama/')) return 'ollama'
+  if (model.startsWith('gemini')) return 'gemini'
+  return 'openai'
+}
+
+const embeddingFamilyIs =
+  (family: KnowledgeEmbeddingFamily) =>
+  (values: EnvCapabilityValues): boolean =>
+    knowledgeEmbeddingFamily(values) === family
+
+/**
+ * `EMBEDDING_OUTPUT_DIMS` must name a width the `embedding` table has a column
+ * for *and* one the selected family can emit — a value that fails either test
+ * falls back at runtime with only a log line, so it is caught here instead.
+ *
+ * The accepted set is therefore per family: OpenAI's models reduce to 768 and
+ * up, Gemini's to 768, 1536, or 3072, and an Ollama model can be any of the
+ * five (384 is only reachable through a local model such as all-minilm).
+ */
+function embeddingOutputDimsField(widths: readonly number[]) {
+  return envField('EMBEDDING_OUTPUT_DIMS', {
+    validation: {
+      kind: 'pattern',
+      pattern: new RegExp(`^(${widths.join('|')})$`),
+      message: `must be one of ${widths.join(', ')}`,
+    },
+  })
+}
+
+const OPENAI_EMBEDDING_WIDTHS = [768, 1024, 1536, 3072] as const
+const GEMINI_EMBEDDING_WIDTHS = [768, 1536, 3072] as const
+const OLLAMA_EMBEDDING_WIDTHS = [384, 768, 1024, 1536, 3072] as const
+
+/**
+ * Which credential serves knowledge-base embeddings.
+ *
+ * `KB_EMBEDDING_MODEL` picks the family and the family's transports are tried in
+ * order, so the providers below are gated on the selected family as well as on
+ * their own keys: a Gemini key does not make Gemini a fallback for an OpenAI
+ * model, and it does not become one just because it is present. Only the OpenAI
+ * family has more than one transport, and it is the only one `wireFallback`
+ * ever chains — the others are reached directly by `embed()`.
+ */
 export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
   strategy: 'fallback',
   id: 'knowledge-embeddings',
@@ -1222,6 +1294,7 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
         mode: 'any-present',
         keys: ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_API_VERSION'],
       },
+      activeWhen: embeddingFamilyIs('openai'),
       requires: allOf(
         envField('AZURE_OPENAI_API_KEY'),
         envField('AZURE_OPENAI_ENDPOINT', {
@@ -1233,7 +1306,11 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
         }),
         envField('AZURE_OPENAI_API_VERSION')
       ),
-      optionalFields: [envField('KB_OPENAI_MODEL_NAME')],
+      optionalFields: [
+        envField('KB_OPENAI_MODEL_NAME'),
+        envField('KB_EMBEDDING_MODEL'),
+        embeddingOutputDimsField(OPENAI_EMBEDDING_WIDTHS),
+      ],
     },
     {
       id: 'openai',
@@ -1242,18 +1319,65 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
         mode: 'any-present',
         keys: ['OPENAI_API_KEY', 'OPENAI_API_KEY_1', 'OPENAI_API_KEY_2', 'OPENAI_API_KEY_3'],
       },
+      activeWhen: embeddingFamilyIs('openai'),
       requires: anyOf(
         envField('OPENAI_API_KEY'),
         envField('OPENAI_API_KEY_1'),
         envField('OPENAI_API_KEY_2'),
         envField('OPENAI_API_KEY_3')
       ),
+      optionalFields: [
+        envField('KB_EMBEDDING_MODEL'),
+        embeddingOutputDimsField(OPENAI_EMBEDDING_WIDTHS),
+      ],
     },
     {
       id: 'openrouter',
       label: 'OpenRouter',
       activation: { mode: 'any-present', keys: ['OPENROUTER_API_KEY'] },
+      activeWhen: embeddingFamilyIs('openai'),
       requires: envField('OPENROUTER_API_KEY'),
+    },
+    {
+      id: 'gemini',
+      label: 'Google Gemini',
+      activation: {
+        mode: 'any-present',
+        keys: ['GEMINI_API_KEY', 'GEMINI_API_KEY_1', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3'],
+      },
+      activeWhen: embeddingFamilyIs('gemini'),
+      requires: allOf(
+        anyOf(
+          envField('GEMINI_API_KEY'),
+          envField('GEMINI_API_KEY_1'),
+          envField('GEMINI_API_KEY_2'),
+          envField('GEMINI_API_KEY_3')
+        ),
+        envField('KB_EMBEDDING_MODEL')
+      ),
+      optionalFields: [embeddingOutputDimsField(GEMINI_EMBEDDING_WIDTHS)],
+    },
+    {
+      /**
+       * Activated by `KB_EMBEDDING_MODEL` as well as `OLLAMA_URL`, so an
+       * operator who names an Ollama model but has not pointed Sim at a server
+       * is told which field is missing rather than that nothing is configured.
+       */
+      id: 'ollama',
+      label: 'Ollama',
+      activation: { mode: 'any-present', keys: ['OLLAMA_URL', 'KB_EMBEDDING_MODEL'] },
+      activeWhen: embeddingFamilyIs('ollama'),
+      requires: allOf(
+        envField('OLLAMA_URL', {
+          validation: {
+            kind: 'url',
+            protocols: ['http:', 'https:'],
+            message: 'must be a valid HTTP(S) URL',
+          },
+        }),
+        envField('KB_EMBEDDING_MODEL')
+      ),
+      optionalFields: [embeddingOutputDimsField(OLLAMA_EMBEDDING_WIDTHS)],
     },
   ],
 } as const)

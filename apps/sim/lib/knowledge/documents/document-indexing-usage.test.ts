@@ -42,7 +42,8 @@ vi.mock('@/lib/knowledge/documents/document-processor', () => ({
 }))
 
 vi.mock('@/lib/knowledge/embedding-models', () => ({
-  EMBEDDING_DIMENSIONS: 1536,
+  DEFAULT_KB_EMBEDDING_DIMENSIONS: 1536,
+  toKbEmbeddingDimensions: (value: number) => value,
   getEmbeddingModelInfo: vi.fn(() => ({ tokenizerProvider: 'openai' })),
 }))
 
@@ -81,6 +82,7 @@ const PERSISTED_CONTEXT = {
   knowledgeBaseUserId: 'knowledge-owner',
   chunkingConfig: null,
   embeddingModel: 'text-embedding-3-small',
+  embeddingDimension: 1536,
   billedAccountUserId: null,
   uploadedBy: 'uploader-1',
   filename: 'persisted.pdf',

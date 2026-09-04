@@ -6,14 +6,17 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { embedKnowledge } from '@/lib/embeddings'
 import {
   assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,
-  EMBEDDING_DIMENSIONS,
+  defaultKbEmbeddingDimensions,
   getEmbeddingModelInfo,
-  SUPPORTED_EMBEDDING_MODELS,
+  isKbEmbeddingDimensions,
+  isKbEmbeddingModel,
+  KB_EMBEDDING_STORAGE_DIMENSIONS,
+  type KbEmbeddingDimensions,
 } from '@/lib/knowledge/embedding-models'
 import { projectKnowledgeModelInputs } from '@/lib/knowledge/model-input-provenance'
 import { estimateTokenCount } from '@/lib/tokenization'
@@ -21,18 +24,27 @@ import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('EmbeddingUtils')
 
-export { EMBEDDING_DIMENSIONS } from '@/lib/knowledge/embedding-models'
-
 export type EmbeddingInputType = 'document' | 'query'
+
+/**
+ * The model a knowledge base is indexed with and the vector width it stores.
+ * The two travel together everywhere: a width is only meaningful for the model
+ * that emits it, and a chunk written at the wrong width lands in the wrong
+ * pgvector column or none at all.
+ */
+export interface KbEmbeddingTarget {
+  model: string
+  dimensions: KbEmbeddingDimensions
+}
 
 /**
  * Returns the embedding model to use for new knowledge bases.
  * Sourced from the `KB_EMBEDDING_MODEL` env var; falls back to the default if
- * unset or set to an unsupported model.
+ * unset or set to a model knowledge bases cannot use.
  */
-export function getConfiguredEmbeddingModel(): string {
+function resolveConfiguredEmbeddingModel(): string {
   const configured = env.KB_EMBEDDING_MODEL
-  if (configured && SUPPORTED_EMBEDDING_MODELS[configured]) {
+  if (configured && isKbEmbeddingModel(configured)) {
     return configured
   }
   if (configured) {
@@ -41,6 +53,51 @@ export function getConfiguredEmbeddingModel(): string {
     )
   }
   return DEFAULT_EMBEDDING_MODEL
+}
+
+/**
+ * Vector width new knowledge bases are stored at, from `EMBEDDING_OUTPUT_DIMS`.
+ *
+ * Matching the width to what the configured model actually emits is the
+ * operator's job — Sim cannot verify it for a model on their own Ollama server,
+ * and for a catalogued model it can only check the widths the provider
+ * documents. Either way a value this deployment cannot store falls back rather
+ * than failing knowledge-base creation outright, because a base that exists at
+ * a working width is recoverable and one that could not be created is not.
+ */
+function resolveConfiguredEmbeddingDimensions(model: string): KbEmbeddingDimensions {
+  const raw = env.EMBEDDING_OUTPUT_DIMS
+  if (raw === undefined || String(raw).trim() === '') return defaultKbEmbeddingDimensions(model)
+
+  const fallback = defaultKbEmbeddingDimensions(model)
+  /**
+   * Read through `envNumber` rather than trusted as the number its schema
+   * declares: `createEnv` runs with `skipValidation`, so the declared
+   * `z.coerce.number()` never executes and the value arrives as the raw string
+   * from the environment. Comparing that string against the storage widths
+   * matches nothing, which silently ignored every configured width. `0` is the
+   * sentinel for a value that is not a number at all; no storage width is 0.
+   */
+  const configured = envNumber(raw, 0, { min: 1, integer: true })
+  if (!isKbEmbeddingDimensions(configured)) {
+    logger.warn(
+      `EMBEDDING_OUTPUT_DIMS="${raw}" is not a storable vector width — falling back to ${fallback}. Supported: ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}`
+    )
+    return fallback
+  }
+  if (!getEmbeddingModelInfo(model).dimensions.includes(configured)) {
+    logger.warn(
+      `EMBEDDING_OUTPUT_DIMS="${raw}" is not a width ${model} can emit — falling back to ${fallback}`
+    )
+    return fallback
+  }
+  return configured
+}
+
+/** Model and vector width every knowledge base created on this deployment uses. */
+export function getConfiguredKbEmbedding(): KbEmbeddingTarget {
+  const model = resolveConfiguredEmbeddingModel()
+  return { model, dimensions: resolveConfiguredEmbeddingDimensions(model) }
 }
 
 export interface GenerateEmbeddingsResult {
@@ -56,21 +113,21 @@ export interface GenerateEmbeddingsResult {
 /**
  * Generate embeddings for multiple texts with token-aware batching and parallel processing.
  *
- * Every knowledge-base vector is pinned to {@link EMBEDDING_DIMENSIONS} so it
- * matches the fixed width of the pgvector column.
+ * Every vector is pinned to the width its knowledge base was created at, so it
+ * matches the pgvector column the base stores into.
  */
 export async function generateEmbeddings(
   texts: string[],
-  embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
+  target: KbEmbeddingTarget,
   workspaceId?: string | null
 ): Promise<GenerateEmbeddingsResult> {
-  assertKbEmbeddingModel(embeddingModel)
+  assertKbEmbeddingModel(target.model, target.dimensions)
 
   const result = await embedKnowledge(texts, {
-    model: embeddingModel,
+    model: target.model,
     workspaceId,
     taskType: 'document',
-    dimensions: EMBEDDING_DIMENSIONS,
+    dimensions: target.dimensions,
     projectInputs: projectKnowledgeModelInputs,
   })
 
@@ -86,16 +143,16 @@ export async function generateEmbeddings(
 
 export async function generateSearchEmbedding(
   query: string,
-  embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
+  target: KbEmbeddingTarget,
   workspaceId?: string | null
 ): Promise<{ embedding: number[]; isBYOK: boolean }> {
-  assertKbEmbeddingModel(embeddingModel)
+  assertKbEmbeddingModel(target.model, target.dimensions)
 
   const result = await embedKnowledge([query], {
-    model: embeddingModel,
+    model: target.model,
     workspaceId,
     taskType: 'query',
-    dimensions: EMBEDDING_DIMENSIONS,
+    dimensions: target.dimensions,
     projectInputs: projectKnowledgeModelInputs,
   })
 

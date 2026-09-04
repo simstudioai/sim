@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-04",
   "integrations": [
     {
       "type": "onepassword",
@@ -7460,7 +7460,7 @@
       "slug": "embeddings",
       "name": "Embeddings",
       "description": "Generate embeddings",
-      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.",
+      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus any model on a self-hosted Ollama.",
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",

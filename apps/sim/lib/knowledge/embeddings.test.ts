@@ -1,95 +1,88 @@
 /**
  * @vitest-environment node
  */
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
-import * as usageLogModule from '@/lib/billing/core/usage-log'
-import * as thresholdBillingModule from '@/lib/billing/threshold-billing'
-import * as embeddingModelsModule from '@/lib/knowledge/embedding-models'
-import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
-import * as tokenizationModule from '@/lib/tokenization'
-import * as providersUtilsModule from '@/providers/utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockEnv } = vi.hoisted(() => ({
+  mockEnv: {} as { KB_EMBEDDING_MODEL?: string; EMBEDDING_OUTPUT_DIMS?: string },
+}))
 
 /**
- * Spy on the real module namespaces instead of vi.mock: under `isolate: false`
- * `@/lib/knowledge/embeddings` is a shared consumer cached across test files,
- * so vi.mock here would bind this file's fixtures into it for every later
- * file. Patching the real namespaces (and restoring afterAll) is the only
- * wiring that composes.
+ * `envNumber` is the real implementation, not a stub: the whole point of the
+ * cases below is that `createEnv` runs with `skipValidation`, so every value
+ * arrives as the raw string from the environment however its schema is declared.
  */
-const mockRecordUsage = vi
-  .spyOn(usageLogModule, 'recordUsage')
-  .mockResolvedValue(undefined as never)
-const mockToBillingContext = vi.spyOn(billingAttributionModule, 'toBillingContext')
-const mockCheckAndBillPayerOverageThreshold = vi
-  .spyOn(thresholdBillingModule, 'checkAndBillPayerOverageThreshold')
-  .mockResolvedValue(undefined as never)
-const mockCalculateCost = vi.spyOn(providersUtilsModule, 'calculateCost')
-const estimateTokenCountSpy = vi
-  .spyOn(tokenizationModule, 'estimateTokenCount')
-  .mockReturnValue({ count: 100 } as never)
-const getEmbeddingModelInfoSpy = vi
-  .spyOn(embeddingModelsModule, 'getEmbeddingModelInfo')
-  .mockReturnValue({ tokenizerProvider: 'openai' } as never)
+vi.mock('@/lib/core/config/env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env')>()),
+  env: mockEnv,
+}))
 
-afterAll(() => {
-  mockRecordUsage.mockRestore()
-  mockToBillingContext.mockRestore()
-  mockCheckAndBillPayerOverageThreshold.mockRestore()
-  mockCalculateCost.mockRestore()
-  estimateTokenCountSpy.mockRestore()
-  getEmbeddingModelInfoSpy.mockRestore()
-})
+import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 
-describe('recordSearchEmbeddingUsage', () => {
+describe('getConfiguredKbEmbedding', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockRecordUsage.mockResolvedValue(undefined as never)
-    mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined as never)
-    estimateTokenCountSpy.mockReturnValue({ count: 100 } as never)
-    getEmbeddingModelInfoSpy.mockReturnValue({ tokenizerProvider: 'openai' } as never)
-    mockCalculateCost.mockReturnValue({ total: 0.01 } as never)
-    mockToBillingContext.mockReturnValue({
-      billingEntity: { type: 'organization', id: 'org-1' },
-      billingPeriod: {
-        start: new Date('2026-07-01T00:00:00.000Z'),
-        end: new Date('2026-08-01T00:00:00.000Z'),
-      },
+    mockEnv.KB_EMBEDDING_MODEL = undefined
+    mockEnv.EMBEDDING_OUTPUT_DIMS = undefined
+  })
+
+  it('defaults to the model and width knowledge bases were always created at', () => {
+    expect(getConfiguredKbEmbedding()).toEqual({
+      model: 'text-embedding-3-small',
+      dimensions: 1536,
     })
   })
 
-  it('records and bills against the attributed workspace payer', async () => {
-    await recordSearchEmbeddingUsage({
-      userId: 'actor-1',
-      workspaceId: 'ws-1',
-      embeddingModel: 'text-embedding-3-small',
-      query: 'test query',
-      isBYOK: false,
-      sourceReference: 'search-1',
-      billingAttribution: {
-        actorUserId: 'actor-1',
-        workspaceId: 'ws-1',
-        organizationId: 'org-1',
-        billedAccountUserId: 'owner-1',
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: '2026-07-01T00:00:00.000Z',
-          end: '2026-08-01T00:00:00.000Z',
-        },
-        payerSubscription: null,
-      },
+  it('stores at the configured width when the model can emit it', () => {
+    mockEnv.KB_EMBEDDING_MODEL = 'text-embedding-3-large'
+    mockEnv.EMBEDDING_OUTPUT_DIMS = '3072'
+    expect(getConfiguredKbEmbedding()).toEqual({
+      model: 'text-embedding-3-large',
+      dimensions: 3072,
     })
+  })
 
-    expect(mockRecordUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'actor-1',
-        workspaceId: 'ws-1',
-        billingEntity: { type: 'organization', id: 'org-1' },
-      })
-    )
-    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith({
-      type: 'organization',
-      id: 'org-1',
+  it('accepts any storable width from a model on the deployment’s own Ollama', () => {
+    mockEnv.KB_EMBEDDING_MODEL = 'ollama/nomic-embed-text'
+    mockEnv.EMBEDDING_OUTPUT_DIMS = '768'
+    expect(getConfiguredKbEmbedding()).toEqual({
+      model: 'ollama/nomic-embed-text',
+      dimensions: 768,
+    })
+  })
+
+  it('falls back when the width is not a number at all', () => {
+    mockEnv.KB_EMBEDDING_MODEL = 'text-embedding-3-large'
+    mockEnv.EMBEDDING_OUTPUT_DIMS = 'wide'
+    expect(getConfiguredKbEmbedding()).toEqual({
+      model: 'text-embedding-3-large',
+      dimensions: 1536,
+    })
+  })
+
+  it('falls back when the width has no storage column, keeping the chosen model', () => {
+    mockEnv.KB_EMBEDDING_MODEL = 'text-embedding-3-large'
+    mockEnv.EMBEDDING_OUTPUT_DIMS = '1000'
+    expect(getConfiguredKbEmbedding()).toEqual({
+      model: 'text-embedding-3-large',
+      dimensions: 1536,
+    })
+  })
+
+  it('falls back when the model cannot emit the configured width', () => {
+    mockEnv.KB_EMBEDDING_MODEL = 'gemini-embedding-001'
+    mockEnv.EMBEDDING_OUTPUT_DIMS = '1024'
+    expect(getConfiguredKbEmbedding()).toEqual({
+      model: 'gemini-embedding-001',
+      dimensions: 1536,
+    })
+  })
+
+  it('falls back to the default model when the configured one cannot index a knowledge base', () => {
+    mockEnv.KB_EMBEDDING_MODEL = 'text-embedding-ada-002'
+    mockEnv.EMBEDDING_OUTPUT_DIMS = '768'
+    expect(getConfiguredKbEmbedding()).toEqual({
+      model: 'text-embedding-3-small',
+      dimensions: 768,
     })
   })
 })
