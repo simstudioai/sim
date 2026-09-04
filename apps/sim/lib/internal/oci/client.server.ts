@@ -591,9 +591,12 @@ async function readFailureCode(
 }
 
 function isRetryableTransportFailure(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
+  if (!(error instanceof Error)) return false
   const code = (error as { code?: unknown }).code
-  return typeof code === 'string' && RETRYABLE_TRANSPORT_CODES.has(code)
+  return (
+    (typeof code === 'string' && RETRYABLE_TRANSPORT_CODES.has(code)) ||
+    /^Request timed out after \d+ms$/.test(error.message)
+  )
 }
 
 function extractDiscoveredOrigin(

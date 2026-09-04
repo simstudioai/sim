@@ -38,7 +38,7 @@ export interface OciStaticEndpointPolicy {
 }
 
 export type OciDiscoverySource =
-  | { readonly kind: 'header'; readonly name: string }
+  | { readonly kind: 'header'; readonly name: 'location' }
   | { readonly kind: 'json'; readonly path: readonly string[] }
 
 export interface OciDiscoveredEndpointPolicy {
@@ -214,8 +214,8 @@ function assertHostnameTemplate(value: OciHostnameTemplate): void {
 
 function assertDiscoverySource(source: OciDiscoverySource): void {
   if (source.kind === 'header') {
-    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(source.name)) {
-      throw new Error('OCI discovery header name is invalid')
+    if (source.name !== 'location') {
+      throw new Error('OCI discovery header must be the safe Location response header')
     }
     return
   }
@@ -266,7 +266,7 @@ export function createOciDiscoveredEndpointPolicy(params: {
   const source =
     params.source.kind === 'json'
       ? Object.freeze({ ...params.source, path: Object.freeze([...params.source.path]) })
-      : Object.freeze({ ...params.source, name: params.source.name.toLowerCase() })
+      : Object.freeze({ ...params.source })
   return Object.freeze({
     kind: 'authenticated-discovery',
     serviceId: params.serviceId,

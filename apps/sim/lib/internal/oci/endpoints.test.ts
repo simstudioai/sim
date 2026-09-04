@@ -113,14 +113,14 @@ describe('OCI endpoint policies', () => {
       serviceName: 'database',
       hostnameTemplate: 'regional',
       responsePolicy: staticPolicy,
-      source: { kind: 'header', name: 'Endpoint' },
+      source: { kind: 'header', name: 'location' },
       allowRegionalHost: true,
     })
     expect(
       resolveDiscoveredOciEndpoint(policy, region, 'https://database.us-ashburn-1.oraclecloud.com')
         .origin
     ).toBe('https://database.us-ashburn-1.oraclecloud.com')
-    expect(policy.source).toEqual({ kind: 'header', name: 'endpoint' })
+    expect(policy.source).toEqual({ kind: 'header', name: 'location' })
     expect(Object.isFrozen(policy.source)).toBe(true)
   })
 
@@ -158,5 +158,14 @@ describe('OCI endpoint policies', () => {
         source: { kind: 'json', path: ['endpoint'] },
       })
     ).toThrow('same owning service')
+    expect(() =>
+      createOciDiscoveredEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName: 'database',
+        hostnameTemplate: 'regional',
+        responsePolicy: staticPolicy,
+        source: { kind: 'header', name: 'x-custom-endpoint' } as never,
+      })
+    ).toThrow('safe Location')
   })
 })
