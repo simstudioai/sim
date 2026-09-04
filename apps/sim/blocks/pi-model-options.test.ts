@@ -44,17 +44,17 @@ describe('Pi model options', () => {
     }
   })
 
-  it('keeps current models and excludes stale catalog entries', () => {
+  it('keeps current models and excludes retired catalog entries', () => {
     const modelIds = getPiModelOptions().map(({ id }) => id)
 
     expect(modelIds).toContain('claude-sonnet-4-6')
+    expect(modelIds).not.toContain('claude-opus-4-1')
     expect(modelIds).not.toContain('claude-sonnet-4-0')
   })
 
   it('keeps persisted and selectable models available', () => {
     const modelIds = getPiModelOptions().map(({ id }) => id)
 
-    expect(modelIds).toContain('claude-opus-4-1')
     expect(modelIds).toContain('cerebras/zai-glm-4.7')
     expect(modelIds).toContain('glm-5.1')
     expect(modelIds).toContain('glm-4.5-air')
