@@ -540,11 +540,12 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     fields: [
       {
         id: 'orgId',
-        label: 'Environment URL',
-        placeholder: 'https://example.oraclecloud.com/epmcloud',
+        label: 'REST Base URL',
+        placeholder: 'https://example.oraclecloud.com',
         secret: false,
         hintPattern: /^https:\/\//,
-        hintMessage: 'Expected the full HTTPS URL for one Oracle EPM environment.',
+        hintMessage: 'Expected the HTTPS REST base URL for one Oracle EPM environment.',
+        hint: 'Enter the HTTPS base URL for your environment without /epmcloud or an API endpoint path. Include a gateway prefix only if your deployment requires it.',
       },
       {
         id: 'clientId',
