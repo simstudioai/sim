@@ -242,7 +242,7 @@ export function CredentialGroupDetails({
               error={!name.trim()}
             />
           </SettingRow>
-          <SettingRow label='Description' optional htmlFor='credential-group-description'>
+          <SettingRow label='Description' htmlFor='credential-group-description'>
             <ChipTextarea
               id='credential-group-description'
               value={description}
@@ -437,7 +437,6 @@ export function CredentialGroupDetails({
         title={`Remove ${
           removingProvider ? getCredentialGroupProviderService(removingProvider).name : 'account'
         }`}
-        defaultAction='confirm'
         text='People will no longer be asked to connect this account. Existing credentials are retained but will no longer be returned by this group.'
         dismissLabel='Cancel'
         confirm={{
@@ -454,7 +453,6 @@ export function CredentialGroupDetails({
         title={`Remove ${
           removingMcpConnector ? MANAGED_MCP_CONNECTORS[removingMcpConnector].name : 'MCP app'
         }`}
-        defaultAction='confirm'
         text='People will no longer be able to connect this app. Existing OAuth grants and saved tool metadata will be revoked.'
         dismissLabel='Cancel'
         confirm={{

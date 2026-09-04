@@ -133,6 +133,22 @@ export const credentialGroupProviderSearchUrlKeys = {
 } as const
 
 /**
+ * Filters the people enrolled in a credential group by email. Its own key rather than the
+ * provider filter's, so switching tabs does not carry a term that matches nothing on the
+ * other side.
+ */
+export const credentialGroupPeopleSearchParam = {
+  key: 'credential-group-people',
+  parser: parseAsString.withDefault(''),
+} as const
+
+/** A transient list filter: no back-stack entry, and absent from the URL when empty. */
+export const credentialGroupPeopleSearchUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
  * `group-tab` is the active tab inside the deep-linked permission-group detail
  * view, so a shared `group-id` link can land on the same tab (mirrors
  * `server-tab` on the workflow MCP server detail).
