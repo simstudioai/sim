@@ -49,6 +49,7 @@ export type ServiceAccountProviderId =
   | TokenServiceAccountProviderId
   | ClientCredentialAccountProviderId
 
+/** Sim setup guides for each provider, docked bottom-left of each modal. */
 const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
 const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
   'https://docs.sim.ai/integrations/atlassian-service-account'
@@ -128,6 +129,20 @@ interface ConnectServiceAccountModalProps {
   onCreated?: (credentialId: string) => void
 }
 
+/**
+ * Connect-service-account modal mounted from the per-integration detail page.
+ * Self-contained: takes the resolved SA provider + service metadata from the
+ * caller and submits via `useCreateWorkspaceCredential`. Branches the body
+ * based on `serviceAccountProviderId`:
+ *
+ * - `google-service-account`: JSON-paste + drag/drop. Validated client-side
+ *   against {@link serviceAccountJsonSchema} before submitting.
+ * - `atlassian-service-account`: API token + site domain. Validated by the
+ *   server against the Atlassian API; user-facing errors are mapped from the
+ *   route's `error.code`.
+ * - `oci-api-key-service-account`: API signing-key fields. Validated locally
+ *   and with a bounded OCI request before encrypted storage.
+ */
 export function ConnectServiceAccountModal({
   open,
   onOpenChange,

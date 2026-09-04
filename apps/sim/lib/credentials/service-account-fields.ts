@@ -35,7 +35,7 @@ export type ServiceAccountFieldId =
  * providers from descriptor fields, bespoke providers inline.) Token-paste
  * providers contribute their entries from
  * `TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS`, client-credential providers from
- * `CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS`; the three bespoke providers are
+ * `CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS`; the four bespoke providers are
  * declared here.
  */
 export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {

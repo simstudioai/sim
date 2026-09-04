@@ -158,7 +158,7 @@ export const createCredentialBodySchema = z
      */
     authMethod: z.string().trim().min(1).max(64).optional(),
     /** PEM private key for certificate/JWT-based grants (for example Salesforce or NetSuite). */
-    privateKey: z.string().trim().min(1).max(65_536).optional(),
+    privateKey: z.string().trim().min(1).max(8192).optional(),
     /** Run-as username for key-based grants (Salesforce JWT `sub`). */
     username: z.string().trim().min(1).max(255).optional(),
     tenancyOcid: z.string().trim().min(1).max(255).optional(),
@@ -245,7 +245,7 @@ export const updateCredentialByIdBodySchema = z
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
     authMethod: z.string().trim().min(1).max(64).optional(),
-    privateKey: z.string().trim().min(1).max(65_536).optional(),
+    privateKey: z.string().trim().min(1).max(8192).optional(),
     username: z.string().trim().min(1).max(255).optional(),
     tenancyOcid: z.string().trim().min(1).max(255).optional(),
     userOcid: z.string().trim().min(1).max(255).optional(),

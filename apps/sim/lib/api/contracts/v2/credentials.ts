@@ -353,7 +353,7 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .string()
       .trim()
       .min(1)
-      .max(65_536)
+      .max(8192)
       .optional()
       .describe('Write-only PEM private key.')
       .meta({ writeOnly: true }),
@@ -602,7 +602,7 @@ const v2ServiceAccountSecretFieldsShape = {
     .string()
     .trim()
     .min(1)
-    .max(65_536)
+    .max(8192)
     .optional()
     .describe('Write-only PEM private key.')
     .meta({ writeOnly: true }),
