@@ -164,7 +164,7 @@ describe('withMcpOauthRefreshLock', () => {
     expect(fn).not.toHaveBeenCalled()
   })
 
-  it('falls open when Redis is unavailable on acquire', async () => {
+  it('cleans up an uncertain owner token before falling open when Redis is unavailable', async () => {
     mockAcquireLock.mockRejectedValueOnce(new Error('Redis connection refused'))
     const fn = vi.fn(async () => 'uncoordinated')
 
@@ -172,7 +172,29 @@ describe('withMcpOauthRefreshLock', () => {
 
     expect(result).toBe('uncoordinated')
     expect(fn).toHaveBeenCalledTimes(1)
-    expect(mockReleaseLock).not.toHaveBeenCalled()
+    expect(mockReleaseLock).toHaveBeenCalledWith(
+      'mcp:oauth:refresh:row-redis-down',
+      expect.any(String)
+    )
+  })
+
+  it('cleans up an uncertain owner token before propagating cancellation', async () => {
+    const controller = new AbortController()
+    mockAcquireLock.mockImplementationOnce(async () => {
+      controller.abort(new Error('cancelled'))
+      throw new Error('Redis operation timed out')
+    })
+    const fn = vi.fn(async () => 'should-not-run')
+
+    await expect(
+      withMcpOauthRefreshLock('row-aborted-acquire', fn, controller.signal)
+    ).rejects.toThrow('cancelled')
+
+    expect(mockReleaseLock).toHaveBeenCalledWith(
+      'mcp:oauth:refresh:row-aborted-acquire',
+      expect.any(String)
+    )
+    expect(fn).not.toHaveBeenCalled()
   })
 
   it('releases the lock even when fn throws', async () => {
