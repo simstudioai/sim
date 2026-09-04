@@ -158,9 +158,14 @@ export const createCredentialBodySchema = z
      */
     authMethod: z.string().trim().min(1).max(64).optional(),
     /** PEM private key for certificate/JWT-based grants (for example Salesforce or NetSuite). */
-    privateKey: z.string().trim().min(1).max(8192).optional(),
+    privateKey: z.string().trim().min(1).max(65_536).optional(),
     /** Run-as username for key-based grants (Salesforce JWT `sub`). */
     username: z.string().trim().min(1).max(255).optional(),
+    tenancyOcid: z.string().trim().min(1).max(255).optional(),
+    userOcid: z.string().trim().min(1).max(255).optional(),
+    fingerprint: z.string().trim().min(1).max(128).optional(),
+    privateKeyPassphrase: z.string().max(4096).optional(),
+    region: z.string().trim().min(1).max(128).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -240,8 +245,13 @@ export const updateCredentialByIdBodySchema = z
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
     authMethod: z.string().trim().min(1).max(64).optional(),
-    privateKey: z.string().trim().min(1).max(8192).optional(),
+    privateKey: z.string().trim().min(1).max(65_536).optional(),
     username: z.string().trim().min(1).max(255).optional(),
+    tenancyOcid: z.string().trim().min(1).max(255).optional(),
+    userOcid: z.string().trim().min(1).max(255).optional(),
+    fingerprint: z.string().trim().min(1).max(128).optional(),
+    privateKeyPassphrase: z.string().max(4096).optional(),
+    region: z.string().trim().min(1).max(128).optional(),
   })
   .strict()
   .refine(
@@ -261,7 +271,12 @@ export const updateCredentialByIdBodySchema = z
       data.dataCenter !== undefined ||
       data.authMethod !== undefined ||
       data.privateKey !== undefined ||
-      data.username !== undefined,
+      data.username !== undefined ||
+      data.tenancyOcid !== undefined ||
+      data.userOcid !== undefined ||
+      data.fingerprint !== undefined ||
+      data.privateKeyPassphrase !== undefined ||
+      data.region !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

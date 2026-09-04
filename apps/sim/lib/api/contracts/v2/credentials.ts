@@ -458,11 +458,21 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .string()
       .trim()
       .min(1)
-      .max(8192)
+      .max(65_536)
       .optional()
       .describe('Write-only PEM private key.')
       .meta({ writeOnly: true }),
     username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+    tenancyOcid: z.string().trim().min(1).max(255).optional().describe('OCI tenancy OCID.'),
+    userOcid: z.string().trim().min(1).max(255).optional().describe('OCI user OCID.'),
+    fingerprint: z.string().trim().min(1).max(128).optional().describe('OCI API-key fingerprint.'),
+    privateKeyPassphrase: z
+      .string()
+      .max(4096)
+      .optional()
+      .describe('Write-only OCI private-key passphrase.')
+      .meta({ writeOnly: true }),
+    region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
   })
   .strict()
 
@@ -707,11 +717,21 @@ const v2ServiceAccountSecretFieldsShape = {
     .string()
     .trim()
     .min(1)
-    .max(8192)
+    .max(65_536)
     .optional()
     .describe('Write-only PEM private key.')
     .meta({ writeOnly: true }),
   username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+  tenancyOcid: z.string().trim().min(1).max(255).optional().describe('OCI tenancy OCID.'),
+  userOcid: z.string().trim().min(1).max(255).optional().describe('OCI user OCID.'),
+  fingerprint: z.string().trim().min(1).max(128).optional().describe('OCI API-key fingerprint.'),
+  privateKeyPassphrase: z
+    .string()
+    .max(4096)
+    .optional()
+    .describe('Write-only OCI private-key passphrase.')
+    .meta({ writeOnly: true }),
+  region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
 } as const
 
 export const v2UpdateCredentialBodySchema = z
