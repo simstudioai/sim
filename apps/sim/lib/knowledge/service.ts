@@ -30,6 +30,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -254,7 +255,7 @@ async function attachConnectorTypes(
     if (!types.includes(row.connectorType)) types.push(row.connectorType)
     connectorTypesByKb.set(row.knowledgeBaseId, types)
     if (row.accessMode === 'members') memberScopedKbIds.add(row.knowledgeBaseId)
-    if (row.accessMode === 'admin') mirroredKbIds.add(row.knowledgeBaseId)
+    if (mirrorsSourceAcls(row.accessMode)) mirroredKbIds.add(row.knowledgeBaseId)
   }
   /**
    * A members-mode connector only scopes documents where the feature is on;

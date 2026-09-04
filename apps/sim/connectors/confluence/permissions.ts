@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { normalizeEmail } from '@sim/utils/string'
 import type {
   ConfluencePrincipal,
   ConfluenceRestriction,
 } from '@/lib/knowledge/access/confluence-permissions'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+import { extractCursor } from '@/connectors/confluence/cursor'
 import type {
   ConnectorDirectory,
   ConnectorDirectoryGroup,
@@ -48,13 +50,6 @@ async function getJson<T>(
   return (await response.json()) as T
 }
 
-/** Confluence returns the next page as a relative URL carrying an opaque cursor. */
-function nextCursor(next: string | undefined): string | undefined {
-  if (!next) return undefined
-  const cursor = new URLSearchParams(next.split('?')[1] ?? '').get('cursor')
-  return cursor ?? undefined
-}
-
 /**
  * Drains a v2 collection by following `_links.next`, the only termination
  * Confluence documents. The requested page size is a ceiling the server may
@@ -71,7 +66,7 @@ async function drainV2<T>(url: string, accessToken: string, what: string): Promi
       accessToken
     )
     items.push(...(body.results ?? []))
-    cursor = nextCursor(body._links?.next)
+    cursor = extractCursor(body._links?.next)
     if (!cursor) return items
   }
   throw new Error(`Confluence ${what} exceeded ${MAX_PAGES} pages`)
@@ -223,12 +218,11 @@ export async function getReadRestriction(
     for (const group of groups) {
       if (group.id) principals.push({ kind: 'group', id: group.id })
     }
-    if (users.length < PAGE_SIZE && groups.length < PAGE_SIZE) break
-    if (page === MAX_PAGES - 1) {
-      throw new Error(`Confluence restriction on ${contentId} exceeded ${MAX_PAGES} pages`)
+    if (users.length < PAGE_SIZE && groups.length < PAGE_SIZE) {
+      return principals.length === 0 ? null : principals
     }
   }
-  return principals.length === 0 ? null : principals
+  throw new Error(`Confluence restriction on ${contentId} exceeded ${MAX_PAGES} pages`)
 }
 
 /**
@@ -262,7 +256,7 @@ export async function describeContent(
   contentId: string
 ): Promise<{ spaceId: string; contentType: 'page' | 'blogpost' } | null> {
   for (const contentType of ['page', 'blogpost'] as const) {
-    const collection = contentType === 'page' ? 'pages' : 'blogposts'
+    const collection = `${contentType}s`
     const body = await getJson<{ spaceId?: string | number }>(
       `${apiBase(cloudId)}/api/v2/${collection}/${encodeURIComponent(contentId)}`,
       accessToken,
@@ -299,8 +293,7 @@ export async function resolveUserEmails(
   /** `bulk` accepts repeated accountId params; 90 keeps the URL well inside limits. */
   const BULK_SIZE = 90
 
-  for (let offset = 0; offset < unique.length; offset += BULK_SIZE) {
-    const batch = unique.slice(offset, offset + BULK_SIZE)
+  for (const batch of chunkArray(unique, BULK_SIZE)) {
     const query = new URLSearchParams()
     for (const accountId of batch) query.append('accountId', accountId)
 
@@ -369,6 +362,7 @@ export async function listGroupMemberEmails(
   )
   const accountIds = [...new Set(members.flatMap((m) => (m.accountId ? [m.accountId] : [])))]
   const emails = await resolveUserEmails(cloudId, accessToken, accountIds)
+
   return {
     group,
     memberEmails: [...new Set(emails.values())],

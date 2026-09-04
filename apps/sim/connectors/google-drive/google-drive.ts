@@ -8,6 +8,7 @@ import {
   type OpenSharingPolicy,
 } from '@/lib/knowledge/access/drive-permissions'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { drainGooglePagedList } from '@/lib/oauth/google-pagination'
 import { googleWorkspaceDomain, openGoogleDirectory } from '@/connectors/google-drive/directory'
 import {
   fetchGoogleDriveWithRetry,
@@ -437,7 +438,12 @@ interface DriveAclContext {
  * Null when no administrator is configured, which is every crawl that is not
  * mirroring permissions.
  */
-function driveAclContext(sourceConfig: Record<string, unknown>): DriveAclContext | null {
+function driveAclContext(
+  sourceConfig: Record<string, unknown>,
+  syncContext?: Record<string, unknown>
+): DriveAclContext | null {
+  /** The engine says whether this run mirrors; the admin says whose eyes it crawls through. */
+  if (syncContext && syncContext.mirrorsSourceAcls !== true) return null
   const domain = googleWorkspaceDomain(sourceConfig[GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID])
   if (!domain) return null
   const openSharing = sourceConfig[GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID]
@@ -461,12 +467,7 @@ function driveAclContext(sourceConfig: Record<string, unknown>): DriveAclContext
  */
 function fileAcl(file: DriveFile, context: DriveAclContext | null): string[] | undefined {
   if (!context || !file.permissions) return undefined
-  return driveFileAcl({
-    permissions: file.permissions,
-    providerId: context.providerId,
-    tenantId: context.tenantId,
-    policy: context.policy,
-  })
+  return driveFileAcl({ ...context, permissions: file.permissions })
 }
 
 /** Files whose permissions are fetched at once. Bounded to keep a crawl responsive. */
@@ -474,6 +475,9 @@ const PERMISSION_FETCH_CONCURRENCY = 8
 
 /** Guards against a file that keeps paginating; far above any real permission list. */
 const MAX_PERMISSION_PAGES = 50
+
+/** The permission fields the ACL mapper reads, and nothing more. */
+const DRIVE_PERMISSION_FIELDS = 'id,type,emailAddress,domain,role,allowFileDiscovery,deleted'
 
 /**
  * A file's full permission list, from the one endpoint that serves it for every
@@ -487,36 +491,34 @@ async function listFilePermissions(
   accessToken: string,
   fileId: string
 ): Promise<DrivePermission[]> {
-  const permissions: DrivePermission[] = []
-  let pageToken: string | undefined
-  for (let page = 0; page < MAX_PERMISSION_PAGES; page += 1) {
-    const query = new URLSearchParams({
-      fields:
-        'nextPageToken,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,deleted)',
-      pageSize: '100',
-      supportsAllDrives: 'true',
-    })
-    if (pageToken) query.set('pageToken', pageToken)
-
-    const response = await fetchGoogleDriveWithRetry(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?${query.toString()}`,
-      {
+  const { items, truncated } = await drainGooglePagedList<
+    DrivePermission,
+    { permissions?: DrivePermission[]; nextPageToken?: string }
+  >({
+    buildUrl: (pageToken) => {
+      const query = new URLSearchParams({
+        fields: `nextPageToken,permissions(${DRIVE_PERMISSION_FIELDS})`,
+        pageSize: '100',
+        supportsAllDrives: 'true',
+      })
+      if (pageToken) query.set('pageToken', pageToken)
+      return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?${query.toString()}`
+    },
+    fetch: (url) =>
+      fetchGoogleDriveWithRetry(url, {
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-      }
-    )
-    if (!response.ok) {
-      throw new Error(`Google Drive permissions request failed: ${response.status}`)
-    }
-    const body = (await response.json()) as {
-      permissions?: DrivePermission[]
-      nextPageToken?: string
-    }
-    permissions.push(...(body.permissions ?? []))
-    pageToken = body.nextPageToken
-    if (!pageToken) return permissions
+      }),
+    parseError: (response) => response.json().catch(() => null),
+    getItems: (body) => body.permissions,
+    getNextPageToken: (body) => body.nextPageToken,
+    maxPages: MAX_PERMISSION_PAGES,
+    label: 'Google Drive permissions',
+  })
+  if (truncated) {
+    throw new Error(`Google Drive permissions exceeded ${MAX_PERMISSION_PAGES} pages`)
   }
-  throw new Error(`Google Drive permissions exceeded ${MAX_PERMISSION_PAGES} pages`)
+  return items
 }
 
 /**
@@ -530,21 +532,17 @@ async function listFilePermissions(
 async function resolveDriveAcls(
   accessToken: string,
   sourceConfig: Record<string, unknown>,
-  externalIds: string[]
+  externalIds: string[],
+  syncContext?: Record<string, unknown>
 ): Promise<Record<string, string[]>> {
-  const context = driveAclContext(sourceConfig)
+  const context = driveAclContext(sourceConfig, syncContext)
   if (!context) return {}
 
   const acls: Record<string, string[]> = {}
   await mapWithConcurrency(externalIds, PERMISSION_FETCH_CONCURRENCY, async (fileId) => {
     try {
       const permissions = await listFilePermissions(accessToken, fileId)
-      acls[fileId] = driveFileAcl({
-        permissions,
-        providerId: context.providerId,
-        tenantId: context.tenantId,
-        policy: context.policy,
-      })
+      acls[fileId] = driveFileAcl({ ...context, permissions })
     } catch (error) {
       logger.warn("Could not read a file's permissions; it stays readable by nobody", {
         fileId,
@@ -607,12 +605,18 @@ export const googleDriveConnector: ConnectorConfig = {
     const remaining = maxFiles > 0 ? maxFiles - previouslyFetched : 0
     const effectivePageSize = maxFiles > 0 ? Math.min(pageSize, remaining) : pageSize
 
+    const aclContext = driveAclContext(sourceConfig, syncContext)
     const queryParams = new URLSearchParams({
       q: query,
       pageSize: String(effectivePageSize),
       orderBy: 'modifiedTime desc',
-      fields:
-        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,deleted))',
+      /**
+       * Permissions ride along only where the run mirrors them. Every other
+       * crawl would pull a permission array per file and discard it.
+       */
+      fields: `kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents${
+        aclContext ? `,permissions(${DRIVE_PERMISSION_FIELDS})` : ''
+      })`,
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -650,7 +654,6 @@ export const googleDriveConnector: ConnectorConfig = {
      */
     const incompleteSearch = data.incompleteSearch === true
 
-    const aclContext = driveAclContext(sourceConfig)
     const pageDocuments = files
       .filter((f) => isGoogleWorkspaceFile(f.mimeType) || isSupportedTextFile(f.mimeType))
       .map((f) =>
@@ -699,11 +702,12 @@ export const googleDriveConnector: ConnectorConfig = {
       sourceConfig[GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID]
     ),
 
-  getDocumentAcls: (accessToken, sourceConfig, documents) =>
+  getDocumentAcls: (accessToken, sourceConfig, documents, syncContext) =>
     resolveDriveAcls(
       accessToken,
       sourceConfig,
-      documents.map((doc) => doc.externalId)
+      documents.map((doc) => doc.externalId),
+      syncContext
     ),
 
   getDocument: async (

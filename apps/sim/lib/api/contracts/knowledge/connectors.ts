@@ -8,7 +8,7 @@ import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/p
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   CONNECTOR_ACCESS_MODES,
-  isCredentialBackedAccessMode,
+  isContentEngineAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
@@ -109,7 +109,7 @@ export const updateConnectorAccessBodySchema = z
         message: 'A members-mode connector crawls with member credentials, not a credentialId',
       })
     }
-    if (isCredentialBackedAccessMode(value.accessMode) && !value.credentialId) {
+    if (isContentEngineAccessMode(value.accessMode) && !value.credentialId) {
       ctx.addIssue({
         code: 'custom',
         path: ['credentialId'],

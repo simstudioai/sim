@@ -14,21 +14,19 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
-import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
-  documentAccessForMode,
   isContentEngineAccessMode,
-  requiresFullListing,
+  mirrorsSourceAcls,
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
   resolveConnectorAccessToken,
+  resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { refreshMirroredDirectory } from '@/lib/knowledge/connectors/external-group-sync'
-import { stripListingCapFields } from '@/lib/knowledge/connectors/member-access'
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import {
   hideUnlistedDocuments,
@@ -607,16 +605,12 @@ async function resolveAccessToken(
   })
 
   if (!resolved) {
-    const provider = connectorConfig.auth.mode === 'oauth' ? connectorConfig.auth.provider : null
     logger.error(`[${requestId}] Connector credential resolved no access token`, {
       credentialId: connector.credentialId,
       userId,
       authMode: connectorConfig.auth.mode,
-      authProvider: provider,
     })
-    throw new Error(
-      `Failed to obtain access token for credential ${connector.credentialId} (provider: ${provider})`
-    )
+    throw new Error(`Failed to obtain access token for credential ${connector.credentialId}`)
   }
 
   return resolved
@@ -762,7 +756,7 @@ export async function executeSync(
     .set(buildSyncLockAcquisition(syncLogId, new Date()))
     .where(
       and(
-        inArray(knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
+        inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
         eq(knowledgeConnector.id, connectorId),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         /**
@@ -834,16 +828,8 @@ export async function executeSync(
   if (!isContentEngineAccessMode(connector.accessMode)) {
     throw new Error(`Connector ${connectorId} left the content engine's modes while locked`)
   }
-  const mirrorsSourceAcls = connector.accessMode === 'admin'
-  /**
-   * A listing cap has no meaning once every document's visibility is its
-   * source ACL: a capped listing would hide everything past the cap and never
-   * see a removal. Cleared here, at the one place the listing runs, so it
-   * holds however the connector reached this mode.
-   */
-  const sourceConfig = mirrorsSourceAcls
-    ? stripListingCapFields(connectorConfig, connector.sourceConfig as Record<string, unknown>)
-    : (connector.sourceConfig as Record<string, unknown>)
+  const mirrored = mirrorsSourceAcls(connector.accessMode)
+  const sourceConfig = connector.sourceConfig as Record<string, unknown>
   const syncStartedAt = new Date()
   const lease = createContentSyncLease(connectorId, syncLogId)
   await db.insert(knowledgeConnectorSyncLog).values({
@@ -861,21 +847,15 @@ export async function executeSync(
      * resolves no token at all. Resolved once here rather than inside
      * `resolveAccessToken` so per-page refreshes don't repeat the lookup.
      */
-    let credentialUserId = userId
-    if (connectorConfig.auth.mode === 'oauth' && connector.credentialId) {
-      const identity = await resolveCredentialTokenIdentity(
-        connector.credentialId,
-        kbOwner.workspaceId
+    const credentialUserId = await resolveConnectorTokenUserId({
+      credentialId: connector.credentialId,
+      workspaceId: kbOwner.workspaceId,
+      fallbackUserId: userId,
+    })
+    if (!credentialUserId) {
+      throw new Error(
+        `Credential ${connector.credentialId} is not usable from workspace ${kbOwner.workspaceId} — reconnect the credential`
       )
-      if (!identity) {
-        throw new Error(
-          `Credential ${connector.credentialId} is not usable from workspace ${kbOwner.workspaceId} — reconnect the credential`
-        )
-      }
-      // Service accounts mint their own token and ignore the acting user.
-      if (identity.kind === 'oauth') {
-        credentialUserId = identity.userId
-      }
     }
 
     let credentialToken = await resolveAccessToken(
@@ -906,6 +886,8 @@ export async function executeSync(
     const syncContext: Record<string, unknown> = {
       syncRunId: generateId(),
       ...syncContextForToken(credentialToken),
+      /** Tells a connector to carry permissions with its listing; without it, none are read. */
+      ...(mirrored ? { mirrorsSourceAcls: true } : {}),
     }
 
     // Shared cutoff for both the tombstone-retry bound below and the stuck-document
@@ -952,7 +934,7 @@ export async function executeSync(
      * listing would omit those unchanged containers, so they'd never be re-fetched.
      */
     const isIncremental =
-      !requiresFullListing(connector.accessMode) &&
+      !mirrored &&
       shouldRunIncrementalSync(
         connectorConfig.supportsIncrementalSync,
         connector.syncMode,
@@ -977,7 +959,9 @@ export async function executeSync(
       (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
     )
 
-    if (mirrorsSourceAcls) {
+    /** Resolved once the listing is done; see the mirrored branch after the content pass. */
+    let directoryRefreshed: Promise<void> = Promise.resolve()
+    if (mirrored) {
       /**
        * A switch into this mode hides every document before it flips, and one
        * whose rewrite outgrew its request budget leaves the rest for the next
@@ -995,11 +979,13 @@ export async function executeSync(
         })
       }
       /**
-       * Before the listing rather than after: a group grant this crawl writes
-       * must never point at membership nobody has read, and the scheduler's
-       * refresh is a cadence, not a guarantee.
+       * Started before the listing and awaited before the ACLs are written: a
+       * group grant this crawl writes must never point at membership nobody
+       * has read, and the scheduler's refresh is a cadence, not a guarantee.
+       * The walk overlaps the listing rather than delaying it; it never
+       * throws, so nothing here is left unobserved.
        */
-      await refreshMirroredDirectory({
+      directoryRefreshed = refreshMirroredDirectory({
         workspaceId: kbOwner.workspaceId,
         connectorConfig,
         sourceConfig,
@@ -1033,7 +1019,7 @@ export async function executeSync(
       syncContext.listingCapped = true
       syncContext.listingTruncated = true
       logger.warn(
-        mirrorsSourceAcls
+        mirrored
           ? 'Pagination ended before source exhaustion; skipping deletion reconciliation and hiding the unlisted rest of the corpus'
           : 'Pagination ended before source exhaustion; skipping deletion reconciliation',
         {
@@ -1073,7 +1059,7 @@ export async function executeSync(
           ),
       },
       lease,
-      documentAccess: documentAccessForMode(connector.accessMode),
+      documentAccess: connector.accessMode,
     })
 
     /**
@@ -1081,7 +1067,8 @@ export async function executeSync(
      * — is present to be made readable, and before reconciliation, so a
      * revoked grant lands even on a run that removes nothing.
      */
-    if (mirrorsSourceAcls) {
+    if (mirrored) {
+      await directoryRefreshed
       await applySourceMirroredAcls({
         connectorId,
         connectorConfig,

@@ -165,10 +165,10 @@ export async function listDomainGroups(accessToken: string): Promise<ConnectorDi
  * member is everyone in the Workspace, stored as one wildcard per domain the
  * customer owns.
  */
-export async function listGroupMembers(
-  accessToken: string,
+async function listGroupMembers(
   group: ConnectorDirectoryGroup,
-  customerDomains: readonly string[]
+  customerDomains: readonly string[],
+  membersOf: (groupId: string) => Promise<RawMember[]>
 ): Promise<ConnectorDirectoryMembership> {
   const memberEmails = new Set<string>()
   const visited = new Set<string>([group.id])
@@ -181,14 +181,7 @@ export async function listGroupMembers(
       return
     }
 
-    const members = await listAll<RawMember>(
-      `${DIRECTORY_BASE}/groups/${encodeURIComponent(groupId)}/members`,
-      accessToken,
-      'members',
-      {}
-    )
-
-    for (const member of members) {
+    for (const member of await membersOf(groupId)) {
       if (member.status && member.status.toUpperCase() !== 'ACTIVE') continue
       const type = member.type?.toUpperCase()
 
@@ -222,6 +215,21 @@ export function openGoogleDirectory(
   accessToken: string,
   adminEmail: unknown
 ): ConnectorDirectory | null {
+  /** Direct members per group, so a subgroup nested under many parents is read once. */
+  const directMembers = new Map<string, Promise<RawMember[]>>()
+  const membersOf = (groupId: string): Promise<RawMember[]> => {
+    let pending = directMembers.get(groupId)
+    if (!pending) {
+      pending = listAll<RawMember>(
+        `${DIRECTORY_BASE}/groups/${encodeURIComponent(groupId)}/members`,
+        accessToken,
+        'members',
+        {}
+      )
+      directMembers.set(groupId, pending)
+    }
+    return pending
+  }
   const tenantId = googleWorkspaceDomain(adminEmail)
   if (!tenantId) return null
 
@@ -243,7 +251,7 @@ export function openGoogleDirectory(
       if (domain) {
         return { group, memberEmails: [domainMemberWildcard(domain)], complete: true }
       }
-      return listGroupMembers(accessToken, group, await customerDomains())
+      return listGroupMembers(group, await customerDomains(), membersOf)
     },
   }
 }

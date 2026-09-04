@@ -7,13 +7,15 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gte, isNull, notInArray } from 'drizzle-orm'
-import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
 import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
+import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
   resolveConnectorAccessToken,
+  resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -187,14 +189,10 @@ async function replaceGroupMembers(groupId: string, emails: string[]): Promise<v
       .delete(knowledgeExternalGroupMember)
       .where(eq(knowledgeExternalGroupMember.groupId, groupId))
 
-    for (let offset = 0; offset < unique.length; offset += MEMBER_WRITE_BATCH_SIZE) {
+    for (const batch of chunkArray(unique, MEMBER_WRITE_BATCH_SIZE)) {
       await tx
         .insert(knowledgeExternalGroupMember)
-        .values(
-          unique
-            .slice(offset, offset + MEMBER_WRITE_BATCH_SIZE)
-            .map((email) => ({ groupId, email }))
-        )
+        .values(batch.map((email) => ({ groupId, email })))
     }
 
     await tx
@@ -254,7 +252,7 @@ export async function refreshMirroredDirectory(input: {
   accessToken: string
 }): Promise<void> {
   const { workspaceId, connectorConfig } = input
-  if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.openDirectory) return
+  if (!connectorConfig.openDirectory) return
 
   try {
     const directory = await connectorConfig.openDirectory(
@@ -321,20 +319,19 @@ export async function refreshConnectorDirectory(
       )
     )
     .limit(1)
-  if (!connector || connector.accessMode !== 'admin' || !connector.workspaceId) return 'skipped'
+  if (!connector || !mirrorsSourceAcls(connector.accessMode) || !connector.workspaceId) {
+    return 'skipped'
+  }
 
   const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
   if (!connectorConfig?.openDirectory) return 'skipped'
 
-  let credentialUserId = connector.knowledgeBaseOwnerId
-  if (connector.credentialId) {
-    const identity = await resolveCredentialTokenIdentity(
-      connector.credentialId,
-      connector.workspaceId
-    )
-    if (!identity) return 'unusable'
-    if (identity.kind === 'oauth') credentialUserId = identity.userId
-  }
+  const credentialUserId = await resolveConnectorTokenUserId({
+    credentialId: connector.credentialId,
+    workspaceId: connector.workspaceId,
+    fallbackUserId: connector.knowledgeBaseOwnerId,
+  })
+  if (!credentialUserId) return 'unusable'
 
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
   const token = await resolveConnectorAccessToken({

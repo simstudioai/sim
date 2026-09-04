@@ -16,7 +16,10 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  type ConnectorAccessMode,
+  mirrorsSourceAcls,
+} from '@/lib/knowledge/connectors/access-modes'
 import { createViewerConnectorEnrollmentLink } from '@/lib/knowledge/connectors/member-provisioning'
 import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import {
@@ -111,6 +114,8 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
 
+    const sourceConfig = connector.sourceConfig as Record<string, unknown>
+
     let target: ConnectorAccessTarget
     if (input.accessMode === 'members') {
       target = {
@@ -126,23 +131,19 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
                 }
               : null,
           actingUserId,
-          sourceConfig: connector.sourceConfig as Record<string, unknown>,
+          sourceConfig,
         }),
       }
     } else {
-      if (input.accessMode === 'admin') {
-        await assertConnectorMirrorsSourceAcls(
-          connectorMeta,
-          connector.sourceConfig as Record<string, unknown>,
-          workspaceId
-        )
+      if (mirrorsSourceAcls(input.accessMode)) {
+        await assertConnectorMirrorsSourceAcls(connectorMeta, sourceConfig, workspaceId)
       }
       target = {
         accessMode: input.accessMode,
         credentialId: await requireUsableCredential({
           credentialId: input.credentialId,
           connectorMeta,
-          sourceConfig: connector.sourceConfig as Record<string, unknown>,
+          sourceConfig,
           workspaceId,
           actingUserId,
           requestId,

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
@@ -13,7 +14,7 @@ import {
   validateAcl,
   WORKSPACE_ACL,
 } from '@/lib/knowledge/access/tokens'
-import { aclIsDerived, type SyncDocumentAccess } from '@/lib/knowledge/connectors/access-modes'
+import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
@@ -27,11 +28,11 @@ import type { DocumentTags, ExternalDocument } from '@/connectors/types'
 
 const logger = createLogger('ConnectorSyncPersistence')
 
-function insertedDocumentAcl(access: SyncDocumentAccess): string[] {
+function insertedDocumentAcl(access: ConnectorAccessMode): string[] {
   return [...(aclIsDerived(access) ? EMPTY_ACL : WORKSPACE_ACL)]
 }
 
-function updatedDocumentAcl(access: SyncDocumentAccess): { acl?: string[] } {
+function updatedDocumentAcl(access: ConnectorAccessMode): { acl?: string[] } {
   return aclIsDerived(access) ? {} : { acl: [...WORKSPACE_ACL] }
 }
 
@@ -121,7 +122,7 @@ export async function persistDocumentAcls(
         externalId,
         reason: validation.reason,
         ...(validation.sample ? { sample: validation.sample } : {}),
-        tokenCount: [...tokens].length,
+        tokenCount: tokens.length,
       })
     }
     const acl = validation.valid ? validation.acl : [...EMPTY_ACL]
@@ -133,8 +134,7 @@ export async function persistDocumentAcls(
 
   let updated = 0
   for (const { acl, externalIds } of byAcl.values()) {
-    for (let offset = 0; offset < externalIds.length; offset += ACL_WRITE_BATCH_SIZE) {
-      const batch = externalIds.slice(offset, offset + ACL_WRITE_BATCH_SIZE)
+    for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
       const rows = await executor
         .update(document)
         .set({ acl })
@@ -281,7 +281,7 @@ function buildSkippedDocumentRow(
   connectorType: string,
   extDoc: ExternalDocument,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess
+  access: ConnectorAccessMode
 ) {
   const reason = extDoc.skippedReason ?? 'Document was skipped during sync'
   const tagValues = extDoc.metadata
@@ -343,7 +343,7 @@ export async function persistSkippedDocuments(
     extDoc: ExternalDocument
   }>,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess,
+  access: ConnectorAccessMode,
   lease: SyncWriteLease
 ): Promise<PersistedDocument[]> {
   if (skipOps.length === 0) {
@@ -506,7 +506,7 @@ export async function addDocument(
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess,
+  access: ConnectorAccessMode,
   lease: SyncWriteLease
 ): Promise<DocumentData> {
   const documentId = generateId()
@@ -606,7 +606,7 @@ export async function updateDocument(
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess,
+  access: ConnectorAccessMode,
   lease: SyncWriteLease
 ): Promise<DocumentData> {
   const existingRows = await db

@@ -306,7 +306,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(
         and(
           inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
-          inArray(knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
+          inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
           lte(knowledgeConnector.nextSyncAt, now),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),

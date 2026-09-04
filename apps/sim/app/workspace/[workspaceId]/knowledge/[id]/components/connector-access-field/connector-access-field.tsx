@@ -42,21 +42,20 @@ interface ConnectorAccessFieldProps {
 
 /**
  * Each mode decides who can read the indexed documents, which the three labels
- * cannot say on their own — and getting it wrong is the kind of mistake that is
- * only noticed once the wrong person finds a document.
+ * cannot say on their own.
  */
-function accessHint(input: {
-  mode: ConnectorAccessMode
-  connectorConfig: ConnectorMeta
+function accessHint(
+  mode: ConnectorAccessMode,
+  sourceName: string,
   allowMembers: boolean
-}): string | undefined {
-  if (input.mode === 'members') {
-    return `Everyone in the workspace is invited by email to connect their ${input.connectorConfig.name} account when the first sync starts. Each member sees only the documents their own account can open; scheduled, API, and chat runs see workspace-visible documents only.`
+): string | undefined {
+  if (mode === 'members') {
+    return `Everyone in the workspace is invited by email to connect their ${sourceName} account when the first sync starts. Each member sees only the documents their own account can open; scheduled, API, and chat runs see workspace-visible documents only.`
   }
-  if (input.mode === 'admin') {
-    return `Indexed once as an administrator, keeping each document's own permissions. People see only what ${input.connectorConfig.name} already lets them open; scheduled, API, and chat runs see workspace-visible documents only.`
+  if (mode === 'admin') {
+    return `Indexed once as an administrator, keeping each document's own permissions. People see only what ${sourceName} already lets them open; scheduled, API, and chat runs see workspace-visible documents only.`
   }
-  return input.allowMembers ? undefined : 'Per-member access is turned off for this workspace.'
+  return allowMembers ? undefined : 'Per-member access is turned off for this workspace.'
 }
 
 /**
@@ -90,25 +89,26 @@ export function ConnectorAccessField({
   const showAdmin = allowAdmin && Boolean(connectorConfig.mirrorsSourceAcls)
   if (!membersSupported && !showAdmin) return null
 
+  /** One ordered list, rendered by both the read-only and the editable branch. */
+  const modes: { mode: ConnectorAccessMode; label: string; shown: boolean }[] = [
+    { mode: 'workspace', label: 'Workspace', shown: true },
+    { mode: 'members', label: 'Per member', shown: membersSupported },
+    { mode: 'admin', label: 'Mirror source', shown: showAdmin },
+  ]
+  const modeItems = (isDisabled: (mode: ConnectorAccessMode) => boolean) =>
+    modes
+      .filter((entry) => entry.shown)
+      .map((entry) => (
+        <ButtonGroupItem key={entry.mode} value={entry.mode} disabled={isDisabled(entry.mode)}>
+          {entry.label}
+        </ButtonGroupItem>
+      ))
+
   if (!canAdmin) {
     if (value.accessMode === 'workspace') return null
     return (
       <ChipModalField type='custom' title='Access'>
-        <ButtonGroup value={value.accessMode}>
-          <ButtonGroupItem value='workspace' disabled>
-            Workspace
-          </ButtonGroupItem>
-          {membersSupported ? (
-            <ButtonGroupItem value='members' disabled>
-              Per member
-            </ButtonGroupItem>
-          ) : null}
-          {showAdmin ? (
-            <ButtonGroupItem value='admin' disabled>
-              Mirror source
-            </ButtonGroupItem>
-          ) : null}
-        </ButtonGroup>
+        <ButtonGroup value={value.accessMode}>{modeItems(() => true)}</ButtonGroup>
       </ChipModalField>
     )
   }
@@ -125,7 +125,7 @@ export function ConnectorAccessField({
       type='custom'
       title='Access'
       error={error?.message}
-      hint={accessHint({ mode: value.accessMode, connectorConfig, allowMembers })}
+      hint={accessHint(value.accessMode, connectorConfig.name, allowMembers)}
     >
       <div className='flex flex-col gap-2'>
         <ButtonGroup
@@ -134,19 +134,7 @@ export function ConnectorAccessField({
             if (isConnectorAccessMode(mode)) onChange({ accessMode: mode })
           }}
         >
-          <ButtonGroupItem value='workspace' disabled={disabled}>
-            Workspace
-          </ButtonGroupItem>
-          {membersSupported ? (
-            <ButtonGroupItem value='members' disabled={disabled || !allowMembers}>
-              Per member
-            </ButtonGroupItem>
-          ) : null}
-          {showAdmin ? (
-            <ButtonGroupItem value='admin' disabled={disabled}>
-              Mirror source
-            </ButtonGroupItem>
-          ) : null}
+          {modeItems((mode) => disabled || (mode === 'members' && !allowMembers))}
         </ButtonGroup>
 
         {value.accessMode === 'members' && showPicker && (

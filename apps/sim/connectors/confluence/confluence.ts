@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
 import {
   AtlassianSiteNotAccessibleError,
@@ -11,7 +11,12 @@ import {
   type ConfluenceRestriction,
   confluencePageAcl,
 } from '@/lib/knowledge/access/confluence-permissions'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  fetchWithRetry,
+  type RetryOptions,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
+import { extractCursor } from '@/connectors/confluence/cursor'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import {
   describeContent,
@@ -234,21 +239,6 @@ export function readIncludedLabels(page: Record<string, unknown>): string[] {
 }
 
 /**
- * Extracts the `cursor` query value from a relative `_links.next` URL. Both the
- * v2 endpoints and the v1 CQL search return the next page as a relative path
- * carrying an opaque cursor, so the value has to be parsed back out rather than
- * derived.
- */
-export function extractCursor(nextLink: unknown): string | undefined {
-  if (typeof nextLink !== 'string' || !nextLink) return undefined
-  try {
-    return new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
  * Body representation marker embedded in the contentHash. Bumping this
  * invalidates every previously-synced Confluence document so a one-time
  * re-hydration picks up content newly reachable by the current extraction
@@ -330,12 +320,13 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
 async function resolveCloudId(
   accessToken: string,
   sourceConfig: Record<string, unknown>,
-  syncContext?: Record<string, unknown>
+  syncContext?: Record<string, unknown>,
+  retryOptions?: RetryOptions
 ): Promise<string> {
   const cached = syncContext?.cloudId
   if (typeof cached === 'string' && cached) return cached
   const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
-  const cloudId = await getConfluenceCloudId(domain, accessToken)
+  const cloudId = await getConfluenceCloudId(domain, accessToken, retryOptions)
   if (syncContext) syncContext.cloudId = cloudId
   return cloudId
 }
@@ -345,6 +336,23 @@ async function resolveCloudId(
  * stored ACLs, so it must never change.
  */
 const CONFLUENCE_ACL_PROVIDER_ID = 'confluence'
+
+/**
+ * One in-flight promise per key, so a value fetched for one page is shared by
+ * every other page that needs it — an ancestor's restriction is consulted by
+ * all its descendants, and a space's readers by every page in it.
+ */
+function memoizeAsync<K, V>(load: (key: K) => Promise<V>): (key: K) => Promise<V> {
+  const cache = new Map<K, Promise<V>>()
+  return (key: K) => {
+    let pending = cache.get(key)
+    if (!pending) {
+      pending = load(key)
+      cache.set(key, pending)
+    }
+    return pending
+  }
+}
 
 /** Pages whose restrictions are resolved at once. Bounded to keep a crawl responsive. */
 const ACL_CONCURRENCY = 8
@@ -381,34 +389,15 @@ async function resolveConfluenceAcls(
 ): Promise<Record<string, string[]>> {
   const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
-  const spaceIdsByKey = new Map<string, Promise<string>>()
-  const spaceIdForKey = (spaceKey: string): Promise<string> => {
-    let pending = spaceIdsByKey.get(spaceKey)
-    if (!pending) {
-      pending = resolveSpaceId(cloudId, accessToken, spaceKey)
-      spaceIdsByKey.set(spaceKey, pending)
-    }
-    return pending
-  }
-  const principalsBySpace = new Map<string, Promise<ConfluencePrincipal[]>>()
-  const spacePrincipalsFor = (spaceId: string): Promise<ConfluencePrincipal[]> => {
-    let pending = principalsBySpace.get(spaceId)
-    if (!pending) {
-      pending = listSpaceReadPrincipals(cloudId, accessToken, spaceId)
-      principalsBySpace.set(spaceId, pending)
-    }
-    return pending
-  }
-
-  const restrictions = new Map<string, Promise<ConfluenceRestriction>>()
-  const readRestriction = (contentId: string): Promise<ConfluenceRestriction> => {
-    let pending = restrictions.get(contentId)
-    if (!pending) {
-      pending = getReadRestriction(cloudId, accessToken, contentId)
-      restrictions.set(contentId, pending)
-    }
-    return pending
-  }
+  const spaceIdForKey = memoizeAsync((spaceKey: string) =>
+    resolveSpaceId(cloudId, accessToken, spaceKey)
+  )
+  const spacePrincipalsFor = memoizeAsync((spaceId: string) =>
+    listSpaceReadPrincipals(cloudId, accessToken, spaceId)
+  )
+  const readRestriction = memoizeAsync((contentId: string) =>
+    getReadRestriction(cloudId, accessToken, contentId)
+  )
 
   /** The listing usually says where a page lives; anything it did not describe is asked. */
   const locate = async (doc: ExternalDocument): Promise<ContentLocation | null> => {
@@ -423,8 +412,8 @@ async function resolveConfluenceAcls(
     return describeContent(cloudId, accessToken, doc.externalId)
   }
 
-  const located = new Map<string, ContentLocation>()
-  const chains = new Map<string, ConfluenceRestriction[]>()
+  /** One entry per page whose permissions this run could read in full. */
+  const resolved = new Map<string, { spaceId: string; chain: ConfluenceRestriction[] }>()
   let unreadable = 0
   await mapWithConcurrency(documents, ACL_CONCURRENCY, async (doc) => {
     const externalId = doc.externalId
@@ -449,14 +438,13 @@ async function resolveConfluenceAcls(
         }
       }
       await spacePrincipalsFor(location.spaceId)
-      located.set(externalId, location)
-      chains.set(externalId, chain)
+      resolved.set(externalId, { spaceId: location.spaceId, chain })
     } catch (error) {
       unreadable += 1
       logger.warn("Could not read a page's permissions; it stays readable by nobody", {
         cloudId,
         externalId,
-        error: toError(error).message,
+        error: getErrorMessage(error),
       })
     }
   })
@@ -468,20 +456,21 @@ async function resolveConfluenceAcls(
    * that walked through it.
    */
   const accountIds = new Set<string>()
-  const settledPrincipals = new Map<string, ConfluencePrincipal[]>()
-  for (const [spaceId, pending] of principalsBySpace) {
-    const principals = await pending.catch(() => null)
-    if (!principals) continue
-    settledPrincipals.set(spaceId, principals)
-    for (const principal of principals) {
-      if (principal.kind === 'user') accountIds.add(principal.id)
+  /** Every space named by a resolved page settled before that page was recorded. */
+  const principalsBySpace = new Map<string, ConfluencePrincipal[]>()
+  for (const { spaceId, chain } of resolved.values()) {
+    if (!principalsBySpace.has(spaceId)) {
+      principalsBySpace.set(spaceId, await spacePrincipalsFor(spaceId))
     }
-  }
-  for (const chain of chains.values()) {
     for (const restriction of chain) {
       for (const principal of restriction ?? []) {
         if (principal.kind === 'user') accountIds.add(principal.id)
       }
+    }
+  }
+  for (const principals of principalsBySpace.values()) {
+    for (const principal of principals) {
+      if (principal.kind === 'user') accountIds.add(principal.id)
     }
   }
   const emails = await resolveUserEmails(cloudId, accessToken, [...accountIds])
@@ -491,8 +480,8 @@ async function resolveConfluenceAcls(
       if (principal.kind === 'user') principal.email = emails.get(principal.id) ?? principal.email
     }
   }
-  for (const principals of settledPrincipals.values()) withEmail(principals)
-  for (const chain of chains.values()) {
+  for (const principals of principalsBySpace.values()) withEmail(principals)
+  for (const { chain } of resolved.values()) {
     for (const restriction of chain) {
       if (restriction !== null) withEmail(restriction)
     }
@@ -500,16 +489,9 @@ async function resolveConfluenceAcls(
 
   const acls: Record<string, string[]> = {}
   let unattributed = 0
-  for (const [externalId, chain] of chains) {
-    const location = located.get(externalId)
-    const spacePrincipals = location ? settledPrincipals.get(location.spaceId) : undefined
-    /** A space whose readers could not be listed leaves its pages readable by nobody. */
-    if (!spacePrincipals) {
-      unreadable += 1
-      continue
-    }
+  for (const [externalId, { spaceId, chain }] of resolved) {
     const result = confluencePageAcl({
-      spacePrincipals,
+      spacePrincipals: principalsBySpace.get(spaceId) ?? [],
       restrictionChain: chain,
       providerId: CONFLUENCE_ACL_PROVIDER_ID,
       tenantId: cloudId,
@@ -695,11 +677,12 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const seededCloudId = syncContext?.cloudId
-      const cloudId =
-        typeof seededCloudId === 'string' && seededCloudId
-          ? seededCloudId
-          : await getConfluenceCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
+      const cloudId = await resolveCloudId(
+        accessToken,
+        sourceConfig,
+        syncContext,
+        VALIDATE_RETRY_OPTIONS
+      )
       const params = new URLSearchParams()
       for (const key of spaceKeys) params.append('keys', key)
       params.append('limit', String(Math.max(spaceKeys.length, 1)))
@@ -730,7 +713,7 @@ export const confluenceConnector: ConnectorConfig = {
       }
       return { valid: true }
     } catch (error) {
-      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
+      return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
 

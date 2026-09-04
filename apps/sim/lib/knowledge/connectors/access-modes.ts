@@ -25,12 +25,14 @@ export function isConnectorAccessMode(value: string): value is ConnectorAccessMo
 }
 
 /**
- * The modes the content engine drives.
+ * The modes the content engine drives, which are also the modes that sync
+ * with one stored credential of their own — the one a switch into the mode
+ * must name, and the one the row keeps.
  *
  * `admin` belongs here and `members` does not: an admin-mode connector is
  * structurally a workspace crawl that ends with a different ACL, while a
- * members-mode connector is N crawls plus an observation graph, and its lease is
- * mutually exclusive with the content engine's.
+ * members-mode connector is N crawls plus an observation graph, crawls with
+ * its members' credentials, and holds none itself.
  */
 export const CONTENT_ENGINE_ACCESS_MODES = ['workspace', 'admin'] as const
 
@@ -43,17 +45,25 @@ export function isContentEngineAccessMode(
 }
 
 /**
- * Whether a connector in this mode syncs with one credential of its own —
- * the one a switch into the mode must name, and the one its row keeps. The
- * same set as the content engine's: a members-mode connector crawls with its
- * members' credentials and holds none itself.
+ * The modes whose documents carry the source's own permissions, mirrored onto
+ * each row by the crawl that lists it.
+ *
+ * Every run of such a mode lists the whole corpus. An incremental listing
+ * returns only documents whose content changed, and a permission change moves
+ * no content: re-sharing a file does not touch its modified time in Drive, and
+ * restricting a page does not touch its version in Confluence. A revoked grant
+ * on an unchanged document would otherwise stand until a full sync happened to
+ * run. Listing everything costs metadata pages only; content is still hydrated
+ * by hash, so unchanged documents are never re-fetched or re-embedded.
  */
-export function isCredentialBackedAccessMode(accessMode: ConnectorAccessMode): boolean {
-  return isContentEngineAccessMode(accessMode)
+export const MIRRORING_ACCESS_MODES = ['admin'] as const
+
+export function mirrorsSourceAcls(accessMode: string): boolean {
+  return MIRRORING_ACCESS_MODES.some((mode) => mode === accessMode)
 }
 
 /**
- * Who may read a document a sync writes.
+ * Whether this mode's ACL is owned by a pass other than the content sync.
  *
  * A workspace-mode connector's documents are visible to the whole workspace on
  * insert and on every update. `members` and `admin` both derive their ACL from
@@ -61,32 +71,10 @@ export function isCredentialBackedAccessMode(accessMode: ConnectorAccessMode): b
  * the source's own permissions say — so their documents are born hidden and made
  * visible by a separate pass, and a content update never touches the ACL. Born
  * hidden is what makes the fail-closed direction the default: a document indexed
- * before its ACL is known is invisible, never workspace-wide.
+ * before its ACL is known is invisible, never workspace-wide. It also means a
+ * listing cap has no place in these modes: a capped listing would hide
+ * everything past the cap and never see a removal.
  */
-export type SyncDocumentAccess = 'workspace' | 'members' | 'admin'
-
-/** Whether this mode's ACL is owned by a pass other than the content sync. */
-export function aclIsDerived(access: SyncDocumentAccess): boolean {
-  return access !== 'workspace'
-}
-
-/** How a content-engine run's writes decide who may read what they store. */
-export function documentAccessForMode(accessMode: ContentEngineAccessMode): SyncDocumentAccess {
-  return accessMode === 'admin' ? 'admin' : 'workspace'
-}
-
-/**
- * Whether every run of this mode must list the whole corpus.
- *
- * An incremental listing returns only documents whose content changed, and a
- * permission change moves no content: re-sharing a file does not touch its
- * modified time in Drive, and restricting a page does not touch its version in
- * Confluence. A mode whose ACLs are mirrored from the source therefore cannot
- * refresh them from an incremental listing — a revoked grant on an unchanged
- * document would stand until the next full sync happened to run. Listing
- * everything costs metadata pages only; content is still hydrated by hash, so
- * unchanged documents are never re-fetched or re-embedded.
- */
-export function requiresFullListing(accessMode: ContentEngineAccessMode): boolean {
-  return accessMode === 'admin'
+export function aclIsDerived(accessMode: ConnectorAccessMode): boolean {
+  return accessMode !== 'workspace'
 }

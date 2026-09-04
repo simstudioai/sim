@@ -21,7 +21,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import {
   aclIsDerived,
   type ConnectorAccessMode,
-  isConnectorAccessMode,
+  isContentEngineAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   findListingCapViolation,
@@ -29,7 +29,6 @@ import {
   revokeKnowledgeConnectorCredentialAccess,
   stripListingCapFields,
 } from '@/lib/knowledge/connectors/member-access'
-import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import {
@@ -204,7 +203,7 @@ export async function performCreateKnowledgeConnector(
     sourceConfig,
     syncIntervalMinutes,
     membersBinding,
-    accessMode,
+    accessMode = 'workspace',
     resolveBillingAttribution,
     resolveAccessToken,
     request,
@@ -244,6 +243,8 @@ export async function performCreateKnowledgeConnector(
     }
     const capViolation = findListingCapViolation(connectorConfig, sourceConfig)
     if (capViolation) return fail(capViolation, 'validation')
+  } else if (!isContentEngineAccessMode(accessMode)) {
+    return fail(`Unsupported access mode: ${accessMode}`, 'validation')
   } else if (connectorConfig.auth.mode === 'apiKey') {
     if (!apiKey && !connectorConfig.auth.optional) {
       return fail('API key is required', 'validation')
@@ -281,7 +282,10 @@ export async function performCreateKnowledgeConnector(
     resolvedEncryptedApiKey = (await encryptApiKey(apiKey)).encrypted
   }
 
-  let finalSourceConfig: Record<string, unknown> = { ...sourceConfig }
+  /** A derived-ACL mode has no listing cap; see `aclIsDerived`. */
+  let finalSourceConfig: Record<string, unknown> = aclIsDerived(accessMode)
+    ? stripListingCapFields(connectorConfig, sourceConfig)
+    : { ...sourceConfig }
   const tagSlotMapping: Record<string, string> = {}
   let newTagSlots: Record<string, string> = {}
 
@@ -437,7 +441,7 @@ export async function performCreateKnowledgeConnector(
                * workspace one; only its documents' ACLs differ, and those are
                * written by its own crawl. Nothing else here changes.
                */
-              { accessMode: accessMode === 'admin' ? 'admin' : 'workspace' }),
+              { accessMode }),
           createdAt: now,
           updatedAt: now,
         })
@@ -681,48 +685,28 @@ export async function performUpdateKnowledgeConnector(
 
   let sourceConfigToStore = updates.sourceConfig
   if (updates.sourceConfig !== undefined) {
-    if (existing.accessMode === 'members') {
-      /**
-       * A members-mode connector has no credential to validate the source
-       * with; the next member run does that per member. The listing caps are
-       * what a save can refuse.
-       */
+    const accessMode = existing.accessMode as ConnectorAccessMode
+    let nextSourceConfig = updates.sourceConfig
+    if (aclIsDerived(accessMode)) {
+      /** A derived-ACL mode has no listing cap; a save may refuse one, never store one. */
       const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
       const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
-      const capViolation = connectorConfig
-        ? findListingCapViolation(connectorConfig, updates.sourceConfig)
-        : null
-      if (capViolation) return fail(capViolation, 'validation')
       if (connectorConfig) {
-        sourceConfigToStore = stripListingCapFields(connectorConfig, updates.sourceConfig)
+        const capViolation = findListingCapViolation(connectorConfig, nextSourceConfig)
+        if (capViolation) return fail(capViolation, 'validation')
+        nextSourceConfig = stripListingCapFields(connectorConfig, nextSourceConfig)
       }
-    } else {
-      /**
-       * An administrator-mode connector must keep naming whose eyes it crawls
-       * through: a config edit that blanked the administrator would mint a
-       * token with no subject and silently stop mirroring on the next run.
-       */
-      if (existing.accessMode === 'admin' && kb.workspaceId) {
-        const { CONNECTOR_META_REGISTRY } = await import('@/connectors/registry')
-        const connectorMeta = CONNECTOR_META_REGISTRY[existing.connectorType]
-        if (connectorMeta) {
-          try {
-            await assertConnectorMirrorsSourceAcls(
-              connectorMeta,
-              updates.sourceConfig,
-              kb.workspaceId
-            )
-          } catch (error) {
-            if (error instanceof OrchestrationError) return fail(error.message, error.code)
-            throw error
-          }
-        }
-      }
-      if (validateSourceConfig) {
-        const rejection = await validateSourceConfig(existing, updates.sourceConfig)
-        if (rejection) {
-          return fail(rejection.message, rejection.errorCode)
-        }
+    }
+    sourceConfigToStore = nextSourceConfig
+    /**
+     * A members-mode connector has no credential to validate the source with;
+     * the next member run does that per member. Every other mode validates
+     * with the credential it syncs as.
+     */
+    if (isContentEngineAccessMode(accessMode) && validateSourceConfig) {
+      const rejection = await validateSourceConfig(existing, nextSourceConfig)
+      if (rejection) {
+        return fail(rejection.message, rejection.errorCode)
       }
     }
   }
@@ -951,11 +935,7 @@ export async function performDeleteKnowledgeConnector(
    * source un-shares from keeps reading, forever. Not a standalone entry
    * anyone asked for.
    */
-  if (
-    isConnectorAccessMode(existing.accessMode) &&
-    aclIsDerived(existing.accessMode) &&
-    !deleteDocuments
-  ) {
+  if (existing.accessMode !== 'workspace' && !deleteDocuments) {
     return fail(
       'Documents of a connector whose access is derived from the source cannot be kept; delete them with the connector',
       'conflict'

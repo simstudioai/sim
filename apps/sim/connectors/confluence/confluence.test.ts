@@ -10,11 +10,11 @@ import {
   buildLastModifiedClause,
   confluenceConnector,
   escapeCql,
-  extractCursor,
   isCurrentContent,
   preserveConfluenceCallouts,
   readIncludedLabels,
 } from '@/connectors/confluence/confluence'
+import { extractCursor } from '@/connectors/confluence/cursor'
 import { htmlToPlainText } from '@/connectors/utils'
 
 describe('escapeCql', () => {

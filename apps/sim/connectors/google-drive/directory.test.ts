@@ -2,11 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  listDomainGroups,
-  listGroupMembers,
-  openGoogleDirectory,
-} from '@/connectors/google-drive/directory'
+import { listDomainGroups, openGoogleDirectory } from '@/connectors/google-drive/directory'
 
 const mockFetch = vi.fn()
 
@@ -77,8 +73,15 @@ describe('listDomainGroups', () => {
   })
 })
 
-describe('listGroupMembers', () => {
+describe('the membership a directory reports', () => {
   const GROUP = { id: 'eng@corp.com' }
+
+  /** The walk is reached the way the sync reaches it, through the directory. */
+  function membersOf(group: { id: string }) {
+    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
+    if (!dir) throw new Error('the administrator names no domain')
+    return dir.listGroupMembers(group)
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -88,7 +91,7 @@ describe('listGroupMembers', () => {
   it('reports the people in a flat group, case-folded', async () => {
     directory({ 'eng@corp.com': [USER('Alice@Corp.com'), USER('bob@corp.com')] })
 
-    await expect(listGroupMembers('token', GROUP, [])).resolves.toEqual({
+    await expect(membersOf(GROUP)).resolves.toEqual({
       group: GROUP,
       memberEmails: ['alice@corp.com', 'bob@corp.com'],
       complete: true,
@@ -107,7 +110,7 @@ describe('listGroupMembers', () => {
       'platform@corp.com': [USER('carol@corp.com')],
     })
 
-    const { memberEmails, complete } = await listGroupMembers('token', GROUP, [])
+    const { memberEmails, complete } = await membersOf(GROUP)
 
     expect(memberEmails.sort()).toEqual(['alice@corp.com', 'bob@corp.com', 'carol@corp.com'])
     expect(complete).toBe(true)
@@ -119,7 +122,7 @@ describe('listGroupMembers', () => {
       'backend@corp.com': [USER('bob@corp.com'), NESTED('eng@corp.com')],
     })
 
-    const { memberEmails, complete } = await listGroupMembers('token', GROUP, [])
+    const { memberEmails, complete } = await membersOf(GROUP)
 
     expect(memberEmails.sort()).toEqual(['alice@corp.com', 'bob@corp.com'])
     expect(complete).toBe(true)
@@ -132,7 +135,7 @@ describe('listGroupMembers', () => {
     }
     directory(members)
 
-    const { complete } = await listGroupMembers('token', { id: 'g0@corp.com' }, [])
+    const { complete } = await membersOf({ id: 'g0@corp.com' })
 
     expect(complete).toBe(false)
   })
@@ -145,32 +148,38 @@ describe('listGroupMembers', () => {
       ],
     })
 
-    await expect(listGroupMembers('token', GROUP, [])).resolves.toMatchObject({
+    await expect(membersOf(GROUP)).resolves.toMatchObject({
       memberEmails: ['alice@corp.com'],
     })
   })
 
   it('throws when a group cannot be read, so its membership is left alone', async () => {
-    mockFetch.mockReset()
-    mockFetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'gone' } }, 404))
+    directory({})
+    mockFetch.mockImplementationOnce(async () => jsonResponse({ error: { message: 'gone' } }, 404))
 
-    await expect(listGroupMembers('token', GROUP, [])).rejects.toThrow()
+    await expect(membersOf(GROUP)).rejects.toThrow()
   })
 
   /** A directory that hiccups must not cost a group its membership; transient errors are retried. */
   it('retries a transient directory error before giving up', async () => {
-    mockFetch.mockReset()
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({ error: { errors: [{ reason: 'backendError' }], message: 'try again' } }, 503)
-      )
-      .mockResolvedValueOnce(jsonResponse({ members: [USER('alice@corp.com')] }))
+    directory({ 'eng@corp.com': [USER('alice@corp.com')] })
+    const healthy = mockFetch.getMockImplementation()!
+    let firstMemberRead = true
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/members') && firstMemberRead) {
+        firstMemberRead = false
+        return jsonResponse(
+          { error: { errors: [{ reason: 'backendError' }], message: 'try again' } },
+          503
+        )
+      }
+      return healthy(url, init)
+    })
 
-    await expect(listGroupMembers('token', GROUP, [])).resolves.toMatchObject({
+    await expect(membersOf(GROUP)).resolves.toMatchObject({
       memberEmails: ['alice@corp.com'],
       complete: true,
     })
-    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 })
 

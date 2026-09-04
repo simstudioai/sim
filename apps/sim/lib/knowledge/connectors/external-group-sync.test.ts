@@ -5,17 +5,15 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorDirectory } from '@/connectors/types'
 
-const { mockResolveIdentity, mockResolveToken, mockOpenDirectory } = vi.hoisted(() => ({
-  mockResolveIdentity: vi.fn(),
+const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory } = vi.hoisted(() => ({
+  mockResolveTokenUserId: vi.fn(),
   mockResolveToken: vi.fn(),
   mockOpenDirectory: vi.fn(),
 }))
 
-vi.mock('@/lib/credentials/access', () => ({
-  resolveCredentialTokenIdentity: mockResolveIdentity,
-}))
 vi.mock('@/lib/knowledge/connectors/access-token', () => ({
   resolveConnectorAccessToken: mockResolveToken,
+  resolveConnectorTokenUserId: mockResolveTokenUserId,
   syncContextForToken: (token: { cloudId?: string }) =>
     token.cloudId ? { cloudId: token.cloudId } : {},
 }))
@@ -130,7 +128,7 @@ describe('refreshConnectorDirectory', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockResolveIdentity.mockResolvedValue({ kind: 'service_account' })
+    mockResolveTokenUserId.mockResolvedValue('owner-1')
     mockResolveToken.mockResolvedValue({ accessToken: 'token', cloudId: 'cloud-1' })
     mockOpenDirectory.mockResolvedValue(null)
   })
@@ -141,7 +139,7 @@ describe('refreshConnectorDirectory', () => {
    */
   it('resolves the token as the credential owner for an OAuth credential', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
-    mockResolveIdentity.mockResolvedValue({ kind: 'oauth', userId: 'credential-owner' })
+    mockResolveTokenUserId.mockResolvedValue('credential-owner')
 
     await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('refreshed')
     expect(mockResolveToken).toHaveBeenCalledWith(
@@ -163,7 +161,7 @@ describe('refreshConnectorDirectory', () => {
 
   it('reports a connector whose credential no longer resolves rather than failing', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
-    mockResolveToken.mockResolvedValue(null)
+    mockResolveTokenUserId.mockResolvedValue(null)
 
     await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('unusable')
     expect(mockOpenDirectory).not.toHaveBeenCalled()

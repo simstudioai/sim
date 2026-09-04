@@ -43,7 +43,7 @@ import {
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import {
-  memberCapFieldIds,
+  derivedAclCapFieldIds,
   useConnectorMemberGroupOptions,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -112,7 +112,7 @@ export function AddConnectorModal({
   const membersChoiceOpen =
     isMembersMode && groupOptions.needsChoice && !access.credentialGroupOptionId
   const hiddenCapFieldIds = useMemo(
-    () => memberCapFieldIds(connectorConfig, access.accessMode),
+    () => derivedAclCapFieldIds(connectorConfig, access.accessMode),
     [connectorConfig, access.accessMode]
   )
   /** True when the connector declares its key optional (public sources need none). */

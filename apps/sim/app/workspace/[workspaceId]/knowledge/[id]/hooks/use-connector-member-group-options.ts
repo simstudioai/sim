@@ -9,6 +9,7 @@ import {
   getCredentialGroupProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
+import { aclIsDerived } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCredentialGroups } from '@/hooks/queries/credential-groups'
 
@@ -40,12 +41,12 @@ export function connectorMemberGroupProvider(
 }
 
 /** The config fields a per-member connector hides: its listing caps, which the server clears. */
-export function memberCapFieldIds(
+export function derivedAclCapFieldIds(
   connectorConfig: ConnectorMeta | null,
   accessMode: ConnectorAccessMode
 ): ReadonlySet<string> {
   return new Set(
-    accessMode === 'members' ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? []) : []
+    aclIsDerived(accessMode) ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? []) : []
   )
 }
 

@@ -645,18 +645,31 @@ describe('mirroring Drive permissions onto listed documents', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
+  /** The engine seeds this on every mirroring run; without it a crawl reads no permissions. */
+  const MIRRORING = { mirrorsSourceAcls: true }
+
   async function listWith(file: Record<string, unknown>, sourceConfig: Record<string, unknown>) {
     mockFetch.mockResolvedValueOnce(fileListResponse([file]))
-    const result = await googleDriveConnector.listDocuments('token', sourceConfig, undefined, {})
+    const result = await googleDriveConnector.listDocuments('token', sourceConfig, undefined, {
+      ...MIRRORING,
+    })
     return result.documents[0]
   }
 
   it('asks Drive for the permissions it needs to mirror', async () => {
     mockFetch.mockResolvedValueOnce(fileListResponse([]))
-    await googleDriveConnector.listDocuments('token', ADMIN, undefined, {})
+    await googleDriveConnector.listDocuments('token', ADMIN, undefined, { ...MIRRORING })
 
     const url = String(mockFetch.mock.calls[0][0])
     expect(decodeURIComponent(url)).toContain('permissions(id,type,emailAddress,domain,role,')
+  })
+
+  /** A crawl that is not mirroring must not pull a permission array per file and discard it. */
+  it('leaves permissions out of the field mask when the run does not mirror', async () => {
+    mockFetch.mockResolvedValueOnce(fileListResponse([]))
+    await googleDriveConnector.listDocuments('token', ADMIN, undefined, {})
+
+    expect(decodeURIComponent(String(mockFetch.mock.calls[0][0]))).not.toContain('permissions(')
   })
 
   it('tags each document with who may read it', async () => {
@@ -732,7 +745,7 @@ describe('mirroring Drive permissions onto listed documents', () => {
     )
 
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], {})
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], { ...MIRRORING })
     ).resolves.toEqual({
       [FILE_ID]: ['g:google-drive:corp.com:eng@corp.com', 'u:alice@corp.com'],
     })
@@ -754,7 +767,7 @@ describe('mirroring Drive permissions onto listed documents', () => {
       )
 
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], {})
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], { ...MIRRORING })
     ).resolves.toEqual({ [FILE_ID]: ['u:alice@corp.com', 'u:bob@corp.com'] })
   })
 
@@ -762,13 +775,13 @@ describe('mirroring Drive permissions onto listed documents', () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 403))
 
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], {})
+      googleDriveConnector.getDocumentAcls?.('token', ADMIN, [FILE_DOC], { ...MIRRORING })
     ).resolves.toEqual({})
   })
 
   it('answers nothing for a crawl that mirrors no permissions', async () => {
     await expect(
-      googleDriveConnector.getDocumentAcls?.('token', {}, [FILE_DOC], {})
+      googleDriveConnector.getDocumentAcls?.('token', {}, [FILE_DOC], { ...MIRRORING })
     ).resolves.toEqual({})
     expect(mockFetch).not.toHaveBeenCalled()
   })

@@ -165,7 +165,7 @@ async function markSyncPending(connectorId: string): Promise<string | null> {
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
-        inArray(knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
+        inArray(knowledgeConnector.accessMode, CONTENT_ENGINE_ACCESS_MODES),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.syncLockToken),
         connectorIsLive()

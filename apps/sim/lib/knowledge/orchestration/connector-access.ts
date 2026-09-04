@@ -10,7 +10,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
-import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  aclIsDerived,
+  type ConnectorAccessMode,
+  type ContentEngineAccessMode,
+} from '@/lib/knowledge/connectors/access-modes'
 import {
   grantKnowledgeConnectorCredentialAccess,
   revokeKnowledgeConnectorCredentialAccess,
@@ -186,11 +190,7 @@ async function releaseSwitchLease(
  */
 export type ConnectorAccessTarget =
   | { accessMode: 'members'; binding: ResolvedMembersBinding }
-  | { accessMode: 'workspace'; credentialId: string }
-  | { accessMode: 'admin'; credentialId: string }
-
-/** A target that syncs as one stored credential — every mode except `members`. */
-type CredentialBackedTarget = Extract<ConnectorAccessTarget, { credentialId: string }>
+  | { accessMode: ContentEngineAccessMode; credentialId: string }
 
 export interface PerformUpdateKnowledgeConnectorAccessParams extends KnowledgeOperationContext {
   knowledgeBase: { id: string; name: string; workspaceId: string }
@@ -204,32 +204,6 @@ export type PerformUpdateKnowledgeConnectorAccessResult = KnowledgeOrchestration
   /** Whether the switch changed anything; a repeat of the current binding is a no-op. */
   changed: boolean
 }>
-
-/**
- * What entering a mode does to the ACL of every document the connector already
- * owns.
- *
- * `workspace` publishes them to the workspace. `members` and `admin` both hide
- * them, because in both the ACL is owned by a later pass — the member engine's
- * observation graph, or the crawl that mirrors the source's permissions — and
- * neither has run yet. Hiding on entry is what makes an interrupted switch
- * safe: documents are hidden early, never shown early.
- */
-const MODE_ENTRY_ACL: Record<ConnectorAccessMode, readonly string[]> = {
-  workspace: WORKSPACE_ACL,
-  members: EMPTY_ACL,
-  admin: EMPTY_ACL,
-}
-
-/**
- * Whether a target syncs as one stored credential. Both credential-backed modes
- * change the same way — swap the credential, keep the documents — so they share
- * the fast path below; `members` has no credential of its own, its members are
- * the credentials.
- */
-function isCredentialBackedTarget(target: ConnectorAccessTarget): target is CredentialBackedTarget {
-  return target.accessMode !== 'members'
-}
 
 /**
  * Moves a connector between access modes under the connector's content lease,
@@ -312,7 +286,12 @@ export async function performUpdateKnowledgeConnectorAccess(
    * dropped and a sync queued. The write refuses while a sync owns the row,
    * whose terminal write would otherwise put the watermark straight back.
    */
-  if (target.accessMode === existing.accessMode && isCredentialBackedTarget(target)) {
+  /**
+   * Both credential-backed modes change the same way — swap the credential,
+   * keep the documents — so they share this fast path; `members` has no
+   * credential of its own, its members are the credentials.
+   */
+  if (target.accessMode !== 'members' && target.accessMode === existing.accessMode) {
     const now = new Date()
     const [updated] = await db
       .update(knowledgeConnector)
@@ -476,25 +455,27 @@ export async function performUpdateKnowledgeConnectorAccess(
     }
 
     /**
-     * Where the flip sits relative to the rewrite follows from which way the
-     * entry ACL moves. Entering a mode that hides on entry (admin) rewrites
-     * *before* the flip, as the members path does: an interruption leaves the
-     * connector in the mode it came from with some documents hidden, which
-     * that mode's next run restores. Entering workspace mode, which shows on entry,
-     * rewrites *after* the flip, so no document is shown under the mode it is
-     * leaving. Either way, documents are hidden until the rewrite lands, never
-     * shown under the wrong mode, and a rewrite that outgrows the request
-     * budget is marked pending for the content engine to finish before it
-     * lists anything.
+     * Entering a mode whose ACL is derived (admin) hides every document, and
+     * does so *before* the flip, as the members path does: an interruption
+     * leaves the connector in the mode it came from with some documents
+     * hidden, which that mode's next run restores. Entering workspace mode
+     * publishes every document, and does so *after* the flip, so no document
+     * is shown under the mode it is leaving. Either way, documents are hidden
+     * until the rewrite lands, never shown under the wrong mode, and a rewrite
+     * that outgrows the request budget is marked pending for the content
+     * engine to finish before it lists anything. A derived-ACL mode also has
+     * no listing cap, so the flip clears them.
      */
-    const entryAcl = MODE_ENTRY_ACL[target.accessMode]
-    const hidesOnEntry = entryAcl.length === 0
+    const hidesOnEntry = aclIsDerived(target.accessMode)
     const rewriteEntryAcls = () =>
-      rewriteConnectorAcls(connectorId, entryAcl, {
+      rewriteConnectorAcls(connectorId, hidesOnEntry ? EMPTY_ACL : WORKSPACE_ACL, {
         deadlineAt: deadlineAt,
         lease: { stillHeld: () => switchLeaseHeld(connectorId, switchId) },
       })
-    const rewrittenBeforeFlip = hidesOnEntry ? await rewriteEntryAcls() : false
+    let rewritten = false
+    if (hidesOnEntry) rewritten = await rewriteEntryAcls()
+    const { CONNECTOR_META_REGISTRY } = await import('@/connectors/registry')
+    const connectorMeta = CONNECTOR_META_REGISTRY[existing.connectorType]
     const flippedAt = new Date()
     await db.transaction(async (tx) => {
       await tx
@@ -507,7 +488,15 @@ export async function performUpdateKnowledgeConnectorAccess(
           credentialId: target.credentialId,
           credentialGroupId: null,
           credentialGroupOptionId: null,
-          accessRewritePending: hidesOnEntry ? !rewrittenBeforeFlip : true,
+          ...(hidesOnEntry && connectorMeta
+            ? {
+                sourceConfig: stripListingCapFields(
+                  connectorMeta,
+                  existing.sourceConfig as Record<string, unknown>
+                ),
+              }
+            : {}),
+          accessRewritePending: !rewritten,
           /**
            * The next content sync must list everything and reconcile: the
            * union of every member's documents may hold documents the
@@ -526,7 +515,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         .returning({ id: knowledgeConnector.id })
       if (!row) throw new SwitchLeaseLostError()
     })
-    const rewritten = hidesOnEntry ? rewrittenBeforeFlip : await rewriteEntryAcls()
+    if (!hidesOnEntry) rewritten = await rewriteEntryAcls()
     if (existing.credentialGroupId) {
       await revokeKnowledgeConnectorCredentialAccess(
         { workspaceId: kb.workspaceId, credentialGroupId: existing.credentialGroupId, connectorId },

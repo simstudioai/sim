@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { idempotencyKeys, tasks } from '@trigger.dev/sdk'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
@@ -48,12 +47,9 @@ export function assertDirectorySyncPayload(value: unknown): DirectorySyncPayload
  */
 export async function dispatchDirectorySync(
   connectorId: string,
-  options: { requestId?: string; tickAt: Date }
+  options: { requestId: string; tickAt: Date }
 ): Promise<void> {
-  const payload: DirectorySyncPayload = {
-    connectorId,
-    requestId: options.requestId ?? generateId(),
-  }
+  const payload: DirectorySyncPayload = { connectorId, requestId: options.requestId }
 
   if (isTriggerAvailable()) {
     const idempotencyKey = await idempotencyKeys.create(

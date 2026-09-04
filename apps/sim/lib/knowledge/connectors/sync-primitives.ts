@@ -12,7 +12,7 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env, envNumber } from '@/lib/core/config/env'
-import type { SyncDocumentAccess } from '@/lib/knowledge/connectors/access-modes'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   addDocument,
@@ -1508,7 +1508,7 @@ export interface ProcessDocOpsInput {
    */
   onBatchPersisted?: (persisted: readonly PersistedDocument[]) => Promise<void>
   /** Who may read the documents this pass writes. */
-  documentAccess: SyncDocumentAccess
+  documentAccess: ConnectorAccessMode
 }
 
 /**

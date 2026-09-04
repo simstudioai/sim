@@ -5,8 +5,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MIRRORING_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import { dispatchDirectorySync } from '@/lib/knowledge/connectors/directory-queue'
 import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 
@@ -14,8 +16,9 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ConnectorDirectorySyncSchedulerAPI')
 
-/** Connectors offered per tick. */
+/** Connectors offered per tick, and how many dispatches are in flight at once. */
 const MAX_DIRECTORIES_PER_TICK = 200
+const DISPATCH_CONCURRENCY = 8
 
 /**
  * Refreshes the external directories that admin-mode connectors mirror.
@@ -48,7 +51,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
     .where(
       and(
-        eq(knowledgeConnector.accessMode, 'admin'),
+        inArray(knowledgeConnector.accessMode, MIRRORING_ACCESS_MODES),
         inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
@@ -61,7 +64,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   let dispatched = 0
   let failed = 0
-  for (const { id: connectorId } of connectors) {
+  await mapWithConcurrency(connectors, DISPATCH_CONCURRENCY, async ({ id: connectorId }) => {
     try {
       await dispatchDirectorySync(connectorId, { requestId, tickAt })
       dispatched += 1
@@ -72,7 +75,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error: getErrorMessage(error),
       })
     }
-  }
+  })
 
   const summary = { considered: connectors.length, dispatched, failed }
   logger.info(`[${requestId}] Connector directory sync scheduler finished`, summary)

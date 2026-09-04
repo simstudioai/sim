@@ -70,11 +70,9 @@ export const user = pgTable(
      * fifth of accounts, with a different normalisation (Gmail dot and tag
      * stripping) that must never be used for identity. Nothing reads it.
      *
-     * Follow-up, after the release removing its readers has deployed: drop the
-     * column, marking this table `contract-pending` at that point so the drop
-     * audit names every read that would still select it. Better Auth selects
-     * every schema column, so dropping it while the previous release is still
-     * serving would break sign-in.
+     * Kept for one release rather than dropped with its readers: Better Auth
+     * selects every schema column, so dropping it while the previous release
+     * is still serving would break sign-in.
      */
     normalizedEmail: text('normalized_email').unique(),
     emailVerified: boolean('email_verified').notNull(),

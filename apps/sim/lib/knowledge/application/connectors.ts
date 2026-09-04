@@ -35,7 +35,10 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  type ConnectorAccessMode,
+  mirrorsSourceAcls,
+} from '@/lib/knowledge/connectors/access-modes'
 import {
   resolveConnectorAccessToken,
   syncContextForToken,
@@ -277,6 +280,21 @@ async function validateConnectorSourceConfig(input: {
     return {
       message: `Unknown connector type: ${input.connector.connectorType}`,
       errorCode: 'validation',
+    }
+  }
+  /**
+   * A mirroring connector must keep naming whose eyes it crawls through: a
+   * config edit that blanked the administrator would mint a token with no
+   * subject and silently stop mirroring on the next run.
+   */
+  if (mirrorsSourceAcls(input.connector.accessMode)) {
+    try {
+      await assertConnectorMirrorsSourceAcls(connectorConfig, input.sourceConfig, input.workspaceId)
+    } catch (error) {
+      if (error instanceof OrchestrationError) {
+        return { message: error.message, errorCode: error.code }
+      }
+      throw error
     }
   }
 

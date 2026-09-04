@@ -1,5 +1,6 @@
 import { normalizeEmail } from '@sim/utils/string'
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 
@@ -116,6 +117,26 @@ export async function resolveConnectorAccessToken(params: {
  * content engine, the directory refresh, config validation — seeds the same
  * way, so a connector behaves identically on all of them.
  */
+/**
+ * The user a connector's token resolves under.
+ *
+ * Token reads are scoped to the account's owner, who is routinely not the
+ * knowledge base owner: the OAuth account behind a shared credential belongs
+ * to whoever connected it. A service account mints its own token and ignores
+ * the argument, so the fallback stands. Null when the credential is no longer
+ * usable from the workspace, which every caller treats as "reconnect".
+ */
+export async function resolveConnectorTokenUserId(input: {
+  credentialId: string | null
+  workspaceId: string
+  fallbackUserId: string
+}): Promise<string | null> {
+  if (!input.credentialId) return input.fallbackUserId
+  const identity = await resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+  if (!identity) return null
+  return identity.kind === 'oauth' ? identity.userId : input.fallbackUserId
+}
+
 export function syncContextForToken(token: ConnectorAccessToken): Record<string, unknown> {
   return token.cloudId ? { cloudId: token.cloudId } : {}
 }

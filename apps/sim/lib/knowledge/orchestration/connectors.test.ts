@@ -52,6 +52,7 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
   grantKnowledgeConnectorCredentialAccess: mockGrant,
   revokeKnowledgeConnectorCredentialAccess: mockRevoke,
   findListingCapViolation: vi.fn(() => null),
+  stripListingCapFields: (_meta: unknown, sourceConfig: Record<string, unknown>) => sourceConfig,
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
@@ -173,7 +174,9 @@ describe('performDeleteKnowledgeConnector', () => {
   afterAll(resetDbChainMock)
 
   it('reports the documents it kept, so the caller cannot claim otherwise', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     queueTableRows(document, [
       { id: 'doc-1', fileUrl: '/a.txt' },
       { id: 'doc-2', fileUrl: '/b.txt' },
@@ -198,7 +201,9 @@ describe('performDeleteKnowledgeConnector', () => {
   })
 
   it('reports the documents it deleted when asked to delete them', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     queueTableRows(document, [{ id: 'doc-1', fileUrl: '/a.txt' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
@@ -226,7 +231,9 @@ describe('performDeleteKnowledgeConnector', () => {
   })
 
   it('returns authoritative delete counts without legacy audit or analytics when disabled', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     queueTableRows(document, [{ id: 'doc-1', fileUrl: '/a.txt' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
@@ -268,7 +275,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('classifies a sub-hourly interval on an unentitled workspace as forbidden', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     mockHasWorkspaceLiveSyncAccess.mockResolvedValue(false)
 
     const outcome = await performUpdateKnowledgeConnector({
@@ -284,7 +293,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('leaves a caller-supplied validator to reject a bad source config', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
 
     const outcome = await performUpdateKnowledgeConnector({
       ...ACTOR,
@@ -306,7 +317,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('preserves the failure class the validator chose', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
 
     // A stale stored credential kept the route's 401; collapsing every
     // rejection to `validation` had flattened it (and the 409) into a 400.
@@ -326,7 +339,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('clears the failure counters when a paused connector is resumed', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     dbChainMockFns.returning.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'active' },
     ])
@@ -392,7 +407,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('leaves semantic audit to an authorized application caller when requested', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     dbChainMockFns.returning.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'paused' },
     ])

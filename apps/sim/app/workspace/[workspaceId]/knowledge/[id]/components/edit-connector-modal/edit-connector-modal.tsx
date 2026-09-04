@@ -21,7 +21,7 @@ import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
-import { isCredentialBackedAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import {
   ConnectorAccessField,
@@ -40,7 +40,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import {
-  memberCapFieldIds,
+  derivedAclCapFieldIds,
   useConnectorMemberGroupOptions,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -59,6 +59,21 @@ import {
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 
 const logger = createLogger('EditConnectorModal')
+
+/** What the apply button says, and what it warns will happen, per mode. */
+const SWITCH_LABEL: Record<ConnectorAccessMode, string> = {
+  workspace: 'Switch to workspace access',
+  members: 'Switch to per-member access',
+  admin: 'Switch to mirrored access',
+}
+
+const SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
+  workspace: 'Every workspace member can read every synced document once the next sync completes.',
+  members:
+    'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.',
+  admin:
+    'Documents stay hidden until the next sync mirrors their permissions from the source; listing caps are cleared.',
+}
 
 /** Keys injected by the sync engine or modal state — not user-editable */
 const INTERNAL_CONFIG_KEYS = new Set(['tagSlotMapping', 'disabledTagIds', '_canonicalModes'])
@@ -247,9 +262,10 @@ export function EditConnectorModal({
   const { mutate: updateAccess, isPending: isSwitchingAccess } = useUpdateConnectorAccess()
   const isSaving = isSavingSettings || isSwitchingAccess
   /**
-   * The field shows where the flag is on. A connector already syncing per
-   * member keeps it where the flag has since been turned off, so an admin can
-   * still bring it back to workspace mode; per-member cannot be re-chosen.
+   * The field shows where either flag is on. A connector already in a
+   * non-workspace mode keeps it where its flag has since been turned off, so
+   * an admin can still bring it back to workspace mode; that mode cannot be
+   * re-chosen.
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
@@ -268,7 +284,7 @@ export function EditConnectorModal({
   /** Leaving members mode for a mode that syncs with one credential needs that credential. */
   const needsWorkspaceCredential =
     accessDirty &&
-    isCredentialBackedAccessMode(access.accessMode) &&
+    isContentEngineAccessMode(access.accessMode) &&
     persistedAccess.accessMode === 'members'
   const accessComplete =
     !accessDirty ||
@@ -278,7 +294,7 @@ export function EditConnectorModal({
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
     !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
-  const hiddenCapFieldIds = memberCapFieldIds(connectorConfig, access.accessMode)
+  const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),
@@ -606,11 +622,7 @@ function SettingsTab({
                       ? 'Switching…'
                       : isRebind
                         ? 'Change credential group'
-                        : access.accessMode === 'members'
-                          ? 'Switch to per-member access'
-                          : access.accessMode === 'admin'
-                            ? 'Switch to mirrored access'
-                            : 'Switch to workspace access'}
+                        : SWITCH_LABEL[access.accessMode]}
                   </Button>
                   <Button variant='default' size='sm' onClick={onResetAccess} disabled={isSaving}>
                     Cancel
@@ -619,11 +631,7 @@ function SettingsTab({
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
                   {isRebind
                     ? 'Members of the previous group lose access; members of the new group are invited to connect.'
-                    : access.accessMode === 'members'
-                      ? 'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.'
-                      : access.accessMode === 'admin'
-                        ? 'Documents stay hidden until the next sync mirrors their permissions from the source; listing caps are cleared.'
-                        : 'Every workspace member can read every synced document once the next sync completes.'}
+                    : SWITCH_NOTICE[access.accessMode]}
                 </p>
               </div>
             ) : undefined

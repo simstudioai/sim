@@ -6,10 +6,9 @@ import {
   aclIsDerived,
   CONNECTOR_ACCESS_MODES,
   CONTENT_ENGINE_ACCESS_MODES,
-  documentAccessForMode,
   isConnectorAccessMode,
   isContentEngineAccessMode,
-  requiresFullListing,
+  mirrorsSourceAcls,
 } from '@/lib/knowledge/connectors/access-modes'
 
 describe('which engine drives a mode', () => {
@@ -42,7 +41,6 @@ describe('which engine drives a mode', () => {
 
 describe('who may read what a sync writes', () => {
   it('publishes a workspace-mode document to the workspace', () => {
-    expect(documentAccessForMode('workspace')).toBe('workspace')
     expect(aclIsDerived('workspace')).toBe(false)
   })
 
@@ -52,13 +50,8 @@ describe('who may read what a sync writes', () => {
    * not run yet. Hidden early is recoverable; visible early is not.
    */
   it('hides a document whose ACL a later pass owns', () => {
-    expect(documentAccessForMode('admin')).toBe('admin')
     expect(aclIsDerived('admin')).toBe(true)
     expect(aclIsDerived('members')).toBe(true)
-  })
-
-  it('treats an unknown mode as workspace-driven, matching the engine that claimed it', () => {
-    expect(documentAccessForMode('unknown')).toBe('workspace')
   })
 })
 
@@ -70,9 +63,10 @@ describe('which modes must list the whole corpus every run', () => {
    * incremental path.
    */
   it('requires a full listing only where ACLs are mirrored from the source', () => {
-    expect(requiresFullListing('admin')).toBe(true)
-    expect(requiresFullListing('workspace')).toBe(false)
-    expect(requiresFullListing('members')).toBe(false)
+    expect(mirrorsSourceAcls('admin')).toBe(true)
+    expect(mirrorsSourceAcls('workspace')).toBe(false)
+    expect(mirrorsSourceAcls('members')).toBe(false)
+    expect(mirrorsSourceAcls('unknown')).toBe(false)
   })
 })
 
