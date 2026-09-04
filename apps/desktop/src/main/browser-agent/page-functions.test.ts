@@ -625,6 +625,29 @@ describe('collectSnapshot', () => {
     expect(outlineOf(collectSnapshot())).toContain('gridcell "party-parrot"')
   })
 
+  it('reports native and ARIA control state in the snapshot', () => {
+    document.body.innerHTML = `
+      <input type="checkbox" aria-label="Email alerts" />
+      <input type="radio" aria-label="Weekly" checked />
+      <button aria-expanded="false" aria-pressed="true">Filters</button>
+      <div role="switch" aria-label="Dark mode" aria-checked="mixed"></div>
+      <div role="tab" aria-selected="true">Activity</div>
+      <textarea aria-label="Notes" readonly required></textarea>
+      <div role="textbox" aria-label="Summary" aria-readonly="true" aria-required="true"></div>
+    `
+    for (const element of document.body.children) visible(element as HTMLElement)
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toMatch(/checkbox "Email alerts" \[ref=\d+\] unchecked/)
+    expect(outline).toMatch(/radio "Weekly" \[ref=\d+\] checked/)
+    expect(outline).toMatch(/button "Filters" \[ref=\d+\] aria-expanded=false aria-pressed=true/)
+    expect(outline).toMatch(/switch "Dark mode" \[ref=\d+\] aria-checked=mixed/)
+    expect(outline).toMatch(/tab "Activity" \[ref=\d+\] aria-selected=true/)
+    expect(outline).toMatch(/textbox "Notes" \[ref=\d+\] readonly required/)
+    expect(outline).toMatch(/textbox "Summary" \[ref=\d+\] aria-readonly aria-required/)
+  })
+
   it('does not duplicate every descendant of an inherited pointer target', () => {
     document.body.innerHTML = `
       <div style="cursor: pointer">

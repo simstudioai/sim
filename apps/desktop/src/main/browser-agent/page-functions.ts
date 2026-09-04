@@ -448,10 +448,13 @@ export function collectSnapshot(startingElementId = 0): unknown {
       // like any other. Redaction above is realm-safe and runs first, so
       // widening this cannot expose a credential field.
       const value = (el as HTMLInputElement).value
-      if (tag === 'INPUT' && (el as HTMLInputElement).type === 'file') {
+      const inputType = tag === 'INPUT' ? (el as HTMLInputElement).type : ''
+      if (inputType === 'file') {
         parts.push('upload-unsupported')
-      } else if (value && isSensitiveValueField(el)) parts.push('value-withheld')
-      else if (value) parts.push(`value=${quote(cut(String(value), 120))}`)
+      } else if (inputType !== 'checkbox' && inputType !== 'radio') {
+        if (value && isSensitiveValueField(el)) parts.push('value-withheld')
+        else if (value) parts.push(`value=${quote(cut(String(value), 120))}`)
+      }
     }
     if (tag === 'A') {
       const href = el.getAttribute('href')
@@ -459,7 +462,28 @@ export function collectSnapshot(startingElementId = 0): unknown {
     }
     if ((el as HTMLInputElement).disabled === true) parts.push('disabled')
     if (el.getAttribute('aria-disabled') === 'true') parts.push('aria-disabled')
-    if ((el as HTMLInputElement).checked === true) parts.push('checked')
+    if (el.getAttribute('aria-readonly') === 'true') parts.push('aria-readonly')
+    if (el.getAttribute('aria-required') === 'true') parts.push('aria-required')
+    if (tag === 'INPUT') {
+      const input = el as HTMLInputElement
+      if (input.type === 'checkbox' || input.type === 'radio') {
+        parts.push(input.checked ? 'checked' : 'unchecked')
+      }
+      if (input.readOnly) parts.push('readonly')
+      if (input.required) parts.push('required')
+    } else if (tag === 'TEXTAREA') {
+      const textarea = el as HTMLTextAreaElement
+      if (textarea.readOnly) parts.push('readonly')
+      if (textarea.required) parts.push('required')
+    } else if (tag === 'SELECT' && (el as HTMLSelectElement).required) {
+      parts.push('required')
+    }
+    for (const attribute of ['aria-checked', 'aria-expanded', 'aria-pressed', 'aria-selected']) {
+      const value = el.getAttribute(attribute)
+      if (value === 'true' || value === 'false' || value === 'mixed') {
+        parts.push(`${attribute}=${value}`)
+      }
+    }
     const suffix = parts.length > 0 ? ` ${parts.join(' ')}` : ''
     const lineIndex = lines.length
     if (push(`${indent}- ${role} ${quote(name)} [ref=${id}]${suffix}`)) {
