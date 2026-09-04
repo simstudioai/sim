@@ -133,8 +133,9 @@ Workflows can execute user-authored JavaScript and Python. Know which sandbox yo
 Python, Shell, JavaScript with external imports, and tooling-dependent blocks
 require a remote sandbox provider. On a billing-free self-host the provider and
 Function base are not sufficient on their own: `SANDBOXES_ENABLED` grants the
-server-side entitlement, and without it Shell and the Sandboxes settings stay
-hidden even when the provider is configured correctly. JavaScript without `import` or `require`
+server-side entitlement, and without it a workspace offers no Shell language and the
+Sandboxes settings page shows an upgrade notice even when the provider is configured
+correctly. JavaScript without `import` or `require`
 continues to run in the in-process isolate when no remote provider is configured.
 
 <Callout type="warn">
@@ -151,7 +152,7 @@ Two browser-side variables project server state into the UI, and neither is deri
 
 | Variable | Effect when unset |
 |---|---|
-| `NEXT_PUBLIC_SANDBOXES_ENABLED` | The Function block's Sandbox selector stays hidden, even with a working provider. Shell and **Settings → Sandboxes** are unaffected — a workspace shows them from the server's own readiness check. Python stays selectable; whether it runs depends on the server-side provider and Function image, not on this flag |
+| `NEXT_PUBLIC_SANDBOXES_ENABLED` | The Function block's Sandbox selector stays hidden, even with a working provider. Shell and **Settings → Sandboxes** are unaffected — Shell appears, and the settings page swaps its upgrade notice for the sandbox list, from the server's own readiness check. Python stays selectable; whether it runs depends on the server-side provider and Function image, not on this flag |
 | `NEXT_PUBLIC_E2B_ENABLED` | The E2B-backed Pi block modes stay hidden; `sim-setup doctor` reports it as a mismatch against `E2B_ENABLED`. Revealing them is not enough to make them run — Pi executes on its own image, pinned with `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`, and fails closed without it |
 
 Set the public values only **after** the server-side configuration above is complete — they are assertions about readiness, not switches, and the server-side check has its own conditions beyond them. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and promotion procedure. `npx sim-setup doctor` reports a mismatch in either direction.
