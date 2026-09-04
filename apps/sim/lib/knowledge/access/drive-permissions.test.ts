@@ -40,10 +40,13 @@ describe('driveFileAcl', () => {
     ).toEqual([`g:${PROVIDER}:${TENANT}:sales@corp.com`, 'u:alice@corp.com', 'u:bob@corp.com'])
   })
 
-  it('maps an inherited grant like any other, leaving membership to directory sync', () => {
+  it('drops the grant of a deleted account rather than minting a token for a recycled address', () => {
     expect(
-      acl([{ type: 'group', emailAddress: 'eng@corp.com', permittedBy: ['folder-1'] }])
-    ).toEqual([`g:${PROVIDER}:${TENANT}:eng@corp.com`])
+      acl([
+        { type: 'user', emailAddress: 'gone@corp.com', deleted: true },
+        { type: 'user', emailAddress: 'alice@corp.com' },
+      ])
+    ).toEqual(['u:alice@corp.com'])
   })
 
   describe('open sharing is closed by default', () => {

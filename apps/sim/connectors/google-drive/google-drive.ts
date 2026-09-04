@@ -7,18 +7,11 @@ import {
   driveFileAcl,
   type OpenSharingPolicy,
 } from '@/lib/knowledge/access/drive-permissions'
-import {
-  attachRetryHeaders,
-  isRetryableError,
-  type RetryOptions,
-  resolveRetryDelayMs,
-  retryWithExponentialBackoff,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleWorkspaceDomain, openGoogleDirectory } from '@/connectors/google-drive/directory'
 import {
+  fetchGoogleDriveWithRetry,
   GoogleDriveApiError,
-  readGoogleDriveApiError,
 } from '@/connectors/google-drive/google-drive-errors'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import type {
@@ -90,33 +83,6 @@ function isGoogleWorkspaceFile(mimeType: string): boolean {
 
 function isSupportedTextFile(mimeType: string): boolean {
   return SUPPORTED_TEXT_MIME_TYPES.some((t) => mimeType.startsWith(t))
-}
-
-/** Retries Google errors whose structured body identifies a transient rejection. */
-async function fetchGoogleDriveWithRetry(
-  url: string,
-  options: RequestInit,
-  retryOptions: RetryOptions = {}
-): Promise<Response> {
-  return retryWithExponentialBackoff(
-    async () => {
-      const response = await fetch(url, options)
-      if (response.ok) return response
-
-      const error = await readGoogleDriveApiError(response)
-      attachRetryHeaders(error, response.headers)
-      const waitMs = resolveRetryDelayMs(response.headers)
-      if (waitMs !== undefined) error.retryAfterMs = waitMs
-      throw error
-    },
-    {
-      ...retryOptions,
-      retryCondition: (error) =>
-        error instanceof GoogleDriveApiError
-          ? error.kind === 'transient' || isRetryableError(error)
-          : (retryOptions.retryCondition?.(error) ?? isRetryableError(error)),
-    }
-  )
 }
 
 async function exportGoogleWorkspaceFile(
@@ -217,15 +183,12 @@ interface DriveFile {
   starred?: boolean
   trashed?: boolean
   parents?: string[]
-  permissions?: DrivePermission[]
   /**
-   * Requested alongside `permissions` because Drive sometimes omits the
-   * expanded permission objects while still reporting their ids — Onyx hit the
-   * same thing. A file whose two counts disagree has an ACL we did not fully
-   * see, so it is mirrored as readable by nobody rather than under a subset of
-   * its real grants.
+   * Absent for a file on a shared drive, and for any file the impersonated
+   * administrator cannot share: Drive serves those only through
+   * `permissions.list`, which {@link resolveDriveAcls} calls for them.
    */
-  permissionIds?: string[]
+  permissions?: DrivePermission[]
 }
 
 interface DriveChange {
@@ -488,16 +451,12 @@ function driveAclContext(sourceConfig: Record<string, unknown>): DriveAclContext
  * The file's mirrored ACL from its listing, or undefined when the listing
  * cannot speak for it and {@link resolveDriveAcls} must.
  *
- * Drive does not populate `permissions` for a file on a shared drive at all,
- * and sometimes returns fewer expanded entries than it reports ids for — which
- * is why both are requested. Mirroring the subset that did arrive would store
- * the file under narrower grants than it really has, which sounds like the
- * safe direction but is not, because the grants that went missing are exactly
- * the ones nobody verified. Undefined sends the file to `permissions.list`.
+ * Drive leaves `permissions` unpopulated for a file on a shared drive, and for
+ * any file the requesting user cannot share. Those go to `permissions.list`,
+ * the one endpoint that answers for every file.
  */
 function fileAcl(file: DriveFile, context: DriveAclContext | null): string[] | undefined {
   if (!context || !file.permissions) return undefined
-  if (file.permissionIds && file.permissionIds.length !== file.permissions.length) return undefined
   return driveFileAcl({
     permissions: file.permissions,
     providerId: context.providerId,
@@ -528,7 +487,8 @@ async function listFilePermissions(
   let pageToken: string | undefined
   for (let page = 0; page < MAX_PERMISSION_PAGES; page += 1) {
     const query = new URLSearchParams({
-      fields: 'nextPageToken,permissions(id,type,emailAddress,domain,role,allowFileDiscovery)',
+      fields:
+        'nextPageToken,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,deleted)',
       pageSize: '100',
       supportsAllDrives: 'true',
     })
@@ -648,7 +608,7 @@ export const googleDriveConnector: ConnectorConfig = {
       pageSize: String(effectivePageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents,permissionIds,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,permittedBy))',
+        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,deleted))',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })

@@ -18,8 +18,8 @@ export interface DrivePermission {
    * which is what the Drive API documents.
    */
   allowFileDiscovery?: boolean | null
-  /** Set when the grant descends from a folder or shared drive rather than the file. */
-  permittedBy?: string[] | null
+  /** Whether the account behind a `user` grant has been deleted. */
+  deleted?: boolean | null
 }
 
 /**
@@ -82,6 +82,11 @@ export function driveFileAcl(input: DriveAclInput): string[] {
   const tokens = new Set<string>()
 
   for (const permission of permissions) {
+    /**
+     * A deleted account's grant is a grant to nobody — and to whoever is later
+     * provisioned with the recycled address, if it were minted.
+     */
+    if (permission.deleted) continue
     switch (permission.type) {
       case 'user': {
         const token = userToken(permission.emailAddress)

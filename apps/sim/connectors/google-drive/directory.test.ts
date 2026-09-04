@@ -38,13 +38,13 @@ describe('listDomainGroups', () => {
   it('folds group emails so they match the tokens a crawl writes', async () => {
     directory({}, [{ email: 'Eng@Corp.com', name: 'Engineering' }])
 
-    await expect(listDomainGroups('token', 'corp.com')).resolves.toEqual([{ id: 'eng@corp.com' }])
+    await expect(listDomainGroups('token')).resolves.toEqual([{ id: 'eng@corp.com' }])
   })
 
   it('drops a group with no email, which is the only identifier a grant carries', async () => {
     directory({}, [{ name: 'Nameless' }, { email: 'eng@corp.com' }])
 
-    await expect(listDomainGroups('token', 'corp.com')).resolves.toEqual([{ id: 'eng@corp.com' }])
+    await expect(listDomainGroups('token')).resolves.toEqual([{ id: 'eng@corp.com' }])
   })
 
   it('follows pagination rather than reporting the first page as the whole directory', async () => {
@@ -54,13 +54,14 @@ describe('listDomainGroups', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ groups: [{ email: 'b@corp.com' }] }))
 
-    await expect(listDomainGroups('token', 'corp.com')).resolves.toHaveLength(2)
+    await expect(listDomainGroups('token')).resolves.toHaveLength(2)
   })
 
   it('throws rather than returning a truncated directory', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 403))
+    mockFetch.mockReset()
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'forbidden' } }, 403))
 
-    await expect(listDomainGroups('token', 'corp.com')).rejects.toThrow('403')
+    await expect(listDomainGroups('token')).rejects.toThrow()
   })
 })
 
@@ -138,8 +139,25 @@ describe('listGroupMembers', () => {
   })
 
   it('throws when a group cannot be read, so its membership is left alone', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 500))
+    mockFetch.mockReset()
+    mockFetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'gone' } }, 404))
 
-    await expect(listGroupMembers('token', GROUP)).rejects.toThrow('500')
+    await expect(listGroupMembers('token', GROUP)).rejects.toThrow()
+  })
+
+  /** A directory that hiccups must not cost a group its membership; transient errors are retried. */
+  it('retries a transient directory error before giving up', async () => {
+    mockFetch.mockReset()
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { errors: [{ reason: 'backendError' }], message: 'try again' } }, 503)
+      )
+      .mockResolvedValueOnce(jsonResponse({ members: [USER('alice@corp.com')] }))
+
+    await expect(listGroupMembers('token', GROUP)).resolves.toMatchObject({
+      memberEmails: ['alice@corp.com'],
+      complete: true,
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 })

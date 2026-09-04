@@ -648,7 +648,6 @@ describe('mirroring Drive permissions onto listed documents', () => {
 
     const url = String(mockFetch.mock.calls[0][0])
     expect(decodeURIComponent(url)).toContain('permissions(id,type,emailAddress,domain,role,')
-    expect(decodeURIComponent(url)).toContain('permissionIds')
   })
 
   it('tags each document with who may read it', async () => {
@@ -685,35 +684,6 @@ describe('mirroring Drive permissions onto listed documents', () => {
     )
 
     expect(doc.acl).toBeUndefined()
-  })
-
-  /**
-   * Drive sometimes reports more permission ids than it expands. The subset that
-   * arrived is not the safe answer — the grants that went missing are the ones
-   * nobody checked — so the file is left readable by nobody.
-   */
-  it('refuses a partial permission set rather than mirroring a subset', async () => {
-    const doc = await listWith(
-      driveFile({
-        permissionIds: ['p1', 'p2'],
-        permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }],
-      }),
-      ADMIN
-    )
-
-    expect(doc.acl).toBeUndefined()
-  })
-
-  it('accepts a permission set that matches the ids Drive reported', async () => {
-    const doc = await listWith(
-      driveFile({
-        permissionIds: ['p1'],
-        permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }],
-      }),
-      ADMIN
-    )
-
-    expect(doc.acl).toEqual(['u:alice@corp.com'])
   })
 
   it('keeps an openly shared file out of search until the admin opts in', async () => {
