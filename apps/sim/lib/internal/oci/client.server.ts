@@ -851,6 +851,9 @@ export async function createOciClient(params: CreateOciClientParams): Promise<Oc
             if (deadline.signal.aborted) {
               throw new OciClientError(deadline.expired() ? 'deadline_exceeded' : 'aborted')
             }
+            if (isPayloadSizeLimitError(error)) {
+              throw new OciClientError('response_too_large')
+            }
             if (attempt < validated.attempts && isRetryableTransportFailure(error)) {
               const delay = backoffWithJitter(attempt, null, { baseMs: 200, maxMs: 5000 })
               if (delay >= deadline.deadlineAt - Date.now()) {

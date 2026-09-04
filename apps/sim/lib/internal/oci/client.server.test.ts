@@ -3,6 +3,7 @@
  */
 import { createPublicKey, verify } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const mocks = vi.hoisted(() => ({
   backoff: vi.fn(),
@@ -751,6 +752,25 @@ describe('credential-bound OCI client', () => {
       })
     ).rejects.toMatchObject({ code: 'response_too_large' })
     expect(cancel).toHaveBeenCalled()
+  })
+
+  it('preserves response-too-large when transport rejects a declared content length', async () => {
+    mocks.secureFetch.mockRejectedValueOnce(
+      new PayloadSizeLimitError({ label: 'OCI response', maxBytes: 3, observedBytes: 4 })
+    )
+    const { client, endpoint } = await createPreparedClient()
+
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/test',
+        retry: { kind: 'safe', maxAttempts: 2 },
+        timeoutMs: 10_000,
+        maxResponseBytes: 3,
+      })
+    ).rejects.toMatchObject({ code: 'response_too_large' })
+    expect(mocks.secureFetch).toHaveBeenCalledOnce()
   })
 
   it('rejects fabricated and cross-client authenticated discovery responses', async () => {
