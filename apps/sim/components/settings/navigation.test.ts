@@ -50,8 +50,18 @@ const SELF_HOSTED: DeploymentShape = {
 
 const HOSTED: DeploymentShape = { ...SELF_HOSTED, hosted: true, billingEnabled: true }
 
+/** A self-hosted deployment with every feature override on. */
+const SELF_HOSTED_ALL_FEATURES: DeploymentShape = {
+  ...SELF_HOSTED,
+  features: { ...SELF_HOSTED.features, customBlocks: true },
+}
+
+/** Every workspace-plane section a self-hosted deployment offers; BYOK is Sim Cloud only. */
+const SELF_HOSTED_WORKSPACE_SECTIONS = WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id).filter(
+  (id) => id !== 'byok'
+)
+
 const ALL_ENTITLEMENTS = {
-  byok: true,
   credentialGroups: true,
   customBlocks: true,
   forks: true,
@@ -148,7 +158,7 @@ describe('settings navigation boundaries', () => {
         permission: 'admin',
         permissionConfig: {},
         entitlements: ALL_ENTITLEMENTS,
-        hosted: false,
+        deployment: SELF_HOSTED,
       }).map(({ id }) => id)
     ).toContain('sandboxes')
   })
@@ -160,16 +170,43 @@ describe('settings navigation boundaries', () => {
    * drop it there.
    */
   it('shows the Self-host section only on a self-hosted deployment', () => {
-    const navigate = (hosted: boolean) =>
+    const navigate = (deployment: DeploymentShape) =>
       resolveWorkspaceNavigation({
         permission: 'admin',
         permissionConfig: {},
         entitlements: ALL_ENTITLEMENTS,
-        hosted,
+        deployment,
       }).map(({ id }) => id)
 
-    expect(navigate(false)).toContain('self-host')
-    expect(navigate(true)).not.toContain('self-host')
+    expect(navigate(SELF_HOSTED)).toContain('self-host')
+    expect(navigate(HOSTED)).not.toContain('self-host')
+  })
+
+  /**
+   * The route gate and the sidebar must agree on deployment-gated sections: a
+   * hosted-only section is offered on a self-hosted deployment only when its
+   * feature override resolves on, so a direct link cannot open what the sidebar
+   * hides. BYOK has no override and stays Sim Cloud only.
+   */
+  it('offers hosted-only workspace sections on self-hosted only through their override', () => {
+    const navigate = (deployment: DeploymentShape) =>
+      resolveWorkspaceNavigation({
+        permission: 'admin',
+        permissionConfig: {},
+        entitlements: ALL_ENTITLEMENTS,
+        deployment,
+      }).map(({ id }) => id)
+
+    const inboxDisabled: DeploymentShape = {
+      ...SELF_HOSTED,
+      features: { ...SELF_HOSTED.features, inbox: false },
+    }
+    expect(navigate(inboxDisabled)).not.toContain('inbox')
+    expect(navigate(SELF_HOSTED)).toContain('inbox')
+    expect(navigate({ ...HOSTED, features: inboxDisabled.features })).toContain('inbox')
+
+    expect(navigate(SELF_HOSTED)).not.toContain('byok')
+    expect(navigate(HOSTED)).toContain('byok')
   })
 
   /**
@@ -457,7 +494,6 @@ describe('settings navigation boundaries', () => {
       visible: [
         'teammates',
         'secrets',
-        'byok',
         'sandboxes',
         'custom-tools',
         'mcp',
@@ -475,7 +511,6 @@ describe('settings navigation boundaries', () => {
       visible: [
         'teammates',
         'secrets',
-        'byok',
         'sandboxes',
         'custom-tools',
         'mcp',
@@ -490,8 +525,8 @@ describe('settings navigation boundaries', () => {
     },
     {
       permission: 'admin' as const,
-      visible: WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id),
-      mutable: WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id),
+      visible: SELF_HOSTED_WORKSPACE_SECTIONS,
+      mutable: SELF_HOSTED_WORKSPACE_SECTIONS,
     },
   ])(
     'makes workspace $permission navigation and mutation chrome explicit',
@@ -500,7 +535,7 @@ describe('settings navigation boundaries', () => {
         permission,
         permissionConfig: {},
         entitlements: ALL_ENTITLEMENTS,
-        hosted: false,
+        deployment: SELF_HOSTED_ALL_FEATURES,
       })
 
       expect(items.map(({ id }) => id)).toEqual(visible)
@@ -520,12 +555,11 @@ describe('settings navigation boundaries', () => {
         hideSandboxesTab: true,
       },
       entitlements: ALL_ENTITLEMENTS,
-      hosted: false,
+      deployment: SELF_HOSTED_ALL_FEATURES,
     })
 
     expect(items.map(({ id }) => id)).toEqual([
       'teammates',
-      'byok',
       'credential-groups',
       'workflow-mcp-servers',
       'recently-deleted',
