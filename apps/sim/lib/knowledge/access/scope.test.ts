@@ -257,3 +257,99 @@ describe('createKnowledgeAccessProvider', () => {
     await expect(provider.get()).resolves.toMatchObject({ kind: 'user', tokens: ['pub', 'ws'] })
   })
 })
+
+describe('tokens mirrored from a source directory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  function queueGroups(rows: Array<Record<string, string | null>>) {
+    queueTableRows(schemaMock.knowledgeExternalGroupMember, rows)
+  }
+
+  it('gives a person their own address and every group it belongs to', async () => {
+    queueSubjects([
+      {
+        email: 'alice@corp.com',
+        providerId: null,
+        providerTenantId: null,
+        providerSubjectId: null,
+      },
+    ])
+    queueGroups([
+      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'eng@corp.com' },
+      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'all@corp.com' },
+    ])
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: [
+        'g:google-drive:corp.com:all@corp.com',
+        'g:google-drive:corp.com:eng@corp.com',
+        'pub',
+        'u:alice@corp.com',
+        'ws',
+      ],
+    })
+  })
+
+  it('still gives a person their own address when they are in no group', async () => {
+    queueSubjects([
+      {
+        email: 'alice@corp.com',
+        providerId: null,
+        providerTenantId: null,
+        providerSubjectId: null,
+      },
+    ])
+    queueGroups([])
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['pub', 'u:alice@corp.com', 'ws'],
+    })
+  })
+
+  it('binds nothing to an address two accounts share, groups included', async () => {
+    queueSubjects([
+      {
+        emailIsAmbiguous: true,
+        email: 'alice@corp.com',
+        providerId: null,
+        providerTenantId: null,
+        providerSubjectId: null,
+      },
+    ] as never)
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['pub', 'ws'],
+    })
+    expect(dbChainMockFns.innerJoin).not.toHaveBeenCalled()
+  })
+
+  it('skips a malformed group rather than failing the read', async () => {
+    queueSubjects([
+      {
+        email: 'alice@corp.com',
+        providerId: null,
+        providerTenantId: null,
+        providerSubjectId: null,
+      },
+    ])
+    queueGroups([
+      { providerId: 'a:b', tenantId: 'corp.com', externalGroupId: 'eng@corp.com' },
+      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'eng@corp.com' },
+    ])
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['g:google-drive:corp.com:eng@corp.com', 'pub', 'u:alice@corp.com', 'ws'],
+    })
+  })
+})

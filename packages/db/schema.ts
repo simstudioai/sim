@@ -4966,6 +4966,97 @@ export const knowledgeDocumentObservation = pgTable(
 )
 
 /**
+ * A group in an external directory, as an admin-mode crawl names it.
+ *
+ * Scoped by workspace, provider and tenant rather than by connector: two Drive
+ * connectors over the same Google Workspace domain grant the same groups, and
+ * resolving that domain's directory once per connector would multiply the
+ * Admin SDK traffic by the number of knowledge bases.
+ *
+ * `externalGroupId` is the identifier both the crawl and the directory can see
+ * — a group email in Drive, a group name in Confluence — case-folded, exactly
+ * as `groupToken` spells it. There is no opaque id to use instead: Drive's
+ * `permissions.list` never returns one.
+ */
+export const knowledgeExternalGroup = pgTable(
+  'knowledge_external_group',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Matches the provider segment of the `g:` token, e.g. `google-drive`. */
+    providerId: text('provider_id').notNull(),
+    /** The directory this group belongs to — for Google, the Workspace domain. */
+    tenantId: text('tenant_id').notNull(),
+    externalGroupId: text('external_group_id').notNull(),
+    /** Display name, for explaining a grant in the UI. Never used for matching. */
+    displayName: text('display_name'),
+    /**
+     * When this group's membership was last enumerated in full.
+     *
+     * A group whose membership has not been confirmed for
+     * `EXTERNAL_GROUP_STALE_AFTER_MS` stops granting access. A partial or failed
+     * enumeration never overwrites the membership — that is what makes a
+     * transient directory outage harmless — so without an age bound a group
+     * whose sync silently stopped would keep granting forever.
+     */
+    lastSyncedAt: timestamp('last_synced_at'),
+    /**
+     * Consecutive failed enumerations. Reset on success. A fast signal for the
+     * UI; `lastSyncedAt` is what actually gates access, because a sync that
+     * stops running entirely never increments this.
+     */
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    identityUnique: uniqueIndex('keg_identity_unique').on(
+      table.workspaceId,
+      table.providerId,
+      table.tenantId,
+      table.externalGroupId
+    ),
+    /** Directory sweep: the groups of one workspace, least recently synced first. */
+    workspaceSyncedIdx: index('keg_workspace_synced_idx').on(
+      table.workspaceId,
+      table.lastSyncedAt.asc().nullsFirst()
+    ),
+  })
+)
+
+/**
+ * One person's membership of one external group, by case-folded email.
+ *
+ * Email rather than a Sim user id, for two reasons: a directory reports
+ * addresses, not Sim accounts, and most members of a granted group have no Sim
+ * account at all. Storing the address means a person who joins Sim later
+ * inherits their existing group grants on their first read, with no backfill.
+ *
+ * Nested groups are flattened here. A person in a subgroup of a granted group
+ * has access in the source, so they have a row here; the directory sync walks
+ * the nesting and writes the transitive closure.
+ */
+export const knowledgeExternalGroupMember = pgTable(
+  'knowledge_external_group_member',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => knowledgeExternalGroup.id, { onDelete: 'cascade' }),
+    /** Case-folded, matching `lower(btrim(user.email))`. */
+    email: text('email').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.email] }),
+    /** The read path: every group one address belongs to. */
+    emailIdx: index('kegm_email_idx').on(table.email),
+  })
+)
+
+/**
  * Audit trail for members-mode runs; the content sync log is untouched. The
  * row id doubles as the run's lease token so the scheduler can tell an
  * orphaned `started` row from one a live run still holds.

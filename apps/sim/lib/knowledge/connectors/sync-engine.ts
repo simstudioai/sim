@@ -6,7 +6,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
@@ -25,6 +25,7 @@ import {
   type ConnectorAccessToken,
   resolveConnectorAccessToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { syncExternalDirectoryGroups } from '@/lib/knowledge/connectors/external-group-sync'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -74,6 +75,51 @@ export {
 } from '@/lib/knowledge/documents/types'
 
 const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
+/**
+ * Refreshes the directory groups the mirrored ACLs refer to.
+ *
+ * A `g:` token grants nobody until the directory says who is in that group, so
+ * the refresh runs in the same pass that writes the tokens — a crawl can never
+ * publish grants against membership this workspace has never read.
+ *
+ * It is rate-limited on its own clock rather than the connector's, so a
+ * frequently-syncing connector does not re-read the whole directory every run.
+ * A failure is logged rather than thrown: last-known-good membership is still
+ * serving reads, and failing the content sync over it would strand the
+ * documents as well as the groups.
+ */
+async function refreshMirroredDirectory(input: {
+  workspaceId: string
+  connectorConfig: { id: string; auth: ConnectorAuthConfig }
+  credentialToken: ConnectorAccessToken
+}): Promise<void> {
+  const { workspaceId, connectorConfig, credentialToken } = input
+  const tenantId = credentialToken.subject?.split('@')[1]
+  if (connectorConfig.auth.mode !== 'oauth' || !tenantId) {
+    logger.warn('Skipping directory refresh: the crawl names no administrator', {
+      workspaceId,
+      connector: connectorConfig.id,
+    })
+    return
+  }
+
+  try {
+    const result = await syncExternalDirectoryGroups({
+      workspaceId,
+      providerId: connectorConfig.auth.provider,
+      tenantId,
+      accessToken: credentialToken.accessToken,
+    })
+    logger.info('Refreshed mirrored directory groups', { workspaceId, tenantId, ...result })
+  } catch (error) {
+    logger.error('Directory refresh failed; serving last-known-good group membership', {
+      workspaceId,
+      tenantId,
+      error: getErrorMessage(error),
+    })
+  }
+}
 
 /**
  * Writes the ACLs an admin-mode listing mirrored from the source.
@@ -989,6 +1035,11 @@ export async function executeSync(
      * revoked grant lands even on a run that removes nothing.
      */
     if (connectorBeforeLock.accessMode === 'admin') {
+      await refreshMirroredDirectory({
+        workspaceId: kbOwner.workspaceId,
+        connectorConfig,
+        credentialToken,
+      })
       await applySourceMirroredAcls(connectorId, externalDocs)
     }
 

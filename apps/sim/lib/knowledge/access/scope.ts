@@ -1,14 +1,27 @@
 import { type Principal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { credential, credentialGroup, credentialGroupEnrollment, user } from '@sim/db/schema'
+import {
+  credential,
+  credentialGroup,
+  credentialGroupEnrollment,
+  knowledgeExternalGroup,
+  knowledgeExternalGroupMember,
+  user,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, type SQL, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { sortAccessTokens, subjectToken } from '@/lib/knowledge/access/tokens'
+import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
+import {
+  groupToken,
+  sortAccessTokens,
+  subjectToken,
+  userToken,
+} from '@/lib/knowledge/access/tokens'
 import {
   type KnowledgeAccessProvider,
   type KnowledgeAccessScope,
@@ -50,6 +63,51 @@ const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
     AND lower(btrim(other.email)) = ${foldedEmail(user.email)}
 )`
 
+/**
+ * The `g:` tokens a person holds in a workspace, from the external directory
+ * groups a crawl has mirrored.
+ *
+ * A group whose membership has not been confirmed within
+ * {@link EXTERNAL_GROUP_STALE_AFTER_MS} grants nothing. A failed enumeration
+ * never overwrites what it could not read, which is what keeps a transient
+ * directory outage from revoking anyone — but that same property means a sync
+ * that stopped running entirely would otherwise keep granting forever, from
+ * membership nobody has checked since. The age bound is the ratchet: an outage
+ * is survivable, an abandoned sync is not.
+ */
+async function loadExternalGroupTokens(email: string, workspaceId: string): Promise<string[]> {
+  const freshEnough = new Date(Date.now() - EXTERNAL_GROUP_STALE_AFTER_MS)
+  const rows = await db
+    .select({
+      providerId: knowledgeExternalGroup.providerId,
+      tenantId: knowledgeExternalGroup.tenantId,
+      externalGroupId: knowledgeExternalGroup.externalGroupId,
+    })
+    .from(knowledgeExternalGroupMember)
+    .innerJoin(
+      knowledgeExternalGroup,
+      eq(knowledgeExternalGroup.id, knowledgeExternalGroupMember.groupId)
+    )
+    .where(
+      and(
+        eq(knowledgeExternalGroupMember.email, email),
+        eq(knowledgeExternalGroup.workspaceId, workspaceId),
+        gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
+      )
+    )
+
+  const tokens: string[] = []
+  for (const row of rows) {
+    const token = groupToken({
+      providerId: row.providerId,
+      tenantId: row.tenantId,
+      groupId: row.externalGroupId,
+    })
+    if (token) tokens.push(token)
+  }
+  return tokens
+}
+
 export interface KnowledgeAccessScopeContext {
   /** Undefined only for a legacy personal knowledge base, which cannot own connectors. */
   workspaceId?: string
@@ -90,6 +148,7 @@ async function loadUserAccessTokens(
   const rows = await db
     .select({
       emailIsAmbiguous: emailHeldByAnotherAccount,
+      email: foldedEmail(user.email),
       providerId: credential.providerId,
       providerTenantId: credential.providerTenantId,
       providerSubjectId: credential.providerSubjectId,
@@ -146,11 +205,11 @@ async function loadUserAccessTokens(
     return [...WORKSPACE_ACCESS_TOKENS]
   }
 
-  const subjectTokens = new Set<string>()
+  const identityTokens = new Set<string>()
   for (const row of rows) {
     if (!row.providerSubjectId) continue
     try {
-      subjectTokens.add(subjectToken(row))
+      identityTokens.add(subjectToken(row))
     } catch (error) {
       logger.warn('Skipping malformed managed credential subject', {
         userId,
@@ -160,7 +219,24 @@ async function loadUserAccessTokens(
       })
     }
   }
-  return sortAccessTokens(new Set([...WORKSPACE_ACCESS_TOKENS, ...subjectTokens]))
+
+  /**
+   * The person's own address, and the directory groups it belongs to. These are
+   * what an admin-mode crawl mirrors onto documents, so they are how a source's
+   * own permissions reach the reader. The address is verified — the
+   * `emailVerified` predicate above is on the same query — so a grant made to
+   * whoever really owns it cannot be claimed by someone who merely typed it.
+   */
+  const email = rows[0]?.email
+  if (email) {
+    const own = userToken(email)
+    if (own) identityTokens.add(own)
+    for (const token of await loadExternalGroupTokens(email, workspaceId)) {
+      identityTokens.add(token)
+    }
+  }
+
+  return sortAccessTokens(new Set([...WORKSPACE_ACCESS_TOKENS, ...identityTokens]))
 }
 
 /**
