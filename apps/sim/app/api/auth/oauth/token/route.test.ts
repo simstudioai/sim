@@ -328,19 +328,23 @@ describe('OAuth Token API Routes', () => {
     describe('service account path', () => {
       it('threads the NetSuite SuiteTalk instance URL into the token response', async () => {
         const instanceUrl = 'https://1234567.suitetalk.api.netsuite.com'
-        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+        const resolvedCredential = {
           accountId: '',
           credentialId: 'netsuite-credential-id',
           credentialType: 'service_account',
           providerId: 'netsuite-service-account',
           workspaceId: 'workspace-id',
           usedCredentialTable: true,
-        })
+        } as const
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId
+          .mockResolvedValueOnce(resolvedCredential)
+          .mockResolvedValueOnce(resolvedCredential)
         mockAuthorizeCredentialUse.mockResolvedValueOnce({
           ok: true,
           authType: 'session',
           requesterUserId: 'test-user-id',
           workspaceId: 'workspace-id',
+          resolvedCredentialId: 'netsuite-credential-id',
         })
         mockResolveServiceAccountToken.mockResolvedValueOnce({
           accessToken: 'netsuite-token',
@@ -357,19 +361,23 @@ describe('OAuth Token API Routes', () => {
       })
 
       it('should thread authStyle from the resolver into the response', async () => {
-        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+        const resolvedCredential = {
           accountId: '',
           credentialId: 'sa-credential-id',
           credentialType: 'service_account',
           providerId: 'pipedrive-service-account',
           workspaceId: 'workspace-id',
           usedCredentialTable: true,
-        })
+        } as const
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId
+          .mockResolvedValueOnce(resolvedCredential)
+          .mockResolvedValueOnce(resolvedCredential)
         mockAuthorizeCredentialUse.mockResolvedValueOnce({
           ok: true,
           authType: 'session',
           requesterUserId: 'test-user-id',
           workspaceId: 'workspace-id',
+          resolvedCredentialId: 'sa-credential-id',
         })
         mockResolveServiceAccountToken.mockResolvedValueOnce({
           accessToken: 'pasted-api-token',
@@ -387,19 +395,23 @@ describe('OAuth Token API Routes', () => {
       })
 
       it('should omit authStyle for Bearer token-paste providers', async () => {
-        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+        const resolvedCredential = {
           accountId: '',
           credentialId: 'sa-credential-id',
           credentialType: 'service_account',
           providerId: 'hubspot-service-account',
           workspaceId: 'workspace-id',
           usedCredentialTable: true,
-        })
+        } as const
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId
+          .mockResolvedValueOnce(resolvedCredential)
+          .mockResolvedValueOnce(resolvedCredential)
         mockAuthorizeCredentialUse.mockResolvedValueOnce({
           ok: true,
           authType: 'session',
           requesterUserId: 'test-user-id',
           workspaceId: 'workspace-id',
+          resolvedCredentialId: 'sa-credential-id',
         })
         mockResolveServiceAccountToken.mockResolvedValueOnce({
           accessToken: 'pat-token',
@@ -422,19 +434,23 @@ describe('OAuth Token API Routes', () => {
       ] as const)(
         'surfaces the %s error code with status %i when the mint fails',
         async (code, status) => {
-          authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          const resolvedCredential = {
             accountId: '',
             credentialId: 'sa-credential-id',
             credentialType: 'service_account',
             providerId: 'salesforce-service-account',
             workspaceId: 'workspace-id',
             usedCredentialTable: true,
-          })
+          } as const
+          authOAuthUtilsMockFns.mockResolveOAuthAccountId
+            .mockResolvedValueOnce(resolvedCredential)
+            .mockResolvedValueOnce(resolvedCredential)
           mockAuthorizeCredentialUse.mockResolvedValueOnce({
             ok: true,
             authType: 'session',
             requesterUserId: 'test-user-id',
             workspaceId: 'workspace-id',
+            resolvedCredentialId: 'sa-credential-id',
           })
           mockResolveServiceAccountToken.mockRejectedValueOnce(
             new TokenServiceAccountValidationError(code, status, { step: 'mint' })
