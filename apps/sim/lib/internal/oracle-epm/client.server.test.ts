@@ -355,8 +355,18 @@ describe('Oracle EPM guarded client', () => {
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x&token=y',
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?unknown=x',
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#fragment',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#',
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/ab\nc?token=x',
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/\uD800?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest//v3/files/abc?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc/?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/./abc?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%2e%2e?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%2e.?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/%252e%252e?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%2Fabc?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%5Cabc?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files\\abc?token=x',
   ])('rejects unsafe returned link %j', (href) => {
     const policy = routes.defineReturnedLinkPolicy({
       relation: 'download',

@@ -312,15 +312,52 @@ async function projectResponse(
   }
 }
 
-function matchReturnedPath(candidate: string[], expected: readonly OracleEpmPathPart[]): void {
-  if (candidate.length !== expected.length) throw oracleEpmLocalError('invalid_input')
-  for (let index = 0; index < expected.length; index += 1) {
-    let decoded: string
+function decodeReturnedPathSegment(encoded: string): string {
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(encoded)
+  } catch {
+    throw oracleEpmLocalError('invalid_input')
+  }
+  let safetyValue = decoded
+  for (let depth = 0; depth < 4 && /%[0-9A-Fa-f]{2}/.test(safetyValue); depth += 1) {
     try {
-      decoded = decodeURIComponent(candidate[index])
+      safetyValue = decodeURIComponent(safetyValue)
     } catch {
       throw oracleEpmLocalError('invalid_input')
     }
+  }
+  if (
+    !decoded ||
+    /%[0-9A-Fa-f]{2}/.test(safetyValue) ||
+    safetyValue === '.' ||
+    safetyValue === '..' ||
+    /[/\\\u0000-\u001f\u007f]/.test(safetyValue) ||
+    MALFORMED_UTF16.test(decoded)
+  ) {
+    throw oracleEpmLocalError('invalid_input')
+  }
+  return decoded
+}
+
+function rawReturnedPathSegments(href: string): string[] {
+  const match = /^https:\/\/[^/?#]*(\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/i.exec(href)
+  if (!match) throw oracleEpmLocalError('invalid_input')
+  const rawPath = match[1] ?? ''
+  if (rawPath.includes('\\')) throw oracleEpmLocalError('invalid_input')
+  if (!rawPath) return []
+  const segments = rawPath.slice(1).split('/')
+  if (segments.some((segment) => !segment)) throw oracleEpmLocalError('invalid_input')
+  return segments.map(decodeReturnedPathSegment)
+}
+
+function matchReturnedPath(
+  candidate: readonly string[],
+  expected: readonly OracleEpmPathPart[]
+): void {
+  if (candidate.length !== expected.length) throw oracleEpmLocalError('invalid_input')
+  for (let index = 0; index < expected.length; index += 1) {
+    const decoded = candidate[index]
     const part = expected[index]
     if (part.kind === 'literal') {
       if (decoded !== part.value) throw oracleEpmLocalError('invalid_input')
@@ -468,9 +505,11 @@ export function createOracleEpmClient(input: {
         typeof link.href !== 'string' ||
         link.href.length > 8_192 ||
         FORBIDDEN_LINK_TEXT.test(link.href) ||
-        MALFORMED_UTF16.test(link.href)
+        MALFORMED_UTF16.test(link.href) ||
+        link.href.includes('#')
       )
         throw oracleEpmLocalError('invalid_input')
+      const candidate = rawReturnedPathSegments(link.href)
       let url: URL
       try {
         url = new URL(link.href)
@@ -480,17 +519,9 @@ export function createOracleEpmClient(input: {
       if (url.origin !== destinationData.origin || url.username || url.password || url.hash)
         throw oracleEpmLocalError('invalid_input')
       const route = getOracleEpmRouteSpace(policy.routeSpace)
-      const candidate = url.pathname.split('/').filter(Boolean)
       const prefix = [...destinationData.baseSegments, ...route.context, policy.version]
-      const prefixMatches = (expected: readonly string[]): boolean => {
-        try {
-          return expected.every(
-            (part, index) => decodeURIComponent(candidate[index] ?? '') === part
-          )
-        } catch {
-          return false
-        }
-      }
+      const prefixMatches = (expected: readonly string[]): boolean =>
+        expected.every((part, index) => candidate[index] === part)
       if (policy.preserveGatewayBasePath && !prefixMatches(prefix))
         throw oracleEpmLocalError('invalid_input')
       const pathStart = policy.preserveGatewayBasePath ? prefix.length : route.context.length + 1
