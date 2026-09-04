@@ -654,19 +654,38 @@ function createDeadline(
   }
 }
 
-async function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) throw toError(signal.reason)
-  let rejectAbort: ((reason?: unknown) => void) | undefined
-  const aborted = new Promise<never>((_, reject) => {
-    rejectAbort = reject
+function raceWithAbort<T>(operation: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(toError(signal.reason))
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', onAbort)
+    const onAbort = () => {
+      cleanup()
+      reject(toError(signal.reason))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    let pending: Promise<T>
+    try {
+      pending = operation()
+    } catch (error) {
+      cleanup()
+      reject(error)
+      return
+    }
+    pending.then(
+      (value) => {
+        cleanup()
+        resolve(value)
+      },
+      (error: unknown) => {
+        cleanup()
+        reject(error)
+      }
+    )
   })
-  const onAbort = () => rejectAbort?.(signal.reason)
-  signal.addEventListener('abort', onAbort, { once: true })
-  try {
-    await Promise.race([sleep(delayMs), aborted])
-  } finally {
-    signal.removeEventListener('abort', onAbort)
-  }
+}
+
+async function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
+  await raceWithAbort(() => sleep(delayMs), signal)
 }
 
 /** Creates a lazily loaded OCI client bound to trusted workspace and service context. */
@@ -769,20 +788,24 @@ export async function createOciClient(params: CreateOciClientParams): Promise<Oc
 
           let response: SecureFetchResponse
           try {
-            response = await secureFetchWithValidation(
-              signed.url,
-              {
-                method: request.method,
-                headers: { ...signed.headers },
-                ...(signed.body !== undefined ? { body: new Uint8Array(signed.body) } : {}),
-                timeout: Math.max(1, Math.floor(remainingMs)),
-                maxResponseBytes: request.maxResponseBytes,
-                maxRedirects: 0,
-                signal: deadline.signal,
-                profile: 'configuredEndpoint',
-                logUrlValidationDetails: false,
-              },
-              'OCI destination'
+            response = await raceWithAbort(
+              () =>
+                secureFetchWithValidation(
+                  signed.url,
+                  {
+                    method: request.method,
+                    headers: { ...signed.headers },
+                    ...(signed.body !== undefined ? { body: new Uint8Array(signed.body) } : {}),
+                    timeout: Math.max(1, Math.floor(remainingMs)),
+                    maxResponseBytes: request.maxResponseBytes,
+                    maxRedirects: 0,
+                    signal: deadline.signal,
+                    profile: 'configuredEndpoint',
+                    logUrlValidationDetails: false,
+                  },
+                  'OCI destination'
+                ),
+              deadline.signal
             )
           } catch (error) {
             if (deadline.signal.aborted) {
@@ -891,19 +914,23 @@ export async function verifyOciApiKeyCredentialForSetup(
       headers: { accept: 'application/json' },
       signingDate: new Date(),
     })
-    const response = await secureFetchWithValidation(
-      signed.url,
-      {
-        method: 'GET',
-        headers: { ...signed.headers },
-        timeout: SETUP_VERIFICATION_TIMEOUT_MS,
-        maxResponseBytes: SETUP_VERIFICATION_RESPONSE_BYTES,
-        maxRedirects: 0,
-        signal: deadline.signal,
-        profile: 'configuredEndpoint',
-        logUrlValidationDetails: false,
-      },
-      'OCI credential verification destination'
+    const response = await raceWithAbort(
+      () =>
+        secureFetchWithValidation(
+          signed.url,
+          {
+            method: 'GET',
+            headers: { ...signed.headers },
+            timeout: SETUP_VERIFICATION_TIMEOUT_MS,
+            maxResponseBytes: SETUP_VERIFICATION_RESPONSE_BYTES,
+            maxRedirects: 0,
+            signal: deadline.signal,
+            profile: 'configuredEndpoint',
+            logUrlValidationDetails: false,
+          },
+          'OCI credential verification destination'
+        ),
+      deadline.signal
     )
     if (!response.ok) {
       await readFailureCode(response, deadline.signal)

@@ -67,6 +67,7 @@ import {
   type OciAuthenticatedResponse,
   type OciClient,
   type OciRequest,
+  verifyOciApiKeyCredentialForSetup,
 } from '@/lib/internal/oci/client.server'
 import {
   createOciDiscoveredEndpointPolicy,
@@ -778,14 +779,7 @@ describe('credential-bound OCI client', () => {
 
   it('propagates caller abort without leaking a transport failure', async () => {
     const controller = new AbortController()
-    mocks.secureFetch.mockImplementationOnce(
-      (_url: string, options: { signal: AbortSignal }) =>
-        new Promise((_resolve, reject) => {
-          options.signal.addEventListener('abort', () => reject(options.signal.reason), {
-            once: true,
-          })
-        })
-    )
+    mocks.secureFetch.mockImplementationOnce(() => new Promise(() => {}))
     const { client, endpoint } = await createPreparedClient()
     const pending = client.request({
       endpoint,
@@ -801,14 +795,7 @@ describe('credential-bound OCI client', () => {
 
   it('applies one deadline to in-flight transport work', async () => {
     vi.useFakeTimers()
-    mocks.secureFetch.mockImplementationOnce(
-      (_url: string, options: { signal: AbortSignal }) =>
-        new Promise((_resolve, reject) => {
-          options.signal.addEventListener('abort', () => reject(options.signal.reason), {
-            once: true,
-          })
-        })
-    )
+    mocks.secureFetch.mockImplementationOnce(() => new Promise(() => {}))
     const { client, endpoint } = await createPreparedClient()
     const pending = client.request({
       endpoint,
@@ -819,6 +806,33 @@ describe('credential-bound OCI client', () => {
     })
     const assertion = expect(pending).rejects.toMatchObject({ code: 'deadline_exceeded' })
     await vi.advanceTimersByTimeAsync(101)
+    await assertion
+  })
+
+  it('propagates caller abort while setup destination validation is pending', async () => {
+    const controller = new AbortController()
+    mocks.secureFetch.mockImplementationOnce(() => new Promise(() => {}))
+    const pending = verifyOciApiKeyCredentialForSetup(SECRET, controller.signal)
+    await vi.waitFor(() => expect(mocks.secureFetch).toHaveBeenCalledOnce())
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'aborted' })
+  })
+
+  it('does not start setup destination validation after an earlier caller abort', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      verifyOciApiKeyCredentialForSetup(SECRET, controller.signal)
+    ).rejects.toMatchObject({ code: 'aborted' })
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
+  })
+
+  it('applies the setup deadline while destination validation is pending', async () => {
+    vi.useFakeTimers()
+    mocks.secureFetch.mockImplementationOnce(() => new Promise(() => {}))
+    const pending = verifyOciApiKeyCredentialForSetup(SECRET)
+    const assertion = expect(pending).rejects.toMatchObject({ code: 'deadline_exceeded' })
+    await vi.advanceTimersByTimeAsync(10_001)
     await assertion
   })
 
