@@ -1,6 +1,7 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import {
+  type AsyncValidationResult,
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -168,6 +169,7 @@ function buildHeaders(
       continue
     }
     if (
+      typeof value !== 'string' ||
       /\r|\n|\u0000/.test(value) ||
       MALFORMED_UTF16.test(value) ||
       Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
@@ -402,6 +404,34 @@ export interface OracleEpmClient {
   ): Promise<OracleEpmClientResponse>
 }
 
+/** Bounds the DNS wait without changing the platform resolver's own lifetime. */
+function validateDestinationWithSignal(
+  origin: string,
+  signal: AbortSignal
+): Promise<AsyncValidationResult> {
+  signal.throwIfAborted()
+  return new Promise((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', onAbort)
+    const onAbort = () => {
+      cleanup()
+      reject(signal.reason)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    validateUrlWithDNS(origin, 'Oracle EPM destination', 'configuredEndpoint', {
+      logDetails: false,
+    }).then(
+      (validation) => {
+        cleanup()
+        resolve(validation)
+      },
+      (error: unknown) => {
+        cleanup()
+        reject(error)
+      }
+    )
+  })
+}
+
 /** Creates a fixed-destination Oracle EPM client from resolved credential material. */
 export function createOracleEpmClient(input: {
   instanceUrl: string
@@ -430,12 +460,14 @@ export function createOracleEpmClient(input: {
     const signal = request.signal
       ? AbortSignal.any([request.signal, deadlineSignal])
       : deadlineSignal
-    const validation = await validateUrlWithDNS(
-      destinationData.origin,
-      'Oracle EPM destination',
-      'configuredEndpoint',
-      { logDetails: false }
-    )
+    let validation: AsyncValidationResult
+    try {
+      validation = await validateDestinationWithSignal(destinationData.origin, signal)
+    } catch (error) {
+      if (request.signal?.aborted) throw request.signal.reason ?? error
+      if (deadlineSignal.aborted) throw oracleEpmLocalError('timeout', true)
+      throw oracleEpmLocalError('service_unavailable', true)
+    }
     if (request.signal?.aborted) {
       throw request.signal.reason ?? new DOMException('Aborted', 'AbortError')
     }

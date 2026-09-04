@@ -1,5 +1,6 @@
 /** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AsyncValidationResult } from '@/lib/core/security/input-validation.server'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const { mockSecureFetch, mockValidateUrl } = vi.hoisted(() => ({
@@ -137,6 +138,41 @@ describe('Oracle EPM guarded client', () => {
       expect.any(Object)
     )
     expect(mockSecureFetch.mock.calls[0][0]).toContain('%252e%252e%252fadmin')
+  })
+
+  it.each([null, 123, true, {}, ['etag'], new Uint8Array([65])])(
+    'rejects non-string header %j before DNS or fetch',
+    async (etag) => {
+      const client = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com',
+        accessToken: Buffer.from('u:p').toString('base64'),
+      })
+      await expect(
+        client.request(getJob, {
+          pathParams: { jobId: '42' },
+          headers: { etag: etag as unknown as string },
+        })
+      ).rejects.toMatchObject({ name: 'OracleEpmError', category: 'invalid_input' })
+      expect(mockValidateUrl).not.toHaveBeenCalled()
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects header objects without invoking their string coercion', async () => {
+    const stringifyHeader = vi.fn(() => 'coerced-header')
+    const client = createOracleEpmClient({
+      instanceUrl: 'https://epm.example.com',
+      accessToken: Buffer.from('u:p').toString('base64'),
+    })
+    await expect(
+      client.request(getJob, {
+        pathParams: { jobId: '42' },
+        headers: { etag: { toString: stringifyHeader } as unknown as string },
+      })
+    ).rejects.toMatchObject({ category: 'invalid_input' })
+    expect(stringifyHeader).not.toHaveBeenCalled()
+    expect(mockValidateUrl).not.toHaveBeenCalled()
+    expect(mockSecureFetch).not.toHaveBeenCalled()
   })
 
   it('rejects malformed UTF-16 path input before URL encoding', async () => {
@@ -305,7 +341,98 @@ describe('Oracle EPM guarded client', () => {
         signal: controller.signal,
       })
     ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockValidateUrl).not.toHaveBeenCalled()
     expect(mockSecureFetch).not.toHaveBeenCalled()
+  })
+
+  describe('DNS cancellation', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it.each(['deadline', 'caller'] as const)(
+      'ends on %s cancellation even when DNS never settles',
+      async (source) => {
+        const deadline = new AbortController()
+        const caller = new AbortController()
+        const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal)
+        mockValidateUrl.mockReturnValueOnce(new Promise<AsyncValidationResult>(() => {}))
+        const client = createOracleEpmClient({
+          instanceUrl: 'https://epm.example.com',
+          accessToken: Buffer.from('u:p').toString('base64'),
+        })
+        const rejected = vi.fn()
+        const fulfilled = vi.fn()
+        const request = client
+          .request(getJob, { pathParams: { jobId: '42' }, signal: caller.signal })
+          .then(fulfilled, rejected)
+        const callerReason = new DOMException('caller cancelled', 'AbortError')
+        if (source === 'deadline') deadline.abort(new DOMException('deadline', 'TimeoutError'))
+        else caller.abort(callerReason)
+
+        await vi.waitFor(() => expect(rejected).toHaveBeenCalledTimes(1), {
+          interval: 1,
+          timeout: 100,
+        })
+        await request
+        expect(timeout).toHaveBeenCalledWith(5_000)
+        expect(rejected).toHaveBeenCalledWith(
+          source === 'deadline'
+            ? expect.objectContaining({ category: 'timeout', retryable: true })
+            : callerReason
+        )
+        expect(fulfilled).not.toHaveBeenCalled()
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['resolve', 'reject'] as const)(
+      'does not revive a cancelled request when DNS later %ss',
+      async (settlement) => {
+        const dns = Promise.withResolvers<AsyncValidationResult>()
+        mockValidateUrl.mockReturnValueOnce(dns.promise)
+        const controller = new AbortController()
+        const client = createOracleEpmClient({
+          instanceUrl: 'https://epm.example.com',
+          accessToken: Buffer.from('u:p').toString('base64'),
+        })
+        const rejected = vi.fn()
+        const request = client
+          .request(getJob, { pathParams: { jobId: '42' }, signal: controller.signal })
+          .catch(rejected)
+        controller.abort(new DOMException('caller cancelled', 'AbortError'))
+        await vi.waitFor(() => expect(rejected).toHaveBeenCalledTimes(1), {
+          interval: 1,
+          timeout: 100,
+        })
+        await request
+
+        if (settlement === 'resolve') {
+          dns.resolve({
+            isValid: true,
+            resolvedIP: '203.0.113.10',
+            originalHostname: 'epm.example.com',
+          })
+        } else {
+          dns.reject(new Error('late resolver failure'))
+        }
+        await Promise.resolve()
+        expect(rejected).toHaveBeenCalledTimes(1)
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+      }
+    )
+
+    it('suppresses unexpected DNS rejection details', async () => {
+      mockValidateUrl.mockRejectedValueOnce(new Error('private resolver failure'))
+      const client = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com',
+        accessToken: Buffer.from('u:p').toString('base64'),
+      })
+      const error = await client
+        .request(getJob, { pathParams: { jobId: '42' } })
+        .catch((value: unknown) => value)
+      expect(error).toMatchObject({ category: 'service_unavailable', retryable: true })
+      expect(String(error)).not.toContain('private resolver failure')
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    })
   })
 
   it.each(['download', 'Job Status'])(
