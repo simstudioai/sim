@@ -348,11 +348,12 @@ function credentialProviderMismatch(): ResolveCredentialTokenResult {
 
 function validateToolCredentialBinding(
   resolved: ResolvedCredential | null,
-  toolId?: string
+  toolId: string | undefined,
+  toolMetadata: ReturnType<typeof getToolMetadata>
 ): ResolveCredentialTokenResult | null {
   if (!resolved || !toolId) return null
 
-  const oauth = getToolMetadata(toolId)?.oauth
+  const oauth = toolMetadata?.oauth
   const isServiceAccount = resolved.credentialType === 'service_account'
   if (
     oauth?.credentialKind === 'service-account'
@@ -387,8 +388,9 @@ export async function resolveCredentialAccessToken(
 ): Promise<ResolveCredentialTokenResult> {
   const { requestId, credentialId, toolId, auditRequest } = input
 
+  const toolMetadata = toolId ? getToolMetadata(toolId) : undefined
   const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
-  const bindingError = validateToolCredentialBinding(resolved, toolId)
+  const bindingError = validateToolCredentialBinding(resolved, toolId, toolMetadata)
   if (bindingError) return bindingError
 
   if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
@@ -441,7 +443,6 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  const toolMetadata = getToolMetadata(toolId)
   if (!toolMetadata?.oauth?.required) {
     logger.error(`[${requestId}] Tool is not configured for managed OAuth`, { toolId })
     return {
