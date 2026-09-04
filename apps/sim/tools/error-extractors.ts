@@ -409,6 +409,38 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'mailtrap-errors',
+    description:
+      'Mailtrap error formats: the Sending API returns {success: false, errors: string[]}, the account APIs on mailtrap.io return {error: string} or {errors: string}, and 422 validation responses return {errors: {field: string[]}}',
+    examples: ['Mailtrap Email Sending API', 'Mailtrap Contacts API'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      if (typeof data.error === 'string' && data.error.trim()) return data.error.trim()
+
+      const { errors } = data
+      if (typeof errors === 'string' && errors.trim()) return errors.trim()
+      if (Array.isArray(errors)) {
+        const first = errors.find((entry) => typeof entry === 'string' && entry.trim())
+        return typeof first === 'string' ? first.trim() : undefined
+      }
+      if (errors && typeof errors === 'object') {
+        const parts: string[] = []
+        for (const [field, messages] of Object.entries(errors as Record<string, unknown>)) {
+          const flattened = Array.isArray(messages)
+            ? messages.flat(Number.POSITIVE_INFINITY)
+            : [messages]
+          const message = flattened.find((m) => typeof m === 'string' && m.trim())
+          if (typeof message === 'string') parts.push(`${field} ${message.trim()}`)
+        }
+        if (parts.length > 0) return parts.join('; ')
+      }
+
+      return undefined
+    },
+  },
+  {
     id: 'posthog-errors',
     description: 'PostHog API error format with type/code/detail/attr fields',
     examples: ['PostHog API'],
@@ -624,6 +656,7 @@ export const ErrorExtractorId = {
   BITBUCKET_ERRORS: 'bitbucket-errors',
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
+  MAILTRAP_ERRORS: 'mailtrap-errors',
   POSTHOG_ERRORS: 'posthog-errors',
   QUICKBOOKS_FAULT: 'quickbooks-fault',
   PROSPEO_ERRORS: 'prospeo-errors',
