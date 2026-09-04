@@ -1,4 +1,13 @@
+import {
+  getEmbeddingModelPricing,
+  getModelPricing as getModelPricingFromDefinitions,
+} from '@/providers/models'
 import type { ModelPricing, ModelTokenPricing } from '@/providers/types'
+
+/** Returns registered model pricing without applying the display-only fallback. */
+export function getModelPricing(modelId: string): ModelPricing | null {
+  return getEmbeddingModelPricing(modelId) ?? getModelPricingFromDefinitions(modelId)
+}
 
 /** Resolves the token rates that apply to the full request input size. */
 export function resolveModelTokenPricing(

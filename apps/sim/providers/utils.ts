@@ -26,11 +26,9 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
-  getEmbeddingModelPricing,
   getHostedModels as getHostedModelsFromDefinitions,
   getMaxOutputTokensForModel as getMaxOutputTokensForModelFromDefinitions,
   getMaxTemperature as getMaxTempFromDefinitions,
-  getModelPricing as getModelPricingFromDefinitions,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
@@ -51,7 +49,10 @@ import {
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
-import { resolveModelTokenPricing } from '@/providers/pricing'
+import {
+  getModelPricing as getRegisteredModelPricing,
+  resolveModelTokenPricing,
+} from '@/providers/pricing'
 import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
 import {
   getProviderToolInputProvenance,
@@ -1010,11 +1011,7 @@ export function calculateCost(
   inputMultiplier?: number,
   outputMultiplier?: number
 ) {
-  let pricing = getEmbeddingModelPricing(model)
-
-  if (!pricing) {
-    pricing = getModelPricingFromDefinitions(model)
-  }
+  const pricing = getRegisteredModelPricing(model)
 
   if (!pricing) {
     const defaultPricing = {
@@ -1119,12 +1116,7 @@ export function sumToolCosts(toolResults?: Record<string, unknown>[]): number {
 }
 
 export function getModelPricing(modelId: string): ModelPricing | null {
-  const embeddingPricing = getEmbeddingModelPricing(modelId)
-  if (embeddingPricing) {
-    return embeddingPricing
-  }
-
-  return getModelPricingFromDefinitions(modelId)
+  return getRegisteredModelPricing(modelId)
 }
 
 /**

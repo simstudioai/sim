@@ -1,6 +1,6 @@
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { resolveModelTokenPricing } from '@/providers/pricing'
+import { getModelPricing, resolveModelTokenPricing } from '@/providers/pricing'
 import type { ModelPricing } from '@/providers/types'
 import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
 
@@ -164,7 +164,7 @@ export function priceModelUsage(
 
   const cacheRead = usage.cacheRead ?? 0
   const cacheWrites = (usage.cacheWrites ?? []).filter((write) => write.tokens > 0)
-  const pricing = calculateCost(model, 0, 0).pricing
+  const pricing = getModelPricing(model)
 
   if (pricing) {
     const totalInputTokens =

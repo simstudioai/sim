@@ -138,6 +138,16 @@ describe('priceModelUsage', () => {
     expect(cost).toMatchObject({ input: 0.800005, output: 1.8, total: 2.600005 })
   })
 
+  it('preserves zero-cost behavior for unregistered dynamic models', () => {
+    const cost = priceModelUsage(
+      'dynamic-provider/model',
+      { input: 300_000, output: 100_000 },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 0, output: 0, total: 0 })
+  })
+
   it('charges nothing when the policy is not billable', () => {
     const cost = priceModelUsage(
       PRICED_MODEL,
