@@ -158,7 +158,7 @@ describe('syncTextEditorContentState — static fetch updates', () => {
     })
     // Local edits take precedence — content should remain 'user edit'
     expect(next.content).toBe('user edit')
-    expect(next.conflict).toEqual({ content: 'v2', version: undefined })
+    expect(next.conflict).toEqual({ version: undefined })
     expect(next.phase).toBe('ready')
   })
 })
@@ -227,7 +227,6 @@ describe('content-version ordering', () => {
       savedVersion: version(2),
       conflict: { streamInterrupted: true },
     })
-    expect(next.conflict?.content).toBeUndefined()
     expect(next.conflict?.version).toBeUndefined()
   })
 
@@ -237,7 +236,7 @@ describe('content-version ordering', () => {
       const state = {
         ...ready('local draft', 'original'),
         savedVersion: version(2),
-        conflict: { content: 'newer remote', version: version(3) },
+        conflict: { version: version(3) },
       }
       const next = syncTextEditorContentState(state, {
         canReconcileToFetchedContent: true,
@@ -250,6 +249,52 @@ describe('content-version ordering', () => {
       expect(next.conflict).toEqual({ ...state.conflict, streamInterrupted: true })
     }
   )
+
+  it.each([false, true])(
+    'keeps conflict ordering across an unversioned fetch (streaming=%s)',
+    (streaming) => {
+      const original = {
+        ...ready('local draft', 'baseline'),
+        savedVersion: version(1),
+        conflict: { version: version(3) },
+      }
+      const options = { canReconcileToFetchedContent: true, fetchedContent: 'unknown remote' }
+      const unversioned = syncTextEditorContentState(original, {
+        ...options,
+        streamingContent: streaming ? 'agent output' : undefined,
+      })
+      expect(unversioned.conflict).toEqual({
+        version: version(3),
+        ...(streaming ? { streamInterrupted: true } : {}),
+      })
+      const stale = syncTextEditorContentState(unversioned, {
+        ...options,
+        fetchedVersion: version(2),
+      })
+      expect(stale).toBe(unversioned)
+      const acknowledged = textEditorContentReducer(stale, {
+        type: 'save-success',
+        content: 'local saved',
+        version: version(2),
+      })
+      expect(acknowledged.content).toBe('local draft')
+      expect(acknowledged.conflict).toEqual(unversioned.conflict)
+      const newer = syncTextEditorContentState(acknowledged, {
+        ...options,
+        fetchedVersion: version(4),
+      })
+      expect(newer.conflict?.version).toBe(version(4))
+    }
+  )
+
+  it('adopts a known version for a previously unversioned conflict', () => {
+    const original = { ...ready('draft', 'baseline'), conflict: {} }
+    const options = { canReconcileToFetchedContent: true, fetchedContent: 'remote' }
+    expect(syncTextEditorContentState(original, options)).toBe(original)
+    expect(
+      syncTextEditorContentState(original, { ...options, fetchedVersion: version(3) }).conflict
+    ).toEqual({ version: version(3) })
+  })
 
   it('never replaces a successfully saved baseline with an older in-flight fetch', () => {
     const state = { ...ready('saved'), savedVersion: version(2) }
@@ -265,7 +310,7 @@ describe('content-version ordering', () => {
     const state = {
       ...ready('local trailing', 'original'),
       savedVersion: version(1),
-      conflict: { content: 'remote', version: version(3) },
+      conflict: { version: version(3) },
     }
     const next = textEditorContentReducer(state, {
       type: 'save-success',
@@ -281,7 +326,7 @@ describe('content-version ordering', () => {
     const state = {
       ...ready('local trailing', 'original'),
       savedVersion: version(1),
-      conflict: { content: 'local saved', version: version(2) },
+      conflict: { version: version(2) },
     }
     const next = textEditorContentReducer(state, {
       type: 'save-success',

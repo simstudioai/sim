@@ -16,9 +16,9 @@ interface Peer {
 const cleanups: Array<() => void> = []
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()))
 
-function pair(): { a: Peer; b: Peer } {
+function pair(content = '## Todos\n\n- one\n- two\n- three', html = false): { a: Peer; b: Peer } {
   document.elementFromPoint ??= () => null
-  const seed = markdownToYDoc('## Todos\n\n- one\n- two\n- three')
+  const seed = markdownToYDoc(html ? '' : content)
   const make = (): Peer => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, Y.encodeStateAsUpdate(seed))
@@ -41,6 +41,11 @@ function pair(): { a: Peer; b: Peer } {
     return { doc, editor, updates }
   }
   const a = make()
+  if (html) {
+    a.editor.commands.setContent(content)
+    Y.applyUpdate(seed, Y.encodeStateAsUpdate(a.doc))
+    a.updates.length = 0
+  }
   const b = make()
   seed.destroy()
   return { a, b }
@@ -75,6 +80,57 @@ function reconnect(a: Peer, b: Peer, reversed: boolean): void {
 }
 
 describe('list editing with delayed peer updates', () => {
+  describe.each(['bullet', 'ordered', 'task'] as const)('%s list boundaries', (kind) => {
+    it.each(
+      [1, 2].flatMap((beforeCount) =>
+        [false, true].flatMap((nested) =>
+          [false, true].map((reversed) => ({ beforeCount, nested, reversed }))
+        )
+      )
+    )(
+      'retains both existing roots ($beforeCount items, nested=$nested, reversed=$reversed)',
+      ({ beforeCount, nested, reversed }) => {
+        const words = [...['one', 'two'].slice(0, beforeCount), 'three', 'four']
+        const list = (items: string[], start: number) => {
+          const tag = kind === 'ordered' ? 'ol' : 'ul'
+          const attrs =
+            kind === 'task'
+              ? ' data-type="taskList"'
+              : kind === 'ordered'
+                ? ` start="${start}"`
+                : ''
+          const itemAttrs = kind === 'task' ? ' data-type="taskItem" data-checked="false"' : ''
+          return `<${tag}${attrs}>${items.map((word) => `<li${itemAttrs}><p>${word}</p></li>`).join('')}</${tag}>`
+        }
+        const marker = kind === 'ordered' ? `${beforeCount + 1}.` : kind === 'task' ? '[ ]' : '-'
+        const content = `${list(words.slice(0, beforeCount), 1)}<p>${marker}</p>${list(words.slice(beforeCount), beforeCount + 2)}`
+        const { a, b } = pair(nested ? `<ul><li><p>parent</p>${content}</li></ul>` : content, true)
+        for (const word of words) {
+          b.editor.commands.insertContentAt(findText(b.editor, word), 'PEER ')
+        }
+        a.editor.commands.setTextSelection(findText(a.editor, marker) + marker.length)
+        const { from, to } = a.editor.state.selection
+        expect(
+          a.editor.view.someProp('handleTextInput', (handler) =>
+            handler(a.editor.view, from, to, ' ', () => a.editor.state.tr)
+          )
+        ).toBe(true)
+        a.editor.commands.insertContent('new item')
+        const container = nested ? a.editor.state.doc.firstChild!.firstChild! : a.editor.state.doc
+        const listType =
+          kind === 'task' ? 'taskList' : kind === 'ordered' ? 'orderedList' : 'bulletList'
+        const lists = Array.from({ length: container.childCount }, (_, index) =>
+          container.child(index)
+        ).filter((node) => node.type.name === listType)
+        expect(lists.map((node) => node.childCount)).toEqual([beforeCount + 1, 2])
+        expect(a.editor.state.selection.$from.parent.textContent).toBe('new item')
+        reconnect(a, b, reversed)
+        for (const word of words) expect(a.editor.state.doc.textContent).toContain(`PEER ${word}`)
+        expect(a.editor.state.doc.textContent).toContain('new item')
+      }
+    )
+  })
+
   it.each([false, true])(
     'joining above a list retains every peer insertion (reordered=%s)',
     (reversed) => {

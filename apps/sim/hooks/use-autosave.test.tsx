@@ -28,6 +28,7 @@ interface ProbeProps {
   onSave: (overrideContent?: string) => Promise<void>
   delay?: number
   enabled?: boolean
+  pauseSaving?: boolean
   draftKey?: string
   onRestoreDraft?: (content: string) => void
   onDiscardCorrectionFailed?: () => void
@@ -1144,6 +1145,45 @@ describe('useAutosave', () => {
       expect(onSave).toHaveBeenCalledTimes(3)
       expect(onSave).toHaveBeenLastCalledWith()
     })
+
+    it.each([false, true])(
+      'retains and reports a paused discard correction (unmounted=%s)',
+      async (unmounted) => {
+        const pending = Promise.withResolvers<void>()
+        const onSave = vi
+          .fn<(content?: string) => Promise<void>>()
+          .mockReturnValueOnce(pending.promise)
+          .mockResolvedValue(undefined)
+        const onDiscardCorrectionFailed = vi.fn()
+        const { handle } = renderAutosave({
+          content: 'baseline',
+          savedContent: 'baseline',
+          onSave,
+          draftKey: 'paused-correction',
+          onDiscardCorrectionFailed,
+        })
+        handle.rerender({ content: 'discarded draft' })
+        await act(async () => vi.advanceTimersByTime(1500))
+        expect(onSave).toHaveBeenCalledOnce()
+        act(() => handle.discard())
+        handle.rerender({ content: 'baseline', pauseSaving: true })
+        if (unmounted) handle.unmount()
+        await act(async () => pending.resolve())
+        await flush()
+        expect(onSave).toHaveBeenCalledOnce()
+        expect(onDiscardCorrectionFailed).toHaveBeenCalledOnce()
+        if (!unmounted) {
+          expect(handle.status()).toBe('error')
+          handle.rerender({ pauseSaving: false })
+          expect(onSave).toHaveBeenCalledOnce()
+          await act(async () => handle.saveImmediately())
+          expect(onSave).toHaveBeenLastCalledWith('baseline')
+          expect(onSave).toHaveBeenCalledTimes(2)
+          expect(handle.status()).toBe('idle')
+          handle.unmount()
+        }
+      }
+    )
 
     it('does not lift discard suppression when only `enabled` toggles for the same document', async () => {
       const resolvers: Array<() => void> = []

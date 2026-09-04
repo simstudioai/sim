@@ -1,7 +1,9 @@
 /** @vitest-environment jsdom */
 import { Editor } from '@tiptap/core'
+import Collaboration from '@tiptap/extension-collaboration'
 import { undoDepth } from '@tiptap/pm/history'
 import { afterEach, describe, expect, it } from 'vitest'
+import * as Y from 'yjs'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
   beginImageUploads,
@@ -24,6 +26,40 @@ function mount(content = '<p>abcd</p>') {
 }
 
 describe('image upload anchors', () => {
+  it.each([false, true])(
+    'safely cancels an anchor replaced by a peer update (unrelated paragraph=%s)',
+    (unrelated) => {
+      const localDoc = new Y.Doc()
+      const remoteDoc = new Y.Doc()
+      const extensions = (doc: Y.Doc) => [
+        ...createMarkdownContentExtensions({}, { disableHistory: true }),
+        Collaboration.configure({ document: doc }),
+        ImageUploadPlaceholders,
+      ]
+      editor = new Editor({ extensions: extensions(localDoc) })
+      editor.commands.setContent('<p>before TARGET after</p><p>other</p>')
+      Y.applyUpdate(remoteDoc, Y.encodeStateAsUpdate(localDoc))
+      const peer = new Editor({ extensions: extensions(remoteDoc) })
+      try {
+        const [id] = beginImageUploads(editor, { from: 8, to: 14 }, ['image.png'])
+        const position = unrelated ? peer.state.doc.content.size - 1 : 10
+        peer.commands.insertContentAt(position, 'PEER ')
+        Y.applyUpdate(localDoc, Y.encodeStateAsUpdate(remoteDoc))
+        const updated = editor.getJSON()
+        expect(updated).toEqual(peer.getJSON())
+        expect(editor.getText()).toContain('PEER ')
+        expect(findImageUploadRange(editor, id)).toBeNull()
+        expect(finishImageUpload(editor, id, '/image.png', 'image')).toBe(false)
+        expect(editor.getJSON()).toEqual(updated)
+      } finally {
+        peer.destroy()
+        editor.destroy()
+        localDoc.destroy()
+        remoteDoc.destroy()
+      }
+    }
+  )
+
   it('replaces selected text only on success and never serializes the placeholder', () => {
     const editor = mount('<p>before REPLACE after</p>')
     const [id] = beginImageUploads(editor, { from: 8, to: 15 }, ['image.png'])
@@ -122,6 +158,8 @@ describe('image upload anchors', () => {
     expect(finishImageUpload(editor, id, '/image.png', 'image')).toBe(true)
     expect(editor.state.selection.from).toBe(2)
     expect(editor.state.doc.firstChild?.textContent).toBe('PREFIX ab')
+    expect(editor.state.doc.child(1).type.name).toBe('image')
+    expect(editor.state.doc.lastChild?.textContent).toBe('cd')
   })
 
   it('drops uploads whose surrounding content was deleted', () => {

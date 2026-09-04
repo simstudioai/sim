@@ -318,10 +318,11 @@ export function useAutosave({
   /** Pushes `target` (the reverted baseline) to the server. Used both by `discard()`'s initial correction and by `saveImmediately`'s retry of a correction that previously failed — content already equals `target` in both cases, so this bypasses `save()`'s dirty-check entirely rather than special-casing it there. */
   const runCorrection = useCallback(
     (target: string) => {
-      if (pauseSavingRef.current) return Promise.resolve()
       savingRef.current = true
-      const correctionRun = onSaveRef
-        .current(target)
+      const correction = pauseSavingRef.current
+        ? Promise.reject(new Error('Saving is paused; the discarded edit could not be reverted'))
+        : onSaveRef.current(target)
+      const correctionRun = correction
         .then(
           () => {
             failedCorrectionTargetRef.current = null

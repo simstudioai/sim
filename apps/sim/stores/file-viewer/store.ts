@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 
 interface FileViewerState {
   /** Session-only recognition survives partial page streams and viewer remounts. */
@@ -22,3 +23,5 @@ export const useFileViewerStore = create<FileViewerState>()(
     { name: 'file-viewer-store' }
   )
 )
+
+registerUserDataReset('file-viewer', () => useFileViewerStore.getState().reset())

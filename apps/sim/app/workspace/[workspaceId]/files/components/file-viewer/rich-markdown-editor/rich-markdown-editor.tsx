@@ -1379,7 +1379,14 @@ export function LoadedRichMarkdownEditor({
             if (editor && anchor) removeImageUpload(editor, anchor)
             pendingImageAnchorRef.current = null
             input.value = ''
-            if (images.length > 0 && range !== null) void insertImagesRef.current(images, range)
+            if (images.length === 0) return
+            if (range === null) {
+              toast.info(
+                'The insertion location changed. Choose a new location and select the image again.'
+              )
+              return
+            }
+            void insertImagesRef.current(images, range)
           }}
         />
         {showPlaceholder && placeholderContent && (

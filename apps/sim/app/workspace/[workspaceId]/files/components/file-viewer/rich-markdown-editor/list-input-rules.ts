@@ -47,6 +47,9 @@ export function joinListInputRules(
             }
           }
 
+          /** A backward join now includes an existing root; merging another can lose delayed Yjs edits. */
+          if (list.node.childCount !== 1) return
+
           const after = list.pos + list.node.nodeSize
           const next = tr.doc.nodeAt(after)
           if (next && compatible(list.node, next) && canJoin(tr.doc, after)) tr.join(after)

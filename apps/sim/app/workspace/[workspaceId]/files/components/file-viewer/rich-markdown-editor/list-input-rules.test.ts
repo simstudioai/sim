@@ -83,7 +83,7 @@ describe('typed numbered list joining', () => {
     expect(ed.getMarkdown().trim()).toBe(`${start}. new\n${start + 1}. **one**\n${start + 2}. two`)
   })
 
-  it('joins both neighbors only when both numbering boundaries continue', () => {
+  it('joins a preceding continuation without merging two existing roots', () => {
     const ed = mount(
       '<ol start="4"><li><p>one</p></li></ol><p></p><ol start="6"><li><p>three</p></li></ol>'
     )
@@ -91,8 +91,8 @@ describe('typed numbered list joining', () => {
     expect(typeMarker(ed, '5.')).toBe(true)
     ed.commands.insertContent('two')
 
-    expect(ed.getJSON().content?.filter((node) => node.type === 'orderedList')).toHaveLength(1)
-    expect(ed.getMarkdown().trim()).toBe('4. one\n5. two\n6. three')
+    expect(ed.getJSON().content?.filter((node) => node.type === 'orderedList')).toHaveLength(2)
+    expect(ed.getMarkdown().trim()).toBe('4. one\n5. two\n\n6) three')
   })
 
   it.each([1, 3, 7])('preserves a following explicit restart at %s', (nextStart) => {
@@ -149,20 +149,17 @@ describe('typed task list joining', () => {
     }
   )
 
-  it('joins checklists on both sides of the new item', () => {
+  it('joins the preceding checklist without merging two existing roots', () => {
     const ed = mount(`${TASKS}<p></p>${TASKS}`)
     selectEmptyParagraph(ed)
     expect(typeMarker(ed, '[ ]')).toBe(true)
     ed.commands.insertContent('new')
 
     const lists = ed.getJSON().content?.filter((node) => node.type === 'taskList')
-    expect(lists).toHaveLength(1)
-    expect(lists?.[0].content?.map((node) => node.attrs?.checked)).toEqual([
-      true,
-      false,
-      false,
-      true,
-      false,
+    expect(lists).toHaveLength(2)
+    expect(lists?.map((list) => list.content?.map((node) => node.attrs?.checked))).toEqual([
+      [true, false, false],
+      [true, false],
     ])
     expect(ed.state.selection.$from.parent.textContent).toBe('new')
   })
@@ -182,19 +179,22 @@ describe('list input-rule boundaries and undo', () => {
   it.each([
     ['5.', '<ol start="4"><li><p>one</p></li></ol>', '<ol start="6"><li><p>three</p></li></ol>'],
     ['[x]', TASKS, TASKS],
-  ])('undoes both adjacent joins together for %s', (marker, before, after) => {
-    const ed = mount(`${before}<p></p>${after}`)
-    const originalBefore = ed.state.doc.child(0).toJSON()
-    const originalAfter = ed.state.doc.child(2).toJSON()
-    selectEmptyParagraph(ed)
-    expect(typeMarker(ed, marker)).toBe(true)
-    expect(ed.commands.undoInputRule()).toBe(true)
+  ])(
+    'undoes the preceding join while retaining the following list for %s',
+    (marker, before, after) => {
+      const ed = mount(`${before}<p></p>${after}`)
+      const originalBefore = ed.state.doc.child(0).toJSON()
+      const originalAfter = ed.state.doc.child(2).toJSON()
+      selectEmptyParagraph(ed)
+      expect(typeMarker(ed, marker)).toBe(true)
+      expect(ed.commands.undoInputRule()).toBe(true)
 
-    expect(ed.state.doc.child(0).toJSON()).toEqual(originalBefore)
-    expect(ed.state.doc.child(1).textContent).toBe(`${marker} `)
-    expect(ed.state.doc.child(2).toJSON()).toEqual(originalAfter)
-    expect(ed.state.selection.$from.parent.textContent).toBe(`${marker} `)
-  })
+      expect(ed.state.doc.child(0).toJSON()).toEqual(originalBefore)
+      expect(ed.state.doc.child(1).textContent).toBe(`${marker} `)
+      expect(ed.state.doc.child(2).toJSON()).toEqual(originalAfter)
+      expect(ed.state.selection.$from.parent.textContent).toBe(`${marker} `)
+    }
+  )
 
   it.each([
     ['1.', '<ol start="2"><li><p>one</p></li></ol>', 'orderedList'],

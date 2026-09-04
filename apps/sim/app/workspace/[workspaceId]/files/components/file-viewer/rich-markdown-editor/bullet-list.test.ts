@@ -50,14 +50,14 @@ describe('typed bullet list joining', () => {
     expect(ed.view.dom.querySelectorAll(':scope > ul')).toHaveLength(1)
   })
 
-  it('joins both neighbors when turning their separating paragraph into a bullet', () => {
+  it('joins the preceding list without merging two existing roots', () => {
     const ed = mount('<ul><li><p>one</p></li></ul><p></p><ul><li><p>two</p></li></ul>')
     ed.commands.setTextSelection(10)
     typeBullet(ed)
     ed.commands.insertContent('new')
 
-    expect(ed.getJSON().content?.filter((node) => node.type === 'bulletList')).toHaveLength(1)
-    expect(ed.getMarkdown().trim()).toBe('- one\n- new\n- two')
+    expect(ed.getJSON().content?.filter((node) => node.type === 'bulletList')).toHaveLength(2)
+    expect(ed.getMarkdown().trim()).toBe('- one\n- new\n\n- two')
   })
 
   it('does not join across an intentional blank paragraph', () => {

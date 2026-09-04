@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useFileViewerStore } from '@/stores/file-viewer/store'
+import { resetRegisteredUserData } from '@/stores/user-data-reset-registry'
 
 describe('file viewer session state', () => {
   beforeEach(() => useFileViewerStore.getState().reset())
@@ -21,7 +22,7 @@ describe('file viewer session state', () => {
 
   it('clears recognition when the session is reset', () => {
     useFileViewerStore.getState().rememberPage('page-a')
-    useFileViewerStore.getState().reset()
+    resetRegisteredUserData()
     expect(useFileViewerStore.getState().pageFileIds.size).toBe(0)
   })
 })

@@ -184,6 +184,27 @@ afterEach(async () => {
 })
 
 describe('loaded rich editor lifecycle', () => {
+  it('explains a picker selection whose insertion anchor was invalidated', async () => {
+    await render('before TARGET after')
+    const editor = getEditor()
+    await act(async () => {
+      editor.commands.setTextSelection({ from: 8, to: 14 })
+      editor.storage.slashCommand.insertImage?.(8)
+      editor.commands.insertContentAt({ from: 7, to: 15 }, 'changed')
+    })
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+    Object.defineProperty(input, 'files', {
+      value: [new File(['image'], 'image.png', { type: 'image/png' })],
+    })
+    await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
+    expect(uploadFile).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenLastCalledWith(
+      'The insertion location changed. Choose a new location and select the image again.'
+    )
+    expect(editor.getText()).toContain('changed')
+    expect(input.value).toBe('')
+  })
+
   it.each(['cancel', 'invalidate'] as const)(
     'explains a completed upload without inserting after its anchor is %s',
     async (action) => {

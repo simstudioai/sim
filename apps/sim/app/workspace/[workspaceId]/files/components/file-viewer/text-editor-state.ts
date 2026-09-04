@@ -15,8 +15,8 @@ export interface TextEditorContentState {
   /** Content-version token paired with the accepted immutable storage object. */
   savedVersion?: string
   acceptedBaselineContent?: string
-  /** A conflicting remote snapshot; missing content means the server reported a conflict first. */
-  conflict?: { content?: string; version?: string; streamInterrupted?: true }
+  /** Remote conflict metadata; the local draft remains in `content`. */
+  conflict?: { version?: string; streamInterrupted?: true }
 }
 
 export interface SyncTextEditorContentStateOptions {
@@ -208,9 +208,13 @@ export function syncTextEditorContentState(
       streamingContent !== undefined
         ? { ...state.conflict, streamInterrupted: true as const }
         : state.conflict
-    if (fetchedContent === undefined)
+    if (
+      fetchedContent === undefined ||
+      fetchedVersion === undefined ||
+      fetchedVersion === conflict.version
+    )
       return conflict === state.conflict ? state : { ...state, conflict }
-    return { ...state, conflict: { ...conflict, content: fetchedContent, version: fetchedVersion } }
+    return { ...state, conflict: { ...conflict, version: fetchedVersion } }
   }
 
   if (
@@ -222,7 +226,6 @@ export function syncTextEditorContentState(
     return {
       ...state,
       conflict: {
-        content: fetchedContent,
         version: fetchedVersion,
         ...(streamingContent !== undefined ? { streamInterrupted: true as const } : {}),
       },
@@ -298,7 +301,7 @@ export function textEditorContentReducer(
       return {
         ...state,
         content: action.content,
-        conflict: { content: state.savedContent, version: state.savedVersion },
+        conflict: { version: state.savedVersion },
       }
     case 'reload':
       return {

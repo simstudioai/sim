@@ -644,10 +644,11 @@ export function useReloadWorkspaceFileContent() {
         queryFn: ({ signal }) =>
           fetchWorkspaceFileContent(source.buildUrl(file.key, { raw, bust: true }), signal),
         staleTime: 0,
+        retry: false,
       })
       return { file, content }
     },
-    retry: false,
+    retry: (failureCount, error) => failureCount < 1 && error instanceof StaleStorageKeyError,
   })
 }
 

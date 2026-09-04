@@ -161,7 +161,7 @@ describe('useWorkspaceFileContent refetchInterval passthrough', () => {
 })
 
 describe('useUpdateWorkspaceFileContent version precondition', () => {
-  it('forwards the original version without deriving it from a newer query cache', async () => {
+  it('forwards the supplied content version and disables mutation retries', async () => {
     const client = new QueryClient({ defaultOptions: { mutations: { retry: 3 } } })
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -220,7 +220,7 @@ describe('useReloadWorkspaceFileContent', () => {
     client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-        mutations: { retry: 3 },
+        mutations: { retry: 3, retryDelay: 0 },
       },
     })
     root = createRoot(document.createElement('div'))
@@ -282,6 +282,80 @@ describe('useReloadWorkspaceFileContent', () => {
     expect(client.getQueryData(workspaceFilesKeys.list('ws-1'))).toEqual([file])
   })
 
+  it.each([false, true])(
+    'recovers matching bytes and version after key rotation (raw=%s)',
+    async (raw) => {
+      const nextFile = {
+        ...file,
+        key: 'workspace/ws-1/replacement.md',
+        contentUpdatedAt: new Date('2026-09-03T20:00:02.000Z'),
+      }
+      client.setDefaultOptions({
+        queries: { retry: 2, retryDelay: 0 },
+        mutations: { retryDelay: 0 },
+      })
+      mockRequestJson
+        .mockResolvedValueOnce({ success: true, files: [file] })
+        .mockResolvedValueOnce({ success: true, files: [nextFile] })
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response('gone', { status: 404 }))
+        .mockResolvedValueOnce(new Response('replacement bytes'))
+      vi.stubGlobal('fetch', fetchMock)
+      await act(async () => {
+        await expect(
+          mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw })
+        ).resolves.toEqual({ file: nextFile, content: 'replacement bytes' })
+      })
+      expect(mockRequestJson).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(
+        fetchMock.mock.calls.map(([url]) => new URL(url, 'http://localhost').pathname)
+      ).toEqual(
+        [file.key, nextFile.key].map((key) => `/api/files/serve/${encodeURIComponent(key)}`)
+      )
+      expect(
+        client.getQueryData(
+          workspaceFilesKeys.content('ws-1', file.id, raw ? 'raw' : 'text', nextFile.key)
+        )
+      ).toBe('replacement bytes')
+    }
+  )
+
+  it.each([
+    { files: [], error: 'File no longer exists' },
+    {
+      files: [{ ...file, contentUpdatedAt: null }],
+      error: 'The latest file version is unavailable',
+    },
+  ])('stops key recovery when metadata becomes unusable: $error', async ({ files, error }) => {
+    mockRequestJson
+      .mockResolvedValueOnce({ success: true, files: [file] })
+      .mockResolvedValueOnce({ success: true, files })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('gone', { status: 404 }))
+    )
+    await act(async () => {
+      await expect(
+        mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: false })
+      ).rejects.toThrow(error)
+    })
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it('does not retry a transport failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    await act(async () => {
+      await expect(
+        mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: false })
+      ).rejects.toThrow('offline')
+    })
+    expect(mockRequestJson).toHaveBeenCalledOnce()
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
   it('cancels a pending metadata read before resolving the latest version', async () => {
     const pending = Promise.withResolvers<{ success: boolean; files: WorkspaceFileRecord[] }>()
     let oldSignal: AbortSignal | undefined
@@ -318,35 +392,42 @@ describe('useReloadWorkspaceFileContent', () => {
     expect(client.getQueryData(workspaceFilesKeys.list('ws-1'))).toEqual([file])
   })
 
-  it('forwards cancellation to an in-flight byte read without accepting content', async () => {
-    const started = Promise.withResolvers<void>()
-    const pending = Promise.withResolvers<Response>()
-    let contentSignal: AbortSignal | null | undefined
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
-        contentSignal = init?.signal
-        started.resolve()
-        return pending.promise
-      })
-    )
-    let outcome: Promise<string> | undefined
-    await act(async () => {
-      outcome = mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: true }).then(
-        () => 'resolved',
-        () => 'cancelled'
+  it.each([false, true])(
+    'forwards cancellation without accepting content (retry=%s)',
+    async (retry) => {
+      const started = Promise.withResolvers<void>()
+      const pending = Promise.withResolvers<Response>()
+      let contentSignal: AbortSignal | null | undefined
+      let attempt = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+          if (retry && attempt++ === 0)
+            return Promise.resolve(new Response('gone', { status: 404 }))
+          contentSignal = init?.signal
+          started.resolve()
+          return pending.promise
+        })
       )
-      await started.promise
-      await client.cancelQueries({ queryKey: workspaceFilesKeys.contentFile('ws-1', file.id) })
-    })
-    expect(contentSignal?.aborted).toBe(true)
-    expect(await outcome).toBe('cancelled')
-    pending.resolve(new Response('late bytes', { status: 200 }))
-    await pending.promise
-    expect(
-      client.getQueryData(workspaceFilesKeys.content('ws-1', file.id, 'raw', file.key))
-    ).toBeUndefined()
-  })
+      let outcome: Promise<string> | undefined
+      await act(async () => {
+        outcome = mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: true }).then(
+          () => 'resolved',
+          () => 'cancelled'
+        )
+        await started.promise
+        await client.cancelQueries({ queryKey: workspaceFilesKeys.contentFile('ws-1', file.id) })
+      })
+      expect(contentSignal?.aborted).toBe(true)
+      expect(await outcome).toBe('cancelled')
+      expect(mockRequestJson).toHaveBeenCalledTimes(retry ? 2 : 1)
+      pending.resolve(new Response('late bytes', { status: 200 }))
+      await pending.promise
+      expect(
+        client.getQueryData(workspaceFilesKeys.content('ws-1', file.id, 'raw', file.key))
+      ).toBeUndefined()
+    }
+  )
 
   it.each([
     { files: [], error: 'File no longer exists' },
@@ -394,7 +475,8 @@ describe('useReloadWorkspaceFileContent', () => {
             : 'Failed to fetch file content'
         )
       })
-      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(fetch).toHaveBeenCalledTimes(status === 404 ? 2 : 1)
+      expect(mockRequestJson).toHaveBeenCalledTimes(status === 404 ? 2 : 1)
       expect(client.getQueryData(contentKey)).toBe('cached bytes')
     }
   )

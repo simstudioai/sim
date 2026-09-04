@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { saveBlob } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { GENERATED_DOCUMENT_SOURCE_TYPES } from '@/lib/uploads/utils/file-utils'
 import {
@@ -407,14 +408,10 @@ export function useEditableFileContent({
   ])
 
   const downloadDraft = useCallback(() => {
-    const url = URL.createObjectURL(
-      new Blob([contentRef.current], { type: 'text/plain;charset=utf-8' })
+    saveBlob(
+      new Blob([contentRef.current], { type: 'text/plain;charset=utf-8' }),
+      `${file.name}.local-draft.txt`
     )
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `${file.name}.local-draft.txt`
-    anchor.click()
-    setTimeout(() => URL.revokeObjectURL(url), 0)
   }, [file.name])
 
   // When the client can't autosave it isn't the durability owner: the collaborative editor holds

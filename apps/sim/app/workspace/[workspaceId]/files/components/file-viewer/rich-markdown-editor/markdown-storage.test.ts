@@ -187,8 +187,16 @@ describe('GFM table capabilities', () => {
     expect(editor.commands.toggleHeaderRow()).toBe(false)
     expect(editor.commands.toggleHeaderColumn()).toBe(false)
     expect(editor.commands.toggleHeaderCell()).toBe(false)
-    expect(editor.commands.mergeCells()).toBe(false)
     expect(editor.commands.setCellAttribute('colwidth', [240])).toBe(false)
+    const table = editor.state.doc.firstChild!
+    const firstCell = 2
+    const secondCell = firstCell + table.firstChild!.firstChild!.nodeSize
+    editor.view.dispatch(
+      editor.state.tr.setSelection(CellSelection.create(editor.state.doc, firstCell, secondCell))
+    )
+    expect(editor.state.selection).toBeInstanceOf(CellSelection)
+    expect(editor.can().mergeCells()).toBe(false)
+    expect(editor.commands.mergeCells()).toBe(false)
     expectPreserved(editor)
   })
 
