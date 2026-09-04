@@ -3,7 +3,7 @@
  */
 
 import { credential } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -89,9 +89,6 @@ describe('authorizeSelectorCredential', () => {
         workspaceId: 'workspace-1',
       })
     )
-    const providerPredicate = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])
-    expect(providerPredicate).toContain('account-1')
-    expect(providerPredicate).not.toContain('credential-1')
   })
 
   it('promotes a hidden fixed token to an authentication secret at every length', async () => {

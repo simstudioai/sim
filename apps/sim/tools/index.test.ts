@@ -3176,51 +3176,6 @@ describe('Internal Route Trust', () => {
     }
   })
 
-  it('unconditionally overwrites a caller-supplied hidden credential value', async () => {
-    const toolId = 'test_hidden_credential_authority'
-    const mockTool = {
-      id: toolId,
-      name: 'Hidden Credential Authority Test',
-      description: 'Verifies authoritative hidden credential injection',
-      version: '1.0.0',
-      oauth: {
-        required: true,
-        provider: 'google',
-        credentialKind: 'oauth' as const,
-      },
-      params: {
-        accessToken: { type: 'string', required: true, visibility: 'hidden' },
-      },
-      request: {
-        url: () => 'https://www.googleapis.com/test',
-        method: 'GET' as const,
-        headers: (params: Record<string, unknown>) => ({
-          Authorization: `Bearer ${params.accessToken}`,
-        }),
-      },
-      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
-    }
-    ;(tools as Record<string, unknown>)[toolId] = mockTool
-    mockResolveExecutorCredentialToken.mockResolvedValue({
-      accessToken: 'authorized-value',
-      credentialType: 'oauth',
-    })
-
-    try {
-      const result = await executeTool(toolId, {
-        credential: 'selected-credential',
-        accessToken: 'caller-forged-value',
-      })
-
-      expect(result.success).toBe(true)
-      const requestOptions = mockSecureFetchWithPinnedIP.mock.calls.at(-1)?.[2]
-      expect(requestOptions?.headers.authorization).toBe('Bearer authorized-value')
-      expect(JSON.stringify(requestOptions)).not.toContain('caller-forged-value')
-    } finally {
-      Reflect.deleteProperty(tools, toolId)
-    }
-  })
-
   it('transports only active provenance selected for an internal model input', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {

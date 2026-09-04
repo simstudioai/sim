@@ -62,8 +62,8 @@ export interface ResolveCredentialTokenInput {
   auditRequest?: CredentialAuditRequest
   /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */
   resolvedCredential: ResolvedCredential | null
-  /** Trusted provider binding derived from registered tool metadata. */
-  expectedServiceAccountProviderId?: string
+  /** Trusted OCI provider binding derived from registered tool metadata. */
+  expectedServiceAccountProviderId?: typeof OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
 }
 
 export type ResolveCredentialTokenResult =
@@ -265,27 +265,31 @@ export async function resolveCredentialToken(
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
 
-      const authoritativeId = authz.resolvedCredentialId
-      if (!authoritativeId) return { ok: false, status: 403, error: 'Unauthorized' }
-      const authoritative = await resolveOAuthAccountId(authoritativeId)
-      if (
-        authoritative?.credentialType !== 'service_account' ||
-        authoritative.credentialId !== authoritativeId ||
-        (authoritative.providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID &&
-          input.expectedServiceAccountProviderId !== OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) ||
-        (input.expectedServiceAccountProviderId !== undefined &&
-          authoritative.providerId !== input.expectedServiceAccountProviderId)
-      ) {
-        return { ok: false, status: 403, error: 'Unauthorized' }
-      }
-
+      let serviceAccountCredentialId = resolved.credentialId
+      let serviceAccountProviderId = resolved.providerId
       const saActorId = authz.requesterUserId
-      const saWorkspaceId = authz.workspaceId ?? null
+      let saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
+
+      if (input.expectedServiceAccountProviderId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) {
+        const authoritativeId = authz.resolvedCredentialId
+        if (!authoritativeId) return { ok: false, status: 403, error: 'Unauthorized' }
+        const authoritative = await resolveOAuthAccountId(authoritativeId)
+        if (
+          authoritative?.credentialType !== 'service_account' ||
+          authoritative.credentialId !== authoritativeId ||
+          authoritative.providerId !== OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
+        ) {
+          return { ok: false, status: 403, error: 'Unauthorized' }
+        }
+        serviceAccountCredentialId = authoritativeId
+        serviceAccountProviderId = authoritative.providerId
+        saWorkspaceId = authz.workspaceId ?? null
+      }
 
       try {
         const result = await resolveServiceAccountToken(
-          authoritativeId,
-          authoritative.providerId,
+          serviceAccountCredentialId,
+          serviceAccountProviderId,
           scopes ?? [],
           impersonateEmail
         )
@@ -294,8 +298,8 @@ export async function resolveCredentialToken(
           recordCredentialAccess({
             actorId: saActorId,
             workspaceId: saWorkspaceId,
-            resourceId: authoritativeId,
-            providerId: authoritative.providerId,
+            resourceId: serviceAccountCredentialId,
+            providerId: serviceAccountProviderId,
             credentialType: 'service_account',
             auditRequest,
           })
