@@ -56,6 +56,7 @@ export interface LoadHealthHandle {
 export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): LoadHealthHandle {
   let intendedUrl: string | null = null
   let showingOffline = false
+  let offlinePageBroken = false
   let retryTimer: NodeJS.Timeout | undefined
   let watchdogTimer: NodeJS.Timeout | undefined
 
@@ -108,7 +109,12 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
     }
     showingOffline = true
     deps.events.record('load_failure', { kind, detail })
-    void win.loadURL(deps.offlinePageUrl({ kind, detail }))
+    // A bundled page that failed once fails for a packaging reason, not a
+    // transient one, so it is never navigated to again. The origin retry stays
+    // armed regardless: it is the only way the window recovers on its own.
+    if (!offlinePageBroken) {
+      void win.loadURL(deps.offlinePageUrl({ kind, detail }))
+    }
     startAutoRetry()
   }
 
@@ -127,6 +133,7 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
       // page itself failed there is nothing left to swap to, and showing it
       // again would loop.
       if (showingOffline && !validatedURL?.startsWith('http')) {
+        offlinePageBroken = true
         logger.error('Bundled offline page failed to load', {
           errorCode,
           errorDescription,

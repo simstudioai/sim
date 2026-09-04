@@ -32,13 +32,6 @@ rmSync(generatedIcon, { force: true, recursive: true })
 cpSync(appIcon, generatedIcon, { recursive: true })
 console.log(`• Selecting desktop icon: ${appIcon}`)
 
-// The bundled pages load their font from static/ over the shell's own scheme.
-// electron-builder copies it there for packaged builds; this does the same for
-// unpackaged runs and the e2e suite, so both serve it from one place.
-const brandFont = join('..', 'sim', 'public', 'brand', 'fonts', 'SeasonSansUprightsVF.woff2')
-cpSync(brandFont, join('static', 'SeasonSansUprightsVF.woff2'))
-console.log('• Copied the Season Sans font for the bundled pages')
-
 function compileNativeHelpSearch(): void {
   const outputDirectory = 'dist/native'
   rmSync(outputDirectory, { force: true, recursive: true })

@@ -85,4 +85,25 @@ describe('attachLoadHealth', () => {
     expect(win.loadURL).toHaveBeenCalledTimes(1)
     expect(events.record).toHaveBeenCalledTimes(1)
   })
+
+  // Stopping the retry instead would strand the window blank until a relaunch.
+  // The origin keeps being retried on the usual cadence; only the broken
+  // bundled page is never navigated to again.
+  it('keeps retrying the origin after the offline page broke, without reloading it', () => {
+    const { win, events, failLoad } = setup()
+
+    failLoad(-105, 'ERR_NAME_NOT_RESOLVED', 'https://sim.example.com/workspace')
+    failLoad(-6, 'ERR_FILE_NOT_FOUND', 'sim-shell://pages/offline.html?kind=dns')
+    vi.advanceTimersByTime(5000)
+
+    expect(win.loadURL).toHaveBeenCalledTimes(2)
+    expect(win.loadURL).toHaveBeenLastCalledWith('https://sim.example.com/workspace')
+
+    failLoad(-105, 'ERR_NAME_NOT_RESOLVED', 'https://sim.example.com/workspace')
+    vi.advanceTimersByTime(5000)
+
+    expect(events.record).toHaveBeenCalledTimes(2)
+    expect(win.loadURL).toHaveBeenCalledTimes(3)
+    expect(win.loadURL).toHaveBeenLastCalledWith('https://sim.example.com/workspace')
+  })
 })

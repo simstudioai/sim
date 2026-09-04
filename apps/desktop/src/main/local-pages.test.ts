@@ -73,7 +73,7 @@ describe('createLocalPageHandler', () => {
   })
 
   it('serves allowlisted files with their content type', async () => {
-    const response = await createLocalPageHandler(root)(
+    const response = await createLocalPageHandler([root])(
       new Request(`${LOCAL_PAGE_ORIGIN}/offline.html?kind=dns`)
     )
 
@@ -84,7 +84,7 @@ describe('createLocalPageHandler', () => {
   })
 
   it('refuses everything outside the allowlist, however the path is spelled', async () => {
-    const handler = createLocalPageHandler(root)
+    const handler = createLocalPageHandler([root])
     for (const path of [
       '/secret.txt',
       '/../secret.txt',
@@ -98,7 +98,7 @@ describe('createLocalPageHandler', () => {
   })
 
   it('refuses a foreign host and non-GET methods', async () => {
-    const handler = createLocalPageHandler(root)
+    const handler = createLocalPageHandler([root])
 
     expect((await handler(new Request('sim-shell://evil/offline.html'))).status).toBe(404)
     expect(
@@ -107,11 +107,31 @@ describe('createLocalPageHandler', () => {
   })
 
   it('answers 404 for an allowlisted file that is missing on disk', async () => {
-    const response = await createLocalPageHandler(root)(
+    const response = await createLocalPageHandler([root])(
       new Request(`${LOCAL_PAGE_ORIGIN}/server.html`)
     )
 
     expect(response.status).toBe(404)
+  })
+
+  // Unpackaged runs read the brand font from the web app's public fonts rather
+  // than a generated copy in static/, so roots are consulted in order.
+  it('falls through to a later root for an asset the first one lacks', async () => {
+    const fonts = mkdtempSync(join(tmpdir(), 'sim-local-pages-fonts-'))
+    writeFileSync(join(fonts, 'SeasonSansUprightsVF.woff2'), 'woff2-bytes')
+    try {
+      const handler = createLocalPageHandler([root, fonts])
+
+      const font = await handler(new Request(`${LOCAL_PAGE_ORIGIN}/SeasonSansUprightsVF.woff2`))
+      expect(font.status).toBe(200)
+      expect(font.headers.get('content-type')).toBe('font/woff2')
+      expect(await font.text()).toBe('woff2-bytes')
+
+      const page = await handler(new Request(`${LOCAL_PAGE_ORIGIN}/offline.html`))
+      expect(await page.text()).toBe('<h1>offline</h1>')
+    } finally {
+      rmSync(fonts, { recursive: true, force: true })
+    }
   })
 })
 
@@ -121,11 +141,11 @@ describe('attachLocalPageProtocol', () => {
       protocol: { isProtocolHandled: vi.fn(() => false), handle: vi.fn() },
     }
 
-    attachLocalPageProtocol(ses as unknown as Session, '/tmp/static')
+    attachLocalPageProtocol(ses as unknown as Session, ['/tmp/static'])
     expect(ses.protocol.handle).toHaveBeenCalledWith('sim-shell', expect.any(Function))
 
     ses.protocol.isProtocolHandled.mockReturnValue(true)
-    attachLocalPageProtocol(ses as unknown as Session, '/tmp/static')
+    attachLocalPageProtocol(ses as unknown as Session, ['/tmp/static'])
     expect(ses.protocol.handle).toHaveBeenCalledTimes(1)
   })
 })

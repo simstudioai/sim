@@ -3,7 +3,7 @@ import { extname, join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { Session } from 'electron'
-import { protocol } from 'electron'
+import { app, protocol } from 'electron'
 
 const logger = createLogger('DesktopLocalPages')
 
@@ -94,10 +94,12 @@ function notFound(): Response {
 }
 
 /**
- * Serves allowlisted files from `rootDir`. Split from the session wiring so
- * tests can drive it against a temporary directory.
+ * Serves allowlisted files from the first of `rootDirs` that has them. Split
+ * from the session wiring so tests can drive it against temporary directories.
  */
-export function createLocalPageHandler(rootDir: string): (request: Request) => Promise<Response> {
+export function createLocalPageHandler(
+  rootDirs: readonly string[]
+): (request: Request) => Promise<Response> {
   return async (request) => {
     if (request.method !== 'GET') {
       return new Response(null, { status: 405 })
@@ -115,41 +117,65 @@ export function createLocalPageHandler(rootDir: string): (request: Request) => P
     if (!SERVABLE_FILES.has(name)) {
       return notFound()
     }
-    try {
-      const file = await readFile(join(rootDir, name))
-      // A copy into a plain ArrayBuffer: Response bodies take BufferSource, and
-      // a Node Buffer's backing store is not typed as one.
-      const body = new Uint8Array(file.byteLength)
-      body.set(file)
-      return new Response(body.buffer, {
-        status: 200,
-        headers: {
-          'Content-Type': CONTENT_TYPES[extname(name)] ?? 'application/octet-stream',
-          'X-Content-Type-Options': 'nosniff',
-        },
-      })
-    } catch (error) {
-      logger.error('Could not read a bundled page asset', { name, error: getErrorMessage(error) })
+    const file = await readFirst(rootDirs, name)
+    if (!file) {
       return notFound()
     }
+    // A copy into a plain ArrayBuffer: Response bodies take BufferSource, and
+    // a Node Buffer's backing store is not typed as one.
+    const body = new Uint8Array(file.byteLength)
+    body.set(file)
+    return new Response(body.buffer, {
+      status: 200,
+      headers: {
+        'Content-Type': CONTENT_TYPES[extname(name)] ?? 'application/octet-stream',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    })
   }
 }
 
+async function readFirst(rootDirs: readonly string[], name: string): Promise<Buffer | null> {
+  for (const rootDir of rootDirs) {
+    try {
+      return await readFile(join(rootDir, name))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.error('Could not read a bundled page asset', { name, error: getErrorMessage(error) })
+        return null
+      }
+    }
+  }
+  logger.error('Bundled page asset is missing', { name })
+  return null
+}
+
 /**
- * The bundled `static/` directory. `__dirname` is `dist/` in every build, so
- * this holds inside the packaged asar as well as in an unpackaged checkout.
+ * Where the pages and their assets live. `__dirname` is `dist/` in every
+ * build, so `static/` resolves inside the packaged asar as well as in an
+ * unpackaged checkout. The brand font is copied into `static/` only when
+ * packaging (electron-builder.yml); an unpackaged run reads it from the web
+ * app's public fonts instead, so nothing generated has to exist in the tree
+ * and a cached build restores everything the pages need.
  */
-function localPageRoot(): string {
-  return join(__dirname, '..', 'static')
+function localPageRoots(): string[] {
+  const roots = [join(__dirname, '..', 'static')]
+  if (!app.isPackaged) {
+    roots.push(join(__dirname, '..', '..', 'sim', 'public', 'brand', 'fonts'))
+  }
+  return roots
 }
 
 /**
  * Serves the scheme on a session. Handlers are per session, so every partition
  * that hosts a bundled page installs one; repeat calls are no-ops.
  */
-export function attachLocalPageProtocol(ses: Session, rootDir: string = localPageRoot()): void {
+export function attachLocalPageProtocol(
+  ses: Session,
+  rootDirs: readonly string[] = localPageRoots()
+): void {
   if (ses.protocol.isProtocolHandled(LOCAL_PAGE_SCHEME)) {
     return
   }
-  ses.protocol.handle(LOCAL_PAGE_SCHEME, createLocalPageHandler(rootDir))
+  ses.protocol.handle(LOCAL_PAGE_SCHEME, createLocalPageHandler(rootDirs))
 }
