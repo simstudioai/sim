@@ -610,7 +610,7 @@ function sanitizeResultForModel(
     const isElementCapture = isRecordLike(rest.clip)
     return {
       ...rest,
-      content: `Screenshot${location}. This is the rendered ${isElementCapture ? 'element' : 'viewport'} only — it carries no element ids, so use browser_snapshot before interacting.`,
+      content: `Screenshot${location}. This is the rendered ${isElementCapture ? 'element' : 'viewport'} only — it carries no element ids, so use browser_snapshot before interacting.${isElementCapture ? ' For coordinate actions: cssX = clip.x + imageX / scale; cssY = clip.y + imageY / scale.' : ''}`,
       attachment: {
         type: 'image',
         source: { type: 'base64', media_type: image.mediaType, data: image.data },

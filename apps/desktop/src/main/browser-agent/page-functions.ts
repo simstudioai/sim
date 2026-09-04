@@ -467,7 +467,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     if (tag === 'INPUT') {
       const input = el as HTMLInputElement
       if (input.type === 'checkbox' || input.type === 'radio') {
-        parts.push(input.checked ? 'checked' : 'unchecked')
+        parts.push(input.indeterminate ? 'mixed' : input.checked ? 'checked' : 'unchecked')
       }
       if (input.readOnly) parts.push('readonly')
       if (input.required) parts.push('required')
@@ -2065,14 +2065,24 @@ export function pressKeyOnPage(
  * Captures non-sensitive page state around a trusted input event. The driver
  * compares two readings so “the event was dispatched” is never confused with
  * “the page visibly reacted.”
+ * Registered-node waits return only target state, without action ref recovery
+ * or the broader page-effect scan.
  */
-export function readPageActionState(resetMutationRevision = false, elementId?: number): unknown {
+export function readPageActionState(
+  resetMutationRevision = false,
+  elementId?: number,
+  targetResolution: 'actionable' | 'registered' = 'actionable'
+): unknown {
   const registeredElement =
     typeof elementId === 'number' ? (window.__simAgentElements || [])[elementId] : undefined
   const resolver = window.__simAgentResolveElement
+  if (targetResolution === 'registered') {
+    if (!registeredElement) return { error: 'stale' }
+    if (registeredElement.ownerDocument !== document) return { error: 'framed-wait' }
+  }
   const resolved =
     typeof elementId === 'number'
-      ? resolver
+      ? resolver && targetResolution === 'actionable'
         ? resolver(elementId)
         : registeredElement?.isConnected
           ? { element: registeredElement, recovered: false }
@@ -2082,6 +2092,77 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
   const observedDocument =
     observedElement?.ownerDocument ?? registeredElement?.ownerDocument ?? document
   const observedWindow = observedDocument.defaultView ?? window
+  const isEffectivelyRendered = (element: Element): boolean => {
+    const rect = element.getBoundingClientRect()
+    const view = element.ownerDocument.defaultView
+    if (
+      !view ||
+      rect.width <= 1 ||
+      rect.height <= 1 ||
+      rect.right <= 0 ||
+      rect.bottom <= 0 ||
+      rect.left >= view.innerWidth ||
+      rect.top >= view.innerHeight
+    ) {
+      return false
+    }
+    for (let current: Element | null = element; current; ) {
+      const currentView: Window | null = current.ownerDocument.defaultView
+      const style = currentView?.getComputedStyle(current)
+      const opacity = Number.parseFloat(style?.opacity || '1')
+      if (
+        !style ||
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        style.contentVisibility === 'hidden' ||
+        (Number.isFinite(opacity) && opacity <= 0.01) ||
+        current.hasAttribute('hidden') ||
+        current.getAttribute('aria-hidden') === 'true'
+      ) {
+        return false
+      }
+      if (current.parentElement) current = current.parentElement
+      else {
+        const root = current.getRootNode()
+        current = 'host' in root ? (root.host as Element) : null
+      }
+    }
+    return true
+  }
+
+  const targetState =
+    typeof elementId !== 'number'
+      ? undefined
+      : observedElement
+        ? {
+            present: true,
+            rendered: isEffectivelyRendered(observedElement),
+            ariaExpanded: observedElement.getAttribute('aria-expanded'),
+            ariaSelected: observedElement.getAttribute('aria-selected'),
+            ariaPressed: observedElement.getAttribute('aria-pressed'),
+            ariaChecked: observedElement.getAttribute('aria-checked'),
+            checked:
+              observedElement.tagName !== 'INPUT' ||
+              !['checkbox', 'radio'].includes((observedElement as HTMLInputElement).type)
+                ? undefined
+                : (observedElement as HTMLInputElement).indeterminate === true
+                  ? 'mixed'
+                  : Boolean((observedElement as HTMLInputElement).checked),
+            disabled:
+              observedElement.matches(':disabled') ||
+              observedElement.closest('[aria-disabled="true"]') !== null,
+            selected:
+              'selected' in observedElement
+                ? Boolean((observedElement as HTMLOptionElement).selected)
+                : undefined,
+            open: observedElement.hasAttribute('open'),
+            hidden:
+              observedElement.hasAttribute('hidden') ||
+              observedElement.getAttribute('aria-hidden') === 'true',
+          }
+        : { present: false, rendered: false }
+  if (targetResolution === 'registered') return { targetState }
+
   const observationRoot = observedDocument.body
 
   const roots: ParentNode[] = observationRoot ? [observationRoot] : []
@@ -2265,73 +2346,6 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
     .filter((element) => (element as HTMLElement).scrollTop !== 0)
     .slice(0, 30)
     .map((element) => `${element.tagName}:${Math.round((element as HTMLElement).scrollTop)}`)
-
-  const isEffectivelyRendered = (element: Element): boolean => {
-    const rect = element.getBoundingClientRect()
-    const view = element.ownerDocument.defaultView
-    if (
-      !view ||
-      rect.width <= 1 ||
-      rect.height <= 1 ||
-      rect.right <= 0 ||
-      rect.bottom <= 0 ||
-      rect.left >= view.innerWidth ||
-      rect.top >= view.innerHeight
-    ) {
-      return false
-    }
-    for (let current: Element | null = element; current; ) {
-      const currentView: Window | null = current.ownerDocument.defaultView
-      const style = currentView?.getComputedStyle(current)
-      const opacity = Number.parseFloat(style?.opacity || '1')
-      if (
-        !style ||
-        style.display === 'none' ||
-        style.visibility === 'hidden' ||
-        style.contentVisibility === 'hidden' ||
-        (Number.isFinite(opacity) && opacity <= 0.01) ||
-        current.hasAttribute('hidden') ||
-        current.getAttribute('aria-hidden') === 'true'
-      ) {
-        return false
-      }
-      if (current.parentElement) current = current.parentElement
-      else {
-        const root = current.getRootNode()
-        current = 'host' in root ? (root.host as Element) : null
-      }
-    }
-    return true
-  }
-
-  const targetState =
-    typeof elementId !== 'number'
-      ? undefined
-      : observedElement
-        ? {
-            present: true,
-            rendered: isEffectivelyRendered(observedElement),
-            ariaExpanded: observedElement.getAttribute('aria-expanded'),
-            ariaSelected: observedElement.getAttribute('aria-selected'),
-            ariaPressed: observedElement.getAttribute('aria-pressed'),
-            ariaChecked: observedElement.getAttribute('aria-checked'),
-            checked:
-              'checked' in observedElement
-                ? Boolean((observedElement as HTMLInputElement).checked)
-                : undefined,
-            disabled:
-              (observedElement as Element & { disabled?: boolean }).disabled === true ||
-              observedElement.getAttribute('aria-disabled') === 'true',
-            selected:
-              'selected' in observedElement
-                ? Boolean((observedElement as HTMLOptionElement).selected)
-                : undefined,
-            open: observedElement.hasAttribute('open'),
-            hidden:
-              observedElement.hasAttribute('hidden') ||
-              observedElement.getAttribute('aria-hidden') === 'true',
-          }
-        : { present: false, rendered: false }
 
   return {
     url: observedWindow.location.href.slice(0, 4096),
@@ -2640,13 +2654,18 @@ export function readCheckableElementState(id: number): unknown {
 
   const ariaChecked = candidate.getAttribute('aria-checked')
   const checked = isNative
-    ? Boolean((candidate as HTMLInputElement).checked)
+    ? (candidate as HTMLInputElement).indeterminate
+      ? 'mixed'
+      : Boolean((candidate as HTMLInputElement).checked)
     : ariaChecked === 'true'
+      ? true
+      : ariaChecked === 'false'
+        ? false
+        : ariaChecked
   return {
     checked,
     disabled:
-      (candidate as Element & { disabled?: boolean }).disabled === true ||
-      candidate.getAttribute('aria-disabled') === 'true',
+      candidate.matches(':disabled') || candidate.closest('[aria-disabled="true"]') !== null,
     readOnly:
       (candidate as Element & { readOnly?: boolean }).readOnly === true ||
       candidate.getAttribute('aria-readonly') === 'true',
@@ -2663,7 +2682,7 @@ export function getElementScreenshotRect(id: number): unknown {
     return { error: 'stale', reason: window.__simAgentStaleReason }
   }
 
-  element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+  if (element.ownerDocument !== document) return { error: 'framed-screenshot' }
   const rect = element.getBoundingClientRect()
   const view = element.ownerDocument.defaultView
   if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
@@ -2699,7 +2718,7 @@ export function getElementScreenshotRect(id: number): unknown {
     y: top,
     width: right - left,
     height: bottom - top,
-    element: `${element.tagName.toLowerCase()}${element.getAttribute('role') ? `:${element.getAttribute('role')}` : ''}`,
+    element: element.tagName.toLowerCase().slice(0, 80),
     refRecovered: resolved?.recovered === true,
   }
 }

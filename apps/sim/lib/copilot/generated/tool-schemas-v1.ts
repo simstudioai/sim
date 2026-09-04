@@ -225,7 +225,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         x: {
           type: 'number',
           description:
-            "X in CSS pixels within the current viewport. When read off a browser_screenshot, divide the image pixel value by the screenshot's scale.",
+            'X in CSS pixels within the current viewport. When read off a browser_screenshot, divide the image pixel value by scale and add clip.x when present.',
         },
         y: {
           type: 'number',
@@ -1003,7 +1003,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         url: {
           type: 'string',
           description:
-            'The absolute URL to navigate to, including scheme (https:// or http://). Must resolve to a public address — localhost and private/internal hosts are rejected.',
+            'The absolute URL to navigate to, including scheme (https:// or http://). Public websites and localhost/loopback are supported; other private/internal hosts are rejected.',
         },
       },
       required: ['url'],
@@ -1247,7 +1247,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "Optional element id from the current tab's latest browser_snapshot. When present, the result is cropped to that rendered top-page element for a higher-detail inspection; framed elements are not cropped, so use a viewport screenshot for them.",
+            "Optional element id from the current tab's latest browser_snapshot. When present, capture only the visible portion of that top-page element without scrolling or changing layout. Scroll explicitly first if needed. Framed elements are rejected; use a viewport screenshot for them. Use the returned clip offset when converting image coordinates.",
         },
       },
     },
@@ -1695,7 +1695,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         elementId: {
           type: 'number',
           description:
-            "Optional element id from the current tab's latest browser_snapshot. Supply together with state to wait for a semantic element condition.",
+            "Optional top-page element id from the current tab's latest browser_snapshot. Supply with state to inspect that exact registered DOM node; waits do not recover replacement nodes. Framed refs and navigation during an element wait are rejected; use text/URL conditions for those flows.",
         },
         state: {
           type: 'string',

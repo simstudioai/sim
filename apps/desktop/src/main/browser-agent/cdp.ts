@@ -468,10 +468,8 @@ function sameScreenshotViewport(
  * snapshot capture refuses to scale a visible surface for the same reason.
  *
  * Bounding resolution therefore happens here instead, on the returned image.
- * The output keeps the dimensions the clipped capture produced, so `scale`
- * still maps image pixels back to CSS pixels for the coordinate tools
- * (cssX = imageX / scale) — including on a 2x display, where an unclipped
- * capture arrives at device resolution and this is what brings it back down.
+ * Optional element crops also happen in memory. Convert output coordinates
+ * with cssX = (clip?.x ?? 0) + imageX / scale, and the equivalent Y formula.
  */
 export async function captureScreenshot(
   contents: WebContents,

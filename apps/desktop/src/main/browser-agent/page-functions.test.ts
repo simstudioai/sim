@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   activeElementSecrecy,
   clickElement,
@@ -633,6 +633,7 @@ describe('collectSnapshot', () => {
     document.body.innerHTML = `
       <input type="checkbox" aria-label="Email alerts" />
       <input type="radio" aria-label="Weekly" checked />
+      <input type="checkbox" aria-label="Partial selection" />
       <button aria-expanded="false" aria-pressed="true">Filters</button>
       <div role="switch" aria-label="Dark mode" aria-checked="mixed"></div>
       <div role="tab" aria-selected="true">Activity</div>
@@ -640,11 +641,13 @@ describe('collectSnapshot', () => {
       <div role="textbox" aria-label="Summary" aria-readonly="true" aria-required="true"></div>
     `
     for (const element of document.body.children) visible(element as HTMLElement)
-
+    document.querySelector<HTMLInputElement>('[aria-label="Partial selection"]')!.indeterminate =
+      true
     const outline = outlineOf(collectSnapshot())
 
     expect(outline).toMatch(/checkbox "Email alerts" \[ref=\d+\] unchecked/)
     expect(outline).toMatch(/radio "Weekly" \[ref=\d+\] checked/)
+    expect(outline).toMatch(/checkbox "Partial selection" \[ref=\d+\] mixed/)
     expect(outline).toMatch(/button "Filters" \[ref=\d+\] aria-expanded=false aria-pressed=true/)
     expect(outline).toMatch(/switch "Dark mode" \[ref=\d+\] aria-checked=mixed/)
     expect(outline).toMatch(/tab "Activity" \[ref=\d+\] aria-selected=true/)
@@ -951,6 +954,57 @@ describe('collectSnapshot', () => {
 })
 
 describe('semantic control state', () => {
+  it('distinguishes hidden registered nodes from detached nodes without action recovery', () => {
+    const button = visible(document.createElement('button'))
+    document.body.append(button)
+    register(button)
+    window.__simAgentResolveElement = vi.fn(() => null)
+    button.style.display = 'none'
+
+    expect(readPageActionState(false, 0, 'registered')).toMatchObject({
+      targetState: { present: true, rendered: false },
+    })
+    button.remove()
+    expect(readPageActionState(false, 0, 'registered')).toMatchObject({
+      targetState: { present: false, rendered: false },
+    })
+    expect(window.__simAgentResolveElement).not.toHaveBeenCalled()
+  })
+
+  it('does not report a text input as an unchecked control', () => {
+    const input = visible(document.createElement('input'))
+    document.body.append(input)
+    register(input)
+
+    expect(readPageActionState(false, 0, 'registered')).toMatchObject({
+      targetState: { present: true, checked: undefined },
+    })
+    expect(readPageActionState(false, 1, 'registered')).toEqual({ error: 'stale' })
+  })
+
+  it('preserves native and ARIA mixed states instead of reporting unchecked', () => {
+    document.body.innerHTML =
+      '<input type="checkbox" /><div role="checkbox" aria-checked="mixed"></div>'
+    const checkbox = visible(document.querySelector('input') as HTMLInputElement)
+    checkbox.indeterminate = true
+    register(checkbox, visible(document.querySelector('div') as HTMLDivElement))
+
+    expect(readCheckableElementState(0)).toMatchObject({ checked: 'mixed' })
+    expect(readCheckableElementState(1)).toMatchObject({ checked: 'mixed' })
+  })
+
+  it('honors disabled fieldsets and ARIA-disabled ancestors', () => {
+    document.body.innerHTML =
+      '<fieldset disabled><input type="checkbox" /></fieldset><div aria-disabled="true"><button role="switch" aria-checked="false"></button></div>'
+    register(
+      visible(document.querySelector('input') as HTMLInputElement),
+      visible(document.querySelector('button') as HTMLButtonElement)
+    )
+
+    expect(readCheckableElementState(0)).toMatchObject({ disabled: true })
+    expect(readCheckableElementState(1)).toMatchObject({ disabled: true })
+  })
+
   it('reads native and ARIA checkable controls without mutating them', () => {
     document.body.innerHTML = `
       <input type="checkbox" checked />
@@ -975,6 +1029,7 @@ describe('semantic control state', () => {
 
   it('returns a viewport-clamped element screenshot rectangle', () => {
     const button = visible(document.createElement('button'))
+    button.scrollIntoView = vi.fn()
     button.getBoundingClientRect = () =>
       ({
         x: -10,
@@ -996,6 +1051,30 @@ describe('semantic control state', () => {
       height: 20,
       element: 'button',
     })
+    expect(button.scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('rejects same-origin frame crops rather than using frame-local coordinates', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const button = frame.contentDocument!.createElement('button')
+    frame.contentDocument!.body.append(button)
+    register(visible(button))
+
+    expect(getElementScreenshotRect(0)).toEqual({ error: 'framed-screenshot' })
+    expect(readPageActionState(false, 0, 'registered')).toEqual({ error: 'framed-wait' })
+  })
+
+  it('does not scroll an offscreen element into view for a screenshot', () => {
+    const button = visible(document.createElement('button'))
+    button.scrollIntoView = vi.fn()
+    document.body.append(button)
+    button.getBoundingClientRect = () =>
+      ({ left: 0, right: 20, top: 5000, bottom: 5020, width: 20, height: 20 }) as DOMRect
+    register(button)
+
+    expect(getElementScreenshotRect(0)).toEqual({ error: 'not-visible' })
+    expect(button.scrollIntoView).not.toHaveBeenCalled()
   })
 })
 

@@ -920,13 +920,15 @@ function browserElementStateMatches(
   const present = targetState.present === true
   const rendered = targetState.rendered === true
   const checked =
-    typeof targetState.checked === 'boolean'
-      ? targetState.checked
-      : targetState.ariaChecked === 'true' || targetState.ariaPressed === 'true'
-        ? true
-        : targetState.ariaChecked === 'false' || targetState.ariaPressed === 'false'
-          ? false
-          : undefined
+    targetState.checked === 'mixed' || targetState.ariaChecked === 'mixed'
+      ? undefined
+      : typeof targetState.checked === 'boolean'
+        ? targetState.checked
+        : targetState.ariaChecked === 'true' || targetState.ariaPressed === 'true'
+          ? true
+          : targetState.ariaChecked === 'false' || targetState.ariaPressed === 'false'
+            ? false
+            : undefined
   const selected =
     typeof targetState.selected === 'boolean'
       ? targetState.selected
@@ -1189,6 +1191,16 @@ function unwrapPageResult(result: unknown): unknown {
     if (code === 'not-checkable') {
       throw new ToolError(
         'That element is not a checkbox, radio button, switch, or checkable menu item.'
+      )
+    }
+    if (code === 'framed-screenshot') {
+      throw new ToolError(
+        'Element screenshots are limited to the top page. Use browser_screenshot without elementId for framed content.'
+      )
+    }
+    if (code === 'framed-wait') {
+      throw new ToolError(
+        'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
       )
     }
     if (code === 'no-option') {
@@ -2057,6 +2069,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 120)
+        .replace(/\[ref=/g, '[ref\u200b=')
       const frameLines = outline.split('\n')
       const sectionStartLine = combinedLineCount
       sections.push(
@@ -2241,7 +2254,7 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       const completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
       assertCurrentExecution()
-      contents.reload()
+      session.reloadPage(contents)
       return await navigationResult(contents, completion)
     }
 
@@ -2326,6 +2339,24 @@ async function executeToolInner(
       const contents = waitedTab.view.webContents
       const elementTarget =
         elementId === undefined ? undefined : pageTargetForElement(contents, elementId)
+      if (elementTarget && elementTarget !== contents) {
+        throw new ToolError(
+          'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
+        )
+      }
+      const waitedNavigationEpoch = navigationEpoch(contents)
+      const waitedUrl = contents.getURL()
+      const assertWaitTargetIsCurrent = (): void => {
+        assertCurrentExecution()
+        if (
+          elementTarget &&
+          (navigationEpoch(contents) !== waitedNavigationEpoch || contents.getURL() !== waitedUrl)
+        ) {
+          throw new ToolError(
+            'The page changed while waiting for an element. Take a fresh browser_snapshot.'
+          )
+        }
+      }
       while (Date.now() - startedAt < timeoutMs) {
         assertCurrentExecution()
         const active = session.automationTab()
@@ -2362,15 +2393,19 @@ async function executeToolInner(
         const urlMatched = !urlContains || contents.getURL().includes(urlContains)
         let elementMatched = elementId === undefined
         if (elementId !== undefined && elementState && elementTarget) {
+          assertWaitTargetIsCurrent()
           const state = toRecord(
-            await execInPage(
-              elementTarget,
-              readPageActionState,
-              [false, elementId],
-              false,
-              executionDeadline
-            ).catch(() => ({ targetState: { present: false, rendered: false } }))
+            unwrapPageResult(
+              await execInPage(
+                elementTarget,
+                readPageActionState,
+                [false, elementId, 'registered'],
+                false,
+                executionDeadline
+              )
+            )
           )
+          assertWaitTargetIsCurrent()
           elementMatched = browserElementStateMatches(toRecord(state.targetState), elementState)
         }
         if (textFound && urlMatched && elementMatched) {
@@ -2402,6 +2437,7 @@ async function executeToolInner(
 
     case 'browser_find': {
       const query = requireStr(params, 'query')
+      if (query.length > 4096) throw new ToolError('Search text must not exceed 4096 characters.')
       const requestedMax = num(params, 'maxResults')
       const maxResults = Math.min(50, Math.max(1, Math.floor(requestedMax ?? 20)))
       const contents = session.requireAutomationTab().view.webContents
@@ -2418,7 +2454,7 @@ async function executeToolInner(
         query,
         matches: matches.slice(0, maxResults),
         totalMatches: matches.length,
-        truncated: matches.length > maxResults,
+        truncated: snapshot.truncated === true || matches.length > maxResults,
         url: snapshot.url,
         title: snapshot.title,
       }
@@ -2437,6 +2473,9 @@ async function executeToolInner(
     case 'browser_screenshot': {
       const capturedTab = session.requireAutomationTab()
       const contents = capturedTab.view.webContents
+      const capturedNavigationEpoch = navigationEpoch(contents)
+      const capturedUrl = contents.getURL()
+      const capturedTitle = contents.getTitle()
       const elementId = num(params, 'elementId')
       let elementClip: Record<string, unknown> | undefined
       if (elementId !== undefined) {
@@ -2446,16 +2485,6 @@ async function executeToolInner(
             'Element screenshots are limited to the top page. Use browser_screenshot without elementId for framed content.'
           )
         }
-        unwrapPageResult(
-          await execInPage(
-            contents,
-            getElementScreenshotRect,
-            [elementId],
-            false,
-            executionDeadline
-          )
-        )
-        await sleep(50)
         elementClip = toRecord(
           unwrapPageResult(
             await execInPage(
@@ -2468,9 +2497,6 @@ async function executeToolInner(
           )
         )
       }
-      const capturedNavigationEpoch = navigationEpoch(contents)
-      const capturedUrl = contents.getURL()
-      const capturedTitle = contents.getTitle()
       const capturedViewportUrl = capturedUrl.slice(0, 4096)
       const capturedViewportTitle = capturedTitle.slice(0, 500)
       const captureIsCurrent = (): boolean => {
@@ -2504,6 +2530,7 @@ async function executeToolInner(
               height: elementClip.height,
             }
           : undefined
+      assertCaptureIsCurrent()
       const shot = await cdp.captureScreenshot(contents, clip).catch((error) => {
         logger.warn('Browser screenshot capture failed', { error: getErrorMessage(error) })
         return null
@@ -2573,8 +2600,6 @@ async function executeToolInner(
         }
         scale = widthScale
       }
-      // scale maps image pixels back to CSS viewport pixels for the
-      // coordinate tools: cssX = imageX / scale.
       return {
         dataUrl: shot.dataUrl,
         viewport,
@@ -4302,7 +4327,11 @@ export async function executeTool(
               ? execution
               : raceAgainstWatchdog(execution, watchdogMs, () => {
                   if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
-                  if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
+                  if (
+                    tool === 'browser_snapshot' ||
+                    tool === 'browser_open_url' ||
+                    tool === 'browser_find'
+                  ) {
                     invalidateSnapshot(state)
                   }
                 })
@@ -4339,7 +4368,7 @@ export async function executeTool(
       // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
       // capture token before releasing the queue so a late snapshot cannot
       // overwrite refs belonging to a newer tab or snapshot.
-      if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
+      if (tool === 'browser_snapshot' || tool === 'browser_open_url' || tool === 'browser_find') {
         invalidateSnapshot(state)
       }
       const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))

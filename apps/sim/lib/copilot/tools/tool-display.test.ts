@@ -773,6 +773,8 @@ describe('resource-naming titles', () => {
       'Waiting for element to be visible'
     )
     expect(getToolDisplayTitle('browser_zoom', { action: 'reset' })).toBe('Resetting page zoom')
+    expect(getToolCompletedTitle('Unchecking control')).toBe('Unchecked control')
+    expect(getToolCompletedTitle('Changing page zoom')).toBe('Changed page zoom')
   })
 
   it('names downloads, docs searches, and generated files', () => {
