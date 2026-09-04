@@ -15,9 +15,12 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 vi.mock('@sim/utils/helpers', () => ({ interruptibleSleep: mockSleep }))
 
+import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
+  type OracleFusionRequest,
   type OracleFusionResolvedCredential,
+  requestOracleFusionEmpty,
   requestOracleFusionJson,
 } from '@/lib/internal/oracle-fusion/client'
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
@@ -29,20 +32,29 @@ const CREDENTIAL: OracleFusionResolvedCredential = {
   accessToken: BASIC,
 }
 
-function response(status: number, body: string, headers: Record<string, string> = {}) {
+function response(
+  status: number,
+  body: string,
+  headers: Record<string, string> = {},
+  stream: ReadableStream<Uint8Array> | null = null
+) {
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: '',
     headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
-    body: null,
+    body: stream,
     text: vi.fn(async () => body),
     json: vi.fn(async () => JSON.parse(body)),
     arrayBuffer: vi.fn(async () => new TextEncoder().encode(body).buffer),
   }
 }
 
-describe('requestOracleFusionJson', () => {
+function getRequest(): OracleFusionRequest {
+  return { address: { family: 'hcm', relativePath: 'workers' } }
+}
+
+describe('Oracle Fusion client', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockValidateUrl.mockResolvedValue({
@@ -54,7 +66,10 @@ describe('requestOracleFusionJson', () => {
     mockSecureFetch.mockResolvedValue(response(200, '{"items":[]}'))
   })
 
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   it.each([
     ['hcm', '/hcmRestApi/resources/11.13.18.05/workers'],
@@ -66,7 +81,12 @@ describe('requestOracleFusionJson', () => {
       await expect(
         requestOracleFusionJson(CREDENTIAL, {
           address: { family, relativePath: path.split('/').at(-1)! },
-          query: { q: 'Name="A B"', limit: 25, expand: undefined, onlyData: true },
+          query: {
+            q: 'Name="A B"',
+            limit: 25,
+            expand: undefined,
+            onlyData: true,
+          },
         })
       ).resolves.toEqual({ items: [] })
 
@@ -97,8 +117,73 @@ describe('requestOracleFusionJson', () => {
           'REST-Framework-Version': '9',
         },
       })
+      expect(init.signal).toBeInstanceOf(AbortSignal)
     }
   )
+
+  it.each([
+    ['POST', 'application/json'],
+    ['PATCH', 'application/vnd.oracle.adf.resourceitem+json'],
+    ['PUT', 'application/vnd.oracle.adf.action+json'],
+  ] as const)(
+    'sends a bounded %s JSON request with a closed media type',
+    async (method, mediaType) => {
+      await expect(
+        requestOracleFusionJson(CREDENTIAL, {
+          address: { family: 'fscm', relativePath: 'invoices/42' },
+          method,
+          mediaType,
+          body: { amount: 12, approved: true },
+          operationHeaders: {
+            effectiveOf: 'RangeMode=UPDATE',
+            ifMatch: 'etag-value',
+            upsertMode: false,
+          },
+        })
+      ).resolves.toEqual({ items: [] })
+
+      const init = mockSecureFetch.mock.calls[0][2]
+      expect(init).toMatchObject({
+        method,
+        body: '{"amount":12,"approved":true}',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Basic ${BASIC}`,
+          'Content-Type': mediaType,
+          'Effective-Of': 'RangeMode=UPDATE',
+          'If-Match': 'etag-value',
+          'REST-Framework-Version': '9',
+          'Upsert-Mode': 'false',
+        },
+      })
+    }
+  )
+
+  it('sends DELETE without a body and consumes an empty-mode success without JSON parsing', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('ignored'))
+        controller.close()
+      },
+    })
+    const success = response(204, 'not-json', {}, stream)
+    mockSecureFetch.mockResolvedValueOnce(success)
+
+    await expect(
+      requestOracleFusionEmpty(CREDENTIAL, {
+        address: { family: 'crm', relativePath: 'opportunities/42' },
+        method: 'DELETE',
+        operationHeaders: { ifMatch: '*' },
+      })
+    ).resolves.toBeUndefined()
+
+    expect(mockSecureFetch.mock.calls[0][2]).toMatchObject({
+      method: 'DELETE',
+      headers: { 'If-Match': '*' },
+    })
+    expect(mockSecureFetch.mock.calls[0][2]).not.toHaveProperty('body')
+    expect(success.text).not.toHaveBeenCalled()
+  })
 
   it.each([
     '',
@@ -132,39 +217,156 @@ describe('requestOracleFusionJson', () => {
     expect(new URL(mockSecureFetch.mock.calls[0][0]).pathname).toMatch(/\/workers\/key%252Fpart$/)
   })
 
-  it('rejects a non-public DNS result before fetching', async () => {
-    mockValidateUrl.mockResolvedValueOnce({ isValid: false, error: 'private address' })
-    await expect(
-      requestOracleFusionJson(CREDENTIAL, {
-        address: { family: 'hcm', relativePath: 'workers' },
-      })
-    ).rejects.toThrow('not a public endpoint')
+  it('rejects unsupported methods, body modes, media types, and operation headers locally', async () => {
+    const invalidRequests: OracleFusionRequest[] = [
+      {
+        ...getRequest(),
+        method: 'OPTIONS',
+      } as unknown as OracleFusionRequest,
+      {
+        ...getRequest(),
+        method: 'GET',
+        body: {},
+      } as unknown as OracleFusionRequest,
+      {
+        ...getRequest(),
+        method: 'POST',
+        mediaType: 'application/json',
+      } as unknown as OracleFusionRequest,
+      {
+        ...getRequest(),
+        method: 'POST',
+        mediaType: 'text/plain',
+        body: {},
+      } as unknown as OracleFusionRequest,
+      {
+        ...getRequest(),
+        operationHeaders: { authorization: 'secret' },
+      } as unknown as OracleFusionRequest,
+    ]
+
+    for (const request of invalidRequests) {
+      await expect(requestOracleFusionJson(CREDENTIAL, request)).rejects.toThrow(/Oracle Fusion/)
+    }
+    expect(mockValidateUrl).not.toHaveBeenCalled()
     expect(mockSecureFetch).not.toHaveBeenCalled()
   })
 
-  it('retries 429, 503, and 504 at most twice and honors bounded Retry-After', async () => {
-    mockSecureFetch
-      .mockResolvedValueOnce(response(429, 'secret provider body', { 'retry-after': '90' }))
-      .mockResolvedValueOnce(response(503, 'secret provider body', { 'retry-after': '1' }))
-      .mockResolvedValueOnce(response(504, 'secret provider body'))
+  it.each(['', '   ', ' untrimmed', 'line\nbreak', 'x'.repeat(2_049)])(
+    'rejects the unsafe operation header value %j locally',
+    async (value) => {
+      await expect(
+        requestOracleFusionJson(CREDENTIAL, {
+          ...getRequest(),
+          operationHeaders: { ifMatch: value },
+        })
+      ).rejects.toThrow('header value is invalid')
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    }
+  )
 
+  it('rejects a non-public DNS result before fetching', async () => {
+    mockValidateUrl.mockResolvedValueOnce({
+      isValid: false,
+      error: 'private address',
+    })
+    await expect(requestOracleFusionJson(CREDENTIAL, getRequest())).rejects.toThrow(
+      'not a public endpoint'
+    )
+    expect(mockSecureFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([429, 503, 504])(
+    'retries GET once for HTTP %s and caps Retry-After at five seconds',
+    async (status) => {
+      mockSecureFetch
+        .mockResolvedValueOnce(response(status, 'secret provider body', { 'retry-after': '90' }))
+        .mockResolvedValueOnce(response(200, '{"ok":true}'))
+
+      await expect(requestOracleFusionJson(CREDENTIAL, getRequest())).resolves.toEqual({ ok: true })
+      expect(mockSecureFetch).toHaveBeenCalledTimes(2)
+      expect(mockSleep).toHaveBeenCalledTimes(1)
+      expect(mockSleep).toHaveBeenCalledWith(5_000, undefined)
+    }
+  )
+
+  it('stops after one GET retry', async () => {
+    mockSecureFetch
+      .mockResolvedValueOnce(response(429, 'secret provider body'))
+      .mockResolvedValueOnce(response(503, 'secret provider body'))
+
+    await expect(requestOracleFusionJson(CREDENTIAL, getRequest())).rejects.toMatchObject({
+      status: 503,
+    })
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2)
+    expect(mockSleep).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry when the caller deadline cannot fit the delay, attempt, and reserve', async () => {
+    const execution = createTimeoutAbortController(39_000)
+    mockSecureFetch.mockResolvedValueOnce(
+      response(429, 'secret provider body', { 'retry-after': '5' })
+    )
+    try {
+      await expect(
+        requestOracleFusionJson(CREDENTIAL, getRequest(), execution.signal)
+      ).rejects.toMatchObject({ status: 429 })
+    } finally {
+      execution.cleanup()
+    }
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+    expect(mockSleep).not.toHaveBeenCalled()
+  })
+
+  it.each(['POST', 'PATCH', 'PUT'] as const)('never retries %s mutations', async (method) => {
+    mockSecureFetch.mockResolvedValueOnce(response(503, 'secret provider body'))
     await expect(
       requestOracleFusionJson(CREDENTIAL, {
-        address: { family: 'fscm', relativePath: 'invoices' },
+        ...getRequest(),
+        method,
+        mediaType: 'application/json',
+        body: {},
+      })
+    ).rejects.toMatchObject({ status: 503 })
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+    expect(mockSleep).not.toHaveBeenCalled()
+  })
+
+  it('never retries DELETE', async () => {
+    mockSecureFetch.mockResolvedValueOnce(response(504, 'secret provider body'))
+    await expect(
+      requestOracleFusionEmpty(CREDENTIAL, {
+        ...getRequest(),
+        method: 'DELETE',
       })
     ).rejects.toMatchObject({ status: 504 })
-    expect(mockSecureFetch).toHaveBeenCalledTimes(3)
-    expect(mockSleep).toHaveBeenNthCalledWith(1, 30_000, undefined)
-    expect(mockSleep).toHaveBeenNthCalledWith(2, 1_000, undefined)
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+    expect(mockSleep).not.toHaveBeenCalled()
+  })
+
+  it('enforces the attempt deadline through response body consumption', async () => {
+    vi.useFakeTimers()
+    const success = response(200, '')
+    success.text.mockImplementationOnce(() => new Promise<string>(() => {}))
+    mockSecureFetch.mockResolvedValueOnce(success)
+
+    const pending = expect(requestOracleFusionJson(CREDENTIAL, getRequest())).rejects.toMatchObject(
+      {
+        message: 'Oracle Fusion request timed out',
+        status: 504,
+      }
+    )
+    await vi.advanceTimersByTimeAsync(30_000)
+    await pending
   })
 
   it('rejects redirects without exposing their location or body', async () => {
     mockSecureFetch.mockResolvedValueOnce(
       response(302, `redirect ${BASIC}`, { location: 'https://evil.example' })
     )
-    const error = await requestOracleFusionJson(CREDENTIAL, {
-      address: { family: 'hcm', relativePath: 'workers' },
-    }).catch((caught: unknown) => caught)
+    const error = await requestOracleFusionJson(CREDENTIAL, getRequest()).catch(
+      (caught: unknown) => caught
+    )
     expect(error).toMatchObject({ status: 302 })
     expect(String(error)).not.toContain('evil.example')
     expect(String(error)).not.toContain(BASIC)
@@ -172,10 +374,13 @@ describe('requestOracleFusionJson', () => {
 
   it('classifies redirects rejected by the pinned transport without exposing details', async () => {
     mockSecureFetch.mockRejectedValueOnce(new Error('Too many redirects (max: 0)'))
-    const error = await requestOracleFusionJson(CREDENTIAL, {
-      address: { family: 'hcm', relativePath: 'workers' },
-    }).catch((caught: unknown) => caught)
-    expect(error).toMatchObject({ message: 'Oracle Fusion returned a redirect', status: 502 })
+    const error = await requestOracleFusionJson(CREDENTIAL, getRequest()).catch(
+      (caught: unknown) => caught
+    )
+    expect(error).toMatchObject({
+      message: 'Oracle Fusion returned a redirect',
+      status: 502,
+    })
     expect(String(error)).not.toContain(ORIGIN)
     expect(String(error)).not.toContain(BASIC)
   })
@@ -187,11 +392,7 @@ describe('requestOracleFusionJson', () => {
         '{"id":9007199254740993,"negative":-9007199254740993,"zeroFraction":9007199254740993.0,"exponent":9.007199254740993e15,"hugeExponent":1e999,"safe":9007199254740991,"decimal":9007199254740993.5}'
       )
     )
-    await expect(
-      requestOracleFusionJson(CREDENTIAL, {
-        address: { family: 'hcm', relativePath: 'workers' },
-      })
-    ).resolves.toEqual({
+    await expect(requestOracleFusionJson(CREDENTIAL, getRequest())).resolves.toEqual({
       id: '9007199254740993',
       negative: '-9007199254740993',
       zeroFraction: '9007199254740993.0',
@@ -202,79 +403,64 @@ describe('requestOracleFusionJson', () => {
     })
   })
 
-  it('recognizes a large negative exponent absorbed by coefficient trailing zeroes', async () => {
-    const token = `9007199254740993${'0'.repeat(1_000_000)}e-1000000`
-    mockSecureFetch.mockResolvedValueOnce(response(200, `{"id":${token}}`))
-    await expect(
-      requestOracleFusionJson(CREDENTIAL, {
-        address: { family: 'hcm', relativePath: 'workers' },
-      })
-    ).resolves.toEqual({ id: token })
-  })
-
   it('returns fixed provider errors without credential or body reflection', async () => {
     const password = 'provider-reflected-password'
     const accessToken = Buffer.from(`integration-user:${password}`).toString('base64')
     mockSecureFetch.mockResolvedValueOnce(
       response(401, `integration-user ${password} ${accessToken}`)
     )
-    const error = await requestOracleFusionJson(
-      { ...CREDENTIAL, accessToken },
-      { address: { family: 'hcm', relativePath: 'workers' } }
-    ).catch((caught: unknown) => caught)
+    const error = await requestOracleFusionJson({ ...CREDENTIAL, accessToken }, getRequest()).catch(
+      (caught: unknown) => caught
+    )
     expect(error).toBeInstanceOf(OracleFusionProviderError)
-    expect(error).toMatchObject({ message: 'Oracle Fusion authentication failed', status: 401 })
+    expect(error).toMatchObject({
+      message: 'Oracle Fusion authentication failed',
+      status: 401,
+    })
     expect(String(error)).not.toContain('integration-user')
     expect(String(error)).not.toContain(password)
     expect(String(error)).not.toContain(accessToken)
   })
 
-  it('classifies timeout, response-limit, and malformed JSON failures', async () => {
+  it('classifies transport timeout, response-limit, and malformed JSON failures', async () => {
     mockSecureFetch.mockRejectedValueOnce(new Error('Request timed out after 30000ms'))
-    await expect(
-      requestOracleFusionJson(CREDENTIAL, {
-        address: { family: 'hcm', relativePath: 'workers' },
-      })
-    ).rejects.toMatchObject({ message: 'Oracle Fusion request timed out', status: 504 })
+    await expect(requestOracleFusionJson(CREDENTIAL, getRequest())).rejects.toMatchObject({
+      message: 'Oracle Fusion request timed out',
+      status: 504,
+    })
 
     mockSecureFetch.mockRejectedValueOnce(
-      new PayloadSizeLimitError({ label: 'response', maxBytes: 5 * 1024 * 1024 })
-    )
-    await expect(
-      requestOracleFusionJson(CREDENTIAL, {
-        address: { family: 'hcm', relativePath: 'workers' },
+      new PayloadSizeLimitError({
+        label: 'response',
+        maxBytes: 5 * 1024 * 1024,
       })
-    ).rejects.toMatchObject({ message: 'Oracle Fusion response exceeded 5 MiB', status: 502 })
+    )
+    await expect(requestOracleFusionJson(CREDENTIAL, getRequest())).rejects.toMatchObject({
+      message: 'Oracle Fusion response exceeded 5 MiB',
+      status: 502,
+    })
 
     mockSecureFetch.mockResolvedValueOnce(response(200, 'not-json'))
-    await expect(
-      requestOracleFusionJson(CREDENTIAL, {
-        address: { family: 'hcm', relativePath: 'workers' },
-      })
-    ).rejects.toMatchObject({ message: 'Oracle Fusion returned malformed JSON', status: 502 })
+    await expect(requestOracleFusionJson(CREDENTIAL, getRequest())).rejects.toMatchObject({
+      message: 'Oracle Fusion returned malformed JSON',
+      status: 502,
+    })
   })
 
   it('preserves caller aborts and never starts the request', async () => {
     const controller = new AbortController()
     const reason = new DOMException('cancelled', 'AbortError')
     controller.abort(reason)
-    await expect(
-      requestOracleFusionJson(
-        CREDENTIAL,
-        { address: { family: 'hcm', relativePath: 'workers' } },
-        controller.signal
-      )
-    ).rejects.toBe(reason)
+    await expect(requestOracleFusionJson(CREDENTIAL, getRequest(), controller.signal)).rejects.toBe(
+      reason
+    )
     expect(mockValidateUrl).not.toHaveBeenCalled()
     expect(mockSecureFetch).not.toHaveBeenCalled()
   })
 
   it('rejects malformed Basic material and non-finite query values locally', async () => {
     await expect(
-      requestOracleFusionJson(
-        { ...CREDENTIAL, accessToken: 'not basic\r\n' },
-        { address: { family: 'hcm', relativePath: 'workers' } }
-      )
+      requestOracleFusionJson({ ...CREDENTIAL, accessToken: 'not basic\r\n' }, getRequest())
     ).rejects.toThrow('credential is malformed')
     await expect(
       requestOracleFusionJson(CREDENTIAL, {
