@@ -4,6 +4,7 @@
     "---Get Started---",
     "./introduction/index",
     "./getting-started/index",
+    "./desktop/index",
     "---Build---",
     "chat",
     "workflows",

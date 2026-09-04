@@ -1,0 +1,155 @@
+---
+title: Sim Desktop
+description: Install the macOS app — Sim in its own window, with a built-in browser, a terminal, and access to local folders.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Sim Desktop is the macOS app for your Sim workspace. Everything the web app does, it does — plus the things a browser tab cannot: a built-in browser and terminal, read-only access to folders you pick, and native notifications when a task finishes.
+
+<Image
+  src="/static/desktop/sim-desktop.png"
+  alt="Sim Desktop — Chat on the left, the built-in browser on the right"
+  width={1600}
+  height={892}
+/>
+
+## Download
+
+**[Download Sim Desktop for macOS](https://sim.ai/api/desktop/update/download)**
+
+One universal build runs natively on both Apple Silicon and Intel Macs. It is signed and notarized by Sim, so Gatekeeper accepts it with no override.
+
+<Callout type="info">
+  That link is never version-pinned — it is a redirect resolved at request time, so it always lands on the newest release. Bookmark it, share it, or put it in an MDM policy; it stays correct.
+
+  It resolves against sim.ai. Every deployment serves the same endpoint on its own origin, so if you self-host use yours — `https://sim.example.com/api/desktop/update/download` — to get the build your deployment offers.
+</Callout>
+
+To install a specific version instead of the newest one, pick it from [the releases page](https://github.com/simstudioai/sim/releases) and download that release's `Sim-<version>-universal.dmg`.
+
+## Install
+
+<Steps>
+
+<Step>
+
+### Open the disk image and drag Sim to Applications
+
+<Callout type="warn">
+  Install to `/Applications`. macOS App Translocation runs an app from a randomized read-only path when it is launched from Downloads, which silently breaks auto-updates.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Sign in
+
+Launch Sim and sign in as you normally would.
+
+Google, Microsoft, and SSO sign-ins finish in your default browser — those providers refuse to render inside an embedded browser. Sim opens the page, you approve, and the browser hands the session back to the app. The app gets its own session, so signing out of one surface does not sign out the other.
+
+</Step>
+
+<Step>
+
+### Point it at your deployment, if you self-host
+
+Fresh installs open sim.ai. To use your own deployment, choose **Sim → Server…** in the menu bar and enter its URL. See [Desktop App on Your Deployment](/platform/self-hosting/desktop) for what changes when you switch.
+
+</Step>
+
+</Steps>
+
+## What the desktop app adds
+
+- **A built-in browser.** A real browser inside the app, with its own tabs, saved passwords, and sessions. Chat can drive it — sign in once and your agents work on the sites you are already signed into.
+- **A built-in terminal.** Real shell sessions in a panel next to Chat, with tmux and shell integration, that Chat can run commands in.
+- **Local folder access.** When a task needs a folder on your Mac, Chat offers to open the native folder picker. The grant is read-only, scoped to the folder you picked, and revocable.
+- **Notifications.** A native notification when a Chat task finishes. Clicking it opens that chat. Tasks that end in an error, or that have another message queued behind them, do not notify.
+- **Control Center.** A menu-bar icon with your recent chats, so Sim is one click away from any app.
+- **Launch at login.** Sim starts with your Mac, and however you launch it, it opens where you left off.
+
+Both the browser and the terminal are capabilities you grant, not defaults you are stuck with — each has a single switch in settings that turns it off entirely.
+
+<Callout type="warn">
+  **What a folder grant does and does not do.** Granting a folder does not copy or upload it, and an agent cannot attach or stage a file from it — that stays your deliberate act. But when an agent reads or searches inside the grant, what it reads is a tool result, and tool results go to your Sim server and to the model like anything else in the conversation. The file stays on your Mac; what an agent reads out of it does not.
+</Callout>
+
+## Keyboard shortcuts
+
+These are the app's own shortcuts. The [workflow editor and table shortcuts](/keyboard-shortcuts) work the same in the app as in the browser.
+
+| Shortcut | Action |
+|---|---|
+| `Cmd` + `K` | Search |
+| `Cmd` + `B` | Toggle the sidebar |
+| `Cmd` + `N` | New chat |
+| `Cmd` + `Shift` + `N` | New window |
+| `Cmd` + `,` | Settings |
+| `Cmd` + `[` | Back |
+| `Cmd` + `R` | Reload |
+| `Cmd` + `0` / `+` / `-` | Reset, increase, or decrease zoom |
+
+With the built-in browser or terminal focused, the tab shortcuts act on its tabs rather than on the window:
+
+| Shortcut | Action |
+|---|---|
+| `Cmd` + `T` | New tab |
+| `Cmd` + `W` | Close tab |
+| `Cmd` + `Shift` + `T` | Reopen the last closed tab |
+| `Ctrl` + `Tab` / `Ctrl` + `Shift` + `Tab` | Next / previous tab |
+| `Cmd` + `1`–`8` | Jump to that tab |
+| `Cmd` + `9` | Jump to the last tab |
+| `Cmd` + `L` | Focus the address bar (browser only) |
+| `Cmd` + `F` | Find on the page (browser only) |
+
+## Settings
+
+The desktop app adds three sections under **Settings → Account**. They appear only when you are running the app, and they apply to this Mac rather than to your account.
+
+### Desktop
+
+- **Launch Sim at login**
+- **Show Sim in Control Center** — the menu-bar icon
+- **Automatically download updates**
+- **Enable desktop notifications**, with **Play notification sounds** and **Notify only when Sim isn't focused**
+
+It also shows the installed version, and the version waiting to be applied when an update is ready.
+
+### Browser
+
+- **Let Chat browse the web** — the master switch for the built-in browser
+- **Search suggestions**, **Theme**, **Default zoom**, and **Download location**
+- **Browsing data** — clear cookies, site data, and cached images and files
+
+### Terminal
+
+- **Let Chat run commands** — the master switch for the built-in terminal
+- **Theme** and **Default zoom**
+
+The menu bar carries the rest: **Sim → Settings…** (`Cmd` + `,`), **Server…** to change deployments, **Check for Updates…**, and **Sign Out**.
+
+## Updates
+
+Sim checks the deployment it is pointed at rather than a global feed. How it applies what it finds depends on how the app was installed. Nothing is ever forced mid-session either way.
+
+**Installed in `/Applications`, signed by Sim** — what the download link above gives you. The app replaces itself. With **Automatically download updates** on, it downloads in the background and offers to restart; choose **Later** and the update applies the next time you quit. With it off, nothing downloads until you ask: **Sim → Check for Updates…** reports the available version and waits for you to choose **Download**.
+
+**Anywhere else** — outside `/Applications`, or a build not signed with a Developer ID. The app cannot replace itself, so it offers you the installer to download and swap in by hand.
+
+Updates come from the deployment you are connected to, so a self-hosted install controls which build its own users are offered. That control depends on the feed staying reachable: if it is not, a self-updating stable build falls back to Sim's public GitHub releases rather than stalling. See [Desktop App on Your Deployment](/platform/self-hosting/desktop).
+
+## Requirements
+
+- **macOS 12 Monterey or later**, on Apple Silicon or Intel.
+- **Outbound access to your Sim deployment**, and to `github.com`, which is where installers and updates are downloaded from.
+- **If you self-host**, your Sim server needs its own outbound access to both `api.github.com`, which is what resolves *which* release to offer, and `github.com`. An allowlist carrying only `github.com` leaves the download endpoint answering `502`.
+- **A system-trusted TLS certificate**, if you self-host. The app rejects certificate errors outright and offers no override, so a private CA must be installed in the macOS keychain.
+
+<Callout>
+  The desktop app is macOS-only today. The web app works in any browser on any platform, and your account, workspaces, and workflows are the same either way — the app adds native capabilities on top, it does not hold anything of its own.
+</Callout>

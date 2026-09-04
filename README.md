@@ -32,6 +32,12 @@ npx sim-setup
 
 Open [http://localhost:3000](http://localhost:3000)
 
+### Desktop: [macOS](https://sim.ai/api/desktop/update/download)
+
+<a href="https://sim.ai/api/desktop/update/download" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Download-macOS-3B3B3B?logo=apple&logoColor=white&labelColor=1A1A1A" alt="Download Sim for macOS"></a>
+
+macOS 12+, Apple Silicon and Intel. See the [desktop docs](https://docs.sim.ai/desktop) to point it at a self-hosted deployment.
+
 <p align="center">
   <img src="apps/sim/public/static/readme-platform.png" alt="The Sim platform — chat on the left, the visual workflow builder on the right" width="100%"/>
 </p>
@@ -46,7 +52,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## One workspace, every surface
 
-<p align="center">Chat and workflows are just the start — tables, files, and knowledge all live in the same workspace.</p>
+<p align="center">Chat and workflows are just the start — tables, files, and knowledge all live in the same workspace, in the browser or on your desktop.</p>
 
 <table>
   <tr>
@@ -64,7 +70,10 @@ Open [http://localhost:3000](http://localhost:3000)
       <img src="apps/sim/public/static/readme-knowledge.png" alt="Knowledge bases in Sim — synced docs your agents can search" width="100%"/>
       <p align="center"><b>Knowledge</b> — your agents' memory</p>
     </td>
-    <td width="50%" valign="top"></td>
+    <td width="50%" valign="top">
+      <img src="apps/sim/public/static/readme-desktop.png" alt="Sim Desktop — Chat on the left, the built-in browser on the right" width="100%"/>
+      <p align="center"><b>Desktop</b> — Sim on your Mac, browser and terminal included</p>
+    </td>
   </tr>
 </table>
 
