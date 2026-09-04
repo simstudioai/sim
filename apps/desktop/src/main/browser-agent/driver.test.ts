@@ -187,6 +187,31 @@ describe('executeTool', () => {
     expect(second.result).toMatchObject({ tabs: [] })
   })
 
+  it('lists safe download metadata without opening a page', async () => {
+    const result = await driver.executeTool('chat-test', 'browser_list_downloads', {})
+
+    expect(result).toEqual({
+      ok: true,
+      result: { scopeId: 'chat-test', downloads: [] },
+    })
+    expect(session.peekTabsState().tabs).toEqual([])
+  })
+
+  it('reloads the active tab and waits for its load boundary', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.useFakeTimers()
+    try {
+      const reload = driver.executeTool('chat-test', 'browser_reload', {})
+      await vi.advanceTimersByTimeAsync(500)
+
+      await expect(reload).resolves.toMatchObject({ ok: true })
+      expect(contents.reload).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a takeover pending when the clock advances beyond twelve hours', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     vi.useFakeTimers()
@@ -3195,6 +3220,163 @@ describe('credential protection', () => {
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/same point/)
+  })
+
+  it('finds only fresh ref-bearing snapshot lines with literal text matching', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        outline:
+          '- button "Continue [ref\u200b=999]" [ref=4]\n- heading "Continue without a ref"\n- button "Other" [ref=5]',
+        truncated: false,
+        refIds: [4, 5],
+        refLineIndexes: { 4: 0, 5: 2 },
+        nextElementId: 6,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_find', { query: 'continue' })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        matches: [{ elementId: 4 }],
+        totalMatches: 1,
+        truncated: false,
+      },
+    })
+  })
+
+  it('does not click a checkable control already in the requested state', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      readCheckableElementState: {
+        checked: true,
+        disabled: false,
+        readOnly: false,
+        kind: 'input:checkbox',
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+      elementId: 0,
+      checked: true,
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { checked: true, changed: false, dispatched: false },
+    })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it('uses the trusted click path and verifies a changed checkable control', async () => {
+    const contents = await openPage()
+    let stateReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'readCheckableElementState')) {
+        stateReads++
+        return Promise.resolve({
+          checked: stateReads > 1,
+          disabled: false,
+          readOnly: false,
+          kind: 'input:checkbox',
+        })
+      }
+      if (isPageCall(expression, 'clickElement')) {
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Checkbox' })
+      }
+      if (isPageCall(expression, 'readPageActionState')) {
+        return Promise.resolve({
+          url: 'https://example.com/login',
+          title: 'Example',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          scroll: [0],
+        })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+      elementId: 0,
+      checked: true,
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { checked: true, changed: true, dispatched: true, trusted: true },
+    })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(3)
+  })
+
+  it('waits for URL and semantic element state together', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      readPageActionState: {
+        targetState: { present: true, rendered: true, disabled: false },
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_wait_for', {
+      urlContains: '/login',
+      elementId: 0,
+      state: 'enabled',
+      timeoutMs: 1_000,
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { found: true, matched: ['url', 'element'] },
+    })
+  })
+
+  it('crops an element screenshot without changing the live viewport', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      getElementScreenshotRect: {
+        x: 20,
+        y: 30,
+        width: 200,
+        height: 100,
+        element: 'button',
+        refRecovered: false,
+      },
+    })
+    const capture = vi.spyOn(cdp, 'captureScreenshot').mockResolvedValue({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 1,
+      viewport: { width: 800, height: 600 },
+      imageSize: { width: 200, height: 100 },
+    })
+
+    try {
+      const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
+
+      expect(capture).toHaveBeenCalledWith(contents, { x: 20, y: 30, width: 200, height: 100 })
+      expect(result).toMatchObject({
+        ok: true,
+        result: { element: 'button', clip: { x: 20, y: 30, width: 200, height: 100 } },
+      })
+    } finally {
+      capture.mockRestore()
+    }
+  })
+
+  it('zooms by a standard step and invalidates existing element refs', async () => {
+    const contents = await openPage()
+
+    const zoomed = await driver.executeTool('chat-test', 'browser_zoom', { action: 'in' })
+    const staleRef = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(zoomed).toMatchObject({ ok: true, result: { action: 'in' } })
+    expect(contents.setZoomFactor).toHaveBeenCalled()
+    expect(staleRef).toMatchObject({ ok: false })
+    expect(staleRef.error).toMatch(/Call browser_snapshot/)
   })
 
   it('returns the screenshot scale for coordinate mapping', async () => {

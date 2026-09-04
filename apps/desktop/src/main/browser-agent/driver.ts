@@ -52,11 +52,13 @@ import {
   describeFocusedEditable,
   describePointTarget,
   focusElementForTyping,
+  getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
+  readCheckableElementState,
   readChildFrameElementState,
   readPageActionState,
   readPageText,
@@ -91,6 +93,27 @@ const MAX_CROSS_ORIGIN_SNAPSHOT_FRAMES = 8
 const MAX_CROSS_ORIGIN_SCAN_FRAMES = 32
 const COMBINED_SNAPSHOT_LINE_CAP = 900
 const BROWSER_AGENT_ISOLATED_WORLD_ID = 1001
+const BROWSER_WAIT_ELEMENT_STATES = [
+  'attached',
+  'detached',
+  'visible',
+  'hidden',
+  'enabled',
+  'disabled',
+  'checked',
+  'unchecked',
+  'expanded',
+  'collapsed',
+  'selected',
+  'unselected',
+] as const
+const BROWSER_WAIT_ELEMENT_STATE_SET: ReadonlySet<string> = new Set(BROWSER_WAIT_ELEMENT_STATES)
+
+type BrowserWaitElementState = (typeof BROWSER_WAIT_ELEMENT_STATES)[number]
+
+function isBrowserWaitElementState(value: string): value is BrowserWaitElementState {
+  return BROWSER_WAIT_ELEMENT_STATE_SET.has(value)
+}
 
 type PageExecutionTarget = WebContents | WebFrameMain
 
@@ -865,6 +888,7 @@ export function browserToolWatchdogMs(
     tool === 'browser_open_url' ||
     tool === 'browser_go_back' ||
     tool === 'browser_go_forward' ||
+    tool === 'browser_reload' ||
     tool === 'browser_open_tab' ||
     tool === 'browser_switch_tab'
   ) {
@@ -887,6 +911,57 @@ function requireNum(params: Record<string, unknown>, key: string): number {
   const value = num(params, key)
   if (value === undefined) throw new ToolError(`Missing required numeric parameter "${key}"`)
   return value
+}
+
+function browserElementStateMatches(
+  targetState: Record<string, unknown>,
+  requestedState: BrowserWaitElementState
+): boolean {
+  const present = targetState.present === true
+  const rendered = targetState.rendered === true
+  const checked =
+    typeof targetState.checked === 'boolean'
+      ? targetState.checked
+      : targetState.ariaChecked === 'true' || targetState.ariaPressed === 'true'
+        ? true
+        : targetState.ariaChecked === 'false' || targetState.ariaPressed === 'false'
+          ? false
+          : undefined
+  const selected =
+    typeof targetState.selected === 'boolean'
+      ? targetState.selected
+      : targetState.ariaSelected === 'true'
+        ? true
+        : targetState.ariaSelected === 'false'
+          ? false
+          : undefined
+
+  switch (requestedState) {
+    case 'attached':
+      return present
+    case 'detached':
+      return !present
+    case 'visible':
+      return present && rendered
+    case 'hidden':
+      return !present || !rendered || targetState.hidden === true
+    case 'enabled':
+      return present && targetState.disabled !== true
+    case 'disabled':
+      return present && targetState.disabled === true
+    case 'checked':
+      return present && checked === true
+    case 'unchecked':
+      return present && checked === false
+    case 'expanded':
+      return present && targetState.ariaExpanded === 'true'
+    case 'collapsed':
+      return present && targetState.ariaExpanded === 'false'
+    case 'selected':
+      return present && selected === true
+    case 'unselected':
+      return present && selected === false
+  }
 }
 
 /**
@@ -1110,6 +1185,11 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'not-select') {
       throw new ToolError('That element is not a <select> dropdown.')
+    }
+    if (code === 'not-checkable') {
+      throw new ToolError(
+        'That element is not a checkbox, radio button, switch, or checkable menu item.'
+      )
     }
     if (code === 'no-option') {
       const options = (result as { options?: string[] }).options ?? []
@@ -2156,6 +2236,15 @@ async function executeToolInner(
       return await navigationResult(contents, completion)
     }
 
+    case 'browser_reload': {
+      invalidateSnapshot()
+      const contents = session.requireAutomationTab().view.webContents
+      const completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
+      assertCurrentExecution()
+      contents.reload()
+      return await navigationResult(contents, completion)
+    }
+
     case 'browser_open_tab': {
       invalidateSnapshot()
       const url = str(params, 'url')
@@ -2210,16 +2299,33 @@ async function executeToolInner(
       return await getKnownSessions()
     }
 
+    case 'browser_list_downloads': {
+      return session.getBrowserDownloadsState(session.getBrowserScopeId())
+    }
+
     case 'browser_wait_for': {
       const text = str(params, 'text')
+      const urlContains = str(params, 'urlContains')
+      const elementId = num(params, 'elementId')
+      const requestedState = str(params, 'state')
+      if ((elementId === undefined) !== (requestedState === undefined)) {
+        throw new ToolError('browser_wait_for requires elementId and state together.')
+      }
+      const elementState =
+        requestedState && isBrowserWaitElementState(requestedState) ? requestedState : undefined
+      if (requestedState && !elementState) {
+        throw new ToolError(`Unsupported element state "${requestedState}".`)
+      }
       const timeoutMs = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
       const startedAt = Date.now()
-      if (!text) {
+      if (!text && !urlContains && elementId === undefined) {
         await sleep(timeoutMs)
         return { waitedMs: timeoutMs }
       }
       const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
+      const elementTarget =
+        elementId === undefined ? undefined : pageTargetForElement(contents, elementId)
       while (Date.now() - startedAt < timeoutMs) {
         assertCurrentExecution()
         const active = session.automationTab()
@@ -2228,35 +2334,63 @@ async function executeToolInner(
             'The active tab changed while waiting. Start browser_wait_for again on the tab you want to inspect.'
           )
         }
-        const foundTop = await execInPage(
-          contents,
-          pageContainsText,
-          [text],
-          false,
-          executionDeadline
-        ).catch(() => false)
-        if (foundTop) return { found: true, elapsedMs: Date.now() - startedAt }
-        const frames = await visibleFrameTargets(contents, executionDeadline)
+        let textFound = !text
         let foundInFrame = false
-        for (const frame of frames.targets) {
-          foundInFrame = await execInPage(
-            frame,
+        if (text) {
+          textFound = await execInPage(
+            contents,
             pageContainsText,
             [text],
             false,
             executionDeadline
           ).catch(() => false)
-          if (foundInFrame) break
+          if (!textFound) {
+            const frames = await visibleFrameTargets(contents, executionDeadline)
+            for (const frame of frames.targets) {
+              foundInFrame = await execInPage(
+                frame,
+                pageContainsText,
+                [text],
+                false,
+                executionDeadline
+              ).catch(() => false)
+              if (foundInFrame) break
+            }
+            textFound = foundInFrame
+          }
         }
-        if (foundInFrame) {
-          return { found: true, elapsedMs: Date.now() - startedAt, foundInFrame: true }
+        const urlMatched = !urlContains || contents.getURL().includes(urlContains)
+        let elementMatched = elementId === undefined
+        if (elementId !== undefined && elementState && elementTarget) {
+          const state = toRecord(
+            await execInPage(
+              elementTarget,
+              readPageActionState,
+              [false, elementId],
+              false,
+              executionDeadline
+            ).catch(() => ({ targetState: { present: false, rendered: false } }))
+          )
+          elementMatched = browserElementStateMatches(toRecord(state.targetState), elementState)
+        }
+        if (textFound && urlMatched && elementMatched) {
+          return {
+            found: true,
+            elapsedMs: Date.now() - startedAt,
+            matched: [
+              ...(text ? ['text'] : []),
+              ...(urlContains ? ['url'] : []),
+              ...(elementId !== undefined ? ['element'] : []),
+            ],
+            ...(foundInFrame ? { foundInFrame: true } : {}),
+          }
         }
         await sleep(300)
       }
       return {
         found: false,
         elapsedMs: Date.now() - startedAt,
-        note: 'Text did not appear before the timeout. Take a browser_snapshot to see the current page state.',
+        note: 'The requested conditions were not all met before the timeout. Take a browser_snapshot to inspect the current page state.',
       }
     }
 
@@ -2264,6 +2398,30 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       assertCurrentExecution()
       return await captureSnapshot(contents, executionDeadline)
+    }
+
+    case 'browser_find': {
+      const query = requireStr(params, 'query')
+      const requestedMax = num(params, 'maxResults')
+      const maxResults = Math.min(50, Math.max(1, Math.floor(requestedMax ?? 20)))
+      const contents = session.requireAutomationTab().view.webContents
+      const snapshot = toRecord(await captureSnapshot(contents, executionDeadline))
+      const outline = typeof snapshot.outline === 'string' ? snapshot.outline : ''
+      const needle = query.toLowerCase()
+      const matches = outline.split('\n').flatMap((line) => {
+        const ref = line.match(/\[ref=(\d+)\]/)
+        return ref && line.toLowerCase().includes(needle)
+          ? [{ elementId: Number(ref[1]), line }]
+          : []
+      })
+      return {
+        query,
+        matches: matches.slice(0, maxResults),
+        totalMatches: matches.length,
+        truncated: matches.length > maxResults,
+        url: snapshot.url,
+        title: snapshot.title,
+      }
     }
 
     case 'browser_read_text': {
@@ -2279,6 +2437,37 @@ async function executeToolInner(
     case 'browser_screenshot': {
       const capturedTab = session.requireAutomationTab()
       const contents = capturedTab.view.webContents
+      const elementId = num(params, 'elementId')
+      let elementClip: Record<string, unknown> | undefined
+      if (elementId !== undefined) {
+        const target = pageTargetForElement(contents, elementId)
+        if (target !== contents) {
+          throw new ToolError(
+            'Element screenshots are limited to the top page. Use browser_screenshot without elementId for framed content.'
+          )
+        }
+        unwrapPageResult(
+          await execInPage(
+            contents,
+            getElementScreenshotRect,
+            [elementId],
+            false,
+            executionDeadline
+          )
+        )
+        await sleep(50)
+        elementClip = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              contents,
+              getElementScreenshotRect,
+              [elementId],
+              false,
+              executionDeadline
+            )
+          )
+        )
+      }
       const capturedNavigationEpoch = navigationEpoch(contents)
       const capturedUrl = contents.getURL()
       const capturedTitle = contents.getTitle()
@@ -2302,7 +2491,20 @@ async function executeToolInner(
           'The page changed while its screenshot was being captured. Retry browser_screenshot before using image coordinates.'
         )
       }
-      const shot = await cdp.captureScreenshot(contents).catch((error) => {
+      const clip =
+        elementClip &&
+        typeof elementClip.x === 'number' &&
+        typeof elementClip.y === 'number' &&
+        typeof elementClip.width === 'number' &&
+        typeof elementClip.height === 'number'
+          ? {
+              x: elementClip.x,
+              y: elementClip.y,
+              width: elementClip.width,
+              height: elementClip.height,
+            }
+          : undefined
+      const shot = await cdp.captureScreenshot(contents, clip).catch((error) => {
         logger.warn('Browser screenshot capture failed', { error: getErrorMessage(error) })
         return null
       })
@@ -2373,7 +2575,18 @@ async function executeToolInner(
       }
       // scale maps image pixels back to CSS viewport pixels for the
       // coordinate tools: cssX = imageX / scale.
-      return { dataUrl: shot.dataUrl, viewport, scale }
+      return {
+        dataUrl: shot.dataUrl,
+        viewport,
+        scale,
+        ...(clip
+          ? {
+              element: elementClip?.element,
+              refRecovered: elementClip?.refRecovered === true,
+              clip,
+            }
+          : {}),
+      }
     }
 
     case 'browser_extract': {
@@ -3376,6 +3589,69 @@ async function executeToolInner(
       }
     }
 
+    case 'browser_set_checked': {
+      const elementId = requireNum(params, 'elementId')
+      if (typeof params.checked !== 'boolean') {
+        throw new ToolError('Missing required boolean parameter "checked"')
+      }
+      const checked = params.checked
+      const contents = session.requireAutomationTab().view.webContents
+      const target = pageTargetForElement(contents, elementId)
+      const before = toRecord(
+        unwrapPageResult(
+          await execInPage(target, readCheckableElementState, [elementId], false, executionDeadline)
+        )
+      )
+      if (before.disabled === true) throw new ToolError('That control is disabled.')
+      if (before.readOnly === true) throw new ToolError('That control is read-only.')
+      if (
+        !checked &&
+        (before.kind === 'input:radio' ||
+          before.kind === 'role:radio' ||
+          before.kind === 'role:menuitemradio')
+      ) {
+        throw new ToolError('Radio buttons cannot be unchecked directly. Select another option.')
+      }
+      if (before.checked === checked) {
+        return {
+          checked,
+          changed: false,
+          dispatched: false,
+          element: before.kind,
+          refRecovered: before.refRecovered === true,
+        }
+      }
+
+      const clickResult = toRecord(
+        await executeToolInner(
+          'browser_click',
+          { elementId },
+          assertCurrentExecution,
+          executionDeadline,
+          invocationEpoch
+        )
+      )
+      await sleep(100)
+      const after = toRecord(
+        unwrapPageResult(
+          await execInPage(target, readCheckableElementState, [elementId], false, executionDeadline)
+        )
+      )
+      if (after.checked !== checked) {
+        throw new ToolError(
+          'The control did not retain the requested checked state. Take a fresh browser_snapshot and inspect the page.'
+        )
+      }
+      return {
+        checked,
+        changed: true,
+        dispatched: clickResult.dispatched === true,
+        trusted: clickResult.trusted === true,
+        element: after.kind,
+        refRecovered: before.refRecovered === true || after.refRecovered === true,
+      }
+    }
+
     case 'browser_hover': {
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
@@ -3865,6 +4141,23 @@ async function executeToolInner(
             }
           : {}),
       }
+    }
+
+    case 'browser_zoom': {
+      const action = requireStr(params, 'action')
+      if (action !== 'in' && action !== 'out' && action !== 'reset') {
+        throw new ToolError('Zoom action must be "in", "out", or "reset".')
+      }
+      const contents = session.requireAutomationTab().view.webContents
+      const current = contents.getZoomFactor()
+      const next =
+        action === 'reset'
+          ? session.getBrowserDefaultZoomFactor()
+          : steppedZoomFactor(current, action === 'in' ? 1 : -1)
+      invalidateSnapshot()
+      contents.setZoomFactor(next)
+      await sleep(100)
+      return { action, zoomPercent: zoomPercentOf(contents.getZoomFactor()) }
     }
 
     case 'browser_request_takeover': {

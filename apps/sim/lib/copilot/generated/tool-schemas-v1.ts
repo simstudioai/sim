@@ -612,6 +612,73 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
     },
   },
+  browser_find: {
+    parameters: {
+      type: 'object',
+      properties: {
+        maxResults: {
+          type: 'number',
+          description: 'Maximum matches to return (default 20, capped at 50).',
+        },
+        query: {
+          type: 'string',
+          description: 'Literal case-insensitive text to find in ref-bearing snapshot lines.',
+        },
+      },
+      required: ['query'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        matches: {
+          type: 'array',
+          description: 'Bounded matching snapshot lines with valid element ids.',
+          items: {
+            type: 'object',
+            properties: {
+              elementId: {
+                type: 'number',
+                description: 'Fresh element id from the captured snapshot.',
+              },
+              line: {
+                type: 'string',
+                description: 'Matching ref-bearing snapshot line.',
+              },
+            },
+          },
+        },
+        notices: {
+          type: 'array',
+          description:
+            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          items: {
+            type: 'string',
+          },
+        },
+        query: {
+          type: 'string',
+          description: 'Literal query that was searched.',
+        },
+        title: {
+          type: 'string',
+          description: 'Top-page title when available.',
+        },
+        totalMatches: {
+          type: 'number',
+          description: 'Total matches before applying maxResults.',
+        },
+        truncated: {
+          type: 'boolean',
+          description: 'Whether additional matches were omitted.',
+        },
+        url: {
+          type: 'string',
+          description: 'Top-page URL.',
+        },
+      },
+      required: ['query', 'matches', 'totalMatches', 'truncated'],
+    },
+  },
   browser_go_back: {
     parameters: {
       type: 'object',
@@ -865,6 +932,56 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['dispatched'],
     },
   },
+  browser_list_downloads: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        downloads: {
+          type: 'array',
+          description: 'Recent downloads for this browser session, newest first.',
+          items: {
+            type: 'object',
+            properties: {
+              filename: {
+                type: 'string',
+                description: 'Sanitized filename; no local filesystem path is exposed.',
+              },
+              id: {
+                type: 'string',
+                description: 'Session-local download id.',
+              },
+              receivedBytes: {
+                type: 'number',
+                description: 'Bytes received so far.',
+              },
+              startedAt: {
+                type: 'string',
+                description: 'ISO timestamp when the download started.',
+              },
+              state: {
+                type: 'string',
+                description: 'Current download lifecycle state.',
+                enum: ['progressing', 'completed', 'interrupted', 'cancelled'],
+              },
+              totalBytes: {
+                type: 'number',
+                description: 'Expected total bytes when known, otherwise zero.',
+              },
+            },
+          },
+        },
+        scopeId: {
+          type: 'string',
+          description: 'Browser session scope that owns these downloads.',
+        },
+      },
+      required: ['downloads', 'scopeId'],
+    },
+  },
   browser_list_sessions: {
     parameters: {
       type: 'object',
@@ -1103,10 +1220,36 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
     },
   },
-  browser_screenshot: {
+  browser_reload: {
     parameters: {
       type: 'object',
       properties: {},
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Top-page title when available.',
+        },
+        url: {
+          type: 'string',
+          description: 'Top-page URL.',
+        },
+      },
+      required: ['url', 'title'],
+    },
+  },
+  browser_screenshot: {
+    parameters: {
+      type: 'object',
+      properties: {
+        elementId: {
+          type: 'number',
+          description:
+            "Optional element id from the current tab's latest browser_snapshot. When present, the result is cropped to that rendered top-page element for a higher-detail inspection; framed elements are not cropped, so use a viewport screenshot for them.",
+        },
+      },
     },
     resultSchema: undefined,
   },
@@ -1248,6 +1391,67 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['selected'],
+    },
+  },
+  browser_set_checked: {
+    parameters: {
+      type: 'object',
+      properties: {
+        checked: {
+          type: 'boolean',
+          description:
+            'Desired checked state. Radio buttons cannot be unchecked directly; select another radio in the group instead.',
+        },
+        elementId: {
+          type: 'number',
+          description:
+            "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+        },
+      },
+      required: ['elementId', 'checked'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        changed: {
+          type: 'boolean',
+          description: 'Whether the control needed to change.',
+        },
+        checked: {
+          type: 'boolean',
+          description: 'Settled checked state after the operation.',
+        },
+        dispatched: {
+          type: 'boolean',
+          description: 'Whether input was dispatched.',
+        },
+        element: {
+          type: 'string',
+          description: 'Resolved checkable control kind.',
+        },
+        note: {
+          type: 'string',
+          description: 'Readback or follow-up guidance.',
+        },
+        notices: {
+          type: 'array',
+          description:
+            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          items: {
+            type: 'string',
+          },
+        },
+        refRecovered: {
+          type: 'boolean',
+          description:
+            'Whether a stale detached ref was safely rebound to one unique semantic match.',
+        },
+        trusted: {
+          type: 'boolean',
+          description: "Whether Chromium's trusted pointer pipeline dispatched the change.",
+        },
+      },
+      required: ['checked', 'changed', 'dispatched'],
     },
   },
   browser_snapshot: {
@@ -1488,6 +1692,30 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        elementId: {
+          type: 'number',
+          description:
+            "Optional element id from the current tab's latest browser_snapshot. Supply together with state to wait for a semantic element condition.",
+        },
+        state: {
+          type: 'string',
+          description:
+            'Optional semantic condition for elementId. attached/detached inspect DOM presence; visible/hidden inspect rendering; enabled/disabled include native and ARIA state; checked, expanded, and selected conditions inspect native or ARIA state. All supplied text, URL, and element conditions must pass.',
+          enum: [
+            'attached',
+            'detached',
+            'visible',
+            'hidden',
+            'enabled',
+            'disabled',
+            'checked',
+            'unchecked',
+            'expanded',
+            'collapsed',
+            'selected',
+            'unselected',
+          ],
+        },
         text: {
           type: 'string',
           description: 'Optional visible text to wait for.',
@@ -1495,6 +1723,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         timeoutMs: {
           type: 'number',
           description: 'Maximum time to wait, in milliseconds (default 10000, capped at 120000).',
+        },
+        urlContains: {
+          type: 'string',
+          description: "Optional substring that the active tab's URL must contain.",
         },
       },
     },
@@ -1507,15 +1739,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         found: {
           type: 'boolean',
-          description: 'Whether the requested text appeared before timeout.',
+          description: 'Whether every supplied wait condition passed before timeout.',
         },
         foundInFrame: {
           type: 'boolean',
           description: 'Whether the match was found in an eligible visible child frame.',
         },
+        matched: {
+          type: 'array',
+          description: 'Condition categories that passed: text, url, and/or element.',
+          items: {
+            type: 'string',
+          },
+        },
         note: {
           type: 'string',
-          description: 'Timeout/recovery guidance.',
+          description: 'Timeout or recovery guidance.',
         },
         notices: {
           type: 'array',
@@ -1530,6 +1769,41 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Completed sleep duration when no text was requested.',
         },
       },
+    },
+  },
+  browser_zoom: {
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description: 'Zoom action: in, out, or reset.',
+          enum: ['in', 'out', 'reset'],
+        },
+      },
+      required: ['action'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description: 'Applied zoom action.',
+        },
+        notices: {
+          type: 'array',
+          description:
+            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          items: {
+            type: 'string',
+          },
+        },
+        zoomPercent: {
+          type: 'number',
+          description: 'Settled tab zoom as a percentage.',
+        },
+      },
+      required: ['action', 'zoomPercent'],
     },
   },
   call_integration_tool: {
@@ -4097,7 +4371,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             filter: {
               type: 'object',
               description:
-                'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are absolute whole Unix epoch seconds, never milliseconds. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
+                'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
             },
             limit: {
               type: 'number',
@@ -5364,7 +5638,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             column: {
               type: 'object',
               description:
-                'Column definition for add_column: { name, type, unique?, position? }; type may be string, number, boolean, date, json, select, or ttl. Select (enum) columns also take { options: [names], multiple?: true } — options is required for select. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
+                'Column definition for add_column: { name, type, unique?, position? }; select (enum) columns also take { options: [names], multiple?: true } — options is required for select.',
             },
             columnName: {
               type: 'string',
@@ -5391,7 +5665,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             newType: {
               type: 'string',
               description:
-                'New column type for update_column: string, number, boolean, date, json, select, ttl. Converting to select also requires options; conversion fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are absolute whole Unix epoch seconds, not milliseconds.',
+                'New column type for update_column: string, number, boolean, date, json, select. Converting to select also requires options; conversion fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell.',
             },
             options: {
               type: 'array',
@@ -5597,7 +5871,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             schema: {
               type: 'object',
               description:
-                'Table schema with a columns array (required for create). Each column: { name, type, unique? }; types are string, number, boolean, date, json, select, and ttl. A select (enum) column also requires options (display names) and takes multiple?. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
+                'Table schema with a columns array (required for create). Each column: { name, type, unique? }; a select (enum) column also requires options (display names) and takes multiple?.',
             },
             tableId: {
               type: 'string',
@@ -5647,12 +5921,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             data: {
               type: 'object',
               description:
-                'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME. TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds. On insert_row, a missing or null TTL means no expiration. On update_row and update_rows_by_filter, omit the TTL to preserve its current value or set it to null to clear the expiration.',
+                'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME.',
             },
             filter: {
               type: 'object',
               description:
-                'Predicate filter for update_rows_by_filter / delete_rows_by_filter: {"all":[...]} (AND) or {"any":[...]} (OR) of {field, op, value} leaves or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (* wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array. Single-select columns match by eq/ne/in/nin; multiple-select by contains/ncontains — values are option NAMES. TTL filter values are absolute whole Unix epoch seconds.',
+                'Predicate filter for update_rows_by_filter / delete_rows_by_filter: {"all":[...]} (AND) or {"any":[...]} (OR) of {field, op, value} leaves or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (* wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array. Single-select columns match by eq/ne/in/nin; multiple-select by contains/ncontains — values are option NAMES.',
             },
             limit: {
               type: 'number',
@@ -5682,8 +5956,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             rows: {
               type: 'array',
-              description:
-                'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
+              description: 'Array of row data objects (required for batch_insert_rows)',
               items: {
                 type: 'object',
               },
@@ -5695,7 +5968,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             updates: {
               type: 'array',
               description:
-                "Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+                'Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a)',
               items: {
                 type: 'object',
                 properties: {
@@ -5712,7 +5985,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             values: {
               type: 'object',
               description:
-                "Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName). For a TTL column, values are absolute whole Unix epoch seconds, never JavaScript milliseconds; set a row's value to null to clear its expiration, and omit the row from the map to leave it unchanged.",
+                'Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName)',
             },
           },
           required: ['tableId'],
@@ -6055,7 +6328,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             column: {
               type: 'object',
               description:
-                'Column definition for add_column: { name, type, unique?, position? }. Type may be string, number, boolean, date, json, select, or ttl. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
+                'Column definition for add_column: { name, type, unique?, position? }. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
             },
             columnName: {
               type: 'string',
@@ -6077,8 +6350,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             data: {
               type: 'object',
-              description:
-                'Row data as key-value pairs (required for insert_row, update_row). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds. On insert_row, a missing or null TTL means no expiration. On update_row, omit the TTL to preserve its current value or set it to null to clear the expiration.',
+              description: 'Row data as key-value pairs (required for insert_row, update_row)',
             },
             dependencies: {
               type: 'object',
@@ -6112,7 +6384,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             filter: {
               type: 'object',
               description:
-                'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are absolute whole Unix epoch seconds, never milliseconds. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
+                'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
             },
             groupId: {
               type: 'string',
@@ -6209,7 +6481,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             newType: {
               type: 'string',
               description:
-                'New column type (optional for update_column). Types: string, number, boolean, date, json, select, ttl. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are absolute whole Unix epoch seconds, not milliseconds.',
+                'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
             },
             options: {
               type: 'array',
@@ -6310,8 +6582,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             rows: {
               type: 'array',
-              description:
-                'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
+              description: 'Array of row data objects (required for batch_insert_rows)',
               items: {
                 type: 'object',
               },
@@ -6325,7 +6596,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             schema: {
               type: 'object',
               description:
-                'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. Types are string, number, boolean, date, json, select, and ttl. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
+                'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
             },
             scope: {
               type: 'string',
@@ -6352,7 +6623,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             updates: {
               type: 'array',
               description:
-                "Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+                'Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows)',
               items: {
                 type: 'object',
                 properties: {
@@ -6369,7 +6640,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             values: {
               type: 'object',
               description:
-                'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName). For a TTL column, values are absolute whole Unix epoch seconds, never JavaScript milliseconds; set a row\'s value to null to clear its expiration, and omit the row from the map to leave it unchanged.',
+                'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName)',
             },
             workflowId: {
               type: 'string',

@@ -52,6 +52,7 @@ const LIVE_PAGE_OPTIONAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserTo
   'browser_open_tab',
   'browser_list_tabs',
   'browser_list_sessions',
+  'browser_list_downloads',
 ])
 
 /**
@@ -65,13 +66,16 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_open_url: false,
   browser_go_back: false,
   browser_go_forward: false,
+  browser_reload: false,
   browser_open_tab: false,
   browser_switch_tab: false,
   browser_close_tab: false,
   browser_list_tabs: true,
   browser_list_sessions: true,
+  browser_list_downloads: true,
   browser_wait_for: true,
   browser_snapshot: true,
+  browser_find: true,
   browser_read_text: true,
   browser_screenshot: true,
   browser_extract: true,
@@ -82,8 +86,10 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_press_key: false,
   browser_scroll: false,
   browser_select_option: false,
+  browser_set_checked: false,
   browser_hover: false,
   browser_drag: false,
+  browser_zoom: false,
   browser_request_takeover: false,
 } as const satisfies Readonly<Record<BrowserToolName, boolean>>
 
@@ -548,6 +554,7 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
     toolName === 'browser_open_url' ||
     toolName === 'browser_go_back' ||
     toolName === 'browser_go_forward' ||
+    toolName === 'browser_reload' ||
     toolName === 'browser_open_tab' ||
     toolName === 'browser_switch_tab'
   ) {
@@ -600,9 +607,10 @@ function sanitizeResultForModel(
           ? viewport.url
           : ''
     const location = screenshotUrl ? ` of ${screenshotUrl}` : ''
+    const isElementCapture = isRecordLike(rest.clip)
     return {
       ...rest,
-      content: `Screenshot${location}. This is the rendered viewport only — it carries no element ids, so use browser_snapshot before interacting.`,
+      content: `Screenshot${location}. This is the rendered ${isElementCapture ? 'element' : 'viewport'} only — it carries no element ids, so use browser_snapshot before interacting.`,
       attachment: {
         type: 'image',
         source: { type: 'base64', media_type: image.mediaType, data: image.data },

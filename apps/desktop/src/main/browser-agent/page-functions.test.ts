@@ -8,11 +8,13 @@ import {
   describeFocusedEditable,
   describePointTarget,
   focusElementForTyping,
+  getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
+  readCheckableElementState,
   readChildFrameElementState,
   readPageActionState,
   readPageText,
@@ -150,6 +152,7 @@ describe('serialization contract', () => {
     ],
     ['pressKeyOnPage', pressKeyOnPage, ['a', 'KeyA', 65, false, false, false, false]],
     ['readPageActionState', readPageActionState, []],
+    ['readCheckableElementState', readCheckableElementState, [0]],
     ['scrollPage', scrollPage, ['down', 100]],
     ['selectOptionInElement', selectOptionInElement, [0, 'value']],
     ['readSelectElementState', readSelectElementState, [0]],
@@ -157,6 +160,7 @@ describe('serialization contract', () => {
     ['readPageText', readPageText, []],
     ['pageContainsText', pageContainsText, ['needle']],
     ['getViewportInfo', getViewportInfo, []],
+    ['getElementScreenshotRect', getElementScreenshotRect, [0]],
     ['describePointTarget', describePointTarget, [10, 10]],
     ['describeFocusedEditable', describeFocusedEditable, []],
   ]
@@ -943,6 +947,55 @@ describe('collectSnapshot', () => {
     const after = readPageActionState(false, ref) as { targetState: unknown }
 
     expect(after.targetState).toEqual(before.targetState)
+  })
+})
+
+describe('semantic control state', () => {
+  it('reads native and ARIA checkable controls without mutating them', () => {
+    document.body.innerHTML = `
+      <input type="checkbox" checked />
+      <button role="switch" aria-checked="false" aria-disabled="true">Alerts</button>
+    `
+    const checkbox = visible(document.querySelector('input') as HTMLInputElement)
+    const toggle = visible(document.querySelector('button') as HTMLButtonElement)
+    register(checkbox, toggle)
+
+    expect(readCheckableElementState(0)).toMatchObject({
+      checked: true,
+      disabled: false,
+      kind: 'input:checkbox',
+    })
+    expect(readCheckableElementState(1)).toMatchObject({
+      checked: false,
+      disabled: true,
+      kind: 'role:switch',
+    })
+    expect(checkbox.checked).toBe(true)
+  })
+
+  it('returns a viewport-clamped element screenshot rectangle', () => {
+    const button = visible(document.createElement('button'))
+    button.getBoundingClientRect = () =>
+      ({
+        x: -10,
+        y: 5,
+        width: 120,
+        height: 20,
+        top: 5,
+        left: -10,
+        right: 110,
+        bottom: 25,
+      }) as DOMRect
+    document.body.append(button)
+    register(button)
+
+    expect(getElementScreenshotRect(0)).toMatchObject({
+      x: 0,
+      y: 5,
+      width: 110,
+      height: 20,
+      element: 'button',
+    })
   })
 })
 

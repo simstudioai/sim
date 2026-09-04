@@ -404,6 +404,13 @@ export interface ScreenshotCapture {
   imageSize: ScreenshotSize | null
 }
 
+export interface ScreenshotClip {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 function screenshotViewportMetrics(
   metrics: {
     cssLayoutViewport?: CdpViewport
@@ -466,7 +473,10 @@ function sameScreenshotViewport(
  * (cssX = imageX / scale) — including on a 2x display, where an unclipped
  * capture arrives at device resolution and this is what brings it back down.
  */
-export async function captureScreenshot(contents: WebContents): Promise<ScreenshotCapture> {
+export async function captureScreenshot(
+  contents: WebContents,
+  clip?: ScreenshotClip
+): Promise<ScreenshotCapture> {
   const metrics = await send<{
     cssLayoutViewport?: CdpViewport
     layoutViewport?: CdpViewport
@@ -478,6 +488,9 @@ export async function captureScreenshot(contents: WebContents): Promise<Screensh
   const cssWidth = metrics?.cssLayoutViewport?.clientWidth ?? 0
   const cssHeight = metrics?.cssLayoutViewport?.clientHeight ?? 0
   const cssViewport = cssWidth > 0 && cssHeight > 0 ? { width: cssWidth, height: cssHeight } : null
+  if (clip && !cssViewport) {
+    throw new Error('A CSS viewport is required for element screenshot cropping')
+  }
   const scale =
     width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
 
@@ -499,7 +512,48 @@ export async function captureScreenshot(contents: WebContents): Promise<Screensh
   const image = nativeImage.createFromBuffer(Buffer.from(result.data, 'base64'))
   const size = image.isEmpty() ? { width: 0, height: 0 } : image.getSize()
   if (size.width === 0 || size.height === 0) {
+    if (clip) throw new Error('The screenshot could not be decoded for element cropping')
     return { dataUrl: captured, scale, viewport: cssViewport, imageSize: null }
+  }
+  if (clip && cssViewport) {
+    const xScale = size.width / cssViewport.width
+    const yScale = size.height / cssViewport.height
+    const cropX = Math.max(0, Math.floor(clip.x * xScale))
+    const cropY = Math.max(0, Math.floor(clip.y * yScale))
+    const cropRight = Math.min(size.width, Math.ceil((clip.x + clip.width) * xScale))
+    const cropBottom = Math.min(size.height, Math.ceil((clip.y + clip.height) * yScale))
+    if (cropRight <= cropX || cropBottom <= cropY) {
+      throw new Error('The requested screenshot element is outside the current viewport')
+    }
+    const cropped = image.crop({
+      x: cropX,
+      y: cropY,
+      width: cropRight - cropX,
+      height: cropBottom - cropY,
+    })
+    const croppedSize = cropped.getSize()
+    if (croppedSize.width === 0 || croppedSize.height === 0) {
+      throw new Error('The requested screenshot element produced an empty crop')
+    }
+    const cropScale = Math.min(
+      1,
+      MAX_SCREENSHOT_EDGE / Math.max(croppedSize.width, croppedSize.height)
+    )
+    const output =
+      cropScale < 1
+        ? cropped.resize({
+            width: Math.round(croppedSize.width * cropScale),
+            height: Math.round(croppedSize.height * cropScale),
+            quality: 'good',
+          })
+        : cropped
+    const outputSize = output.getSize()
+    return {
+      dataUrl: `data:image/jpeg;base64,${output.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
+      scale: outputSize.width / clip.width,
+      viewport: cssViewport,
+      imageSize: outputSize,
+    }
   }
   if (size.width === targetWidth && size.height === targetHeight) {
     return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }

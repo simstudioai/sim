@@ -25,13 +25,16 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_open_url',
   'browser_go_back',
   'browser_go_forward',
+  'browser_reload',
   'browser_open_tab',
   'browser_switch_tab',
   'browser_close_tab',
   'browser_list_tabs',
   'browser_list_sessions',
+  'browser_list_downloads',
   'browser_wait_for',
   'browser_snapshot',
+  'browser_find',
   'browser_read_text',
   'browser_screenshot',
   'browser_extract',
@@ -42,8 +45,10 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
+  'browser_set_checked',
   'browser_hover',
   'browser_drag',
+  'browser_zoom',
 ] as const
 
 export type CurrentBrowserToolName = (typeof CURRENT_BROWSER_TOOL_NAMES)[number]

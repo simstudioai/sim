@@ -2319,6 +2319,9 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
               'checked' in observedElement
                 ? Boolean((observedElement as HTMLInputElement).checked)
                 : undefined,
+            disabled:
+              (observedElement as Element & { disabled?: boolean }).disabled === true ||
+              observedElement.getAttribute('aria-disabled') === 'true',
             selected:
               'selected' in observedElement
                 ? Boolean((observedElement as HTMLOptionElement).selected)
@@ -2612,6 +2615,92 @@ export function readSelectElementState(id: number): unknown {
   return {
     selected: select.selectedOptions[0]?.label.trim() || '',
     value: select.value,
+  }
+}
+
+export function readCheckableElementState(id: number): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const registered = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  const candidate =
+    String(registered?.tagName || '').toUpperCase() === 'LABEL'
+      ? (registered as HTMLLabelElement).control
+      : registered
+  if (!candidate || !candidate.isConnected) {
+    return { error: 'stale', reason: window.__simAgentStaleReason }
+  }
+
+  const tag = String(candidate.tagName || '').toUpperCase()
+  const type =
+    tag === 'INPUT' ? String((candidate as HTMLInputElement).type || '').toLowerCase() : ''
+  const role = String(candidate.getAttribute('role') || '').toLowerCase()
+  const isNative = tag === 'INPUT' && (type === 'checkbox' || type === 'radio')
+  const isAria = ['checkbox', 'radio', 'switch', 'menuitemcheckbox', 'menuitemradio'].includes(role)
+  if (!isNative && !isAria) return { error: 'not-checkable' }
+
+  const ariaChecked = candidate.getAttribute('aria-checked')
+  const checked = isNative
+    ? Boolean((candidate as HTMLInputElement).checked)
+    : ariaChecked === 'true'
+  return {
+    checked,
+    disabled:
+      (candidate as Element & { disabled?: boolean }).disabled === true ||
+      candidate.getAttribute('aria-disabled') === 'true',
+    readOnly:
+      (candidate as Element & { readOnly?: boolean }).readOnly === true ||
+      candidate.getAttribute('aria-readonly') === 'true',
+    kind: isNative ? `input:${type}` : `role:${role}`,
+    refRecovered: resolved?.recovered === true,
+  }
+}
+
+export function getElementScreenshotRect(id: number): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const element = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  if (!element || !element.isConnected) {
+    return { error: 'stale', reason: window.__simAgentStaleReason }
+  }
+
+  element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+  const rect = element.getBoundingClientRect()
+  const view = element.ownerDocument.defaultView
+  if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
+  for (let current: Element | null = element; current; ) {
+    const currentView: Window | null = current.ownerDocument.defaultView
+    const style = currentView?.getComputedStyle(current)
+    const opacity = Number.parseFloat(style?.opacity || '1')
+    if (
+      !style ||
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.contentVisibility === 'hidden' ||
+      (Number.isFinite(opacity) && opacity <= 0.01) ||
+      current.hasAttribute('hidden') ||
+      current.getAttribute('aria-hidden') === 'true'
+    ) {
+      return { error: 'not-visible' }
+    }
+    if (current.parentElement) current = current.parentElement
+    else {
+      const root = current.getRootNode()
+      current = 'host' in root ? (root.host as Element) : null
+    }
+  }
+
+  const left = Math.max(0, rect.left)
+  const top = Math.max(0, rect.top)
+  const right = Math.min(view.innerWidth, rect.right)
+  const bottom = Math.min(view.innerHeight, rect.bottom)
+  if (right - left <= 1 || bottom - top <= 1) return { error: 'not-visible' }
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+    element: `${element.tagName.toLowerCase()}${element.getAttribute('role') ? `:${element.getAttribute('role')}` : ''}`,
+    refRecovered: resolved?.recovered === true,
   }
 }
 

@@ -762,6 +762,19 @@ describe('resource-naming titles', () => {
     expect(getToolDisplayTitle('browser_insert_text', {})).toBe('Inserting text')
   })
 
+  it('describes semantic browser controls without exposing element ids', () => {
+    expect(getToolDisplayTitle('browser_find', { query: 'Submit order' })).toBe(
+      'Finding "Submit order"'
+    )
+    expect(getToolDisplayTitle('browser_set_checked', { elementId: 42, checked: false })).toBe(
+      'Unchecking control'
+    )
+    expect(getToolDisplayTitle('browser_wait_for', { elementId: 42, state: 'visible' })).toBe(
+      'Waiting for element to be visible'
+    )
+    expect(getToolDisplayTitle('browser_zoom', { action: 'reset' })).toBe('Resetting page zoom')
+  })
+
   it('names downloads, docs searches, and generated files', () => {
     expect(getToolDisplayTitle('download_file', { fileName: 'report.csv' })).toBe(
       'Downloading report.csv'
