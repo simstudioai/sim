@@ -460,6 +460,96 @@ describe('Oracle EPM guarded client', () => {
     }
   )
 
+  describe.each(['endpoint', 'route'] as const)(
+    '%s-bound typed returned-link queries',
+    (binding) => {
+      const declaration = {
+        method: 'GET',
+        version: 'v3',
+        path: [oracleEpmLiteral('jobs')],
+        query: {
+          offset: oracleEpmQuery.integer({ required: true, minimum: -10, maximum: 10 }),
+          include: oracleEpmQuery.boolean({ required: true }),
+          token: oracleEpmQuery.string({ required: true, maxBytes: 32 }),
+        },
+        body: 'none',
+        response: 'json',
+        timeoutMs: 5_000,
+        maxResponseBytes: 4_096,
+      } as const
+      const endpoint = routes.defineEndpoint(declaration)
+      const policy = routes.defineReturnedLinkPolicy({
+        ...(binding === 'endpoint' ? { endpoint, method: 'GET' as const } : declaration),
+        relation: 'next',
+        preserveGatewayBasePath: true,
+      })
+      const client = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com/gateway',
+        accessToken: Buffer.from('u:p').toString('base64'),
+      })
+      const prefix = 'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/jobs'
+
+      it.each(['offset=-10&include=false', 'offset=0&include=false', 'offset=10&include=true'])(
+        'accepts canonical typed query %s without rewriting the returned URL',
+        async (query) => {
+          const href = `${prefix}?${query}&token=signed%2Bquery%2Fsecret`
+          const handle = client.validateReturnedLink(policy, { rel: 'next', href })
+          expect(JSON.stringify(handle)).toBe('{}')
+          await client.requestValidatedLink(handle)
+          expect(mockSecureFetch.mock.calls[0][0]).toBe(href)
+        }
+      )
+
+      it.each([
+        'offset=-11&include=true',
+        'offset=11&include=true',
+        'offset=9007199254740992&include=true',
+        'offset=1.5&include=true',
+        'offset=1e0&include=true',
+        'offset=0x1&include=true',
+        'offset=01&include=true',
+        'offset=-0&include=true',
+        'offset=%201&include=true',
+        'offset=%2B1&include=true',
+        'offset=&include=true',
+        'offset=NaN&include=true',
+        'offset=Infinity&include=true',
+        'offset=1&include=True',
+        'offset=1&include=FALSE',
+        'offset=1&include=1',
+        'offset=1&include=0',
+        'offset=1&include=',
+        'offset=1',
+        'include=true',
+        'offset=1&offset=2&include=true',
+        'offset=1&include=true&include=false',
+        'offset=1&include=true&unknown=value',
+      ])('rejects invalid typed query %s before DNS or fetch', (query) => {
+        expect(() =>
+          client.validateReturnedLink(policy, {
+            rel: 'next',
+            href: `${prefix}?${query}&token=signed-query-secret`,
+          })
+        ).toThrowError(
+          expect.objectContaining({ name: 'OracleEpmError', category: 'invalid_input' })
+        )
+        expect(mockValidateUrl).not.toHaveBeenCalled()
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        { offset: '1', include: true },
+        { offset: 1, include: 'true' },
+      ])('keeps direct request query types strict for %j', async (query) => {
+        await expect(
+          client.request(endpoint, { query: { ...query, token: 'signed-query-secret' } })
+        ).rejects.toMatchObject({ category: 'invalid_input' })
+        expect(mockValidateUrl).not.toHaveBeenCalled()
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+      })
+    }
+  )
+
   it.each(['download', 'Job Status'])(
     'keeps %s links opaque and client-owned',
     async (relation) => {

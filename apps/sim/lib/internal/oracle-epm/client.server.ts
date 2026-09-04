@@ -132,6 +132,16 @@ function serializeQueryValue(value: unknown, declaration: OracleEpmQueryParamete
   return String(value)
 }
 
+/** Accepts only the canonical wire form of each declared type without rewriting the URL. */
+function validateReturnedQueryValue(value: string, declaration: OracleEpmQueryParameter): void {
+  let parsed: string | number | boolean = value
+  if (declaration.kind === 'integer') parsed = Number(value)
+  else if (declaration.kind === 'boolean') parsed = value === 'true'
+  if (serializeQueryValue(parsed, declaration) !== value) {
+    throw oracleEpmLocalError('invalid_input')
+  }
+}
+
 function buildQuery(
   declarations: Readonly<Record<string, OracleEpmQueryParameter>>,
   values: Readonly<Record<string, string | number | boolean | undefined>> | undefined
@@ -589,7 +599,7 @@ export function createOracleEpmClient(input: {
         if (seen.has(name) || !Object.hasOwn(policy.query, name))
           throw oracleEpmLocalError('invalid_input')
         seen.add(name)
-        serializeQueryValue(value, policy.query[name])
+        validateReturnedQueryValue(value, policy.query[name])
       }
       for (const [name, declaration] of Object.entries(policy.query)) {
         if (declaration.required && !seen.has(name)) throw oracleEpmLocalError('invalid_input')
