@@ -24,7 +24,12 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import {
+  credentialProviderMatchesService,
+  getCanonicalScopesForProvider,
+  getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
+} from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
@@ -332,6 +337,45 @@ export interface ResolveCredentialAccessTokenInput
   resolveManagedPrincipal?: (credentialId: string) => Promise<DelegatedPrincipal>
 }
 
+function credentialProviderMismatch(): ResolveCredentialTokenResult {
+  return {
+    ok: false,
+    status: 403,
+    code: 'CREDENTIAL_PROVIDER_MISMATCH',
+    error: 'Credential belongs to another service',
+  }
+}
+
+function validateToolCredentialBinding(
+  resolved: ResolvedCredential | null,
+  toolId?: string
+): ResolveCredentialTokenResult | null {
+  if (!resolved || !toolId) return null
+
+  const oauth = getToolMetadata(toolId)?.oauth
+  const isServiceAccount = resolved.credentialType === 'service_account'
+  if (
+    oauth?.credentialKind === 'service-account'
+      ? !isServiceAccount
+      : oauth?.credentialKind === 'oauth' && isServiceAccount
+  ) {
+    return credentialProviderMismatch()
+  }
+  if (!isServiceAccount) return null
+
+  const service = oauth?.required
+    ? (getServiceConfigByServiceId(oauth.provider) ?? getServiceConfigByProviderId(oauth.provider))
+    : null
+  if (
+    !resolved.providerId ||
+    !service ||
+    !credentialProviderMatchesService(resolved.providerId, service)
+  ) {
+    return credentialProviderMismatch()
+  }
+  return null
+}
+
 /**
  * Authorized application dispatch behind `POST /api/auth/oauth/token`. Every server
  * surface that needs a credential token — the route and the in-process tool
@@ -344,6 +388,8 @@ export async function resolveCredentialAccessToken(
   const { requestId, credentialId, toolId, auditRequest } = input
 
   const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
+  const bindingError = validateToolCredentialBinding(resolved, toolId)
+  if (bindingError) return bindingError
 
   if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
     const auth = await input.authenticate()

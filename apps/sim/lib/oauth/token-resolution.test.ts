@@ -6,8 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockAuthorizeCredentialUseForAuth,
   mockCaptureServerEvent,
+  mockCredentialProviderMatchesService,
   mockExecuteManagedToken,
   mockGetCredential,
+  mockGetServiceConfigByProviderId,
+  mockGetServiceConfigByServiceId,
   mockGetToolMetadata,
   mockRecordAudit,
   mockRefreshTokenIfNeeded,
@@ -16,8 +19,11 @@ const {
 } = vi.hoisted(() => ({
   mockAuthorizeCredentialUseForAuth: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
+  mockCredentialProviderMatchesService: vi.fn(),
   mockExecuteManagedToken: vi.fn(),
   mockGetCredential: vi.fn(),
+  mockGetServiceConfigByProviderId: vi.fn(),
+  mockGetServiceConfigByServiceId: vi.fn(),
   mockGetToolMetadata: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
@@ -78,7 +84,10 @@ vi.mock('@/tools/metadata', () => ({
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
+  credentialProviderMatchesService: mockCredentialProviderMatchesService,
   getCanonicalScopesForProvider: vi.fn().mockReturnValue([]),
+  getServiceConfigByProviderId: mockGetServiceConfigByProviderId,
+  getServiceConfigByServiceId: mockGetServiceConfigByServiceId,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -346,6 +355,12 @@ describe('resolveCredentialAccessToken', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveOAuthAccountId.mockResolvedValue(null)
+    mockCredentialProviderMatchesService.mockReturnValue(true)
+    mockGetServiceConfigByServiceId.mockReturnValue({
+      providerId: 'google',
+      serviceAccountProviderId: 'google-service-account',
+    })
+    mockGetServiceConfigByProviderId.mockReturnValue(null)
     authenticate.mockResolvedValue(INTERNAL_AUTH)
     resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
     mockGetToolMetadata.mockReturnValue({
@@ -409,6 +424,160 @@ describe('resolveCredentialAccessToken', () => {
       ok: true,
       token: { accessToken: 'fresh', credentialType: 'oauth', idToken: undefined },
     })
+  })
+
+  it('rejects a service-account credential with no provider before authentication', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      credentialType: 'service_account',
+      credentialId: 'service-account-1',
+      workspaceId: 'ws-1',
+      accountId: '',
+      usedCredentialTable: true,
+    })
+    mockGetToolMetadata.mockReturnValue({
+      oauth: {
+        required: true,
+        provider: 'google',
+        credentialKind: 'service-account',
+      },
+    })
+
+    await expect(
+      resolveCredentialAccessToken({
+        requestId: 'req-1',
+        credentialId: 'service-account-1',
+        toolId: 'google_service_account_tool',
+        authenticate,
+      })
+    ).resolves.toEqual({
+      ok: false,
+      status: 403,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'Credential belongs to another service',
+    })
+    expect(authenticate).not.toHaveBeenCalled()
+    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects a service-account credential from another provider before authentication', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      credentialType: 'service_account',
+      credentialId: 'service-account-1',
+      providerId: 'atlassian-service-account',
+      workspaceId: 'ws-1',
+      accountId: '',
+      usedCredentialTable: true,
+    })
+    mockGetToolMetadata.mockReturnValue({
+      oauth: {
+        required: true,
+        provider: 'google',
+        credentialKind: 'service-account',
+      },
+    })
+    mockCredentialProviderMatchesService.mockReturnValue(false)
+
+    await expect(
+      resolveCredentialAccessToken({
+        requestId: 'req-1',
+        credentialId: 'service-account-1',
+        toolId: 'google_service_account_tool',
+        authenticate,
+      })
+    ).resolves.toEqual({
+      ok: false,
+      status: 403,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'Credential belongs to another service',
+    })
+    expect(authenticate).not.toHaveBeenCalled()
+    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+
+  it('accepts a non-Oracle service account whose provider matches the tool service', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      credentialType: 'service_account',
+      credentialId: 'service-account-1',
+      providerId: 'google-service-account',
+      workspaceId: 'ws-1',
+      accountId: '',
+      usedCredentialTable: true,
+    })
+    mockGetToolMetadata.mockReturnValue({
+      oauth: {
+        required: true,
+        provider: 'google-email',
+        requiredScopes: ['scope-a'],
+        credentialKind: 'service-account',
+      },
+    })
+    mockGetServiceConfigByServiceId.mockReturnValue(null)
+    mockGetServiceConfigByProviderId.mockReturnValue({
+      providerId: 'google-email',
+      serviceAccountProviderId: 'google-service-account',
+    })
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      workspaceId: 'ws-1',
+    })
+    mockResolveServiceAccountToken.mockResolvedValue({ accessToken: 'service-account-token' })
+
+    await expect(
+      resolveCredentialAccessToken({
+        requestId: 'req-1',
+        credentialId: 'service-account-1',
+        toolId: 'gmail_read',
+        scopes: ['scope-a'],
+        authenticate,
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      token: { accessToken: 'service-account-token', credentialType: 'service_account' },
+    })
+    expect(mockGetServiceConfigByProviderId).toHaveBeenCalledWith('google-email')
+    expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
+      'service-account-1',
+      'google-service-account',
+      ['scope-a'],
+      undefined
+    )
+  })
+
+  it.each([
+    ['an OAuth credential for a service-account-only tool', undefined, 'service-account'],
+    ['a service account for an OAuth-only tool', 'service_account', 'oauth'],
+  ])('rejects %s before authentication', async (_label, credentialType, requiredKind) => {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      ...(credentialType ? { credentialType } : {}),
+      credentialId: 'credential-1',
+      providerId: credentialType ? 'google-service-account' : undefined,
+      workspaceId: 'ws-1',
+      accountId: credentialType ? '' : 'account-1',
+      usedCredentialTable: true,
+    })
+    mockGetToolMetadata.mockReturnValue({
+      oauth: {
+        required: true,
+        provider: 'google',
+        credentialKind: requiredKind,
+      },
+    })
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'credential-1',
+      toolId: 'kind_restricted_tool',
+      authenticate,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'Credential belongs to another service',
+    })
+    expect(authenticate).not.toHaveBeenCalled()
   })
 
   it('rejects a managed credential when no delegation resolver is wired', async () => {

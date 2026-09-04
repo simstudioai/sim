@@ -34,6 +34,7 @@ export type SelectorCredentialPolicy =
       field: 'oauthCredential'
       serviceIds: readonly string[]
       resourceServiceId?: string
+      credentialKind?: 'oauth' | 'service-account'
     }
   | {
       kind: 'stored-or-fixed-token'
@@ -41,6 +42,7 @@ export type SelectorCredentialPolicy =
       serviceIds: readonly string[]
       tokenPrefixes: readonly string[]
       resourceServiceId?: string
+      credentialKind?: 'oauth' | 'service-account'
     }
 
 export interface AuthorizedSelectorCredential {

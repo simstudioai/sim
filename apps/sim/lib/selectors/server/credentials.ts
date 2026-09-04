@@ -111,6 +111,9 @@ export async function authorizeSelectorCredential(input: {
     input.policy.kind === 'stored-or-fixed-token' &&
     input.policy.tokenPrefixes.some((prefix) => suppliedId.startsWith(prefix))
   ) {
+    if (input.policy.credentialKind === 'service-account') {
+      throw new SelectorConnectionUnavailableError()
+    }
     const reference = input.references.get(input.policy.field)
     if (reference && !reference.visible) {
       input.protectedValues.add(suppliedId, 'secret')
@@ -131,6 +134,13 @@ export async function authorizeSelectorCredential(input: {
     }
   )
   if (!access.ok || access.workspaceId !== input.workspaceId) {
+    throw new SelectorConnectionUnavailableError()
+  }
+  if (
+    input.policy.credentialKind === 'service-account'
+      ? access.credentialType !== 'service_account'
+      : input.policy.credentialKind === 'oauth' && access.credentialType === 'service_account'
+  ) {
     throw new SelectorConnectionUnavailableError()
   }
   input.protectedValues.add(access.resolvedCredentialId, 'reference')
