@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { type CollabReadinessInputs, isCollabReady } from './readiness'
+import {
+  type CollabReadinessInputs,
+  isCollabReady,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/readiness'
 
 /** An observation, with the healthy defaults filled in so each case states only what it exercises. */
 const at = (input: Partial<CollabReadinessInputs>): CollabReadinessInputs => ({
