@@ -1,4 +1,5 @@
 import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import type { OAuthService } from '@/lib/oauth/types'
 
 export type OciDestinationProvenance = 'static' | 'authenticated-discovery'
 
@@ -12,26 +13,43 @@ export interface OciRegion {
   readonly realm: OciRealm
 }
 
-declare const validatedOciDestinationBrand: unique symbol
+declare const preparedOciEndpointBrand: unique symbol
 
-/** An OCI origin that passed both structural and service-owned hostname validation. */
-export interface ValidatedOciDestination {
+/** An OCI endpoint prepared from a declarative product policy. */
+export interface OciPreparedEndpoint {
   readonly origin: string
   readonly hostname: string
-  readonly service: string
+  readonly serviceId: OAuthService
+  readonly serviceName: string
   readonly region: OciRegion
   readonly provenance: OciDestinationProvenance
-  readonly [validatedOciDestinationBrand]: true
+  readonly [preparedOciEndpointBrand]: true
 }
 
-declare const ociServiceHostnamePredicateBrand: unique symbol
+declare const ociEndpointPolicyBrand: unique symbol
 
-export type OciServiceHostnamePredicate = ((params: {
-  hostname: string
-  service: string
-  region: OciRegion
-  provenance: OciDestinationProvenance
-}) => boolean) & { readonly [ociServiceHostnamePredicateBrand]: true }
+export interface OciStaticEndpointPolicy {
+  readonly kind: 'static'
+  readonly serviceId: OAuthService
+  readonly serviceName: string
+  readonly [ociEndpointPolicyBrand]: true
+}
+
+export type OciDiscoverySource =
+  | { readonly kind: 'header'; readonly name: string }
+  | { readonly kind: 'json'; readonly path: readonly string[] }
+
+export interface OciDiscoveredEndpointPolicy {
+  readonly kind: 'authenticated-discovery'
+  readonly serviceId: OAuthService
+  readonly serviceName: string
+  readonly responsePolicy: OciEndpointPolicy
+  readonly source: OciDiscoverySource
+  readonly allowRegionalHost: boolean
+  readonly [ociEndpointPolicyBrand]: true
+}
+
+export type OciEndpointPolicy = OciStaticEndpointPolicy | OciDiscoveredEndpointPolicy
 
 /**
  * Realm and region snapshot copied from `oci-common@2.140.0` files
@@ -179,17 +197,83 @@ export function resolveEffectiveOciRegion(defaultRegion: string, override?: stri
   return effective
 }
 
-export function objectStorageOciHostname(region: OciRegion): string {
-  return `objectstorage.${region.id}.${region.realm.domain}`
+function assertServiceName(value: string): void {
+  if (!/^[a-z][a-z0-9-]{0,62}$/.test(value)) {
+    throw new Error('OCI endpoint policy service name is invalid')
+  }
 }
 
-export function validateOciDestination(params: {
+function assertDiscoverySource(source: OciDiscoverySource): void {
+  if (source.kind === 'header') {
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(source.name)) {
+      throw new Error('OCI discovery header name is invalid')
+    }
+    return
+  }
+  if (
+    source.kind !== 'json' ||
+    source.path.length === 0 ||
+    source.path.length > 8 ||
+    source.path.some(
+      (segment) =>
+        segment.length === 0 || segment.length > 128 || /[\u0000-\u001f\u007f]/.test(segment)
+    )
+  ) {
+    throw new Error('OCI discovery JSON path is invalid')
+  }
+}
+
+/** Creates a frozen exact regional-host policy owned by one registered service. */
+export function createOciStaticEndpointPolicy(params: {
+  serviceId: OAuthService
+  serviceName: string
+}): OciStaticEndpointPolicy {
+  assertServiceName(params.serviceName)
+  return Object.freeze({
+    kind: 'static',
+    serviceId: params.serviceId,
+    serviceName: params.serviceName,
+  }) as OciStaticEndpointPolicy
+}
+
+/** Creates a frozen authenticated-discovery policy without executable hostname callbacks. */
+export function createOciDiscoveredEndpointPolicy(params: {
+  serviceId: OAuthService
+  serviceName: string
+  responsePolicy: OciEndpointPolicy
+  source: OciDiscoverySource
+  allowRegionalHost?: boolean
+}): OciDiscoveredEndpointPolicy {
+  assertServiceName(params.serviceName)
+  assertDiscoverySource(params.source)
+  if (params.responsePolicy.serviceId !== params.serviceId) {
+    throw new Error('OCI discovery source policy must have the same owning service')
+  }
+  const source =
+    params.source.kind === 'json'
+      ? Object.freeze({ ...params.source, path: Object.freeze([...params.source.path]) })
+      : Object.freeze({ ...params.source, name: params.source.name.toLowerCase() })
+  return Object.freeze({
+    kind: 'authenticated-discovery',
+    serviceId: params.serviceId,
+    serviceName: params.serviceName,
+    responsePolicy: params.responsePolicy,
+    source,
+    allowRegionalHost: params.allowRegionalHost ?? false,
+  }) as OciDiscoveredEndpointPolicy
+}
+
+export function regionalOciHostname(serviceName: string, region: OciRegion): string {
+  assertServiceName(serviceName)
+  return `${serviceName}.${region.id}.${region.realm.domain}`
+}
+
+function validateOciOrigin(params: {
   origin: string
-  service: string
+  policy: OciEndpointPolicy
   region: OciRegion
   provenance: OciDestinationProvenance
-  isServiceHostname: OciServiceHostnamePredicate
-}): ValidatedOciDestination {
+}): OciPreparedEndpoint {
   const knownRegion = getOciRegion(params.region.id)
   if (
     knownRegion.realm.id !== params.region.realm.id ||
@@ -204,8 +288,7 @@ export function validateOciDestination(params: {
     throw new Error('OCI destination must be a valid HTTPS origin')
   }
   if (
-    (params.provenance !== 'static' && params.provenance !== 'authenticated-discovery') ||
-    !/^[a-z][a-z0-9-]{0,62}$/.test(params.service) ||
+    params.policy.kind !== params.provenance ||
     url.protocol !== 'https:' ||
     url.port !== '' ||
     url.username !== '' ||
@@ -218,39 +301,51 @@ export function validateOciDestination(params: {
   ) {
     throw new Error('OCI destination must be an exact HTTPS origin with the default port')
   }
-  if (
-    !params.isServiceHostname({
-      hostname: url.hostname,
-      service: params.service,
-      region: knownRegion,
-      provenance: params.provenance,
-    })
-  ) {
+  const regionalHostname = regionalOciHostname(params.policy.serviceName, knownRegion)
+  const hostnameMatches =
+    params.provenance === 'static'
+      ? url.hostname === regionalHostname
+      : url.hostname.endsWith(`.${regionalHostname}`) ||
+        (params.policy.kind === 'authenticated-discovery' &&
+          params.policy.allowRegionalHost &&
+          url.hostname === regionalHostname)
+  if (!hostnameMatches) {
     throw new Error('OCI destination hostname is not owned by the requested service')
   }
   return {
     origin: url.origin,
     hostname: url.hostname,
-    service: params.service,
+    serviceId: params.policy.serviceId,
+    serviceName: params.policy.serviceName,
     region: knownRegion,
     provenance: params.provenance,
-  } as ValidatedOciDestination
+  } as OciPreparedEndpoint
 }
 
-export const isObjectStorageOciHostname = (({ hostname, service, region }) =>
-  service === 'objectstorage' &&
-  hostname === objectStorageOciHostname(region)) as OciServiceHostnamePredicate
-
-export function objectStorageOciDestination(
-  region: OciRegion,
-  provenance: OciDestinationProvenance = 'static'
-): ValidatedOciDestination {
-  const hostname = objectStorageOciHostname(region)
-  return validateOciDestination({
+/** Resolves a static policy exclusively from its service and validated region. */
+export function resolveStaticOciEndpoint(
+  policy: OciStaticEndpointPolicy,
+  region: OciRegion
+): OciPreparedEndpoint {
+  const hostname = regionalOciHostname(policy.serviceName, region)
+  return validateOciOrigin({
     origin: `https://${hostname}`,
-    service: 'objectstorage',
+    policy,
     region,
-    provenance,
-    isServiceHostname: isObjectStorageOciHostname,
+    provenance: 'static',
+  })
+}
+
+/** Structurally validates an origin extracted from an authenticated response. */
+export function resolveDiscoveredOciEndpoint(
+  policy: OciDiscoveredEndpointPolicy,
+  region: OciRegion,
+  origin: string
+): OciPreparedEndpoint {
+  return validateOciOrigin({
+    origin,
+    policy,
+    region,
+    provenance: 'authenticated-discovery',
   })
 }

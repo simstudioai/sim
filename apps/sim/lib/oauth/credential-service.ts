@@ -46,6 +46,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -631,6 +632,9 @@ type ServiceAccountTokenResolver = (
  * generically: the stored token IS the access token.
  */
 const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
+    accessToken: credentialId,
+  }),
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
     const secret = await getAtlassianServiceAccountSecret(credentialId)
     return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
