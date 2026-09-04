@@ -29,10 +29,20 @@ export type ProviderId =
   | 'litellm'
   | 'bedrock'
 
-export interface ModelPricing {
+export interface ModelTokenPricing {
   input: number // Per 1M tokens
   cachedInput?: number // Per 1M tokens (if supported)
   output: number // Per 1M tokens
+}
+
+export interface ModelPricingTier extends ModelTokenPricing {
+  /** Tier applies to the full request when total input tokens exceed this value. */
+  aboveInputTokens: number
+}
+
+export interface ModelPricing extends ModelTokenPricing {
+  /** Additional input-size tiers; the highest matching threshold wins. */
+  tiers?: ModelPricingTier[]
   updatedAt: string // Last updated date
 }
 

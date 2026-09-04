@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildModelCapabilityFacts, getEffectiveMaxOutputTokens, getModelBySlug } from './utils'
+import {
+  buildModelCapabilityFacts,
+  getEffectiveMaxOutputTokens,
+  getModelBySlug,
+  getPricingBounds,
+  getProviderBySlug,
+} from '@/app/(landing)/models/utils'
 
 describe('model catalog capability facts', () => {
   it.concurrent(
@@ -45,5 +51,16 @@ describe('model catalog capability facts', () => {
 
     expect(researchModel?.bestFor).toContain('research workflows')
     expect(generalModel?.bestFor).toBeUndefined()
+  })
+
+  it.concurrent('features the explicitly recommended OpenAI model first', () => {
+    expect(getProviderBySlug('openai')?.featuredModels[0]?.id).toBe('gpt-6-astra')
+  })
+
+  it.concurrent('includes input-size tiers in structured pricing bounds', () => {
+    const model = getModelBySlug('openai', 'gpt-6-astra')
+
+    expect(model).not.toBeNull()
+    expect(getPricingBounds(model!.pricing)).toEqual({ lowPrice: 1, highPrice: 75 })
   })
 })
