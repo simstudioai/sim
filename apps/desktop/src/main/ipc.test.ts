@@ -133,6 +133,7 @@ import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, openMicrophoneSettings, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
+import { isLocalPageUrl } from '@/main/local-pages'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
@@ -224,14 +225,14 @@ function trackedSender() {
 }
 
 const rejectedSender = () => trackedSender().sender
-const fileSender = rejectedSender()
+const localPageSender = rejectedSender()
 const appSender = rejectedSender()
 const evilSender = rejectedSender()
 const activeSender = trackedSender()
 const activeChooserSender = trackedSender()
-const fileEvent = {
-  senderFrame: { url: 'file:///app/static/offline.html' },
-  sender: fileSender,
+const localPageEvent = {
+  senderFrame: { url: 'sim-shell://pages/offline.html?kind=dns&detail=probe' },
+  sender: localPageSender,
 }
 const appEvent = { senderFrame: { url: `${APP}/workspace/ws1` }, sender: appSender }
 const activeAppEvent = {
@@ -246,7 +247,7 @@ const inactiveAppEvent = {
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' }, sender: evilSender }
 const arbitraryFileEvent = {
   senderFrame: { url: 'file:///Users/example/private.html' },
-  sender: fileSender,
+  sender: localPageSender,
 }
 /** The chooser anchors a native menu, so it needs a sender with a window. */
 const FAKE_WINDOW = { id: 'main-window' }
@@ -288,7 +289,7 @@ describe('registerIpcHandlers', () => {
       appOrigin: () => APP,
       allowHttpLocalhost: () => false,
       accountDataAvailable: () => true,
-      localPagePaths: ['/app/static/offline.html', '/app/static/server.html'],
+      isLocalPageUrl,
       retryLoad: vi.fn(),
       beginOAuthConnect: vi.fn(async () => true),
       localFilesystem: new LocalFilesystemService({
@@ -402,7 +403,7 @@ describe('registerIpcHandlers', () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('desktop:oauth-connect')
     expect(await handler?.(evilEvent, 'slack')).toBe(false)
-    expect(await handler?.(fileEvent, 'slack')).toBe(false)
+    expect(await handler?.(localPageEvent, 'slack')).toBe(false)
     expect(await handler?.(appEvent, 'slack')).toBe(false)
     expect(deps.beginOAuthConnect).not.toHaveBeenCalled()
     expect(await handler?.(activeAppEvent, 42)).toBe(false)
@@ -681,8 +682,8 @@ describe('registerIpcHandlers', () => {
     expect(deps.retryLoad).not.toHaveBeenCalled()
     on.get('offline:retry')?.(arbitraryFileEvent)
     expect(deps.retryLoad).not.toHaveBeenCalled()
-    on.get('offline:retry')?.(fileEvent)
-    expect(deps.retryLoad).toHaveBeenCalledWith(fileSender)
+    on.get('offline:retry')?.(localPageEvent)
+    expect(deps.retryLoad).toHaveBeenCalledWith(localPageSender)
   })
 
   it('registers every channel the preload bridge invokes or sends', () => {
@@ -738,7 +739,7 @@ describe('registerIpcHandlers', () => {
       ok: false,
       error: expect.stringContaining('not allowed'),
     })
-    expect(await handler?.(fileEvent, 'tool-1', 'browser_navigate', {})).toMatchObject({
+    expect(await handler?.(localPageEvent, 'tool-1', 'browser_navigate', {})).toMatchObject({
       ok: false,
     })
     expect(await handler?.(appEvent, 'tool-1', 'browser_snapshot', {}, 'chat-1')).toMatchObject({
@@ -1648,7 +1649,7 @@ describe('registerIpcHandlers', () => {
     const handler = invoke.get('browser-import:list-profiles')
 
     expect(await handler?.(evilEvent)).toEqual([])
-    expect(await handler?.(fileEvent)).toEqual([])
+    expect(await handler?.(localPageEvent)).toEqual([])
     expect(listChromeImportProfiles).not.toHaveBeenCalled()
 
     expect(await handler?.(appEvent)).toEqual([{ id: 'Default', label: 'Person 1' }])

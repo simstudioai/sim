@@ -95,6 +95,12 @@ export const session = {
   fromPartition: vi.fn(),
 }
 
+export const protocol = {
+  registerSchemesAsPrivileged: vi.fn(),
+  handle: vi.fn(),
+  isProtocolHandled: vi.fn(() => false),
+}
+
 export const ipcMain = {
   on: vi.fn(),
   handle: vi.fn(),

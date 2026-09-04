@@ -10,9 +10,7 @@
     <style>
       @font-face {
         font-family: 'Season Sans';
-        src:
-          url('../../sim/public/brand/fonts/SeasonSansUprightsVF.woff2') format('woff2'),
-          url('./SeasonSansUprightsVF.woff2') format('woff2');
+        src: url('./SeasonSansUprightsVF.woff2') format('woff2');
         font-style: normal;
         font-weight: 300 800;
         font-display: block;
@@ -229,6 +227,9 @@
         if (event.key === 'Enter' && !connect.disabled) submit()
       })
       cancel.addEventListener('click', () => window.close())
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') window.close()
+      })
 
       async function submit() {
         if (pending) return

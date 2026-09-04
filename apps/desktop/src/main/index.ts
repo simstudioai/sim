@@ -1,4 +1,4 @@
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OpenDialogOptions, Session, WebContents } from 'electron'
@@ -57,6 +57,12 @@ import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
+import {
+  attachLocalPageProtocol,
+  isLocalPageUrl,
+  localPageUrl,
+  registerLocalPageScheme,
+} from '@/main/local-pages'
 import { installApplicationMenu } from '@/main/menu'
 import { openExternalSafe } from '@/main/navigation'
 import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
@@ -91,8 +97,6 @@ function reportHandoffFailure(error: unknown): void {
   logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
 }
 
-const OFFLINE_PAGE = 'static/offline.html'
-const SERVER_PAGE = 'static/server.html'
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
   staging: 'dock-icon-staging.png',
@@ -259,6 +263,7 @@ function main(): void {
     }
     configuredPartitions.add(partition)
     setupPermissionHandlers(ses, appOrigin)
+    attachLocalPageProtocol(ses)
     attachCspFallback(ses, appOrigin)
     attachDownloadHandling(ses, events)
     attachTelemetryPolicy(ses, config.get('blockThirdPartyAnalytics') ?? true)
@@ -425,7 +430,7 @@ function main(): void {
       allowHttpLocalhost: allowHttpLocalhost(),
     })
     const loadHealth = attachLoadHealth(win, {
-      offlinePagePath: OFFLINE_PAGE,
+      offlinePageUrl: (query) => localPageUrl('offline.html', query),
       getStartUrl: () => `${appOrigin()}${route}`,
       isOnline: () => net.isOnline(),
       events,
@@ -524,7 +529,6 @@ function main(): void {
   const serverWindow = createServerWindow({
     config,
     defaultOrigin: DEFAULT_ORIGIN,
-    pagePath: SERVER_PAGE,
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
@@ -754,7 +758,7 @@ function main(): void {
       appOrigin,
       allowHttpLocalhost,
       accountDataAvailable,
-      localPagePaths: [resolve(OFFLINE_PAGE), resolve(SERVER_PAGE)],
+      isLocalPageUrl,
       scopeEvents,
       retryLoad: (sender) => {
         const win = windowForContents(sender)
@@ -893,6 +897,10 @@ app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }
+
+// The scheme the offline page and server picker load from must be declared
+// before the app is ready; the per-session handlers attach later.
+registerLocalPageScheme()
 
 // Capture native minidumps for main/renderer/GPU crashes. Local-only: there is
 // no crash-ingest backend, so nothing is uploaded — the dumps land under

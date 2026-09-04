@@ -157,7 +157,7 @@ test.describe('desktop shell smoke', () => {
     app = await launchApp('http://127.0.0.1:1')
     const window = await app.firstWindow()
     await window.waitForSelector('#retry', { timeout: 30_000 })
-    expect(window.url().startsWith('file:')).toBe(true)
+    expect(window.url()).toMatch(/^sim-shell:\/\/pages\/offline\.html\?/)
     await expect(window.locator('.wordmark')).toBeVisible()
     await expect(window.locator('.wordmark')).toHaveAttribute('aria-label', 'Sim')
     await expect(window.locator('#title')).toHaveText('Can’t connect to Sim')
@@ -182,5 +182,30 @@ test.describe('desktop shell smoke', () => {
     await window.locator('#retry').focus()
     await expect(window.locator('#retry')).toHaveCSS('outline-style', 'solid')
     await expect(window.locator('#detail')).toHaveAttribute('role', 'status')
+  })
+
+  // The picker is the only way to repoint a shell whose server is unreachable.
+  // Its page, the pre-filled value (which crosses the local-page IPC gate) and
+  // Escape are asserted together because the packaged build once opened it as
+  // a blank sheet with no way out.
+  test('the offline page opens the server picker, pre-filled, and Escape closes it', async () => {
+    app = await launchApp('http://127.0.0.1:1')
+    const window = await app.firstWindow()
+    await window.waitForSelector('#server', { timeout: 30_000 })
+
+    const pickerPromise = app.waitForEvent('window')
+    await window.locator('#server').click()
+    const picker = await pickerPromise
+
+    expect(picker.url()).toBe('sim-shell://pages/server.html')
+    await expect(picker.locator('h1')).toHaveText('Sim server')
+    await expect(picker.locator('#origin')).toHaveValue('http://127.0.0.1:1')
+
+    const closed = picker.waitForEvent('close')
+    // The main process destroys the window on the key-down, so the key-up half
+    // of `press` has no target to reach; the close event is the assertion.
+    await picker.keyboard.press('Escape').catch(() => {})
+    await closed
+    expect(app.windows()).toHaveLength(1)
   })
 })

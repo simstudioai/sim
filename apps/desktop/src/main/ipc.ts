@@ -1,5 +1,3 @@
-import { normalize } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import {
   BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS,
   type BrowserPanelAction,
@@ -332,8 +330,8 @@ export interface IpcDeps {
   allowHttpLocalhost: () => boolean
   /** False while local account-data persistence is unavailable or teardown must be retried. */
   accountDataAvailable: () => boolean
-  /** Absolute paths of the bundled recovery pages allowed to control the shell. */
-  localPagePaths: readonly string[]
+  /** Whether a frame URL is one of the bundled pages allowed to control the shell. */
+  isLocalPageUrl: (url: string) => boolean
   retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
   terminal: TerminalRegistry
@@ -383,7 +381,8 @@ export interface IpcDeps {
 /**
  * Who may call a channel:
  * - `app-origin`: only the remote app origin (main window pages).
- * - `local-page`: only bundled `file:` pages (offline) — shell control.
+ * - `local-page`: only the bundled pages served from the shell's own scheme
+ *   (offline, server) — shell control.
  * - `browser-page`: only the built-in browser's own tabs, identified by
  *   WebContents rather than by URL. These carry reports from the browser
  *   preload about untrusted pages, so they are the one inbound surface whose
@@ -435,16 +434,9 @@ type ChannelSpec =
 
 function isLocalPageSender(
   event: IpcMainEvent | IpcMainInvokeEvent,
-  localPagePaths: readonly string[]
+  isLocalPageUrl: (url: string) => boolean
 ): boolean {
-  try {
-    const url = new URL(event.senderFrame?.url ?? '')
-    if (url.protocol !== 'file:') return false
-    const senderPath = normalize(fileURLToPath(url))
-    return localPagePaths.some((allowedPath) => senderPath === normalize(allowedPath))
-  } catch {
-    return false
-  }
+  return isLocalPageUrl(event.senderFrame?.url ?? '')
 }
 
 /**
@@ -1929,7 +1921,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (gate === 'any') return true
     if (gate === 'app-origin') return isAppOriginSender(event, deps.appOrigin())
     if (gate === 'browser-page') return isAgentWebContents(event.sender)
-    return isLocalPageSender(event, deps.localPagePaths)
+    return isLocalPageSender(event, deps.isLocalPageUrl)
   }
 
   const featureAllowed = (feature: ChannelFeature | undefined): boolean => {
