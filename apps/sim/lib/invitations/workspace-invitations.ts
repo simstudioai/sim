@@ -1,9 +1,15 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
-import { type InvitationMembershipIntent, member, permissions, user } from '@sim/db/schema'
+import {
+  foldedEmail,
+  type InvitationMembershipIntent,
+  member,
+  permissions,
+  user,
+} from '@sim/db/schema'
 import { isOrgAdminRole, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import {
@@ -479,7 +485,7 @@ export async function createWorkspaceInvitation({
   const existingUser = await db
     .select({ id: user.id })
     .from(user)
-    .where(sql`lower(${user.email}) = ${normalizedEmail}`)
+    .where(eq(foldedEmail(user.email), normalizedEmail))
     .then((rows) => rows[0])
 
   const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null

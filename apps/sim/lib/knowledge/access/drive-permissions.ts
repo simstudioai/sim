@@ -1,3 +1,4 @@
+import { normalizeEmail } from '@sim/utils/string'
 import { groupToken, sortAccessTokens, userToken } from '@/lib/knowledge/access/tokens'
 import { LINK_ACCESS_TOKEN, PUBLIC_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 
@@ -50,7 +51,7 @@ export const CLOSED_OPEN_SHARING: OpenSharingPolicy = Object.freeze({
  * decided by the reader's own email domain rather than a second predicate.
  */
 export function domainGroupId(domain: string): string {
-  return `domain:${domain.trim().toLowerCase()}`
+  return `domain:${normalizeEmail(domain)}`
 }
 
 export interface DriveAclInput {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import type {
   ConfluencePrincipal,
   ConfluenceRestriction,
@@ -189,7 +190,7 @@ export async function resolveUserEmails(
         accessToken
       )
       for (const entry of body.results ?? []) {
-        const email = entry.email?.trim().toLowerCase()
+        const email = entry.email ? normalizeEmail(entry.email) : ''
         if (entry.accountId && email) emails.set(entry.accountId, email)
       }
     } catch (error) {

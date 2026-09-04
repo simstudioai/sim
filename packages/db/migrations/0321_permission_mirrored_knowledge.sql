@@ -5,32 +5,19 @@
 -- connectors over one directory resolve it once; membership is keyed by case-folded email, because
 -- a directory reports addresses and most members of a granted group have no Sim account yet.
 --
--- `user` gains a case-insensitive unique index. Every identity binding by email compares the folded
--- address, so two accounts differing only in case were one identity to it, each inheriting the
--- other's grants. The pre-check below runs inside the runner's batch transaction and fails the deploy
--- naming the duplicate count, rolling back having changed nothing: a concurrent unique build that
--- hit a duplicate would instead leave an INVALID index that `IF NOT EXISTS` skips on every later run,
--- so the constraint would appear to exist while enforcing nothing.
+-- `user` gains an index on the case-folded address, `lower(btrim(email))`. Every identity binding
+-- by email compares that expression — credential-group enrollments, the `u:` document token, and
+-- the ambiguity check access resolution runs on every read — so without the index each is a
+-- sequential scan of `user`. It is deliberately not UNIQUE: a small number of historical accounts
+-- collide once folded, and access resolution refuses to bind an ambiguous address rather than let
+-- either read the other's documents. Promoting it to UNIQUE is a follow-up once those are merged.
 --
--- Transaction shape: the pre-check and the new (empty) tables run inside the runner's batch
--- transaction. The embedded COMMIT then ends it so the index on the hot `user` table can build
--- CONCURRENTLY without write-blocking it. A failure after the COMMIT replays this whole file
--- against tables that are already committed, so every statement here is idempotent: IF NOT
--- EXISTS on tables and indexes, pg_constraint lookups around the foreign keys, and the
--- DROP / IF NOT EXISTS pair on the concurrent build.
-DO $$
-DECLARE
-  duplicate_addresses bigint;
-BEGIN
-  SELECT count(*) INTO duplicate_addresses
-  FROM (SELECT 1 FROM "user" GROUP BY lower(btrim("email")) HAVING count(*) > 1) AS d;
-
-  IF duplicate_addresses > 0 THEN
-    RAISE EXCEPTION
-      'Cannot create user_email_lower_unique: % email address(es) are held by more than one account. Merge the duplicate accounts, then re-run this migration.',
-      duplicate_addresses;
-  END IF;
-END $$;--> statement-breakpoint
+-- Transaction shape: the new (empty) tables run inside the runner's batch transaction. The
+-- embedded COMMIT then ends it so the index on the hot `user` table can build CONCURRENTLY without
+-- write-blocking it. A failure after the COMMIT replays this whole file against tables that are
+-- already committed, so every statement here is idempotent: IF NOT EXISTS on tables and indexes,
+-- pg_constraint lookups around the foreign keys, and the DROP / IF NOT EXISTS pair on the
+-- concurrent build.
 CREATE TABLE IF NOT EXISTS "knowledge_external_group" (
 	"id" text PRIMARY KEY NOT NULL,
 	"workspace_id" text NOT NULL,
@@ -70,6 +57,6 @@ CREATE INDEX IF NOT EXISTS "kegm_email_idx" ON "knowledge_external_group_member"
 COMMIT;--> statement-breakpoint
 SET lock_timeout = 0;--> statement-breakpoint
 -- migration-safe: replay removes an invalid build left by an earlier attempt; concurrent operations preserve writes.
-DROP INDEX CONCURRENTLY IF EXISTS "user_email_lower_unique";--> statement-breakpoint
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "user_email_lower_unique" ON "user" USING btree (lower(btrim("email")));--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "user_email_lower_idx";--> statement-breakpoint
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "user_email_lower_idx" ON "user" USING btree (lower(btrim("email")));--> statement-breakpoint
 SET lock_timeout = '5s';

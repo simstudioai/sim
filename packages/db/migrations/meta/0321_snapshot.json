@@ -1,5 +1,5 @@
 {
-  "id": "5796ed80-eec0-4507-aa92-05a124950a85",
+  "id": "dc200fd3-9292-44da-971d-a357896f27ee",
   "prevId": "5a6e3414-7fa3-4206-8e48-73d5f0ded1ce",
   "version": "7",
   "dialect": "postgresql",
@@ -15163,8 +15163,8 @@
         }
       },
       "indexes": {
-        "user_email_lower_unique": {
-          "name": "user_email_lower_unique",
+        "user_email_lower_idx": {
+          "name": "user_email_lower_idx",
           "columns": [
             {
               "expression": "lower(btrim(\"email\"))",
@@ -15173,7 +15173,7 @@
               "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

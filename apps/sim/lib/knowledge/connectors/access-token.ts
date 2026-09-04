@@ -1,3 +1,4 @@
+import { normalizeEmail } from '@sim/utils/string'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import type { ConnectorAuthConfig } from '@/connectors/types'
@@ -47,7 +48,7 @@ export function connectorServiceAccountSubject(
   if (auth.mode !== 'oauth' || !auth.serviceAccountSubjectFieldId) return undefined
   const raw = sourceConfig[auth.serviceAccountSubjectFieldId]
   if (typeof raw !== 'string') return undefined
-  const subject = raw.trim().toLowerCase()
+  const subject = normalizeEmail(raw)
   return subject.length > 0 ? subject : undefined
 }
 

@@ -140,6 +140,12 @@ const workspaceFileSearchSegmentMock = {
 }
 
 export const schemaMock = {
+  /**
+   * The schema's folded-address expression. Returns the column it wraps so a
+   * predicate built on it still names the column, and assertions on condition
+   * shape keep working.
+   */
+  foldedEmail: (column: unknown) => column,
   user: {
     id: 'user.id',
     name: 'user.name',

@@ -4,14 +4,14 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  foldedEmail,
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
   user,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, gte, inArray, type SQL, sql } from 'drizzle-orm'
-import type { AnyPgColumn } from 'drizzle-orm/pg-core'
+import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
@@ -38,24 +38,14 @@ export const WORKSPACE_ACCESS_SCOPE: WorkspaceAccessScope = Object.freeze({
 })
 
 /**
- * An email address reduced to the identity it names. `user.email` is unique
- * byte-for-byte only, so this is the form every binding by email must compare
- * — and `user_email_lower_unique` indexes exactly this expression, so a
- * predicate written any other way silently becomes a sequential scan.
- */
-function foldedEmail(column: AnyPgColumn): SQL<string> {
-  return sql<string>`lower(btrim(${column}))`
-}
-
-/**
  * Whether some other account folds to this one's address.
  *
- * `user_email_lower_unique` is what makes that impossible; this is the
- * assertion that access control does not quietly depend on the constraint still
- * being there. An index can be dropped during an incident, and a restore can
- * bring back a database built before it existed — neither should silently hand
- * one person another's documents. One index probe per read is a fair price; it
- * plans as an index scan, not a table scan.
+ * `user.email` is unique byte-for-byte only, and a small number of historical
+ * accounts collide once folded. Until those are merged and the index promoted
+ * to UNIQUE, this check is what keeps either account from reading the other's
+ * documents — and it stays afterwards, so access control never quietly depends
+ * on a constraint still being there. One probe of `user_email_lower_idx` per
+ * read; it plans as an index scan, not a table scan.
  */
 const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
   SELECT 1 FROM ${user} AS other
@@ -165,12 +155,6 @@ async function loadUserAccessTokens(
     .leftJoin(
       credentialGroupEnrollment,
       and(
-        /**
-         * The address is folded here rather than read from `normalized_email`,
-         * which is declared unique but never written: a `COALESCE` over it
-         * would silently start matching a different, broader set of people the
-         * day anything backfills that column.
-         */
         eq(credentialGroupEnrollment.email, foldedEmail(user.email)),
         inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES])
       )

@@ -1,3 +1,4 @@
+import { normalizeEmail } from '@sim/utils/string'
 import { WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 
 /**
@@ -102,7 +103,7 @@ export function subjectToken(credential: SubjectCredential): string {
  * cannot attribute to a person must be dropped rather than guessed at.
  */
 export function userToken(email: string | null | undefined): string | null {
-  const normalized = email?.trim().toLowerCase()
+  const normalized = email ? normalizeEmail(email) : ''
   if (!normalized) return null
   const token = `u:${normalized}`
   return isAccessToken(token) ? token : null
@@ -127,10 +128,11 @@ export interface GroupIdentity {
  * Both the crawl that writes a `g:` token and the directory sync that stores
  * the group's membership pass through this, so the two can never disagree about
  * case or whitespace — Drive spells a group email however it was typed, and a
- * grant that folds differently from its membership row grants nobody.
+ * grant that folds differently from its membership row grants nobody. The fold
+ * is the same one addresses get, because a Drive group *is* an address.
  */
 export function canonicalGroupId(groupId: string): string {
-  return groupId.trim().toLowerCase()
+  return normalizeEmail(groupId)
 }
 
 /** The token of a group grant. */

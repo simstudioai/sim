@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
 import type {
   ConnectorDirectory,
@@ -35,7 +36,7 @@ const MAX_GROUP_NESTING_DEPTH = 10
  */
 export function googleWorkspaceDomain(adminEmail: unknown): string | undefined {
   if (typeof adminEmail !== 'string') return undefined
-  const domain = adminEmail.trim().toLowerCase().split('@')[1]
+  const domain = normalizeEmail(adminEmail).split('@')[1]
   return domain || undefined
 }
 
@@ -143,7 +144,7 @@ export async function listGroupMembers(
     )
 
     for (const member of members) {
-      const email = member.email?.trim().toLowerCase()
+      const email = member.email ? normalizeEmail(member.email) : ''
       if (!email) continue
       if (member.status && member.status.toUpperCase() !== 'ACTIVE') continue
 

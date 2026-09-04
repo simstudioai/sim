@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  foldedEmail,
   invitation,
   invitationWorkspaceGrant,
   member,
@@ -12,7 +13,7 @@ import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import {
   acquireOrganizationUserMutationLocks,
@@ -94,7 +95,7 @@ async function getPendingWorkspaceInvitationIds(
     .innerJoin(invitationWorkspaceGrant, eq(invitationWorkspaceGrant.invitationId, invitation.id))
     .where(
       and(
-        sql`lower(${invitation.email}) = ${normalizedEmail}`,
+        eq(foldedEmail(invitation.email), normalizedEmail),
         eq(invitation.status, 'pending'),
         eq(invitationWorkspaceGrant.workspaceId, workspaceId)
       )

@@ -44,6 +44,17 @@ export const bytea = customType<{
   },
 })
 
+/**
+ * An email address reduced to the identity it names, in SQL. The one expression
+ * every comparison of an address by identity must use — and the exact expression
+ * `user_email_lower_idx` indexes, so a predicate written any other way silently
+ * becomes a sequential scan. The TypeScript twin is `normalizeEmail` in
+ * `@sim/utils/string`; the two must agree, and both are trim-and-lowercase.
+ */
+export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
+  return sql<string>`lower(btrim(${column}))`
+}
+
 export const user = pgTable(
   'user',
   {
@@ -51,17 +62,19 @@ export const user = pgTable(
     name: text('name').notNull(),
     /**
      * Unique byte-for-byte only. The identity an address names is
-     * `user_email_lower_unique`, not this constraint.
+     * `foldedEmail(email)`, which `user_email_lower_idx` indexes.
      */
     email: text('email').notNull().unique(),
     /**
-     * Declared unique but **never written** by any code path, so every row is
-     * NULL and the constraint holds vacuously. Nothing may read it as though it
-     * were populated: a reader that falls back to `email` when this is NULL
-     * silently changes meaning the day a backfill lands. Fold `email` instead.
+     * Written by a signup plugin that was removed; populated for roughly a
+     * fifth of accounts, with a different normalisation (Gmail dot and tag
+     * stripping) that must never be used for identity. Nothing reads it.
      *
-     * contract-pending: drop the column, or populate it and retire the
-     * functional index below. Two spellings of one idea is the actual problem.
+     * Follow-up, after the release removing its readers has deployed: drop the
+     * column, marking this table `contract-pending` at that point so the drop
+     * audit names every read that would still select it. Better Auth selects
+     * every schema column, so dropping it while the previous release is still
+     * serving would break sign-in.
      */
     normalizedEmail: text('normalized_email').unique(),
     emailVerified: boolean('email_verified').notNull(),
@@ -76,18 +89,18 @@ export const user = pgTable(
   },
   (table) => ({
     /**
-     * One account per address, compared the way an address actually identifies
-     * a person. `email` alone is unique byte-for-byte, so without this
-     * `Alice@corp.com` and `alice@corp.com` are two accounts that every
-     * identity binding in the product — credential-group enrollments, the `u:`
-     * document access token — would treat as one, each inheriting the other's
-     * grants.
+     * The folded address, which is how every identity binding by email
+     * compares — credential-group enrollments, the `u:` document access token,
+     * the ambiguity check access resolution runs on every read. Without it
+     * each of those is a sequential scan of `user`.
      *
-     * The expression is also what access resolution's ambiguity check probes,
-     * so a predicate written any other way silently becomes a sequential scan
-     * of `user` on every read.
+     * Not unique. `email` is unique byte-for-byte only, and a small number of
+     * historical accounts collide once folded; access resolution refuses to
+     * bind an ambiguous address rather than let either account read the
+     * other's documents. Follow-up, after those accounts are merged: promote to
+     * UNIQUE so the state cannot arise at all.
      */
-    emailLowerUnique: uniqueIndex('user_email_lower_unique').on(sql`lower(btrim(${table.email}))`),
+    emailLowerIdx: index('user_email_lower_idx').on(foldedEmail(table.email)),
   })
 )
 
