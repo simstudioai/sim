@@ -286,9 +286,6 @@ describe('performUpdateCredential — service-account secret rotation', () => {
   it('carries the stored dataCenter forward for a client-credential reconnect', async () => {
     mockCredential({ providerId: 'zoho-desk-service-account', displayName: 'Acme Desk' })
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)
-    mockGetClientCredentialAccountDescriptor.mockReturnValue({
-      fields: [{ id: 'dataCenter' }],
-    } as never)
     mockStoredBlob({ type: 'client_credential_account', dataCenter: 'eu' })
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
       providerId: 'zoho-desk-service-account',
@@ -334,7 +331,6 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)
     mockGetClientCredentialAccountDescriptor.mockReturnValue({
       defaultAuthMethod: 'client_credentials',
-      fields: [],
     } as never)
     mockStoredBlob({
       type: 'client_credential_account',
@@ -415,42 +411,6 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
       'netsuite-service-account',
       expect.objectContaining({ certificateId: 'certificate-id' })
-    )
-  })
-
-  it('threads Oracle EPM integration-user fields through reconnect without reading old secrets', async () => {
-    mockCredential({
-      providerId: 'oracle-epm-service-account',
-      displayName: 'Production EPM',
-    })
-    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
-    mockGetClientCredentialAccountDescriptor.mockReturnValue({
-      fields: [{ id: 'orgId' }, { id: 'clientId' }, { id: 'clientSecret' }],
-    } as never)
-    mockStoredBlob({ type: 'client_credential_account' })
-    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
-      providerId: 'oracle-epm-service-account',
-      encryptedServiceAccountKey: 'new-cipher',
-      displayName: 'Production EPM',
-      auditMetadata: {},
-    })
-
-    await performUpdateCredential({
-      credentialId: 'cred-1',
-      userId: 'user-1',
-      orgId: 'https://epm.example.com/gateway',
-      clientId: 'integration.user@example.com',
-      clientSecret: 'rotated-password',
-    })
-
-    expect(mockDecryptSecret).not.toHaveBeenCalled()
-    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
-      'oracle-epm-service-account',
-      expect.objectContaining({
-        orgId: 'https://epm.example.com/gateway',
-        clientId: 'integration.user@example.com',
-        clientSecret: 'rotated-password',
-      })
     )
   })
 

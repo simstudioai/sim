@@ -24,12 +24,7 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import {
-  credentialProviderMatchesService,
-  getCanonicalScopesForProvider,
-  getServiceConfigByProviderId,
-  type ServiceProviderIdentity,
-} from '@/lib/oauth/utils'
+import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
@@ -64,12 +59,6 @@ export interface ResolveCredentialTokenInput {
   auditRequest?: CredentialAuditRequest
   /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */
   resolvedCredential: ResolvedCredential | null
-  /**
-   * Trusted tool-service identity used to reject cross-service credentials.
-   * `null` means the tool declared a service that is absent from the registry;
-   * `undefined` means the tool declares no OAuth service constraint.
-   */
-  expectedService?: ServiceProviderIdentity | null
 }
 
 export type ResolveCredentialTokenResult =
@@ -217,33 +206,10 @@ export async function resolveCredentialToken(
       workflowId,
       callerUserId,
     })
-    const isServiceAccount =
-      resolved?.credentialType === 'service_account' && Boolean(resolved.credentialId)
 
-    if (!authz.ok || (!isServiceAccount && !authz.credentialOwnerUserId)) {
-      return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
-    }
-    if (input.expectedService === null) {
-      return {
-        ok: false,
-        status: 403,
-        code: 'CREDENTIAL_PROVIDER_MISMATCH',
-        error: 'Credential does not match the tool service',
-      }
-    }
-
-    if (isServiceAccount && resolved?.credentialId) {
-      if (
-        input.expectedService &&
-        (!resolved.providerId ||
-          !credentialProviderMatchesService(resolved.providerId, input.expectedService))
-      ) {
-        return {
-          ok: false,
-          status: 403,
-          code: 'CREDENTIAL_PROVIDER_MISMATCH',
-          error: 'Credential does not match the tool service',
-        }
+    if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
+      if (!authz.ok) {
+        return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
 
       const saActorId = authz.requesterUserId
@@ -318,9 +284,10 @@ export async function resolveCredentialToken(
       }
     }
 
-    if (!authz.credentialOwnerUserId) {
-      return { ok: false, status: 403, error: 'Unauthorized' }
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
     }
+
     const resolvedCredentialId = authz.resolvedCredentialId || credentialId
     const credential = await getCredential(
       requestId,
@@ -330,17 +297,6 @@ export async function resolveCredentialToken(
 
     if (!credential) {
       return { ok: false, status: 404, error: 'Credential not found' }
-    }
-    if (
-      input.expectedService &&
-      !credentialProviderMatchesService(credential.providerId, input.expectedService)
-    ) {
-      return {
-        ok: false,
-        status: 403,
-        code: 'CREDENTIAL_PROVIDER_MISMATCH',
-        error: 'Credential does not match the tool service',
-      }
     }
 
     return completeOAuthCredentialToken({
@@ -388,10 +344,6 @@ export async function resolveCredentialAccessToken(
   const { requestId, credentialId, toolId, auditRequest } = input
 
   const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
-  const toolMetadata = toolId ? getToolMetadata(toolId) : undefined
-  const expectedService = toolMetadata?.oauth?.required
-    ? (getServiceConfigByProviderId(toolMetadata.oauth.provider) ?? null)
-    : undefined
 
   if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
     const auth = await input.authenticate()
@@ -409,7 +361,6 @@ export async function resolveCredentialAccessToken(
       callerUserId: input.callerUserId,
       auditRequest,
       resolvedCredential: resolved,
-      expectedService,
     })
   }
 
@@ -444,8 +395,8 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  const managedToolMetadata = toolMetadata
-  if (!managedToolMetadata?.oauth?.required) {
+  const toolMetadata = getToolMetadata(toolId)
+  if (!toolMetadata?.oauth?.required) {
     logger.error(`[${requestId}] Tool is not configured for managed OAuth`, { toolId })
     return {
       ok: false,
@@ -455,12 +406,11 @@ export async function resolveCredentialAccessToken(
     }
   }
   const requiredScopes =
-    managedToolMetadata.oauth.requiredScopes ??
-    getCanonicalScopesForProvider(managedToolMetadata.oauth.provider)
+    toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
   if (requiredScopes.length === 0) {
     logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
       toolId,
-      providerId: managedToolMetadata.oauth.provider,
+      providerId: toolMetadata.oauth.provider,
     })
     return {
       ok: false,
@@ -475,7 +425,7 @@ export async function resolveCredentialAccessToken(
       principal,
       input: {
         credentialId: resolved.credentialId,
-        expectedProviderId: managedToolMetadata.oauth.provider,
+        expectedProviderId: toolMetadata.oauth.provider,
         requiredScopes,
         toolId,
       },
@@ -489,7 +439,7 @@ export async function resolveCredentialAccessToken(
         'credential_used',
         {
           credential_type: 'managed_oauth',
-          provider_id: managedToolMetadata.oauth.provider,
+          provider_id: toolMetadata.oauth.provider,
           workspace_id: principal.workspaceId,
         },
         { groups: { workspace: principal.workspaceId } }

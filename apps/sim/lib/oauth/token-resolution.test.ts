@@ -8,7 +8,6 @@ const {
   mockCaptureServerEvent,
   mockExecuteManagedToken,
   mockGetCredential,
-  mockGetServiceConfigByProviderId,
   mockGetToolMetadata,
   mockRecordAudit,
   mockRefreshTokenIfNeeded,
@@ -19,7 +18,6 @@ const {
   mockCaptureServerEvent: vi.fn(),
   mockExecuteManagedToken: vi.fn(),
   mockGetCredential: vi.fn(),
-  mockGetServiceConfigByProviderId: vi.fn(),
   mockGetToolMetadata: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
@@ -80,14 +78,7 @@ vi.mock('@/tools/metadata', () => ({
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
-  credentialProviderMatchesService: (
-    credentialProviderId: string,
-    service: { providerId: string; serviceAccountProviderId?: string }
-  ) =>
-    credentialProviderId === service.providerId ||
-    credentialProviderId === service.serviceAccountProviderId,
   getCanonicalScopesForProvider: vi.fn().mockReturnValue([]),
-  getServiceConfigByProviderId: mockGetServiceConfigByProviderId,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -360,10 +351,6 @@ describe('resolveCredentialAccessToken', () => {
     mockGetToolMetadata.mockReturnValue({
       oauth: { required: true, provider: 'google', requiredScopes: ['scope-a'] },
     })
-    mockGetServiceConfigByProviderId.mockReturnValue({
-      providerId: 'google',
-      serviceAccountProviderId: 'google-service-account',
-    })
   })
 
   it('authenticates and delegates non-managed credentials without a second account lookup', async () => {
@@ -422,212 +409,6 @@ describe('resolveCredentialAccessToken', () => {
       ok: true,
       token: { accessToken: 'fresh', credentialType: 'oauth', idToken: undefined },
     })
-  })
-
-  it('rejects a credential whose provider does not match the tool service', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      accountId: 'account-1',
-      credentialId: 'credential-1',
-      credentialType: 'service_account',
-      providerId: 'oracle-epm-service-account',
-      usedCredentialTable: true,
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      credentialOwnerUserId: 'owner-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'credential-1',
-    })
-
-    const result = await resolveCredentialAccessToken({
-      requestId: 'req-1',
-      credentialId: 'credential-1',
-      toolId: 'gmail_send',
-      authenticate,
-    })
-
-    expect(result).toEqual({
-      ok: false,
-      status: 403,
-      code: 'CREDENTIAL_PROVIDER_MISMATCH',
-      error: 'Credential does not match the tool service',
-    })
-    expect(mockGetServiceConfigByProviderId).toHaveBeenCalledWith('google')
-    expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
-  })
-
-  it('does not reveal provider mismatches before credential authorization succeeds', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      accountId: 'credential-1',
-      credentialId: 'credential-1',
-      credentialType: 'service_account',
-      providerId: 'oracle-epm-service-account',
-      usedCredentialTable: true,
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: false, error: 'Unauthorized' })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-1',
-        credentialId: 'credential-1',
-        toolId: 'gmail_send',
-        authenticate,
-      })
-    ).resolves.toEqual({ ok: false, status: 403, error: 'Unauthorized' })
-    expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
-  })
-
-  it('accepts a shared service-account provider registered by the tool service', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      accountId: 'credential-1',
-      credentialId: 'credential-1',
-      credentialType: 'service_account',
-      providerId: 'oracle-epm-service-account',
-      usedCredentialTable: true,
-    })
-    mockGetServiceConfigByProviderId.mockReturnValue({
-      providerId: 'synthetic-oracle-child',
-      serviceAccountProviderId: 'oracle-epm-service-account',
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      credentialOwnerUserId: 'owner-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'credential-1',
-    })
-    mockResolveServiceAccountToken.mockResolvedValue({
-      accessToken: 'basic-token',
-      instanceUrl: 'https://epm.example.com',
-    })
-
-    const result = await resolveCredentialAccessToken({
-      requestId: 'req-1',
-      credentialId: 'credential-1',
-      toolId: 'synthetic_oracle_tool',
-      authenticate,
-    })
-
-    expect(result).toEqual({
-      ok: true,
-      token: {
-        accessToken: 'basic-token',
-        credentialType: 'service_account',
-        instanceUrl: 'https://epm.example.com',
-      },
-    })
-  })
-
-  it('preserves an existing service-account tool without OAuth service metadata', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      accountId: 'credential-1',
-      credentialId: 'credential-1',
-      credentialType: 'service_account',
-      providerId: 'claude-platform-service-account',
-      usedCredentialTable: true,
-    })
-    mockGetToolMetadata.mockReturnValue({ oauth: undefined })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      credentialOwnerUserId: 'owner-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'credential-1',
-    })
-    mockResolveServiceAccountToken.mockResolvedValue({ accessToken: 'workspace-api-key' })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-1',
-        credentialId: 'credential-1',
-        toolId: 'managed_agent_run_session',
-        authenticate,
-      })
-    ).resolves.toEqual({
-      ok: true,
-      token: {
-        accessToken: 'workspace-api-key',
-        credentialType: 'service_account',
-        apiDomain: undefined,
-        authStyle: undefined,
-        cloudId: undefined,
-        domain: undefined,
-        instanceUrl: undefined,
-      },
-    })
-    expect(mockGetServiceConfigByProviderId).not.toHaveBeenCalled()
-    expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
-      'credential-1',
-      'claude-platform-service-account',
-      [],
-      undefined
-    )
-  })
-
-  it('fails closed when declared tool service metadata has no registered service', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      accountId: 'credential-1',
-      credentialId: 'credential-1',
-      credentialType: 'service_account',
-      providerId: 'oracle-epm-service-account',
-      usedCredentialTable: true,
-    })
-    mockGetServiceConfigByProviderId.mockReturnValue(null)
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      credentialOwnerUserId: 'owner-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'credential-1',
-    })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-1',
-        credentialId: 'credential-1',
-        toolId: 'synthetic_oracle_tool',
-        authenticate,
-      })
-    ).resolves.toEqual({
-      ok: false,
-      status: 403,
-      code: 'CREDENTIAL_PROVIDER_MISMATCH',
-      error: 'Credential does not match the tool service',
-    })
-    expect(authenticate).toHaveBeenCalledTimes(1)
-    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
-  })
-
-  it('rejects a mismatched OAuth account after loading its authoritative provider', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      accountId: 'account-1',
-      usedCredentialTable: true,
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      credentialOwnerUserId: 'owner-1',
-      resolvedCredentialId: 'account-1',
-    })
-    mockGetCredential.mockResolvedValue({ providerId: 'salesforce' })
-
-    const result = await resolveCredentialAccessToken({
-      requestId: 'req-1',
-      credentialId: 'credential-1',
-      toolId: 'gmail_send',
-      authenticate,
-    })
-
-    expect(result).toEqual({
-      ok: false,
-      status: 403,
-      code: 'CREDENTIAL_PROVIDER_MISMATCH',
-      error: 'Credential does not match the tool service',
-    })
-    expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
   })
 
   it('rejects a managed credential when no delegation resolver is wired', async () => {
