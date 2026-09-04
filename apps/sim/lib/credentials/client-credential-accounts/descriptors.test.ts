@@ -61,6 +61,20 @@ describe('partitionClientCredentialFields', () => {
       expect(oracleEpm.connectNoun).toBe('integration user')
       expect(oracleEpm.fields.find((field) => field.id === 'clientSecret')?.secret).toBe(true)
     })
+
+    it('guides Oracle EPM users to the REST base URL and authentication docs', () => {
+      const restBaseUrl = oracleEpm.fields.find((field) => field.id === 'orgId')
+
+      expect(restBaseUrl).toMatchObject({
+        label: 'REST Base URL',
+        placeholder: 'https://example.oraclecloud.com',
+      })
+      expect(restBaseUrl?.hint).toContain('without /epmcloud')
+      expect(restBaseUrl?.hint).toContain('gateway prefix')
+      expect(oracleEpm.docsUrl).toBe(
+        'https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/authentication.html'
+      )
+    })
   })
 
   describe('Salesforce, which offers two grants', () => {
