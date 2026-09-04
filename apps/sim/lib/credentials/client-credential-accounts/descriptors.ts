@@ -111,6 +111,7 @@ export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
+export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -118,6 +119,7 @@ export type ClientCredentialAccountProviderId =
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -530,6 +532,37 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
     helpText:
       'Use the account-specific SuiteTalk URL and the client ID, certificate ID, and private key from one OAuth 2.0 client-credentials mapping.',
+  },
+  [ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle EPM Cloud',
+    connectNoun: 'integration user',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'Environment URL',
+        placeholder: 'https://example.oraclecloud.com/epmcloud',
+        secret: false,
+        hintPattern: /^https:\/\//,
+        hintMessage: 'Expected the full HTTPS URL for one Oracle EPM environment.',
+      },
+      {
+        id: 'clientId',
+        label: 'Integration username',
+        placeholder: 'integration.user@example.com',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Password',
+        placeholder: 'Paste the integration user password',
+        secret: true,
+      },
+    ],
+    docsUrl:
+      'https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/overview.html',
+    helpText:
+      'The credential is bound to one EPM environment. Use a dedicated integration user with only the permissions its workflows require.',
   },
 }
 

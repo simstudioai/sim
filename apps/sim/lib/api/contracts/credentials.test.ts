@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  createCredentialBodySchema,
   updateCredentialByIdBodySchema,
   workspaceCredentialSchema,
 } from '@/lib/api/contracts/credentials'
@@ -44,5 +45,26 @@ describe('workspaceCredentialSchema unredacted', () => {
 
   it('requires the field so a response cannot silently drop it', () => {
     expect(workspaceCredentialSchema.safeParse(credential).success).toBe(false)
+  })
+})
+
+describe('Oracle EPM service-account credential contract', () => {
+  const valid = {
+    workspaceId: '00000000-0000-4000-8000-000000000001',
+    type: 'service_account' as const,
+    providerId: 'oracle-epm-service-account',
+    orgId: 'https://epm.example.com/gateway',
+    clientId: 'integration.user@example.com',
+    clientSecret: 'password',
+  }
+
+  it('accepts the descriptor-required integration-user fields', () => {
+    expect(createCredentialBodySchema.safeParse(valid).success).toBe(true)
+  })
+
+  it.each(['orgId', 'clientId', 'clientSecret'] as const)('rejects a missing %s', (field) => {
+    expect(createCredentialBodySchema.safeParse({ ...valid, [field]: undefined }).success).toBe(
+      false
+    )
   })
 })

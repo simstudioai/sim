@@ -7,6 +7,7 @@ import {
   getClientCredentialAccountDescriptor,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
   normalizeNetSuiteSuiteTalkOrigin,
+  ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   resolveClientCredentialAuthMethod,
   resolveSalesforceAuthMethod,
@@ -19,6 +20,7 @@ const salesforce = getClientCredentialAccountDescriptor(SALESFORCE_SERVICE_ACCOU
 const box = getClientCredentialAccountDescriptor(BOX_SERVICE_ACCOUNT_PROVIDER_ID)!
 const zohoDesk = getClientCredentialAccountDescriptor(ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID)!
 const netSuite = getClientCredentialAccountDescriptor(NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID)!
+const oracleEpm = getClientCredentialAccountDescriptor(ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID)!
 
 const ids = (fields: { id: string }[]) => fields.map((field) => field.id)
 
@@ -50,6 +52,14 @@ describe('partitionClientCredentialFields', () => {
         secret: true,
         multiline: true,
       })
+    })
+
+    it('declares the Oracle EPM integration user without a UI-specific implementation', () => {
+      const { visible, required } = partitionClientCredentialFields(oracleEpm, undefined)
+      expect(ids(visible)).toEqual(['orgId', 'clientId', 'clientSecret'])
+      expect(ids(required)).toEqual(['orgId', 'clientId', 'clientSecret'])
+      expect(oracleEpm.connectNoun).toBe('integration user')
+      expect(oracleEpm.fields.find((field) => field.id === 'clientSecret')?.secret).toBe(true)
     })
   })
 

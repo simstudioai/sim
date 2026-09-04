@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   coalesceLocally: vi.fn(),
+  clientCredentialMinter: vi.fn(),
+  decryptSecret: vi.fn(),
   getFreshestSlackChain: vi.fn(),
   getRecentTerminalError: vi.fn(),
   logger: {
@@ -32,6 +34,19 @@ vi.mock('@/lib/concurrency/singleflight', () => ({
 vi.mock('@/lib/concurrency/leader-lock', () => ({
   withLeaderLock: mocks.withLeaderLock,
 }))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mocks.decryptSecret,
+}))
+
+vi.mock('@/lib/credentials/client-credential-accounts/server', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/credentials/client-credential-accounts/server')>()
+  return {
+    ...actual,
+    getClientCredentialAccountMinter: vi.fn(() => mocks.clientCredentialMinter),
+  }
+})
 
 vi.mock('@/lib/oauth/instagram', () => ({
   isInstagramProvider: vi.fn(() => false),
@@ -64,7 +79,10 @@ vi.mock('@/lib/oauth/terminal-errors', () => ({
   markCredentialDead: vi.fn(),
 }))
 
-import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
+import {
+  resolveCredentialTokenBundle,
+  resolveServiceAccountToken,
+} from '@/lib/oauth/credential-service'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'
@@ -198,5 +216,66 @@ describe('resolveCredentialTokenBundle selector privacy', () => {
     expect(slack.coalescingKey).not.toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_PROVIDER_ERROR)
+  })
+})
+
+describe('Oracle EPM client-credential token cache', () => {
+  const providerId = 'oracle-epm-service-account'
+  const blob = JSON.stringify({
+    type: 'client_credential_account',
+    providerId,
+    clientId: 'integration.user@example.com',
+    clientSecret: 'password',
+    orgId: 'https://epm.example.com',
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.coalesceLocally.mockImplementation(
+      async (_key: string, producer: () => Promise<unknown>) => producer()
+    )
+    mocks.decryptSecret.mockResolvedValue({ decrypted: blob })
+  })
+
+  it('reuses the conservative synthetic token while its safety window remains', async () => {
+    const credentialId = 'oracle-epm-cache-credential'
+    const encrypted = 'cache-secret-fingerprint-000000000000000000000000000000000'
+    queueTableRows(credential, [{ encryptedServiceAccountKey: encrypted }])
+    queueTableRows(credential, [{ encryptedServiceAccountKey: encrypted }])
+    mocks.clientCredentialMinter.mockResolvedValue({
+      accessToken: 'basic-token',
+      expiresInSeconds: 600,
+      instanceUrl: 'https://epm.example.com',
+    })
+
+    await expect(resolveServiceAccountToken(credentialId, providerId)).resolves.toMatchObject({
+      accessToken: 'basic-token',
+    })
+    await expect(resolveServiceAccountToken(credentialId, providerId)).resolves.toMatchObject({
+      accessToken: 'basic-token',
+    })
+    expect(mocks.clientCredentialMinter).toHaveBeenCalledTimes(1)
+  })
+
+  it('invalidates the cached token immediately when encrypted credentials rotate', async () => {
+    const credentialId = 'oracle-epm-rotation-credential'
+    queueTableRows(credential, [
+      { encryptedServiceAccountKey: 'old-secret-fingerprint-000000000000000000000000000000000' },
+    ])
+    queueTableRows(credential, [
+      { encryptedServiceAccountKey: 'new-secret-fingerprint-000000000000000000000000000000000' },
+    ])
+    mocks.clientCredentialMinter
+      .mockResolvedValueOnce({ accessToken: 'old-token', expiresInSeconds: 600 })
+      .mockResolvedValueOnce({ accessToken: 'new-token', expiresInSeconds: 600 })
+
+    await expect(resolveServiceAccountToken(credentialId, providerId)).resolves.toMatchObject({
+      accessToken: 'old-token',
+    })
+    await expect(resolveServiceAccountToken(credentialId, providerId)).resolves.toMatchObject({
+      accessToken: 'new-token',
+    })
+    expect(mocks.clientCredentialMinter).toHaveBeenCalledTimes(2)
   })
 })

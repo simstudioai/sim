@@ -414,6 +414,38 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     )
   })
 
+  it('threads Oracle EPM integration-user fields through reconnect without reading old secrets', async () => {
+    mockCredential({
+      providerId: 'oracle-epm-service-account',
+      displayName: 'Production EPM',
+    })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'oracle-epm-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Production EPM',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      orgId: 'https://epm.example.com/gateway',
+      clientId: 'integration.user@example.com',
+      clientSecret: 'rotated-password',
+    })
+
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'oracle-epm-service-account',
+      expect.objectContaining({
+        orgId: 'https://epm.example.com/gateway',
+        clientId: 'integration.user@example.com',
+        clientSecret: 'rotated-password',
+      })
+    )
+  })
+
   it('surfaces a rebuild failure as a validation error and writes nothing', async () => {
     mockCredential()
     mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })

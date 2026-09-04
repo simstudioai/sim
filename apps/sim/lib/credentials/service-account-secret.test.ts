@@ -43,7 +43,8 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
   getClientCredentialAccountMinter: (providerId: string) =>
     providerId === 'zoom-service-account' ||
     providerId === 'box-service-account' ||
-    providerId === 'netsuite-service-account'
+    providerId === 'netsuite-service-account' ||
+    providerId === 'oracle-epm-service-account'
       ? mockClientCredentialMinter
       : undefined,
 }))
@@ -259,6 +260,39 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       certificateId: 'certificate-id',
       privateKey: '-----BEGIN PRIVATE KEY-----key',
     })
+  })
+
+  it('stores the Oracle EPM environment and integration-user secret through the generic path', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'basic-token',
+      expiresInSeconds: 600,
+      instanceUrl: 'https://epm.example.com/gateway',
+      identity: {
+        displayName: 'Oracle EPM epm.example.com',
+        principal: null,
+        auditMetadata: { environmentUrl: 'https://epm.example.com/gateway' },
+        storedMetadata: { environmentUrl: 'https://epm.example.com/gateway' },
+      },
+    })
+    const result = await verifyAndBuildServiceAccountSecret('oracle-epm-service-account', {
+      orgId: ' https://epm.example.com/gateway ',
+      clientId: ' integration.user@example.com ',
+      clientSecret: ' password ',
+    })
+
+    expect(mockClientCredentialMinter).toHaveBeenCalledWith({
+      orgId: 'https://epm.example.com/gateway',
+      clientId: 'integration.user@example.com',
+      clientSecret: 'password',
+    })
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      providerId: 'oracle-epm-service-account',
+      orgId: 'https://epm.example.com/gateway',
+      clientId: 'integration.user@example.com',
+      clientSecret: 'password',
+      metadata: { environmentUrl: 'https://epm.example.com/gateway' },
+    })
+    expect(result.principal).toBeNull()
   })
 
   it('throws when client-credential required fields are missing, without minting', async () => {
