@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   type ConsentScriptCallbackInfo,
   GLOBAL_CONSENT_SCRIPTS,
+  GOOGLE_ADS_ID,
+  GOOGLE_ANALYTICS_ID,
   HUBSPOT_SCRIPT,
   X_PIXEL_SCRIPT,
 } from '@/lib/consent/scripts'
@@ -67,6 +69,22 @@ describe('consent scripts', () => {
       'set',
       { page_location: `${window.location.origin}/signup` },
     ])
+  })
+
+  it('configures Google Ads on the GA4 loader instead of a second gtag script', () => {
+    window.dataLayer = []
+    window.gtag = undefined
+
+    GLOBAL_CONSENT_SCRIPTS[0].onBeforeLoad?.(CALLBACK_INFO)
+
+    const configuredIds = window.dataLayer
+      .filter((entry): entry is [string, string] => Array.isArray(entry) && entry[0] === 'config')
+      .map(([, id]) => id)
+
+    expect(configuredIds).toEqual([GOOGLE_ANALYTICS_ID, GOOGLE_ADS_ID])
+    expect(GLOBAL_CONSENT_SCRIPTS.map((script) => script.src)).not.toContain(
+      `https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`
+    )
   })
 
   it('gives HubSpot a query-free path before its automatic first page view', () => {
