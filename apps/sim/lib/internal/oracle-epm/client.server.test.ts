@@ -135,6 +135,17 @@ describe('Oracle EPM guarded client', () => {
     expect(mockSecureFetch.mock.calls[0][0]).toContain('%252e%252e%252fadmin')
   })
 
+  it('rejects malformed UTF-16 path input before URL encoding', async () => {
+    const client = createOracleEpmClient({
+      instanceUrl: 'https://epm.example.com',
+      accessToken: Buffer.from('u:p').toString('base64'),
+    })
+    await expect(client.request(getJob, { pathParams: { jobId: '\uD800' } })).rejects.toMatchObject(
+      { category: 'invalid_input' }
+    )
+    expect(mockValidateUrl).not.toHaveBeenCalled()
+  })
+
   it('suppresses arbitrary provider bodies in failed requests', async () => {
     mockSecureFetch.mockResolvedValue(
       secureResponse({
@@ -198,6 +209,39 @@ describe('Oracle EPM guarded client', () => {
     expect(error).toMatchObject({ category: 'payload_too_large' })
     expect(mockValidateUrl).not.toHaveBeenCalled()
     expect(mockSecureFetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects accessors and inherited JSON serializers without invoking them', async () => {
+    const endpoint = routes.defineEndpoint({
+      method: 'POST',
+      version: 'v3',
+      path: [oracleEpmLiteral('jobs')],
+      body: 'json',
+      maxRequestBytes: 1_024,
+      response: 'json',
+      timeoutMs: 2_000,
+      maxResponseBytes: 1_024,
+    })
+    const inheritedSerializer = vi.fn(() => ({ changed: true }))
+    const inherited = Object.create({ toJSON: inheritedSerializer }) as Record<string, unknown>
+    inherited.value = 'safe'
+    const getter = vi.fn(() => 'secret')
+    const accessor = {}
+    Object.defineProperty(accessor, 'value', { enumerable: true, get: getter })
+    const client = createOracleEpmClient({
+      instanceUrl: 'https://epm.example.com',
+      accessToken: Buffer.from('u:p').toString('base64'),
+    })
+
+    await expect(client.request(endpoint, { json: inherited })).rejects.toMatchObject({
+      category: 'invalid_input',
+    })
+    await expect(client.request(endpoint, { json: accessor })).rejects.toMatchObject({
+      category: 'invalid_input',
+    })
+    expect(inheritedSerializer).not.toHaveBeenCalled()
+    expect(getter).not.toHaveBeenCalled()
+    expect(mockValidateUrl).not.toHaveBeenCalled()
   })
 
   it('propagates caller aborts before opening a pinned request', async () => {

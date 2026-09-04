@@ -8,7 +8,7 @@ const {
   mockCaptureServerEvent,
   mockExecuteManagedToken,
   mockGetCredential,
-  mockGetServiceConfigByServiceId,
+  mockGetServiceConfigByProviderId,
   mockGetToolMetadata,
   mockRecordAudit,
   mockRefreshTokenIfNeeded,
@@ -19,7 +19,7 @@ const {
   mockCaptureServerEvent: vi.fn(),
   mockExecuteManagedToken: vi.fn(),
   mockGetCredential: vi.fn(),
-  mockGetServiceConfigByServiceId: vi.fn(),
+  mockGetServiceConfigByProviderId: vi.fn(),
   mockGetToolMetadata: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
@@ -87,7 +87,7 @@ vi.mock('@/lib/oauth/utils', () => ({
     credentialProviderId === service.providerId ||
     credentialProviderId === service.serviceAccountProviderId,
   getCanonicalScopesForProvider: vi.fn().mockReturnValue([]),
-  getServiceConfigByServiceId: mockGetServiceConfigByServiceId,
+  getServiceConfigByProviderId: mockGetServiceConfigByProviderId,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -360,7 +360,7 @@ describe('resolveCredentialAccessToken', () => {
     mockGetToolMetadata.mockReturnValue({
       oauth: { required: true, provider: 'google', requiredScopes: ['scope-a'] },
     })
-    mockGetServiceConfigByServiceId.mockReturnValue({
+    mockGetServiceConfigByProviderId.mockReturnValue({
       providerId: 'google',
       serviceAccountProviderId: 'google-service-account',
     })
@@ -446,6 +446,7 @@ describe('resolveCredentialAccessToken', () => {
       code: 'CREDENTIAL_PROVIDER_MISMATCH',
       error: 'Credential does not match the tool service',
     })
+    expect(mockGetServiceConfigByProviderId).toHaveBeenCalledWith('google')
     expect(authenticate).not.toHaveBeenCalled()
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
   })
@@ -458,7 +459,7 @@ describe('resolveCredentialAccessToken', () => {
       providerId: 'oracle-epm-service-account',
       usedCredentialTable: true,
     })
-    mockGetServiceConfigByServiceId.mockReturnValue({
+    mockGetServiceConfigByProviderId.mockReturnValue({
       providerId: 'synthetic-oracle-child',
       serviceAccountProviderId: 'oracle-epm-service-account',
     })

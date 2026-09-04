@@ -255,4 +255,66 @@ describe('Oracle EPM file primitives', () => {
       context: 'execution',
     })
   })
+
+  it('serializes cancellation cleanup after multipart completion settles', async () => {
+    let finishCompletion: ((value: { key: string; size: number }) => void) | undefined
+    mocks.complete.mockReturnValue(
+      new Promise((resolve) => {
+        finishCompletion = resolve
+      })
+    )
+    const controller = new AbortController()
+    const pending = storeOracleEpmDownload({
+      body: new ReadableStream({
+        start(streamController) {
+          streamController.close()
+        },
+      }),
+      fileName: 'report.csv',
+      context,
+      maxBytes: 3,
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => expect(mocks.complete).toHaveBeenCalled())
+
+    controller.abort(new DOMException('user', 'AbortError'))
+    expect(mocks.abort).not.toHaveBeenCalled()
+    expect(mocks.deleteFile).not.toHaveBeenCalled()
+    finishCompletion?.({ key: 'execution/key/report.csv', size: 0 })
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mocks.abort).not.toHaveBeenCalled()
+    expect(mocks.deleteFile).toHaveBeenCalledTimes(1)
+    expect(mocks.generatePresignedDownloadUrl).not.toHaveBeenCalled()
+  })
+
+  it('deletes completed storage when cancellation overlaps presigning', async () => {
+    mocks.complete.mockResolvedValue({ key: 'execution/key/report.csv', size: 0 })
+    let finishPresign: ((value: string) => void) | undefined
+    mocks.generatePresignedDownloadUrl.mockReturnValue(
+      new Promise((resolve) => {
+        finishPresign = resolve
+      })
+    )
+    const controller = new AbortController()
+    const pending = storeOracleEpmDownload({
+      body: new ReadableStream({
+        start(streamController) {
+          streamController.close()
+        },
+      }),
+      fileName: 'report.csv',
+      context,
+      maxBytes: 3,
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => expect(mocks.generatePresignedDownloadUrl).toHaveBeenCalled())
+
+    controller.abort(new DOMException('user', 'AbortError'))
+    expect(mocks.deleteFile).not.toHaveBeenCalled()
+    finishPresign?.('https://storage.example/signed')
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mocks.deleteFile).toHaveBeenCalledTimes(1)
+  })
 })

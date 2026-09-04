@@ -22,6 +22,13 @@ const FORBIDDEN_HEADERS = new Set([
   'set-cookie',
   'transfer-encoding',
 ])
+const FORBIDDEN_CORRELATION_HEADERS = new Set([
+  ...FORBIDDEN_HEADERS,
+  'authentication-info',
+  'proxy-authenticate',
+  'proxy-authentication-info',
+  'www-authenticate',
+])
 const TOKEN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/
 const endpoints = new WeakMap<object, OracleEpmEndpointDefinition>()
 
@@ -47,7 +54,7 @@ function validatePath(path: readonly OracleEpmPathPart[]): void {
         !part.value ||
         part.value === '.' ||
         part.value === '..' ||
-        /[/\\\u0000-\u001f\u007f]/.test(part.value) ||
+        /[/\\\u0000-\u001f\u007f\uD800-\uDFFF]/.test(part.value) ||
         Buffer.byteLength(part.value, 'utf8') > MAX_LITERAL_BYTES
       ) {
         throw new Error('Oracle EPM endpoint literal path segment is invalid')
@@ -231,10 +238,10 @@ export function defineOracleEpmEndpoint(
   if (declaration.retry) {
     const { maxAttempts, statuses, initialDelayMs, maxDelayMs } = declaration.retry
     if (
-      !['GET', 'HEAD', 'PUT', 'DELETE'].includes(declaration.method) ||
+      declaration.method !== 'GET' ||
       !Number.isInteger(maxAttempts) ||
       maxAttempts < 1 ||
-      maxAttempts > 5 ||
+      maxAttempts > 2 ||
       !statuses.length ||
       statuses.some((status) => !Number.isInteger(status) || status < 400 || status > 599) ||
       !Number.isInteger(initialDelayMs) ||
@@ -252,7 +259,10 @@ export function defineOracleEpmEndpoint(
     declaration.errors?.providerCodePath?.some((part) => !TOKEN.test(part)) ||
     allowedProviderCodes.some((code) => !code || code.length > 128) ||
     new Set(allowedProviderCodes).size !== allowedProviderCodes.length ||
-    correlationHeaders.some((name) => !/^[A-Za-z0-9-]+$/.test(name)) ||
+    correlationHeaders.some(
+      (name) =>
+        !/^[A-Za-z0-9-]+$/.test(name) || FORBIDDEN_CORRELATION_HEADERS.has(name.toLowerCase())
+    ) ||
     new Set(correlationHeaders.map((name) => name.toLowerCase())).size !== correlationHeaders.length
   ) {
     throw new Error('Oracle EPM endpoint error policy is invalid')

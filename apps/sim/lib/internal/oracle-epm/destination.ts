@@ -14,15 +14,36 @@ function decodeSegment(segment: string): string {
   }
 }
 
+function rawPathSegments(value: string): string[] {
+  const match = /^https:\/\/[^/?#]+(\/[^?#]*)?(?:[?#].*)?$/i.exec(value)
+  if (!match) throw new Error('Oracle EPM environment URL is invalid')
+  return (match[1] ?? '').split('/').filter(Boolean)
+}
+
+function validateAndDecodeSegment(encoded: string): string {
+  const decoded = decodeSegment(encoded)
+  let safetyValue = decoded
+  for (let depth = 0; depth < 4 && /%[0-9A-Fa-f]{2}/.test(safetyValue); depth += 1) {
+    safetyValue = decodeSegment(safetyValue)
+  }
+  if (
+    !decoded ||
+    /%[0-9A-Fa-f]{2}/.test(safetyValue) ||
+    safetyValue === '.' ||
+    safetyValue === '..' ||
+    safetyValue.includes('/') ||
+    FORBIDDEN_TEXT.test(safetyValue) ||
+    Buffer.byteLength(decoded, 'utf8') > MAX_PATH_SEGMENT_BYTES
+  ) {
+    throw new Error('Oracle EPM environment URL base path is invalid')
+  }
+  return decoded
+}
+
 /** Validates and freezes the credential-bound Oracle EPM environment URL. */
 export function defineOracleEpmDestination(rawUrl: string): OracleEpmDestination {
   const value = rawUrl.trim()
-  if (
-    !value ||
-    value.length > MAX_DESTINATION_LENGTH ||
-    value.includes('%') ||
-    FORBIDDEN_TEXT.test(value)
-  ) {
+  if (!value || value.length > MAX_DESTINATION_LENGTH || FORBIDDEN_TEXT.test(value)) {
     throw new Error('Oracle EPM environment URL is invalid')
   }
 
@@ -44,24 +65,11 @@ export function defineOracleEpmDestination(rawUrl: string): OracleEpmDestination
     )
   }
 
-  const encodedSegments = parsed.pathname.split('/').filter(Boolean)
+  const encodedSegments = rawPathSegments(value)
   if (encodedSegments.length > MAX_PATH_SEGMENTS) {
     throw new Error('Oracle EPM environment URL base path has too many segments')
   }
-  const baseSegments = encodedSegments.map((encoded) => {
-    const decoded = decodeSegment(encoded)
-    if (
-      !decoded ||
-      decoded === '.' ||
-      decoded === '..' ||
-      decoded.includes('/') ||
-      FORBIDDEN_TEXT.test(decoded) ||
-      Buffer.byteLength(decoded, 'utf8') > MAX_PATH_SEGMENT_BYTES
-    ) {
-      throw new Error('Oracle EPM environment URL base path is invalid')
-    }
-    return decoded
-  })
+  const baseSegments = encodedSegments.map(validateAndDecodeSegment)
 
   const destination = Object.freeze({}) as OracleEpmDestination
   destinations.set(destination, {

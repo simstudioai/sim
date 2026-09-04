@@ -58,6 +58,21 @@ describe('Oracle EPM endpoints', () => {
         maxResponseBytes: 100,
       })
     ).toThrow('header')
+
+    for (const correlationHeader of ['Authorization', 'Set-Cookie', 'WWW-Authenticate']) {
+      expect(() =>
+        routes.defineEndpoint({
+          method: 'GET',
+          version: 'v3',
+          path: [],
+          body: 'none',
+          response: 'json',
+          timeoutMs: 1_000,
+          maxResponseBytes: 100,
+          errors: { correlationHeaders: [correlationHeader] },
+        })
+      ).toThrow('error policy')
+    }
   })
 
   it('requires bounded request bodies and safe retry policies', () => {
@@ -83,6 +98,31 @@ describe('Oracle EPM endpoints', () => {
         timeoutMs: 1_000,
         maxResponseBytes: 100,
         retry: { maxAttempts: 2, statuses: [503], initialDelayMs: 1, maxDelayMs: 2 },
+      })
+    ).toThrow('retry policy')
+    expect(() =>
+      routes.defineEndpoint({
+        method: 'PUT',
+        version: 'v3',
+        path: [],
+        body: 'json',
+        maxRequestBytes: 100,
+        response: 'json',
+        timeoutMs: 1_000,
+        maxResponseBytes: 100,
+        retry: { maxAttempts: 2, statuses: [503], initialDelayMs: 1, maxDelayMs: 2 },
+      })
+    ).toThrow('retry policy')
+    expect(() =>
+      routes.defineEndpoint({
+        method: 'GET',
+        version: 'v3',
+        path: [],
+        body: 'none',
+        response: 'json',
+        timeoutMs: 1_000,
+        maxResponseBytes: 100,
+        retry: { maxAttempts: 3, statuses: [503], initialDelayMs: 1, maxDelayMs: 2 },
       })
     ).toThrow('retry policy')
   })

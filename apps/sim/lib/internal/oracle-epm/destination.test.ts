@@ -20,13 +20,23 @@ describe('Oracle EPM destination', () => {
     })
   })
 
+  it('round-trips canonical percent-encoding in a credential-owned base path', () => {
+    const normalized = normalizeOracleEpmDestination(
+      'https://epm.example.com/gateway/My Folder/日本'
+    )
+    expect(normalized).toBe('https://epm.example.com/gateway/My%20Folder/%E6%97%A5%E6%9C%AC')
+    expect(normalizeOracleEpmDestination(normalized)).toBe(normalized)
+  })
+
   it.each([
     'http://epm.example.com',
     'https://user@epm.example.com',
     'https://epm.example.com?token=secret',
     'https://epm.example.com/#fragment',
     'https://epm.example.com/%2e%2e/admin',
+    'https://epm.example.com/%252e%252e/admin',
     'https://epm.example.com/a%2Fb',
+    'https:////epm.example.com/gateway',
     'https://epm.example.com/a\\b',
   ])('rejects unsafe destination %j', (value) => {
     expect(() => defineOracleEpmDestination(value)).toThrow()

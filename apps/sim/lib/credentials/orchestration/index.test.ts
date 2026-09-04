@@ -286,6 +286,9 @@ describe('performUpdateCredential — service-account secret rotation', () => {
   it('carries the stored dataCenter forward for a client-credential reconnect', async () => {
     mockCredential({ providerId: 'zoho-desk-service-account', displayName: 'Acme Desk' })
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue({
+      fields: [{ id: 'dataCenter' }],
+    } as never)
     mockStoredBlob({ type: 'client_credential_account', dataCenter: 'eu' })
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
       providerId: 'zoho-desk-service-account',
@@ -331,6 +334,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)
     mockGetClientCredentialAccountDescriptor.mockReturnValue({
       defaultAuthMethod: 'client_credentials',
+      fields: [],
     } as never)
     mockStoredBlob({
       type: 'client_credential_account',
@@ -420,6 +424,10 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       displayName: 'Production EPM',
     })
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue({
+      fields: [{ id: 'orgId' }, { id: 'clientId' }, { id: 'clientSecret' }],
+    } as never)
+    mockStoredBlob({ type: 'client_credential_account' })
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
       providerId: 'oracle-epm-service-account',
       encryptedServiceAccountKey: 'new-cipher',

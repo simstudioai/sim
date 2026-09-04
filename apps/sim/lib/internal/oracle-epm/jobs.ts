@@ -65,6 +65,45 @@ function assertClassification<TResult, TFailure>(
   throw new Error('Oracle EPM polling classifier returned an invalid state')
 }
 
+function throwIfPollingEnded(signal: AbortSignal, deadline: number): void {
+  if (signal.aborted) {
+    throw signal.reason ?? new DOMException('Oracle EPM polling aborted', 'AbortError')
+  }
+  if (Date.now() >= deadline) {
+    throw new DOMException('Oracle EPM polling deadline exceeded', 'TimeoutError')
+  }
+}
+
+function runAbortable<T>(operation: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(
+      signal.reason ?? new DOMException('Oracle EPM polling aborted', 'AbortError')
+    )
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      callback()
+    }
+    const onAbort = () =>
+      finish(() =>
+        reject(signal.reason ?? new DOMException('Oracle EPM polling aborted', 'AbortError'))
+      )
+    signal.addEventListener('abort', onAbort, { once: true })
+    try {
+      operation().then(
+        (value) => finish(() => resolve(value)),
+        (error: unknown) => finish(() => reject(error))
+      )
+    } catch (error) {
+      finish(() => reject(error))
+    }
+  })
+}
+
 /**
  * Runs child-supplied polling semantics inside caller and execution deadlines.
  * The scheduler knows nothing about Oracle job ids, statuses, results, or cancellation.
@@ -90,14 +129,12 @@ export async function pollOracleEpmJob<TSnapshot, TResult, TFailure>(
   const signal = options.signal ? AbortSignal.any([options.signal, deadlineSignal]) : deadlineSignal
 
   for (let attempt = 1; attempt <= options.maxAttempts; attempt += 1) {
-    if (signal.aborted || Date.now() >= deadline) {
-      throw (
-        signal.reason ?? new DOMException('Oracle EPM polling deadline exceeded', 'TimeoutError')
-      )
-    }
-    const snapshot = await options.read(signal)
+    throwIfPollingEnded(signal, deadline)
+    const snapshot = await runAbortable(() => options.read(signal), signal)
+    throwIfPollingEnded(signal, deadline)
     const classification: unknown = options.classify(snapshot)
     assertClassification<TResult, TFailure>(classification)
+    throwIfPollingEnded(signal, deadline)
     if (classification.state === 'success') {
       return Object.freeze({
         state: 'success' as const,

@@ -292,12 +292,16 @@ export async function updateCredentialRecord(
       // credential back to the US accounts server. Carry the stored value forward
       // when the caller did not supply one.
       const isClientCredentialProvider = isClientCredentialAccountProviderId(providerId)
-      const needsStoredDataCenter = params.dataCenter === undefined && isClientCredentialProvider
+      const clientCredentialDescriptor = isClientCredentialProvider
+        ? getClientCredentialAccountDescriptor(providerId)
+        : undefined
+      const storesDataCenter = Boolean(
+        clientCredentialDescriptor?.fields.some((field) => field.id === 'dataCenter')
+      )
+      const needsStoredDataCenter = params.dataCenter === undefined && storesDataCenter
       // Only a multi-grant provider stores these, so single-grant ones must not
       // pay for a row read + decrypt that can only ever return undefined.
-      const isMultiGrantProvider = Boolean(
-        getClientCredentialAccountDescriptor(providerId)?.defaultAuthMethod
-      )
+      const isMultiGrantProvider = Boolean(clientCredentialDescriptor?.defaultAuthMethod)
       const needsStoredAuthMethod = params.authMethod === undefined && isMultiGrantProvider
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
 

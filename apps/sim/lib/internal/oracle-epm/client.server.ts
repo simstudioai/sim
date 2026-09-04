@@ -36,6 +36,7 @@ import type {
 } from '@/lib/internal/oracle-epm/types'
 
 const SAFE_TOKEN = /^[A-Za-z0-9+/]+={0,2}$/
+const LONE_SURROGATE = /[\uD800-\uDFFF]/
 const validatedLinks = new WeakMap<
   object,
   { owner: object; url: string; policy: OracleEpmReturnedLinkPolicyDefinition }
@@ -63,6 +64,7 @@ function validatePathValue(
     value === '.' ||
     value === '..' ||
     /[/\\\u0000-\u001f\u007f]/.test(value) ||
+    LONE_SURROGATE.test(value) ||
     Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
     (declaration.pattern && !declaration.pattern.test(value))
   ) {
@@ -91,6 +93,7 @@ function serializeQueryValue(value: unknown, declaration: OracleEpmQueryParamete
   if (declaration.kind === 'string') {
     if (
       typeof value !== 'string' ||
+      LONE_SURROGATE.test(value) ||
       Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
       (declaration.pattern && !declaration.pattern.test(value))
     )
@@ -149,6 +152,7 @@ function buildHeaders(
     }
     if (
       /\r|\n|\u0000/.test(value) ||
+      LONE_SURROGATE.test(value) ||
       Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
       (declaration.pattern && !declaration.pattern.test(value))
     )
@@ -159,6 +163,77 @@ function buildHeaders(
   if (bodyMode === 'json' && !hasContentType) headers['Content-Type'] = 'application/json'
   if (bodyMode === 'stream' && !hasContentType) headers['Content-Type'] = 'application/octet-stream'
   return headers
+}
+
+type JsonData = null | boolean | number | string | JsonData[] | { [key: string]: JsonData }
+
+function hasPrototypeToJson(value: object): boolean {
+  let prototype = Object.getPrototypeOf(value)
+  while (prototype) {
+    if (Object.getOwnPropertyDescriptor(prototype, 'toJSON')) return true
+    prototype = Object.getPrototypeOf(prototype)
+  }
+  return false
+}
+
+/** Copies only ordinary JSON data without invoking accessors or custom serializers. */
+function cloneJsonData(value: unknown, ancestors = new WeakSet<object>()): JsonData {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  ) {
+    return value
+  }
+  if (typeof value !== 'object') throw oracleEpmLocalError('invalid_input')
+  if (ancestors.has(value)) throw oracleEpmLocalError('invalid_input')
+
+  const prototype = Object.getPrototypeOf(value)
+  if (Array.isArray(value)) {
+    if (prototype !== Array.prototype || hasPrototypeToJson(value)) {
+      throw oracleEpmLocalError('invalid_input')
+    }
+    const ownKeys = Reflect.ownKeys(value)
+    if (
+      ownKeys.some(
+        (key) => typeof key !== 'string' || (key !== 'length' && !/^(0|[1-9][0-9]*)$/.test(key))
+      )
+    ) {
+      throw oracleEpmLocalError('invalid_input')
+    }
+    ancestors.add(value)
+    try {
+      return Array.from({ length: value.length }, (_, index) => {
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(index))
+        if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+          throw oracleEpmLocalError('invalid_input')
+        }
+        return cloneJsonData(descriptor.value, ancestors)
+      })
+    } finally {
+      ancestors.delete(value)
+    }
+  }
+
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw oracleEpmLocalError('invalid_input')
+  }
+  const clone: { [key: string]: JsonData } = Object.create(null)
+  ancestors.add(value)
+  try {
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== 'string') throw oracleEpmLocalError('invalid_input')
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)
+      if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+        throw oracleEpmLocalError('invalid_input')
+      }
+      clone[key] = cloneJsonData(descriptor.value, ancestors)
+    }
+  } finally {
+    ancestors.delete(value)
+  }
+  return clone
 }
 
 function buildBody(
@@ -175,7 +250,7 @@ function buildBody(
       throw oracleEpmLocalError('invalid_input')
     let body: string
     try {
-      body = JSON.stringify(input.json)
+      body = JSON.stringify(cloneJsonData(input.json))
     } catch {
       throw oracleEpmLocalError('invalid_input')
     }
@@ -308,7 +383,8 @@ export function createOracleEpmClient(input: {
     }
     if (deadlineSignal.aborted) throw oracleEpmLocalError('timeout', true)
     if (!validation.isValid) throw oracleEpmLocalError('invalid_configuration')
-    const maxAttempts = endpoint.retry?.maxAttempts ?? 1
+    const maxAttempts =
+      endpoint.method === 'GET' ? Math.min(endpoint.retry?.maxAttempts ?? 1, 2) : 1
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       let response: SecureFetchResponse
       try {

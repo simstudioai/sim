@@ -91,4 +91,44 @@ describe('pollOracleEpmJob', () => {
       })
     ).rejects.toMatchObject({ name: 'TimeoutError' })
   })
+
+  it('enforces the scheduler deadline when a child read ignores cancellation', async () => {
+    let readSignal: AbortSignal | undefined
+    const startedAt = Date.now()
+    await expect(
+      pollOracleEpmJob({
+        read: async (signal) => {
+          readSignal = signal
+          return new Promise<never>(() => undefined)
+        },
+        classify: () => ({ state: 'pending' }),
+        maxWaitMs: 40,
+        cleanupReserveMs: 10,
+        maxAttempts: 2,
+        initialDelayMs: 1,
+        maxDelayMs: 1,
+      })
+    ).rejects.toMatchObject({ name: 'TimeoutError' })
+    expect(Date.now() - startedAt).toBeLessThan(500)
+    expect(readSignal?.aborted).toBe(true)
+  })
+
+  it('does not return a terminal result when cancellation occurs during classification', async () => {
+    const controller = new AbortController()
+    await expect(
+      pollOracleEpmJob({
+        read: async () => ({ status: 'DONE' }),
+        classify: () => {
+          controller.abort(new DOMException('user', 'AbortError'))
+          return { state: 'success', result: 42 }
+        },
+        signal: controller.signal,
+        maxWaitMs: 1_000,
+        cleanupReserveMs: 10,
+        maxAttempts: 1,
+        initialDelayMs: 1,
+        maxDelayMs: 1,
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
 })

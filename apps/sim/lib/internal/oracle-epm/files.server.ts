@@ -127,28 +127,32 @@ export async function storeOracleEpmDownload(input: {
   const fileName = safeFileName(input.fileName)
   const contentType = safeContentType(input.contentType)
   const key = generateUniqueExecutionFileKey(input.context, fileName)
+  input.signal?.throwIfAborted()
   const upload = await createMultipartUpload({
     key,
     context: 'execution',
     contentType,
     completionPolicy: 'create-only',
   })
-  const reader = input.body.getReader()
+  let reader: ReadableStreamDefaultReader<Uint8Array>
+  try {
+    reader = input.body.getReader()
+  } catch (error) {
+    await upload.abort().catch(() => undefined)
+    throw error
+  }
   let bytes = 0
   let completed = false
-  let cleanupPromise: Promise<void> | undefined
-  const cleanup = (): Promise<void> => {
-    cleanupPromise ??= completed
+  const cleanup = (): Promise<void> =>
+    completed
       ? deleteFile({ key, context: 'execution' }).catch(() => undefined)
       : upload.abort().catch(() => undefined)
-    return cleanupPromise
-  }
   const abort = () => {
     void reader.cancel(input.signal?.reason).catch(() => undefined)
-    void cleanup()
   }
-  input.signal?.addEventListener('abort', abort, { once: true })
   try {
+    input.signal?.throwIfAborted()
+    input.signal?.addEventListener('abort', abort, { once: true })
     while (true) {
       input.signal?.throwIfAborted()
       const { done, value } = await reader.read()
@@ -163,8 +167,10 @@ export async function storeOracleEpmDownload(input: {
       }
       await upload.write(Buffer.from(value))
     }
+    input.signal?.throwIfAborted()
     const stored = await upload.complete()
     completed = true
+    input.signal?.throwIfAborted()
     if (stored.size !== bytes) {
       throw new Error('Oracle EPM download storage size did not match the streamed bytes')
     }
@@ -173,6 +179,7 @@ export async function storeOracleEpmDownload(input: {
       'execution',
       EXECUTION_DOWNLOAD_URL_TTL_SECONDS
     )
+    input.signal?.throwIfAborted()
     return {
       id: generateFileId(),
       name: fileName,
@@ -188,7 +195,6 @@ export async function storeOracleEpmDownload(input: {
     throw error
   } finally {
     input.signal?.removeEventListener('abort', abort)
-    if (!completed) await cleanup()
     reader.releaseLock()
   }
 }

@@ -27,7 +27,7 @@ import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib
 import {
   credentialProviderMatchesService,
   getCanonicalScopesForProvider,
-  getServiceConfigByServiceId,
+  getServiceConfigByProviderId,
   type ServiceProviderIdentity,
 } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -376,7 +376,7 @@ export async function resolveCredentialAccessToken(
   const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
   const toolMetadata = toolId ? getToolMetadata(toolId) : undefined
   const expectedService = toolMetadata?.oauth?.required
-    ? getServiceConfigByServiceId(toolMetadata.oauth.provider)
+    ? getServiceConfigByProviderId(toolMetadata.oauth.provider)
     : null
 
   if (credentialId && toolId && resolved?.credentialType !== 'managed_oauth' && !expectedService) {
