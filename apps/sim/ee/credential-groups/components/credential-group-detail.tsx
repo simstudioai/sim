@@ -305,7 +305,6 @@ export function CredentialGroupDetail({
           onSelect: () => guard.guardBack(onBack),
         }}
         title={credentialGroup?.name ?? 'Credential group'}
-        description={credentialGroup?.description ?? undefined}
         actions={actions}
         search={
           activeTab === 'details'
