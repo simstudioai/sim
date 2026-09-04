@@ -53,6 +53,44 @@ describe('resolveKnowledgeAccessScope', () => {
     expect(dbChainMockFns.leftJoin).toHaveBeenCalledTimes(3)
   })
 
+  /**
+   * `user_email_lower_unique` makes this state unreachable. The guard exists so
+   * access control does not depend on the constraint still being there.
+   */
+  it('binds no identity token when another account folds to the same address', async () => {
+    queueSubjects([
+      {
+        emailIsAmbiguous: true,
+        providerId: 'confluence',
+        providerTenantId: null,
+        providerSubjectId: '557058:abc',
+      },
+    ] as never)
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['pub', 'ws'],
+    })
+  })
+
+  it('binds normally when the address identifies exactly one account', async () => {
+    queueSubjects([
+      {
+        emailIsAmbiguous: false,
+        providerId: 'confluence',
+        providerTenantId: null,
+        providerSubjectId: '557058:abc',
+      },
+    ] as never)
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['pub', 's:confluence:-:557058:abc', 'ws'],
+    })
+  })
+
   it('grants no member token to someone who is no longer in the workspace', async () => {
     mockCheckWorkspaceAccess.mockResolvedValueOnce({ hasAccess: false })
     await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({

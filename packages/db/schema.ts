@@ -44,21 +44,52 @@ export const bytea = customType<{
   },
 })
 
-export const user = pgTable('user', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  normalizedEmail: text('normalized_email').unique(),
-  emailVerified: boolean('email_verified').notNull(),
-  image: text('image'),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at').notNull(),
-  stripeCustomerId: text('stripe_customer_id'),
-  role: text('role').default('user'),
-  banned: boolean('banned').default(false),
-  banReason: text('ban_reason'),
-  banExpires: timestamp('ban_expires'),
-})
+export const user = pgTable(
+  'user',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    /**
+     * Unique byte-for-byte only. The identity an address names is
+     * `user_email_lower_unique`, not this constraint.
+     */
+    email: text('email').notNull().unique(),
+    /**
+     * Declared unique but **never written** by any code path, so every row is
+     * NULL and the constraint holds vacuously. Nothing may read it as though it
+     * were populated: a reader that falls back to `email` when this is NULL
+     * silently changes meaning the day a backfill lands. Fold `email` instead.
+     *
+     * contract-pending: drop the column, or populate it and retire the
+     * functional index below. Two spellings of one idea is the actual problem.
+     */
+    normalizedEmail: text('normalized_email').unique(),
+    emailVerified: boolean('email_verified').notNull(),
+    image: text('image'),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    role: text('role').default('user'),
+    banned: boolean('banned').default(false),
+    banReason: text('ban_reason'),
+    banExpires: timestamp('ban_expires'),
+  },
+  (table) => ({
+    /**
+     * One account per address, compared the way an address actually identifies
+     * a person. `email` alone is unique byte-for-byte, so without this
+     * `Alice@corp.com` and `alice@corp.com` are two accounts that every
+     * identity binding in the product — credential-group enrollments, the `u:`
+     * document access token — would treat as one, each inheriting the other's
+     * grants.
+     *
+     * The expression is also what access resolution's ambiguity check probes,
+     * so a predicate written any other way silently becomes a sequential scan
+     * of `user` on every read.
+     */
+    emailLowerUnique: uniqueIndex('user_email_lower_unique').on(sql`lower(btrim(${table.email}))`),
+  })
+)
 
 export const session = pgTable(
   'session',

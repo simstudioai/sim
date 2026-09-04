@@ -3,7 +3,8 @@ import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -23,7 +24,31 @@ export const WORKSPACE_ACCESS_SCOPE: WorkspaceAccessScope = Object.freeze({
   tokens: WORKSPACE_ACCESS_TOKENS,
 })
 
-/** Enrollment states under which a credential-group membership counts as live. */
+/**
+ * An email address reduced to the identity it names. `user.email` is unique
+ * byte-for-byte only, so this is the form every binding by email must compare
+ * — and `user_email_lower_unique` indexes exactly this expression, so a
+ * predicate written any other way silently becomes a sequential scan.
+ */
+function foldedEmail(column: AnyPgColumn): SQL<string> {
+  return sql<string>`lower(btrim(${column}))`
+}
+
+/**
+ * Whether some other account folds to this one's address.
+ *
+ * `user_email_lower_unique` is what makes that impossible; this is the
+ * assertion that access control does not quietly depend on the constraint still
+ * being there. An index can be dropped during an incident, and a restore can
+ * bring back a database built before it existed — neither should silently hand
+ * one person another's documents. One index probe per read is a fair price; it
+ * plans as an index scan, not a table scan.
+ */
+const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
+  SELECT 1 FROM ${user} AS other
+  WHERE other.id <> ${user.id}
+    AND lower(btrim(other.email)) = ${foldedEmail(user.email)}
+)`
 
 export interface KnowledgeAccessScopeContext {
   /** Undefined only for a legacy personal knowledge base, which cannot own connectors. */
@@ -64,6 +89,7 @@ async function loadUserAccessTokens(
 
   const rows = await db
     .select({
+      emailIsAmbiguous: emailHeldByAnotherAccount,
       providerId: credential.providerId,
       providerTenantId: credential.providerTenantId,
       providerSubjectId: credential.providerSubjectId,
@@ -72,10 +98,13 @@ async function loadUserAccessTokens(
     .leftJoin(
       credentialGroupEnrollment,
       and(
-        eq(
-          credentialGroupEnrollment.email,
-          sql`COALESCE(${user.normalizedEmail}, lower(btrim(${user.email})))`
-        ),
+        /**
+         * The address is folded here rather than read from `normalized_email`,
+         * which is declared unique but never written: a `COALESCE` over it
+         * would silently start matching a different, broader set of people the
+         * day anything backfills that column.
+         */
+        eq(credentialGroupEnrollment.email, foldedEmail(user.email)),
         inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES])
       )
     )
@@ -102,6 +131,20 @@ async function loadUserAccessTokens(
       )
     )
     .where(and(eq(user.id, userId), eq(user.emailVerified, true)))
+
+  /**
+   * An address two accounts share identifies neither of them, so it binds to
+   * nothing. Both accounts keep the tokens every workspace member holds and
+   * lose only what their identity would have granted — the safe direction, and
+   * the one that cannot hand one person the other's documents.
+   */
+  if (rows.some((row) => row.emailIsAmbiguous)) {
+    logger.error('Refusing identity-derived access tokens for an ambiguous email address', {
+      userId,
+      workspaceId,
+    })
+    return [...WORKSPACE_ACCESS_TOKENS]
+  }
 
   const subjectTokens = new Set<string>()
   for (const row of rows) {
