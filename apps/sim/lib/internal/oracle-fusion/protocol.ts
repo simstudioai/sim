@@ -7,6 +7,7 @@ import {
 const OPAQUE_KEY_MAX_LENGTH = 2048
 const UNSAFE_OPAQUE_KEY = /[\\/?#\u0000-\u001f\u007f]/
 const UNSAFE_SELF_LINK_TEXT = /[\u0000-\u001f\u007f]/
+const RAW_SELF_LINK_DOT_SEGMENT = /(?:^|[\\/])(?:\.|%2e){1,2}(?=[\\/?#]|$)/i
 
 function hasWellFormedUtf16(value: string): boolean {
   for (let index = 0; index < value.length; index++) {
@@ -86,6 +87,9 @@ export function parseOracleFusionCollection<T>(
   if (totalResults !== undefined && count > 0 && totalResults < pageEnd) {
     throw new Error('Oracle collection totalResults is smaller than the returned page')
   }
+  if (totalResults !== undefined && !envelope.hasMore && totalResults > pageEnd) {
+    throw new Error('Oracle collection hasMore contradicts totalResults')
+  }
   if (options.expectedOffset !== undefined) {
     const expectedOffset = nonNegativeInteger(
       options.expectedOffset,
@@ -126,7 +130,13 @@ function getOnlySelfLink(value: unknown): URL {
     throw new Error('Oracle response must include exactly one self link')
   }
   const href = (selfLinks[0] as Record<string, unknown>).href
-  if (typeof href !== 'string' || UNSAFE_SELF_LINK_TEXT.test(href) || !hasWellFormedUtf16(href)) {
+  if (
+    typeof href !== 'string' ||
+    UNSAFE_SELF_LINK_TEXT.test(href) ||
+    href.includes('\\') ||
+    RAW_SELF_LINK_DOT_SEGMENT.test(href) ||
+    !hasWellFormedUtf16(href)
+  ) {
     throw new Error('Oracle self link is malformed')
   }
   try {

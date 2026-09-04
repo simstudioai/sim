@@ -63,6 +63,15 @@ describe('parseOracleFusionCollection', () => {
     })
   })
 
+  it.each([
+    { items: [], count: 0, hasMore: false, limit: 25, offset: 5, totalResults: 6 },
+    { items: [{}], count: 1, hasMore: false, limit: 25, offset: 5, totalResults: 7 },
+  ])('rejects terminal pagination metadata while results remain %#', (value) => {
+    expect(() => parseOracleFusionCollection(value, (item) => item)).toThrow(
+      'hasMore contradicts totalResults'
+    )
+  })
+
   it('accepts omitted items only for an unambiguous empty terminal page', () => {
     expect(
       parseOracleFusionCollection(
@@ -201,6 +210,20 @@ describe('Oracle self links', () => {
       ).toThrow('Oracle self link is malformed')
     }
   )
+
+  it.each([
+    `${ORIGIN}${COLLECTION}/parent/../abc`,
+    `${ORIGIN}${COLLECTION}/parent/%2e%2e/abc`,
+    `${ORIGIN}${COLLECTION}/parent/.%2E/abc`,
+    `${ORIGIN}${COLLECTION}/parent\\..\\abc`,
+  ])('rejects a self-link path that URL parsing would normalize %j', (href) => {
+    expect(() =>
+      validateOracleFusionSelfLink(resource(href), ORIGIN, {
+        family: 'hcm',
+        relativePath: 'workers/abc',
+      })
+    ).toThrow('Oracle self link is malformed')
+  })
 
   it.each([
     [`${ORIGIN}/other/abc`, 'collection path'],
