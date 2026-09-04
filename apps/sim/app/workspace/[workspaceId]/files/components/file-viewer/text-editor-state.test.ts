@@ -322,20 +322,61 @@ describe('content-version ordering', () => {
     expect(next.conflict).toEqual(state.conflict)
   })
 
-  it('clears a fetch of its own save once the matching acknowledgement arrives', () => {
-    const state = {
-      ...ready('local trailing', 'original'),
-      savedVersion: version(1),
-      conflict: { version: version(2) },
+  it.each([
+    { fetchedVersion: undefined, savedVersion: version(2) },
+    { fetchedVersion: undefined, savedVersion: undefined },
+    { fetchedVersion: version(2), savedVersion: undefined },
+  ])(
+    'retains conflicts when acknowledgement ordering is unknown: %o',
+    ({ fetchedVersion, savedVersion }) => {
+      const conflicted = syncTextEditorContentState(
+        {
+          ...ready('local trailing', 'original'),
+          savedVersion: version(1),
+        },
+        {
+          canReconcileToFetchedContent: true,
+          fetchedContent: 'remote',
+          fetchedVersion,
+        }
+      )
+      expect(conflicted.conflict).toBeDefined()
+      const acknowledged = textEditorContentReducer(conflicted, {
+        type: 'save-success',
+        content: 'local saved',
+        version: savedVersion,
+      })
+      expect(acknowledged.conflict).toEqual(conflicted.conflict)
+      expect(acknowledged.content).toBe('local trailing')
+      expect(acknowledged.savedContent).toBe('local saved')
+      const reloaded = textEditorContentReducer(acknowledged, {
+        type: 'reload',
+        content: 'latest remote',
+        version: version(3),
+      })
+      expect(reloaded.conflict).toBeUndefined()
+      expect(reloaded.content).toBe('latest remote')
+      expect(reloaded.savedVersion).toBe(version(3))
     }
-    const next = textEditorContentReducer(state, {
-      type: 'save-success',
-      content: 'local saved',
-      version: version(2),
-    })
-    expect(next.content).toBe('local trailing')
-    expect(next.conflict).toBeUndefined()
-  })
+  )
+
+  it.each([2, 3])(
+    'clears a versioned conflict when acknowledgement version %i catches up',
+    (second) => {
+      const state = {
+        ...ready('local trailing', 'original'),
+        savedVersion: version(1),
+        conflict: { version: version(2) },
+      }
+      const next = textEditorContentReducer(state, {
+        type: 'save-success',
+        content: 'local saved',
+        version: version(second),
+      })
+      expect(next.content).toBe('local trailing')
+      expect(next.conflict).toBeUndefined()
+    }
+  )
 })
 
 describe('syncTextEditorContentState — streaming', () => {

@@ -288,9 +288,10 @@ export function textEditorContentReducer(
         hasBaseline: true,
         savedVersion: action.version ?? state.savedVersion,
         conflict:
-          state.conflict?.streamInterrupted ||
-          (state.conflict?.version &&
-            action.version &&
+          state.conflict &&
+          (state.conflict.streamInterrupted ||
+            !state.conflict.version ||
+            !action.version ||
             Date.parse(state.conflict.version) > Date.parse(action.version))
             ? state.conflict
             : undefined,

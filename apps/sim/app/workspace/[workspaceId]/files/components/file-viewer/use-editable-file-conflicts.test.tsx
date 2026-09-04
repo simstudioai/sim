@@ -340,6 +340,38 @@ describe('versioned solo-file editing', () => {
     )
   })
 
+  it('keeps an unversioned remote conflict paused after an in-flight save succeeds', async () => {
+    const pending = Promise.withResolvers<{ success: boolean; file: WorkspaceFileRecord }>()
+    mocks.save.mockReturnValueOnce(pending.promise)
+    await render()
+    await edit('local saved')
+    let saving: Promise<void> | undefined
+    act(() => {
+      saving = latest.saveImmediately()
+    })
+    await edit('local trailing')
+    file = { ...FILE, key: 'unknown-version', contentUpdatedAt: null }
+    mocks.query.content = 'remote'
+    await render()
+    expect(latest.hasConflict).toBe(true)
+    await act(async () => {
+      pending.resolve({ success: true, file: { ...FILE, contentUpdatedAt: new Date(V2) } })
+      await saving
+    })
+    expect(latest.hasConflict).toBe(true)
+    expect(latest.content).toBe('local trailing')
+    await advance()
+    await act(async () => latest.saveImmediately())
+    expect(mocks.save).toHaveBeenCalledTimes(1)
+    file = { ...FILE, key: 'immutable-v3', contentUpdatedAt: new Date(V3) }
+    mocks.reload.mockResolvedValueOnce({ content: 'latest remote', file })
+    await act(async () => latest.reloadLatestContent())
+    expect(latest.hasConflict).toBe(false)
+    await edit('resolved')
+    await act(async () => latest.saveImmediately())
+    expect(mocks.save).toHaveBeenLastCalledWith(expect.objectContaining({ expectedUpdatedAt: V3 }))
+  })
+
   it('uses the successful response token for trailing edits before the file-list refetch', async () => {
     const pending = Promise.withResolvers<{ success: boolean; file: WorkspaceFileRecord }>()
     mocks.save.mockReturnValueOnce(pending.promise)
