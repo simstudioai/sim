@@ -120,6 +120,7 @@ export interface CatalogModel {
   contextWindow: number | null
   releaseDate: string | null
   deprecated: boolean
+  featured: boolean
   recommended: boolean
   pricing: PricingInfo
   capabilities: ModelCapabilities
@@ -441,6 +442,9 @@ function computeModelRelevanceScore(model: CatalogModel): number {
 }
 
 function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
+  const featuredDifference = Number(b.featured) - Number(a.featured)
+  if (featuredDifference !== 0) return featuredDifference
+
   const recommendationDifference = Number(b.recommended) - Number(a.recommended)
   if (recommendationDifference !== 0) return recommendationDifference
 
@@ -477,6 +481,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       contextWindow: model.contextWindow ?? null,
       releaseDate: model.releaseDate ?? null,
       deprecated: !!model.sunset,
+      featured: model.featured ?? false,
       recommended: model.recommended ?? false,
       pricing: model.pricing,
       capabilities: mergedCapabilities,

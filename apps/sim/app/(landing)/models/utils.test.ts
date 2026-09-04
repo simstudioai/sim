@@ -53,8 +53,19 @@ describe('model catalog capability facts', () => {
     expect(generalModel?.bestFor).toBeUndefined()
   })
 
-  it.concurrent('features the explicitly recommended OpenAI model first', () => {
-    expect(getProviderBySlug('openai')?.featuredModels[0]?.id).toBe('gpt-6-astra')
+  it.concurrent('uses explicit catalog features for flagship provider cards', () => {
+    expect(
+      ['anthropic', 'openai', 'google'].map((providerId) => {
+        const model = getProviderBySlug(providerId)?.featuredModels[0]
+        return { providerId, modelId: model?.id, featured: model?.featured }
+      })
+    ).toEqual([
+      { providerId: 'anthropic', modelId: 'claude-fable-5-1', featured: true },
+      { providerId: 'openai', modelId: 'gpt-6-astra', featured: true },
+      { providerId: 'google', modelId: 'gemini-3.8-flash', featured: true },
+    ])
+
+    expect(getProviderBySlug('anthropic')?.featuredModels[0]?.recommended).toBe(false)
   })
 
   it.concurrent('includes input-size tiers in structured pricing bounds', () => {
