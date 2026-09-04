@@ -182,6 +182,15 @@ Return ONLY the JSON Schema - no explanations, no extra text.`,
       mode: 'advanced',
     },
     {
+      id: 'maxDurationSeconds',
+      title: 'Max Duration (seconds)',
+      type: 'short-input',
+      placeholder: '300',
+      description: 'Wall-clock limit before the agent stops. Unlimited when empty',
+      condition: { field: 'operation', value: AUTOMATION_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
       id: 'proxyEnabled',
       title: 'Use Proxy',
       type: 'switch',
@@ -495,6 +504,9 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
         const maxSteps = String(params.maxSteps ?? '').trim()
         if (maxSteps) result.maxSteps = Number(maxSteps)
 
+        const maxDurationSeconds = String(params.maxDurationSeconds ?? '').trim()
+        if (maxDurationSeconds) result.maxDurationSeconds = Number(maxDurationSeconds)
+
         const limit = String(params.limit ?? '').trim()
         if (limit) result.limit = Number(limit)
 
@@ -520,6 +532,10 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
     browserProfile: { type: 'string', description: 'Browser engine: lite or stealth' },
     agentMode: { type: 'string', description: 'Agent behavior: default or strict' },
     maxSteps: { type: 'number', description: 'Maximum agent steps' },
+    maxDurationSeconds: {
+      type: 'number',
+      description: 'Maximum wall-clock seconds before the agent stops',
+    },
     proxyEnabled: { type: 'boolean', description: 'Route the run through the Tetra proxy' },
     proxyCountryCode: { type: 'string', description: 'Proxy country code' },
     useVault: { type: 'boolean', description: 'Allow vault credentials during the run' },
@@ -595,6 +611,19 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
       type: 'json',
       description:
         'Vault credentials available to a run [{itemId, connectionId, label, vaultName, domains, fieldMetadata, hasTotp}]',
+    },
+    profileId: {
+      type: 'string',
+      description: 'Browser Context Profile the run attached, null when none did',
+    },
+    profileAttached: {
+      type: 'boolean',
+      description: 'Whether the run actually started from a Browser Context Profile',
+    },
+    profileHint: {
+      type: 'json',
+      description:
+        'Set when TinyFish believes a Browser Context Profile would fix a failed run {message, setupUrl, reason} — reason is auth_wall or bot_challenge',
     },
     profiles: {
       type: 'json',
@@ -718,7 +747,7 @@ export const TinyFishBlockMeta = {
       description:
         'Read a failed TinyFish run and decide whether to retry, reword the goal, or escalate. Use when an automation returns FAILED or a workflow keeps burning steps without a result.',
       content:
-        '# Diagnose A Failed Run\n\nA failed automation comes back as a normal 200 response with the failure inside the run, so read `status` before trusting `result`.\n\n## Steps\n1. Read `error.category`. `AGENT_FAILURE` means the goal or the page is the problem — reword the goal or start the run closer to the target. `SYSTEM_FAILURE` is TinyFish-side; wait `error.retryAfter` seconds and retry the same input. `BILLING_FAILURE` means the TinyFish wallet is empty and no retry will help. `UNKNOWN` should be treated as retryable once.\n2. Compare `numOfSteps` against the Max Steps you set. Hitting the cap means the agent was still working, so raise the cap or narrow the goal.\n3. If an Output Schema was set, read `schemaValidation.errors` — a run can reach the right page and still fail on one mistyped field, and `rePromptAttempts` shows how hard TinyFish already tried to repair it.\n4. For an async run, call Get Run and read the `steps` list to find the last action before the failure. `videoUrl` gives a recording, but the link expires 15 minutes after it is issued.\n\n## Output\nState the category, the concrete cause, and the single next action. Quote `error.message` rather than paraphrasing it, and do not retry a `BILLING_FAILURE` or an `AGENT_FAILURE` without changing the input first.',
+        '# Diagnose A Failed Run\n\nA failed automation comes back as a normal 200 response with the failure inside the run, so read `status` before trusting `result`.\n\n## Steps\n1. Read `error.category`. `AGENT_FAILURE` means the goal or the page is the problem — reword the goal or start the run closer to the target. `SYSTEM_FAILURE` is TinyFish-side; wait `error.retryAfter` seconds and retry the same input. `BILLING_FAILURE` means the TinyFish wallet is empty and no retry will help. `UNKNOWN` should be treated as retryable once.\n2. Read `profileHint` whenever it is set — TinyFish attaches it only when a Browser Context Profile would likely fix the run, so it outranks the category above. `reason` is `auth_wall` (the agent hit a login) or `bot_challenge` (the site blocked automation); the fix is to set up a profile for that domain and rerun with Use Browser Profile on, not to reword the goal.\n3. Compare `numOfSteps` against the Max Steps you set. Hitting the cap means the agent was still working, so raise the cap or narrow the goal. If the run instead stopped early on a slow page, set Max Duration.\n4. If an Output Schema was set, read `schemaValidation.errors` — a run can reach the right page and still fail on one mistyped field, and `rePromptAttempts` shows how hard TinyFish already tried to repair it.\n5. For an async run, call Get Run and read the `steps` list to find the last action before the failure. `videoUrl` gives a recording, but the link expires 15 minutes after it is issued.\n\n## Output\nState the category, the concrete cause, and the single next action. Quote `error.message` rather than paraphrasing it, and do not retry a `BILLING_FAILURE` or an `AGENT_FAILURE` without changing the input first.',
     },
     {
       name: 'queue-and-track-long-runs',

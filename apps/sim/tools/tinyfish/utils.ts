@@ -1,7 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   TinyFishBrowserConfig,
+  TinyFishProfileHint,
   TinyFishRawBrowserConfig,
+  TinyFishRawProfileHint,
   TinyFishRawRunError,
   TinyFishRawRunSummary,
   TinyFishRawSchemaValidation,
@@ -121,6 +123,24 @@ export function mapRunError(raw: TinyFishRawRunError | null | undefined): TinyFi
   }
 }
 
+/**
+ * Maps the nudge TinyFish attaches to a run it thinks a profile would fix.
+ *
+ * All three fields are required when the object is present, so a payload
+ * missing any of them is treated as no hint rather than a half-filled one a
+ * workflow would have to guard.
+ */
+export function mapProfileHint(
+  raw: TinyFishRawProfileHint | null | undefined
+): TinyFishProfileHint | null {
+  if (!raw?.message || !raw.setup_url || !raw.reason) return null
+  return {
+    message: raw.message,
+    setupUrl: raw.setup_url,
+    reason: raw.reason,
+  }
+}
+
 function mapBrowserConfig(
   raw: TinyFishRawBrowserConfig | null | undefined
 ): TinyFishBrowserConfig | null {
@@ -146,6 +166,9 @@ export function mapRunSummary(raw: TinyFishRawRunSummary): TinyFishRunSummary {
     error: mapRunError(raw.error),
     streamingUrl: raw.streaming_url ?? null,
     browserConfig: mapBrowserConfig(raw.browser_config),
+    profileAttached: raw.profile_attached ?? null,
+    profileId: raw.profile_id ?? null,
+    profileHint: mapProfileHint(raw.profile_hint),
   }
 }
 
@@ -171,7 +194,8 @@ function isEnabled(value: boolean | string | undefined): boolean {
  *
  * Optional fields are omitted rather than sent as null so TinyFish applies its
  * own documented defaults (`lite` browser engine, `default` agent mode, 150
- * max steps, no proxy, no vault, no Browser Context Profile).
+ * max steps, no duration limit, no proxy, no vault, no Browser Context
+ * Profile).
  */
 export function buildAutomationBody(params: {
   url: string
@@ -179,6 +203,7 @@ export function buildAutomationBody(params: {
   browserProfile?: string
   agentMode?: string
   maxSteps?: number
+  maxDurationSeconds?: number
   outputSchema?: string | Record<string, unknown>
   proxyEnabled?: boolean | string
   proxyCountryCode?: string
@@ -200,6 +225,9 @@ export function buildAutomationBody(params: {
   if (params.agentMode) agentConfig.mode = params.agentMode
   if (typeof params.maxSteps === 'number' && Number.isFinite(params.maxSteps)) {
     agentConfig.max_steps = params.maxSteps
+  }
+  if (typeof params.maxDurationSeconds === 'number' && Number.isFinite(params.maxDurationSeconds)) {
+    agentConfig.max_duration_seconds = params.maxDurationSeconds
   }
   if (Object.keys(agentConfig).length > 0) body.agent_config = agentConfig
 
@@ -267,6 +295,13 @@ export const AUTOMATION_TOOL_PARAMS = {
     required: false,
     visibility: 'user-or-llm',
     description: 'Maximum tool-call steps before the agent stops (1-500, default 150)',
+  },
+  maxDurationSeconds: {
+    type: 'number',
+    required: false,
+    visibility: 'user-or-llm',
+    description:
+      'Maximum wall-clock seconds before the agent stops. Unlimited by default, so a run stalled on a slow page is only bounded by the step cap',
   },
   outputSchema: {
     type: 'json',

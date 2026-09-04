@@ -44,6 +44,16 @@ describe('buildAutomationBody', () => {
     expect(body.agent_config).toEqual({ mode: 'strict', max_steps: 50 })
   })
 
+  it('sends a wall-clock cap alongside the step cap', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Find pricing',
+      maxSteps: 50,
+      maxDurationSeconds: 300,
+    })
+    expect(body.agent_config).toEqual({ max_steps: 50, max_duration_seconds: 300 })
+  })
+
   it('omits agent_config entirely when neither field is set', () => {
     const body = buildAutomationBody({ url: 'https://example.com', goal: 'Find pricing' })
     expect(body).not.toHaveProperty('agent_config')
@@ -227,6 +237,7 @@ describe('tinyfish_run', () => {
       result: { price: 799 },
       schemaValidation: { valid: true, rePromptAttempts: 0, errors: [] },
       error: null,
+      profileHint: null,
     })
   })
 
@@ -653,6 +664,64 @@ describe('tinyfish_list_vault_items', () => {
   })
 })
 
+describe('tinyfish profile diagnostics', () => {
+  it('surfaces the profile nudge on a failed synchronous run', async () => {
+    const result = await runTool.transformResponse!(
+      jsonResponse({
+        run_id: 'run_1',
+        status: 'FAILED',
+        num_of_steps: 4,
+        error: { message: 'Blocked', category: 'AGENT_FAILURE' },
+        profile_hint: {
+          message: 'Set up a Browser Context Profile to sign in first',
+          setup_url: '/profiles/prof_abc123/setup?domain=example.com',
+          reason: 'auth_wall',
+        },
+      })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.output.profileHint).toEqual({
+      message: 'Set up a Browser Context Profile to sign in first',
+      setupUrl: '/profiles/prof_abc123/setup?domain=example.com',
+      reason: 'auth_wall',
+    })
+  })
+
+  it('reports no hint rather than a half-filled one when a field is missing', async () => {
+    const result = await runTool.transformResponse!(
+      jsonResponse({
+        run_id: 'run_1',
+        status: 'FAILED',
+        profile_hint: { message: 'Try a profile', reason: 'bot_challenge' },
+      })
+    )
+    expect(result.output.profileHint).toBeNull()
+  })
+
+  it('reports which profile a run actually attached', async () => {
+    const result = await getRunTool.transformResponse!(
+      jsonResponse({
+        run_id: 'run_1',
+        status: 'COMPLETED',
+        profile_attached: true,
+        profile_id: 'prof_abc123',
+      })
+    )
+    expect(result.output.profileAttached).toBe(true)
+    expect(result.output.profileId).toBe('prof_abc123')
+  })
+
+  it('leaves the profile fields null on a run that attached none', async () => {
+    const result = await getRunTool.transformResponse!(
+      jsonResponse({ run_id: 'run_1', status: 'COMPLETED' })
+    )
+    expect(result.output.profileAttached).toBeNull()
+    expect(result.output.profileId).toBeNull()
+    expect(result.output.profileHint).toBeNull()
+  })
+})
+
 describe('tinyfish profile visibility', () => {
   it('keeps the profile fields out of the schema the agent model writes', () => {
     for (const tool of [runTool, runAsyncTool]) {
@@ -672,8 +741,10 @@ describe('tinyfish_list_profiles', () => {
             name: 'Salesforce Production',
             proxy_country_code: 'US',
             fingerprint_seed: '12345678',
+            domain_count: 3,
             created_at: '2026-06-04T18:00:00.000Z',
-            set_as_default: true,
+            updated_at: '2026-06-05T09:30:00.000Z',
+            is_default: true,
           },
         ],
       })
@@ -684,7 +755,9 @@ describe('tinyfish_list_profiles', () => {
       name: 'Salesforce Production',
       proxyCountryCode: 'US',
       fingerprintSeed: '12345678',
+      domainCount: 3,
       createdAt: '2026-06-04T18:00:00.000Z',
+      updatedAt: '2026-06-05T09:30:00.000Z',
       isDefault: true,
     })
   })

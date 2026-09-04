@@ -14,10 +14,10 @@ import type { ToolConfig } from '@/tools/types'
 /**
  * Reads the profile array out of the list payload.
  *
- * TinyFish publishes no example response for `GET /v1/profiles`, so all three
- * shapes a list endpoint plausibly returns are accepted rather than betting on
- * one: a bare array, and the `profiles` and `data` envelopes its other list
- * endpoints use.
+ * The OpenAPI spec documents a `{ profiles: [...] }` envelope, which is what
+ * this reads first. The bare array and the `data` envelope its other list
+ * endpoints use stay accepted because the prose docs show no example at all and
+ * tolerating them costs nothing.
  */
 function extractProfiles(data: TinyFishRawProfiles | TinyFishRawProfile[]): TinyFishRawProfile[] {
   if (Array.isArray(data)) return data
@@ -72,8 +72,10 @@ export const listProfilesTool: ToolConfig<
           name: profile?.name ?? '',
           proxyCountryCode: profile?.proxy_country_code ?? null,
           fingerprintSeed: profile?.fingerprint_seed ?? null,
+          domainCount: profile?.domain_count ?? null,
           createdAt: profile?.created_at ?? null,
-          isDefault: profile?.set_as_default ?? profile?.is_default ?? null,
+          updatedAt: profile?.updated_at ?? null,
+          isDefault: profile?.is_default ?? null,
         })),
       },
     }
@@ -104,6 +106,13 @@ export const listProfilesTool: ToolConfig<
             optional: true,
             nullable: true,
           },
+          domainCount: {
+            type: 'number',
+            description:
+              'How many domains the profile holds saved state for. Zero means it was created but never logged into',
+            optional: true,
+            nullable: true,
+          },
           createdAt: {
             type: 'string',
             description:
@@ -111,10 +120,17 @@ export const listProfilesTool: ToolConfig<
             optional: true,
             nullable: true,
           },
+          updatedAt: {
+            type: 'string',
+            description:
+              'ISO 8601 timestamp when the profile was last saved, null when the API omits it',
+            optional: true,
+            nullable: true,
+          },
           isDefault: {
             type: 'boolean',
             description:
-              'Whether runs with no Browser Profile ID use this one, null when the API does not report it',
+              'Whether runs with no Browser Profile ID use this one, null when the API omits it',
             optional: true,
             nullable: true,
           },
