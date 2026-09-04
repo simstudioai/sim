@@ -152,11 +152,14 @@ export function mapRunSummary(raw: TinyFishRawRunSummary): TinyFishRunSummary {
 /**
  * Reads a workflow switch as a boolean.
  *
- * The editor's switch control stores a real boolean, but a workflow that was
- * imported or generated rather than clicked together can carry the serialized
- * string instead, and `'false'` is truthy. Every flag on the automation body is
- * read through here so a disabled switch cannot enable a proxy, a vault, or a
- * saved authenticated session.
+ * On the canvas a switch stores a real boolean, but `StoredTool.params` is a
+ * string map, so `encodeToolParamValue` writes `'false'` for a disabled flag on
+ * the agent tool-input path. `decodeToolParamValue` normally reverses that, and
+ * the paths that skip it — a `paramsTransform` that threw, an unresolved
+ * `<start.flag>` token — are exactly the ones that would arrive here as a
+ * truthy `'false'`. Every flag on the automation body is read through this so a
+ * disabled switch cannot enable a proxy, a vault, or a saved authenticated
+ * session.
  */
 function isEnabled(value: boolean | string | undefined): boolean {
   return value === true || value === 'true'
