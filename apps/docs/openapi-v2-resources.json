@@ -9386,7 +9386,7 @@
             "writeOnly": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 65536
+            "maxLength": 8192
           },
           "username": {
             "description": "Provider run-as username.",
