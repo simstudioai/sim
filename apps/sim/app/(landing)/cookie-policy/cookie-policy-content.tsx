@@ -217,7 +217,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             'IDE',
             'Google (doubleclick.net)',
             'Measures ad conversions and limits how often the same ad is shown.',
-            '13 months',
+            '13 months in the EEA and UK; 24 months elsewhere',
           ],
           [
             'guest_id',
