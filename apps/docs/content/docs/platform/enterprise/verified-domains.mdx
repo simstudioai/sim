@@ -71,6 +71,6 @@ SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-`ENTERPRISE_ENABLED` turns both on together, but it needs its own browser twin — set `NEXT_PUBLIC_ENTERPRISE_ENABLED` alongside it, or the server enables SSO while the browser still hides it. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted).
+`ENTERPRISE_ENABLED` turns both on together, but it needs its own browser twin — set `NEXT_PUBLIC_ENTERPRISE_ENABLED` alongside it, or the server and the settings page enable SSO while the login page still hides its SSO entry point. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted).
 
 Once enabled, verify domains from **Settings → Organization → Single sign-on**, in the **Verified domains** section above the identity provider configuration. The older `/workspace/<workspaceId>/settings/domains` path still resolves to the same page.
