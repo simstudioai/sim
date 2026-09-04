@@ -501,14 +501,30 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
       params: (params) => {
         const result: Record<string, unknown> = {}
 
+        /**
+         * A numeric text input that does not parse is rejected rather than
+         * dropped. Omitting it silently hands the run TinyFish's default — no
+         * wall-clock limit at all for Max Duration — while the block still
+         * shows the value the user typed.
+         */
+        const toFiniteNumber = (value: string, field: string): number => {
+          const parsed = Number(value)
+          if (!Number.isFinite(parsed)) {
+            throw new Error(`Invalid numeric value for ${field}: ${value}`)
+          }
+          return parsed
+        }
+
         const maxSteps = String(params.maxSteps ?? '').trim()
-        if (maxSteps) result.maxSteps = Number(maxSteps)
+        if (maxSteps) result.maxSteps = toFiniteNumber(maxSteps, 'Max Steps')
 
         const maxDurationSeconds = String(params.maxDurationSeconds ?? '').trim()
-        if (maxDurationSeconds) result.maxDurationSeconds = Number(maxDurationSeconds)
+        if (maxDurationSeconds) {
+          result.maxDurationSeconds = toFiniteNumber(maxDurationSeconds, 'Max Duration (seconds)')
+        }
 
         const limit = String(params.limit ?? '').trim()
-        if (limit) result.limit = Number(limit)
+        if (limit) result.limit = toFiniteNumber(limit, 'Limit')
 
         /**
          * The list filter has its own sub-block id so it does not collide with
@@ -594,7 +610,7 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
     runs: {
       type: 'json',
       description:
-        'Runs matching the list filters [{runId, status, goal, createdAt, startedAt, finishedAt, numOfSteps, result, schemaValidation, error, streamingUrl, browserConfig}]',
+        'Runs matching the list filters [{runId, status, goal, createdAt, startedAt, finishedAt, numOfSteps, result, schemaValidation, error, streamingUrl, browserConfig, profileAttached, profileId, profileHint}]',
     },
     total: { type: 'number', description: 'Total runs matching the list filters' },
     nextCursor: { type: 'string', description: 'Cursor for the next page of runs' },
@@ -628,7 +644,7 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
     profiles: {
       type: 'json',
       description:
-        'Browser Context Profiles a run can start from [{profileId, name, proxyCountryCode, fingerprintSeed, createdAt, isDefault}]. Every field but profileId and name can be null when the API omits it',
+        'Browser Context Profiles a run can start from [{profileId, name, proxyCountryCode, fingerprintSeed, domainCount, createdAt, updatedAt, isDefault}]. Every field but profileId and name can be null when the API omits it',
     },
   },
 }

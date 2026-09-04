@@ -820,6 +820,31 @@ describe('TinyFish block', () => {
     expect(params).not.toHaveProperty('goal')
   })
 
+  it('rejects a numeric text input that does not parse instead of dropping the cap', () => {
+    expect(() =>
+      TinyFishBlock.tools.config?.params?.({
+        operation: 'tinyfish_run',
+        maxDurationSeconds: '5 minutes',
+      })
+    ).toThrow('Invalid numeric value for Max Duration (seconds): 5 minutes')
+
+    expect(() =>
+      TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxSteps: 'lots' })
+    ).toThrow('Invalid numeric value for Max Steps: lots')
+  })
+
+  it('coerces the duration cap and drops it when blank', () => {
+    expect(
+      TinyFishBlock.tools.config?.params?.({
+        operation: 'tinyfish_run',
+        maxDurationSeconds: '300',
+      })
+    ).toMatchObject({ maxDurationSeconds: 300 })
+    expect(
+      TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxDurationSeconds: '  ' })
+    ).not.toHaveProperty('maxDurationSeconds')
+  })
+
   it('coerces the numeric text inputs and drops them when blank', () => {
     expect(
       TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxSteps: '50' })
