@@ -170,7 +170,12 @@ export async function verifyAndEncryptOciApiKeyCredential(
   fields: OciApiKeyCredentialFields,
   signal?: AbortSignal
 ): Promise<{ encryptedServiceAccountKey: string; userOcid: string }> {
-  const secret = buildSecret(fields)
+  let secret: OciApiKeyServiceAccountSecret
+  try {
+    secret = buildSecret(fields)
+  } catch {
+    throw new OciCredentialVerificationError('invalid_credentials')
+  }
   let responseBody: Uint8Array
   try {
     responseBody = await verifyOciApiKeyCredentialForSetup(JSON.stringify(secret), signal)

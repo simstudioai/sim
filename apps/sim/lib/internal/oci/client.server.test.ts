@@ -78,7 +78,10 @@ import { OCI_SERVICE_ID } from '@/lib/oauth/types'
 // Fixed test material. The expected signatures were generated independently with
 // OpenSSL 3 against Oracle's Request Signatures specification (retrieved 2026-09-03):
 // https://docs.oracle.com/en-us/iaas/Content/API/Concepts/signingrequests.htm
-// The canonical header order is cross-checked against oci-common 2.140.0.
+// The Identity hostname is cross-checked against Oracle's API endpoint catalog:
+// https://docs.oracle.com/en-us/iaas/api/
+// The canonical header order and hostname template are cross-checked against
+// oci-common and oci-identity 2.140.1.
 // Keep the synthetic fixture's PEM delimiters split so secret scanners do not
 // mistake checked-in conformance material for a deployable credential.
 const PRIVATE_KEY = `${['-----BEGIN', 'PRIVATE KEY-----'].join(' ')}
@@ -128,6 +131,7 @@ const SECRET = JSON.stringify({
 const STATIC_POLICY = createOciStaticEndpointPolicy({
   serviceId: OCI_SERVICE_ID,
   serviceName: 'identity',
+  hostnameTemplate: 'regional-oci',
 })
 
 function secureResponse(params: {
@@ -239,6 +243,7 @@ describe('credential-bound OCI client', () => {
     const wrongPolicy = createOciStaticEndpointPolicy({
       serviceId: 'slack',
       serviceName: 'identity',
+      hostnameTemplate: 'regional-oci',
     })
     await expect(client.prepareStaticEndpoint(wrongPolicy)).rejects.toMatchObject({
       code: 'invalid_endpoint',
@@ -252,7 +257,7 @@ describe('credential-bound OCI client', () => {
       code: 'invalid_endpoint',
     })
     expect((await createPreparedClient({ region: 'eu-frankfurt-1' })).endpoint.origin).toBe(
-      'https://identity.eu-frankfurt-1.oraclecloud.com'
+      'https://identity.eu-frankfurt-1.oci.oraclecloud.com'
     )
   })
 
@@ -274,7 +279,7 @@ describe('credential-bound OCI client', () => {
 
     const authorization = authorizationFromLastRequest()
     expect(authorization).toBe(
-      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host",signature="pcMhip57/dPnKl/dfg5usN7oT/illXEGUp9Oj2d9bpGb0aRMBJclgVFKRYdYXciUGPM/9vKluD5/eGPBO1Oh7w/6NCB8UX2Ejh/lw8merU1QalZ/OfHyj+wKNVOpqwQjNqettRUzSVMhCqImDnvgx8ygmVCvdc0CeLXf2ZF9iT1bYlDjOiuxOcWreN2rs1ZmfLCfal204nAjrNAvoBSgHCPVquAYnfsT2auOWP4QeHN/Hd/v7TvNqsWBFIaLCyWZOvRzpsw/ZLgLzB+jkuPTdL7l4hOZATUd7xy1QPFTJ0P1RlLHjZE1sH7hbrqVGORNXrVhA1LaArObz6GWPOOghA=="'
+      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host",signature="szHTszQxwI2ewdVaeTurJY0ObT7qSjjTpXKLDRhnBp8g2hT1r2yxs4IaxN+wcrebh4i5tQYq5aBIuM3f5jOe4ng/e9+HCV+J8kHyRMxwk1b3nkqtImf8sPetp1ohD1XeWdT1gw5MSavC/C2mdHdDNlOrYAKD2vwxsKRbS6/C6ngRRcTispz6UU/ydmeYq3JjuFJezFPGWXRdqndM0dC+/ew19x08X/M6quZcxn9JZVw1E2YzSjq8xquLQYyISesVtpN81HEZ9KE9UOhbALNQAJcLCt6R3Su78aOR0S0vh19YkrwxCLbbTmPrVubksXsfZPcotbZmtXVIzNdLW0JpNg=="'
     )
 
     const signature = /signature="([^"]+)"/.exec(authorization)?.[1]
@@ -282,7 +287,7 @@ describe('credential-bound OCI client', () => {
     expect(
       verify(
         'RSA-SHA256',
-        'x-date: Thu, 03 Sep 2026 19:00:00 GMT\n(request-target): get /20160918/users?limit=10&name=Team%20X\nhost: identity.us-ashburn-1.oraclecloud.com',
+        'x-date: Thu, 03 Sep 2026 19:00:00 GMT\n(request-target): get /20160918/users?limit=10&name=Team%20X\nhost: identity.us-ashburn-1.oci.oraclecloud.com',
         createPublicKey(PRIVATE_KEY),
         Buffer.from(signature!, 'base64')
       )
@@ -304,7 +309,7 @@ describe('credential-bound OCI client', () => {
     })
 
     expect(authorizationFromLastRequest()).toBe(
-      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host content-type content-length x-content-sha256",signature="vyhrwd21evtwFet82VT1FvKEeZV+JSa3VZuS5p4Pj8K2zeU88GO+tGx/voUK9TFHijF7eG5gGS6WWc6tigrByTocbVOHpLtPNgBo2+1NbTbGHGUZIzCOR5CZ1ite74Ak43xZjyKBm+vZHrvS22leVOJe43V/HjqCxqyPn3WkKd7npqo9eFM1sibdj1h3Cmi79b5nXSPFe5KE+rnMRPTOB4nl7iFELvubg/Y7Y8w5hRYEe13w09zw9tTBdGJtZIuMoYwZYzPdZo5wbrN5WM6ylHC2euVh2PSazZZU99q55uhxiR6OaCQWLM0buytCqja8FeiEY8Iw3GuEbKUECKaM8Q=="'
+      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host content-type content-length x-content-sha256",signature="W2/OGoa2XuOin6+CQt32/+/lAXG5PWoamkAHr/k84oCYGUuub2mEYw1z9p4gc6/GPgeZ30wVp4DNVLzOjup3nJir1WsEsYzAk27XAIRVjxiQ7oBzCccnSnB88KLeNz1NDz7r4QPQGxZ50MBQEe0C+DEH2P+utpfFN73o7GCUhIN9hb27COg4l7ffdSLgjBWPN/B4AiZXpjz3I/GRHo29otGAhZ3MiX10gJTjy+qeAchAfmXmTx/nJqNhF0Aj255+B2lepCrHdkpcBpiTs5E+ppE6VvML0ByQ9ZLzBISB4MBljuFyey6tnTkueT73fqjQyM/OT+aO9HrAlemc3HSAXA=="'
     )
     expect(mocks.secureFetch.mock.calls[0][1].headers).toMatchObject({
       'content-length': '0',
@@ -337,7 +342,7 @@ describe('credential-bound OCI client', () => {
       { body: Uint8Array; headers: Record<string, string> },
     ]
     expect(url).toBe(
-      'https://identity.us-ashburn-1.oraclecloud.com/v1/%E2%98%83?z=last&a=&a=%20%21%27%28%29%2A'
+      'https://identity.us-ashburn-1.oci.oraclecloud.com/v1/%E2%98%83?z=last&a=&a=%20%21%27%28%29%2A'
     )
     expect([...options.body]).toEqual([...body])
     expect(options.body).not.toBe(body)
@@ -666,6 +671,7 @@ describe('credential-bound OCI client', () => {
     const policy = createOciDiscoveredEndpointPolicy({
       serviceId: OCI_SERVICE_ID,
       serviceName: 'database',
+      hostnameTemplate: 'regional',
       responsePolicy: STATIC_POLICY,
       source: { kind: 'json', path: ['endpoint'] },
     })
@@ -694,6 +700,7 @@ describe('credential-bound OCI client', () => {
     const otherPolicy = createOciStaticEndpointPolicy({
       serviceId: OCI_SERVICE_ID,
       serviceName: 'compute',
+      hostnameTemplate: 'regional',
     })
     const otherEndpoint = await first.client.prepareStaticEndpoint(otherPolicy)
     mocks.secureFetch.mockResolvedValueOnce(
