@@ -58,7 +58,9 @@ export async function resolveTaskPill(
     .where(
       and(
         eq(copilotMessages.chatId, chatId),
-        sql`${copilotMessages.content}::text LIKE ${`%"taskId":"${taskId}"%`}`
+        // The id alone is the filter — jsonb text puts a space after every colon, so a
+        // `"taskId":"…"` pattern never matches; the block walk below is the real check.
+        sql`${copilotMessages.content}::text LIKE ${`%${taskId}%`}`
       )
     )
   for (const row of rows) {
