@@ -1300,8 +1300,10 @@ export const auth = betterAuth({
     }),
     /**
      * Sim as an OAuth 2.1 authorization server (auth-code + PKCE, refresh
-     * rotation). Tokens are opaque and stored hashed so a "Revoke" in settings
-     * or `sim logout` takes effect on the next request; `disableJwtPlugin`
+     * rotation). Tokens are opaque and stored hashed, so revoking an app in
+     * settings takes effect on the next request. `sim logout` revokes the
+     * current refresh/access pair; access tokens issued before an earlier
+     * rotation remain valid until their one-hour expiry. `disableJwtPlugin`
      * keeps the JWKS machinery out until a third-party resource server needs
      * it. Clients are DB rows only (the CLI is seeded by migration, the rest
      * are admin-created), so both registration paths stay closed.
@@ -1337,9 +1339,11 @@ export const auth = betterAuth({
              */
             clientPrivileges: () => false,
             /**
-             * Opaque access tokens, so revoking an app in settings or running
-             * `sim logout` takes effect on the very next request. A JWT would
-             * stay valid until it lapsed.
+             * Opaque access tokens let Settings revoke every token for an app
+             * on the next request. `sim logout` revokes only the access token
+             * paired with the current refresh token; an access token from an
+             * earlier rotation can remain valid until it expires. A JWT would
+             * stay valid until it lapsed regardless of either database delete.
              *
              * The cost is that client secrets are stored reversibly: with no
              * JWKS, the plugin signs ID tokens with the client secret and so

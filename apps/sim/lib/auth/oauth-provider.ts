@@ -40,10 +40,10 @@ export type OAuthScope = (typeof OAUTH_SCOPES)[number]
 /**
  * Token lifetimes, in seconds, as the plugin takes them.
  *
- * An hour of access matches what gcloud and the AWS CLI issue, and is short
- * enough that revoking an app in settings is felt within the hour even for a
- * client that never refreshes. Thirty days of refresh is the plugin's own
- * default and means a daily user signs in roughly monthly.
+ * An hour of access matches what gcloud and the AWS CLI issue and limits the
+ * lifetime of a copied token that is not otherwise revoked. Thirty days of
+ * refresh is the plugin's own default and means a daily user signs in roughly
+ * monthly.
  */
 export const OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60
 export const OAUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
