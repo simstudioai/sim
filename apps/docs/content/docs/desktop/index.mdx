@@ -141,7 +141,7 @@ Sim checks the deployment it is pointed at rather than a global feed. How it app
 
 **Anywhere else** — outside `/Applications`, or a build not signed with a Developer ID. The app cannot replace itself, so it offers you the installer to download and swap in by hand. This is the second reason to install to `/Applications`.
 
-Updates come from the deployment you are connected to, so a self-hosted install controls which build its own users are offered. See [Desktop App on Your Deployment](/platform/self-hosting/desktop).
+Updates come from the deployment you are connected to, so a self-hosted install controls which build its own users are offered. That control depends on the feed staying reachable: if it is not, a stable build falls back to Sim's public GitHub releases rather than stalling. See [Desktop App on Your Deployment](/platform/self-hosting/desktop).
 
 ## Requirements
 
