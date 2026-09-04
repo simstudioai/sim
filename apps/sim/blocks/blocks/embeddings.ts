@@ -101,6 +101,14 @@ MODEL_SUB_BLOCKS.push({
   selectorKey: 'providers.ollamaEmbeddingModels',
   placeholder: 'Select a model on your Ollama server',
   required: true,
+  /**
+   * Suppresses the combobox's auto-select-first-option behaviour. Without it,
+   * opening the block persists whichever model the server happens to list
+   * first — and since each one emits a different width, that is a silent wrong
+   * answer rather than a harmless default. `required` still stands: the user
+   * must choose, they just are not chosen for.
+   */
+  emptyIsValid: true,
   condition: { field: 'provider', value: 'ollama' },
   dependsOn: ['provider'],
 })

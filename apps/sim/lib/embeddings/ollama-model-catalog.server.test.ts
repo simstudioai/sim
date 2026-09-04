@@ -92,20 +92,27 @@ describe('Ollama embedding model catalog', () => {
 
   it('keeps the rest of the catalog when one model cannot be inspected', async () => {
     serve({
-      broken: { capabilities: ['embedding'] },
       'all-minilm:latest': {
         capabilities: ['embedding'],
         modelInfo: { 'bert.embedding_length': 384 },
       },
     })
-    fetchMock.mockImplementationOnce(() =>
-      Promise.resolve(
-        Response.json({ models: [{ name: 'broken' }, { name: 'all-minilm:latest' }] })
-      )
-    )
+    const served = fetchMock.getMockImplementation()
+    /** `broken` has to fail its own `/api/show`, or the skip path never runs. */
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/api/tags')) {
+        return Promise.resolve(
+          Response.json({ models: [{ name: 'broken' }, { name: 'all-minilm:latest' }] })
+        )
+      }
+      const { model } = JSON.parse(String(init?.body)) as { model: string }
+      if (model === 'broken') return Promise.reject(new Error('inspection failed'))
+      return served?.(url, init)
+    })
 
-    const catalog = await fetchOllamaEmbeddingModelCatalog()
-    expect(catalog).toContainEqual({ id: 'all-minilm:latest', dimensions: 384 })
+    await expect(fetchOllamaEmbeddingModelCatalog()).resolves.toEqual([
+      { id: 'all-minilm:latest', dimensions: 384 },
+    ])
   })
 
   it('offers nothing rather than throwing when no Ollama answers', async () => {

@@ -7,9 +7,14 @@ import {
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env, envNumber } from '@/lib/core/config/env'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { embedKnowledge } from '@/lib/embeddings'
 import { isOllamaEmbeddingModel } from '@/lib/embeddings/catalog'
-import { getOllamaEmbeddingModelMetadata } from '@/lib/embeddings/ollama-model-catalog.server'
+import {
+  getOllamaEmbeddingModelMetadata,
+  OllamaEmbeddingModelNotFoundError,
+  OllamaEmbeddingWidthUnknownError,
+} from '@/lib/embeddings/ollama-model-catalog.server'
 import {
   assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,
@@ -122,12 +127,25 @@ export async function getConfiguredKbEmbedding(): Promise<KbEmbeddingTarget> {
     try {
       dimensions = (await getOllamaEmbeddingModelMetadata(model)).dimensions
     } catch (error) {
-      throw new Error(
-        `Could not read the vector width of ${model} from the configured Ollama server (${getErrorMessage(error, 'Unknown error')}). Set EMBEDDING_OUTPUT_DIMS to the width it emits.`
-      )
+      /**
+       * A model the server does not have, or one whose width it will not report,
+       * is the operator's to fix and is surfaced as such. An unreachable server
+       * is a dependency failure and keeps its default classification — the
+       * orchestration vocabulary has no upstream-failure code, and the message
+       * carries the cause either way.
+       */
+      const message = `Could not read the vector width of ${model} from the configured Ollama server (${getErrorMessage(error, 'Unknown error')}). Set EMBEDDING_OUTPUT_DIMS to the width it emits.`
+      if (
+        error instanceof OllamaEmbeddingModelNotFoundError ||
+        error instanceof OllamaEmbeddingWidthUnknownError
+      ) {
+        throw new OrchestrationError('validation', message)
+      }
+      throw new Error(message, { cause: error })
     }
     if (!isKbEmbeddingDimensions(dimensions)) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `${model} emits ${dimensions}-dimensional vectors, which knowledge bases cannot store. Choose a model emitting one of ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}.`
       )
     }

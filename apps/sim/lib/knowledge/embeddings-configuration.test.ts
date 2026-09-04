@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OllamaEmbeddingModelNotFoundError } from '@/lib/embeddings/ollama-model-catalog.server'
 
 const { mockEnv, mockOllamaMetadata } = vi.hoisted(() => ({
   mockEnv: {} as { KB_EMBEDDING_MODEL?: string; EMBEDDING_OUTPUT_DIMS?: string },
@@ -18,7 +20,8 @@ vi.mock('@/lib/core/config/env', async (importOriginal) => ({
   env: mockEnv,
 }))
 
-vi.mock('@/lib/embeddings/ollama-model-catalog.server', () => ({
+vi.mock('@/lib/embeddings/ollama-model-catalog.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/embeddings/ollama-model-catalog.server')>()),
   getOllamaEmbeddingModelMetadata: mockOllamaMetadata,
 }))
 
@@ -96,6 +99,17 @@ describe('getConfiguredKbEmbedding', () => {
     mockOllamaMetadata.mockRejectedValue(new Error('ECONNREFUSED'))
 
     await expect(getConfiguredKbEmbedding()).rejects.toThrow('Set EMBEDDING_OUTPUT_DIMS')
+  })
+
+  /**
+   * A model the server does not have is the operator's to fix, so it is a
+   * validation failure the route renders as 400 rather than a generic 500.
+   */
+  it('classifies a missing model as caller-fixable', async () => {
+    mockEnv.KB_EMBEDDING_MODEL = 'ollama/not-pulled'
+    mockOllamaMetadata.mockRejectedValue(new OllamaEmbeddingModelNotFoundError('not-pulled'))
+
+    await expect(getConfiguredKbEmbedding()).rejects.toBeInstanceOf(OrchestrationError)
   })
 
   it('refuses to create a base when the model emits a width no column can store', async () => {

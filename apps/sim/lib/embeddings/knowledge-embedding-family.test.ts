@@ -2,11 +2,17 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { knowledgeEmbeddingFamily } from '@/lib/core/config/env-capabilities'
+import {
+  inspectCapability,
+  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
+  knowledgeEmbeddingFamily,
+} from '@/lib/core/config/env-capabilities'
 import {
   DEFAULT_EMBEDDING_MODEL,
   getEmbeddingModelInfo,
   getKbEligibleModels,
+  getKbEmbeddingDimensions,
+  KB_EMBEDDING_STORAGE_DIMENSIONS,
 } from '@/lib/embeddings/catalog'
 import { isKbEmbeddingModel } from '@/lib/knowledge/embedding-models'
 
@@ -25,6 +31,29 @@ describe('knowledgeEmbeddingFamily', () => {
       expect(knowledgeEmbeddingFamily({ KB_EMBEDDING_MODEL: model }), model).toBe(
         getEmbeddingModelInfo(model).provider
       )
+    }
+  })
+
+  /**
+   * The capability also duplicates each model's storable widths, to reject a
+   * width the selected model cannot emit. A width the catalog allows but the
+   * capability rejects blocks a working deployment; the reverse passes a
+   * configuration the runtime silently overrides.
+   */
+  it('accepts exactly the widths the catalog says each model can be indexed at', () => {
+    for (const model of getKbEligibleModels()) {
+      const widths = getKbEmbeddingDimensions(getEmbeddingModelInfo(model))
+      for (const width of KB_EMBEDDING_STORAGE_DIMENSIONS) {
+        const issues = inspectCapability(KNOWLEDGE_EMBEDDINGS_CAPABILITY, {
+          KB_EMBEDDING_MODEL: model,
+          EMBEDDING_OUTPUT_DIMS: String(width),
+          OPENAI_API_KEY: 'k',
+          GEMINI_API_KEY: 'k',
+        }).providers.flatMap((provider) => provider.invalidFields)
+        expect(issues.includes('EMBEDDING_OUTPUT_DIMS'), `${model} @ ${width}`).toBe(
+          !widths.includes(width)
+        )
+      }
     }
   })
 

@@ -60,6 +60,8 @@ async function fetchOllamaJson(path: string, init: RequestInit, signal?: AbortSi
     ...init,
   })
   if (!response.ok) {
+    /** Release the connection: nothing reads the body of a rejected probe. */
+    await response.body?.cancel().catch(() => {})
     throw new Error(`Ollama ${path} failed: ${response.status} ${response.statusText}`)
   }
   return readResponseJsonWithLimit(response, {
@@ -175,6 +177,15 @@ export async function getOllamaEmbeddingModelMetadata(
 ): Promise<Required<OllamaEmbeddingModel>> {
   const name = isOllamaEmbeddingModel(model) ? ollamaEmbeddingModelName(model) : model
   if (!name) throw new OllamaEmbeddingModelNotFoundError(model)
+  /**
+   * The same requirement `resolveProvider` enforces before embedding. Without it
+   * a developer machine with an unset `OLLAMA_URL` and a local server answering
+   * on the loopback default would resolve a width here and create a knowledge
+   * base that every later embedding call refuses to serve.
+   */
+  if (!isOllamaUrlConfigured()) {
+    throw new OllamaUnreachableError('OLLAMA_URL is not configured')
+  }
 
   let detail: { capabilities?: string[]; model_info?: Record<string, unknown> }
   try {

@@ -1262,8 +1262,45 @@ export type KnowledgeEmbeddingFamily = 'openai' | 'gemini' | 'ollama'
 
 const OLLAMA_EMBEDDING_MODEL_PREFIX = 'ollama/'
 
+/**
+ * Widths each knowledge-base-eligible model can be indexed at, as the app
+ * catalog defines them. Duplicated here because packages cannot import the
+ * catalog; the parity test pins both halves, widths included.
+ */
+const KB_EMBEDDING_MODEL_WIDTHS: Readonly<Record<string, readonly number[]>> = {
+  'text-embedding-3-small': [1536, 1024, 768],
+  'text-embedding-3-large': [3072, 1536, 1024, 768],
+  'gemini-embedding-001': [3072, 1536, 768],
+}
+
 /** Knowledge-base-eligible Gemini model ids, as the app catalog defines them. */
 const GEMINI_KB_EMBEDDING_MODELS: readonly string[] = ['gemini-embedding-001']
+
+/**
+ * Rejects a width the *selected model* cannot emit, which the per-field pattern
+ * cannot: that pattern is the union across a family, so `text-embedding-3-small`
+ * at 3,072 satisfies it while the runtime falls back to 1,536 with a warning.
+ * A validation that passes for a configuration the runtime silently overrides is
+ * worse than none, so the two are checked together here.
+ */
+function validateEmbeddingModelWidth(
+  values: EnvCapabilityValues
+): readonly EnvProviderValidationIssue[] {
+  const model = String(readValue(values, 'KB_EMBEDDING_MODEL') ?? '')
+  const rawWidth = readValue(values, 'EMBEDDING_OUTPUT_DIMS')
+  if (!hasValue(values, 'EMBEDDING_OUTPUT_DIMS')) return []
+
+  const widths = KB_EMBEDDING_MODEL_WIDTHS[model]
+  if (!widths) return []
+  if (widths.includes(Number(String(rawWidth).trim()))) return []
+  return [
+    {
+      kind: 'invalid',
+      fields: ['EMBEDDING_OUTPUT_DIMS'],
+      message: `EMBEDDING_OUTPUT_DIMS must be one of ${widths.join(', ')} for ${model}`,
+    },
+  ]
+}
 
 export function knowledgeEmbeddingFamily(values: EnvCapabilityValues): KnowledgeEmbeddingFamily {
   /**
@@ -1346,6 +1383,7 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
         envField('KB_EMBEDDING_MODEL'),
         embeddingOutputDimsField(OPENAI_EMBEDDING_WIDTHS),
       ],
+      validate: validateEmbeddingModelWidth,
     },
     {
       id: 'openai',
@@ -1365,6 +1403,7 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
         envField('KB_EMBEDDING_MODEL'),
         embeddingOutputDimsField(OPENAI_EMBEDDING_WIDTHS),
       ],
+      validate: validateEmbeddingModelWidth,
     },
     {
       id: 'openrouter',
@@ -1381,6 +1420,7 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
         envField('KB_EMBEDDING_MODEL'),
         embeddingOutputDimsField(OPENAI_EMBEDDING_WIDTHS),
       ],
+      validate: validateEmbeddingModelWidth,
     },
     {
       id: 'gemini',
@@ -1400,6 +1440,7 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
         envField('KB_EMBEDDING_MODEL')
       ),
       optionalFields: [embeddingOutputDimsField(GEMINI_EMBEDDING_WIDTHS)],
+      validate: validateEmbeddingModelWidth,
     },
     {
       /**
@@ -1419,7 +1460,18 @@ export const KNOWLEDGE_EMBEDDINGS_CAPABILITY = defineCapability({
             message: 'must be a valid HTTP(S) URL',
           },
         }),
-        envField('KB_EMBEDDING_MODEL')
+        /**
+         * Constrained to the routing prefix, which is what makes it an Ollama
+         * model at all. It also stops the setup flow carrying a model from
+         * another family forward when an existing install switches to Ollama.
+         */
+        envField('KB_EMBEDDING_MODEL', {
+          validation: {
+            kind: 'pattern',
+            pattern: /^ollama\/.+/,
+            message: 'must name a model on your Ollama server, as ollama/<model>',
+          },
+        })
       ),
       optionalFields: [embeddingOutputDimsField(OLLAMA_EMBEDDING_WIDTHS)],
     },

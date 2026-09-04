@@ -404,7 +404,19 @@ async function promptField(
   const existing = state.currentValues.get(prompt.key)
   const current = hasEnvCapabilityValue(state.currentValues, prompt.key)
   const draft = getCapabilitySetupDraftValues(state.setup, state.optionId, state.values)
-  const initialValue = existing ?? draft[prompt.key] ?? prompt.defaultValue
+  /**
+   * A configured value is only offered back when it is valid for the provider
+   * being configured. Switching families otherwise pre-fills the previous
+   * family's model, and accepting the displayed value silently keeps it — the
+   * transition then rejects the provider the operator just chose.
+   */
+  const reusableExisting =
+    existing !== undefined &&
+    validateCapabilityFieldInput(state.setup.definition, prompt.key, existing, state.optionId) ===
+      undefined
+      ? existing
+      : undefined
+  const initialValue = reusableExisting ?? draft[prompt.key] ?? prompt.defaultValue
   const validate = (value: string): string | undefined => {
     if (!value) return prompt.required && !existing ? 'required' : undefined
     return prompt.validate
