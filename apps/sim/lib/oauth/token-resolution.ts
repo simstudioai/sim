@@ -380,6 +380,21 @@ export async function resolveCredentialAccessToken(
     : null
 
   if (
+    credentialId &&
+    toolId &&
+    resolved?.credentialType !== 'managed_oauth' &&
+    toolMetadata?.oauth?.required &&
+    !expectedService
+  ) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'Credential does not match the tool service',
+    }
+  }
+
+  if (
     resolved?.credentialType !== 'managed_oauth' &&
     resolved?.providerId &&
     expectedService &&

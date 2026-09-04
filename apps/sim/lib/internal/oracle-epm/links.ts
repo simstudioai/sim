@@ -57,9 +57,12 @@ export function defineOracleEpmReturnedLinkPolicy(
     if (
       endpoint.routeSpace !== routeSpace ||
       endpoint.method !== declaration.method ||
-      endpoint.body !== 'none'
+      endpoint.body !== 'none' ||
+      Object.values(endpoint.headers ?? {}).some((header) => header.required)
     ) {
-      throw new Error('Oracle EPM returned-link policy endpoint does not match its route or method')
+      throw new Error(
+        'Oracle EPM returned-link policy endpoint does not match its route, method, or input contract'
+      )
     }
     endpointDefinition = endpoint
     version = endpoint.version

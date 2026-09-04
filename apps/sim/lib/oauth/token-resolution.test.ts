@@ -538,6 +538,33 @@ describe('resolveCredentialAccessToken', () => {
     )
   })
 
+  it('fails closed when declared tool service metadata has no registered service', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      accountId: 'credential-1',
+      credentialId: 'credential-1',
+      credentialType: 'service_account',
+      providerId: 'oracle-epm-service-account',
+      usedCredentialTable: true,
+    })
+    mockGetServiceConfigByProviderId.mockReturnValue(null)
+
+    await expect(
+      resolveCredentialAccessToken({
+        requestId: 'req-1',
+        credentialId: 'credential-1',
+        toolId: 'synthetic_oracle_tool',
+        authenticate,
+      })
+    ).resolves.toEqual({
+      ok: false,
+      status: 403,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'Credential does not match the tool service',
+    })
+    expect(authenticate).not.toHaveBeenCalled()
+    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+  })
+
   it('rejects a mismatched OAuth account after loading its authoritative provider', async () => {
     mockResolveOAuthAccountId.mockResolvedValue({
       accountId: 'account-1',

@@ -57,4 +57,26 @@ describe('Oracle EPM returned-link declarations', () => {
       'not a valid declaration'
     )
   })
+
+  it('rejects endpoint-bound policies whose required headers cannot be supplied', () => {
+    const endpoint = routes.defineEndpoint({
+      method: 'GET',
+      version: 'v3',
+      path: [oracleEpmLiteral('download')],
+      headers: { range: { name: 'Range', required: true, maxBytes: 64 } },
+      body: 'none',
+      response: 'stream',
+      timeoutMs: 2_000,
+      maxResponseBytes: 1_024,
+    })
+
+    expect(() =>
+      routes.defineReturnedLinkPolicy({
+        relation: 'download',
+        method: 'GET',
+        endpoint,
+        preserveGatewayBasePath: true,
+      })
+    ).toThrow('input contract')
+  })
 })
