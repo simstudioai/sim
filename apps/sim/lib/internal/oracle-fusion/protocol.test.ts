@@ -176,6 +176,26 @@ describe('Oracle self links', () => {
     ).toBe(key)
   })
 
+  it('requires spaces in self-link keys to be encoded and preserves their value', () => {
+    const key = 'person name '
+    const encoded = encodeOracleFusionPathSegment(key)
+    expect(encoded).toBe('person%20name%20')
+    expect(
+      extractOracleFusionOpaqueKey(
+        resource(`${ORIGIN}${COLLECTION}/${encoded}`),
+        ORIGIN,
+        COLLECTION_ADDRESS
+      )
+    ).toBe(key)
+    expect(() =>
+      extractOracleFusionOpaqueKey(
+        resource(`${ORIGIN}${COLLECTION}/${key}`),
+        ORIGIN,
+        COLLECTION_ADDRESS
+      )
+    ).toThrow('Oracle self link is malformed')
+  })
+
   it.each(['', '   ', '.', '..', 'a/b', 'a\\b', 'a?b', 'a#b', 'a\nb', 'x'.repeat(2049)])(
     'rejects the unsafe opaque key %j',
     (key) => {

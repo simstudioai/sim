@@ -6,7 +6,7 @@ import {
 
 const OPAQUE_KEY_MAX_LENGTH = 2048
 const UNSAFE_OPAQUE_KEY = /[\\/?#\u0000-\u001f\u007f]/
-const UNSAFE_SELF_LINK_TEXT = /[\u0000-\u001f\u007f]/
+const UNSAFE_SELF_LINK_TEXT = /[\s\u0000-\u001f\u007f]/
 const RAW_SELF_LINK_DOT_SEGMENT = /(?:^|[\\/])(?:\.|%2e){1,2}(?=[\\/?#]|$)/i
 
 function hasWellFormedUtf16(value: string): boolean {
