@@ -3,7 +3,7 @@
 import { ArrowLeft, Label, Switch } from '@sim/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { CookiePreferences } from '@/app/workspace/[workspaceId]/settings/components/general/components/cookie-preferences'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -25,6 +25,7 @@ interface PrivacyViewProps {
 export function PrivacyView({ onBack }: PrivacyViewProps) {
   const { data: settings } = useGeneralSettings()
   const updateSetting = useUpdateGeneralSetting()
+  const { hosted } = useDeploymentShape()
 
   const handleTelemetryToggle = async (checked: boolean) => {
     if (checked === settings?.telemetryEnabled || updateSetting.isPending) return
@@ -65,7 +66,7 @@ export function PrivacyView({ onBack }: PrivacyViewProps) {
         </div>
       </SettingsSection>
 
-      {isHosted && <CookiePreferences />}
+      {hosted && <CookiePreferences />}
     </SettingsPanel>
   )
 }

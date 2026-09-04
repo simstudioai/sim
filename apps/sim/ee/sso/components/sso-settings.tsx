@@ -24,7 +24,7 @@ import type { SettingsAction } from '@/components/settings/settings-header'
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -233,6 +233,7 @@ export function SSO({ organizationId }: SSOProps) {
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const { data: session } = useSession()
+  const { billingEnabled } = useDeploymentShape()
   const {
     data: organizationBillingData,
     isLoading: isLoadingOrganizationBilling,
@@ -257,7 +258,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
 
   const isSSOProviderOwner =
-    !isBillingEnabled && userId ? providers.some((p) => p.userId === userId) : null
+    !billingEnabled && userId ? providers.some((p) => p.userId === userId) : null
 
   const configureSSOMutation = useConfigureSSO()
 
@@ -289,13 +290,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   useSettingsUnsavedGuard({ isDirty: hasChanges })
 
-  if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
+  if (isLoadingProviders || (billingEnabled && isLoadingOrganizationBilling)) {
     return null
   }
 
   const providersLoadingError = providersData === undefined ? providersError : null
   const organizationBillingLoadingError =
-    isBillingEnabled && organizationBillingData === undefined ? organizationBillingError : null
+    billingEnabled && organizationBillingData === undefined ? organizationBillingError : null
   const loadingError = providersLoadingError ?? organizationBillingLoadingError
   if (loadingError) {
     return (
@@ -314,7 +315,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     )
   }
 
-  if (isBillingEnabled) {
+  if (billingEnabled) {
     if (!hasEnterprisePlan) {
       return (
         <SettingsEmptyState>

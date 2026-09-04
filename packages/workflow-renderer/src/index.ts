@@ -17,6 +17,7 @@ export {
   type WorkflowEdgeViewProps,
 } from './edge/workflow-edge-view'
 export { humanizeBlockName } from './lib/humanize-block-name'
+export { sortNodesParentsFirst } from './node-order'
 export {
   NOTE_MARKDOWN_FLOW,
   NoteBlockView,

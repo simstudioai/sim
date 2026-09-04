@@ -40,6 +40,11 @@ export interface ChipSwitchProps<T extends string = string> {
  * exactly. The active segment is a flat lifted surface against the trough
  * (`--surface-2` light / `--surface-6` dark, no shadow) for a clean, even pill.
  *
+ * The trough is pinned to `w-fit` so it always hugs its segments: `inline-flex`
+ * alone does not survive a flex column, where `align-items: stretch` blockifies
+ * the container and pulls it edge to edge. A caller-supplied width class still
+ * wins through {@link cn}.
+ *
  * @example
  * <ChipSwitch
  *   value={view}
@@ -62,7 +67,7 @@ export function ChipSwitch<T extends string>({
       role='radiogroup'
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center rounded-[10px] bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
+        'inline-flex w-fit items-center rounded-[10px] bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
         className
       )}
     >

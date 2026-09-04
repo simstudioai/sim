@@ -241,6 +241,46 @@ export const workspaceOwnerBillingSchema = z.object({
 
 export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
 
+/**
+ * Enterprise features as this deployment's configuration resolves them (see
+ * `enterpriseFeatureEnabled` in `@/lib/core/config/env-flags`). The browser consults
+ * these only off-hosted, where no subscription plan exists to decide entitlement.
+ */
+export const deploymentFeaturesSchema = z.object({
+  accessControl: z.boolean(),
+  auditLogs: z.boolean(),
+  customBlocks: z.boolean(),
+  dataDrains: z.boolean(),
+  dataRetention: z.boolean(),
+  inbox: z.boolean(),
+  sandboxes: z.boolean(),
+  sessionPolicies: z.boolean(),
+  sso: z.boolean(),
+  usageMonitoring: z.boolean(),
+  whitelabeling: z.boolean(),
+})
+
+export type DeploymentFeatures = z.output<typeof deploymentFeaturesSchema>
+
+/**
+ * The deployment's shape, resolved on the server per request. Browser code reads it
+ * from the workspace host context rather than from the `NEXT_PUBLIC_*` module
+ * constants: those freeze at module init, and a document that never ran the root
+ * layout — Next's bare `__next_error__` 404 shell, or `global-error` — leaves every
+ * one of them unset for the life of the tab, including after the app recovers in
+ * place. See `@/lib/core/config/deployment-shape`.
+ */
+export const deploymentShapeSchema = z.object({
+  hosted: z.boolean(),
+  billingEnabled: z.boolean(),
+  chatEnabled: z.boolean(),
+  azureConfigured: z.boolean(),
+  cohereConfigured: z.boolean(),
+  features: deploymentFeaturesSchema,
+})
+
+export type DeploymentShape = z.output<typeof deploymentShapeSchema>
+
 export const workspaceHostContextSchema = z.object({
   workspace: z.object({
     id: nonEmptyIdSchema,
@@ -266,6 +306,8 @@ export const workspaceHostContextSchema = z.object({
       knowledgeMemberAccess: z.boolean().optional(),
     })
     .optional(),
+  /** Optional for rolling compatibility with app versions that predate deployment projection. */
+  deployment: deploymentShapeSchema.optional(),
 })
 
 export type WorkspaceHostContext = z.output<typeof workspaceHostContextSchema>

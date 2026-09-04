@@ -27,13 +27,16 @@ function fastest(run: (content: string) => void, content: string): number {
  * through at the single size it happens to sample. Quadratic costs ~16x for 4x
  * the input; linear costs ~4x.
  */
-export function scalingRatioOver4x(run: (content: string) => void): number {
+export function scalingRatioOver4x(
+  run: (content: string) => void,
+  buildContent: (times: number) => string = buildRepeatedTagMentions
+): number {
   // Warm up first — the JIT would otherwise charge the whole compile to the
   // small sample and flatter the ratio.
-  fastest(run, buildRepeatedTagMentions(2_000))
+  fastest(run, buildContent(2_000))
 
-  const small = fastest(run, buildRepeatedTagMentions(2_000))
-  const large = fastest(run, buildRepeatedTagMentions(8_000))
+  const small = fastest(run, buildContent(2_000))
+  const large = fastest(run, buildContent(8_000))
 
   return large / small
 }

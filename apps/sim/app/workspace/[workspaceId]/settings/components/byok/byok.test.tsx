@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -61,7 +62,9 @@ vi.mock('@/components/settings/navigation', () => ({
   canMutateWorkspaceSettingsSection: () => mocks.canManageWorkspace.current,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true }))
+/** Hosted-only scope switching; read through the deployment shape at render time. */
+beforeAll(() => setEnvFlags({ isHosted: true }))
+afterAll(resetEnvFlagsMock)
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => mocks.hostContext.current,

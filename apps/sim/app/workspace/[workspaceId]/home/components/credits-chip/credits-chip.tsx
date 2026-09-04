@@ -9,13 +9,14 @@ import { useSession } from '@/lib/auth/auth-client'
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'
 import { useWorkspaceCreditAvailability } from '@/hooks/queries/workspace-usage'
 
 export function CreditsChip() {
-  if (!isBillingEnabled) return null
+  const { billingEnabled } = useDeploymentShape()
+  if (!billingEnabled) return null
 
   return <CreditsChipInner />
 }

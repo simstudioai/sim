@@ -10,7 +10,7 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
@@ -457,16 +457,17 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
 }
 
 export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSettingsProps) {
+  const { billingEnabled } = useDeploymentShape()
   const {
     data: organizationBillingData,
     isPending: organizationBillingLoading,
     error: organizationBillingError,
-  } = useOrganizationBilling(orgId, { enabled: isBillingEnabled })
+  } = useOrganizationBilling(orgId, { enabled: billingEnabled })
   const { data: workspaces } = useWorkspacesQuery(true)
   const uploadWorkspaceId = workspaces?.find((workspace) => workspace.organizationId === orgId)?.id
   const { data: savedSettings, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
 
-  if (isLoading || (isBillingEnabled && organizationBillingLoading)) {
+  if (isLoading || (billingEnabled && organizationBillingLoading)) {
     return (
       <SettingsPanel
         actions={saveDiscardActions({
@@ -488,7 +489,7 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     )
   }
 
-  if (isBillingEnabled && organizationBillingData === undefined && organizationBillingError) {
+  if (billingEnabled && organizationBillingData === undefined && organizationBillingError) {
     return (
       <SettingsEmptyState tone='error'>
         {getErrorMessage(organizationBillingError, 'Failed to load organization billing')}
@@ -496,7 +497,7 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     )
   }
 
-  if (isBillingEnabled && !isEnterprise(organizationBillingData?.data?.subscriptionPlan)) {
+  if (billingEnabled && !isEnterprise(organizationBillingData?.data?.subscriptionPlan)) {
     return (
       <SettingsEmptyState>Whitelabeling is available on Enterprise plans only.</SettingsEmptyState>
     )

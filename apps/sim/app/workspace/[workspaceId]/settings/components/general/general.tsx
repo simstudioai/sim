@@ -24,7 +24,7 @@ import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { DeleteAccountModal } from '@/app/workspace/[workspaceId]/settings/components/general/components/delete-account-modal'
@@ -80,6 +80,7 @@ export function General() {
   const router = useRouter()
   const brandConfig = useBrandConfig()
   const { data: session } = useSession()
+  const { hosted } = useDeploymentShape()
 
   const { data: profile, isLoading: isProfileLoading } = useUserProfile()
   const updateProfile = useUpdateUserProfile()
@@ -276,7 +277,7 @@ export function General() {
   }
 
   const actions: SettingsAction[] = [
-    ...(isHosted
+    ...(hosted
       ? [
           {
             id: 'home-page',

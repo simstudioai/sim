@@ -41,7 +41,7 @@ import {
 import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
@@ -138,6 +138,7 @@ export const Panel = memo(function Panel() {
   const routeWorkflowId = params.workflowId as string | undefined
 
   const posthog = usePostHog()
+  const { chatEnabled } = useDeploymentShape()
   const posthogRef = useRef(posthog)
 
   const panelRef = useRef<HTMLElement>(null)
@@ -178,7 +179,7 @@ export const Panel = memo(function Panel() {
    * `hidden`, so a persisted `activeTab: 'copilot'` would hide all three and
    * paint an empty panel — resolve it to the toolbar instead.
    */
-  const isCopilotTabAvailable = isChatEnabled && !permissionConfig.hideCopilot
+  const isCopilotTabAvailable = chatEnabled && !permissionConfig.hideCopilot
   const activeTab: PanelTab =
     storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })

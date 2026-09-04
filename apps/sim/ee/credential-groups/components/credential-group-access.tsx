@@ -221,7 +221,6 @@ export function CredentialGroupAccess({
 
   const sectionAction = (
     <Chip
-      variant='primary'
       onClick={() => setShowAddWorkflow(true)}
       disabled={
         saving ||

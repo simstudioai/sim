@@ -33,6 +33,7 @@ import {
   getEdgeZIndexForTarget,
   getNoteBlockHeight,
   normalizeCursorSourceHandleId,
+  sortNodesParentsFirst,
   useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import {
@@ -4830,9 +4831,14 @@ const WorkflowContent = React.memo(
      *
      * Subflow containers are skipped: their depth-based zIndex is what orders
      * them against their own children, and bumping it would break that.
+     *
+     * Containers are moved ahead of their children first: React Flow v12 places
+     * a child that precedes its parent at its parent-relative offset. Sorting
+     * here rather than in `displayNodes` covers the in-place patches too, since
+     * `nodesForRender` is the only array handed to React Flow.
      */
     const nodesForRender = useMemo(() => {
-      const elevatedNodes = displayNodes.map((node) => {
+      const elevatedNodes = sortNodesParentsFirst(displayNodes).map((node) => {
         if (node.type === 'subflowNode') return node
         const target = getBlockZIndex(node.zIndex ?? BLOCK_Z_BASE, {
           isSelected: node.selected,

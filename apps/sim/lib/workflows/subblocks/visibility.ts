@@ -1,5 +1,5 @@
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
 import type { SubBlockConfig } from '@/blocks/types'
 
 export type CanonicalMode = 'basic' | 'advanced'
@@ -627,7 +627,7 @@ export function isSubBlockHidden(
   subBlock: SubBlockConfig,
   options?: { hosted?: boolean }
 ): boolean {
-  const hosted = options?.hosted ?? isHosted
+  const hosted = options?.hosted ?? getDeploymentShape().hosted
   if (subBlock.hideWhenHosted && hosted) return true
   if (subBlock.hideWhenEnvSet && anyEnvSet(subBlock.hideWhenEnvSet)) return true
   return false

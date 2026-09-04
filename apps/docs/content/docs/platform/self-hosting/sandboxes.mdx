@@ -15,9 +15,9 @@ Until the base image is configured, those languages fail with an explicit config
 | Variable | Purpose |
 | --- | --- |
 | `SANDBOXES_ENABLED` | Grants the server-side self-hosted entitlement |
-| `NEXT_PUBLIC_SANDBOXES_ENABLED` | Projects provider readiness to the browser and exposes Shell plus custom sandbox management |
+| `NEXT_PUBLIC_SANDBOXES_ENABLED` | Browser gate for the Function block's Sandbox selector. An assertion of provider readiness, not a check; on a Compose install or source checkout, `npx sim-setup doctor` compares it with the selected provider's readiness |
 
-`NEXT_PUBLIC_SANDBOXES_ENABLED` is a browser gate only: it shows or hides Shell, the sandbox picker, and **Settings → Sandboxes**. Whether Python or a selected sandbox actually runs depends on the server-side provider and Function image. Set it only after those work, or you surface controls that cannot.
+Shell follows the server: a workspace offers it only when the Sandbox entitlement resolves on — `SANDBOXES_ENABLED=true`, or the `ENTERPRISE_ENABLED` master switch with `SANDBOXES_ENABLED` left unset — and the server has verified the provider credentials and an immutable Function base. **Settings → Sandboxes** stays in the sidebar either way, but shows an upgrade notice instead of the sandbox list until that check passes. `NEXT_PUBLIC_SANDBOXES_ENABLED` is a browser gate for one control, the Function block's Sandbox selector. Whether Python or a selected sandbox actually runs depends on the server-side provider and Function image, so set it only after those work, or you surface a selector for sandboxes that cannot run.
 
 ## Building the Function base
 

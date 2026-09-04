@@ -3,7 +3,7 @@
 import { Chip } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 
@@ -25,12 +25,13 @@ interface ShowcaseWithExploreProps {
 export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
   const params = useParams()
   const router = useRouter()
+  const { chatEnabled } = useDeploymentShape()
   const workspaceId = (params?.workspaceId as string) || ''
 
   return (
     <div className='relative'>
       <IntegrationsShowcase />
-      {isChatEnabled && (
+      {chatEnabled && (
         <Chip
           active
           rightIcon={ArrowRight}

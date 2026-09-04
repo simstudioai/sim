@@ -20,7 +20,7 @@ import { Check, TriangleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { GeneratedPasswordInput } from '@/components/ui'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
 import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
@@ -696,6 +696,7 @@ function AuthSelector({
   error,
 }: AuthSelectorProps) {
   const revealPasswordMutation = useRevealChatPassword()
+  const { features } = useDeploymentShape()
 
   /**
    * Editing or regenerating the password clears a failed reveal. The mutation
@@ -711,7 +712,7 @@ function AuthSelector({
   const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
 
   const ssoAvailable =
-    isSsoEnabled || savedAuthType === 'sso' || (allowedAuthTypes?.includes('sso') ?? false)
+    features.sso || savedAuthType === 'sso' || (allowedAuthTypes?.includes('sso') ?? false)
   const baseAuthOptions: AuthType[] = ssoAvailable
     ? ['public', 'password', 'email', 'sso']
     : ['public', 'password', 'email']

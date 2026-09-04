@@ -604,12 +604,6 @@ const ModalContent = React.forwardRef<
               e.stopPropagation()
               onEscapeKeyDown?.(e)
             }}
-            onPointerDown={(e) => {
-              e.stopPropagation()
-            }}
-            onPointerUp={(e) => {
-              e.stopPropagation()
-            }}
             onInteractOutside={(e) => {
               /**
                * Radix dispatches outside-interaction events to every open
