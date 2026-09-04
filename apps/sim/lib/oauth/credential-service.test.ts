@@ -64,7 +64,10 @@ vi.mock('@/lib/oauth/terminal-errors', () => ({
   markCredentialDead: vi.fn(),
 }))
 
-import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
+import {
+  resolveCredentialTokenBundle,
+  resolveServiceAccountToken,
+} from '@/lib/oauth/credential-service'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'
@@ -198,5 +201,18 @@ describe('resolveCredentialTokenBundle selector privacy', () => {
     expect(slack.coalescingKey).not.toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_PROVIDER_ERROR)
+  })
+})
+
+describe('OCI service-account resolver', () => {
+  it('returns only the authoritative resolved credential ID for hidden in-process handoff', async () => {
+    await expect(
+      resolveServiceAccountToken(
+        'credential-authoritative',
+        'oci-api-key-service-account',
+        [],
+        undefined
+      )
+    ).resolves.toEqual({ accessToken: 'credential-authoritative' })
   })
 })

@@ -65,6 +65,9 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],
   'notion-service-account': ['notion'],
+  // OCI owns reusable credential setup but intentionally exposes no product
+  // integration until a native OCI product supplies visible catalog metadata.
+  'oci-api-key-service-account': [],
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],

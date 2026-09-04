@@ -127,6 +127,33 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
     expect(body).not.toContain('MUST_NOT_LEAK_CIPHERTEXT')
   })
 
+  it('forwards a complete OCI rotation tuple with an omitted replacement passphrase', async () => {
+    const request = patchRequest({
+      tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+      userOcid: 'ocid1.user.oc1..replacement',
+      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+      privateKey: '-----BEGIN PRIVATE KEY-----\nreplacement\n-----END PRIVATE KEY-----',
+      region: 'us-ashburn-1',
+    })
+    const response = await PATCH(request, context)
+
+    expect(response.status).toBe(200)
+    expect(mocks.update).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..replacement',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: '-----BEGIN PRIVATE KEY-----\nreplacement\n-----END PRIVATE KEY-----',
+        region: 'us-ashburn-1',
+        credentialId: CREDENTIAL_ID,
+        assertedWorkspaceId: WORKSPACE_ID,
+      },
+      request,
+    })
+    expect(JSON.stringify(await response.json())).not.toContain('PRIVATE KEY')
+  })
+
   it('asserts the workspace scope and preserves the credential id', async () => {
     const request = patchRequest({ displayName: 'Zoom prod' })
     await PATCH(request, context)

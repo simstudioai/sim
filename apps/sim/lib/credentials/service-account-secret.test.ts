@@ -9,6 +9,7 @@ const {
   mockValidateAtlassian,
   mockNormalizeDomain,
   mockClientCredentialMinter,
+  mockVerifyAndEncryptOci,
 } = vi.hoisted(() => ({
   // Identity encryption so tests can read back the JSON blob.
   mockEncryptSecret: vi.fn(async (value: string) => ({ encrypted: value })),
@@ -16,6 +17,7 @@ const {
   mockValidateAtlassian: vi.fn(),
   mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
   mockClientCredentialMinter: vi.fn(),
+  mockVerifyAndEncryptOci: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: mockEncryptSecret }))
@@ -23,6 +25,14 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSl
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
   validateAtlassianServiceAccount: mockValidateAtlassian,
   normalizeAtlassianDomain: mockNormalizeDomain,
+}))
+vi.mock('@/lib/credentials/oci-api-key-service-account.server', () => ({
+  OciCredentialVerificationError: class OciCredentialVerificationError extends Error {
+    constructor(readonly code: string) {
+      super(code)
+    }
+  },
+  verifyAndEncryptOciApiKeyCredential: mockVerifyAndEncryptOci,
 }))
 vi.mock('@/lib/api/contracts/credentials', () => ({
   serviceAccountJsonSchema: {
@@ -161,6 +171,109 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
     const result = await verifyAndBuildServiceAccountSecret('', { serviceAccountJson: json })
     expect(result.providerId).toBe('google-service-account')
+  })
+
+  it('verifies and stores an OCI API-key credential with stable external fields', async () => {
+    mockVerifyAndEncryptOci.mockResolvedValue({
+      encryptedServiceAccountKey: 'oci-ciphertext',
+      userOcid: 'ocid1.user.oc1..principal',
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+      tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+      userOcid: 'ocid1.user.oc1..principal',
+      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+      privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+      privateKeyPassphrase: ' preserved exactly ',
+      region: 'us-ashburn-1',
+    })
+
+    expect(mockVerifyAndEncryptOci).toHaveBeenCalledWith({
+      tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+      userOcid: 'ocid1.user.oc1..principal',
+      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+      privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+      privateKeyPassphrase: ' preserved exactly ',
+      region: 'us-ashburn-1',
+    })
+    expect(result).toEqual({
+      providerId: 'oci-api-key-service-account',
+      encryptedServiceAccountKey: 'oci-ciphertext',
+      displayName: 'ocid1.user.oc1..principal',
+      auditMetadata: {
+        principalKind: 'user',
+        principalId: 'ocid1.user.oc1..principal',
+      },
+      principal: { kind: 'user', id: 'ocid1.user.oc1..principal' },
+    })
+  })
+
+  it('requires the complete OCI signing tuple before verification', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+      })
+    ).rejects.toThrow('tenancyOcid, userOcid, fingerprint, privateKey, and region are required')
+    expect(mockVerifyAndEncryptOci).not.toHaveBeenCalled()
+  })
+
+  it.each(['service_unavailable', 'invalid_response'] as const)(
+    'preserves the dedicated OCI %s classification for orchestration',
+    async (code) => {
+      const { OciCredentialVerificationError } = await import(
+        '@/lib/credentials/oci-api-key-service-account.server'
+      )
+      mockVerifyAndEncryptOci.mockRejectedValue(new OciCredentialVerificationError(code))
+
+      const failure = await verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'provider-secret-key',
+        region: 'us-ashburn-1',
+      }).catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(OciCredentialVerificationError)
+      expect(failure).toMatchObject({
+        message: code,
+        code,
+      })
+      expect(JSON.stringify(failure)).not.toContain('provider-secret-key')
+    }
+  )
+
+  it('preserves the dedicated OCI invalid-credential classification for orchestration', async () => {
+    const { OciCredentialVerificationError } = await import(
+      '@/lib/credentials/oci-api-key-service-account.server'
+    )
+    mockVerifyAndEncryptOci.mockRejectedValue(
+      new OciCredentialVerificationError('invalid_credentials')
+    )
+
+    await expect(
+      verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: 'invalid-fingerprint',
+        privateKey: 'invalid-key',
+        region: 'us-ashburn-1',
+      })
+    ).rejects.toMatchObject({ message: 'invalid_credentials', code: 'invalid_credentials' })
+  })
+
+  it('does not misclassify an internal OCI credential failure as rejected credentials', async () => {
+    const internalFailure = new Error('internal encryption failure')
+    mockVerifyAndEncryptOci.mockRejectedValue(internalFailure)
+
+    await expect(
+      verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'provider-secret-key',
+        region: 'us-ashburn-1',
+      })
+    ).rejects.toBe(internalFailure)
   })
 
   it('rejects an unknown non-empty providerId instead of persisting it as Google', async () => {
