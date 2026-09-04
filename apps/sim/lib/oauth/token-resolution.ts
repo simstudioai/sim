@@ -24,7 +24,8 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { type OAuthService, OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import { getCanonicalScopesForProvider, getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
@@ -59,6 +60,8 @@ export interface ResolveCredentialTokenInput {
   auditRequest?: CredentialAuditRequest
   /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */
   resolvedCredential: ResolvedCredential | null
+  /** Trusted provider binding derived from registered tool metadata. */
+  expectedServiceAccountProviderId?: string
 }
 
 export type ResolveCredentialTokenResult =
@@ -212,13 +215,27 @@ export async function resolveCredentialToken(
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
 
+      const authoritativeId = authz.resolvedCredentialId
+      if (!authoritativeId) return { ok: false, status: 403, error: 'Unauthorized' }
+      const authoritative = await resolveOAuthAccountId(authoritativeId)
+      if (
+        authoritative?.credentialType !== 'service_account' ||
+        authoritative.credentialId !== authoritativeId ||
+        (authoritative.providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID &&
+          input.expectedServiceAccountProviderId !== OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) ||
+        (input.expectedServiceAccountProviderId !== undefined &&
+          authoritative.providerId !== input.expectedServiceAccountProviderId)
+      ) {
+        return { ok: false, status: 403, error: 'Unauthorized' }
+      }
+
       const saActorId = authz.requesterUserId
-      const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
+      const saWorkspaceId = authz.workspaceId ?? null
 
       try {
         const result = await resolveServiceAccountToken(
-          resolved.credentialId,
-          resolved.providerId,
+          authoritativeId,
+          authoritative.providerId,
           scopes ?? [],
           impersonateEmail
         )
@@ -227,8 +244,8 @@ export async function resolveCredentialToken(
           recordCredentialAccess({
             actorId: saActorId,
             workspaceId: saWorkspaceId,
-            resourceId: resolved.credentialId,
-            providerId: resolved.providerId,
+            resourceId: authoritativeId,
+            providerId: authoritative.providerId,
             credentialType: 'service_account',
             auditRequest,
           })
@@ -346,6 +363,34 @@ export async function resolveCredentialAccessToken(
   const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
 
   if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
+    const toolMetadata = toolId ? getToolMetadata(toolId) : undefined
+    const serviceId = toolMetadata?.oauth?.provider as OAuthService | undefined
+    const service = serviceId ? getServiceConfigByServiceId(serviceId) : null
+    const isOciServiceAccountTool =
+      toolMetadata?.oauth?.required === true &&
+      toolMetadata.oauth.credentialKind === 'service-account' &&
+      service?.serviceAccountProviderId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
+    const expectedServiceAccountProviderId = isOciServiceAccountTool
+      ? OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
+      : undefined
+
+    if (
+      resolved?.credentialType === 'service_account' &&
+      resolved.providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID &&
+      !isOciServiceAccountTool
+    ) {
+      logger.error(`[${requestId}] Tool is not configured for OCI API-key credentials`, {
+        toolId,
+        serviceId,
+      })
+      return {
+        ok: false,
+        status: 500,
+        code: 'OCI_CREDENTIAL_TOOL_UNSUPPORTED',
+        error: 'This tool is not configured to use OCI API-key credentials',
+      }
+    }
+
     const auth = await input.authenticate()
     return resolveCredentialToken(auth, {
       requestId,
@@ -361,6 +406,7 @@ export async function resolveCredentialAccessToken(
       callerUserId: input.callerUserId,
       auditRequest,
       resolvedCredential: resolved,
+      expectedServiceAccountProviderId,
     })
   }
 
