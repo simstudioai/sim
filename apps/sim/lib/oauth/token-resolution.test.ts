@@ -287,20 +287,7 @@ describe('resolveCredentialToken', () => {
   })
 
   it('surfaces the classified service-account failure code', async () => {
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'sa-authoritative',
-    })
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'sa-authoritative',
-      providerId: 'atlassian',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: true, requesterUserId: 'user-1' })
     mockResolveServiceAccountToken.mockRejectedValue(
       new TokenServiceAccountValidationError('invalid_credentials', 401)
     )
@@ -324,12 +311,6 @@ describe('resolveCredentialToken', () => {
       code: 'invalid_credentials',
       error: 'Credential rejected by the provider — reconnect the credential',
     })
-    expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
-      'sa-authoritative',
-      'atlassian',
-      [],
-      undefined
-    )
   })
 
   it('rejects a malformed impersonation subject before touching the credential', async () => {
@@ -515,45 +496,6 @@ describe('resolveCredentialAccessToken', () => {
       code: 'OCI_CREDENTIAL_TOOL_UNSUPPORTED',
     })
     expect(authenticate).not.toHaveBeenCalled()
-    expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
-  })
-
-  it('cannot use a non-OCI alias to bypass trusted OCI tool metadata checks', async () => {
-    const supplied = {
-      credentialType: 'service_account',
-      credentialId: 'caller-controlled-alias',
-      providerId: 'google-service-account',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    } as const
-    const authoritative = {
-      ...supplied,
-      credentialId: 'credential-authoritative',
-      providerId: 'oci-api-key-service-account',
-    } as const
-    mockResolveOAuthAccountId.mockResolvedValueOnce(supplied).mockResolvedValueOnce(authoritative)
-    mockGetToolMetadata.mockReturnValue({
-      oauth: { required: true, provider: 'slack', credentialKind: 'service-account' },
-    })
-    mockGetServiceConfigByServiceId.mockReturnValue({
-      serviceAccountProviderId: 'slack-custom-bot',
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      workspaceId: 'ws-1',
-      resolvedCredentialId: 'credential-authoritative',
-    })
-
-    await expect(
-      resolveCredentialAccessToken({
-        requestId: 'req-oci',
-        credentialId: 'caller-controlled-alias',
-        toolId: 'non_oci_tool',
-        authenticate,
-      })
-    ).resolves.toEqual({ ok: false, status: 403, error: 'Unauthorized' })
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
   })
 

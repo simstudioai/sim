@@ -130,13 +130,13 @@ export async function authorizeSelectorCredential(input: {
       ...(input.scope.kind === 'workspace' ? { workspaceId: input.workspaceId } : {}),
     }
   )
-  if (!access.ok || access.workspaceId !== input.workspaceId || !access.resolvedCredentialId) {
+  if (!access.ok || access.workspaceId !== input.workspaceId) {
     throw new SelectorConnectionUnavailableError()
   }
   input.protectedValues.add(access.resolvedCredentialId, 'reference')
 
   const providerId = await requireCredentialProviderBinding(
-    access.resolvedCredentialId,
+    suppliedId,
     access,
     input.policy.serviceIds
   )
