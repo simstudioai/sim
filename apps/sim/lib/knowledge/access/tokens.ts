@@ -51,6 +51,50 @@ export function subjectToken(credential: SubjectCredential): string {
 }
 
 /**
+ * The identity token of a person by their email address, as the source spells
+ * it. Case-folded and trimmed on both sides — the writer mirroring a source ACL
+ * and the reader resolving their own scope — so `Alice@Corp.com` in Drive and
+ * `alice@corp.com` in Sim are one person.
+ *
+ * Returns null for anything that is not an email: a source may name a principal
+ * with no address (a deleted account, a service identity), and a grant we
+ * cannot attribute to a person must be dropped rather than guessed at.
+ */
+export function userToken(email: string | null | undefined): string | null {
+  const normalized = email?.trim().toLowerCase()
+  if (!normalized) return null
+  const token = `u:${normalized}`
+  return isAccessToken(token) ? token : null
+}
+
+export interface GroupIdentity {
+  providerId: string
+  /** The provider's tenant, or {@link NO_TENANT_SEGMENT} where it reports none. */
+  tenantId: string | null
+  /**
+   * The group as the provider names it, in whichever identifier both the
+   * crawl and the directory sync can see: Drive and Confluence both hand back
+   * an email or a name, never an opaque id.
+   */
+  groupId: string
+}
+
+/**
+ * The token of a group grant. Case-folded like {@link userToken}, since group
+ * identifiers are emails on Drive and names on Confluence, and neither source
+ * is consistent about case.
+ */
+export function groupToken(group: GroupIdentity): string | null {
+  const { providerId } = group
+  const tenant = group.tenantId || NO_TENANT_SEGMENT
+  const groupId = group.groupId?.trim().toLowerCase()
+  if (!providerId || !groupId) return null
+  if (providerId.includes(':') || tenant.includes(':')) return null
+  const token = `g:${providerId}:${tenant}:${groupId}`
+  return isAccessToken(token) ? token : null
+}
+
+/**
  * Canonical ordering for every ACL and token set: code-unit order, never
  * locale-aware, so two writers produce byte-identical arrays and Postgres array
  * comparison stays meaningful.
