@@ -118,6 +118,7 @@ export const ContentBlockType = {
   options: 'options',
   stopped: 'stopped',
   plan: 'plan',
+  task: 'task',
 } as const
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
@@ -126,6 +127,8 @@ export interface ContentBlock {
   content?: string
   /** The agent's plan checklist (plan blocks only); whole-list, latest wins. */
   planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
+  /** The background task this block announces (task blocks only). */
+  task?: import('@/lib/mothership/request/types').TaskBlockInfo
   subagent?: string
   /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
   subagentName?: string
@@ -189,6 +192,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant'
   content: string
+  /** "task": a background-task notification opened this turn, not the user (a system chip, not a bubble). */
+  origin?: 'task'
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
   contexts?: ChatMessageContext[]
