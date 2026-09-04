@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { MothershipStreamV1RunKind } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   isContractStreamEventEnvelope,
   isSyntheticFilePreviewEventEnvelope,
@@ -45,6 +46,19 @@ describe('stream session contract parser', () => {
       ok: true,
       event,
     })
+  })
+
+  it('accepts every run kind the generated contract names', () => {
+    // A hand-kept kind list rejected steering_applied and then task_armed the day each
+    // shipped; an unknown-but-contracted kind is fatal to the live turn.
+    for (const kind of Object.values(MothershipStreamV1RunKind)) {
+      const event = {
+        ...BASE_ENVELOPE,
+        type: 'run' as const,
+        payload: { kind, taskId: 't', taskKind: 'timer', target: {}, note: 'n' },
+      }
+      expect(isContractStreamEventEnvelope(event)).toBe(true)
+    }
   })
 
   it('accepts contract session chat events', () => {

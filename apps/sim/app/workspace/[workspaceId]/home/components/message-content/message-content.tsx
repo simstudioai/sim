@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { cn } from '@sim/emcn'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { AgentPlanItem } from '@/lib/mothership/request/types'
+import type { AgentPlanItem, TaskBlockInfo } from '@/lib/mothership/request/types'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
@@ -32,6 +32,7 @@ import {
 import { getActivityStatusTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import { PlanChecklist } from '@/app/workspace/[workspaceId]/home/components/message-content/components/plan-checklist'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { TaskPill } from '@/app/workspace/[workspaceId]/home/components/message-content/components/task-pill'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import type {
@@ -95,12 +96,18 @@ interface PlanSegment {
   items: AgentPlanItem[]
 }
 
+interface TaskSegment {
+  type: 'task'
+  task: TaskBlockInfo
+}
+
 type MessageSegment =
   | TextSegment
   | AgentGroupSegment
   | OptionsSegment
   | StoppedSegment
   | PlanSegment
+  | TaskSegment
 
 function getAgentGroupActivityKey(items: AgentGroupItem[]): string {
   return items
@@ -143,6 +150,9 @@ function getVisibleStreamActivityKey(segments: MessageSegment[]): string {
       if (segment.type === 'stopped') return 'stopped'
       if (segment.type === 'plan') {
         return `plan:${segment.items.map((item) => `${item.status}:${item.step.length}`).join(',')}`
+      }
+      if (segment.type === 'task') {
+        return `task:${segment.task.taskId}:${segment.task.status ?? 'pending'}`
       }
       return [
         'agent',
@@ -502,6 +512,12 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
+    if (block.type === 'task') {
+      if (!block.task) continue
+      segments.push({ type: 'task', task: block.task })
+      continue
+    }
+
     if (block.type === 'subagent_end') {
       if (block.spanId) {
         const g = groupsBySpanId.get(block.spanId)
@@ -756,6 +772,13 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       if (!block.planItems?.length) continue
       flushLanes()
       segments.push({ type: 'plan', items: block.planItems })
+      continue
+    }
+
+    if (block.type === 'task') {
+      if (!block.task) continue
+      flushLanes()
+      segments.push({ type: 'task', task: block.task })
       continue
     }
 
@@ -1117,6 +1140,8 @@ function MessageContentInner({
               )
             case 'plan':
               return <PlanChecklist key={`plan-${i}`} items={segment.items} />
+            case 'task':
+              return <TaskPill key={`task-${segment.task.taskId}`} task={segment.task} />
             // The stopped row renders in the tail region below, in the
             // shimmer's place — a stop while the shimmer is visible must read
             // as an in-place replacement, not the shimmer vanishing from the
