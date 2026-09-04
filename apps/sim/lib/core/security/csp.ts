@@ -78,6 +78,10 @@ const STATIC_SCRIPT_SRC = [
     ? [
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
+        // Google Ads conversion tag — gtag.js pulls conversion_async.js from
+        // googleadservices and the remarketing tag from googleads.doubleclick
+        'https://www.googleadservices.com',
+        'https://googleads.g.doubleclick.net',
         'https://analytics.ahrefs.com',
         // HubSpot tracking (landing pages) — loader plus the
         // analytics/form-tracking/banner scripts it injects as <script> tags
@@ -128,6 +132,8 @@ const STATIC_CONNECT_SRC = [
         'https://www.google.com',
         'https://analytics.ahrefs.com',
         'https://*.g.doubleclick.net',
+        // Google Ads conversion tag — conversion beacons
+        'https://www.googleadservices.com',
         // HubSpot tracking — form-tracking API (hscollectedforms.js).
         // The visitor beacon itself is an image pixel (img-src, already
         // permitted below), not a connect-src request.
@@ -150,6 +156,11 @@ const STATIC_FRAME_SRC = [
   'https://drive.google.com',
   'https://docs.google.com',
   'https://*.google.com',
+  // Google Ads conversion tag — the conversion linker writes its cookie from
+  // a hidden iframe on these origins; without them the ping still fires but
+  // cross-domain click attribution silently drops
+  'https://td.doubleclick.net',
+  'https://www.googleadservices.com',
   'https://www.youtube.com',
   'https://player.vimeo.com',
   'https://www.dailymotion.com',
