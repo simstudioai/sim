@@ -71,8 +71,12 @@ vi.mock('@/lib/core/execution-limits', () => ({
 
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { McpClient } from './client'
-import type { McpClientOptions, McpServerConfig } from './types'
+import { McpClient } from '@/lib/mcp/client'
+import {
+  type McpClientOptions,
+  McpOauthAuthorizationRequiredError,
+  type McpServerConfig,
+} from '@/lib/mcp/types'
 
 function createConfig(): McpServerConfig {
   return {
@@ -92,6 +96,14 @@ describe('McpClient notification handler', () => {
     // clearAllMocks resets call history but not implementations; re-establish the
     // default so a per-test override can't bleed into later tests.
     vi.mocked(getMaxExecutionTimeout).mockReturnValue(30_000)
+  })
+
+  it('preserves authorization-required errors raised by a locked credential reload', async () => {
+    const error = new McpOauthAuthorizationRequiredError('server-1', 'Test Server')
+    mockSdkConnect.mockRejectedValueOnce(error)
+    const client = new McpClient({ config: createConfig() })
+    await expect(client.connect()).rejects.toBe(error)
+    expect(client.getStatus().lastError).toBeUndefined()
   })
 
   it('fires onToolsChanged when a notification arrives while connected', async () => {
