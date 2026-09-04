@@ -561,7 +561,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl:
-      'https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/overview.html',
+      'https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/authentication.html',
     helpText:
       'The credential is bound to one EPM environment. Use a dedicated integration user with only the permissions its workflows require.',
   },
