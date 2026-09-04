@@ -154,8 +154,15 @@ async function loadOllamaEmbeddingModelCatalog(
 }
 
 /**
- * Resolves one selected model against the server's live catalog, the way the
- * OpenRouter tool resolves a model against OpenRouter's.
+ * Resolves one selected model, the way the OpenRouter tool resolves a model
+ * against OpenRouter's catalog — but by asking `/api/show` for that model alone.
+ *
+ * Deliberately not a catalog scan: this runs on every Ollama embedding request,
+ * and listing the server would make one unrelated model's slow or failing
+ * `/api/show` delay or break an embedding that never involved it. Asking
+ * directly also keeps the failures separable, which a scan cannot do — an
+ * absent model comes back 404 and is the caller's to fix, while anything else
+ * is the server's problem and must not be reported as a bad request.
  *
  * The width is required rather than optional because it is what the client
  * validates the response against. Without it a model that quietly returns a
@@ -167,14 +174,29 @@ export async function getOllamaEmbeddingModelMetadata(
   signal?: AbortSignal
 ): Promise<Required<OllamaEmbeddingModel>> {
   const name = isOllamaEmbeddingModel(model) ? ollamaEmbeddingModelName(model) : model
-  const { models, unreachable } = await loadOllamaEmbeddingModelCatalog(signal)
-  /** An empty catalog because nothing answered is an outage, not a missing model. */
-  if (unreachable !== undefined) throw new OllamaUnreachableError(unreachable)
-  /** Ollama resolves a bare name to its `:latest` tag, so both spellings match. */
-  const metadata = models.find(
-    (candidate) => candidate.id === name || candidate.id === `${name}:latest`
-  )
-  if (!metadata) throw new OllamaEmbeddingModelNotFoundError(name)
-  if (metadata.dimensions === undefined) throw new OllamaEmbeddingWidthUnknownError(name)
-  return { id: metadata.id, dimensions: metadata.dimensions }
+  if (!name) throw new OllamaEmbeddingModelNotFoundError(model)
+
+  let detail: { capabilities?: string[]; model_info?: Record<string, unknown> }
+  try {
+    detail = ollamaShowUpstreamResponseSchema.parse(
+      await fetchOllamaJson(
+        '/api/show',
+        { method: 'POST', body: JSON.stringify({ model: name }) },
+        signal
+      )
+    )
+  } catch (error) {
+    signal?.throwIfAborted()
+    const cause = getErrorMessage(error, 'Unknown error')
+    /** Ollama answers 404 for a model it does not have; anything else is its problem. */
+    if (cause.includes('404')) throw new OllamaEmbeddingModelNotFoundError(name)
+    throw new OllamaUnreachableError(cause)
+  }
+
+  if (detail.capabilities && !detail.capabilities.includes('embedding')) {
+    throw new OllamaEmbeddingModelNotFoundError(name)
+  }
+  const dimensions = readEmbeddingLength(detail.model_info)
+  if (dimensions === undefined) throw new OllamaEmbeddingWidthUnknownError(name)
+  return { id: name, dimensions }
 }

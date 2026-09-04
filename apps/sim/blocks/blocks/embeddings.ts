@@ -276,6 +276,14 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
           return {
             input: params.input,
             model,
+            /**
+             * Explicitly cleared, not omitted: the executor merges this over the
+             * saved inputs, so an omitted key leaves the previous provider's
+             * credential in place and serializes it into a request that has no
+             * use for one.
+             */
+            apiKey: undefined,
+            openRouterApiKey: undefined,
             taskType: undefined,
             dimensions: undefined,
           }

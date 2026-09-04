@@ -199,9 +199,11 @@ Both variables apply at creation time and are recorded on the knowledge base, so
 affects new knowledge bases only. Existing ones keep the model and width they were built with, and
 knowledge bases with different settings cannot be searched together.
 
-Matching the width to the model is yours to get right. Sim only knows the widths a hosted provider
-documents, and nothing at all about a model on your Ollama, so a mismatch surfaces as a failed
-document rather than a rejected configuration. Common pairings:
+Matching the width to the model is yours to get right for a hosted provider: Sim knows only the
+widths each one documents, so a width that model cannot emit falls back to `1536` with a warning.
+For Ollama it is checked — leave `EMBEDDING_OUTPUT_DIMS` unset and Sim reads the model's width from
+your server, refusing to create the knowledge base if it cannot; set it explicitly and a mismatch
+surfaces as a failed document instead. Common pairings:
 
 | `EMBEDDING_OUTPUT_DIMS` | Works with |
 |----------|-------------|

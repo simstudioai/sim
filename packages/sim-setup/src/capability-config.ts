@@ -739,10 +739,36 @@ export const KNOWLEDGE_SETUP = defineCapabilitySetup(OCR_CAPABILITY, {
  */
 const OPENAI_EMBEDDING_MODEL_PROMPTS = [
   {
-    type: 'field',
-    key: 'KB_EMBEDDING_MODEL',
-    input: 'text',
-    hint: 'optional; text-embedding-3-small (default) or text-embedding-3-large',
+    /**
+     * A choice rather than a free-text field, so picking an OpenAI-family
+     * provider always writes a model this family can serve. As a text field it
+     * pre-filled with whatever was configured before, so switching here from
+     * Gemini or Ollama silently carried that model forward and the transition
+     * then rejected the selection the operator had just made.
+     */
+    type: 'choice',
+    id: 'openai-embedding-model',
+    message: 'Embedding model?',
+    options: [
+      {
+        id: 'small',
+        label: 'text-embedding-3-small (default)',
+        currentWhen: {
+          kind: 'any',
+          conditions: [
+            { kind: 'equals', key: 'KB_EMBEDDING_MODEL', value: 'text-embedding-3-small' },
+            { kind: 'not', condition: { kind: 'present', key: 'KB_EMBEDDING_MODEL' } },
+          ],
+        },
+        env: { KB_EMBEDDING_MODEL: 'text-embedding-3-small' },
+      },
+      {
+        id: 'large',
+        label: 'text-embedding-3-large',
+        currentWhen: { kind: 'equals', key: 'KB_EMBEDDING_MODEL', value: 'text-embedding-3-large' },
+        env: { KB_EMBEDDING_MODEL: 'text-embedding-3-large' },
+      },
+    ],
   },
   {
     type: 'field',

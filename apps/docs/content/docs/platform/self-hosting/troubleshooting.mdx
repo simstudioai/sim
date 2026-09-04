@@ -250,7 +250,7 @@ The load balancer's backend timeout is closing them. On GKE, attach a `BackendCo
 
 ## Knowledge base upload fails
 
-Embeddings need a provider — set `OPENAI_API_KEY`, configure Azure OpenAI, set `KB_EMBEDDING_MODEL=gemini-embedding-001` with a Gemini key, or set `KB_EMBEDDING_MODEL=ollama/<model>` with `OLLAMA_URL` to embed on your own Ollama. If one is configured, verify pgvector is installed on the database.
+Embeddings need a provider — set `OPENAI_API_KEY`, configure Azure OpenAI, set `KB_EMBEDDING_MODEL=gemini-embedding-001` with a Gemini key, or set `KB_EMBEDDING_MODEL=ollama/<model>` with `OLLAMA_URL` to embed on your own Ollama. On a self-hosted deployment `OPENROUTER_API_KEY` also serves the OpenAI-family models on its own, as a fallback behind any OpenAI or Azure credentials you have. If one is configured, verify pgvector is installed on the database.
 
 A document that fails with `vector 0 has N unexpected dimensions` means `EMBEDDING_OUTPUT_DIMS` does not match what the model actually emits. The message names both widths. If the width the model returned is one of `384`, `768`, `1024`, `1536`, or `3072`, set the variable to it and recreate the knowledge base. If it is anything else, no column can store it — choose a model that emits one of those five instead, since setting an unstorable width silently falls back to `1536` and the next document fails the same way. Existing knowledge bases keep the width they were created with.
 

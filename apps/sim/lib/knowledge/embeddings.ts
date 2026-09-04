@@ -109,19 +109,29 @@ export async function getConfiguredKbEmbedding(): Promise<KbEmbeddingTarget> {
   const configured = env.EMBEDDING_OUTPUT_DIMS
   const stated = configured !== undefined && String(configured).trim() !== ''
 
+  /**
+   * An Ollama model's width is a property of what the operator pulled, and the
+   * adapter cannot ask for a different one, so there is no width to fall back
+   * to: the platform default would pin every base to 1,536 and fail every
+   * document against a model that emits anything else. When it cannot be
+   * established the base is refused instead, which is recoverable — a base
+   * created at an impossible width is not.
+   */
   if (isOllamaEmbeddingModel(model) && !stated) {
+    let dimensions: number
     try {
-      const { dimensions } = await getOllamaEmbeddingModelMetadata(model)
-      if (isKbEmbeddingDimensions(dimensions)) return { model, dimensions }
-      logger.warn(
-        `${model} emits ${dimensions}-dimensional vectors, which knowledge bases cannot store. Supported: ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}`
-      )
+      dimensions = (await getOllamaEmbeddingModelMetadata(model)).dimensions
     } catch (error) {
-      logger.warn('Could not read the width of the configured Ollama embedding model', {
-        model,
-        error: getErrorMessage(error, 'Unknown error'),
-      })
+      throw new Error(
+        `Could not read the vector width of ${model} from the configured Ollama server (${getErrorMessage(error, 'Unknown error')}). Set EMBEDDING_OUTPUT_DIMS to the width it emits.`
+      )
     }
+    if (!isKbEmbeddingDimensions(dimensions)) {
+      throw new Error(
+        `${model} emits ${dimensions}-dimensional vectors, which knowledge bases cannot store. Choose a model emitting one of ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}.`
+      )
+    }
+    return { model, dimensions }
   }
 
   return { model, dimensions: resolveConfiguredEmbeddingDimensions(model) }

@@ -1266,7 +1266,12 @@ const OLLAMA_EMBEDDING_MODEL_PREFIX = 'ollama/'
 const GEMINI_KB_EMBEDDING_MODELS: readonly string[] = ['gemini-embedding-001']
 
 export function knowledgeEmbeddingFamily(values: EnvCapabilityValues): KnowledgeEmbeddingFamily {
-  const model = String(readValue(values, 'KB_EMBEDDING_MODEL') ?? '').trim()
+  /**
+   * Read raw, not trimmed: the runtime looks the value up exactly as configured,
+   * so ` gemini-embedding-001 ` is a model it rejects. Trimming here would
+   * report Gemini as configured for a value that routes to OpenAI's default.
+   */
+  const model = String(readValue(values, 'KB_EMBEDDING_MODEL') ?? '')
   if (model.startsWith(OLLAMA_EMBEDDING_MODEL_PREFIX)) {
     return model.length > OLLAMA_EMBEDDING_MODEL_PREFIX.length ? 'ollama' : 'openai'
   }

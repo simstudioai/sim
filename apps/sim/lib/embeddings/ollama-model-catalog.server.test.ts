@@ -8,6 +8,7 @@ import {
   getOllamaEmbeddingModelMetadata,
   OllamaEmbeddingModelNotFoundError,
   OllamaEmbeddingWidthUnknownError,
+  OllamaUnreachableError,
 } from '@/lib/embeddings/ollama-model-catalog.server'
 
 const fetchMock = vi.fn()
@@ -23,7 +24,8 @@ function serve(
       )
     }
     const { model } = JSON.parse(String(init?.body)) as { model: string }
-    const detail = models[model]
+    /** Ollama resolves a bare name to its `:latest` tag server-side. */
+    const detail = models[model] ?? models[`${model}:latest`]
     if (!detail) return Promise.resolve(new Response('not found', { status: 404 }))
     return Promise.resolve(
       Response.json({
@@ -112,7 +114,8 @@ describe('Ollama embedding model catalog', () => {
     await expect(fetchOllamaEmbeddingModelCatalog()).resolves.toEqual([])
   })
 
-  it('resolves a bare name against the tag Ollama installed it under', async () => {
+  /** Ollama resolves a bare name to its `:latest` tag itself, so Sim need not. */
+  it('accepts a bare name and a routing-prefixed one alike', async () => {
     serve({
       'all-minilm:latest': {
         capabilities: ['embedding'],
@@ -121,11 +124,11 @@ describe('Ollama embedding model catalog', () => {
     })
 
     await expect(getOllamaEmbeddingModelMetadata('all-minilm')).resolves.toEqual({
-      id: 'all-minilm:latest',
+      id: 'all-minilm',
       dimensions: 384,
     })
     await expect(getOllamaEmbeddingModelMetadata('ollama/all-minilm')).resolves.toEqual({
-      id: 'all-minilm:latest',
+      id: 'all-minilm',
       dimensions: 384,
     })
   })
@@ -134,6 +137,41 @@ describe('Ollama embedding model catalog', () => {
     serve({})
 
     await expect(getOllamaEmbeddingModelMetadata('missing')).rejects.toBeInstanceOf(
+      OllamaEmbeddingModelNotFoundError
+    )
+  })
+
+  /**
+   * Resolution asks about one model rather than listing the server, so an
+   * unrelated model's slow or failing `/api/show` cannot delay or break it.
+   */
+  it('asks only about the selected model, never the whole catalog', async () => {
+    serve({
+      'all-minilm:latest': {
+        capabilities: ['embedding'],
+        modelInfo: { 'bert.embedding_length': 384 },
+      },
+    })
+
+    await getOllamaEmbeddingModelMetadata('all-minilm')
+
+    const paths = fetchMock.mock.calls.map(([url]) => String(url))
+    expect(paths.every((url) => url.endsWith('/api/show'))).toBe(true)
+    expect(paths).toHaveLength(1)
+  })
+
+  it('reports a server that stops answering as an outage, not a missing model', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'))
+
+    await expect(getOllamaEmbeddingModelMetadata('all-minilm')).rejects.toBeInstanceOf(
+      OllamaUnreachableError
+    )
+  })
+
+  it('rejects a chat model asked for by name', async () => {
+    serve({ 'smollm2:135m': { capabilities: ['completion'] } })
+
+    await expect(getOllamaEmbeddingModelMetadata('smollm2:135m')).rejects.toBeInstanceOf(
       OllamaEmbeddingModelNotFoundError
     )
   })
