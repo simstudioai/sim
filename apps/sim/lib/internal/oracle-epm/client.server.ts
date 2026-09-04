@@ -369,10 +369,10 @@ function decodeReturnedPathSegment(
 }
 
 function rawReturnedPathSegments(href: string): string[] {
+  if (href.includes('\\')) throw oracleEpmLocalError('invalid_input')
   const match = /^https:\/\/[^/?#]*(\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/i.exec(href)
   if (!match) throw oracleEpmLocalError('invalid_input')
   const rawPath = match[1] ?? ''
-  if (rawPath.includes('\\')) throw oracleEpmLocalError('invalid_input')
   if (!rawPath) return []
   const segments = rawPath.slice(1).split('/')
   if (segments.some((segment) => !segment)) throw oracleEpmLocalError('invalid_input')

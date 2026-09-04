@@ -492,7 +492,7 @@ describe('Oracle EPM guarded client', () => {
       it.each(['offset=-10&include=false', 'offset=0&include=false', 'offset=10&include=true'])(
         'accepts canonical typed query %s without rewriting the returned URL',
         async (query) => {
-          const href = `${prefix}?${query}&token=signed%2Bquery%2Fsecret`
+          const href = `${prefix}?${query}&token=signed%2Bquery%2Fsecret%5Cvalue`
           const handle = client.validateReturnedLink(policy, { rel: 'next', href })
           expect(JSON.stringify(handle)).toBe('{}')
           await client.requestValidatedLink(handle)
@@ -605,12 +605,16 @@ describe('Oracle EPM guarded client', () => {
   it.each(
     [
       'https://evil.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
+      'https://epm.example.com\\injected/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
+      'https://epm.example.com:443\\injected/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
+      'https://epm.example.com\\..\\injected/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
       'https://user@epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x',
       'https://epm.example.com/SyntheticAlpha/rest/v3/files/abc?token=x',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x&token=y',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?unknown=x',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#fragment',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#',
+      'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x\\y',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/ab\nc?token=x',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/\uD800?token=x',
       'https://epm.example.com/gateway/SyntheticAlpha/rest//v3/files/abc?token=x',
@@ -639,7 +643,9 @@ describe('Oracle EPM guarded client', () => {
       instanceUrl: 'https://epm.example.com/gateway',
       accessToken: Buffer.from('u:p').toString('base64'),
     })
-    expect(() => client.validateReturnedLink(policy, { rel: relation, href })).toThrow()
+    expect(() => client.validateReturnedLink(policy, { rel: relation, href })).toThrowError(
+      expect.objectContaining({ name: 'OracleEpmError', category: 'invalid_input' })
+    )
     expect(mockValidateUrl).not.toHaveBeenCalled()
     expect(mockSecureFetch).not.toHaveBeenCalled()
   })
