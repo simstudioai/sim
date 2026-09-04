@@ -36,7 +36,8 @@ import type {
 } from '@/lib/internal/oracle-epm/types'
 
 const SAFE_TOKEN = /^[A-Za-z0-9+/]+={0,2}$/
-const LONE_SURROGATE = /[\uD800-\uDFFF]/
+const MALFORMED_UTF16 = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+const FORBIDDEN_LINK_TEXT = /[\u0000-\u001f\u007f]/
 const validatedLinks = new WeakMap<
   object,
   { owner: object; url: string; policy: OracleEpmReturnedLinkPolicyDefinition }
@@ -64,7 +65,7 @@ function validatePathValue(
     value === '.' ||
     value === '..' ||
     /[/\\\u0000-\u001f\u007f]/.test(value) ||
-    LONE_SURROGATE.test(value) ||
+    MALFORMED_UTF16.test(value) ||
     Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
     (declaration.pattern && !declaration.pattern.test(value))
   ) {
@@ -93,7 +94,7 @@ function serializeQueryValue(value: unknown, declaration: OracleEpmQueryParamete
   if (declaration.kind === 'string') {
     if (
       typeof value !== 'string' ||
-      LONE_SURROGATE.test(value) ||
+      MALFORMED_UTF16.test(value) ||
       Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
       (declaration.pattern && !declaration.pattern.test(value))
     )
@@ -152,7 +153,7 @@ function buildHeaders(
     }
     if (
       /\r|\n|\u0000/.test(value) ||
-      LONE_SURROGATE.test(value) ||
+      MALFORMED_UTF16.test(value) ||
       Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
       (declaration.pattern && !declaration.pattern.test(value))
     )
@@ -305,7 +306,8 @@ async function projectResponse(
   try {
     const data = await response.json()
     return Object.freeze({ status: response.status, data, correlationId })
-  } catch {
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw oracleEpmLocalError('payload_too_large')
     throw oracleEpmLocalError('invalid_response')
   }
 }
@@ -464,7 +466,9 @@ export function createOracleEpmClient(input: {
         link.rel !== policy.relation ||
         (link.method !== undefined && link.method !== policy.method) ||
         typeof link.href !== 'string' ||
-        link.href.length > 8_192
+        link.href.length > 8_192 ||
+        FORBIDDEN_LINK_TEXT.test(link.href) ||
+        MALFORMED_UTF16.test(link.href)
       )
         throw oracleEpmLocalError('invalid_input')
       let url: URL

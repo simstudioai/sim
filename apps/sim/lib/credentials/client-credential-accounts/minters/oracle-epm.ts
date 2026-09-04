@@ -13,6 +13,7 @@ const SYNTHETIC_TOKEN_TTL_SECONDS = 600
 const MAX_USERNAME_BYTES = 255
 const MAX_AUTH_VALUE_BYTES = 1_024
 const FORBIDDEN_CREDENTIAL_TEXT = /[\u0000-\u001f\u007f]/
+const MALFORMED_UTF16 = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
 
 function invalidCredentials(reason: string): TokenServiceAccountValidationError {
   return new TokenServiceAccountValidationError('invalid_credentials', 400, {
@@ -49,6 +50,7 @@ export async function mintOracleEpmServiceAccountToken(
     !username ||
     username.includes(':') ||
     FORBIDDEN_CREDENTIAL_TEXT.test(username) ||
+    MALFORMED_UTF16.test(username) ||
     Buffer.byteLength(username, 'utf8') > MAX_USERNAME_BYTES
   ) {
     throw invalidCredentials('integration username is invalid')
@@ -56,6 +58,7 @@ export async function mintOracleEpmServiceAccountToken(
   if (
     !password ||
     FORBIDDEN_CREDENTIAL_TEXT.test(password) ||
+    MALFORMED_UTF16.test(password) ||
     Buffer.byteLength(password, 'utf8') > MAX_AUTH_VALUE_BYTES
   ) {
     throw invalidCredentials('password is invalid')

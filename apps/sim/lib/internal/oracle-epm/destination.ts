@@ -4,6 +4,7 @@ const MAX_DESTINATION_LENGTH = 2_048
 const MAX_PATH_SEGMENTS = 32
 const MAX_PATH_SEGMENT_BYTES = 255
 const FORBIDDEN_TEXT = /[\u0000-\u001f\u007f\\]/
+const MALFORMED_UTF16 = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
 const destinations = new WeakMap<object, { origin: string; baseSegments: readonly string[] }>()
 
 function decodeSegment(segment: string): string {
@@ -33,6 +34,7 @@ function validateAndDecodeSegment(encoded: string): string {
     safetyValue === '..' ||
     safetyValue.includes('/') ||
     FORBIDDEN_TEXT.test(safetyValue) ||
+    MALFORMED_UTF16.test(decoded) ||
     Buffer.byteLength(decoded, 'utf8') > MAX_PATH_SEGMENT_BYTES
   ) {
     throw new Error('Oracle EPM environment URL base path is invalid')
@@ -43,7 +45,12 @@ function validateAndDecodeSegment(encoded: string): string {
 /** Validates and freezes the credential-bound Oracle EPM environment URL. */
 export function defineOracleEpmDestination(rawUrl: string): OracleEpmDestination {
   const value = rawUrl.trim()
-  if (!value || value.length > MAX_DESTINATION_LENGTH || FORBIDDEN_TEXT.test(value)) {
+  if (
+    !value ||
+    value.length > MAX_DESTINATION_LENGTH ||
+    FORBIDDEN_TEXT.test(value) ||
+    MALFORMED_UTF16.test(value)
+  ) {
     throw new Error('Oracle EPM environment URL is invalid')
   }
 

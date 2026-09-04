@@ -38,6 +38,8 @@ describe('Oracle EPM destination', () => {
     'https://epm.example.com/a%2Fb',
     'https:////epm.example.com/gateway',
     'https://epm.example.com/a\\b',
+    'https://epm.example.com/gateway/\uD800',
+    'https://epm.example.com/gateway/\uDC00',
   ])('rejects unsafe destination %j', (value) => {
     expect(() => defineOracleEpmDestination(value)).toThrow()
   })

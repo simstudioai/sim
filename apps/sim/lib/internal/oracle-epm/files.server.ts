@@ -79,6 +79,7 @@ export async function openOracleEpmSourceFile(input: {
     const abort = () => stream.destroy(signal?.reason)
     signal?.addEventListener('abort', abort, { once: true })
     try {
+      signal?.throwIfAborted()
       for await (const chunk of stream) {
         signal?.throwIfAborted()
         const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array)
@@ -92,6 +93,7 @@ export async function openOracleEpmSourceFile(input: {
         }
         yield buffer
       }
+      signal?.throwIfAborted()
     } finally {
       signal?.removeEventListener('abort', abort)
       stream.destroy()

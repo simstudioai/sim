@@ -492,6 +492,52 @@ describe('resolveCredentialAccessToken', () => {
     })
   })
 
+  it('preserves an existing service-account tool without OAuth service metadata', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      accountId: 'credential-1',
+      credentialId: 'credential-1',
+      credentialType: 'service_account',
+      providerId: 'claude-platform-service-account',
+      usedCredentialTable: true,
+    })
+    mockGetToolMetadata.mockReturnValue({ oauth: undefined })
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'credential-1',
+    })
+    mockResolveServiceAccountToken.mockResolvedValue({ accessToken: 'workspace-api-key' })
+
+    await expect(
+      resolveCredentialAccessToken({
+        requestId: 'req-1',
+        credentialId: 'credential-1',
+        toolId: 'managed_agent_run_session',
+        authenticate,
+      })
+    ).resolves.toEqual({
+      ok: true,
+      token: {
+        accessToken: 'workspace-api-key',
+        credentialType: 'service_account',
+        apiDomain: undefined,
+        authStyle: undefined,
+        cloudId: undefined,
+        domain: undefined,
+        instanceUrl: undefined,
+      },
+    })
+    expect(mockGetServiceConfigByProviderId).not.toHaveBeenCalled()
+    expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
+      'credential-1',
+      'claude-platform-service-account',
+      [],
+      undefined
+    )
+  })
+
   it('rejects a mismatched OAuth account after loading its authoritative provider', async () => {
     mockResolveOAuthAccountId.mockResolvedValue({
       accountId: 'account-1',

@@ -33,6 +33,8 @@ describe('mintOracleEpmServiceAccountToken', () => {
     { clientId: 'user:name', clientSecret: 'password' },
     { clientId: 'user\nname', clientSecret: 'password' },
     { clientId: 'user', clientSecret: 'pass\nword' },
+    { clientId: 'user\uD800', clientSecret: 'password' },
+    { clientId: 'user', clientSecret: 'password\uDC00' },
     { clientId: '', clientSecret: 'password' },
   ])('rejects unsafe Basic credential text', async (credentials) => {
     await expect(
@@ -41,6 +43,15 @@ describe('mintOracleEpmServiceAccountToken', () => {
         ...credentials,
       })
     ).rejects.toBeInstanceOf(TokenServiceAccountValidationError)
+  })
+
+  it('preserves valid surrogate pairs in Basic credential values', async () => {
+    const result = await mintOracleEpmServiceAccountToken({
+      orgId: 'https://epm.example.com',
+      clientId: 'integration-😀',
+      clientSecret: 'password-🔒',
+    })
+    expect(Buffer.from(result.accessToken, 'base64').toString()).toBe('integration-😀:password-🔒')
   })
 
   it('does not reflect secrets in validation errors', async () => {

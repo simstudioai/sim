@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const { mockSecureFetch, mockValidateUrl } = vi.hoisted(() => ({
   mockSecureFetch: vi.fn(),
@@ -93,7 +94,7 @@ describe('Oracle EPM guarded client', () => {
       { logDetails: false }
     )
     expect(mockSecureFetch).toHaveBeenCalledWith(
-      expect.any(String),
+      'https://epm.example.com/gateway/acme/SyntheticAlpha/rest/v3/jobs/job%20with%20spaces?limit=25',
       '203.0.113.10',
       expect.objectContaining({
         method: 'GET',
@@ -144,6 +145,50 @@ describe('Oracle EPM guarded client', () => {
       { category: 'invalid_input' }
     )
     expect(mockValidateUrl).not.toHaveBeenCalled()
+  })
+
+  it('preserves valid surrogate pairs in encoded path and query parameters', async () => {
+    const endpoint = routes.defineEndpoint({
+      method: 'GET',
+      version: 'v3',
+      path: [oracleEpmLiteral('files'), oracleEpmPathParameter('fileId', { maxBytes: 32 })],
+      query: { label: oracleEpmQuery.string({ maxBytes: 32 }) },
+      body: 'none',
+      response: 'json',
+      timeoutMs: 2_000,
+      maxResponseBytes: 1_024,
+    })
+    const client = createOracleEpmClient({
+      instanceUrl: 'https://epm.example.com',
+      accessToken: Buffer.from('u:p').toString('base64'),
+    })
+    await client.request(endpoint, {
+      pathParams: { fileId: 'report-😀' },
+      query: { label: 'locked-🔒' },
+    })
+    expect(mockSecureFetch.mock.calls[0][0]).toBe(
+      'https://epm.example.com/SyntheticAlpha/rest/v3/files/report-%F0%9F%98%80?label=locked-%F0%9F%94%92'
+    )
+  })
+
+  it('preserves streamed response size failures as payload-too-large errors', async () => {
+    mockSecureFetch.mockResolvedValue({
+      ...secureResponse({}),
+      json: vi.fn().mockRejectedValue(
+        new PayloadSizeLimitError({
+          label: 'secure fetch response',
+          maxBytes: 4_096,
+          observedBytes: 4_097,
+        })
+      ),
+    })
+    const client = createOracleEpmClient({
+      instanceUrl: 'https://epm.example.com',
+      accessToken: Buffer.from('u:p').toString('base64'),
+    })
+    await expect(client.request(getJob, { pathParams: { jobId: '42' } })).rejects.toMatchObject({
+      category: 'payload_too_large',
+    })
   })
 
   it('suppresses arbitrary provider bodies in failed requests', async () => {
@@ -310,6 +355,8 @@ describe('Oracle EPM guarded client', () => {
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x&token=y',
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?unknown=x',
     'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc?token=x#fragment',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/ab\nc?token=x',
+    'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/\uD800?token=x',
   ])('rejects unsafe returned link %j', (href) => {
     const policy = routes.defineReturnedLinkPolicy({
       relation: 'download',

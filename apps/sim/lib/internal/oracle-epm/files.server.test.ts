@@ -187,6 +187,74 @@ describe('Oracle EPM file primitives', () => {
     expect(destroy).toHaveBeenCalled()
   })
 
+  it('destroys a source canceled while its storage stream is opening', async () => {
+    let finishOpen: ((stream: Readable) => void) | undefined
+    mocks.downloadFileStream.mockReturnValue(
+      new Promise((resolve) => {
+        finishOpen = resolve
+      })
+    )
+    const controller = new AbortController()
+    const source = await openOracleEpmSourceFile({
+      file: {
+        id: 'f',
+        name: 'x',
+        url: '',
+        size: 0,
+        type: '',
+        key: 'workspace/key',
+        context: 'workspace',
+      },
+      userId: 'user-1',
+      maxBytes: 3,
+      signal: controller.signal,
+    })
+    const pending = (async () => {
+      for await (const _chunk of source.chunks) {
+        // Consume the guarded stream.
+      }
+    })()
+    await vi.waitFor(() => expect(mocks.downloadFileStream).toHaveBeenCalled())
+    controller.abort(new DOMException('user', 'AbortError'))
+    const stream = Readable.from([])
+    const destroy = vi.spyOn(stream, 'destroy')
+    finishOpen?.(stream)
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(destroy).toHaveBeenCalled()
+  })
+
+  it('rejects a source canceled as an empty storage stream reaches EOF', async () => {
+    const controller = new AbortController()
+    const stream = new Readable({
+      read() {
+        this.push(null)
+        controller.abort(new DOMException('user', 'AbortError'))
+      },
+    })
+    mocks.downloadFileStream.mockResolvedValue(stream)
+    const source = await openOracleEpmSourceFile({
+      file: {
+        id: 'f',
+        name: 'x',
+        url: '',
+        size: 0,
+        type: '',
+        key: 'workspace/key',
+        context: 'workspace',
+      },
+      userId: 'user-1',
+      maxBytes: 3,
+      signal: controller.signal,
+    })
+
+    await expect(async () => {
+      for await (const _chunk of source.chunks) {
+        // Consume the guarded stream.
+      }
+    }).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('streams a bounded provider response into execution storage and returns UserFile', async () => {
     const body = new ReadableStream<Uint8Array>({
       start(controller) {

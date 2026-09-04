@@ -379,26 +379,17 @@ export async function resolveCredentialAccessToken(
     ? getServiceConfigByProviderId(toolMetadata.oauth.provider)
     : null
 
-  if (credentialId && toolId && resolved?.credentialType !== 'managed_oauth' && !expectedService) {
+  if (
+    resolved?.credentialType !== 'managed_oauth' &&
+    resolved?.providerId &&
+    expectedService &&
+    !credentialProviderMatchesService(resolved.providerId, expectedService)
+  ) {
     return {
       ok: false,
       status: 403,
       code: 'CREDENTIAL_PROVIDER_MISMATCH',
       error: 'Credential does not match the tool service',
-    }
-  }
-
-  if (resolved?.credentialType !== 'managed_oauth' && resolved?.providerId && toolId) {
-    if (
-      !expectedService ||
-      !credentialProviderMatchesService(resolved.providerId, expectedService)
-    ) {
-      return {
-        ok: false,
-        status: 403,
-        code: 'CREDENTIAL_PROVIDER_MISMATCH',
-        error: 'Credential does not match the tool service',
-      }
     }
   }
 
