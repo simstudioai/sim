@@ -583,10 +583,14 @@ describe('credential-bound OCI client', () => {
   })
 
   it('discards provider messages and exposes only safe status and request IDs', async () => {
+    const opaqueProviderSecret = 'opaque-diagnostic-secret-7f3a'
     mocks.secureFetch.mockResolvedValueOnce(
       secureResponse({
         status: 401,
-        body: JSON.stringify({ message: PRIVATE_KEY, nested: { authorization: 'secret' } }),
+        body: JSON.stringify({
+          message: opaqueProviderSecret,
+          nested: { authorization: 'another-opaque-secret' },
+        }),
         headers: { 'opc-request-id': 'request-401' },
       })
     )
@@ -607,7 +611,8 @@ describe('credential-bound OCI client', () => {
       status: 401,
       opcRequestId: 'request-401',
     })
-    expect(JSON.stringify(failure)).not.toContain('BEGIN PRIVATE KEY')
+    expect(JSON.stringify(failure)).not.toContain(opaqueProviderSecret)
+    expect(JSON.stringify(failure)).not.toContain('another-opaque-secret')
     expect(JSON.stringify(failure)).not.toContain('authorization')
   })
 
@@ -782,6 +787,29 @@ describe('credential-bound OCI client', () => {
     const assertion = expect(pending).rejects.toMatchObject({ code: 'deadline_exceeded' })
     await vi.advanceTimersByTimeAsync(101)
     await assertion
+    expect(cancel).toHaveBeenCalled()
+  })
+
+  it('propagates caller abort while reading a failed response body', async () => {
+    const controller = new AbortController()
+    const cancel = vi.fn()
+    mocks.secureFetch.mockResolvedValueOnce({
+      ...secureResponse({ status: 409 }),
+      headers: new Headers(),
+      body: new ReadableStream<Uint8Array>({ cancel }),
+    })
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      signal: controller.signal,
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    await vi.waitFor(() => expect(mocks.secureFetch).toHaveBeenCalledOnce())
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ code: 'aborted' })
     expect(cancel).toHaveBeenCalled()
   })
 

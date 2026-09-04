@@ -259,14 +259,16 @@ async function buildOciApiKeyServiceAccountSecret(
     }
   } catch (error) {
     if (error instanceof OciCredentialVerificationError) {
+      const providerUnavailable =
+        error.code === 'service_unavailable' || error.code === 'invalid_response'
       throw new ServiceAccountSecretError(
-        error.code === 'service_unavailable'
+        providerUnavailable
           ? 'OCI is temporarily unavailable for credential verification'
           : 'OCI rejected the API-key credential',
-        error.code === 'service_unavailable' ? 'provider_unavailable' : 'invalid_credentials'
+        providerUnavailable ? 'provider_unavailable' : 'invalid_credentials'
       )
     }
-    throw new ServiceAccountSecretError('OCI API-key credential is invalid')
+    throw error
   }
 }
 

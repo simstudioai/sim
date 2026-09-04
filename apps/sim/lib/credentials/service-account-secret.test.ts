@@ -217,28 +217,44 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     expect(mockVerifyAndEncryptOci).not.toHaveBeenCalled()
   })
 
-  it('classifies OCI verification outages without exposing provider details', async () => {
-    const { OciCredentialVerificationError } = await import(
-      '@/lib/credentials/oci-api-key-service-account.server'
-    )
-    mockVerifyAndEncryptOci.mockRejectedValue(
-      new OciCredentialVerificationError('service_unavailable')
-    )
+  it.each(['service_unavailable', 'invalid_response'] as const)(
+    'classifies OCI %s failures as provider outages without exposing provider details',
+    async (code) => {
+      const { OciCredentialVerificationError } = await import(
+        '@/lib/credentials/oci-api-key-service-account.server'
+      )
+      mockVerifyAndEncryptOci.mockRejectedValue(new OciCredentialVerificationError(code))
 
-    const failure = await verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
-      tenancyOcid: 'ocid1.tenancy.oc1..tenant',
-      userOcid: 'ocid1.user.oc1..principal',
-      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
-      privateKey: 'provider-secret-key',
-      region: 'us-ashburn-1',
-    }).catch((error: unknown) => error)
+      const failure = await verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'provider-secret-key',
+        region: 'us-ashburn-1',
+      }).catch((error: unknown) => error)
 
-    expect(failure).toBeInstanceOf(ServiceAccountSecretError)
-    expect(failure).toMatchObject({
-      message: 'OCI is temporarily unavailable for credential verification',
-      providerErrorCode: 'provider_unavailable',
-    })
-    expect(JSON.stringify(failure)).not.toContain('provider-secret-key')
+      expect(failure).toBeInstanceOf(ServiceAccountSecretError)
+      expect(failure).toMatchObject({
+        message: 'OCI is temporarily unavailable for credential verification',
+        providerErrorCode: 'provider_unavailable',
+      })
+      expect(JSON.stringify(failure)).not.toContain('provider-secret-key')
+    }
+  )
+
+  it('does not misclassify an internal OCI credential failure as rejected credentials', async () => {
+    const internalFailure = new Error('internal encryption failure')
+    mockVerifyAndEncryptOci.mockRejectedValue(internalFailure)
+
+    await expect(
+      verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'provider-secret-key',
+        region: 'us-ashburn-1',
+      })
+    ).rejects.toBe(internalFailure)
   })
 
   it('rejects an unknown non-empty providerId instead of persisting it as Google', async () => {

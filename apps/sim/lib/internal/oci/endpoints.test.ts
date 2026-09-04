@@ -56,13 +56,21 @@ describe('OCI endpoint policies', () => {
 
   it('freezes declarative policies and derives exact static origins', () => {
     expect(Object.isFrozen(staticPolicy)).toBe(true)
-    expect(resolveStaticOciEndpoint(staticPolicy, region)).toMatchObject({
+    const endpoint = resolveStaticOciEndpoint(staticPolicy, region)
+    expect(endpoint).toMatchObject({
       origin: 'https://identity.us-ashburn-1.oraclecloud.com',
       hostname: 'identity.us-ashburn-1.oraclecloud.com',
       serviceId: OCI_SERVICE_ID,
       serviceName: 'identity',
       provenance: 'static',
     })
+    expect(Object.isFrozen(endpoint)).toBe(true)
+    expect(Object.isFrozen(endpoint.region)).toBe(true)
+    expect(Object.isFrozen(endpoint.region.realm)).toBe(true)
+    expect(Reflect.set(endpoint, 'origin', 'https://attacker.example')).toBe(false)
+    expect(Reflect.set(endpoint.region, 'id', 'attacker-region-1')).toBe(false)
+    expect(endpoint.origin).toBe('https://identity.us-ashburn-1.oraclecloud.com')
+    expect(endpoint.region.id).toBe('us-ashburn-1')
   })
 
   it('accepts discovered resource hosts only beneath the declared service, region, and realm', () => {
