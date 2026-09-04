@@ -897,12 +897,19 @@ export const simProfile: CompetitorProfile = {
       },
       compliance: {
         value: 'SOC 2 Type II, ISO 27001:2022, GDPR',
+        detail:
+          "Beyond these certifications, self-hosting remains Sim's primary option for data-residency-sensitive compliance requirements.",
         shortValue: 'SOC 2 Type II, ISO 27001:2022, GDPR',
         confidence: 'verified',
         sources: [
           {
             url: 'https://trust.sim.ai',
             label: 'Sim Trust Center',
+            asOf: '2026-09-03',
+          },
+          {
+            url: 'https://sim.ai/enterprise',
+            label: 'Sim Enterprise Page',
             asOf: '2026-09-03',
           },
         ],

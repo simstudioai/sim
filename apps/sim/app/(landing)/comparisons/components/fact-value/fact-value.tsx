@@ -34,7 +34,8 @@ export function FactValue({ fact }: FactValueProps) {
   const isBoolean = status === 'yes' || status === 'no'
   const primarySource = fact.sources[0]
 
-  const fullText = [fact.value, fact.detail].filter(Boolean).join('. ')
+  const detailSeparator = /[.!?]$/.test(fact.value.trimEnd()) ? ' ' : '. '
+  const fullText = fact.detail ? `${fact.value}${detailSeparator}${fact.detail}` : fact.value
 
   const glance = isBoolean ? (
     status === 'yes' ? (

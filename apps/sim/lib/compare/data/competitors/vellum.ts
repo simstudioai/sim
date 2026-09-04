@@ -18,14 +18,14 @@ export const vellumProfile: CompetitorProfile = {
     'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
   standoutFeatures: [
     {
-      title: 'HIPAA compliance with a signable BAA',
+      title: 'HIPAA compliance',
       description:
-        'Vellum is HIPAA compliant and enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study. Sim does not currently offer HIPAA compliance (both platforms hold SOC 2 Type 2).',
-      shortDescription: 'HIPAA compliant with a signable BAA; Sim does not offer HIPAA.',
+        'Vellum is HIPAA compliant, as documented by Vellum and corroborated by a third-party Drata case study. Sim does not currently offer HIPAA compliance (both platforms hold SOC 2 Type 2).',
+      shortDescription: 'HIPAA compliant; Sim does not offer HIPAA.',
       source: {
-        url: 'https://drata.com/customers/vellum',
-        label: 'Vellum Case Study: Drata',
-        asOf: '2026-07-02',
+        url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
+        label: 'Vellum Docs: Data Privacy and Storage',
+        asOf: '2026-09-03',
       },
     },
     {
@@ -804,21 +804,21 @@ export const vellumProfile: CompetitorProfile = {
       },
       compliance: {
         value:
-          'SOC 2 Type 2 and HIPAA compliant, with a BAA available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
+          'SOC 2 Type 2 and HIPAA compliant; a Drata case study also notes SOC 2 Type 1; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
         detail:
-          "Vellum's docs state it is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). A third-party Drata case study also notes its SOC 2 Type 1 and Type 2 attestations. No mention of ISO 27001, PCI, or FedRAMP certification was found.",
-        shortValue: 'SOC 2 Type 2, HIPAA + BAA; no other certs confirmed',
+          "Vellum's docs state it is SOC 2 Type 2 and HIPAA compliant. A third-party Drata case study also notes its SOC 2 Type 1 and Type 2 attestations. Neither cited source states that Vellum offers a Business Associate Agreement. No mention of ISO 27001, a GDPR-specific attestation, PCI, or FedRAMP certification was found.",
+        shortValue: 'SOC 2 Type 2, HIPAA; no other certs confirmed',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
             label: 'Vellum Docs: Data Privacy and Storage',
-            asOf: '2026-07-02',
+            asOf: '2026-09-03',
           },
           {
             url: 'https://drata.com/customers/vellum',
             label: 'Vellum Case Study: Drata',
-            asOf: '2026-07-02',
+            asOf: '2026-09-03',
           },
         ],
       },

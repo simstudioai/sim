@@ -947,14 +947,14 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'SOC1 Type II, SOC2 Type II, SOC3, ISO 27001, ISO 27701, ISO 42001, HIPAA (BAA), PCI-DSS v4.0.1 Level 1, IRAP (PROTECTED, Australia), NIST 800-171A r2',
         detail:
-          "Workato's certifications go well beyond SOC 2: SOC 1 Type II covers financial reporting controls, while its SOC 2 Type II report is aligned to the AICPA Trust Services Criteria and is available to customers under NDA. ISO 27001 covers infosec management, ISO 27701 covers privacy (PIMS extending 27001, aligning with GDPR handling of PII), ISO 42001 covers AI governance, HIPAA compliance runs through signable BAAs with annual third-party attestation, PCI-DSS v4.0.1 Level 1 covers cardholder data, IRAP is assessed at the Australian government PROTECTED level, and NIST 800-171A r2 supports federal contractors handling Controlled Unclassified Information. There is no FedRAMP authorization or a standalone GDPR certification; GDPR compliance is represented through the ISO 27701 PIMS alignment.",
+          "Workato's certifications go well beyond SOC 2: SOC 1 Type II covers financial reporting controls, while its SOC 2 Type II report is aligned to the AICPA Trust Services Criteria and is available to customers under NDA. Its SOC 3 report is publicly available without an NDA and available upon request. ISO 27001 covers infosec management, ISO 27701 covers privacy (PIMS extending 27001, aligning with GDPR handling of PII), ISO 42001 covers AI governance, HIPAA compliance runs through signable BAAs with annual third-party attestation, PCI-DSS v4.0.1 Level 1 covers cardholder data, IRAP is assessed at the Australian government PROTECTED level, and NIST 800-171A r2 supports federal contractors handling Controlled Unclassified Information. There is no FedRAMP authorization or a standalone GDPR certification; GDPR compliance is represented through the ISO 27701 PIMS alignment.",
         shortValue: 'SOC 1/2/3, ISO 27001/27701/42001, HIPAA, PCI-DSS, IRAP, NIST',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/security/security-compliance.html',
             label: 'Security compliance | Workato docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-03',
           },
           {
             url: 'https://www.workato.com/platform/security',
