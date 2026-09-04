@@ -1,4 +1,8 @@
 import { normalizeOracleFusionApplicationOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  buildOracleFusionResourcePath,
+  type OracleFusionResourceAddress,
+} from '@/lib/internal/oracle-fusion/paths'
 
 const OPAQUE_KEY_MAX_LENGTH = 2048
 const UNSAFE_OPAQUE_KEY = /[\\/?#\u0000-\u001f\u007f]/
@@ -10,7 +14,12 @@ export interface OracleFusionCollection<T> {
   limit: number
   offset: number
   totalResults?: number
-  nextOffset?: number
+  nextOffset: number
+}
+
+export interface OracleFusionCollectionOptions {
+  expectedOffset?: number
+  maxItems?: number
 }
 
 function asObject(value: unknown, label: string): Record<string, unknown> {
@@ -30,10 +39,10 @@ function nonNegativeInteger(value: unknown, label: string): number {
 /** Validates and projects an Oracle collection envelope with pagination invariants. */
 export function parseOracleFusionCollection<T>(
   value: unknown,
-  parseItem: (item: unknown, index: number) => T
+  parseItem: (item: unknown, index: number) => T,
+  options: OracleFusionCollectionOptions = {}
 ): OracleFusionCollection<T> {
   const envelope = asObject(value, 'Oracle collection')
-  if (!Array.isArray(envelope.items)) throw new Error('Oracle collection items must be an array')
   const count = nonNegativeInteger(envelope.count, 'Oracle collection count')
   const limit = nonNegativeInteger(envelope.limit, 'Oracle collection limit')
   const offset = nonNegativeInteger(envelope.offset, 'Oracle collection offset')
@@ -41,7 +50,10 @@ export function parseOracleFusionCollection<T>(
   if (typeof envelope.hasMore !== 'boolean') {
     throw new Error('Oracle collection hasMore must be a boolean')
   }
-  if (count !== envelope.items.length) {
+  const items =
+    envelope.items === undefined && count === 0 && !envelope.hasMore ? [] : envelope.items
+  if (!Array.isArray(items)) throw new Error('Oracle collection items must be an array')
+  if (count !== items.length) {
     throw new Error('Oracle collection count must match the item count')
   }
   if (envelope.hasMore && count === 0) {
@@ -59,15 +71,30 @@ export function parseOracleFusionCollection<T>(
   if (totalResults !== undefined && totalResults < pageEnd) {
     throw new Error('Oracle collection totalResults is smaller than the returned page')
   }
+  if (options.expectedOffset !== undefined) {
+    const expectedOffset = nonNegativeInteger(
+      options.expectedOffset,
+      'Oracle collection expected offset'
+    )
+    if (offset !== expectedOffset) {
+      throw new Error('Oracle collection offset does not match the requested offset')
+    }
+  }
+  if (options.maxItems !== undefined) {
+    const maxItems = nonNegativeInteger(options.maxItems, 'Oracle collection item limit')
+    if (items.length > maxItems) {
+      throw new Error('Oracle collection exceeds the requested item limit')
+    }
+  }
 
   return {
-    items: envelope.items.map(parseItem),
+    items: items.map(parseItem),
     count,
     hasMore: envelope.hasMore,
     limit,
     offset,
     ...(totalResults !== undefined ? { totalResults } : {}),
-    ...(envelope.hasMore ? { nextOffset: pageEnd } : {}),
+    nextOffset: pageEnd,
   }
 }
 
@@ -110,11 +137,11 @@ function validateSelfLinkBase(link: URL, instanceUrl: string): void {
 export function validateOracleFusionSelfLink(
   value: unknown,
   instanceUrl: string,
-  expectedPath: string
+  address: OracleFusionResourceAddress
 ): void {
   const link = getOnlySelfLink(value)
   validateSelfLinkBase(link, instanceUrl)
-  if (!expectedPath.startsWith('/') || link.pathname !== expectedPath) {
+  if (link.pathname !== buildOracleFusionResourcePath(address)) {
     throw new Error('Oracle response self link does not match the requested resource path')
   }
 }
@@ -122,12 +149,25 @@ export function validateOracleFusionSelfLink(
 function validateOpaqueKey(key: string): string {
   if (
     !key ||
+    !key.trim() ||
     key.length > OPAQUE_KEY_MAX_LENGTH ||
     key === '.' ||
     key === '..' ||
     UNSAFE_OPAQUE_KEY.test(key)
   ) {
     throw new Error('Oracle resource key is not a safe opaque path segment')
+  }
+  for (let index = 0; index < key.length; index++) {
+    const codeUnit = key.charCodeAt(index)
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = key.charCodeAt(index + 1)
+      if (!(next >= 0xdc00 && next <= 0xdfff)) {
+        throw new Error('Oracle resource key contains malformed Unicode')
+      }
+      index++
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      throw new Error('Oracle resource key contains malformed Unicode')
+    }
   }
   return key
 }
@@ -136,13 +176,11 @@ function validateOpaqueKey(key: string): string {
 export function extractOracleFusionOpaqueKey(
   value: unknown,
   instanceUrl: string,
-  collectionPath: string
+  collectionAddress: OracleFusionResourceAddress
 ): string {
   const link = getOnlySelfLink(value)
   validateSelfLinkBase(link, instanceUrl)
-  if (!collectionPath.startsWith('/')) {
-    throw new Error('Oracle collection path must be absolute')
-  }
+  const collectionPath = buildOracleFusionResourcePath(collectionAddress)
   const prefix = `${collectionPath}/`
   if (!link.pathname.startsWith(prefix)) {
     throw new Error('Oracle self link does not match the requested collection path')
@@ -161,5 +199,12 @@ export function extractOracleFusionOpaqueKey(
 
 /** Encodes a validated opaque Oracle resource key for one URL path segment. */
 export function encodeOracleFusionPathSegment(key: string): string {
-  return encodeURIComponent(validateOpaqueKey(key))
+  try {
+    return encodeURIComponent(validateOpaqueKey(key))
+  } catch (error) {
+    if (error instanceof URIError) {
+      throw new Error('Oracle resource key contains malformed Unicode')
+    }
+    throw error
+  }
 }

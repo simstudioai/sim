@@ -8,20 +8,17 @@ import {
 import { consumeOrCancelBody, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { normalizeOracleFusionApplicationOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
+import { isOracleFusionIntegralJsonNumberToken } from '@/lib/internal/oracle-fusion/identifiers'
+import {
+  buildOracleFusionResourcePath,
+  type OracleFusionResourceAddress,
+} from '@/lib/internal/oracle-fusion/paths'
 
 const REQUEST_TIMEOUT_MS = 30_000
 const RESPONSE_MAX_BYTES = 5 * 1024 * 1024
 const MAX_RETRIES = 2
 const TRANSIENT_STATUSES = new Set([429, 503, 504])
-const API_VERSION = '11.13.18.05'
-const API_ROOTS = {
-  hcm: `/hcmRestApi/resources/${API_VERSION}`,
-  fscm: `/fscmRestApi/resources/${API_VERSION}`,
-} as const
-const UNSAFE_PATH_ENCODING = /%(?:2e|2f|5c|3f|23)/i
-const ABSOLUTE_PATH = /^[a-z][a-z0-9+.-]*:/i
 const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
-const JSON_NUMBER_TOKEN = /^-?(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/
 
 interface JsonParseContext {
   source?: string
@@ -34,33 +31,14 @@ type JsonParseWithSource = (
 
 const jsonParseWithSource = JSON.parse as JsonParseWithSource
 
-export type OracleFusionApiFamily = 'hcm' | 'fscm'
-
 export interface OracleFusionResolvedCredential {
   instanceUrl: string
   accessToken: string
 }
 
 export interface OracleFusionRequest {
-  family: OracleFusionApiFamily
-  path: string
+  address: OracleFusionResourceAddress
   query?: Record<string, string | number | boolean | undefined>
-}
-
-function compareDecimalMagnitudeToInteger(magnitude: string, value: number): number {
-  const normalizedMagnitude = magnitude.replace(/^0+/, '') || '0'
-  const integer = String(value)
-  if (normalizedMagnitude.length !== integer.length) {
-    return normalizedMagnitude.length < integer.length ? -1 : 1
-  }
-  if (normalizedMagnitude === integer) return 0
-  return normalizedMagnitude < integer ? -1 : 1
-}
-
-function trailingZeroCount(value: string): number {
-  let count = 0
-  for (let index = value.length - 1; index >= 0 && value[index] === '0'; index--) count++
-  return count
 }
 
 function validateBasicCredential(accessToken: string): void {
@@ -74,32 +52,9 @@ function validateBasicCredential(accessToken: string): void {
   }
 }
 
-function validateRelativePath(path: string): void {
-  if (
-    !path ||
-    path !== path.trim() ||
-    path.startsWith('/') ||
-    path.startsWith('//') ||
-    ABSOLUTE_PATH.test(path) ||
-    path.includes('\\') ||
-    path.includes('?') ||
-    path.includes('#') ||
-    UNSAFE_PATH_ENCODING.test(path)
-  ) {
-    throw new Error('Oracle Fusion resource path must be a safe relative path')
-  }
-  for (const segment of path.split('/')) {
-    if (segment === '.' || segment === '..') {
-      throw new Error('Oracle Fusion resource path must not contain traversal')
-    }
-  }
-}
-
 function buildRequestUrl(origin: string, request: OracleFusionRequest): string {
-  validateRelativePath(request.path)
-  const root = API_ROOTS[request.family]
-  if (!root) throw new Error('Oracle Fusion API family is unsupported')
-  const url = new URL(`${origin}${root}/${request.path}`)
+  const resourcePath = buildOracleFusionResourcePath(request.address)
+  const url = new URL(`${origin}${resourcePath}`)
   for (const [key, value] of Object.entries(request.query ?? {})) {
     if (value === undefined) continue
     if (typeof value === 'number' && !Number.isFinite(value)) {
@@ -107,38 +62,17 @@ function buildRequestUrl(origin: string, request: OracleFusionRequest): string {
     }
     url.searchParams.set(key, String(value))
   }
-  if (url.origin !== origin || !url.pathname.startsWith(`${root}/`)) {
+  if (url.origin !== origin || url.pathname !== resourcePath) {
     throw new Error('Oracle Fusion request must remain on the credential-bound API root')
   }
   return url.toString()
-}
-
-function isIntegralJsonNumberToken(source: string): boolean {
-  const match = JSON_NUMBER_TOKEN.exec(source)
-  if (!match) return false
-  const coefficient = `${match[1]}${match[2] ?? ''}`
-  if (/^0+$/.test(coefficient)) return true
-
-  const fractionDigits = match[2]?.length ?? 0
-  const exponentSource = match[3] ?? '0'
-  const exponentMagnitude = exponentSource.replace(/^[+-]/, '').replace(/^0+/, '') || '0'
-  const availableTrailingZeros = trailingZeroCount(coefficient)
-
-  if (exponentSource.startsWith('-')) {
-    if (compareDecimalMagnitudeToInteger(exponentMagnitude, availableTrailingZeros) > 0) {
-      return false
-    }
-    return fractionDigits + Number(exponentMagnitude) <= availableTrailingZeros
-  }
-  if (compareDecimalMagnitudeToInteger(exponentMagnitude, fractionDigits) >= 0) return true
-  return fractionDigits - Number(exponentMagnitude) <= availableTrailingZeros
 }
 
 function parseOracleFusionJson(body: string): unknown {
   return jsonParseWithSource(body, (_key, value, context) => {
     if (typeof value !== 'number' || Number.isSafeInteger(value)) return value
     const source = context?.source
-    return source && isIntegralJsonNumberToken(source) ? source : value
+    return source && isOracleFusionIntegralJsonNumberToken(source) ? source : value
   })
 }
 
