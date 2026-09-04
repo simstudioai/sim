@@ -14,7 +14,7 @@ import { and, eq, gte, inArray, type SQL, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
-import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
 import {
   groupToken,
@@ -135,13 +135,14 @@ async function loadUserAccessTokens(
   const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
   if (!workspaceAccess.hasAccess) return [...WORKSPACE_ACCESS_TOKENS]
   /**
-   * A member token only counts where permission-aware knowledge is on, so
-   * turning the feature off hides every member-scoped document at once — on
+   * An identity token only counts where permission-aware knowledge is on, so
+   * turning the feature off hides every permission-scoped document at once — on
    * the next read, before any run has suspended anyone — rather than leaving
-   * enrolled members reading them until a run happens to land. Read first, so
-   * a workspace without the feature never pays for the enrollment join.
+   * people reading them until a run happens to land. Read first, so a workspace
+   * without the feature never pays for the joins below.
    */
-  if (!(await isKnowledgeMemberAccessAvailable({ workspaceId }))) {
+  const availability = await resolveKnowledgeAccessAvailability({ workspaceId })
+  if (!availability.memberScoped && !availability.sourceMirrored) {
     return [...WORKSPACE_ACCESS_TOKENS]
   }
 
@@ -207,7 +208,7 @@ async function loadUserAccessTokens(
 
   const identityTokens = new Set<string>()
   for (const row of rows) {
-    if (!row.providerSubjectId) continue
+    if (!availability.memberScoped || !row.providerSubjectId) continue
     try {
       identityTokens.add(subjectToken(row))
     } catch (error) {
@@ -227,7 +228,7 @@ async function loadUserAccessTokens(
    * `emailVerified` predicate above is on the same query — so a grant made to
    * whoever really owns it cannot be claimed by someone who merely typed it.
    */
-  const email = rows[0]?.email
+  const email = availability.sourceMirrored ? rows[0]?.email : undefined
   if (email) {
     const own = userToken(email)
     if (own) identityTokens.add(own)

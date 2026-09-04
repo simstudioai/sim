@@ -5,13 +5,13 @@ import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMemberAccessAvailable, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
-  mockMemberAccessAvailable: vi.fn(async () => true),
+const { mockAvailability, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
+  mockAvailability: vi.fn(async () => ({ memberScoped: true, sourceMirrored: true })),
   mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
 }))
 
 vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mockMemberAccessAvailable,
+  resolveKnowledgeAccessAvailability: mockAvailability,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
@@ -101,8 +101,8 @@ describe('resolveKnowledgeAccessScope', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
-  it('grants no member token where per-member access is off, whatever the person holds', async () => {
-    mockMemberAccessAvailable.mockResolvedValueOnce(false)
+  it('grants no identity token where permission-aware knowledge is off, whatever the person holds', async () => {
+    mockAvailability.mockResolvedValueOnce({ memberScoped: false, sourceMirrored: false })
     queueSubjects([
       { providerId: 'google-drive', providerTenantId: 'acme.com', providerSubjectId: '42' },
     ])
@@ -350,6 +350,57 @@ describe('tokens mirrored from a source directory', () => {
       kind: 'user',
       userId: 'user-1',
       tokens: ['g:google-drive:corp.com:eng@corp.com', 'pub', 'u:alice@corp.com', 'ws'],
+    })
+  })
+})
+
+describe('each token family is gated by the feature it depends on', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /**
+   * Admin mode mirrors a source's own ACLs and touches no Credential Group, so
+   * an operator turning Credential Groups off must not silently revoke every
+   * document an administrator crawl mirrored.
+   */
+  it('keeps mirrored grants when Credential Groups are unavailable', async () => {
+    mockAvailability.mockResolvedValueOnce({ memberScoped: false, sourceMirrored: true })
+    queueTableRows(schemaMock.user, [
+      {
+        email: 'alice@corp.com',
+        providerId: 'confluence',
+        providerTenantId: null,
+        providerSubjectId: '557058:abc',
+      },
+    ])
+    queueTableRows(schemaMock.knowledgeExternalGroupMember, [
+      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'eng@corp.com' },
+    ])
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['g:google-drive:corp.com:eng@corp.com', 'pub', 'u:alice@corp.com', 'ws'],
+    })
+  })
+
+  it('keeps member grants when source mirroring is unavailable', async () => {
+    mockAvailability.mockResolvedValueOnce({ memberScoped: true, sourceMirrored: false })
+    queueTableRows(schemaMock.user, [
+      {
+        email: 'alice@corp.com',
+        providerId: 'confluence',
+        providerTenantId: null,
+        providerSubjectId: '557058:abc',
+      },
+    ])
+
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['pub', 's:confluence:-:557058:abc', 'ws'],
     })
   })
 })

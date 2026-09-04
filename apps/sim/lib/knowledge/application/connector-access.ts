@@ -4,7 +4,10 @@ import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connecto
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import {
+  requireKnowledgeMemberAccessAvailable,
+  requireSourceMirroredAccessAvailable,
+} from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -78,10 +81,12 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
  * exactly like a broken sync. Failing at the moment the mode is chosen says
  * what is missing while the person choosing it can still supply it.
  */
-export function assertConnectorMirrorsSourceAcls(
+export async function assertConnectorMirrorsSourceAcls(
   connectorMeta: ConnectorMeta,
-  sourceConfig: unknown
-): void {
+  sourceConfig: unknown,
+  workspaceId: string
+): Promise<void> {
+  await requireSourceMirroredAccessAvailable({ workspaceId })
   if (!connectorMeta.mirrorsSourceAcls) {
     throw new OrchestrationError(
       'validation',
@@ -160,7 +165,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       }
     } else {
       if (input.accessMode === 'admin') {
-        assertConnectorMirrorsSourceAcls(connectorMeta, connector.sourceConfig)
+        await assertConnectorMirrorsSourceAcls(connectorMeta, connector.sourceConfig, workspaceId)
       }
       target = {
         accessMode: input.accessMode,

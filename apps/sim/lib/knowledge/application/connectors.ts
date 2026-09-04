@@ -611,7 +611,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
         throw new OrchestrationError('forbidden', 'Administrator mode needs a signed-in admin')
       }
       await requireCurrentHumanRole(subjectUserId, context, 'admin')
-      assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig)
+      await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, workspaceId)
     }
     let membersBinding: ResolvedMembersBinding | undefined
     if (input.accessMode === 'members') {
