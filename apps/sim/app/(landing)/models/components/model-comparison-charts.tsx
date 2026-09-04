@@ -96,7 +96,7 @@ function StackedCostChart({ models }: ChartProps) {
           Cost
         </h3>
         <span className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Per 1M tokens
+          Standard short-context rates per 1M tokens
         </span>
       </div>
 
@@ -113,29 +113,31 @@ function StackedCostChart({ models }: ChartProps) {
               className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
             >
               <ModelLabel model={model} />
-              <div className='relative flex h-7 min-w-0 flex-1 items-center'>
-                <div
-                  className='hidden h-full overflow-hidden rounded-r-[3px] sm:flex'
-                  style={{ width: `${Math.max(totalPct, 3)}%` }}
-                >
+              <div className='flex h-7 min-w-0 flex-1 items-center gap-2.5'>
+                <div className='hidden h-full min-w-0 flex-1 sm:block'>
                   <div
-                    className='h-full'
-                    style={{
-                      width: `${inputPct}%`,
-                      backgroundColor: color,
-                      opacity: 0.8,
-                    }}
-                  />
-                  <div
-                    className='h-full'
-                    style={{
-                      width: `${100 - inputPct}%`,
-                      backgroundColor: color,
-                      opacity: 0.35,
-                    }}
-                  />
+                    className='flex h-full overflow-hidden rounded-r-[3px]'
+                    style={{ width: `${Math.max(totalPct, 3)}%` }}
+                  >
+                    <div
+                      className='h-full'
+                      style={{
+                        width: `${inputPct}%`,
+                        backgroundColor: color,
+                        opacity: 0.8,
+                      }}
+                    />
+                    <div
+                      className='h-full'
+                      style={{
+                        width: `${100 - inputPct}%`,
+                        backgroundColor: color,
+                        opacity: 0.35,
+                      }}
+                    />
+                  </div>
                 </div>
-                <span className='shrink-0 text-[11px] text-[var(--text-muted)] sm:ml-2.5 sm:text-xs'>
+                <span className='shrink-0 text-[11px] text-[var(--text-muted)] sm:w-[148px] sm:text-xs'>
                   {formatPrice(input)} input / {formatPrice(output)} output
                 </span>
               </div>
@@ -184,16 +186,18 @@ function ContextWindowChart({ models }: ChartProps) {
               className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
             >
               <ModelLabel model={model} />
-              <div className='relative flex h-7 min-w-0 flex-1 items-center'>
-                <div
-                  className='h-full rounded-r-[3px]'
-                  style={{
-                    width: `${Math.max(pct, 3)}%`,
-                    backgroundColor: color,
-                    opacity: 0.8,
-                  }}
-                />
-                <span className='ml-2.5 shrink-0 text-[11px] text-[var(--text-muted)] sm:text-xs'>
+              <div className='flex h-7 min-w-0 flex-1 items-center gap-2.5'>
+                <div className='h-full min-w-0 flex-1'>
+                  <div
+                    className='h-full rounded-r-[3px]'
+                    style={{
+                      width: `${Math.max(pct, 3)}%`,
+                      backgroundColor: color,
+                      opacity: 0.8,
+                    }}
+                  />
+                </div>
+                <span className='w-10 shrink-0 text-right text-[11px] text-[var(--text-muted)] tabular-nums sm:text-xs'>
                   {formatTokenCount(value)}
                 </span>
               </div>

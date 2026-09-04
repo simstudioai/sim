@@ -1,7 +1,8 @@
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { resolveModelTokenPricing } from '@/providers/pricing'
 import type { ModelPricing } from '@/providers/types'
-import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
+import { calculateCost, getModelPricing, shouldBillModelUsage } from '@/providers/utils'
 
 /**
  * Single source of truth for whether a model response is charged to the caller
@@ -161,15 +162,42 @@ export function priceModelUsage(
     return notBilledCost()
   }
 
+  const cacheRead = usage.cacheRead ?? 0
+  const cacheWrites = (usage.cacheWrites ?? []).filter((write) => write.tokens > 0)
+  const pricing = getModelPricing(model)
+
+  if (pricing) {
+    const totalInputTokens =
+      usage.input + cacheRead + cacheWrites.reduce((total, write) => total + write.tokens, 0)
+    const tokenPricing = resolveModelTokenPricing(pricing, totalInputTokens)
+    const inputRate = tokenPricing.input / 1_000_000
+    const cachedInputRate = (tokenPricing.cachedInput ?? tokenPricing.input) / 1_000_000
+
+    const uncachedInputCost = usage.input * inputRate
+    const cacheReadCost = cacheRead * cachedInputRate
+    const cacheWriteCost = cacheWrites.reduce(
+      (total, write) => total + write.tokens * inputRate * write.inputRateMultiplier,
+      0
+    )
+    const input = roundCost(
+      (uncachedInputCost + cacheReadCost + cacheWriteCost) * policy.multiplier
+    )
+    const output = roundCost(usage.output * (tokenPricing.output / 1_000_000) * policy.multiplier)
+
+    return {
+      input,
+      output,
+      total: roundCost(input + output),
+      pricing,
+    }
+  }
+
   const multiplier = policy.multiplier
   const base = calculateCost(model, usage.input, usage.output, false, multiplier, multiplier)
-
-  const cacheRead = usage.cacheRead ?? 0
   const read = cacheRead > 0 ? calculateCost(model, cacheRead, 0, true, multiplier, 0) : undefined
 
   let writeInputCost = 0
-  for (const write of usage.cacheWrites ?? []) {
-    if (write.tokens <= 0) continue
+  for (const write of cacheWrites) {
     writeInputCost += calculateCost(
       model,
       write.tokens,

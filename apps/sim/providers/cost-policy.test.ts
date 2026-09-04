@@ -123,6 +123,21 @@ describe('priceModelUsage', () => {
     expect(tripled.total).toBeCloseTo(single.total * 3, 8)
   })
 
+  it('applies the highest matching input-size tier to every token bucket', () => {
+    const cost = priceModelUsage(
+      'gpt-5.6-terra',
+      {
+        input: 100_000,
+        output: 100_000,
+        cacheRead: 100_000,
+        cacheWrites: [{ tokens: 72_001, inputRateMultiplier: 1.25 }],
+      },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 0.800005, output: 1.8, total: 2.600005 })
+  })
+
   it('charges nothing when the policy is not billable', () => {
     const cost = priceModelUsage(
       PRICED_MODEL,

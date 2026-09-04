@@ -201,14 +201,9 @@ export function ModelDirectory() {
                       className='size-8 rounded-xl'
                       iconClassName='size-4'
                     />
-                    <div className='min-w-0 flex-1'>
-                      <h4 className='text-[14px] text-[var(--text-primary)] leading-snug'>
-                        {provider.name}
-                      </h4>
-                      <p className='line-clamp-1 text-[12px] text-[var(--text-muted)] leading-[150%]'>
-                        {provider.description}
-                      </p>
-                    </div>
+                    <h4 className='min-w-0 flex-1 text-[14px] text-[var(--text-primary)] leading-snug'>
+                      {provider.name}
+                    </h4>
                   </div>
                 ))}
               </nav>

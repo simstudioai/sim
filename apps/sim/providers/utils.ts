@@ -51,13 +51,14 @@ import {
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
+import { resolveModelTokenPricing } from '@/providers/pricing'
 import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
 import {
   getProviderToolInputProvenance,
   getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
-import type { ProviderId, ProviderToolConfig } from '@/providers/types'
+import type { ModelPricing, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/merge-params'
 import { buildToolParamShapes, decodeToolParams } from '@/tools/param-shape'
@@ -1030,13 +1031,14 @@ export function calculateCost(
     }
   }
 
+  const tokenPricing = resolveModelTokenPricing(pricing, promptTokens)
   const inputCost =
     promptTokens *
-    (useCachedInput && pricing.cachedInput
-      ? pricing.cachedInput / 1_000_000
-      : pricing.input / 1_000_000)
+    (useCachedInput && tokenPricing.cachedInput
+      ? tokenPricing.cachedInput / 1_000_000
+      : tokenPricing.input / 1_000_000)
 
-  const outputCost = completionTokens * (pricing.output / 1_000_000)
+  const outputCost = completionTokens * (tokenPricing.output / 1_000_000)
   const finalInputCost = inputCost * (inputMultiplier ?? 1)
   const finalOutputCost = outputCost * (outputMultiplier ?? 1)
   const finalTotalCost = finalInputCost + finalOutputCost
@@ -1116,7 +1118,7 @@ export function sumToolCosts(toolResults?: Record<string, unknown>[]): number {
   return total
 }
 
-export function getModelPricing(modelId: string): any {
+export function getModelPricing(modelId: string): ModelPricing | null {
   const embeddingPricing = getEmbeddingModelPricing(modelId)
   if (embeddingPricing) {
     return embeddingPricing
