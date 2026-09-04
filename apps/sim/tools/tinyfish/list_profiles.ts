@@ -109,7 +109,7 @@ export const listProfilesTool: ToolConfig<
           domainCount: {
             type: 'number',
             description:
-              'How many domains the profile holds saved state for. Zero means it was created but never logged into',
+              'How many domains the profile holds saved state for, null when the API omits it. Zero means it was created but never logged into',
             optional: true,
             nullable: true,
           },

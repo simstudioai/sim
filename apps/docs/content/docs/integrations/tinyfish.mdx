@@ -190,7 +190,7 @@ Get the status, extracted result, and step history of a TinyFish automation run 
 | `browserConfig` | object | Proxy settings the run executed with |
 |   ↳ `proxyEnabled` | boolean | Whether a proxy was used |
 |   ↳ `proxyCountryCode` | string | Proxy country code |
-| `profileAttached` | boolean | Whether the run actually started from a Browser Context Profile |
+| `profileAttached` | boolean | Whether the run actually started from a Browser Context Profile, null when the API omits it — treat null as unknown rather than as false |
 | `profileId` | string | Browser Context Profile the run attached, null when none did |
 | `profileHint` | object | Present when TinyFish believes a Browser Context Profile would fix this failed run |
 |   ↳ `message` | string | Why a Browser Context Profile would help this run |
@@ -273,7 +273,7 @@ List TinyFish automation runs, optionally filtered by status, goal text, or crea
 |   ↳ `browserConfig` | object | Proxy settings the run executed with |
 |     ↳ `proxyEnabled` | boolean | Whether a proxy was used |
 |     ↳ `proxyCountryCode` | string | Proxy country code |
-|   ↳ `profileAttached` | boolean | Whether the run actually started from a Browser Context Profile |
+|   ↳ `profileAttached` | boolean | Whether the run actually started from a Browser Context Profile, null when the API omits it — treat null as unknown rather than as false |
 |   ↳ `profileId` | string | Browser Context Profile the run attached, null when none did |
 |   ↳ `profileHint` | object | Present when TinyFish believes a Browser Context Profile would fix this failed run |
 |     ↳ `message` | string | Why a Browser Context Profile would help this run |
@@ -389,7 +389,7 @@ List the Browser Context Profiles saved on the TinyFish account, with the ids an
 |   ↳ `name` | string | Profile name, such as "Salesforce Production" |
 |   ↳ `proxyCountryCode` | string | Country the profile proxies through, null when it has no proxy |
 |   ↳ `fingerprintSeed` | string | Seed for the browser fingerprint the profile replays, null when the API omits it |
-|   ↳ `domainCount` | number | How many domains the profile holds saved state for. Zero means it was created but never logged into |
+|   ↳ `domainCount` | number | How many domains the profile holds saved state for, null when the API omits it. Zero means it was created but never logged into |
 |   ↳ `createdAt` | string | ISO 8601 timestamp when the profile was created, null when the API omits it |
 |   ↳ `updatedAt` | string | ISO 8601 timestamp when the profile was last saved, null when the API omits it |
 |   ↳ `isDefault` | boolean | Whether runs with no Browser Profile ID use this one, null when the API omits it |

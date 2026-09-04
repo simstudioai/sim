@@ -571,7 +571,8 @@ export const RUN_SUMMARY_OUTPUT_PROPERTIES = {
   },
   profileAttached: {
     type: 'boolean',
-    description: 'Whether the run actually started from a Browser Context Profile',
+    description:
+      'Whether the run actually started from a Browser Context Profile, null when the API omits it — treat null as unknown rather than as false',
     optional: true,
     nullable: true,
   },
