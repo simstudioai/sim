@@ -237,7 +237,9 @@ DATA_DRAINS_ENABLED=true
 NEXT_PUBLIC_DATA_DRAINS_ENABLED=true
 ```
 
-`DATA_DRAINS_ENABLED` shows the **Settings → Organization → Data drains** page and gates the server-side mutating endpoints and the cron dispatcher. When the feature resolves off on a self-hosted deployment — neither it nor `ENTERPRISE_ENABLED` is set, or it is set to `false` — the page is hidden, drain create/update/delete/run requests return `404`, and the dispatcher is a no-op. Set `NEXT_PUBLIC_DATA_DRAINS_ENABLED` to the same value so the browser's configuration matches the server's; on a Compose install or source checkout, `npx sim-setup doctor` reports the pair disagreeing.
+On a self-hosted deployment the feature resolves on when `DATA_DRAINS_ENABLED` is `true`, or when it is unset and `ENTERPRISE_ENABLED` is `true`. An explicit `DATA_DRAINS_ENABLED=false` wins over the master switch. That resolved value — not the bare variable — gates the **Settings → Organization → Data drains** page, the server-side mutating endpoints, and the cron dispatcher. When it resolves off the page is hidden, drain create/update/delete/run requests return `404`, and the dispatcher is a no-op.
+
+Inside a workspace the browser reads that resolved value from the server, so the page follows the server whether or not `NEXT_PUBLIC_DATA_DRAINS_ENABLED` is set. Set it to the same value anyway: it backs the client fallback on surfaces rendered outside a workspace, and on a Compose install or source checkout `npx sim-setup doctor` reports the pair disagreeing.
 
 ### Scheduling the dispatcher
 
