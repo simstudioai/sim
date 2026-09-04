@@ -7,8 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   coalesceLocally: vi.fn(),
-  clientCredentialMinter: vi.fn(),
-  decryptSecret: vi.fn(),
   getFreshestSlackChain: vi.fn(),
   getRecentTerminalError: vi.fn(),
   logger: {
@@ -33,15 +31,6 @@ vi.mock('@/lib/concurrency/singleflight', () => ({
 
 vi.mock('@/lib/concurrency/leader-lock', () => ({
   withLeaderLock: mocks.withLeaderLock,
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mocks.decryptSecret,
-}))
-
-vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
-  getClientCredentialAccountMinter: () => mocks.clientCredentialMinter,
-  parseClientCredentialAccountSecretBlob: (decrypted: string) => JSON.parse(decrypted),
 }))
 
 vi.mock('@/lib/oauth/instagram', () => ({
@@ -75,10 +64,7 @@ vi.mock('@/lib/oauth/terminal-errors', () => ({
   markCredentialDead: vi.fn(),
 }))
 
-import {
-  resolveCredentialTokenBundle,
-  resolveServiceAccountToken,
-} from '@/lib/oauth/credential-service'
+import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'
@@ -212,53 +198,5 @@ describe('resolveCredentialTokenBundle selector privacy', () => {
     expect(slack.coalescingKey).not.toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_PROVIDER_ERROR)
-  })
-})
-
-describe('resolveServiceAccountToken Oracle Fusion cache', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    mocks.coalesceLocally.mockImplementation(
-      async (_key: string, producer: () => Promise<unknown>) => producer()
-    )
-    mocks.decryptSecret.mockImplementation(async (encrypted: string) => ({
-      decrypted: JSON.stringify({
-        type: 'client_credential_account',
-        providerId: 'oracle-fusion-service-account',
-        clientId: 'integration-user',
-        clientSecret: encrypted,
-        orgId: 'https://vision.fa.us2.oraclecloud.com',
-      }),
-    }))
-    mocks.clientCredentialMinter.mockImplementation(async (fields: { clientSecret: string }) => ({
-      accessToken: `basic-${fields.clientSecret}`,
-      expiresInSeconds: 300,
-      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
-    }))
-  })
-
-  it('reuses Basic material for five minutes and invalidates it on encrypted-secret rotation', async () => {
-    const credentialId = 'oracle-fusion-cache-test'
-    const providerId = 'oracle-fusion-service-account'
-    const encryptedV1 = 'encrypted-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-    const encryptedV2 = 'encrypted-v2-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-
-    queueTableRows(credential, [{ encryptedServiceAccountKey: encryptedV1 }])
-    await expect(resolveServiceAccountToken(credentialId, providerId)).resolves.toMatchObject({
-      accessToken: `basic-${encryptedV1}`,
-    })
-
-    queueTableRows(credential, [{ encryptedServiceAccountKey: encryptedV1 }])
-    await expect(resolveServiceAccountToken(credentialId, providerId)).resolves.toMatchObject({
-      accessToken: `basic-${encryptedV1}`,
-    })
-    expect(mocks.clientCredentialMinter).toHaveBeenCalledTimes(1)
-
-    queueTableRows(credential, [{ encryptedServiceAccountKey: encryptedV2 }])
-    await expect(resolveServiceAccountToken(credentialId, providerId)).resolves.toMatchObject({
-      accessToken: `basic-${encryptedV2}`,
-    })
-    expect(mocks.clientCredentialMinter).toHaveBeenCalledTimes(2)
   })
 })

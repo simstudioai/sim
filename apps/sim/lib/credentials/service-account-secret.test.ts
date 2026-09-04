@@ -282,7 +282,6 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       clientId: ' integration-user ',
       clientSecret: ' password ',
       certificateId: 'discard-me',
-      dataCenter: 'discard-me',
       authMethod: 'discard-me',
       privateKey: 'discard-me',
       username: 'discard-me',
