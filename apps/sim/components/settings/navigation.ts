@@ -992,7 +992,6 @@ export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsS
 }
 
 export interface WorkspaceSettingsEntitlements {
-  byok: boolean
   credentialGroups: boolean
   customBlocks: boolean
   forks: boolean
@@ -1017,8 +1016,40 @@ interface ResolveWorkspaceNavigationOptions {
   permission: PermissionType
   permissionConfig: WorkspacePermissionConfig
   entitlements: WorkspaceSettingsEntitlements
-  /** Sim Cloud drops the Self hosting section, which the managed service owns there. */
-  hosted: boolean
+  /** Resolves the catalog's deployment gates the same way the sidebar does. */
+  deployment: DeploymentShape
+}
+
+/**
+ * Unified projection of each workspace-plane section, so the route gate reads the
+ * deployment requirements (`requiresHosted`, `requiresSelfHosted`, `selfHostedOverride`)
+ * from the same catalog entry the sidebar filters on. Nav and server then agree: a
+ * section is reachable exactly when it is listed.
+ */
+const WORKSPACE_UNIFIED_PROJECTIONS: Readonly<
+  Partial<Record<WorkspaceSettingsSection, UnifiedSettingsProjection>>
+> = Object.fromEntries(
+  SETTINGS_SECTION_REGISTRY.flatMap((entry) => {
+    const workspaceSection = entry.planes?.workspace?.id
+    return workspaceSection && entry.unified ? [[workspaceSection, entry.unified] as const] : []
+  })
+)
+
+/**
+ * Whether the deployment itself offers a workspace section, before viewer permission
+ * and plan entitlement are considered. Mirrors the sidebar's deployment pass.
+ */
+function isWorkspaceSectionOfferedByDeployment(
+  section: WorkspaceSettingsSection,
+  deployment: DeploymentShape
+): boolean {
+  const unified = WORKSPACE_UNIFIED_PROJECTIONS[section]
+  if (!unified) return true
+  if (unified.requiresSelfHosted && deployment.hosted) return false
+  if (unified.requiresHosted && !deployment.hosted) {
+    return isSelfHostedOverrideEnabled(unified.selfHostedOverride, deployment)
+  }
+  return true
 }
 
 export interface ResolvedWorkspaceNavigationItem
@@ -1062,9 +1093,10 @@ export function resolveWorkspaceNavigation({
   permission,
   permissionConfig,
   entitlements,
-  hosted,
+  deployment,
 }: ResolveWorkspaceNavigationOptions): ResolvedWorkspaceNavigationItem[] {
   return WORKSPACE_SETTINGS_ITEMS.flatMap((item) => {
+    if (!isWorkspaceSectionOfferedByDeployment(item.id, deployment)) return []
     const permissionConfigKey = WORKSPACE_PERMISSION_CONFIG_KEYS[item.id]
     if (permissionConfigKey && permissionConfig[permissionConfigKey]) return []
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
@@ -1074,10 +1106,7 @@ export function resolveWorkspaceNavigation({
     ) {
       return []
     }
-    if (item.id === 'byok' && !entitlements.byok) return []
     if (item.id === 'custom-blocks' && !entitlements.customBlocks) return []
-    // Absent on Sim Cloud, where the managed service owns these settings.
-    if (item.id === 'self-host' && hosted) return []
 
     const lockedBy = LOCKABLE_WORKSPACE_SECTIONS[item.id]
     const locked = lockedBy !== undefined && !entitlements[lockedBy]

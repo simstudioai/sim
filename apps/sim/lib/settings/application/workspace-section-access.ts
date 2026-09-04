@@ -66,9 +66,8 @@ async function canOpenWorkspaceSection(
   const navigation = resolveWorkspaceNavigation({
     permission,
     permissionConfig: accessControl?.config ?? {},
-    hosted: deployment.hosted,
+    deployment,
     entitlements: {
-      byok: deployment.hosted,
       credentialGroups: credentialGroupsAvailable,
       inbox: true,
       customBlocks: customBlocksAvailable,

@@ -219,8 +219,8 @@ describe('authorizeWorkspaceSettingsSection', () => {
     await authorize('secrets')
     expect(mocks.resolveWorkspaceNavigation).toHaveBeenCalledWith(
       expect.objectContaining({
-        hosted: true,
-        entitlements: expect.objectContaining({ byok: true }),
+        deployment: mocks.deploymentShape,
+        entitlements: expect.objectContaining({ inbox: true }),
       })
     )
 
