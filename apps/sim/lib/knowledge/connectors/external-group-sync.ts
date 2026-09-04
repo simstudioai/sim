@@ -3,7 +3,7 @@ import { knowledgeExternalGroup, knowledgeExternalGroupMember } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, eq, isNull, lt, notInArray, or } from 'drizzle-orm'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
 import {
   type DirectoryGroup,
@@ -70,14 +70,17 @@ export async function syncExternalDirectoryGroups(input: {
     try {
       const membership = await listGroupMembers(accessToken, group)
       if (!membership.complete) {
-        await recordGroupFailure(groupId, 'Group membership could not be enumerated in full')
         keptStale += 1
+        logger.warn('Keeping last-known-good membership for a partially enumerated group', {
+          workspaceId,
+          providerId,
+          externalGroupId: group.id,
+        })
         continue
       }
       await replaceGroupMembers(groupId, membership.memberEmails)
       refreshed += 1
     } catch (error) {
-      await recordGroupFailure(groupId, getErrorMessage(error, 'Directory enumeration failed'))
       keptStale += 1
       logger.warn('Keeping last-known-good membership for a group that failed to enumerate', {
         workspaceId,
@@ -155,7 +158,6 @@ async function upsertGroup(input: {
       providerId,
       tenantId,
       externalGroupId: group.id,
-      displayName: group.displayName ?? null,
     })
     .onConflictDoUpdate({
       target: [
@@ -164,7 +166,7 @@ async function upsertGroup(input: {
         knowledgeExternalGroup.tenantId,
         knowledgeExternalGroup.externalGroupId,
       ],
-      set: { displayName: group.displayName ?? null, updatedAt: new Date() },
+      set: { updatedAt: new Date() },
     })
     .returning({ id: knowledgeExternalGroup.id })
   return row.id
@@ -198,25 +200,9 @@ async function replaceGroupMembers(groupId: string, emails: string[]): Promise<v
 
     await tx
       .update(knowledgeExternalGroup)
-      .set({ lastSyncedAt: now, consecutiveFailures: 0, lastError: null, updatedAt: now })
+      .set({ lastSyncedAt: now, updatedAt: now })
       .where(eq(knowledgeExternalGroup.id, groupId))
   })
-}
-
-/**
- * Records that a group could not be read, without touching its membership or
- * `lastSyncedAt`. The unchanged timestamp is what eventually expires the
- * group's grants if the failure persists.
- */
-async function recordGroupFailure(groupId: string, message: string): Promise<void> {
-  await db
-    .update(knowledgeExternalGroup)
-    .set({
-      consecutiveFailures: sql`${knowledgeExternalGroup.consecutiveFailures} + 1`,
-      lastError: message,
-      updatedAt: new Date(),
-    })
-    .where(eq(knowledgeExternalGroup.id, groupId))
 }
 
 /**

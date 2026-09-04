@@ -1,5 +1,5 @@
 {
-  "id": "fb276cc2-66ba-4959-a248-4d267c3ed84c",
+  "id": "92ddeddb-7d43-4010-9d91-f0ca2237517c",
   "prevId": "45719bd3-6ef0-4004-ba42-2e7d04edf80c",
   "version": "7",
   "dialect": "postgresql",
@@ -8919,28 +8919,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "last_synced_at": {
           "name": "last_synced_at",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "consecutive_failures": {
-          "name": "consecutive_failures",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "last_error": {
-          "name": "last_error",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

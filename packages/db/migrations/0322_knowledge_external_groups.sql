@@ -14,10 +14,7 @@ CREATE TABLE "knowledge_external_group" (
 	"provider_id" text NOT NULL,
 	"tenant_id" text NOT NULL,
 	"external_group_id" text NOT NULL,
-	"display_name" text,
 	"last_synced_at" timestamp,
-	"consecutive_failures" integer DEFAULT 0 NOT NULL,
-	"last_error" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );

@@ -12,7 +12,6 @@ const MAX_PAGES = 200
 export interface DirectoryGroup {
   /** The group's email, case-folded — the identifier a `g:` token carries. */
   id: string
-  displayName?: string
 }
 
 export interface DirectoryGroupMembership {
@@ -74,7 +73,6 @@ async function listAll<T>(
 
 interface RawGroup {
   email?: string
-  name?: string
 }
 
 interface RawMember {
@@ -93,7 +91,7 @@ export async function listDomainGroups(
   for (const group of raw) {
     const id = group.email?.trim().toLowerCase()
     if (!id) continue
-    groups.push({ id, ...(group.name ? { displayName: group.name } : {}) })
+    groups.push({ id })
   }
   return groups
 }

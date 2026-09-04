@@ -39,9 +39,7 @@ describe('listDomainGroups', () => {
   it('folds group emails so they match the tokens a crawl writes', async () => {
     directory({}, [{ email: 'Eng@Corp.com', name: 'Engineering' }])
 
-    await expect(listDomainGroups('token', 'corp.com')).resolves.toEqual([
-      { id: 'eng@corp.com', displayName: 'Engineering' },
-    ])
+    await expect(listDomainGroups('token', 'corp.com')).resolves.toEqual([{ id: 'eng@corp.com' }])
   })
 
   it('drops a group with no email, which is the only identifier a grant carries', async () => {

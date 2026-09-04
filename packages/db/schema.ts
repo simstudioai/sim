@@ -4990,25 +4990,18 @@ export const knowledgeExternalGroup = pgTable(
     /** The directory this group belongs to — for Google, the Workspace domain. */
     tenantId: text('tenant_id').notNull(),
     externalGroupId: text('external_group_id').notNull(),
-    /** Display name, for explaining a grant in the UI. Never used for matching. */
-    displayName: text('display_name'),
     /**
-     * When this group's membership was last enumerated in full.
+     * When this group's membership was last enumerated in full, and the only
+     * thing that decides whether it still grants access.
      *
-     * A group whose membership has not been confirmed for
-     * `EXTERNAL_GROUP_STALE_AFTER_MS` stops granting access. A partial or failed
-     * enumeration never overwrites the membership — that is what makes a
-     * transient directory outage harmless — so without an age bound a group
-     * whose sync silently stopped would keep granting forever.
+     * A failed or partial enumeration writes nothing at all — not the
+     * membership, not this column — which is what makes a transient directory
+     * outage harmless. It is also why the column has to exist: without an age
+     * bound, a group whose sync stopped running would keep granting forever
+     * from membership nobody has checked since. A group unconfirmed for longer
+     * than `EXTERNAL_GROUP_STALE_AFTER_MS` grants nothing.
      */
     lastSyncedAt: timestamp('last_synced_at'),
-    /**
-     * Consecutive failed enumerations. Reset on success. A fast signal for the
-     * UI; `lastSyncedAt` is what actually gates access, because a sync that
-     * stops running entirely never increments this.
-     */
-    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
-    lastError: text('last_error'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
