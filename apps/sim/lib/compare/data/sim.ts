@@ -833,23 +833,6 @@ export const simProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC2 compliant',
-        shortValue: 'SOC2 compliant',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://sim.ai',
-            label: 'Sim Landing Page',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://sim.ai/enterprise',
-            label: 'Sim Enterprise Page',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Full data control via self-hosting (Docker/Kubernetes); data never leaves customer infrastructure when self-hosted. On Sim Cloud, async job execution has an internal US/EU region toggle, but it is deployment-wide, not a customer-selectable per-workspace residency option',

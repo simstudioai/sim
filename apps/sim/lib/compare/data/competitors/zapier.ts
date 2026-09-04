@@ -804,21 +804,6 @@ export const zapierProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'SOC 2 Type II and SOC 3 certified',
-        detail:
-          'Reports are published and available via the Zapier Trust Center (trust.zapier.com). Zapier also maintains GDPR and CCPA compliance.',
-        shortValue: 'SOC 2 Type II and SOC 3 certified',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://zapier.com/blog/zapier-completes-soc-2-compliance-audit/',
-            label: 'Zapier completes SOC 2 compliance audit',
-            asOf: '2026-07-02',
-          },
-          { url: 'https://trust.zapier.com/', label: 'Zapier Trust Center', asOf: '2026-07-02' },
-        ],
-      },
       dataResidency: {
         value: 'No selectable data residency documented',
         detail:
@@ -887,6 +872,11 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://zapier.com/legal/data-privacy',
             label: 'Data Privacy Overview | Zapier',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://zapier.com/blog/zapier-completes-soc-2-compliance-audit/',
+            label: 'Zapier completes SOC 2 compliance audit',
             asOf: '2026-07-02',
           },
         ],

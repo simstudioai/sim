@@ -17,10 +17,10 @@ export const stackaiProfile: CompetitorProfile = {
     'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents, connecting LLMs and business systems through a drag-and-drop, low-code node builder.',
   standoutFeatures: [
     {
-      title: 'ISO 27001 certified, with a public Trust Center detailing pen tests and DPAs',
+      title: 'Public Trust Center detailing pen tests and vendor DPAs',
       description:
-        'StackAI publishes a Trust Center (trust.stackai.com) documenting ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic. StackAI also holds a SOC 2 Type II audit, but so does Sim, so ISO 27001 is the actual point of difference here.',
-      shortDescription: 'Public Trust Center with ISO 27001, pen test results, and DPAs.',
+        "StackAI publishes a Trust Center (trust.stackai.com) documenting ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic. StackAI's SOC 2 Type II and ISO 27001 certifications overlap with Sim's documented compliance posture, so the public penetration-test results and vendor DPAs are the distinguishing evidence here.",
+      shortDescription: 'Public Trust Center with pen test results and vendor DPAs.',
       source: {
         url: 'https://trust.stackai.com/',
         label: 'StackAI Trust Center',
@@ -695,19 +695,6 @@ export const stackaiProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II, audited by Modern Assurance',
-        shortValue: 'SOC 2 Type II certified',
-        confidence: 'verified',
-        sources: [
-          { url: 'https://trust.stackai.com/', label: 'StackAI Trust Center', asOf: '2026-07-02' },
-          {
-            url: 'https://www.stackai.com/blog/soc2-type2-hipaa',
-            label: 'StackAI SOC 2 Type II & HIPAA blog',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value: 'Unknown',
         shortValue: 'Not documented',

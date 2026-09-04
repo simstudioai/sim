@@ -781,25 +781,6 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II certified, achieved audit readiness with Vanta in three weeks',
-        detail:
-          "Dust's own security page states SOC 2 Type II certification; a Vanta customer case study describes Dust achieving SOC 2 Type II audit readiness in three weeks using Vanta's automation, reducing compliance workload by roughly 50%. The report is downloadable via Dust's Trust Center.",
-        shortValue: 'SOC 2 Type II certified, report via Trust Center',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.vanta.com/customers/dust',
-            label: 'With Vanta, Dust achieved SOC 2 Type II audit readiness in three weeks',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://trust.dust.com/',
-            label: 'Dust Trust Center',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value: 'Yes: selectable US or EU data-hosting region',
         detail:
@@ -854,6 +835,16 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/security',
             label: 'Dust Security',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.vanta.com/customers/dust',
+            label: 'With Vanta, Dust achieved SOC 2 Type II audit readiness in three weeks',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://trust.dust.com/',
+            label: 'Dust Trust Center',
             asOf: '2026-07-02',
           },
         ],

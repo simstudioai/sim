@@ -787,21 +787,6 @@ export const retoolProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type 2, plus ISO/IEC 27001:2022, GDPR, and CCPA.',
-        detail:
-          'Reports/certificates are downloadable via the self-serve Trust Center (SafeBase-powered).',
-        shortValue: 'SOC 2 Type 2, ISO 27001, GDPR, CCPA',
-        confidence: 'verified',
-        sources: [
-          { url: 'https://trust.retool.com/', label: 'Retool Trust Center', asOf: '2026-07-02' },
-          {
-            url: 'https://docs.retool.com/legal/security',
-            label: 'Security Practices | Retool Docs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Cloud: customer data stored redundantly across multiple AWS data center locations (no customer-selectable region specified). Self-hosted: no Retool systems store customer data and no Retool personnel have technical/logical access to it.',

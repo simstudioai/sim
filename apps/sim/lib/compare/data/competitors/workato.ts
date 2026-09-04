@@ -899,24 +899,6 @@ export const workatoProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          'Workato maintains SOC 1 Type II, SOC 2 Type II, and SOC 3 reports (SOC 2 aligned to AICPA Trust Services Criteria, reports available to customers under NDA), plus PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications',
-        shortValue: 'SOC 1/2/3, PCI-DSS, ISO, HIPAA, IRAP, NIST',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.workato.com/security/security-compliance.html',
-            label: 'Security compliance | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/legal/security',
-            label: 'Workato Security Overview',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           "Yes, for enterprise customers: Workato enterprise customers can choose the region where their organization's automation data is stored and processed, from regional data centers (US, EU/Frankfurt, Japan, Singapore, Australia, Israel, China, South Korea). Once stored, data remains isolated in that region and is not shared or transferred across regions; there is no ongoing per-workspace or per-project residency toggle. Self-service (non-enterprise) users can't choose a region and are hosted in one of Workato's US data centers. Using more than one region requires signing up for and maintaining a separate Workato account in each desired region.",
@@ -977,6 +959,11 @@ export const workatoProfile: CompetitorProfile = {
           {
             url: 'https://www.workato.com/platform/security',
             label: 'Automation Governance and Data Security | Workato',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.workato.com/legal/security',
+            label: 'Workato Security Overview',
             asOf: '2026-07-02',
           },
         ],

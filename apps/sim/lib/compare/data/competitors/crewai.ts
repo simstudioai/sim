@@ -786,21 +786,6 @@ export const crewaiProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          'Yes: CrewAI AMP has a SOC 2 Type 1 audit report (dated November 2025), available via its Trust Center',
-        detail:
-          "CrewAI's Trust Center (trust.crewai.com, indexed by Vanta) lists a SOC 2 Type 1 Audit Report from November 2025. This applies to the Enterprise/AMP offering, not to a self-hosted deployment of the open-source framework, which has no compliance certification of its own since it isn't a hosted service.",
-        shortValue: 'SOC 2 Type 1 report (Nov 2025) for the AMP platform',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://trust.crewai.com/',
-            label: 'CrewAI Trust Center',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Yes: achievable via self-hosting the OSS framework or AMP Factory (on-prem/private VPC)',

@@ -781,21 +781,6 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          "Yes: LangSmith is SOC 2 Type II certified. LangGraph Platform (now branded LangSmith Deployment) is publicly announced as carrying the same attestation, sharing LangSmith's infrastructure and compliance posture.",
-        detail:
-          "LangChain's Trust Center (trust.langchain.com) is the canonical source but renders via client-side JavaScript, so it could not be directly verified by an automated fetch; the LangSmith-side certification is independently confirmed on a static docs page.",
-        shortValue: 'Yes, SOC 2 Type II for LangSmith; LangGraph Platform shares it',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.langchain.com/langsmith/regions-faq',
-            label: 'Regions FAQ - Docs by LangChain (confirms SOC 2 Type 2)',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Yes: LangSmith offers selectable regions at no extra cost — US (GCP US), EU (GCP EU), APAC (GCP APAC), and a separate AWS US region',

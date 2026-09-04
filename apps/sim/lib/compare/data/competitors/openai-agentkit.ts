@@ -836,25 +836,6 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type 2, plus ISO 27001, 27017, 27018, and 27701 certifications',
-        detail:
-          "OpenAI's most recent SOC 2 report covers January 1, 2025 through June 30, 2025 for Security, Availability, Confidentiality, and Privacy Trust Services Criteria across the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team.",
-        shortValue: 'SOC 2 Type 2 plus ISO 27001/27017/27018/27701',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://trust.openai.com/',
-            label: 'OpenAI Trust Portal (SafeBase)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://openai.com/security-and-privacy/',
-            label: 'Security and privacy at OpenAI',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Yes: data residency at rest available in US, Europe, UK, Japan, Canada, South Korea, Singapore, Australia, India, and UAE for eligible enterprise customers',
@@ -929,6 +910,11 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             label:
               'How can I get a Business Associate Agreement (BAA) with OpenAI? | OpenAI Help Center',
             asOf: '2026-07-08',
+          },
+          {
+            url: 'https://openai.com/security-and-privacy/',
+            label: 'Security and privacy at OpenAI',
+            asOf: '2026-07-02',
           },
         ],
       },

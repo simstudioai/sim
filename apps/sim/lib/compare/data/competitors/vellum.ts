@@ -760,25 +760,6 @@ export const vellumProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type 2',
-        detail:
-          'Documented at docs.vellum.ai and corroborated by a third-party Drata customer case study noting Vellum achieved SOC 2 Type 1 and Type 2 attestations.',
-        shortValue: 'SOC 2 Type 2 attested',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
-            label: 'Vellum Docs: Data Privacy and Storage',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://drata.com/customers/vellum',
-            label: 'Vellum Case Study: Drata',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value: 'Unknown: no specific region/residency options documented',
         detail:

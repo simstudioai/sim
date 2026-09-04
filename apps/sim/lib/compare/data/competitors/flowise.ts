@@ -671,15 +671,6 @@ export const flowiseProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          'Unknown: a third-party security-scan aggregator (Nudge Security) lists Flowise as SOC 2 compliant among several other certifications, but Flowise has published no SOC 2 report, badge, or trust page of its own.',
-        detail:
-          'The same third-party source also claims FedRAMP and PCI compliance for a small startup, an atypical combination not corroborated on flowiseai.com.',
-        shortValue: 'No official confirmation found',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataResidency: {
         value:
           'Yes, indirectly: self-hosting (including on-prem/air-gapped Enterprise deployment) lets an organization fully control data location. There is no dedicated regional-cloud-hosting option for the managed Cloud product.',

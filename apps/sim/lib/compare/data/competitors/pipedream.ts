@@ -739,25 +739,6 @@ export const pipedreamProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II',
-        detail:
-          'Pipedream provides a SOC 2 Type 2 report on request, undergoes annual third-party audits, and uses continuous-compliance monitoring tooling. It also supports HIPAA, acting as a Business Associate and offering BAAs.',
-        shortValue: 'SOC 2 Type II, HIPAA BAA available',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/privacy-and-security/hipaa',
-            label: 'Pipedream Docs: HIPAA Compliance',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value: 'Single-region (AWS us-east-1); no customer-selectable data residency documented',
         detail:
@@ -817,6 +798,11 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/blog/hippa/',
             label: 'Pipedream Blog – Pipedream supports HIPAA compliance',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://pipedream.com/docs/privacy-and-security/hipaa',
+            label: 'Pipedream Docs: HIPAA Compliance',
             asOf: '2026-07-02',
           },
         ],
