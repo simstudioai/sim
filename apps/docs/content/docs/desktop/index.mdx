@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Sim Desktop is the macOS app for your Sim workspace. Everything the web app does, it does — plus the things a browser tab cannot: a built-in browser and terminal your agents can drive, read-only access to folders you pick, and native notifications when a task finishes.
+Sim Desktop is the macOS app for your Sim workspace. Everything the web app does, it does — plus the things a browser tab cannot: a built-in browser and terminal, read-only access to folders you pick, and native notifications when a task finishes.
 
 <Image
   src="/static/desktop/sim-desktop.png"
@@ -124,7 +124,7 @@ It also shows the installed version, and the version waiting to be applied when 
 
 - **Let Chat browse the web** — the master switch for the built-in browser
 - **Search suggestions**, **Theme**, **Default zoom**, and **Download location**
-- **Browsing data** — clear history, cookies, and saved sessions
+- **Browsing data** — clear cookies, site data, and cached images and files
 
 ### Terminal
 
@@ -139,7 +139,7 @@ Sim checks the deployment it is pointed at rather than a global feed. How it app
 
 **Installed in `/Applications`, signed by Sim** — what the download link above gives you. The app replaces itself. With **Automatically download updates** on, it downloads in the background and offers to restart; choose **Later** and the update applies the next time you quit. With it off, nothing downloads until you ask: **Sim → Check for Updates…** reports the available version and waits for you to choose **Download**.
 
-**Anywhere else** — outside `/Applications`, or a build not signed with a Developer ID. The app cannot replace itself, so it offers you the installer to download and swap in by hand. This is the second reason to install to `/Applications`.
+**Anywhere else** — outside `/Applications`, or a build not signed with a Developer ID. The app cannot replace itself, so it offers you the installer to download and swap in by hand.
 
 Updates come from the deployment you are connected to, so a self-hosted install controls which build its own users are offered. That control depends on the feed staying reachable: if it is not, a stable build falls back to Sim's public GitHub releases rather than stalling. See [Desktop App on Your Deployment](/platform/self-hosting/desktop).
 
