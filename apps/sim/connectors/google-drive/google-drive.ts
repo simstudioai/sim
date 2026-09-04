@@ -6,6 +6,7 @@ import {
   driveFileAcl,
   type OpenSharingPolicy,
 } from '@/lib/knowledge/access/drive-permissions'
+import { openGoogleDirectory } from '@/lib/knowledge/connectors/google-directory'
 import {
   attachRetryHeaders,
   isRetryableError,
@@ -643,6 +644,9 @@ export const googleDriveConnector: ConnectorConfig = {
       reconciliationSafe: incompleteSearch ? false : undefined,
     }
   },
+
+  openDirectory: async (accessToken, sourceConfig) =>
+    openGoogleDirectory(accessToken, sourceConfig.adminEmail as string | undefined),
 
   getDocument: async (
     accessToken: string,

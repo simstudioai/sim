@@ -5,8 +5,20 @@ import {
   AtlassianSiteNotAccessibleError,
   AtlassianSiteNotMatchedError,
 } from '@/lib/atlassian/discovery'
+import {
+  type ConfluencePrincipal,
+  type ConfluenceRestriction,
+  confluencePageAcl,
+} from '@/lib/knowledge/access/confluence-permissions'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
+import {
+  getReadRestriction,
+  listAncestorIds,
+  listSpaceReadPrincipals,
+  openConfluenceDirectory,
+  resolveUserEmails,
+} from '@/connectors/confluence/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
@@ -298,6 +310,137 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
   })
 }
 
+/**
+ * The provider segment of every Confluence group token. Fixed, and baked into
+ * stored ACLs, so it must never change.
+ */
+const CONFLUENCE_ACL_PROVIDER_ID = 'confluence'
+
+/** Pages whose restrictions are resolved at once. Bounded to keep a crawl responsive. */
+const ACL_CONCURRENCY = 8
+
+/**
+ * Resolves who may read each listed page.
+ *
+ * Confluence reports a page's restrictions only when asked for that page, so
+ * unlike Drive this cannot ride along with the listing. Three things are cached
+ * for the run: the space's read principals (one call per space), each page's
+ * restriction, and every account id's address — an ancestor's restriction is
+ * consulted by many of its descendants, and one person is usually named on
+ * several pages.
+ */
+async function resolveConfluenceAcls(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  externalIds: string[],
+  syncContext?: Record<string, unknown>
+): Promise<Record<string, string[]>> {
+  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+  let cloudId = syncContext?.cloudId as string | undefined
+  if (!cloudId) {
+    cloudId = await getConfluenceCloudId(domain, accessToken)
+    if (syncContext) syncContext.cloudId = cloudId
+  }
+
+  const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
+  const spacePrincipals: ConfluencePrincipal[] = []
+  for (const spaceKey of spaceKeys) {
+    const spaceId = await resolveSpaceId(cloudId, accessToken, spaceKey)
+    spacePrincipals.push(...(await listSpaceReadPrincipals(cloudId, accessToken, spaceId)))
+  }
+
+  const restrictions = new Map<string, ConfluenceRestriction>()
+  const chains = new Map<string, ConfluenceRestriction[]>()
+
+  const readRestriction = async (contentId: string): Promise<ConfluenceRestriction> => {
+    const cached = restrictions.get(contentId)
+    if (cached !== undefined) return cached
+    const restriction = await getReadRestriction(cloudId, accessToken, contentId)
+    restrictions.set(contentId, restriction)
+    return restriction
+  }
+
+  await mapWithConcurrency(externalIds, ACL_CONCURRENCY, async (externalId) => {
+    const own = await readRestriction(externalId)
+    /**
+     * A page carrying its own restriction decides on the spot; only an
+     * unrestricted page needs its ancestry, which is the expensive lookup.
+     */
+    if (own !== null) {
+      chains.set(externalId, [own])
+      return
+    }
+    const ancestorIds = await listAncestorIds(cloudId, accessToken, externalId)
+    const chain: ConfluenceRestriction[] = [null]
+    for (const ancestorId of ancestorIds) {
+      const restriction = await readRestriction(ancestorId)
+      chain.push(restriction)
+      if (restriction !== null) break
+    }
+    chains.set(externalId, chain)
+  })
+
+  /**
+   * Addresses are resolved once for every account named anywhere, rather than
+   * per page: a space's own principals appear on every page that inherits them.
+   */
+  const accountIds = new Set<string>()
+  for (const principal of spacePrincipals) {
+    if (principal.kind === 'user') accountIds.add(principal.id)
+  }
+  for (const restriction of restrictions.values()) {
+    for (const principal of restriction ?? []) {
+      if (principal.kind === 'user') accountIds.add(principal.id)
+    }
+  }
+  const emails = await resolveUserEmails(cloudId, accessToken, [...accountIds])
+  const withEmail = (principals: readonly ConfluencePrincipal[]): ConfluencePrincipal[] =>
+    principals.map((principal) =>
+      principal.kind === 'user' ? { ...principal, email: emails.get(principal.id) } : principal
+    )
+
+  const acls: Record<string, string[]> = {}
+  let unattributed = 0
+  for (const externalId of externalIds) {
+    const chain = chains.get(externalId)
+    /** A page whose restrictions could not be read is readable by nobody, not by everyone. */
+    if (!chain) continue
+    const result = confluencePageAcl({
+      spacePrincipals: withEmail(spacePrincipals),
+      restrictionChain: chain.map((entry) => (entry === null ? null : withEmail(entry))),
+      providerId: CONFLUENCE_ACL_PROVIDER_ID,
+      tenantId: cloudId,
+    })
+    acls[externalId] = result.acl
+    unattributed += result.unattributedUsers
+  }
+
+  if (unattributed > 0) {
+    logger.warn('Confluence withheld addresses for some granted users; those grants were dropped', {
+      cloudId,
+      unattributed,
+    })
+  }
+  return acls
+}
+
+/** Runs `worker` over `items`, at most `limit` at a time, preserving no order. */
+async function mapWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  let cursor = 0
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const index = cursor++
+      if (index >= items.length) return
+      await worker(items[index])
+    }
+  })
+  await Promise.all(runners)
+}
+
 export const confluenceConnector: ConnectorConfig = {
   ...confluenceConnectorMeta,
 
@@ -377,6 +520,18 @@ export const confluenceConnector: ConnectorConfig = {
       cursor,
       syncContext
     )
+  },
+
+  getDocumentAcls: resolveConfluenceAcls,
+
+  openDirectory: async (accessToken, sourceConfig, syncContext) => {
+    const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+    let cloudId = syncContext?.cloudId as string | undefined
+    if (!cloudId) {
+      cloudId = await getConfluenceCloudId(domain, accessToken)
+      if (syncContext) syncContext.cloudId = cloudId
+    }
+    return openConfluenceDirectory(cloudId, accessToken)
   },
 
   getDocument: async (

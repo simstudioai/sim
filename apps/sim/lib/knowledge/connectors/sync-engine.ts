@@ -62,7 +62,12 @@ import {
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import type { ConnectorAuthConfig, ExternalDocument, SyncResult } from '@/connectors/types'
+import type {
+  ConnectorAuthConfig,
+  ConnectorConfig,
+  ExternalDocument,
+  SyncResult,
+} from '@/connectors/types'
 
 const logger = createLogger('ConnectorSyncEngine')
 
@@ -91,31 +96,41 @@ const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
  */
 async function refreshMirroredDirectory(input: {
   workspaceId: string
-  connectorConfig: { id: string; auth: ConnectorAuthConfig }
-  credentialToken: ConnectorAccessToken
+  connectorConfig: ConnectorConfig
+  sourceConfig: Record<string, unknown>
+  syncContext: Record<string, unknown>
+  accessToken: string
 }): Promise<void> {
-  const { workspaceId, connectorConfig, credentialToken } = input
-  const tenantId = credentialToken.subject?.split('@')[1]
-  if (connectorConfig.auth.mode !== 'oauth' || !tenantId) {
-    logger.warn('Skipping directory refresh: the crawl names no administrator', {
-      workspaceId,
-      connector: connectorConfig.id,
-    })
-    return
-  }
+  const { workspaceId, connectorConfig } = input
+  if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.openDirectory) return
 
   try {
+    const directory = await connectorConfig.openDirectory(
+      input.accessToken,
+      input.sourceConfig,
+      input.syncContext
+    )
+    if (!directory) {
+      logger.warn('Skipping directory refresh: the connector names no directory', {
+        workspaceId,
+        connector: connectorConfig.id,
+      })
+      return
+    }
     const result = await syncExternalDirectoryGroups({
       workspaceId,
       providerId: connectorConfig.auth.provider,
-      tenantId,
-      accessToken: credentialToken.accessToken,
+      directory,
     })
-    logger.info('Refreshed mirrored directory groups', { workspaceId, tenantId, ...result })
+    logger.info('Refreshed mirrored directory groups', {
+      workspaceId,
+      tenantId: directory.tenantId,
+      ...result,
+    })
   } catch (error) {
     logger.error('Directory refresh failed; serving last-known-good group membership', {
       workspaceId,
-      tenantId,
+      connector: connectorConfig.id,
       error: getErrorMessage(error),
     })
   }
@@ -135,15 +150,37 @@ async function refreshMirroredDirectory(input: {
  * every document it lists, so a missing one is a bug in the connector rather
  * than an expected state to paper over.
  */
-async function applySourceMirroredAcls(
-  connectorId: string,
+async function applySourceMirroredAcls(input: {
+  connectorId: string
+  connectorConfig: ConnectorConfig
+  sourceConfig: Record<string, unknown>
+  syncContext: Record<string, unknown>
+  accessToken: string
   externalDocs: readonly ExternalDocument[]
-): Promise<void> {
+}): Promise<void> {
+  const { connectorId, connectorConfig, externalDocs } = input
+
+  /**
+   * A source that reports permissions only on request answers here, once for
+   * the whole listing. Its failure is deliberately not caught: an ACL pass that
+   * resolved nothing would hide the entire corpus, which is far worse than
+   * leaving the previous ACLs in place until the next run.
+   */
+  const resolved = connectorConfig.getDocumentAcls
+    ? await connectorConfig.getDocumentAcls(
+        input.accessToken,
+        input.sourceConfig,
+        externalDocs.map((doc) => doc.externalId),
+        input.syncContext
+      )
+    : undefined
+
   const acls = new Map<string, readonly string[]>()
   let unattributed = 0
   for (const doc of externalDocs) {
-    if (!doc.acl) unattributed += 1
-    acls.set(doc.externalId, doc.acl ?? EMPTY_ACL)
+    const acl = resolved ? resolved[doc.externalId] : doc.acl
+    if (!acl) unattributed += 1
+    acls.set(doc.externalId, acl ?? EMPTY_ACL)
   }
 
   const written = await persistDocumentAcls(connectorId, acls)
@@ -1038,9 +1075,18 @@ export async function executeSync(
       await refreshMirroredDirectory({
         workspaceId: kbOwner.workspaceId,
         connectorConfig,
-        credentialToken,
+        sourceConfig,
+        syncContext,
+        accessToken: credentialToken.accessToken,
       })
-      await applySourceMirroredAcls(connectorId, externalDocs)
+      await applySourceMirroredAcls({
+        connectorId,
+        connectorConfig,
+        sourceConfig,
+        syncContext,
+        accessToken: credentialToken.accessToken,
+        externalDocs,
+      })
     }
 
     const reconciliationHoldNotice = await reconcileDeletions({

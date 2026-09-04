@@ -52,6 +52,36 @@ export type ConnectorAuthConfig =
       optional?: boolean
     }
 
+/** A group in an external directory, named as the connector's ACLs name it. */
+export interface ConnectorDirectoryGroup {
+  /** The identifier a `g:` token carries — a group email, a group id. */
+  id: string
+}
+
+export interface ConnectorDirectoryMembership {
+  group: ConnectorDirectoryGroup
+  /** Case-folded addresses of every person in the group, nesting flattened. */
+  memberEmails: string[]
+  /**
+   * False when the walk could not be completed. A partial membership must never
+   * replace a stored one: cutting a group down to the part that happened to
+   * enumerate silently revokes everyone in the part that did not.
+   */
+  complete: boolean
+}
+
+/**
+ * One directory, opened for the length of a sync. Implementations throw rather
+ * than returning a partial listing — a truncated directory read as complete
+ * would delete every group past the cut-off.
+ */
+export interface ConnectorDirectory {
+  /** The tenant segment of every group token this directory's groups produce. */
+  tenantId: string
+  listGroups: () => Promise<ConnectorDirectoryGroup[]>
+  listGroupMembers: (group: ConnectorDirectoryGroup) => Promise<ConnectorDirectoryMembership>
+}
+
 /**
  * A single document fetched from an external source.
  */
@@ -304,11 +334,13 @@ export interface ConnectorMeta {
    * so one crawl under an administrative credential can mirror the source's
    * access model instead of asking every person to connect their own account.
    *
-   * The connector fills {@link ExternalDocument.acl} on every document it
-   * lists — changed or not, since the ACL pass reads the whole listing — using
-   * the token vocabulary in `lib/knowledge/access/tokens`. A document it lists
-   * without an ACL is readable by nobody, so a connector must set this only
-   * where it can speak for every document it returns.
+   * The connector answers for every document it lists — changed or not, since
+   * the ACL pass reads the whole listing — either by filling
+   * {@link ExternalDocument.acl} inline or through
+   * {@link ConnectorConfig.getDocumentAcls}, using the token vocabulary in
+   * `lib/knowledge/access/tokens`. A document it lists without an ACL is
+   * readable by nobody, so a connector must set this only where it can speak
+   * for every document it returns.
    */
   mirrorsSourceAcls?: true
 }
@@ -398,6 +430,43 @@ export interface ConnectorConfig extends ConnectorMeta {
    * must be reopened from a fresh full listing rather than retried.
    */
   isChangeCursorInvalidError?: (error: unknown) => boolean
+
+  /**
+   * Opens the external directory whose groups this connector's mirrored ACLs
+   * refer to, or null when it has none reachable.
+   *
+   * The connector owns this because only it knows what a tenant is for its
+   * source — a Workspace domain for Drive, a site's cloud id for Confluence —
+   * and the tenant is baked into every stored group token, so a wrong guess
+   * orphans every ACL already written. It also owns the enumeration, so the
+   * sync orchestration stays provider-agnostic.
+   */
+  openDirectory?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
+  ) => Promise<ConnectorDirectory | null>
+
+  /**
+   * The ACLs of a batch of already-listed documents, for a source whose
+   * permissions do not come back with its listing.
+   *
+   * Drive reports each file's permissions in the same page that lists it, so it
+   * fills {@link ExternalDocument.acl} directly and needs none of this.
+   * Confluence reports a page's restrictions only when asked for that page, so
+   * it resolves them here — batched, and after the listing, so the round trips
+   * are bounded by the corpus rather than by the page size.
+   *
+   * Returns tokens per external id. An id the connector omits is readable by
+   * nobody: a connector declaring {@link ConnectorMeta.mirrorsSourceAcls}
+   * promises an answer for every document it listed.
+   */
+  getDocumentAcls?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    externalIds: string[],
+    syncContext?: Record<string, unknown>
+  ) => Promise<Record<string, string[]>>
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */
   mapTags?: (metadata: Record<string, unknown>) => Record<string, unknown>

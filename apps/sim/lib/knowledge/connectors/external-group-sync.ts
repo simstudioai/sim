@@ -5,11 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, notInArray, or } from 'drizzle-orm'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
-import {
-  type DirectoryGroup,
-  listDomainGroups,
-  listGroupMembers,
-} from '@/lib/knowledge/connectors/google-directory'
+import type { ConnectorDirectory, ConnectorDirectoryGroup } from '@/connectors/types'
 
 const logger = createLogger('ExternalGroupSync')
 
@@ -44,18 +40,18 @@ export interface DirectorySyncResult {
 export async function syncExternalDirectoryGroups(input: {
   workspaceId: string
   providerId: string
-  tenantId: string
-  accessToken: string
+  directory: ConnectorDirectory
   /** Refresh even if the directory was read within the interval. */
   force?: boolean
 }): Promise<DirectorySyncResult> {
-  const { workspaceId, providerId, tenantId, accessToken } = input
+  const { workspaceId, providerId, directory } = input
+  const tenantId = directory.tenantId
 
   if (!input.force && (await directoryReadRecently(workspaceId, providerId, tenantId))) {
     return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true }
   }
 
-  const groups = await listDomainGroups(accessToken, tenantId)
+  const groups = await directory.listGroups()
   logger.info('Enumerating directory groups', {
     workspaceId,
     providerId,
@@ -68,7 +64,7 @@ export async function syncExternalDirectoryGroups(input: {
   for (const group of groups) {
     const groupId = await upsertGroup({ workspaceId, providerId, tenantId, group })
     try {
-      const membership = await listGroupMembers(accessToken, group)
+      const membership = await directory.listGroupMembers(group)
       if (!membership.complete) {
         keptStale += 1
         logger.warn('Keeping last-known-good membership for a partially enumerated group', {
@@ -147,7 +143,7 @@ async function upsertGroup(input: {
   workspaceId: string
   providerId: string
   tenantId: string
-  group: DirectoryGroup
+  group: ConnectorDirectoryGroup
 }): Promise<string> {
   const { workspaceId, providerId, tenantId, group } = input
   const [row] = await db

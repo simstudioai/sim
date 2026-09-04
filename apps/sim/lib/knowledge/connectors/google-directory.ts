@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { MAX_GROUP_NESTING_DEPTH } from '@/lib/knowledge/access/external-groups'
+import type {
+  ConnectorDirectory,
+  ConnectorDirectoryGroup,
+  ConnectorDirectoryMembership,
+} from '@/connectors/types'
 
 const logger = createLogger('GoogleDirectory')
 
@@ -9,23 +14,8 @@ const PAGE_SIZE = 200
 /** Guards against a directory that keeps paginating; far above any real domain. */
 const MAX_PAGES = 200
 
-export interface DirectoryGroup {
-  /** The group's email, case-folded — the identifier a `g:` token carries. */
-  id: string
-}
-
-export interface DirectoryGroupMembership {
-  group: DirectoryGroup
-  /** Case-folded addresses of every person in the group, nesting flattened. */
-  memberEmails: string[]
-  /**
-   * False when the walk could not be completed — a nesting depth cap hit, or a
-   * subgroup that failed to enumerate. The caller must not treat a partial
-   * membership as authoritative: replacing a group's members with a subset
-   * silently revokes whoever was in the part that failed.
-   */
-  complete: boolean
-}
+export type DirectoryGroup = ConnectorDirectoryGroup
+export type DirectoryGroupMembership = ConnectorDirectoryMembership
 
 interface DirectoryListResponse<T> {
   nextPageToken?: string
@@ -147,4 +137,24 @@ export async function listGroupMembers(
 
   await walk(group.id, 0)
   return { group, memberEmails: [...memberEmails], complete }
+}
+
+/**
+ * The Workspace domain the crawl is looking at, as a directory.
+ *
+ * The tenant is the impersonated administrator's email domain, which is what
+ * `driveAclContext` writes into every group token, so the two must derive it the
+ * same way or the tokens a crawl writes name a directory nothing resolves.
+ */
+export function openGoogleDirectory(
+  accessToken: string,
+  adminEmail: string | undefined
+): ConnectorDirectory | null {
+  const tenantId = adminEmail?.trim().toLowerCase().split('@')[1]
+  if (!tenantId) return null
+  return {
+    tenantId,
+    listGroups: () => listDomainGroups(accessToken, tenantId),
+    listGroupMembers: (group) => listGroupMembers(accessToken, group),
+  }
 }
