@@ -4983,9 +4983,7 @@ export const knowledgeExternalGroup = pgTable(
   'knowledge_external_group',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').notNull(),
     /** Matches the provider segment of the `g:` token, e.g. `google-drive`. */
     providerId: text('provider_id').notNull(),
     /** The directory this group belongs to: a Workspace domain for Google, a site's cloud id for Confluence. */
@@ -5007,6 +5005,12 @@ export const knowledgeExternalGroup = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    /** Named explicitly: drizzle's derived name exceeds Postgres's 63-character limit and would be silently truncated. */
+    workspaceFk: foreignKey({
+      name: 'keg_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
     identityUnique: uniqueIndex('keg_identity_unique').on(
       table.workspaceId,
       table.providerId,
@@ -5036,15 +5040,19 @@ export const knowledgeExternalGroup = pgTable(
 export const knowledgeExternalGroupMember = pgTable(
   'knowledge_external_group_member',
   {
-    groupId: text('group_id')
-      .notNull()
-      .references(() => knowledgeExternalGroup.id, { onDelete: 'cascade' }),
+    groupId: text('group_id').notNull(),
     /** Case-folded, matching `lower(btrim(user.email))`. */
     email: text('email').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.groupId, table.email] }),
+    /** Named explicitly: drizzle's derived name exceeds Postgres's 63-character limit and would be silently truncated. */
+    groupFk: foreignKey({
+      name: 'kegm_group_fk',
+      columns: [table.groupId],
+      foreignColumns: [knowledgeExternalGroup.id],
+    }).onDelete('cascade'),
     /** The read path: every group one address belongs to. */
     emailIdx: index('kegm_email_idx').on(table.email),
   })
