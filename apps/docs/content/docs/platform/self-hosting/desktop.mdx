@@ -25,7 +25,7 @@ Every Sim deployment exposes two public endpoints:
 | `/api/desktop/update/download` | Redirects (302) to the newest installer for this deployment's release channel |
 | `/api/desktop/update/latest-mac.yml` | The update manifest installed apps poll |
 
-Both resolve against Sim's public GitHub releases, and the installers themselves are downloaded from GitHub. Nothing is built, signed, or hosted by you: your deployment decides *which* release its clients are offered and serves the manifest, so installed apps poll your server instead of sim.ai — but they cannot be served artifacts of your own from this path, and they fall back to Sim's own feed if yours stops answering. To ship your own build, see [Building your own shell](#building-your-own-shell).
+Both resolve against Sim's public GitHub releases, and the installers themselves are downloaded from GitHub. Nothing is built, signed, or hosted by you: your deployment decides *which* release its clients are offered and serves the manifest, so installed apps poll your server instead of sim.ai — but they cannot be served artifacts of your own from this path, and a self-updating stable build falls back to Sim's own feed if yours stops answering. To ship your own build, see [Building your own shell](#building-your-own-shell).
 
 Both endpoints cache their GitHub lookups for **5 minutes**, and both respond the same way when they cannot answer:
 
@@ -39,7 +39,7 @@ The Sim server needs outbound access to `api.github.com` and `github.com` for th
 
 ### What an installed app does when the feed fails
 
-A `404` carries a header the shell reads as *no update available*, so the app reports it is up to date. Anything else — `502`, a timeout, a connection failure — means the feed is unavailable: a **stable** build falls back to Sim's packaged GitHub feed and keeps updating from the stable channel, while a **dev or staging** build skips the check, since that fallback only carries stable artifacts their bundle identity cannot install.
+A `404` carries a header the shell reads as *no update available*, so the app reports it is up to date. Anything else — `502`, a timeout, a connection failure — means the feed is unavailable, and only a self-updating build (Developer ID, installed in `/Applications`) has anywhere else to go: on the stable channel it falls back to Sim's packaged GitHub feed, and on `dev` or `staging` it skips the check, since that fallback carries only stable artifacts their bundle identity cannot install. Any other build reports an update error until the feed answers again.
 
 Release selection is therefore yours only while the feed answers. With `APPCONFIG_ENVIRONMENT` unset both paths resolve the same release, so the fallback is invisible; it matters when your deployment serves a channel that disagrees with stable.
 
