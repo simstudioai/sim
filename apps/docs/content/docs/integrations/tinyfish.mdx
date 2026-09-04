@@ -78,6 +78,7 @@ Run a TinyFish web agent against a website and wait for it to finish, returning 
 | `browserProfile` | string | No | Browser engine: "lite" \(standard\) or "stealth" \(anti-detection\). Not a Browser Context Profile — use useProfile for saved logins |
 | `agentMode` | string | No | Agent behavior: "default" or "strict" \(fail fast\) |
 | `maxSteps` | number | No | Maximum tool-call steps before the agent stops \(1-500, default 150\) |
+| `maxDurationSeconds` | number | No | Maximum wall-clock seconds before the agent stops. Unlimited by default, so a run stalled on a slow page is only bounded by the step cap |
 | `outputSchema` | json | No | JSON Schema draft-07 contract the run result must satisfy |
 | `proxyEnabled` | boolean | No | Route the run through TinyFish’s Tetra proxy |
 | `proxyCountryCode` | string | No | Proxy country: US, GB, CA, DE, FR, JP, or AU |
@@ -112,6 +113,10 @@ Run a TinyFish web agent against a website and wait for it to finish, returning 
 |   ↳ `retryAfter` | number | Suggested retry delay in seconds, null when not retryable |
 |   ↳ `helpUrl` | string | Troubleshooting documentation URL |
 |   ↳ `helpMessage` | string | Human-readable guidance |
+| `profileHint` | object | Present when TinyFish believes a Browser Context Profile would fix this failed run, such as one that stopped at a login wall |
+|   ↳ `message` | string | Why a Browser Context Profile would help this run |
+|   ↳ `setupUrl` | string | Path on the TinyFish dashboard that sets up a profile for the blocked domain |
+|   ↳ `reason` | string | auth_wall \(the run hit a login\) or bot_challenge \(the site blocked automation\) |
 
 ### TinyFish Start Agent Run
 
@@ -126,6 +131,7 @@ Queue a TinyFish web agent run and return its run ID immediately, without waitin
 | `browserProfile` | string | No | Browser engine: "lite" \(standard\) or "stealth" \(anti-detection\). Not a Browser Context Profile — use useProfile for saved logins |
 | `agentMode` | string | No | Agent behavior: "default" or "strict" \(fail fast\) |
 | `maxSteps` | number | No | Maximum tool-call steps before the agent stops \(1-500, default 150\) |
+| `maxDurationSeconds` | number | No | Maximum wall-clock seconds before the agent stops. Unlimited by default, so a run stalled on a slow page is only bounded by the step cap |
 | `outputSchema` | json | No | JSON Schema draft-07 contract the run result must satisfy |
 | `proxyEnabled` | boolean | No | Route the run through TinyFish’s Tetra proxy |
 | `proxyCountryCode` | string | No | Proxy country: US, GB, CA, DE, FR, JP, or AU |
@@ -184,6 +190,12 @@ Get the status, extracted result, and step history of a TinyFish automation run 
 | `browserConfig` | object | Proxy settings the run executed with |
 |   ↳ `proxyEnabled` | boolean | Whether a proxy was used |
 |   ↳ `proxyCountryCode` | string | Proxy country code |
+| `profileAttached` | boolean | Whether the run actually started from a Browser Context Profile, null when the API omits it — treat null as unknown rather than as false |
+| `profileId` | string | Browser Context Profile the run attached. Null covers both no profile and a payload that omitted the field, so read profileAttached alongside it rather than reading null as proof |
+| `profileHint` | object | Present when TinyFish believes a Browser Context Profile would fix this failed run |
+|   ↳ `message` | string | Why a Browser Context Profile would help this run |
+|   ↳ `setupUrl` | string | Path on the TinyFish dashboard that sets up a profile for the blocked domain |
+|   ↳ `reason` | string | auth_wall \(the run hit a login\) or bot_challenge \(the site blocked automation\) |
 | `videoUrl` | string | Presigned recording URL, expires 15 minutes after it is issued |
 | `steps` | array | Steps the agent took during the run |
 |   ↳ `id` | string | Step identifier |
@@ -261,6 +273,12 @@ List TinyFish automation runs, optionally filtered by status, goal text, or crea
 |   ↳ `browserConfig` | object | Proxy settings the run executed with |
 |     ↳ `proxyEnabled` | boolean | Whether a proxy was used |
 |     ↳ `proxyCountryCode` | string | Proxy country code |
+|   ↳ `profileAttached` | boolean | Whether the run actually started from a Browser Context Profile, null when the API omits it — treat null as unknown rather than as false |
+|   ↳ `profileId` | string | Browser Context Profile the run attached. Null covers both no profile and a payload that omitted the field, so read profileAttached alongside it rather than reading null as proof |
+|   ↳ `profileHint` | object | Present when TinyFish believes a Browser Context Profile would fix this failed run |
+|     ↳ `message` | string | Why a Browser Context Profile would help this run |
+|     ↳ `setupUrl` | string | Path on the TinyFish dashboard that sets up a profile for the blocked domain |
+|     ↳ `reason` | string | auth_wall \(the run hit a login\) or bot_challenge \(the site blocked automation\) |
 | `total` | number | Total runs matching the filters |
 | `nextCursor` | string | Cursor for the next page, null when there are no more results |
 | `hasMore` | boolean | Whether more results follow this page |
@@ -371,7 +389,9 @@ List the Browser Context Profiles saved on the TinyFish account, with the ids an
 |   ↳ `name` | string | Profile name, such as "Salesforce Production" |
 |   ↳ `proxyCountryCode` | string | Country the profile proxies through, null when it has no proxy |
 |   ↳ `fingerprintSeed` | string | Seed for the browser fingerprint the profile replays, null when the API omits it |
+|   ↳ `domainCount` | number | How many domains the profile holds saved state for, null when the API omits it. Zero means it was created but never logged into |
 |   ↳ `createdAt` | string | ISO 8601 timestamp when the profile was created, null when the API omits it |
-|   ↳ `isDefault` | boolean | Whether runs with no Browser Profile ID use this one, null when the API does not report it |
+|   ↳ `updatedAt` | string | ISO 8601 timestamp when the profile was last saved, null when the API omits it |
+|   ↳ `isDefault` | boolean | Whether runs with no Browser Profile ID use this one, null when the API omits it |
 
 
