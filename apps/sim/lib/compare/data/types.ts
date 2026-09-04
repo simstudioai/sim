@@ -116,7 +116,6 @@ export interface ComparisonFacts {
     byok: Fact
   }
   security: {
-    soc2: Fact
     dataResidency: Fact
     rbac: Fact
     auditLogging: Fact

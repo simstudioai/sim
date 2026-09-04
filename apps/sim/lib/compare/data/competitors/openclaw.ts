@@ -130,7 +130,7 @@ export const openClawProfile: CompetitorProfile = {
     {
       title: 'No SOC 2 report or other compliance attestation',
       description:
-        "OpenClaw has no OpenClaw-operated hosted service, only self-hosted software, and no SOC 2 report, trust center, or other compliance attestation is published anywhere on its official sites. Sim is SOC 2 compliant; like OpenClaw, Sim does not currently hold ISO 27001 or HIPAA certification. OpenClaw's own security documentation places responsibility for data-at-rest and processing security squarely on the operator running their own instance.",
+        'OpenClaw has no OpenClaw-operated hosted service, only self-hosted software, and no SOC 2 report, trust center, or other compliance attestation is published anywhere on its official sites. Unlike Sim, which documents SOC 2 Type II, ISO 27001:2022, and GDPR compliance, OpenClaw places responsibility for data-at-rest, processing security, and compliance on the operator running their own instance.',
       shortDescription: 'No SOC 2 report; the self-hosting operator owns all compliance risk.',
       source: {
         url: 'https://docs.openclaw.ai/gateway/security',
@@ -814,21 +814,6 @@ export const openClawProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          'No: OpenClaw is a self-hosted open-source project run by a non-profit Foundation, not a vendor selling a hosted service, and publishes no SOC 2 report.',
-        detail:
-          'No SOC 2 attestation, trust center, or audit report exists for OpenClaw. Responsibility for infrastructure security rests entirely with whoever self-hosts the Gateway.',
-        shortValue: 'No SOC 2 report published',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.openclaw.ai/gateway/security',
-            label: 'OpenClaw Docs: Security',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           "Yes, by construction: because OpenClaw runs only as a self-hosted Gateway process, with no OpenClaw-operated hosted/SaaS version, all agent data (sessions, memory files, credentials) resides wherever the operator chooses to run it, e.g. a personal laptop or a self-hosted VPS/homelab using the project's own Ansible/NixOS deployment tooling, giving the operator full control over data location with no vendor-side residency question.",
@@ -887,6 +872,11 @@ export const openClawProfile: CompetitorProfile = {
         shortValue: 'No SOC 2 or other certifications; compliance depends on self-hosting operator',
         confidence: 'estimated',
         sources: [
+          {
+            url: 'https://docs.openclaw.ai/gateway/security',
+            label: 'OpenClaw Docs: Security',
+            asOf: '2026-07-02',
+          },
           {
             url: 'https://en.wikipedia.org/wiki/OpenClaw',
             label: 'Wikipedia: OpenClaw',

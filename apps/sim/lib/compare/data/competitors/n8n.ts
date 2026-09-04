@@ -864,27 +864,6 @@ export const n8nProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          "SOC 2: program 'aligned to' SOC 2 with annual third-party audits; report available to enterprise customers via Trust Center",
-        detail:
-          'n8n operates a Trust Center (trust.n8n.io, powered by SafeBase) covering security, compliance, privacy, and reliability. Its security program is aligned to the SOC 2 framework, with continuous evaluation and annual independent audits, and the SOC 2 report is provided to enterprise customers on request rather than published openly.',
-        shortValue: 'Aligned to SOC 2, report on request',
-        confidence: 'verified',
-        sources: [
-          { url: 'https://trust.n8n.io/', label: 'n8n Trust Center', asOf: '2026-07-02' },
-          {
-            url: 'https://support.n8n.io/article/request-for-soc-2-report',
-            label: 'n8n Help Center: Request for SOC-2 report',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://n8n.io/legal/security/',
-            label: 'Security | n8n',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Yes: achievable via self-hosting; specific cloud data-residency regions not confirmed',

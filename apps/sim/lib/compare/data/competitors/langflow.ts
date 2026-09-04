@@ -689,15 +689,6 @@ export const langflowProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          "Unknown: no public documentation or official page states a SOC 2 certification for Langflow. The docs' Security page discusses infrastructure-level responsibility for operators, not a compliance certification.",
-        detail:
-          'Security docs place isolation and compliance burden on the deploying organization.',
-        shortValue: 'Unknown, no SOC2 certification documented',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataResidency: {
         value:
           'Yes via self-hosting: Langflow can be fully self-hosted on Docker, Kubernetes, on-prem, or any cloud region, giving organizations full control over data residency. No dedicated managed regional-hosting product is documented for Langflow Cloud.',

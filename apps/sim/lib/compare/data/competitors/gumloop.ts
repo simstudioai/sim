@@ -792,20 +792,6 @@ export const gumloopProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          'SOC 2 Type II attested; also HIPAA-compliant with BAAs available on eligible plans, and GDPR-aligned with EU-U.S. Data Privacy Framework (incl. UK Extension) certification',
-        shortValue: 'SOC 2 Type II, HIPAA, GDPR-aligned',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
-          },
-          { url: 'https://trust.gumloop.com/', label: 'Gumloop Trust Center', asOf: '2026-07-02' },
-        ],
-      },
       dataResidency: {
         value:
           'Enterprise VPC deployment into a customer-controlled cloud region provides data residency/control; zero data retention (ZDR) agreements are in place with major LLM providers',
@@ -867,6 +853,7 @@ export const gumloopProfile: CompetitorProfile = {
             label: 'Gumloop: Security and trust',
             asOf: '2026-07-02',
           },
+          { url: 'https://trust.gumloop.com/', label: 'Gumloop Trust Center', asOf: '2026-07-02' },
         ],
       },
       modelAndToolGovernance: {

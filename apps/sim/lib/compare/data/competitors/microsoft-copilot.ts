@@ -904,27 +904,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          'Yes: Copilot Studio (listed by its former name, "Copilot Studios") is one of the Microsoft online services explicitly in scope of the Office 365 SOC 2 Type 2 attestation report, with audit reports available from the Microsoft Service Trust Portal',
-        detail:
-          'Copilot Studio\'s own admin-certification page confirms SOC compliance without naming the specific report type, but Microsoft\'s dedicated SOC 2 Type 2 compliance offering page lists "Copilot Studios" by name among the in-scope Office 365 services, resolving which SOC report type applies.',
-        shortValue: 'Yes, named in scope of the SOC 2 Type 2 attestation report',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
-            label:
-              'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-04',
-          },
-          {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-04',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Yes: organizations can create agents in a specific environment/region so agent data resides within that geography, with Microsoft replicating only within the same geographic area for durability',

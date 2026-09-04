@@ -904,22 +904,6 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value:
-          "Power Automate is SOC 2 Type 2 in-scope for Commercial and GCC environments only. It is not in-scope for GCC High or DoD in that attestation, separate from the product's general availability in those government clouds.",
-        detail:
-          "Microsoft's compliance documentation lists Power Automate among in-scope Commercial/GCC services.",
-        shortValue: 'SOC 2 Type 2 in-scope for Commercial and GCC only',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label:
-              'System and Organization Controls (SOC) 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Yes: environments/regions can be selected at creation to control where Dataverse and related customer data resides, with data kept within the chosen geography (Microsoft may replicate only within the same geographic area for resiliency)',

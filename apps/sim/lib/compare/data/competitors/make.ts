@@ -849,20 +849,6 @@ export const makeProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II and SOC 3 completed; ISO 27001 certified; GDPR compliant',
-        detail:
-          "Make's Security page lists completed SOC 2 Type II audit, a publicly available SOC 3 report, ISO 27001 certification for the platform, and GDPR compliance. HIPAA is not mentioned on this page.",
-        shortValue: 'SOC 2 Type II, SOC 3, ISO 27001, GDPR',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.make.com/en/security',
-            label: 'Make Security page',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'Yes: choice of US or EU data center at organization creation; Enterprise gets an isolated AWS environment',

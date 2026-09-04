@@ -749,20 +749,6 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes (company-wide, not Cowork-specific)',
-        detail:
-          'Anthropic holds SOC 2 Type I and Type II; the detailed report is available under NDA via the Anthropic Trust Portal. There is no Cowork-specific SOC 2 scoping statement.',
-        shortValue: 'Company-wide, not Cowork-specific',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://trust.anthropic.com/',
-            label: 'Anthropic Trust Center',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           'No Cowork-specific residency controls; company-wide default is multi-region processing, US-based storage',
@@ -810,7 +796,8 @@ export const claudeCoworkProfile: CompetitorProfile = {
       compliance: {
         value:
           'SOC 2 Type I and Type II (company-wide, not Cowork-specific), ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise)',
-        detail: 'Company-wide Anthropic certifications, not Cowork-scoped.',
+        detail:
+          'Company-wide Anthropic certifications, not Cowork-scoped. The detailed SOC 2 report is available under NDA via the Anthropic Trust Portal.',
         shortValue: 'SOC 2 Type I/II, ISO 27001, ISO 42001, HIPAA-ready',
         confidence: 'estimated',
         sources: [

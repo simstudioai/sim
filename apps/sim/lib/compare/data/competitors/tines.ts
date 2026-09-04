@@ -784,18 +784,6 @@ export const tinesProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II, audited annually',
-        shortValue: 'SOC 2 Type II, audited annually',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
           "Cloud-hosted (Tines-managed, AWS-based) or self-hosted in the customer's own data center/region for data-residency requirements; granular data retention controls provided",
@@ -847,13 +835,13 @@ export const tinesProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
-            label: 'Tines achieves the ISO trifecta (27001, 27701, 42001)',
+            url: 'https://www.tines.com/security/',
+            label: 'Security at Tines',
             asOf: '2026-07-02',
           },
           {
-            url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
+            url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
+            label: 'Tines achieves the ISO trifecta (27001, 27701, 42001)',
             asOf: '2026-07-02',
           },
         ],
