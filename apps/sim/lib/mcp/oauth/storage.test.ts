@@ -164,7 +164,7 @@ describe('withMcpOauthRefreshLock', () => {
     expect(fn).not.toHaveBeenCalled()
   })
 
-  it('cleans up an uncertain owner token before falling open when Redis is unavailable', async () => {
+  it('preserves an uncertain owner token when falling open after an acquire failure', async () => {
     mockAcquireLock.mockRejectedValueOnce(new Error('Redis connection refused'))
     const fn = vi.fn(async () => 'uncoordinated')
 
@@ -172,10 +172,7 @@ describe('withMcpOauthRefreshLock', () => {
 
     expect(result).toBe('uncoordinated')
     expect(fn).toHaveBeenCalledTimes(1)
-    expect(mockReleaseLock).toHaveBeenCalledWith(
-      'mcp:oauth:refresh:row-redis-down',
-      expect.any(String)
-    )
+    expect(mockReleaseLock).not.toHaveBeenCalled()
   })
 
   it('cleans up an uncertain owner token before propagating cancellation', async () => {

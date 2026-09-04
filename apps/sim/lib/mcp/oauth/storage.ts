@@ -350,13 +350,15 @@ async function runWithRedisMutex<T>(
     try {
       acquired = await acquireLock(lockKey, ownerToken, REFRESH_LOCK_TTL_SEC)
     } catch (error) {
-      await releaseLock(lockKey, ownerToken).catch((releaseError) => {
-        logger.warn('Refresh lock cleanup after acquire failure failed (will expire via TTL)', {
-          rowId,
-          error: toError(releaseError).message,
+      if (signal?.aborted) {
+        await releaseLock(lockKey, ownerToken).catch((releaseError) => {
+          logger.warn('Refresh lock cleanup after cancelled acquire failed (will expire via TTL)', {
+            rowId,
+            error: toError(releaseError).message,
+          })
         })
-      })
-      signal?.throwIfAborted()
+        signal.throwIfAborted()
+      }
       logger.warn('Redis unavailable, running OAuth flow uncoordinated', {
         rowId,
         error: toError(error).message,
