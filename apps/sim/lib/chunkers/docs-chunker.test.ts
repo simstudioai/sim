@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
   generateEmbeddings: vi.fn(async () => ({ embeddings: [] })),
-  getConfiguredEmbeddingModel: vi.fn(() => 'test-model'),
 }))
 
 import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'

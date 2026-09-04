@@ -77,10 +77,10 @@ describe('capability setup configuration', () => {
     )
   })
 
-  it('offers OpenAI first for fresh knowledge embedding setup', () => {
+  it('offers OpenAI first for fresh knowledge embedding setup, then every other family', () => {
     expect(
       getCapabilitySetupOptions(KNOWLEDGE_EMBEDDINGS_SETUP).map((option) => option.id)
-    ).toEqual(['openai', 'azure-openai', 'openrouter'])
+    ).toEqual(['openai', 'azure-openai', 'gemini', 'ollama', 'openrouter'])
   })
 
   it('maps every OAuth runtime field to a CLI input mode in runtime order', () => {

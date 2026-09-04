@@ -34,8 +34,8 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
-import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
-import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
+import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
+import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
@@ -274,21 +274,48 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       definitionsByKnowledgeBase = built.definitionsByKnowledgeBase
     }
 
-    const embeddingModels = [...new Set(context.knowledgeBases.map((kb) => kb.embeddingModel))]
-    if (hasQuery && embeddingModels.length > 1) {
+    /**
+     * One query embedding serves every leg, so every base in the request has to
+     * be indexed the same way. The width is part of that: it selects the
+     * pgvector column each comparison reads, and two bases on the same model at
+     * different widths still live in different columns.
+     *
+     * Built only for a query search. A tag-only request never embeds anything,
+     * so resolving a width it will not use would let one base recorded at an
+     * unstorable width fail a request that does not depend on it.
+     */
+    const embeddingTargets = new Map(
+      context.knowledgeBases.map((kb) => [
+        `${kb.embeddingModel}:${kb.embeddingDimension}`,
+        { model: kb.embeddingModel, dimensions: kb.embeddingDimension },
+      ])
+    )
+    if (hasQuery && embeddingTargets.size > 1) {
       throw new OrchestrationError(
         'validation',
-        'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.'
+        'Selected knowledge bases use different embedding models or vector widths and cannot be searched together. Search them separately.'
       )
     }
-    const embeddingModel = embeddingModels[0]
+    const selectedTarget = [...embeddingTargets.values()][0]
+    const embeddingModel = selectedTarget.model
+    /**
+     * The width is narrowed to a storable one only for a query search, which is
+     * the only kind that reads a vector column. A tag-only search must not fail
+     * on a width it never uses.
+     */
+    const embeddingTarget: KbEmbeddingTarget | undefined = hasQuery
+      ? {
+          model: selectedTarget.model,
+          dimensions: toKbEmbeddingDimensions(selectedTarget.dimensions),
+        }
+      : undefined
     const preparedRegistry = input.prepareModelInputProvenance
       ? await input.prepareModelInputProvenance({ userId, workspaceId: context.workspaceId })
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
     const queryEmbeddingPromise = hasQuery
       ? runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
-          generateSearchEmbedding(input.query!, embeddingModel, context.workspaceId)
+          generateSearchEmbedding(input.query!, embeddingTarget!, context.workspaceId)
         )
       : Promise.resolve(null)
     /** Resolved alongside the embedding call; both are needed before the first leg runs. */
@@ -317,7 +344,10 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       boostRecency: searchDefaults.boostRecency,
       query: input.query,
       queryVector: hasQuery
-        ? JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)
+        ? {
+            vector: JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null),
+            dimensions: embeddingTarget!.dimensions,
+          }
         : undefined,
       structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
     })

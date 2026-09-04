@@ -76,8 +76,7 @@ vi.mock('@/lib/knowledge/application/folder-paths', () => ({
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
-  EMBEDDING_DIMENSIONS: 1536,
-  getConfiguredEmbeddingModel: () => 'text-embedding-3-small',
+  getConfiguredKbEmbedding: () => ({ model: 'text-embedding-3-small', dimensions: 1536 }),
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({

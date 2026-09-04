@@ -78,6 +78,88 @@ describe('env capability status', () => {
     expect(JSON.stringify(status)).not.toContain('secret-openrouter-key')
   })
 
+  /**
+   * `KB_EMBEDDING_MODEL` names a model, and the model picks the family. A key
+   * for a family the model does not name is not a fallback for the one it does,
+   * so it must not read as a configured knowledge-embedding provider.
+   */
+  it('reports only the family the configured embedding model names', () => {
+    const withOpenAI = {
+      OPENAI_API_KEY: 'secret-openai-key',
+      GEMINI_API_KEY: 'secret-gemini-key',
+      OLLAMA_URL: 'http://localhost:11434',
+    }
+
+    expect(buildEnvCapabilityStatus(withOpenAI).features['knowledge-embeddings']).toMatchObject({
+      state: 'configured',
+      providerIds: ['openai'],
+    })
+
+    expect(
+      buildEnvCapabilityStatus({ ...withOpenAI, KB_EMBEDDING_MODEL: 'gemini-embedding-001' })
+        .features['knowledge-embeddings']
+    ).toMatchObject({ state: 'configured', providerIds: ['gemini'] })
+
+    expect(
+      buildEnvCapabilityStatus({ ...withOpenAI, KB_EMBEDDING_MODEL: 'ollama/nomic-embed-text' })
+        .features['knowledge-embeddings']
+    ).toMatchObject({ state: 'configured', providerIds: ['ollama'] })
+  })
+
+  it('names the field an Ollama embedding model is missing, not the whole capability', () => {
+    const status = buildEnvCapabilityStatus({
+      OPENAI_API_KEY: 'secret-openai-key',
+      KB_EMBEDDING_MODEL: 'ollama/nomic-embed-text',
+    })
+
+    expect(status.features['knowledge-embeddings'].state).toBe('partial')
+    expect(status.features['knowledge-embeddings'].issue?.message).toContain('OLLAMA_URL')
+  })
+
+  it('rejects a vector width no pgvector column can store', () => {
+    const status = buildEnvCapabilityStatus({
+      OPENAI_API_KEY: 'secret-openai-key',
+      EMBEDDING_OUTPUT_DIMS: '999',
+    })
+
+    expect(status.features['knowledge-embeddings'].issue?.message).toContain(
+      'EMBEDDING_OUTPUT_DIMS'
+    )
+  })
+
+  /**
+   * A width the selected family cannot emit falls back at runtime with only a
+   * log line, so the accepted set is per family rather than the storage set.
+   */
+  it('accepts a width only for the family that can emit it', () => {
+    const openaiAt384 = buildEnvCapabilityStatus({
+      OPENAI_API_KEY: 'secret-openai-key',
+      EMBEDDING_OUTPUT_DIMS: '384',
+    })
+    expect(openaiAt384.features['knowledge-embeddings'].issue?.message).toContain(
+      'EMBEDDING_OUTPUT_DIMS'
+    )
+
+    const ollamaAt384 = buildEnvCapabilityStatus({
+      OLLAMA_URL: 'http://localhost:11434',
+      KB_EMBEDDING_MODEL: 'ollama/all-minilm',
+      EMBEDDING_OUTPUT_DIMS: '384',
+    })
+    expect(ollamaAt384.features['knowledge-embeddings']).toMatchObject({
+      state: 'configured',
+      providerIds: ['ollama'],
+    })
+
+    const geminiAt1024 = buildEnvCapabilityStatus({
+      GEMINI_API_KEY: 'secret-gemini-key',
+      KB_EMBEDDING_MODEL: 'gemini-embedding-001',
+      EMBEDDING_OUTPUT_DIMS: '1024',
+    })
+    expect(geminiAt1024.features['knowledge-embeddings'].issue?.message).toContain(
+      'EMBEDDING_OUTPUT_DIMS'
+    )
+  })
+
   it('reports selected Daytona and cloud storage providers', () => {
     const status = buildEnvCapabilityStatus({
       SANDBOX_PROVIDER: 'daytona',

@@ -8,6 +8,7 @@ export {
   DEFAULT_MODEL_BY_PROVIDER,
   findEmbeddingModelInfo,
   resolveDimensions,
+  toOllamaEmbeddingModelId,
 } from '@/lib/embeddings/catalog'
 export {
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,

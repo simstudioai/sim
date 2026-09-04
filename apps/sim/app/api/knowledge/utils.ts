@@ -22,7 +22,7 @@ export interface KnowledgeBaseAccessResult {
   hasAccess: true
   knowledgeBase: Pick<
     KnowledgeBaseData,
-    'id' | 'userId' | 'workspaceId' | 'name' | 'embeddingModel'
+    'id' | 'userId' | 'workspaceId' | 'name' | 'embeddingModel' | 'embeddingDimension'
   >
 }
 
@@ -53,6 +53,7 @@ async function resolveKnowledgeBaseAccess(
       workspaceId: knowledgeBase.workspaceId,
       name: knowledgeBase.name,
       embeddingModel: knowledgeBase.embeddingModel,
+      embeddingDimension: knowledgeBase.embeddingDimension,
     })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))

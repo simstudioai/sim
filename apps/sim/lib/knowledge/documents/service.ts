@@ -121,8 +121,12 @@ import {
   QUEUED_DISPATCH_GRACE_MS,
   type SortOrder,
 } from '@/lib/knowledge/documents/types'
-import { EMBEDDING_DIMENSIONS, getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
-import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import {
+  getEmbeddingModelInfo,
+  MAX_KB_EMBEDDING_DIMENSIONS,
+  toKbEmbeddingDimensions,
+} from '@/lib/knowledge/embedding-models'
+import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import {
   bindKnowledgeDocumentFieldSecretProvenance,
@@ -143,6 +147,7 @@ import {
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
+import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
@@ -318,9 +323,17 @@ const TIMEOUTS = {
 
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
+  /**
+   * One module-level constant serves every knowledge base, whose width is not
+   * known here, so it is sized for the widest one that can exist. The item
+   * ceiling falls as the width grows — 2,126 items at 1,536 but 1,064 at 3,072 —
+   * and `generateEmbeddings` *rejects* an oversized batch rather than splitting
+   * it, so sizing this against the default width would fail every 3,072-wide
+   * document past that many chunks.
+   */
   MAX_EMBEDDING_BATCH: Math.min(
     envNumber(env.KB_CONFIG_BATCH_SIZE, 2000, { min: 1, integer: true }),
-    getEmbeddingAggregateItemLimit(EMBEDDING_DIMENSIONS)
+    getEmbeddingAggregateItemLimit(MAX_KB_EMBEDDING_DIMENSIONS)
   ),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
 }
@@ -1393,6 +1406,7 @@ export async function processDocumentAsync(
         knowledgeBaseUserId: knowledgeBase.userId,
         chunkingConfig: knowledgeBase.chunkingConfig,
         embeddingModel: knowledgeBase.embeddingModel,
+        embeddingDimension: knowledgeBase.embeddingDimension,
         billedAccountUserId: workspaceTable.billedAccountUserId,
         uploadedBy: document.uploadedBy,
         connectorId: document.connectorId,
@@ -1530,7 +1544,11 @@ export async function processDocumentAsync(
       overlap: rawConfig?.overlap ?? 200,
     }
 
-    const kbEmbeddingModel = ctx.embeddingModel
+    const kbEmbedding: KbEmbeddingTarget = {
+      model: ctx.embeddingModel,
+      dimensions: toKbEmbeddingDimensions(ctx.embeddingDimension),
+    }
+    const kbEmbeddingModel = kbEmbedding.model
     const queuedBillingContext = hasDocumentProcessingBillingScope(providedBillingContext)
       ? assertDocumentProcessingBillingContext(providedBillingContext)
       : undefined
@@ -1652,7 +1670,7 @@ export async function processDocumentAsync(
                 billableTokens: batchBillableTokens,
                 modelName,
                 pricingId,
-              } = await generateEmbeddings(batch, kbEmbeddingModel, ctx.workspaceId)
+              } = await generateEmbeddings(batch, kbEmbedding, ctx.workspaceId)
               for (const emb of batchEmbeddings) {
                 embeddings.push(emb)
               }
@@ -1662,6 +1680,17 @@ export async function processDocumentAsync(
                 embeddingPricingId = pricingId
               }
             }
+          }
+
+          /**
+           * Every chunk must carry a vector. The row's width column would
+           * otherwise be NULL and `embedding_width_check` would reject the whole
+           * batch, naming a constraint rather than the chunk that went missing.
+           */
+          if (embeddings.length !== processed.chunks.length) {
+            throw new Error(
+              `Embedding generation returned ${embeddings.length} vectors for ${processed.chunks.length} chunks`
+            )
           }
 
           // Tag values prefetched above; reuse for the embedding rows.
@@ -1688,7 +1717,7 @@ export async function processDocumentAsync(
             secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
             contentLength: chunk.text.length,
             tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
-            embedding: embeddings[chunkIndex] || null,
+            ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
             embeddingModel: kbEmbeddingModel,
             startOffset: chunk.metadata.startIndex,
             endOffset: chunk.metadata.endIndex,
