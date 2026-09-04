@@ -435,6 +435,31 @@ describe('Oracle EPM guarded client', () => {
     })
   })
 
+  it.each([null, undefined, 'invalid-link', 123, true, [], {}, { rel: 'download' }])(
+    'rejects malformed returned-link entry %j with a safe error',
+    (entry) => {
+      const policy = routes.defineReturnedLinkPolicy({
+        relation: 'download',
+        method: 'GET',
+        endpoint: getJob,
+        preserveGatewayBasePath: true,
+      })
+      const client = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com/gateway',
+        accessToken: Buffer.from('u:p').toString('base64'),
+      })
+
+      expect(() =>
+        client.validateReturnedLink(
+          policy,
+          entry as unknown as Parameters<typeof client.validateReturnedLink>[1]
+        )
+      ).toThrowError(expect.objectContaining({ name: 'OracleEpmError', category: 'invalid_input' }))
+      expect(mockValidateUrl).not.toHaveBeenCalled()
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    }
+  )
+
   it.each(['download', 'Job Status'])(
     'keeps %s links opaque and client-owned',
     async (relation) => {

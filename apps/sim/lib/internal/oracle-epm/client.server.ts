@@ -551,6 +551,8 @@ export function createOracleEpmClient(input: {
     ) {
       const policy = getOracleEpmReturnedLinkPolicy(policyValue)
       if (
+        typeof link !== 'object' ||
+        link === null ||
         link.rel !== policy.relation ||
         (link.method !== undefined && link.method !== policy.method) ||
         typeof link.href !== 'string' ||
