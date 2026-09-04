@@ -3,19 +3,20 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  CLOSED_OPEN_SHARING,
   type DrivePermission,
-  domainGroupId,
   driveFileAcl,
   type OpenSharingPolicy,
 } from '@/lib/knowledge/access/drive-permissions'
+import { domainGroupId } from '@/lib/knowledge/access/external-groups'
 import { ACCESS_TOKEN_PATTERN } from '@/lib/knowledge/access/tokens'
 
 const PROVIDER = 'google-drive'
 const TENANT = 'C01abcdef'
 const OPEN: OpenSharingPolicy = { domain: true, anyone: true }
 
-function acl(permissions: DrivePermission[], policy = CLOSED_OPEN_SHARING) {
+const CLOSED_OPEN_SHARING = { domain: false, anyone: false } as const
+
+function acl(permissions: DrivePermission[], policy: OpenSharingPolicy = CLOSED_OPEN_SHARING) {
   return driveFileAcl({ permissions, providerId: PROVIDER, tenantId: TENANT, policy })
 }
 

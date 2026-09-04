@@ -24,7 +24,7 @@ interface ConnectorAccessFieldProps {
   onChange: (value: ConnectorAccessSelection) => void
   /** From `useConnectorMemberGroupOptions`; shared with the modal so both agree on what is required. */
   groupOptions: ConnectorMemberGroupOptions
-  /** Only an admin may put a connector into members mode. */
+  /** Only an admin may move a connector out of workspace mode. */
   canAdmin: boolean
   disabled?: boolean
   /** Whether per-member access may be chosen; false leaves only the way back to workspace access. */
@@ -60,12 +60,15 @@ function accessHint(input: {
 }
 
 /**
- * The Access section of a connector's settings: sync as the workspace, or
- * crawl once per member so each person sees only what the source lets them
- * read. Per-member access needs nothing from the admin: a Credential Group is
- * found or created for the connector's provider, everyone in the workspace is
+ * The Access section of a connector's settings: sync as the workspace; crawl
+ * once per member so each person sees only what the source lets them read; or
+ * crawl once as an administrator and mirror each document's own permissions.
+ * Per-member access needs nothing from the admin: a Credential Group is found
+ * or created for the connector's provider, everyone in the workspace is
  * invited, and each person connects their own account. Only a workspace with
- * several matching groups is asked which one to use.
+ * several matching groups is asked which one to use. Administrator access
+ * needs a connector that can read the source's permissions, and the
+ * administrator it crawls as is part of the connector's own config.
  */
 export function ConnectorAccessField({
   connectorConfig,

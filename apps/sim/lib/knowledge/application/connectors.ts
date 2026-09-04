@@ -36,7 +36,10 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
-import { resolveConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
+import {
+  resolveConnectorAccessToken,
+  syncContextForToken,
+} from '@/lib/knowledge/connectors/access-token'
 import {
   resolveViewerConnectorMemberships,
   type ViewerConnectorMembership,
@@ -325,7 +328,11 @@ async function validateConnectorSourceConfig(input: {
     }
   }
 
-  const validation = await connectorConfig.validateConfig(resolved.accessToken, input.sourceConfig)
+  const validation = await connectorConfig.validateConfig(
+    resolved.accessToken,
+    input.sourceConfig,
+    syncContextForToken(resolved)
+  )
   return validation.valid
     ? null
     : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }

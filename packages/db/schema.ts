@@ -5054,7 +5054,12 @@ export const knowledgeExternalGroupMember = pgTable(
   'knowledge_external_group_member',
   {
     groupId: text('group_id').notNull(),
-    /** Case-folded, matching `lower(btrim(user.email))`. */
+    /**
+     * Case-folded, matching `lower(btrim(user.email))`. A row may also be the
+     * wildcard `*@<domain>`, standing for everyone at that domain; readers
+     * match it by their own address's domain. Never list this column as
+     * people without accounting for the wildcard.
+     */
     email: text('email').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

@@ -8,7 +8,7 @@ import {
   foldedEmail,
   user,
 } from '@sim/db/schema'
-import { and, asc, eq, gt, inArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, or, type SQL } from 'drizzle-orm'
 import {
   getCredentialGroupProviderId,
   isCredentialGroupProvider,

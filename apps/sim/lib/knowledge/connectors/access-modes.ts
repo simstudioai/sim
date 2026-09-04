@@ -34,7 +34,11 @@ export function isConnectorAccessMode(value: string): value is ConnectorAccessMo
  */
 export const CONTENT_ENGINE_ACCESS_MODES = ['workspace', 'admin'] as const
 
-export function isContentEngineAccessMode(accessMode: string): boolean {
+export type ContentEngineAccessMode = (typeof CONTENT_ENGINE_ACCESS_MODES)[number]
+
+export function isContentEngineAccessMode(
+  accessMode: string
+): accessMode is ContentEngineAccessMode {
   return CONTENT_ENGINE_ACCESS_MODES.some((mode) => mode === accessMode)
 }
 
@@ -44,7 +48,7 @@ export function isContentEngineAccessMode(accessMode: string): boolean {
  * same set as the content engine's: a members-mode connector crawls with its
  * members' credentials and holds none itself.
  */
-export function isCredentialBackedAccessMode(accessMode: string): boolean {
+export function isCredentialBackedAccessMode(accessMode: ConnectorAccessMode): boolean {
   return isContentEngineAccessMode(accessMode)
 }
 
@@ -67,7 +71,7 @@ export function aclIsDerived(access: SyncDocumentAccess): boolean {
 }
 
 /** How a content-engine run's writes decide who may read what they store. */
-export function documentAccessForMode(accessMode: string): SyncDocumentAccess {
+export function documentAccessForMode(accessMode: ContentEngineAccessMode): SyncDocumentAccess {
   return accessMode === 'admin' ? 'admin' : 'workspace'
 }
 
@@ -83,6 +87,6 @@ export function documentAccessForMode(accessMode: string): SyncDocumentAccess {
  * everything costs metadata pages only; content is still hydrated by hash, so
  * unchanged documents are never re-fetched or re-embedded.
  */
-export function requiresFullListing(accessMode: string): boolean {
+export function requiresFullListing(accessMode: ContentEngineAccessMode): boolean {
   return accessMode === 'admin'
 }

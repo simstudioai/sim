@@ -204,7 +204,7 @@ export const knowledgeBaseDataSchema = z
     folderId: z.string().nullable(),
     docCount: z.number().optional(),
     connectorTypes: z.array(z.string()).optional(),
-    hasMemberScopedConnector: z.boolean().optional(),
+    hasPermissionScopedConnector: z.boolean().optional(),
   })
   .passthrough()
 export type KnowledgeBaseData = z.output<typeof knowledgeBaseDataSchema>

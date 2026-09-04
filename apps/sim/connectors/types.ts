@@ -391,10 +391,15 @@ export interface ConnectorConfig extends ConnectorMeta {
     syncContext?: Record<string, unknown>
   ) => Promise<ExternalDocument | null>
 
-  /** Validate that sourceConfig is correct and accessible (called on save) */
+  /**
+   * Validate that sourceConfig is correct and accessible (called on save).
+   * `syncContext` is seeded the same way a run's is, so a connector that
+   * reads its site from the credential need not rediscover it here.
+   */
   validateConfig: (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ) => Promise<{ valid: boolean; error?: string }>
 
   /**

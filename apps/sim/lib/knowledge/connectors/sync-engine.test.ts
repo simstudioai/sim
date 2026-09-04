@@ -3257,7 +3257,7 @@ describe('executeSync heartbeats during the listing phase', () => {
     queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
     // The lock CAS; every later `.returning()` falls through to the empty default,
     // which is what makes the heartbeat below report a lost lock.
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1', accessMode: 'workspace' }])
   }
 
   it('beats between pages and abandons the run when the lock was reclaimed', async () => {
@@ -3579,7 +3579,7 @@ describe('executeSync hard-delete reconciliation', () => {
     const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
     primeReconciliation()
     vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1', accessMode: 'workspace' }])
 
     await executeSync('c-1', {
       billingAttribution: { workspaceId: 'ws-1' } as never,
@@ -3733,7 +3733,7 @@ describe('executeSync terminal exits under a lost lock', () => {
   function primeLockedRun() {
     queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
     queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1', accessMode: 'workspace' }])
   }
 
   it('skips the success state write when the terminal knowledge-base lock is refused', async () => {

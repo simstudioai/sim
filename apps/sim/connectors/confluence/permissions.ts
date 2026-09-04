@@ -22,12 +22,26 @@ function apiBase(cloudId: string): string {
   return `https://api.atlassian.com/ex/confluence/${cloudId}/wiki`
 }
 
-/** A GET with the same transient-error retry every other Confluence call gets. */
-async function getJson<T>(url: string, accessToken: string): Promise<T> {
+/**
+ * A GET with the same transient-error retry every other Confluence call gets.
+ * With `allowNotFound`, a 404 resolves to null instead of throwing.
+ */
+async function getJson<T>(url: string, accessToken: string): Promise<T>
+async function getJson<T>(
+  url: string,
+  accessToken: string,
+  options: { allowNotFound: true }
+): Promise<T | null>
+async function getJson<T>(
+  url: string,
+  accessToken: string,
+  options?: { allowNotFound: true }
+): Promise<T | null> {
   const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   })
+  if (response.status === 404 && options?.allowNotFound) return null
   if (!response.ok) {
     throw new Error(`Confluence request failed: ${response.status} ${response.statusText}`)
   }
@@ -79,7 +93,7 @@ async function drainV1<T>(url: string, accessToken: string, what: string): Promi
     const results = body.results ?? []
     items.push(...results)
     if (!body._links?.next || results.length === 0) return items
-    start += body.size ?? results.length
+    start += body.size || results.length
   }
   throw new Error(`Confluence ${what} exceeded ${MAX_PAGES} pages`)
 }
@@ -249,19 +263,12 @@ export async function describeContent(
 ): Promise<{ spaceId: string; contentType: 'page' | 'blogpost' } | null> {
   for (const contentType of ['page', 'blogpost'] as const) {
     const collection = contentType === 'page' ? 'pages' : 'blogposts'
-    const response = await fetchWithRetry(
+    const body = await getJson<{ spaceId?: string | number }>(
       `${apiBase(cloudId)}/api/v2/${collection}/${encodeURIComponent(contentId)}`,
-      {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-      }
+      accessToken,
+      { allowNotFound: true }
     )
-    if (response.status === 404) continue
-    if (!response.ok) {
-      throw new Error(`Confluence request failed: ${response.status} ${response.statusText}`)
-    }
-    const body = (await response.json()) as { spaceId?: string | number }
-    if (body.spaceId !== undefined) return { spaceId: String(body.spaceId), contentType }
+    if (body?.spaceId !== undefined) return { spaceId: String(body.spaceId), contentType }
   }
   return null
 }
@@ -322,7 +329,7 @@ export async function resolveUserEmails(
 }
 
 /** Every group on the site, by the id its permissions and restrictions name. */
-export async function listSiteGroups(
+async function listSiteGroups(
   cloudId: string,
   accessToken: string
 ): Promise<ConnectorDirectoryGroup[]> {
@@ -360,7 +367,7 @@ export async function listGroupMemberEmails(
     accessToken,
     'group membership'
   )
-  const accountIds = [...new Set(members.map((m) => m.accountId).filter(Boolean) as string[])]
+  const accountIds = [...new Set(members.flatMap((m) => (m.accountId ? [m.accountId] : [])))]
   const emails = await resolveUserEmails(cloudId, accessToken, accountIds)
   return {
     group,

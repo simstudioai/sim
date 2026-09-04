@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ConnectorDirectorySyncSchedulerAPI')
 
-/** Directories dispatched per tick. */
+/** Connectors offered per tick. */
 const MAX_DIRECTORIES_PER_TICK = 200
 
 /**
@@ -26,11 +26,13 @@ const MAX_DIRECTORIES_PER_TICK = 200
  * admin crawl refreshes the directory too — so a crawl can never publish grants
  * against membership nobody has read — but that is a floor, not the cadence.
  *
- * Connectors sharing a directory cost one refresh between them: the tick
- * dispatches one connector per workspace and provider, and
- * `syncExternalDirectoryGroups` decides whether that directory is actually
- * due. The walk itself runs in the background, like every other connector
- * job, because a large domain takes longer than a scheduler request lives.
+ * Every eligible connector is offered each tick, and
+ * `syncExternalDirectoryGroups` decides whether its directory is actually due:
+ * a tenant is the credential's own site or domain, which the row does not
+ * carry, so connectors sharing one cost a refresh and a skip rather than a
+ * refresh each. The walk itself runs in the background, like every other
+ * connector job, because a large domain takes longer than a scheduler request
+ * lives.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -41,11 +43,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   if (authError) return authError
 
   const connectors = await db
-    .select({
-      id: knowledgeConnector.id,
-      connectorType: knowledgeConnector.connectorType,
-      workspaceId: knowledgeBase.workspaceId,
-    })
+    .select({ id: knowledgeConnector.id })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
     .where(
@@ -54,27 +52,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
-        isNull(knowledgeBase.deletedAt)
+        isNull(knowledgeBase.deletedAt),
+        isNotNull(knowledgeBase.workspaceId)
       )
     )
     .orderBy(asc(knowledgeConnector.createdAt))
-
-  /**
-   * One connector per directory. A connector type implies its provider, and
-   * two connectors of one type in one workspace share a directory by
-   * construction — the first to be created stands for it.
-   */
-  const representatives = new Map<string, string>()
-  for (const connector of connectors) {
-    if (!connector.workspaceId) continue
-    const key = `${connector.workspaceId}:${connector.connectorType}`
-    if (!representatives.has(key)) representatives.set(key, connector.id)
-  }
-  const due = [...representatives.values()].slice(0, MAX_DIRECTORIES_PER_TICK)
+    .limit(MAX_DIRECTORIES_PER_TICK)
 
   let dispatched = 0
   let failed = 0
-  for (const connectorId of due) {
+  for (const { id: connectorId } of connectors) {
     try {
       await dispatchDirectorySync(connectorId, { requestId, tickAt })
       dispatched += 1
@@ -87,7 +74,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
   }
 
-  const summary = { considered: connectors.length, directories: due.length, dispatched, failed }
+  const summary = { considered: connectors.length, dispatched, failed }
   logger.info(`[${requestId}] Connector directory sync scheduler finished`, summary)
   return Response.json({ success: true, ...summary })
 })

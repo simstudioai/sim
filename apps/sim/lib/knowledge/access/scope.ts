@@ -71,7 +71,8 @@ const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
  */
 async function loadExternalGroupTokens(email: string, workspaceId: string): Promise<string[]> {
   /**
-   * A query of its own rather than a fourth join on the credential query above:
+   * A query of its own rather than a fourth join on the credential query in
+   * `loadUserAccessTokens`:
    * that one already fans out per managed credential, and joining groups onto
    * it would multiply the two — every credential row repeated for every group.
    * Two indexed reads cost less than one cross product.

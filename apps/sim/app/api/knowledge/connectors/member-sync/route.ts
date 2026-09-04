@@ -20,6 +20,7 @@ import {
   MAX_CONSECUTIVE_FAILURES,
   MEMBER_SYNC_STALE_LOCK_TTL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
+import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 
 export const dynamic = 'force-dynamic'
 
@@ -168,7 +169,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(
         and(
           eq(knowledgeConnector.accessMode, 'members'),
-          inArray(knowledgeConnector.status, ['active', 'error']),
+          inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
           inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
           lte(knowledgeConnector.nextMemberSyncAt, now),
           isNull(knowledgeConnector.archivedAt),

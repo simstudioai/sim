@@ -830,6 +830,10 @@ export async function executeSync(
    * and conflicts instead of letting this worker process stale configuration.
    */
   const connector = lockResult[0]
+  /** The lock CAS only takes a content-engine row; this is the type's word for the same fact. */
+  if (!isContentEngineAccessMode(connector.accessMode)) {
+    throw new Error(`Connector ${connectorId} left the content engine's modes while locked`)
+  }
   const mirrorsSourceAcls = connector.accessMode === 'admin'
   /**
    * A listing cap has no meaning once every document's visibility is its
@@ -1028,10 +1032,15 @@ export async function executeSync(
        */
       syncContext.listingCapped = true
       syncContext.listingTruncated = true
-      logger.warn('Pagination ended before source exhaustion; skipping deletion reconciliation', {
-        connectorId,
-        docsSoFar: externalDocs.length,
-      })
+      logger.warn(
+        mirrorsSourceAcls
+          ? 'Pagination ended before source exhaustion; skipping deletion reconciliation and hiding the unlisted rest of the corpus'
+          : 'Pagination ended before source exhaustion; skipping deletion reconciliation',
+        {
+          connectorId,
+          docsSoFar: externalDocs.length,
+        }
+      )
     }
 
     logger.info(`Fetched ${externalDocs.length} documents from ${connectorConfig.name}`, {

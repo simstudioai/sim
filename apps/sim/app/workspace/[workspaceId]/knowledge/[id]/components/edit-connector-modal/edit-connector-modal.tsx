@@ -20,10 +20,8 @@ import {
 import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import {
-  type ConnectorAccessMode,
-  isCredentialBackedAccessMode,
-} from '@/lib/knowledge/connectors/access-modes'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import { isCredentialBackedAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import {
   ConnectorAccessField,

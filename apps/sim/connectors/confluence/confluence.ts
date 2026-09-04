@@ -679,7 +679,8 @@ export const confluenceConnector: ConnectorConfig = {
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const domain = sourceConfig.domain as string
     const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
@@ -694,7 +695,11 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const cloudId = await getConfluenceCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
+      const seededCloudId = syncContext?.cloudId
+      const cloudId =
+        typeof seededCloudId === 'string' && seededCloudId
+          ? seededCloudId
+          : await getConfluenceCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
       const params = new URLSearchParams()
       for (const key of spaceKeys) params.append('keys', key)
       params.append('limit', String(Math.max(spaceKeys.length, 1)))

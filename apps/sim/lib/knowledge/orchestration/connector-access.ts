@@ -478,9 +478,9 @@ export async function performUpdateKnowledgeConnectorAccess(
     /**
      * Where the flip sits relative to the rewrite follows from which way the
      * entry ACL moves. Entering a mode that hides on entry (admin) rewrites
-     * *before* the flip, as the members path does: an interruption leaves a
-     * workspace-mode connector with some documents hidden, which its next
-     * content sync restores. Entering workspace mode, which shows on entry,
+     * *before* the flip, as the members path does: an interruption leaves the
+     * connector in the mode it came from with some documents hidden, which
+     * that mode's next run restores. Entering workspace mode, which shows on entry,
      * rewrites *after* the flip, so no document is shown under the mode it is
      * leaving. Either way, documents are hidden until the rewrite lands, never
      * shown under the wrong mode, and a rewrite that outgrows the request

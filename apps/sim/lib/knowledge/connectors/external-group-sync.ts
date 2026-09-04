@@ -28,7 +28,7 @@ const logger = createLogger('ExternalGroupSync')
 /** Member rows written per statement while replacing a group's membership. */
 const MEMBER_WRITE_BATCH_SIZE = 500
 
-export interface DirectorySyncResult {
+interface DirectorySyncResult {
   /** Groups whose membership was replaced from a complete enumeration. */
   refreshed: number
   /** Groups left on their previous membership because this run could not read them in full. */
@@ -284,7 +284,7 @@ export async function refreshMirroredDirectory(input: {
   }
 }
 
-export type ConnectorDirectoryRefreshOutcome = 'refreshed' | 'skipped' | 'unusable'
+type ConnectorDirectoryRefreshOutcome = 'refreshed' | 'skipped' | 'unusable'
 
 /**
  * Refreshes the directory one admin-mode connector mirrors, from its row.

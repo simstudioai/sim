@@ -66,6 +66,9 @@ export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
   )
 }
 
+/** Connector statuses a scheduler may start an automatic run from. */
+export const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
 /**
  * The statuses a run may take the lock from.
  *
@@ -77,9 +80,6 @@ export function holdsSyncLockToken(connectorId: string, syncLockToken: string) {
  * belongs — the dispatch-side guards cannot see a status change that happens
  * after they ran.
  */
-/** Connector statuses an automatic run may start from. */
-export const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
-
 export const LOCKABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending'] as const
 
 /**

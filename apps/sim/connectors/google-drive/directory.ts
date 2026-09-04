@@ -1,8 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
-import { domainGroupId, domainOfGroupId } from '@/lib/knowledge/access/drive-permissions'
-import { domainMemberWildcard } from '@/lib/knowledge/access/external-groups'
+import {
+  domainGroupId,
+  domainMemberWildcard,
+  domainOfGroupId,
+  emailDomain,
+  normalizeDomain,
+} from '@/lib/knowledge/access/external-groups'
 import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
+import { drainGooglePagedList } from '@/lib/oauth/google-pagination'
 import { fetchGoogleDriveWithRetry } from '@/connectors/google-drive/google-drive-errors'
 import type {
   ConnectorDirectory,
@@ -39,20 +45,18 @@ const MAX_GROUP_NESTING_DEPTH = 10
  */
 export function googleWorkspaceDomain(adminEmail: unknown): string | undefined {
   if (typeof adminEmail !== 'string') return undefined
-  const domain = normalizeEmail(adminEmail).split('@')[1]
-  return domain || undefined
+  return emailDomain(normalizeEmail(adminEmail)) || undefined
 }
 
-interface DirectoryListResponse<T> {
-  nextPageToken?: string
-  items?: T[]
-}
-
-async function getJson<T>(url: string, accessToken: string): Promise<T> {
-  const response = await fetchGoogleDriveWithRetry(url, {
+function directoryFetch(url: string, accessToken: string): Promise<Response> {
+  return fetchGoogleDriveWithRetry(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   })
+}
+
+async function getJson<T>(url: string, accessToken: string): Promise<T> {
+  const response = await directoryFetch(url, accessToken)
   return (await response.json()) as T
 }
 
@@ -70,23 +74,23 @@ async function listAll<T>(
   itemsKey: 'groups' | 'members',
   params: Record<string, string>
 ): Promise<T[]> {
-  const items: T[] = []
-  let pageToken: string | undefined
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const query = new URLSearchParams({ ...params, maxResults: String(PAGE_SIZE) })
-    if (pageToken) query.set('pageToken', pageToken)
-
-    const body = await getJson<DirectoryListResponse<T> & Record<string, unknown>>(
-      `${url}?${query.toString()}`,
-      accessToken
-    )
-    const pageItems = (body[itemsKey] as T[] | undefined) ?? []
-    items.push(...pageItems)
-
-    pageToken = body.nextPageToken
-    if (!pageToken) return items
+  const { items, truncated } = await drainGooglePagedList<T, Record<string, unknown>>({
+    buildUrl: (pageToken) => {
+      const query = new URLSearchParams({ ...params, maxResults: String(PAGE_SIZE) })
+      if (pageToken) query.set('pageToken', pageToken)
+      return `${url}?${query.toString()}`
+    },
+    fetch: (pageUrl) => directoryFetch(pageUrl, accessToken),
+    parseError: (response) => response.json().catch(() => null),
+    getItems: (body) => body[itemsKey] as T[] | undefined,
+    getNextPageToken: (body) => body.nextPageToken as string | undefined,
+    maxPages: MAX_PAGES,
+    label: `Google Directory ${itemsKey}`,
+  })
+  if (truncated) {
+    throw new Error(`Google Directory listing exceeded ${MAX_PAGES} pages (${itemsKey})`)
   }
-  throw new Error(`Google Directory listing exceeded ${MAX_PAGES} pages (${itemsKey})`)
+  return items
 }
 
 interface RawGroup {
@@ -112,16 +116,16 @@ interface RawDomain {
  * is the domain wildcard. The customer's domains are the one thing here read
  * without pagination: the endpoint returns them all at once.
  */
-export async function listCustomerDomains(accessToken: string): Promise<string[]> {
+async function listCustomerDomains(accessToken: string): Promise<string[]> {
   const body = await getJson<{ domains?: RawDomain[] }>(
     `${DIRECTORY_BASE}/customer/my_customer/domains`,
     accessToken
   )
   const domains = new Set<string>()
   for (const domain of body.domains ?? []) {
-    if (domain.domainName) domains.add(normalizeEmail(domain.domainName))
+    if (domain.domainName) domains.add(normalizeDomain(domain.domainName))
     for (const alias of domain.domainAliases ?? []) {
-      if (alias.domainAliasName) domains.add(normalizeEmail(alias.domainAliasName))
+      if (alias.domainAliasName) domains.add(normalizeDomain(alias.domainAliasName))
     }
   }
   return [...domains].filter(Boolean)

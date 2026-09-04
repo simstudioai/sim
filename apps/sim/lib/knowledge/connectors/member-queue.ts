@@ -20,6 +20,7 @@ import {
 import {
   connectorIsLive,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+  RUNNABLE_CONNECTOR_STATUSES,
 } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
@@ -369,7 +370,7 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
         isNull(knowledgeBase.deletedAt),
         eq(knowledgeConnector.accessMode, 'members'),
         eq(knowledgeConnector.credentialGroupOptionId, input.credentialGroupOptionId),
-        inArray(knowledgeConnector.status, ['active', 'error']),
+        inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt)
       )

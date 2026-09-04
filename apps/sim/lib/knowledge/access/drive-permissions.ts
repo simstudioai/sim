@@ -1,4 +1,4 @@
-import { normalizeEmail } from '@sim/utils/string'
+import { domainGroupId } from '@/lib/knowledge/access/external-groups'
 import { groupToken, sortAccessTokens, userToken } from '@/lib/knowledge/access/tokens'
 import { LINK_ACCESS_TOKEN, PUBLIC_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 
@@ -36,30 +36,6 @@ export interface OpenSharingPolicy {
   domain: boolean
   /** Grant a discoverable `anyone` share to everyone. */
   anyone: boolean
-}
-
-export const CLOSED_OPEN_SHARING: OpenSharingPolicy = Object.freeze({
-  domain: false,
-  anyone: false,
-})
-
-/**
- * The synthetic group standing for "everyone in this domain".
- *
- * Onyx's `build_domain_group_id`, kept because it makes a domain share an
- * ordinary group grant: one token shape at the read side, and membership
- * decided by the reader's own email domain rather than a second predicate.
- */
-export function domainGroupId(domain: string): string {
-  return `${DOMAIN_GROUP_PREFIX}${normalizeEmail(domain)}`
-}
-
-const DOMAIN_GROUP_PREFIX = 'domain:'
-
-/** The domain a synthetic domain group stands for, or null for a real group. */
-export function domainOfGroupId(groupId: string): string | null {
-  if (!groupId.startsWith(DOMAIN_GROUP_PREFIX)) return null
-  return groupId.slice(DOMAIN_GROUP_PREFIX.length) || null
 }
 
 export interface DriveAclInput {

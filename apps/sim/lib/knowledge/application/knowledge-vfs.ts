@@ -61,7 +61,7 @@ async function resolveKnowledgeBaseByVfsName(
   context: KnowledgeWorkspaceContext,
   sourceName: string,
   sourceSegments?: string[]
-): Promise<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>> {
+): Promise<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>> {
   if (sourceSegments && sourceSegments.length > 1) {
     const row = await resolveResourceRowBySegments(
       knowledgeVfsAdapter,

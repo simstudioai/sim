@@ -521,7 +521,7 @@ async function listFilePermissions(
 
 /**
  * The ACLs of files whose listing could not describe them — every file on a
- * shared drive, and any whose inline permissions were incomplete.
+ * shared drive, whose listing carries no permissions at all.
  *
  * A file whose permissions cannot be read is omitted, which leaves it readable
  * by nobody until a run can read them: the failure is logged per file and the
