@@ -12,22 +12,23 @@ import { OAuthTokenError, refreshTokens } from './oauth-flow'
 /**
  * Bounded well under the credentials lock's stale window: a hung authorization
  * server must not hold the lock long enough for another process to reclaim it
- * and refresh in parallel, which is what reuse detection would kill the whole
- * session for.
+ * and race the same single-use refresh token.
  */
 const REFRESH_TIMEOUT_MS = 10 * 1000
 
 /**
  * Renews a stored OAuth login and persists the rotated pair.
  *
- * Under the credentials lock, because the refresh token is single-use and a
- * parallel `sim` that presented it second would get the whole session revoked.
- * After taking the lock the file is read again: if another process already
- * rotated the token, its result is adopted and no request is made.
+ * Under the credentials lock because the refresh token is single-use and two
+ * local processes must not race it. After taking the lock the file is read
+ * again: if another process already rotated the token, its result is adopted
+ * and no request is made. This coordinates trusted local processes; detecting
+ * and containing a copied token remains the authorization server's job.
  *
  * `invalid_grant` means the server no longer honours the refresh token — it
  * was revoked from Settings → Authorized apps, expired, or was already rotated
- * by a process this one could not see — and the only remedy is a new login.
+ * by a process this one could not see — and the remedy is logout followed by a
+ * new login.
  */
 export async function refreshStoredOAuth(
   profile: Pick<ResolvedProfile, 'name' | 'endpoint' | 'authProfile'>,
