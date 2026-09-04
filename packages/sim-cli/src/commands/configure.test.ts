@@ -81,7 +81,7 @@ describe('configure --set-endpoint', () => {
 
   it('refuses to set an endpoint locally on a shared workspace profile', async () => {
     writeConfigProfile('default', { endpoint: 'https://sim.example' })
-    writeCredentialsProfile('default', 'stored-key')
+    writeCredentialsProfile('default', { kind: 'api_key', apiKey: 'stored-key' })
     writeConfigProfile('acme', { auth_profile: 'default', workspace: 'ws_acme' })
     mocks.profileName = 'acme'
 

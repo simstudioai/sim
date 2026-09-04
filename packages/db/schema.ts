@@ -19,6 +19,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   vector,
@@ -3885,6 +3886,146 @@ export const ssoDomain = pgTable(
     verifiedDomainUnique: uniqueIndex('sso_domain_verified_unique')
       .on(table.domain)
       .where(sql`status = 'verified'`),
+  })
+)
+
+/**
+ * OAuth 2.1 provider tables (Better Auth `@better-auth/oauth-provider`).
+ *
+ * Sim is the authorization server: a registered client (the Sim CLI, or an
+ * admin-created third-party app) sends a user through `/api/auth/oauth2/authorize`,
+ * the user consents, and the client redeems a code for an opaque access token and
+ * a rotating refresh token. Tokens are stored hashed; the plaintext exists only in
+ * the client. Column keys follow the plugin's model fields so the Better Auth
+ * drizzle adapter maps them without a per-field `fieldName` override.
+ */
+export const oauthClient = pgTable(
+  'oauth_client',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull().unique(),
+    clientSecret: text('client_secret'),
+    disabled: boolean('disabled').notNull().default(false),
+    skipConsent: boolean('skip_consent'),
+    enableEndSession: boolean('enable_end_session'),
+    subjectType: text('subject_type'),
+    scopes: text('scopes').array(),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at'),
+    updatedAt: timestamp('updated_at'),
+    name: text('name'),
+    uri: text('uri'),
+    icon: text('icon'),
+    contacts: text('contacts').array(),
+    tos: text('tos'),
+    policy: text('policy'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    softwareStatement: text('software_statement'),
+    redirectUris: text('redirect_uris').array().notNull(),
+    postLogoutRedirectUris: text('post_logout_redirect_uris').array(),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    grantTypes: text('grant_types').array(),
+    responseTypes: text('response_types').array(),
+    public: boolean('public'),
+    type: text('type'),
+    requirePKCE: boolean('require_pkce'),
+    referenceId: text('reference_id'),
+    metadata: jsonb('metadata'),
+  },
+  (table) => ({
+    userIdIdx: index('oauth_client_user_id_idx').on(table.userId),
+  })
+)
+
+/** A rotating refresh token; `revoked` is set when it is rotated or revoked. */
+export const oauthRefreshToken = pgTable(
+  'oauth_refresh_token',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    revoked: timestamp('revoked'),
+    authTime: timestamp('auth_time'),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_refresh_token_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_refresh_token_session_id_idx').on(table.sessionId),
+    userClientIdx: index('oauth_refresh_token_user_client_idx').on(table.userId, table.clientId),
+    /** Drives the cleanup pass; nothing else reads tokens by expiry. */
+    expiresAtIdx: index('oauth_refresh_token_expires_at_idx').on(table.expiresAt),
+  })
+)
+
+/** An opaque access token, looked up by hash on every bearer-authenticated request. */
+export const oauthAccessToken = pgTable(
+  'oauth_access_token',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    refreshId: text('refresh_id').references(() => oauthRefreshToken.id, {
+      onDelete: 'cascade',
+    }),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_access_token_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_access_token_session_id_idx').on(table.sessionId),
+    refreshIdIdx: index('oauth_access_token_refresh_id_idx').on(table.refreshId),
+    userClientIdx: index('oauth_access_token_user_client_idx').on(table.userId, table.clientId),
+    /** Drives the cleanup pass; nothing else reads tokens by expiry. */
+    expiresAtIdx: index('oauth_access_token_expires_at_idx').on(table.expiresAt),
+  })
+)
+
+/** The scopes a user has granted a client; deleted when the user revokes the app. */
+export const oauthConsent = pgTable(
+  'oauth_consent',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    scopes: text('scopes').array().notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_consent_client_id_idx').on(table.clientId),
+    /**
+     * One grant per (user, client, reference). The plugin records consent with
+     * a non-atomic read-then-create, so two concurrent authorizations for the
+     * same pair would otherwise write two rows — the app would appear twice in
+     * Authorized apps, and the narrower of the two scope sets could win the
+     * next lookup, re-prompting on every login.
+     *
+     * `nullsNotDistinct` because both `user_id` and `reference_id` are
+     * nullable, and Postgres treats NULLs as distinct by default — which would
+     * let exactly the duplicates this exists to prevent through.
+     */
+    userClientUnique: unique('oauth_consent_user_client_reference_unique')
+      .on(table.userId, table.clientId, table.referenceId)
+      .nullsNotDistinct(),
   })
 )
 

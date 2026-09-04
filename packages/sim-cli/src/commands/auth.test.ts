@@ -10,10 +10,22 @@ const mocks = vi.hoisted(() => ({
   listProfiles: vi.fn<() => string[]>(() => []),
   request: vi.fn(),
   readCredentialsProfile: vi.fn<() => Record<string, string>>(() => ({})),
+  discoverOAuthProvider: vi.fn(
+    async () => 'unavailable' as 'available' | 'unavailable' | 'unreachable'
+  ),
+  isLikelyRemoteSession: vi.fn(() => false),
+  loginWithBrowser: vi.fn(async () => ({
+    accessToken: 'sim_oat_access',
+    refreshToken: 'sim_ort_refresh',
+    expiresAt: 1_800_000_000_000,
+    scope: 'openid profile email offline_access api:read api:write',
+  })),
+  revokeToken: vi.fn(async () => undefined),
+  grantsWriteAccess: vi.fn((scope: string) => scope.split(' ').includes('api:write')),
   resolveAuthenticationProfileName: vi.fn((profile: string) => profile),
   pollForKey: vi.fn(async () => ({
     apiKey: 'sim-key',
-    scope: 'platform' as const,
+    scope: 'platform' as 'platform' | 'copilot',
     workspaceBound: false,
     workspaceId: 'ws_1' as string | undefined,
   })),
@@ -25,7 +37,7 @@ const mocks = vi.hoisted(() => ({
     output: 'table',
     sources: {
       endpoint: 'default',
-      apiKey: 'unset',
+      credential: 'unset',
       workspaceId: 'unset',
       output: 'default',
     },
@@ -39,6 +51,20 @@ vi.mock('../auth/device-flow', () => ({
   buildApprovalUrl: mocks.buildApprovalUrl,
   createAuthRequest: mocks.createAuthRequest,
   pollForKey: mocks.pollForKey,
+}))
+/**
+ * Discovery answers "unavailable" unless a test says otherwise, so the suite
+ * below keeps exercising the pairing-code handoff it was written against; the
+ * OAuth-path tests flip it to "available".
+ */
+vi.mock('../auth/oauth-flow', () => ({
+  discoverOAuthProvider: mocks.discoverOAuthProvider,
+  isLikelyRemoteSession: mocks.isLikelyRemoteSession,
+  loginWithBrowser: mocks.loginWithBrowser,
+  revokeToken: mocks.revokeToken,
+  grantsWriteAccess: mocks.grantsWriteAccess,
+  OAUTH_SCOPES_FULL: ['openid', 'profile', 'email', 'offline_access', 'api:read', 'api:write'],
+  OAUTH_SCOPES_READ_ONLY: ['openid', 'profile', 'email', 'offline_access', 'api:read'],
 }))
 /**
  * The validators and the format list come from the real module rather than a
@@ -69,9 +95,30 @@ vi.mock('../config/index', async () => ({
   listAuthenticationDependents: mocks.listAuthenticationDependents,
   listProfiles: mocks.listProfiles,
   readCredentialsProfile: mocks.readCredentialsProfile,
+  /**
+   * Derived from the section mock so a test that seeds `{ api_key }` or the
+   * OAuth keys sees the same credential the shipped reader would.
+   */
+  readStoredCredential: () => {
+    const section = mocks.readCredentialsProfile()
+    if (section.access_token && section.refresh_token) {
+      return {
+        kind: 'oauth',
+        oauth: {
+          accessToken: section.access_token,
+          refreshToken: section.refresh_token,
+          expiresAt: Number(section.token_expires_at ?? 0),
+        },
+      }
+    }
+    return section.api_key ? { kind: 'api_key', apiKey: section.api_key } : null
+  },
   resolveAuthenticationProfileName: mocks.resolveAuthenticationProfileName,
   writeConfigProfile: mocks.writeConfigProfile,
   writeCredentialsProfile: mocks.writeCredentialsProfile,
+  // Pass-through: the real lock is exercised in profile.test.ts; here it only
+  // has to not swallow the writes these tests assert on.
+  withCredentialsLock: <T>(work: () => Promise<T>) => work(),
 }))
 vi.mock('../context', () => ({
   globalsOf: (command: Command) => command.optsWithGlobals(),
@@ -130,7 +177,7 @@ describe('login command', () => {
       output: 'table',
       sources: {
         endpoint: 'default',
-        apiKey: 'unset',
+        credential: 'unset',
         workspaceId: 'unset',
         output: 'default',
       },
@@ -184,7 +231,7 @@ describe('login command', () => {
       output: 'table',
       sources: {
         endpoint: 'config',
-        apiKey: 'credentials',
+        credential: 'credentials',
         workspaceId: 'config',
         output: 'default',
       },
@@ -220,7 +267,7 @@ describe('login command', () => {
     await login()
 
     expect(question).toHaveBeenCalledWith(
-      'Profile "default" already exists. Replace its API key and login defaults? (y/N) '
+      'Profile "default" already exists. Replace its login and defaults? (y/N) '
     )
     expect(close).toHaveBeenCalledOnce()
     expect(mocks.createAuthRequest).toHaveBeenCalledOnce()
@@ -293,7 +340,7 @@ describe('login command', () => {
       workspaceId: 'ws_1',
     })
 
-    await expect(login()).rejects.toThrow('malformed API key')
+    await expect(login()).rejects.toThrow('malformed credential')
 
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
@@ -316,7 +363,7 @@ describe('login command', () => {
       workspaceId: 'ws_1',
     })
 
-    await expect(login()).rejects.toThrow('malformed API key')
+    await expect(login()).rejects.toThrow('malformed credential')
 
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
@@ -332,7 +379,7 @@ describe('login command', () => {
       output: 'table',
       sources: {
         endpoint: 'default',
-        apiKey: 'unset',
+        credential: 'unset',
         workspaceId: 'config',
         output: 'default',
       },
@@ -363,7 +410,7 @@ describe('login command', () => {
       output: 'table',
       sources: {
         endpoint: 'default',
-        apiKey: 'unset',
+        credential: 'unset',
         workspaceId: 'config',
         output: 'default',
       },
@@ -396,7 +443,7 @@ describe('profiles command', () => {
       output: 'table',
       sources: {
         endpoint: 'config',
-        apiKey: 'credentials',
+        credential: 'credentials',
         workspaceId: 'config',
         output: 'default',
       },
@@ -457,7 +504,7 @@ describe('profiles command', () => {
       output: 'table',
       sources: {
         endpoint: 'config',
-        apiKey: 'credentials',
+        credential: 'credentials',
         workspaceId: 'config',
         output: 'default',
       },
@@ -481,14 +528,14 @@ describe('profiles command', () => {
       output: 'table',
       sources: {
         endpoint: 'default',
-        apiKey: 'env',
+        credential: 'env',
         workspaceId: 'unset',
         output: 'default',
       },
     })
 
     await expect(profiles('add', 'acme', '--workspace', 'ws_acme')).rejects.toThrow(
-      'the active API key is not stored'
+      'the active login is not stored'
     )
     expect(mocks.request).not.toHaveBeenCalled()
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
@@ -503,7 +550,7 @@ describe('profiles command', () => {
       output: 'table',
       sources: {
         endpoint: 'env',
-        apiKey: 'credentials',
+        credential: 'credentials',
         workspaceId: 'unset',
         output: 'default',
       },
@@ -630,7 +677,7 @@ describe('profiles command', () => {
       output: 'json',
       sources: {
         endpoint: 'config',
-        apiKey: 'credentials',
+        credential: 'credentials',
         workspaceId: 'config',
         output: 'config',
       },
@@ -655,7 +702,7 @@ describe('profiles command', () => {
       output: 'json',
       sources: {
         endpoint: 'default',
-        apiKey: 'unset',
+        credential: 'unset',
         workspaceId: 'unset',
         output: 'config',
       },
@@ -771,7 +818,7 @@ describe('logout command', () => {
       output: 'table',
       sources: {
         endpoint: 'config',
-        apiKey: 'credentials',
+        credential: 'credentials',
         workspaceId: 'config',
         output: 'default',
       },
@@ -820,7 +867,7 @@ describe('whoami command', () => {
       output: 'text',
       sources: {
         endpoint: 'default',
-        apiKey: 'credentials',
+        credential: 'credentials',
         workspaceId: 'config',
         output: 'flag',
       },
@@ -853,7 +900,7 @@ describe('whoami command', () => {
     await whoami()
 
     const output = vi.mocked(console.log).mock.calls.flat().join('\n')
-    expect(output).toContain('API key\tconfigured (credentials)')
+    expect(output).toContain('Login\tAPI key (credentials)')
     expect(output).not.toContain('sim_super_secret_value')
     expect(output).not.toContain('secret')
   })
@@ -963,7 +1010,7 @@ describe('whoami command', () => {
 
   it('exits 1 when no key is configured', async () => {
     mocks.profileFrom.mockReturnValue(
-      configured({ apiKey: null, sources: { ...configured().sources, apiKey: 'unset' } })
+      configured({ apiKey: null, sources: { ...configured().sources, credential: 'unset' } })
     )
 
     await whoami()
@@ -1021,5 +1068,191 @@ describe('whoami command', () => {
     expect(output).toContain('Key type\tunknown')
     expect(output).toContain('Acme')
     expect(process.exitCode).toBeUndefined()
+  })
+})
+
+describe('login command — OAuth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.listProfiles.mockReturnValue([])
+    mocks.readCredentialsProfile.mockReturnValue({})
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) => profile)
+    mocks.discoverOAuthProvider.mockResolvedValue('available')
+    mocks.isLikelyRemoteSession.mockReturnValue(false)
+    mocks.pollForKey.mockResolvedValue({
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+    })
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: null,
+      workspaceId: null,
+      output: 'table',
+      sources: {
+        endpoint: 'default',
+        credential: 'unset',
+        workspaceId: 'unset',
+        output: 'default',
+      },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    if (originalIsTTY) Object.defineProperty(process.stdin, 'isTTY', originalIsTTY)
+    else Reflect.deleteProperty(process.stdin, 'isTTY')
+  })
+
+  it('signs in through the browser by default and stores the login, not a key', async () => {
+    setInteractive(false)
+    await login()
+
+    expect(mocks.loginWithBrowser).toHaveBeenCalledWith(
+      'https://sim.ai',
+      expect.objectContaining({
+        scopes: ['openid', 'profile', 'email', 'offline_access', 'api:read', 'api:write'],
+      })
+    )
+    expect(mocks.createAuthRequest).not.toHaveBeenCalled()
+    expect(mocks.writeConfigProfile).toHaveBeenCalledWith('default', {
+      endpoint: 'https://sim.ai',
+    })
+    expect(mocks.writeCredentialsProfile).toHaveBeenCalledWith('default', {
+      kind: 'oauth',
+      oauth: {
+        accessToken: 'sim_oat_access',
+        refreshToken: 'sim_ort_refresh',
+        expiresAt: 1_800_000_000_000,
+      },
+    })
+  })
+
+  it('asks only for the read scope under --read-only', async () => {
+    setInteractive(false)
+    await login('--read-only')
+
+    expect(mocks.loginWithBrowser).toHaveBeenCalledWith(
+      'https://sim.ai',
+      expect.objectContaining({
+        scopes: ['openid', 'profile', 'email', 'offline_access', 'api:read'],
+      })
+    )
+  })
+
+  it('pins the loopback port when asked, and refuses an unusable one', async () => {
+    setInteractive(false)
+    await login('--callback-port', '8976')
+    expect(mocks.loginWithBrowser).toHaveBeenCalledWith(
+      'https://sim.ai',
+      expect.objectContaining({ callbackPort: 8976 })
+    )
+
+    await expect(login('--callback-port', '70000')).rejects.toThrow('Invalid --callback-port')
+  })
+
+  it('falls back to the pairing code under --browserless', async () => {
+    setInteractive(false)
+    await login('--browserless')
+
+    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.pollForKey).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to the pairing code in a remote session', async () => {
+    setInteractive(false)
+    mocks.isLikelyRemoteSession.mockReturnValue(true)
+    await login()
+
+    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.pollForKey).toHaveBeenCalledOnce()
+  })
+
+  it('uses the pairing code for a copilot-scope key, which only the handoff mints', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      apiKey: 'sim-key',
+      scope: 'copilot',
+      workspaceBound: false,
+      workspaceId: undefined,
+    })
+    await login('--scope', 'copilot')
+
+    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.discoverOAuthProvider).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unreachable endpoint rather than guessing it lacks the provider', async () => {
+    setInteractive(false)
+    mocks.discoverOAuthProvider.mockResolvedValue('unreachable')
+
+    await expect(login()).rejects.toThrow('Could not reach https://sim.ai')
+    expect(mocks.pollForKey).not.toHaveBeenCalled()
+  })
+
+  it('prompts before replacing a stored OAuth login', async () => {
+    setInteractive(false)
+    mocks.readCredentialsProfile.mockReturnValue({
+      access_token: 'a',
+      refresh_token: 'r',
+      token_expires_at: '1',
+    })
+
+    await expect(login()).rejects.toThrow('Re-run with --yes')
+  })
+})
+
+describe('logout command — OAuth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.listAuthenticationDependents.mockReturnValue([])
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) => profile)
+    mocks.readCredentialsProfile.mockReturnValue({
+      access_token: 'sim_oat_a',
+      refresh_token: 'sim_ort_r',
+      token_expires_at: '1',
+    })
+    mocks.profileFrom.mockReturnValue({
+      name: 'acme',
+      endpoint: 'https://sim.ai',
+      apiKey: null,
+      workspaceId: 'ws_acme',
+      output: 'table',
+      sources: {
+        endpoint: 'config',
+        credential: 'credentials',
+        workspaceId: 'config',
+        output: 'default',
+      },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  it('revokes the refresh token on the server before forgetting it', async () => {
+    const order: string[] = []
+    mocks.revokeToken.mockImplementation(async () => {
+      order.push('revoke')
+    })
+    mocks.writeCredentialsProfile.mockImplementation(() => {
+      order.push('clear')
+    })
+
+    await logout('--profile', 'acme')
+
+    expect(mocks.revokeToken).toHaveBeenCalledWith('https://sim.ai', 'sim_ort_r')
+    expect(order).toEqual(['revoke', 'clear'])
+    expect(mocks.writeCredentialsProfile).toHaveBeenCalledWith('acme', null)
+  })
+
+  it('still clears the machine when the server cannot be reached, and says so', async () => {
+    mocks.revokeToken.mockRejectedValue(new Error('ECONNREFUSED'))
+
+    await logout('--profile', 'acme')
+
+    expect(mocks.writeCredentialsProfile).toHaveBeenCalledWith('acme', null)
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('Could not revoke the login')
   })
 })

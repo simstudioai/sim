@@ -316,6 +316,16 @@ function enterpriseFeatureEnabled(
 }
 
 /**
+ * Is Sim acting as an OAuth 2.1 authorization server: the `/oauth2/*` Better
+ * Auth routes, the consent page, bearer-token acceptance on `/api/v2`, and the
+ * "Authorized apps" settings section. On by default because the seeded Sim CLI
+ * client is the only thing that can use it until an admin registers more;
+ * `OAUTH_PROVIDER_ENABLED=false` is the kill switch. Server-only: the browser
+ * reads it through the deployment shape.
+ */
+export const isOAuthProviderEnabled = !isFalsy(env.OAUTH_PROVIDER_ENABLED)
+
+/**
  * Is SSO enabled for enterprise authentication
  */
 export const isSsoEnabled = enterpriseFeatureEnabled(

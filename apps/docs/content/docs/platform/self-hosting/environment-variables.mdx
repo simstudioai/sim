@@ -123,6 +123,12 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_AUTH` switches are documented in [Authentication](/platform/self-hosting/authentication#social-login).
 
+## Sign in with Sim
+
+| Variable | Description |
+| --- | --- |
+| `OAUTH_PROVIDER_ENABLED` | Set to `false` to switch off Sim's own OAuth 2.1 provider. On by default. With it off, the CLI signs in through the pairing-code handoff instead. See [Authentication](/platform/self-hosting/authentication#sign-in-with-sim) |
+
 ## Integration Credentials
 
 <Callout type="warn">

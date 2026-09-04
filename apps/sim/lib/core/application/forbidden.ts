@@ -64,6 +64,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'PERMISSION_GROUP_CAPABILITY_BLOCKED',
   /** The workspace does not permit the integration the request names. */
   'INTEGRATION_NOT_ALLOWED',
+  /** The OAuth access token was not granted the scope this operation needs. */
+  'INSUFFICIENT_SCOPE',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]
@@ -113,6 +115,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
     "The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.",
   INTEGRATION_NOT_ALLOWED:
     "The integration this request names is outside the workspace's allowed set. An organization admin controls the permission group's integration allowlist, and a self-hosted deployment can narrow it further with ALLOWED_INTEGRATIONS.",
+  INSUFFICIENT_SCOPE:
+    'The OAuth access token was not granted the scope this operation needs. The `WWW-Authenticate` header names the scope; authorize the app again requesting it.',
 }
 
 /**

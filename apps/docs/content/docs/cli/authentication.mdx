@@ -5,8 +5,9 @@ description: Sign in from the terminal, authenticate CI with an API key, and kee
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-The CLI authenticates with a Sim API key. `sim login` mints and stores one; in CI
-you supply one through the environment instead.
+`sim login` signs you in through your browser and stores a short-lived login
+that renews itself and can be revoked at any time. In CI you supply an API key
+through the environment instead.
 
 ## Signing in
 
@@ -14,9 +15,60 @@ you supply one through the environment instead.
 sim login
 ```
 
-The terminal prints a pairing code and a URL:
+The CLI opens your browser on Sim's sign-in page, then on a consent page that
+names the Sim CLI and what it will be able to do. Approve, and the browser hands
+control back to the terminal:
 
 ```
+Signing in to https://www.sim.ai as profile default
+
+https://www.sim.ai/api/auth/oauth2/authorize?client_id=sim-cli&…
+
+Waiting for you to approve in the browser…
+
+✓ Logged in. Login stored in /Users/you/.sim/credentials
+  Renews itself; revoke it any time in Settings → Authorized apps, or with: sim logout
+  No default workspace. Set one with: sim configure --set-workspace <id>
+```
+
+This is OAuth 2.1 with PKCE and a loopback redirect, the same flow the AWS, Google
+Cloud, and Cloudflare CLIs use. The browser only ever carries a one-time code;
+the tokens are exchanged over the terminal's own connection and written to
+`~/.sim/credentials` with `0600` permissions. Access tokens last an hour and are
+renewed automatically from a refresh token, so you sign in once and stay signed
+in until you log out, revoke the login, or go thirty days without using it — the
+refresh token expires then and `sim login` starts a fresh one.
+
+<Callout type="warn">
+Only approve a consent page you reached by running `sim login` yourself. A
+consent page that appears unprompted, or one you were sent a link to, is not
+your login.
+</Callout>
+
+| Option | What it does |
+| --- | --- |
+| `--no-browser` | Print the URL instead of opening a browser |
+| `--browserless` | Use the pairing-code handoff instead (see below) |
+| `--read-only` | Ask only for permission to read, never to change anything |
+| `--callback-port <port>` | Pin the local port the browser returns to, for a container or SSH session that forwards a fixed one |
+| `--scope <scope>` | Key space for the pairing-code handoff. Only `copilot` changes anything, and it forces that flow |
+| `-y, --yes` | Overwrite an existing profile without prompting |
+
+### Over SSH or in a container
+
+The browser login needs your browser to reach a listener on the machine running
+`sim`. When it cannot — an SSH session, a dev container, a remote box — use the
+pairing-code handoff, which the CLI selects automatically in an SSH session:
+
+```bash
+sim login --browserless
+```
+
+The terminal prints a pairing code and a URL you can open on any device:
+
+```
+Signing in to https://www.sim.ai as profile default
+
 Pairing code: K7M2-P9XT
 Confirm this code matches what the browser shows before approving.
 
@@ -27,45 +79,49 @@ Waiting for approval…
   Personal key, defaulting to 2f6d0b1c-8a34-4d92-b7e5-31c8a0f45d67. Override per command with --workspace.
 ```
 
-There is no loopback listener, so this works over SSH and inside containers.
-
 <Callout type="warn">
 Confirm the pairing code in the browser matches the one in your terminal before
 approving. That check is what binds the approval to your terminal.
 </Callout>
 
-| Option | What it does |
-| --- | --- |
-| `--no-browser` | Print the URL instead of opening a browser |
-| `--scope <scope>` | Key space to mint from: `platform` (default) or `copilot` |
-| `-y, --yes` | Overwrite an existing profile without prompting |
+The handoff issues a permanent personal API key rather than a renewing login,
+so revoke it under **Settings → API keys** when you are done with that machine.
+It is also the path for a deployment that predates OAuth sign-in, or one with
+the provider switched off; the CLI detects that and falls back on its own.
+
+`--read-only` and `--callback-port` belong to the browser login and have no
+meaning here, so combining either with the handoff stops the login rather than
+storing a credential you did not ask for. If your SSH session forwards a port
+back to your machine, pass `--callback-port <port>` on its own: naming the port
+tells the CLI the loopback redirect does reach you, and it runs the browser
+login instead of the handoff.
 
 ### Picking a workspace
 
-You choose the workspace on the approval page. `sim login` issues a **personal** key. The workspace you pick becomes the
-profile's default `workspace`; it does **not** restrict the key to that
-workspace. Target another workspace the key can reach with `--workspace`:
-
-```bash
-sim workflows list --workspace 9b4c7e02-1d58-4f36-a0c9-6e2b85df413a
-```
-
-`sim login --workspace <id>` preselects a workspace in the picker, and
-re-logging into an existing profile preselects the one already configured.
-
-To save another workspace without minting or copying another personal key, add
-a workspace profile:
+A login carries the full authority of your account across every workspace you
+belong to, so the profile's `workspace` setting only decides the default target.
+Set it after signing in, or pass `--workspace` per command:
 
 ```bash
 sim workspaces list
+sim configure --set-workspace 2f6d0b1c-8a34-4d92-b7e5-31c8a0f45d67
+sim workflows list --workspace 9b4c7e02-1d58-4f36-a0c9-6e2b85df413a
+```
+
+With the pairing-code handoff you choose the default workspace on the approval
+page instead.
+
+To target another workspace without a second login, add a workspace profile:
+
+```bash
 sim profile add acme --workspace 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
 sim --profile acme whoami
 ```
 
 The new profile stores `auth_profile = default` and its own workspace. Omit
-`--workspace` in an interactive terminal to choose from the workspaces the
-active key can access; scripts must provide the workspace ID explicitly. The
-picker is capped at 1,000 entries and asks for an explicit ID above that.
+`--workspace` in an interactive terminal to choose from the workspaces your
+login can access; scripts must provide the workspace ID explicitly. The picker
+is capped at 1,000 entries and asks for an explicit ID above that.
 
 ## Checking who you are
 
@@ -74,9 +130,10 @@ sim whoami                # resolved settings, plus a live check that they work
 sim whoami --no-verify    # resolved settings only, no request
 ```
 
-Prints the resolved endpoint, workspace, and output format, and which source each
-value came from, then reads the configured workspace to prove the key is accepted
-and can reach it.
+Prints the resolved endpoint, workspace, and output format, which source each
+value came from, and whether the profile holds an OAuth login or an API key,
+then reads the configured workspace to prove the credential is accepted and can
+reach it.
 
 It exits `0` when the check passes, `1` when the credentials are wrong, and `2`
 when the check could not be made at all — no workspace to check against, or an
@@ -86,25 +143,30 @@ logging in again.
 ## Signing out
 
 ```bash
-sim logout           # remove the stored key
+sim logout           # sign out of Sim and remove the stored login
 sim logout --all     # remove the profile entirely, including its settings
 ```
 
-A workspace profile that shares authentication cannot remove the shared key.
+For an OAuth login, `sim logout` revokes the login on the server first, so the
+tokens stop working everywhere, then removes them from disk. You can also revoke
+it from another device under **Settings → Authorized apps**, which signs that
+terminal out on its next request.
+
+A workspace profile that shares authentication cannot remove the shared login.
 Remove only that local profile with `sim logout --all --profile <name>`, or log
 out of the authentication profile named by the error message. Removing an
 authentication profile entirely is refused until its workspace profiles are
 removed, so it cannot leave dangling references.
 
 <Callout type="warn">
-`sim logout` removes the key from disk but does **not** revoke it. Revoke keys in
-Sim under **Settings → API keys**.
+For a login created with `--browserless`, `sim logout` removes the API key from
+disk but does **not** revoke it. Revoke keys under **Settings → API keys**.
 </Callout>
 
 ## Authenticating CI
 
-Set the key and workspace in the environment; the CLI never reads or writes a
-config file:
+Set an API key and workspace in the environment; the CLI never reads or writes
+a config file, and an explicit key outranks any stored login:
 
 ```bash
 export SIM_API_KEY="sim_…"
@@ -148,7 +210,7 @@ sim workflows list --profile dev
 sim workflows list --profile prod
 ```
 
-Use workspace profiles when one personal key should target several workspaces:
+Use workspace profiles when one login should target several workspaces:
 
 ```bash
 sim profile add marketing --workspace c3a70e58-9f21-4d6b-b842-05e7f19c6a3d
@@ -174,21 +236,32 @@ Save it to avoid repeating the flag:
 sim configure --set-endpoint http://localhost:3000 --profile local
 ```
 
-## Where the key is stored
+A self-hosted deployment offers OAuth sign-in by default; set
+`OAUTH_PROVIDER_ENABLED=false` on the server to switch it off, in which case the
+CLI uses the pairing-code handoff.
 
-Keys live in `~/.sim/credentials`, written `0600`, separate from the non-secret
+## Where the login is stored
+
+Logins live in `~/.sim/credentials`, written `0600`, separate from the non-secret
 `~/.sim/config`. Commit `config` to a dotfiles repo if you like; never
 `credentials`.
 
 ```ini title="~/.sim/credentials"
 [default]
-api_key = sim_…
+access_token = sim_oat_…
+refresh_token = sim_ort_…
+token_expires_at = 1788547200000
 
-[dev]
+[ci-box]
 api_key = sim_…
 ```
 
+A profile holds one login: writing an OAuth login replaces a stored key and
+vice versa. Several `sim` commands running at once share one renewal, so a
+parallel shell loop cannot sign itself out.
+
 ## Organization audit logs
 
-`sim audit-logs` requires a **personal** API key — the kind `sim login` issues.
-A workspace-scoped key cannot read organization-level audit logs.
+`sim audit-logs` requires a **personal** credential — an OAuth login, or the
+personal API key `sim login --browserless` issues. A workspace-scoped key cannot
+read organization-level audit logs.

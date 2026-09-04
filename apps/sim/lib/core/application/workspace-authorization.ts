@@ -1,5 +1,7 @@
 import {
   type DelegatedPrincipal,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
   type Principal,
   resolvePrincipalSubject,
 } from '@sim/auth/principal'
@@ -9,6 +11,12 @@ import {
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
+import {
+  OAUTH_API_READ_SCOPE,
+  type OAuthApiScope,
+  oauthScopeSatisfies,
+  SIM_CLI_CLIENT_ID,
+} from '@/lib/auth/oauth-provider'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type {
   PrincipalForOperation,
@@ -41,6 +49,7 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
   switch (principal.kind) {
     case 'session':
     case 'personal_api_key':
+    case 'oauth_access_token':
       return principal.userId
     case 'workspace_api_key':
     case 'system':
@@ -121,6 +130,25 @@ export class DelegatedWorkspaceAuthorizationError extends OrchestrationError {
   constructor() {
     super('forbidden', 'Delegated workspace access is no longer valid')
     this.name = 'DelegatedWorkspaceAuthorizationError'
+  }
+}
+
+export class InsufficientScopeError extends ForbiddenOperationError {
+  constructor(readonly requiredScope: OAuthApiScope) {
+    super('INSUFFICIENT_SCOPE', `This operation requires the ${requiredScope} scope`)
+    this.name = 'InsufficientScopeError'
+  }
+}
+
+/**
+ * Concealed as a `401` by the surface: an expired token is no credential at
+ * all, and the verifier already refuses it, so reaching this means the token
+ * lapsed between authentication and authorization.
+ */
+export class OAuthAccessTokenExpiredError extends OrchestrationError {
+  constructor() {
+    super('unauthorized', 'OAuth access token has expired')
+    this.name = 'OAuthAccessTokenExpiredError'
   }
 }
 
@@ -212,6 +240,40 @@ async function requireCapability(
 }
 
 /**
+ * Refuses a token the Sim CLI holds when the caller's group withholds CLI use.
+ *
+ * permission-group-enforced: cli.use — the consent page enforces it when the
+ * grant is first made, but a consent already on file lets every later
+ * authorization skip the consent endpoint, and a refresh token keeps minting
+ * access tokens for a month. Withdrawing the capability has to stop the
+ * credential in use, not only the next fresh grant, so it is asked again here,
+ * on the request. The group config is request-cached and the personal-key check
+ * that runs just before this one has already read it, so it costs no extra
+ * query.
+ *
+ * Three surfaces authorize themselves instead of entering through the funnel.
+ * Billing and audit-log reads repeat this check at their own call sites, since
+ * both return data a withdrawn capability is meant to cut off. `/api/v2/meta`
+ * does not, and should not: it answers only with facts about the credential
+ * the caller already holds, so there is nothing there to withhold.
+ */
+export async function requireCliAccessAllowed(
+  clientId: string,
+  userId: string,
+  context: WorkspaceAuthorizationContext
+): Promise<void> {
+  if (clientId !== SIM_CLI_CLIENT_ID) return
+  if (context.workspaceOrganizationId === null) return
+
+  await assertWorkspaceCapability(
+    userId,
+    context.workspaceId,
+    'cli.use',
+    context.workspaceOrganizationId
+  )
+}
+
+/**
  * Refuses a personal API key the caller's permission group withholds.
  *
  * Separate from {@link requireCapability} because it is not a property of the
@@ -223,6 +285,24 @@ async function requireCapability(
  * own workspace scope. One copy, or the same key the funnel refuses keeps
  * working somewhere.
  */
+/**
+ * Both capability gates a user-held credential passes, in one call.
+ *
+ * The funnel runs these as part of its sequence, but three surfaces authorize
+ * themselves — billing reads, audit-log reads, and `/api/v2/meta` — and each
+ * has to repeat them. Repeating two separate calls is how one of them ends up
+ * with only the first: `cli.use` was missing from all three until this existed.
+ */
+export async function requireUserCredentialCapabilities(
+  principal: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
+  context: WorkspaceAuthorizationContext
+): Promise<void> {
+  await requirePersonalApiKeysAllowed(principal.userId, context)
+  if (principal.kind === 'oauth_access_token') {
+    await requireCliAccessAllowed(principal.clientId, principal.userId, context)
+  }
+}
+
 export async function requirePersonalApiKeysAllowed(
   userId: string,
   context: WorkspaceAuthorizationContext
@@ -325,6 +405,48 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       await requirePersonalApiKeysAllowed(principal.userId, context)
       await requireCapability(principal.userId, context, operation)
       return
+    /**
+     * An OAuth access token is a personal API key narrowed by scope and bounded
+     * by expiry, so it walks the personal-key sequence above with two checks in
+     * front.
+     *
+     * Expiry first, because a lapsed token is not a credential and the answer
+     * does not depend on anything else. The verifier already refuses one at
+     * authentication, so this catches only a principal that outlived its
+     * token — a persisted workflow-execution principal re-authorized later.
+     *
+     * Then `api:read`, the floor every operation shares: a token granted only
+     * the identity scopes may sign a person in but may not read their
+     * workspaces. Whether an operation additionally needs `api:write` is a
+     * question about the REQUEST, not about the operation — `minimumRole` is a
+     * workspace-role floor, and several operations that change state declare
+     * `read` because their real gate is a resource ACL (setting a secret,
+     * granting a skill editor, running a workflow). Deriving the write
+     * requirement from it would hand a read-only token those writes, so the
+     * v2 surface derives it from the HTTP method instead, where a
+     * state-changing request is state-changing by construction.
+     *
+     * Scope precedes the role check deliberately: it names what the *client*
+     * was granted, not what the workspace or the organization decided, so it
+     * leaks nothing about either — and a client that never asked for API
+     * access should learn that before a role refusal sends its user to an
+     * admin for a permission they may already hold.
+     */
+    case 'oauth_access_token': {
+      if (principal.expiresAt.getTime() <= Date.now()) {
+        throw new OAuthAccessTokenExpiredError()
+      }
+      if (!oauthScopeSatisfies(principal.scopes, OAUTH_API_READ_SCOPE)) {
+        throw new InsufficientScopeError(OAUTH_API_READ_SCOPE)
+      }
+      if (!context.allowPersonalApiKeys) {
+        throw new PersonalApiKeysDisabledError()
+      }
+      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
+      await requireUserCredentialCapabilities(principal, context)
+      await requireCapability(principal.userId, context, operation)
+      return
+    }
     /**
      * A workspace API key authorizes as the workspace, so there is no user and
      * therefore no permission group to resolve — the operation's `capability`

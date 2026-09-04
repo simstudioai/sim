@@ -21,7 +21,13 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
  * deploying rather than a chat surface the caller is configuring.
  */
 const CHAT_DEPLOYMENT_LIST_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 
@@ -37,7 +43,7 @@ const CHAT_DEPLOYMENT_LIST_POLICY = {
  * workspace API keys, which cannot exceed the write ceiling.
  */
 const CHAT_DEPLOYMENT_ADMIN_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
 

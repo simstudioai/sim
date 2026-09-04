@@ -797,3 +797,92 @@ describe('defineV2JsonRoute presentation', () => {
     )
   })
 })
+
+describe('defineV2JsonRoute OAuth scope admission', () => {
+  const oauthAuth = (scopes: readonly string[]) =>
+    ({
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'user-1',
+        clientId: 'sim-cli',
+        tokenId: 'token-1',
+        scopes,
+        expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+      rateLimitSubjectIds: ['oauth-token:token-1', 'user:user-1'],
+      rateLimitSubscription: null,
+      keyType: 'oauth_access_token',
+      keyExpiresAt: null,
+    }) as unknown as V2ApiKeyAuthContext
+
+  function bearerRequest(): NextRequest {
+    return new NextRequest('http://localhost/api/v2/widgets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer sim_oat_x' },
+      body: JSON.stringify({ value: 'ok' }),
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  /**
+   * The whole point of a read-only grant. The scope is derived from the HTTP
+   * method rather than the operation's `minimumRole`, because several POST
+   * routes only read; a role-derived rule let a read-only token write.
+   */
+  it('refuses a read-only token on an unsafe method before the use case runs', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+    const execute = vi.fn()
+
+    const response = await createHandler({ execute })(bearerRequest(), { params: undefined })
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('www-authenticate')).toContain('insufficient_scope')
+    expect(response.headers.get('www-authenticate')).toContain('api:write')
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('admits the same token once the grant carries api:write', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read', 'api:write']))
+
+    const response = await createHandler()(bearerRequest(), { params: undefined })
+
+    expect(response.status).toBe(201)
+  })
+
+  /**
+   * `readOnly` is how a POST that only reads — a search or a query whose filter
+   * is too large for a query string — declares itself, so a read-only token can
+   * still use it.
+   */
+  it('admits a read-only token on a POST the route declares read-only', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(oauthAuth(['openid', 'api:read']))
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation,
+      readOnly: true,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async ({ input }) => input },
+      present: (result) => ({ data: result }),
+    })
+
+    const response = await handler(bearerRequest(), { params: undefined })
+
+    expect(response.status).toBe(201)
+  })
+
+  it('leaves an API-key principal alone, which carries no scopes at all', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+
+    const response = await createHandler()(request(), { params: undefined })
+
+    expect(response.status).toBe(201)
+  })
+})

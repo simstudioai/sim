@@ -2,7 +2,13 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 import type { OperationDeclarableCapability } from '@/lib/core/application/operation'
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const COPILOT_PRINCIPAL_POLICY = {
@@ -11,12 +17,24 @@ const COPILOT_PRINCIPAL_POLICY = {
 } as const
 
 const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot', 'executor'],
 } as const
 
 const INTERNAL_EXECUTOR_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['executor'],
 } as const
 

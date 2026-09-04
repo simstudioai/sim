@@ -10,8 +10,13 @@ const mocks = vi.hoisted(() => ({
   getHighestPrioritySubscription: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isAuthDisabled: false }))
+vi.mock('@/lib/core/config/env-flags', () => ({
+  isAuthDisabled: false,
+  isOAuthProviderEnabled: true,
+}))
 vi.mock('@/lib/api-key/crypto', () => ({ hashApiKey: (value: string) => `hash:${value}` }))
+vi.mock('@/lib/auth/oauth-provider', () => ({ OAUTH_ACCESS_TOKEN_PREFIX: 'sim_oat_' }))
+vi.mock('@sim/security/hash', () => ({ sha256Hex: (value: string) => `oauth-hash:${value}` }))
 vi.mock('@/lib/api-key/service', () => ({ updateApiKeyLastUsed: mocks.updateLastUsed }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveWorkspaceBillingPayer: mocks.resolveWorkspaceBillingPayer,
@@ -24,6 +29,10 @@ import {
   authenticateV2ApiKey,
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
+import {
+  hasV2Credential,
+  readV2CredentialHeaders,
+} from '@/lib/api/server/routes/v2-credential-headers'
 
 describe('v2 API key authentication', () => {
   beforeEach(() => {
@@ -45,7 +54,7 @@ describe('v2 API key authentication', () => {
       },
     ])
 
-    const result = await authenticateV2ApiKey('secret')
+    const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: null })
 
     expect(result).toEqual({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
@@ -76,7 +85,7 @@ describe('v2 API key authentication', () => {
       },
     ])
 
-    const result = await authenticateV2ApiKey('secret')
+    const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: null })
 
     expect(result.keyExpiresAt).toEqual(new Date('2027-01-01T00:00:00.000Z'))
   })
@@ -101,7 +110,7 @@ describe('v2 API key authentication', () => {
       },
     })
 
-    const result = await authenticateV2ApiKey('secret')
+    const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: null })
 
     expect(result).toEqual({
       principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
@@ -130,13 +139,13 @@ describe('v2 API key authentication', () => {
       payerSubscription: null,
     })
 
-    await expect(authenticateV2ApiKey('secret')).resolves.toMatchObject({
+    await expect(authenticateV2ApiKey({ apiKey: 'secret', bearer: null })).resolves.toMatchObject({
       principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
     })
   })
 
   it('treats missing, banned, and expired credentials as unauthenticated', async () => {
-    await expect(authenticateV2ApiKey('missing')).rejects.toBeInstanceOf(
+    await expect(authenticateV2ApiKey({ apiKey: 'missing', bearer: null })).rejects.toBeInstanceOf(
       V2ApiKeyUnauthenticatedError
     )
 
@@ -150,7 +159,7 @@ describe('v2 API key authentication', () => {
         userBanned: true,
       },
     ])
-    await expect(authenticateV2ApiKey('banned')).rejects.toBeInstanceOf(
+    await expect(authenticateV2ApiKey({ apiKey: 'banned', bearer: null })).rejects.toBeInstanceOf(
       V2ApiKeyUnauthenticatedError
     )
 
@@ -164,7 +173,7 @@ describe('v2 API key authentication', () => {
         userBanned: false,
       },
     ])
-    await expect(authenticateV2ApiKey('expired')).rejects.toBeInstanceOf(
+    await expect(authenticateV2ApiKey({ apiKey: 'expired', bearer: null })).rejects.toBeInstanceOf(
       V2ApiKeyUnauthenticatedError
     )
   })
@@ -173,6 +182,114 @@ describe('v2 API key authentication', () => {
     const failure = new Error('database unavailable')
     dbChainMockFns.limit.mockRejectedValueOnce(failure)
 
-    await expect(authenticateV2ApiKey('secret')).rejects.toBe(failure)
+    await expect(authenticateV2ApiKey({ apiKey: 'secret', bearer: null })).rejects.toBe(failure)
+  })
+})
+
+describe('v2 bearer token authentication', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.getHighestPrioritySubscription.mockResolvedValue({
+      plan: 'pro',
+      referenceId: 'user-1',
+    })
+  })
+
+  function tokenRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'token-1',
+      userId: 'user-1',
+      clientId: 'sim-cli',
+      scopes: ['openid', 'api:read', 'api:write'],
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      clientDisabled: false,
+      userBanned: false,
+      userExists: 'user-1',
+      ...overrides,
+    }
+  }
+
+  it('reads the credential headers as a pair, ignoring other Authorization schemes', () => {
+    expect(
+      readV2CredentialHeaders(new Headers({ 'x-api-key': 'k', authorization: 'Bearer t' }))
+    ).toEqual({ apiKey: 'k', bearer: 't' })
+    expect(readV2CredentialHeaders(new Headers({ authorization: 'Basic abc' }))).toEqual({
+      apiKey: null,
+      bearer: null,
+    })
+    expect(hasV2Credential(new Headers({ authorization: 'Bearer sim_oat_t' }))).toBe(true)
+    expect(hasV2Credential(new Headers())).toBe(false)
+  })
+
+  /**
+   * A public deployed workflow is routinely called by a gateway that forwards
+   * its own `Authorization` header. Counting that as a Sim credential would
+   * send an execution that used to run anonymously into a 401.
+   */
+  it("does not treat somebody else's bearer token as a Sim credential", () => {
+    expect(hasV2Credential(new Headers({ authorization: 'Bearer ghp_something' }))).toBe(false)
+    expect(hasV2Credential(new Headers({ authorization: 'Bearer sim_oat_t' }))).toBe(true)
+  })
+
+  it('authenticates an OAuth token as its user, rate-limited on the user plan', async () => {
+    queueTableRows(schemaMock.oauthAccessToken, [tokenRow()])
+
+    const result = await authenticateV2ApiKey({ apiKey: null, bearer: 'sim_oat_secret' })
+
+    expect(result).toEqual({
+      principal: {
+        kind: 'oauth_access_token',
+        userId: 'user-1',
+        clientId: 'sim-cli',
+        tokenId: 'token-1',
+        scopes: ['openid', 'api:read', 'api:write'],
+        expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      },
+      rateLimitSubjectIds: ['oauth-token:token-1', 'user:user-1'],
+      rateLimitSubscription: { plan: 'pro', referenceId: 'user-1' },
+      keyType: 'oauth_access_token',
+      keyExpiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    })
+    expect(mocks.updateLastUsed).not.toHaveBeenCalled()
+  })
+
+  it('prefers the API key when both credentials are presented', async () => {
+    queueTableRows(schemaMock.apiKey, [
+      {
+        id: 'key-1',
+        userId: 'user-1',
+        workspaceId: null,
+        type: 'personal',
+        expiresAt: null,
+        userBanned: false,
+      },
+    ])
+
+    const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: 'sim_oat_ignored' })
+
+    expect(result.keyType).toBe('personal')
+  })
+
+  it('answers a refused bearer with the bearer challenge, and a missing one with the key challenge', async () => {
+    const refused = await authenticateV2ApiKey({ apiKey: null, bearer: 'sim_oat_unknown' }).catch(
+      (error) => error
+    )
+    expect(refused).toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+    expect(refused.challenge).toBe('bearer')
+
+    const missing = await authenticateV2ApiKey({ apiKey: null, bearer: null }).catch(
+      (error) => error
+    )
+    expect(missing).toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+    expect(missing.challenge).toBe('api_key')
+  })
+
+  it('refuses a token whose client was disabled', async () => {
+    queueTableRows(schemaMock.oauthAccessToken, [tokenRow({ clientDisabled: true })])
+
+    await expect(
+      authenticateV2ApiKey({ apiKey: null, bearer: 'sim_oat_secret' })
+    ).rejects.toBeInstanceOf(V2ApiKeyUnauthenticatedError)
   })
 })

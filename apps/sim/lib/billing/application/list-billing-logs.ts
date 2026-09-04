@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import { defineAuthorizedBillingReadUseCase } from '@/lib/billing/application/authorized-billing-read-use-case'
 import { billingOperations } from '@/lib/billing/application/operations'
 import {
@@ -61,7 +62,7 @@ export const listBillingLogs = defineAuthorizedBillingReadUseCase({
       cursor: input.cursor,
       includeSummary: false,
     }
-    if (principal.kind === 'personal_api_key') {
+    if (isUserCredentialPrincipal(principal)) {
       const workspaceId = scope.kind === 'workspace' ? scope.workspace.workspaceId : undefined
       const usage = await getUserUsageLogs(principal.userId, { ...query, workspaceId })
       return { usage, creditsByLogId: apportionLogCredits(usage), scope: 'user' }

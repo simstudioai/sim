@@ -1,0 +1,65 @@
+import {
+  type ResolvedProfile,
+  readCredentialsProfile,
+  readStoredOAuth,
+  type StoredOAuthCredential,
+  withCredentialsLock,
+  writeCredentialsProfile,
+} from '../config/index'
+import { SimApiError } from '../http/client'
+import { OAuthTokenError, refreshTokens } from './oauth-flow'
+
+/**
+ * Bounded well under the credentials lock's stale window: a hung authorization
+ * server must not hold the lock long enough for another process to reclaim it
+ * and refresh in parallel, which is what reuse detection would kill the whole
+ * session for.
+ */
+const REFRESH_TIMEOUT_MS = 10 * 1000
+
+/**
+ * Renews a stored OAuth login and persists the rotated pair.
+ *
+ * Under the credentials lock, because the refresh token is single-use and a
+ * parallel `sim` that presented it second would get the whole session revoked.
+ * After taking the lock the file is read again: if another process already
+ * rotated the token, its result is adopted and no request is made.
+ *
+ * `invalid_grant` means the server no longer honours the refresh token — it
+ * was revoked from Settings → Authorized apps, expired, or was already rotated
+ * by a process this one could not see — and the only remedy is a new login.
+ */
+export async function refreshStoredOAuth(
+  profile: Pick<ResolvedProfile, 'name' | 'endpoint' | 'authProfile'>,
+  current: StoredOAuthCredential
+): Promise<StoredOAuthCredential> {
+  return withCredentialsLock(async () => {
+    const stored = readStoredOAuth(readCredentialsProfile(profile.authProfile))
+    if (stored && stored.refreshToken !== current.refreshToken) return stored
+
+    let tokens: StoredOAuthCredential
+    try {
+      const refreshed = await refreshTokens(
+        profile.endpoint,
+        current.refreshToken,
+        AbortSignal.timeout(REFRESH_TIMEOUT_MS)
+      )
+      tokens = {
+        accessToken: refreshed.accessToken,
+        refreshToken: refreshed.refreshToken,
+        expiresAt: refreshed.expiresAt,
+      }
+    } catch (error) {
+      if (error instanceof OAuthTokenError && error.oauthError === 'invalid_grant') {
+        throw new SimApiError(
+          `Your Sim login has expired or was revoked. Run: sim login --profile ${profile.authProfile}`,
+          401
+        )
+      }
+      throw error
+    }
+
+    writeCredentialsProfile(profile.authProfile, { kind: 'oauth', oauth: tokens })
+    return tokens
+  })
+}

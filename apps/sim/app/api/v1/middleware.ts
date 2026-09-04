@@ -73,7 +73,12 @@ export interface RateLimitResult {
   retryAfterMs?: number
   userId?: string
   workspaceId?: string
-  keyType?: 'personal' | 'workspace'
+  /**
+   * `oauth_access_token` never arises on v1, which authenticates API keys only;
+   * it is here because the v2 builders record their rate-limit snapshot in this
+   * shape.
+   */
+  keyType?: 'personal' | 'workspace' | 'oauth_access_token'
   principal?: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
   error?: string
 }

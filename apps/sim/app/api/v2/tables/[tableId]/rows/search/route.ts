@@ -11,6 +11,8 @@ export const revalidate = 0
 export const POST = defineV2JsonRoute({
   contract: v2SearchTableRowsContract,
   operation: tableOperations.searchRows,
+  // A search whose filters do not fit a query string; it reads and never writes.
+  readOnly: true,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableRowsErrorPolicy,

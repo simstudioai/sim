@@ -253,6 +253,8 @@ export const deploymentFeaturesSchema = z.object({
   dataDrains: z.boolean(),
   dataRetention: z.boolean(),
   inbox: z.boolean(),
+  /** Sim is an OAuth 2.1 provider: a deployment toggle rather than an enterprise entitlement. */
+  oauthProvider: z.boolean(),
   sandboxes: z.boolean(),
   sessionPolicies: z.boolean(),
   sso: z.boolean(),

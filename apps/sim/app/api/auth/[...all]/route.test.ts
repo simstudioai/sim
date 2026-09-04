@@ -297,3 +297,47 @@ describe('auth catch-all route SSO provider mutations', () => {
     expect(await res.json()).toEqual({ data: { url: 'https://idp.example.com' } })
   })
 })
+
+describe('OAuth provider client endpoints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    handlerMocks.betterAuthPOST.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    )
+  })
+
+  /**
+   * The plugin gates client creation on a session alone, so without this any
+   * signed-in user could register a client with arbitrary redirect URIs and
+   * the full scope set. Nothing must reach the plugin.
+   */
+  it.each([
+    'oauth2/create-client',
+    'oauth2/update-client',
+    'oauth2/delete-client',
+    'oauth2/client/rotate-secret',
+    'oauth2/register',
+    'oauth2/anything-a-future-version-adds',
+  ])('refuses POST /%s without reaching Better Auth', async (path) => {
+    const req = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+
+    const res = await POST(req)
+
+    expect(res.status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'oauth2/token',
+    'oauth2/consent',
+    'oauth2/revoke',
+    'oauth2/userinfo',
+    'oauth2/callback/jira',
+  ])('lets the protocol endpoint %s through', async (path) => {
+    const req = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+
+    await POST(req)
+
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
+  })
+})

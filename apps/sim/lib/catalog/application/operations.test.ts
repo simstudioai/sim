@@ -50,6 +50,7 @@ describe('catalogOperations', () => {
       expect(operation.minimumRole, operation.id).toBe('read')
       expect(operation.workspaceApiKey, operation.id).toBe('allow')
       expect([...operation.principalKinds].sort(), operation.id).toEqual([
+        'oauth_access_token',
         'personal_api_key',
         'session',
         'workspace_api_key',

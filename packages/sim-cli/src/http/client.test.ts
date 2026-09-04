@@ -23,12 +23,14 @@ function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
   return new SimClient({
     name: 'default',
     endpoint: 'https://sim.example',
+    authProfile: 'default',
     apiKey: options.apiKey ?? null,
+    oauth: null,
     workspaceId: 'ws_1',
     output: 'json',
     sources: {
       endpoint: 'default',
-      apiKey: 'env',
+      credential: 'env',
       workspaceId: 'env',
       output: 'default',
     },
@@ -598,12 +600,14 @@ describe('API errors', () => {
     const client = new SimClient({
       name: 'default',
       endpoint: 'https://sim.example',
+      authProfile: 'default',
       apiKey: 'key',
+      oauth: null,
       workspaceId: 'ws_1',
       output: 'json',
       sources: {
         endpoint: 'default',
-        apiKey: 'env',
+        credential: 'env',
         workspaceId: 'env',
         output: 'default',
       },
@@ -1109,5 +1113,153 @@ describe('destructive operations are gated', () => {
       expect(spec.confirm, name).toMatch(/^This /)
       expect(spec.confirm.length, name).toBeGreaterThan(20)
     }
+  })
+})
+
+describe('OAuth bearer credentials', () => {
+  const NOW = 1_700_000_000_000
+
+  function oauthClient(expiresAt: number, refreshOAuth = vi.fn()) {
+    const client = new SimClient(
+      {
+        name: 'default',
+        endpoint: 'https://sim.example',
+        authProfile: 'default',
+        apiKey: null,
+        oauth: { accessToken: 'sim_oat_live', refreshToken: 'sim_ort_live', expiresAt },
+        workspaceId: 'ws_1',
+        output: 'json',
+        sources: {
+          endpoint: 'default',
+          credential: 'credentials',
+          workspaceId: 'env',
+          output: 'default',
+        },
+      },
+      { refreshOAuth }
+    )
+    return { client, refreshOAuth }
+  }
+
+  function jsonReply(status: number, body: unknown, headers: Record<string, string> = {}) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json', ...headers },
+    })
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('sends a stored login as a bearer token and never as x-api-key', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const fetchMock = vi.fn(async () => jsonReply(200, { data: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { client, refreshOAuth } = oauthClient(NOW + 60 * 60 * 1000)
+
+    await client.request('/api/v2/meta')
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(init.headers).toMatchObject({ authorization: 'Bearer sim_oat_live' })
+    expect(init.headers).not.toHaveProperty('x-api-key')
+    expect(refreshOAuth).not.toHaveBeenCalled()
+  })
+
+  it('renews a login that is about to lapse before using it', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const fetchMock = vi.fn(async () => jsonReply(200, { data: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const refresh = vi.fn(async () => ({
+      accessToken: 'sim_oat_fresh',
+      refreshToken: 'sim_ort_fresh',
+      expiresAt: NOW + 60 * 60 * 1000,
+    }))
+    const { client } = oauthClient(NOW + 60 * 1000, refresh)
+
+    await client.request('/api/v2/meta')
+    await client.request('/api/v2/meta')
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    for (const call of fetchMock.mock.calls) {
+      const [, init] = call as unknown as [string, RequestInit]
+      expect(init.headers).toMatchObject({ authorization: 'Bearer sim_oat_fresh' })
+    }
+  })
+
+  it('retries exactly once after a 401 that names the token invalid', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonReply(
+          401,
+          { error: { code: 'UNAUTHORIZED', message: 'Invalid access token' } },
+          { 'www-authenticate': 'Bearer realm="Sim API", error="invalid_token"' }
+        )
+      )
+      .mockResolvedValueOnce(jsonReply(200, { data: { ok: true } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const refresh = vi.fn(async () => ({
+      accessToken: 'sim_oat_fresh',
+      refreshToken: 'sim_ort_fresh',
+      expiresAt: NOW + 60 * 60 * 1000,
+    }))
+    const { client } = oauthClient(NOW + 60 * 60 * 1000, refresh)
+
+    await expect(client.request('/api/v2/meta')).resolves.toEqual({ data: { ok: true } })
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not refresh on a 401 that is not about the token', async () => {
+    vi.useFakeTimers({ now: NOW })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonReply(
+          401,
+          { error: { code: 'UNAUTHORIZED', message: 'Bearer tokens are not accepted' } },
+          {
+            'www-authenticate':
+              'SimApiKey realm="Sim API", header="x-api-key", Bearer realm="Sim API"',
+          }
+        )
+      )
+    )
+    const refresh = vi.fn()
+    const { client } = oauthClient(NOW + 60 * 60 * 1000, refresh)
+
+    await expect(client.request('/api/v2/meta')).rejects.toThrow('run: sim login')
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('prefers an explicit API key over the stored login', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const fetchMock = vi.fn(async () => jsonReply(200, { data: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    const client = new SimClient({
+      name: 'default',
+      endpoint: 'https://sim.example',
+      authProfile: 'default',
+      apiKey: 'sim_from_env',
+      // A live stored login sits alongside it, which is the whole point: with
+      // `oauth: null` there is nothing for the key to be preferred over and the
+      // assertion passes no matter which branch the client takes.
+      oauth: {
+        accessToken: 'sim_oat_live',
+        refreshToken: 'sim_ort_live',
+        expiresAt: NOW + 60 * 60 * 1000,
+      },
+      workspaceId: 'ws_1',
+      output: 'json',
+      sources: { endpoint: 'default', credential: 'env', workspaceId: 'env', output: 'default' },
+    })
+
+    await client.request('/api/v2/meta')
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(init.headers).toMatchObject({ 'x-api-key': 'sim_from_env' })
+    expect(init.headers).not.toHaveProperty('authorization')
   })
 })

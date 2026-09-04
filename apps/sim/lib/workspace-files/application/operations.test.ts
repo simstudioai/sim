@@ -65,6 +65,7 @@ describe('file operation registry', () => {
     expect(fileOperations.updateShare.principalKinds).toEqual([
       'session',
       'personal_api_key',
+      'oauth_access_token',
       'delegated',
     ])
     expect(fileOperations.updateShare.delegatedServices).toEqual(['copilot', 'executor'])
@@ -77,7 +78,12 @@ describe('file operation registry', () => {
       fileOperations.uploadComplete,
       fileOperations.uploadCancel,
     ]) {
-      expect(operation.principalKinds).toEqual(['session', 'personal_api_key', 'workspace_api_key'])
+      expect(operation.principalKinds).toEqual([
+        'session',
+        'personal_api_key',
+        'oauth_access_token',
+        'workspace_api_key',
+      ])
       expect(operation.delegatedServices).toBeUndefined()
     }
   })
@@ -93,7 +99,7 @@ describe('file operation registry', () => {
       id: 'files.extract_archive',
       minimumRole: 'write',
       workspaceApiKey: 'allow',
-      principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
     })
     expect(fileOperations.extractArchive.principalKinds).not.toContain('delegated')
     expect(fileOperations.extractArchive.delegatedServices).toBeUndefined()

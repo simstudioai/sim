@@ -29,6 +29,7 @@ export interface EnvFlagsMockState {
   isTriggerDevEnabled: boolean
   isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
+  isOAuthProviderEnabled: boolean
   isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
@@ -80,6 +81,8 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
+  // An opt-out flag, like `isChatEnabled`: on unless OAUTH_PROVIDER_ENABLED is falsy.
+  isOAuthProviderEnabled: true,
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,

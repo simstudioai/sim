@@ -40,4 +40,14 @@ export const userAccountOperations = {
   }),
   // permission-group-exempt: deleting your own account is not a workspace act, so no group key names it
   delete: defineUserAccountOperation({ id: 'users.account.delete', capability: 'none' }),
+  // permission-group-exempt: the apps an account has authorized belong to the account, not to any workspace a group governs
+  readAuthorizedApps: defineUserAccountOperation({
+    id: 'users.account.authorized_apps.read',
+    capability: 'none',
+  }),
+  // permission-group-exempt: revoking an app's access to your own account is not a workspace act, so no group key names it
+  revokeAuthorizedApp: defineUserAccountOperation({
+    id: 'users.account.authorized_apps.revoke',
+    capability: 'none',
+  }),
 } as const satisfies Record<string, UserAccountOperation>

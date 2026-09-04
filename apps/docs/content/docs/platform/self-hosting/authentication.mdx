@@ -79,6 +79,47 @@ Providers are then registered in the app under **Settings → Organization → S
 
 See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the organization patterns.
 
+## Sign in with Sim
+
+Your deployment is also an OAuth 2.1 authorization server, so other software can
+sign a person in as themselves and act with their permissions. The Sim CLI uses
+it by default; see [CLI authentication](/cli/authentication).
+
+It is on unless you turn it off:
+
+```bash
+OAUTH_PROVIDER_ENABLED=false
+```
+
+With it off, the discovery document at `/.well-known/oauth-authorization-server`
+returns 404 and the CLI falls back to the pairing-code handoff on its own.
+
+Access tokens are opaque and last an hour; refresh tokens rotate on every use
+and expire after thirty days. Nothing is cached, so revoking a grant under
+**Settings → Authorized apps** stops the app on its very next request.
+
+### Registering an app
+
+Dynamic client registration is switched off, so clients are created by an
+operator. The Sim CLI is seeded by the migration; register anything else with:
+
+```bash
+DATABASE_URL=… \
+BETTER_AUTH_SECRET=… \
+OAUTH_CLIENT_ID=my-app \
+OAUTH_CLIENT_NAME="My App" \
+OAUTH_REDIRECT_URIS=https://my-app.example/callback \
+bun run apps/sim/scripts/create-oauth-client.ts
+```
+
+Add `OAUTH_CLIENT_PUBLIC=true` for a native or CLI app that cannot keep a
+secret; it then authenticates with PKCE alone. A confidential client's secret is
+printed once and cannot be read back.
+
+Redirect URIs must be `https`, or `http` on a loopback address, and are matched
+exactly — except a loopback URI, where any port matches, because a native app
+cannot know its port in advance.
+
 ## Controlling who can sign up
 
 | Variable | Effect |

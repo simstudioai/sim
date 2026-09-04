@@ -51,7 +51,7 @@ const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
 
 const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
 
 /** v2 execute: run identity and modes use the v2 wire names while streaming negotiates its protocol. */
 const WORKFLOW_EXECUTE_V2_HEADERS =
@@ -84,6 +84,15 @@ const CORS_RULES: readonly CorsRule[] = [
       credentials: false,
       methods: 'GET, POST, OPTIONS',
       headers: 'Content-Type, Authorization, Accept',
+    }),
+  },
+  {
+    match: (p) => p.startsWith('/api/auth/.well-known/'),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, OPTIONS',
+      headers: 'Content-Type, Accept',
     }),
   },
   {

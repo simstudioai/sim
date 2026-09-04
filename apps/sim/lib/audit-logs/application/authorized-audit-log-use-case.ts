@@ -4,7 +4,10 @@ import {
   resolveDefaultAuditOrganization,
   resolveEnterpriseAuditAccess,
 } from '@/lib/audit-logs/authorization'
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
+import { refuseCapability } from '@/lib/permission-groups/capabilities'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 
 export interface AuthorizedAuditLogContext {
   organizationId: string
@@ -72,6 +75,21 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
     async execute({ principal, input }) {
       requireAuditLogPrincipal(principal, definition.operation)
       const actorUserId = auditActorUserId(principal)
+      /**
+       * permission-group-enforced: cli.use — this path authorizes itself
+       * against an organization rather than a workspace, so the funnel's
+       * workspace-keyed check never runs for it and a CLI token would keep
+       * reading the organization's audit trail after the capability was
+       * withdrawn. The user-global form is the one that applies without a
+       * workspace to key on.
+       */
+      if (
+        principal.kind === 'oauth_access_token' &&
+        principal.clientId === SIM_CLI_CLIENT_ID &&
+        (await isCapabilityWithheldForUser(actorUserId, 'cli.use'))
+      ) {
+        refuseCapability('cli.use')
+      }
       const organizationId = await resolveOperationOrganizationId(
         actorUserId,
         definition.organizationId(input)

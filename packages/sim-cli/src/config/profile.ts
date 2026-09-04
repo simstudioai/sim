@@ -1,5 +1,17 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { randomBytes } from 'node:crypto'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname } from 'node:path'
+import { sleep } from '../helpers'
 import {
   FORBIDDEN_IN_VALUE,
   getSection,
@@ -101,17 +113,43 @@ export function validateProfileName(name: string): void {
   }
 }
 
+/**
+ * An OAuth login stored in the credentials file: the short-lived access token
+ * the API reads, the rotating refresh token that renews it, and when the
+ * access token lapses (epoch milliseconds).
+ */
+export interface StoredOAuthCredential {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+}
+
+/** What a credentials section holds for a profile, or `null` when it is logged out. */
+export type StoredCredential =
+  | { kind: 'api_key'; apiKey: string }
+  | { kind: 'oauth'; oauth: StoredOAuthCredential }
+
 /** Everything a command needs to make a call, after the resolution chain runs. */
 export interface ResolvedProfile {
   name: string
   endpoint: string
+  /** The profile whose credentials section authenticates this one (itself, or its `auth_profile`). */
+  authProfile: string
+  /**
+   * An API key, from a flag, the environment, or the credentials file. Null
+   * when the profile authenticates through {@link oauth} instead — the two are
+   * exclusive: a stored OAuth login wins over a stored key, and an explicit
+   * `--api-key`/`SIM_API_KEY` wins over both.
+   */
   apiKey: string | null
+  oauth: StoredOAuthCredential | null
   workspaceId: string | null
   output: OutputFormat
   /** Where each value came from, for `sim whoami` to explain surprising results. */
   sources: {
     endpoint: SettingSource
-    apiKey: SettingSource
+    /** Where the profile's credential came from, whichever kind it is. */
+    credential: SettingSource
     workspaceId: SettingSource
     output: SettingSource
   }
@@ -150,11 +188,28 @@ function readIni(path: string): IniDocument {
 
 function writeIni(path: string, doc: IniDocument, secret: boolean): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  writeFileSync(path, serializeIni(doc), { mode: secret ? 0o600 : 0o644 })
-  // `writeFileSync`'s mode only applies when it creates the file, so an existing
-  // credentials file written before this ran (or created by a hand `touch`)
-  // keeps its old, possibly world-readable, permissions without this.
-  if (secret) chmodSync(path, 0o600)
+  if (!secret) {
+    writeFileSync(path, serializeIni(doc), { mode: 0o644 })
+    return
+  }
+
+  /**
+   * Written to a fresh 0600 file and renamed into place, so a credential never
+   * exists at a wider mode even for an instant: `writeFileSync`'s `mode` only
+   * applies when it creates the file, so writing over an existing 0644 file
+   * (one made by a hand `touch`, or by a version of this that predates the
+   * mode) left the tokens readable until the `chmod` landed. The rename is
+   * atomic, so a reader also never sees a half-written file.
+   */
+  const temporary = `${path}.${process.pid}.tmp`
+  try {
+    writeFileSync(temporary, serializeIni(doc), { mode: 0o600 })
+    chmodSync(temporary, 0o600)
+    renameSync(temporary, path)
+  } catch (error) {
+    rmSync(temporary, { force: true })
+    throw error
+  }
 }
 
 export function readConfigProfile(profile: string): Record<string, string> {
@@ -191,9 +246,9 @@ export function resolveAuthenticationProfileName(profile: string): string {
       `Profile "${redact(profile)}" cannot set both auth_profile and endpoint. Set the endpoint on authentication profile "${redact(authProfile)}".`
     )
   }
-  if (readCredentialsProfile(profile).api_key) {
+  if (readStoredCredential(profile)) {
     throw new ProfileConfigError(
-      `Profile "${redact(profile)}" cannot set both auth_profile and its own API key. Remove one of them.`
+      `Profile "${redact(profile)}" cannot set both auth_profile and its own login. Remove one of them.`
     )
   }
 
@@ -318,10 +373,187 @@ export function writeConfigProfile(profile: string, values: Record<string, strin
   writeIni(configPath(), doc, false)
 }
 
-export function writeCredentialsProfile(profile: string, apiKey: string | null): void {
+/** The credentials-file keys one login occupies; a write of either kind clears the other. */
+const CREDENTIAL_KEYS = ['api_key', 'access_token', 'refresh_token', 'token_expires_at'] as const
+
+/**
+ * Stores a login, replacing whatever the section held, or clears it with
+ * `null`. One profile holds one credential: writing an OAuth login removes a
+ * stored key and vice versa, so a profile can never resolve to a stale one.
+ */
+export function writeCredentialsProfile(
+  profile: string,
+  credential: StoredCredential | null
+): void {
   const doc = readIni(credentialsPath())
-  setSectionValues(doc, profile, { api_key: apiKey })
+  const values: Record<string, string | null> = Object.fromEntries(
+    CREDENTIAL_KEYS.map((key) => [key, null])
+  )
+  if (credential?.kind === 'api_key') {
+    values.api_key = credential.apiKey
+  } else if (credential?.kind === 'oauth') {
+    values.access_token = credential.oauth.accessToken
+    values.refresh_token = credential.oauth.refreshToken
+    values.token_expires_at = String(credential.oauth.expiresAt)
+  }
+  setSectionValues(doc, profile, values)
   writeIni(credentialsPath(), doc, true)
+}
+
+/**
+ * The OAuth login a credentials section holds, or `null` when it holds none or
+ * only part of one. A hand-edited section missing its refresh token is treated
+ * as logged out rather than as a login that will fail on its first refresh.
+ */
+export function readStoredOAuth(credentials: Record<string, string>): StoredOAuthCredential | null {
+  const {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_expires_at: expires,
+  } = credentials
+  if (!accessToken || !refreshToken) return null
+  const expiresAt = Number(expires)
+  return { accessToken, refreshToken, expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0 }
+}
+
+/** What the named profile's own credentials section holds. */
+export function readStoredCredential(profile: string): StoredCredential | null {
+  const credentials = readCredentialsProfile(profile)
+  const oauth = readStoredOAuth(credentials)
+  if (oauth) return { kind: 'oauth', oauth }
+  if (credentials.api_key) return { kind: 'api_key', apiKey: credentials.api_key }
+  return null
+}
+
+const CREDENTIALS_LOCK_STALE_MS = 30_000
+/**
+ * Long enough to outlast the slowest legitimate hold.
+ *
+ * The holder is refreshing tokens, which is bounded by the refresh request's
+ * own 10s timeout plus the write. Waiting less than that made an ordinary slow
+ * token endpoint — a cold start, a deploy cutover — fail every *other* `sim`
+ * process outright while the first one was still doing exactly what it should.
+ * It stays under {@link CREDENTIALS_LOCK_STALE_MS} so a genuinely dead holder
+ * is still reclaimed rather than waited out.
+ */
+const CREDENTIALS_LOCK_WAIT_MS = 20_000
+const CREDENTIALS_LOCK_POLL_MS = 50
+
+/**
+ * Serializes credential rewrites across `sim` processes.
+ *
+ * A refresh token is single-use: the server rotates it and treats a second
+ * presentation as theft, revoking every token the CLI holds. Two commands run
+ * in parallel — a shell loop, a CI matrix, an editor plugin — would each see
+ * the same expiring token and both try to refresh it, and the loser logs the
+ * user out everywhere. The lock is an `O_EXCL` file beside the credentials, so
+ * exactly one process refreshes and the rest re-read what it wrote. A lock
+ * older than {@link CREDENTIALS_LOCK_STALE_MS} belonged to a process that
+ * died holding it and is reclaimed.
+ */
+/**
+ * Whether the current async context already holds the lock.
+ *
+ * Re-entrancy has to follow the *call chain*, not the process: a nested write
+ * inside a refresh must not deadlock on a lock its own caller is holding, while
+ * two unrelated `withCredentialsLock` calls running concurrently in the same
+ * process must still serialize. A module-level flag cannot tell those apart —
+ * `AsyncLocalStorage` can, because only work started inside the holder sees the
+ * store.
+ */
+const heldLock = new AsyncLocalStorage<true>()
+
+export async function withCredentialsLock<T>(work: () => Promise<T>): Promise<T> {
+  if (heldLock.getStore()) return work()
+
+  const lockPath = `${credentialsPath()}.lock`
+  mkdirSync(dirname(lockPath), { recursive: true, mode: 0o700 })
+  const deadline = Date.now() + CREDENTIALS_LOCK_WAIT_MS
+  const owner = `${process.pid}.${randomBytes(8).toString('hex')}`
+
+  for (;;) {
+    try {
+      writeFileSync(lockPath, owner, { flag: 'wx', mode: 0o600 })
+      break
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      let observed: { owner: string; age: number }
+      try {
+        observed = {
+          owner: readFileSync(lockPath, 'utf8'),
+          age: Date.now() - statSync(lockPath).mtimeMs,
+        }
+      } catch {
+        continue
+      }
+      if (observed.age > CREDENTIALS_LOCK_STALE_MS) {
+        reclaimStaleCredentialsLock(lockPath, observed.owner)
+        continue
+      }
+      if (Date.now() > deadline) {
+        throw new ProfileConfigError(
+          `Another sim process has been refreshing the login for ${Math.round(observed.age / 1000)}s. Wait for it to finish and retry.`
+        )
+      }
+      await sleep(CREDENTIALS_LOCK_POLL_MS)
+    }
+  }
+
+  try {
+    return await heldLock.run(true, work)
+  } finally {
+    releaseCredentialsLock(lockPath, owner)
+  }
+}
+
+/**
+ * Removes a lock only if it still holds the token the caller saw.
+ *
+ * Staleness is observed and acted on in two steps, so a waiter can be
+ * preempted between them and come back to a lock that a third process has
+ * since taken. Deleting on age alone would then drop a *live* lock and let two
+ * refreshes run, which is the one outcome this file exists to prevent — the
+ * server treats the second presentation of a rotated refresh token as theft
+ * and revokes the whole session. Re-reading the token immediately before
+ * removing closes that: if it changed, the lock is not the one that looked
+ * dead, and the caller simply retries.
+ *
+ * Not airtight on its own — the read and the unlink are themselves two steps —
+ * so the removal goes through a rename to a private name first. Between them a
+ * competing reclaimer either loses the rename or sees a token that no longer
+ * matches, and only one can do both.
+ */
+function reclaimStaleCredentialsLock(lockPath: string, observedOwner: string): void {
+  const scratch = `${lockPath}.${process.pid}.${randomBytes(4).toString('hex')}.stale`
+  try {
+    renameSync(lockPath, scratch)
+  } catch {
+    return
+  }
+  try {
+    if (readFileSync(scratch, 'utf8') !== observedOwner) {
+      // Someone else's live lock: put it back rather than destroying it.
+      renameSync(scratch, lockPath)
+      return
+    }
+  } catch {}
+  rmSync(scratch, { force: true })
+}
+
+/**
+ * Drops the lock only if this process still owns it.
+ *
+ * A hold that ran past the stale window has already been reclaimed by someone
+ * else, and the file now belongs to them; removing it on the way out would
+ * strand that holder without a lock.
+ */
+function releaseCredentialsLock(lockPath: string, owner: string): void {
+  try {
+    if (readFileSync(lockPath, 'utf8') !== owner) return
+  } catch {
+    return
+  }
+  rmSync(lockPath, { force: true })
 }
 
 /** Drops the profile from both files. Returns whether anything was removed. */
@@ -498,15 +730,20 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     'default'
   )
 
+  const storedOAuth = readStoredOAuth(credentials)
   const apiKey = resolve<string>(
     [
       ['flag', overrides.apiKey],
       ['env', process.env.SIM_API_KEY],
-      ['credentials', credentials.api_key],
+      // A stored OAuth login outranks a stored key — a write of either clears
+      // the other, so both present means a hand-edited file, and the login is
+      // the one `sim login` would have left.
+      ['credentials', storedOAuth ? null : credentials.api_key],
     ],
     null,
     'unset'
   )
+  const oauth = apiKey.value === null ? storedOAuth : null
 
   const workspaceId = resolve<string>(
     [
@@ -536,12 +773,14 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
   return {
     name,
     endpoint: normalizeEndpoint(endpoint.value as string, endpoint.source),
+    authProfile,
     apiKey: apiKey.value,
+    oauth,
     workspaceId: workspaceId.value,
     output: output.value as OutputFormat,
     sources: {
       endpoint: endpoint.source,
-      apiKey: apiKey.source,
+      credential: oauth ? 'credentials' : apiKey.source,
       workspaceId: workspaceId.source,
       output: output.source,
     },

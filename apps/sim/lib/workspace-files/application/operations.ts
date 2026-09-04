@@ -1,19 +1,31 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
 const ALL_COPILOT_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const ALL_FILE_TOOL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot', 'executor'],
 } as const
 const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot', 'executor'],
 } as const
 const UPLOAD_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
 
 export const fileOperations = {
@@ -90,7 +102,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
   updateContent: defineWorkspaceOperation({
     id: 'files.update_content',

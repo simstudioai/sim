@@ -14,6 +14,10 @@ export const V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 export const POST = defineV2JsonRoute({
   contract: v2SearchKnowledgeContract,
   auth: v2ApiKeyAuth,
+  // A search whose filters do not fit a query string; it changes no resource.
+  // It does meter usage, which is a write to the usage log rather than to
+  // anything a read-only grant is protecting.
+  readOnly: true,
   operation: knowledgeOperations.search,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,

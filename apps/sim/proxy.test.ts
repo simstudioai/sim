@@ -34,6 +34,32 @@ describe('resolveApiCorsPolicy', () => {
     })
   })
 
+  it('serves OAuth discovery documents read-only with wildcard origin', () => {
+    expect(
+      resolveApiCorsPolicy(makeRequest('/api/auth/.well-known/oauth-authorization-server'))
+    ).toEqual({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, OPTIONS',
+      headers: 'Content-Type, Accept',
+      exposeHeaders: EXPOSED_HEADERS,
+    })
+  })
+
+  /**
+   * `proxy()` consults this table only for `/api/` paths, so a rule matching
+   * the origin-root discovery document would never run. That copy sets its own
+   * `Access-Control-Allow-Origin` in the route handler instead; a rule here
+   * would read as coverage it does not have.
+   */
+  it('leaves the origin-root discovery document to its own route handler', () => {
+    const rootPolicy = resolveApiCorsPolicy(makeRequest('/.well-known/oauth-authorization-server'))
+    const apiPolicy = resolveApiCorsPolicy(
+      makeRequest('/api/auth/.well-known/oauth-authorization-server')
+    )
+    expect(rootPolicy).not.toEqual(apiPolicy)
+  })
+
   it('serves MCP copilot with DELETE in allowed methods', () => {
     const policy = resolveApiCorsPolicy(makeRequest('/api/mcp/copilot'))
     expect(policy.origin).toBe('*')

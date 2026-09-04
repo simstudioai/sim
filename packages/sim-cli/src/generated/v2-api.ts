@@ -4357,7 +4357,7 @@ export type GetMetaQuery = Record<string, unknown>
 
 type GetMetaResponseRef0 = {
   v2Enabled: boolean
-  keyType: 'personal' | 'workspace'
+  keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
 }
 

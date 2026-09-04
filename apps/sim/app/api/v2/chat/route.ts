@@ -1,3 +1,8 @@
+import {
+  isUserCredentialPrincipal,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -39,7 +44,7 @@ import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import {
   forbiddenErrorDetails,
   PersonalApiKeysDisabledError,
-  requirePersonalApiKeysAllowed,
+  requireUserCredentialCapabilities,
   type WorkspaceAuthorizationContext,
 } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
@@ -96,8 +101,8 @@ function deriveConversationTitle(message: string): string | undefined {
  * renders its own v2 envelope, and the detail code is read off the error so the
  * column refusal and the group refusal answer with one code.
  */
-async function personalApiKeyPolicyRefusal(
-  userId: string,
+async function userCredentialPolicyRefusal(
+  principal: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
   context: WorkspaceAuthorizationContext
 ): Promise<NextResponse | null> {
   const refuse = (error: PersonalApiKeysDisabledError) =>
@@ -106,7 +111,7 @@ async function personalApiKeyPolicyRefusal(
   if (!context.allowPersonalApiKeys) return refuse(new PersonalApiKeysDisabledError())
 
   try {
-    await requirePersonalApiKeysAllowed(userId, context)
+    await requireUserCredentialCapabilities(principal, context)
   } catch (error) {
     if (error instanceof PersonalApiKeysDisabledError) return refuse(error)
     throw error
@@ -185,8 +190,8 @@ export const POST = withRouteHandler(
     if (!admission.success) return admission.response
     const { principal } = admission.auth
 
-    if (principal.kind !== 'personal_api_key') {
-      return v2Error('FORBIDDEN', 'Chat requires a personal API key', {
+    if (!isUserCredentialPrincipal(principal)) {
+      return v2Error('FORBIDDEN', 'Chat requires a personal API key or an OAuth access token', {
         details: { code: 'PRINCIPAL_KIND_NOT_PERMITTED' },
       })
     }
@@ -214,7 +219,8 @@ export const POST = withRouteHandler(
        * Both halves, because they combine with AND: the workspace column is the
        * coarse switch every workspace has, and the group key narrows it further
        * for one cohort inside an enterprise organization. Either one saying no
-       * is a no, and checking only `copilot.use` applied neither.
+       * is a no, and checking only `copilot.use` applied neither. A CLI token
+       * passes `cli.use` in the same call, for the same reason.
        *
        * Both run after workspace access rather than before it, unlike the
        * funnel, which can afford to check the column first because its caller
@@ -222,12 +228,12 @@ export const POST = withRouteHandler(
        * it, and answering later only ever conceals more: a caller with no reach
        * into the workspace is refused without learning how it is configured.
        */
-      const personalKeyRefusal = await personalApiKeyPolicyRefusal(userId, {
+      const credentialRefusal = await userCredentialPolicyRefusal(principal, {
         workspaceId,
         workspaceOrganizationId: workspaceAccess.workspace?.organizationId ?? null,
         allowPersonalApiKeys: workspaceAccess.workspace?.allowPersonalApiKeys ?? false,
       })
-      if (personalKeyRefusal) return personalKeyRefusal
+      if (credentialRefusal) return credentialRefusal
 
       /**
        * permission-group-enforced: copilot.use — read off the operation so this

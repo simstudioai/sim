@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
+import { getErrorMessage } from '@sim/utils/errors'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import {
@@ -8,6 +9,15 @@ import {
   createAuthRequest,
   pollForKey,
 } from '../auth/device-flow'
+import {
+  discoverOAuthProvider,
+  grantsWriteAccess,
+  isLikelyRemoteSession,
+  loginWithBrowser,
+  OAUTH_SCOPES_FULL,
+  OAUTH_SCOPES_READ_ONLY,
+  revokeToken,
+} from '../auth/oauth-flow'
 import {
   configPath,
   credentialsPath,
@@ -21,10 +31,11 @@ import {
   type OutputFormat,
   ProfileConfigError,
   type ResolvedProfile,
-  readCredentialsProfile,
+  readStoredCredential,
   resolveAuthenticationProfileName,
   type SettingSource,
   validateProfileName,
+  withCredentialsLock,
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
@@ -85,7 +96,7 @@ function presentAuthentication(source: SettingSource): {
       return { authenticated: false, source: 'unset' }
     case 'config':
     case 'default':
-      throw new SimApiError(`Unexpected API key source "${source}".`, 0)
+      throw new SimApiError(`Unexpected credential source "${source}".`, 0)
   }
 }
 
@@ -100,7 +111,7 @@ async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
   const prompt = createInterface({ input: process.stdin, output: process.stderr })
   try {
     const answer = await prompt.question(
-      `Profile "${redact(profileName)}" already exists. Replace its API key and login defaults? (y/N) `
+      `Profile "${redact(profileName)}" already exists. Replace its login and defaults? (y/N) `
     )
     return answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes'
   } finally {
@@ -125,10 +136,10 @@ function validateNewProfileName(profileName: string): void {
 }
 
 /**
- * Refuses a minted key the credentials file could not represent.
+ * Refuses a minted credential the credentials file could not represent.
  *
- * The poll response is remote input, and the deployment answering it is
- * whatever the endpoint names. A key carrying a line break would be written
+ * The response is remote input, and the deployment answering it is
+ * whatever the endpoint names. A value carrying a line break would be written
  * verbatim into an escape-less format, so the writer refuses it — this refuses
  * it one step earlier, before anything is on disk, and says which side is wrong.
  *
@@ -142,15 +153,15 @@ function validateNewProfileName(profileName: string): void {
  * padding from the credential. Trimming would store a value the server never
  * issued and turn a loud, explained failure into a 401 on every later command.
  */
-function requireStorableKey(apiKey: unknown): void {
+function requireStorableCredential(value: unknown): void {
   if (
-    typeof apiKey !== 'string' ||
-    !apiKey ||
-    apiKey !== apiKey.trim() ||
-    FORBIDDEN_IN_VALUE.test(apiKey)
+    typeof value !== 'string' ||
+    !value ||
+    value !== value.trim() ||
+    FORBIDDEN_IN_VALUE.test(value)
   ) {
     throw new SimApiError(
-      'The server returned a malformed API key. Nothing was stored; check the endpoint.',
+      'The server returned a malformed credential. Nothing was stored; check the endpoint.',
       0
     )
   }
@@ -158,10 +169,9 @@ function requireStorableKey(apiKey: unknown): void {
 
 function requireStoredAuthentication(profile: ResolvedProfile): string {
   const authProfile = resolveAuthenticationProfileName(profile.name)
-  const storedKey = readCredentialsProfile(authProfile).api_key
-  if (profile.sources.apiKey !== 'credentials' || !storedKey) {
+  if (profile.sources.credential !== 'credentials' || !readStoredCredential(authProfile)) {
     throw new SimApiError(
-      `Cannot create a shared profile from "${redact(profile.name)}": the active API key is not stored. Run: sim login --profile ${redact(authProfile)}`,
+      `Cannot create a shared profile from "${redact(profile.name)}": the active login is not stored. Run: sim login --profile ${redact(authProfile)}`,
       0
     )
   }
@@ -263,125 +273,308 @@ function addProfileCommand(): Command {
     })
 }
 
+interface LoginOptions {
+  scope: string
+  browser: boolean
+  browserless?: boolean
+  readOnly?: boolean
+  callbackPort?: string
+  yes?: boolean
+}
+
+/**
+ * Which login to run.
+ *
+ * OAuth is the default: it leaves a short-lived, revocable login instead of a
+ * permanent key. The pairing-code handoff remains for the cases OAuth's
+ * loopback redirect cannot serve — a terminal whose browser is on another
+ * machine (`--browserless`, or an SSH session detected), a copilot-scope key
+ * (which only the handoff mints), and a server without the provider (an older
+ * Sim, or one with it switched off), which discovery reports before the browser
+ * opens. An unreachable server is an error, not a fallback: a typo'd endpoint
+ * must not be mistaken for one that lacks the feature.
+ *
+ * `--callback-port` overrides the remote-session guess, because naming the port
+ * is how someone with an SSH tunnel says the loopback redirect does reach them.
+ */
+async function chooseLoginFlow(
+  profile: ResolvedProfile,
+  options: LoginOptions,
+  scope: CliAuthScope
+): Promise<'oauth' | 'handoff'> {
+  if (options.browserless || scope === 'copilot') return 'handoff'
+  if (isLikelyRemoteSession() && options.callbackPort === undefined) {
+    console.log(
+      chalk.dim(
+        'This looks like a remote session, so the browser on this machine cannot finish an OAuth login; using the pairing code instead. Forward a port and pass --callback-port <port> to sign in through the browser anyway.\n'
+      )
+    )
+    return 'handoff'
+  }
+  const status = await discoverOAuthProvider(profile.endpoint)
+  if (status === 'unreachable') {
+    throw new SimApiError(`Could not reach ${profile.endpoint}. Check the endpoint.`, 0)
+  }
+  if (status === 'unavailable') {
+    console.log(
+      chalk.dim(
+        `${profile.endpoint} does not offer OAuth sign-in; using the pairing code instead.\n`
+      )
+    )
+    return 'handoff'
+  }
+  return 'oauth'
+}
+
+function parseCallbackPort(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const port = Number(value)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new SimApiError(
+      `Invalid --callback-port "${redact(value)}". Use a port from 1 to 65535.`,
+      0
+    )
+  }
+  return port
+}
+
+/**
+ * Authorization code + PKCE through the browser; see `oauth-flow.ts`. The
+ * profile's workspace default is left as it was: the consent page has no
+ * workspace picker, and `sim configure --set-workspace` is one command away.
+ */
+async function loginWithOAuth(
+  profile: ResolvedProfile,
+  options: LoginOptions,
+  callbackPort: number | undefined
+): Promise<void> {
+  console.log(
+    `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
+  )
+
+  const tokens = await loginWithBrowser(profile.endpoint, {
+    scopes: options.readOnly ? OAUTH_SCOPES_READ_ONLY : OAUTH_SCOPES_FULL,
+    callbackPort,
+    onAuthorizeUrl: (url) => {
+      console.log(`\n${url}`)
+      if (options.browser) openBrowser(url)
+      console.log(chalk.dim('\nWaiting for you to approve in the browser…'))
+    },
+  })
+
+  requireStorableCredential(tokens.accessToken)
+  requireStorableCredential(tokens.refreshToken)
+
+  await withCredentialsLock(async () => {
+    writeConfigProfile(profile.name, { endpoint: profile.endpoint })
+    writeCredentialsProfile(profile.name, {
+      kind: 'oauth',
+      oauth: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: tokens.expiresAt,
+      },
+    })
+  })
+
+  console.log(chalk.green(`\n✓ Logged in. Login stored in ${credentialsPath()}`))
+  /**
+   * Read back from the granted scope rather than the requested flag. The
+   * authorization server decides what it issued, and a person can narrow the
+   * grant on the consent page, so `--read-only` is a request and this is the
+   * answer.
+   */
+  console.log(
+    chalk.dim(
+      grantsWriteAccess(tokens.scope)
+        ? '  Renews itself; revoke it any time in Settings → Authorized apps, or with: sim logout'
+        : '  Read-only login — commands that change anything will be refused.'
+    )
+  )
+  if (!profile.workspaceId) {
+    console.log(
+      chalk.dim('  No default workspace. Set one with: sim configure --set-workspace <id>')
+    )
+  }
+}
+
 export function loginCommand(): Command {
   return new Command('login')
-    .description('Authorize this terminal and store an API key for the profile')
-    .option('--scope <scope>', 'Key space to mint from: platform or copilot', 'platform')
+    .description('Sign in through the browser and store the login for the profile')
+    .option(
+      '--scope <scope>',
+      'Key space for the pairing-code handoff; only "copilot" changes anything, and it forces that flow',
+      'platform'
+    )
     .option('--no-browser', 'Print the URL instead of opening a browser')
+    .option(
+      '--browserless',
+      'Use the pairing-code handoff for a terminal whose browser cannot reach it (SSH, containers)'
+    )
+    .option('--read-only', 'Ask only for permission to read, never to change anything')
+    .option('--callback-port <port>', 'Pin the local port the browser returns to')
     .option('-y, --yes', 'Overwrite an existing profile without prompting')
-    .action(
-      async (options: { scope: string; browser: boolean; yes?: boolean }, command: Command) => {
-        // `login --profile x` is how a profile comes into existence, so the name
-        // is allowed to be one resolution would otherwise reject as unknown.
-        const profile = profileFrom(command, { allowUnknownProfile: true })
-        const authProfile = resolveAuthenticationProfileName(profile.name)
+    .action(async (options: LoginOptions, command: Command) => {
+      // `login --profile x` is how a profile comes into existence, so the name
+      // is allowed to be one resolution would otherwise reject as unknown.
+      const profile = profileFrom(command, { allowUnknownProfile: true })
+      const authProfile = resolveAuthenticationProfileName(profile.name)
 
-        if (authProfile !== profile.name) {
-          throw new SimApiError(
-            `Profile "${redact(profile.name)}" shares authentication with "${redact(authProfile)}". Run: sim login --profile ${redact(authProfile)}`,
-            0
-          )
-        }
-
-        if (options.scope !== 'platform' && options.scope !== 'copilot') {
-          throw new SimApiError(`Unknown scope "${options.scope}". Use platform or copilot.`, 0)
-        }
-        const scope = options.scope as CliAuthScope
-
-        if (readCredentialsProfile(profile.name).api_key && !options.yes) {
-          const confirmed = await confirmProfileOverwrite(profile.name)
-          if (!confirmed) {
-            console.log(chalk.dim('Login cancelled; the existing profile was not changed.'))
-            return
-          }
-        }
-
-        const auth = createAuthRequest()
-        const url = buildApprovalUrl(
-          profile.endpoint,
-          auth,
-          scope,
-          profile.workspaceId ?? undefined
+      if (authProfile !== profile.name) {
+        throw new SimApiError(
+          `Profile "${redact(profile.name)}" shares authentication with "${redact(authProfile)}". Run: sim login --profile ${redact(authProfile)}`,
+          0
         )
+      }
 
-        console.log(
-          `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
-        )
-        console.log(`\nPairing code: ${chalk.bold(auth.pairing)}`)
-        console.log(
-          chalk.dim('Confirm this code matches what the browser shows before approving.\n')
-        )
-        console.log(url)
+      if (options.scope !== 'platform' && options.scope !== 'copilot') {
+        throw new SimApiError(`Unknown scope "${options.scope}". Use platform or copilot.`, 0)
+      }
+      const scope = options.scope as CliAuthScope
 
-        if (options.browser) openBrowser(url)
-        console.log(chalk.dim('\nWaiting for approval…'))
-
-        const key = await pollForKey(profile.endpoint, auth)
-
-        if (key.scope !== scope) {
-          // The approval, not the request, decides the scope. Storing a copilot
-          // key where a platform key belongs would fail every later call with an
-          // unexplained 401, so refuse now with the reason.
-          throw new SimApiError(
-            `Server issued a ${key.scope} key but this profile needs a ${scope} key. Update the Sim deployment, or run: sim login --scope ${key.scope}`,
-            0
-          )
-        }
-
-        // The workspace picked in the browser becomes the profile's default,
-        // whether or not the key is scoped to it. The user chose it by name —
-        // making them look up its id afterwards would waste the one moment the
-        // answer was already on screen. It arrives off the wire, so it is
-        // checked before either file is touched.
-        //
-        // Absence is the whole of "no workspace" here, and it is a legitimate
-        // outcome — a personal key with nothing selected in the browser. A
-        // *present* value is a workspace id, so every one of them goes to
-        // `normalizeWorkspaceId` to be accepted or refused by name. Testing
-        // truthiness instead let an empty string through the absent branch, so
-        // a malformed response was quietly stored as "no workspace" rather than
-        // reported.
-        const settings: Record<string, string | null> = {
-          endpoint: profile.endpoint,
-          workspace:
-            key.workspaceId == null
-              ? null
-              : normalizeWorkspaceId(key.workspaceId, 'the login response'),
-        }
-        requireStorableKey(key.apiKey)
-
-        // Config before credentials: the endpoint decides where the key is sent
-        // later. Storing the key first and then failing on the settings left a
-        // key on disk with no endpoint beside it, so the next command fell back
-        // to the default host — sending a self-hosted key somewhere else.
-        writeConfigProfile(profile.name, settings)
-        writeCredentialsProfile(profile.name, key.apiKey)
-
-        console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
-        if (key.workspaceBound && key.workspaceId) {
-          console.log(chalk.dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
-        } else if (key.workspaceId) {
-          console.log(
-            chalk.dim(
-              `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
-            )
-          )
-        } else {
-          console.log(
-            chalk.dim(
-              '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
-            )
-          )
+      if (readStoredCredential(profile.name) && !options.yes) {
+        const confirmed = await confirmProfileOverwrite(profile.name)
+        if (!confirmed) {
+          console.log(chalk.dim('Login cancelled; the existing profile was not changed.'))
+          return
         }
       }
+
+      // Parsed before either flow runs, so a malformed port is reported as
+      // itself rather than after a browser has already opened.
+      const callbackPort = parseCallbackPort(options.callbackPort)
+
+      if ((await chooseLoginFlow(profile, options, scope)) === 'oauth') {
+        await loginWithOAuth(profile, options, callbackPort)
+        return
+      }
+      /**
+       * Neither flag has a meaning in the handoff: it mints a permanent,
+       * full-power API key on the server and never opens a local listener.
+       * Honouring `--read-only` by ignoring it would hand back the opposite of
+       * what was asked for, so the whole login stops here rather than storing a
+       * credential the person did not agree to.
+       */
+      if (options.readOnly) {
+        throw new SimApiError(
+          'The pairing-code handoff cannot issue a read-only login; it mints a full API key. Drop --read-only, or sign in through the browser.',
+          0
+        )
+      }
+      if (callbackPort !== undefined) {
+        throw new SimApiError(
+          'The pairing-code handoff has no local callback, so --callback-port does not apply. Drop it, or sign in through the browser.',
+          0
+        )
+      }
+      await loginWithHandoff(profile, options, scope)
+    })
+}
+
+/** The pairing-code handoff, which mints a permanent API key; see `device-flow.ts`. */
+async function loginWithHandoff(
+  profile: ResolvedProfile,
+  options: LoginOptions,
+  scope: CliAuthScope
+): Promise<void> {
+  const auth = createAuthRequest()
+  const url = buildApprovalUrl(profile.endpoint, auth, scope, profile.workspaceId ?? undefined)
+
+  console.log(
+    `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
+  )
+  console.log(`\nPairing code: ${chalk.bold(auth.pairing)}`)
+  console.log(chalk.dim('Confirm this code matches what the browser shows before approving.\n'))
+  console.log(url)
+
+  if (options.browser) openBrowser(url)
+  console.log(chalk.dim('\nWaiting for approval…'))
+
+  const key = await pollForKey(profile.endpoint, auth)
+
+  if (key.scope !== scope) {
+    // The approval, not the request, decides the scope. Storing a copilot
+    // key where a platform key belongs would fail every later call with an
+    // unexplained 401, so refuse now with the reason.
+    throw new SimApiError(
+      `Server issued a ${key.scope} key but this profile needs a ${scope} key. Update the Sim deployment, or run: sim login --scope ${key.scope}`,
+      0
     )
+  }
+
+  // The workspace picked in the browser becomes the profile's default,
+  // whether or not the key is scoped to it. The user chose it by name —
+  // making them look up its id afterwards would waste the one moment the
+  // answer was already on screen. It arrives off the wire, so it is
+  // checked before either file is touched.
+  //
+  // Absence is the whole of "no workspace" here, and it is a legitimate
+  // outcome — a personal key with nothing selected in the browser. A
+  // *present* value is a workspace id, so every one of them goes to
+  // `normalizeWorkspaceId` to be accepted or refused by name. Testing
+  // truthiness instead let an empty string through the absent branch, so
+  // a malformed response was quietly stored as "no workspace" rather than
+  // reported.
+  const settings: Record<string, string | null> = {
+    endpoint: profile.endpoint,
+    workspace:
+      key.workspaceId == null ? null : normalizeWorkspaceId(key.workspaceId, 'the login response'),
+  }
+  requireStorableCredential(key.apiKey)
+
+  // Config before credentials: the endpoint decides where the key is sent
+  // later. Storing the key first and then failing on the settings left a
+  // key on disk with no endpoint beside it, so the next command fell back
+  // to the default host — sending a self-hosted key somewhere else.
+  await withCredentialsLock(async () => {
+    writeConfigProfile(profile.name, settings)
+    writeCredentialsProfile(profile.name, { kind: 'api_key', apiKey: key.apiKey })
+  })
+
+  console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
+  if (key.workspaceBound && key.workspaceId) {
+    console.log(chalk.dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
+  } else if (key.workspaceId) {
+    console.log(
+      chalk.dim(
+        `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
+      )
+    )
+  } else {
+    console.log(
+      chalk.dim(
+        '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
+      )
+    )
+  }
+}
+
+/**
+ * Ends an OAuth login server-side before forgetting it locally, so the
+ * tokens on disk are dead even if a copy of the file survives. Best effort:
+ * an unreachable server must not stop a user from clearing their own machine,
+ * but it is said out loud so nobody assumes the session was revoked.
+ */
+async function revokeStoredOAuth(profileName: string, endpoint: string): Promise<void> {
+  const credential = readStoredCredential(profileName)
+  if (credential?.kind !== 'oauth') return
+  try {
+    await revokeToken(endpoint, credential.oauth.refreshToken)
+    console.log(chalk.dim('  Signed out of Sim; the login can no longer be renewed.'))
+  } catch (error) {
+    console.log(
+      chalk.yellow(
+        `  Could not revoke the login on ${endpoint} (${safeOneLine(getErrorMessage(error))}). Revoke it in Settings → Authorized apps.`
+      )
+    )
+  }
 }
 
 export function logoutCommand(): Command {
   return new Command('logout')
-    .description("Remove the profile's stored API key")
+    .description("Sign out and remove the profile's stored login")
     .option('--all', 'Remove the profile entirely, including its settings')
-    .action((options: { all?: boolean }, command: Command) => {
+    .action(async (options: { all?: boolean }, command: Command) => {
       if (options.all) {
         const profileName = selectedProfileName(command)
         const dependents = listAuthenticationDependents(profileName)
@@ -391,7 +584,8 @@ export function logoutCommand(): Command {
             0
           )
         }
-        const removed = deleteProfile(profileName)
+        await revokeStoredOAuth(profileName, profileFrom(command).endpoint)
+        const removed = await withCredentialsLock(async () => deleteProfile(profileName))
         if (!removed.config && !removed.credentials) {
           console.log(chalk.dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
           return
@@ -409,18 +603,24 @@ export function logoutCommand(): Command {
         )
       }
 
-      if (!readCredentialsProfile(profile.name).api_key) {
-        console.log(chalk.dim(`No stored key for profile "${safeOneLine(profile.name)}".`))
+      const credential = readStoredCredential(profile.name)
+      if (!credential) {
+        console.log(chalk.dim(`No stored login for profile "${safeOneLine(profile.name)}".`))
         return
       }
 
-      writeCredentialsProfile(profile.name, null)
+      await revokeStoredOAuth(profile.name, profile.endpoint)
+      await withCredentialsLock(async () => writeCredentialsProfile(profile.name, null))
       console.log(
-        chalk.green(`✓ Removed the stored key for profile "${safeOneLine(profile.name)}".`)
+        chalk.green(`✓ Removed the stored login for profile "${safeOneLine(profile.name)}".`)
       )
-      // The key still exists server-side; leaving that unsaid invites the
-      // assumption that logging out revoked it.
-      console.log(chalk.dim('  The key itself is still active — revoke it in Settings → API keys.'))
+      if (credential.kind === 'api_key') {
+        // The key still exists server-side; leaving that unsaid invites the
+        // assumption that logging out revoked it.
+        console.log(
+          chalk.dim('  The key itself is still active — revoke it in Settings → API keys.')
+        )
+      }
     })
 }
 
@@ -520,12 +720,12 @@ async function verifyProfile(
   client: Pick<SimClient, 'request'>,
   profile: ResolvedProfile
 ): Promise<Verification> {
-  if (!profile.apiKey) {
+  if (!profile.apiKey && !profile.oauth) {
     return {
       status: 'unauthenticated',
       workspace: null,
       keyType: null,
-      detail: `no API key — run: sim login --profile ${safeOneLine(profile.name)}`,
+      detail: `not logged in — run: sim login --profile ${safeOneLine(profile.name)}`,
     }
   }
 
@@ -592,7 +792,7 @@ export function whoamiCommand(): Command {
     .action(async (options: { verify: boolean }, command: Command) => {
       const { client, profile } = clientFrom(command)
       const { sources } = profile
-      const authentication = presentAuthentication(sources.apiKey)
+      const authentication = presentAuthentication(sources.credential)
 
       const verification: Verification = options.verify
         ? await verifyProfile(client, profile)
@@ -612,9 +812,9 @@ export function whoamiCommand(): Command {
           ['Profile', profile.name],
           ['Endpoint', annotate(profile.endpoint, sources.endpoint)],
           [
-            'API key',
+            'Login',
             authentication.authenticated
-              ? annotate('configured', authentication.source)
+              ? annotate(profile.oauth ? 'OAuth' : 'API key', authentication.source)
               : chalk.yellow('not logged in'),
           ],
           [
@@ -683,7 +883,7 @@ function buildProfileRow(name: string, active: boolean): ProfileRow {
     return {
       name,
       active,
-      hasKey: Boolean(readCredentialsProfile(authProfile).api_key),
+      hasKey: readStoredCredential(authProfile) !== null,
       authProfile,
       error: null,
     }

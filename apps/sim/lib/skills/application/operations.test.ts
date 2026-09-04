@@ -37,7 +37,7 @@ describe('skill operation registry', () => {
     expect(skillOperations.create).toMatchObject({
       minimumRole: 'write',
       workspaceApiKey: 'deny',
-      principalKinds: ['session', 'personal_api_key', 'delegated'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     })
   })
 
@@ -77,7 +77,7 @@ describe('skill operation registry', () => {
         /** `read`, not `write` — the editor row is the authority, not the role. */
         minimumRole: 'read',
         workspaceApiKey: 'deny',
-        principalKinds: ['session', 'personal_api_key', 'delegated'],
+        principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
       })
     }
   })
@@ -102,13 +102,13 @@ describe('skill operation registry', () => {
     expect(skillOperations.listEditors).toMatchObject({
       minimumRole: 'read',
       workspaceApiKey: 'allow',
-      principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
     })
     for (const operation of [skillOperations.grantEditor, skillOperations.revokeEditor]) {
       expect(operation).toMatchObject({
         minimumRole: 'read',
         workspaceApiKey: 'deny',
-        principalKinds: ['session', 'personal_api_key'],
+        principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
       })
     }
   })

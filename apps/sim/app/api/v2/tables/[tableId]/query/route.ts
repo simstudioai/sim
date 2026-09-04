@@ -27,6 +27,8 @@ function queryRowCursorScope(tableId: string): string {
 export const POST = defineV2JsonRoute({
   contract: v2QueryRowsContract,
   operation: tableOperations.queryRows,
+  // A query whose filters do not fit a query string; it reads and never writes.
+  readOnly: true,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableRowsErrorPolicy,

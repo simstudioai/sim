@@ -2,7 +2,13 @@ import type { ApplicationOperation } from '@/lib/core/application'
 import { assertOperationCapability, defineWorkspaceOperation } from '@/lib/core/application'
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const COPILOT_PRINCIPAL_POLICY = {
@@ -11,13 +17,29 @@ const COPILOT_PRINCIPAL_POLICY = {
 } as const
 
 const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot', 'executor'],
 } as const
 
-const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
+const HTTP_PRINCIPAL_KINDS = [
+  'session',
+  'personal_api_key',
+  'oauth_access_token',
+  'workspace_api_key',
+] as const
 
-const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'delegated'] as const
+const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = [
+  'session',
+  'personal_api_key',
+  'oauth_access_token',
+  'delegated',
+] as const
 
 const HUMAN_AND_COPILOT_PRINCIPAL_POLICY = {
   principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,

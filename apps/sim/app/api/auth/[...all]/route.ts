@@ -25,6 +25,20 @@ const OAUTH_CALLBACK_PATH_PREFIX = 'oauth2/callback/'
  */
 const SAML_PROTOCOL_POST_PREFIX = 'sso/saml2/'
 
+/**
+ * The OAuth provider POST endpoints a client legitimately calls: the protocol
+ * itself, plus the consent decision the consent page submits.
+ */
+const OAUTH_PROVIDER_PROTOCOL_POST_PATHS = new Set([
+  'oauth2/token',
+  'oauth2/consent',
+  'oauth2/continue',
+  'oauth2/revoke',
+  'oauth2/introspect',
+  'oauth2/userinfo',
+  'oauth2/public-client-prelogin',
+])
+
 function getAuthPath(request: NextRequest): string {
   const pathname = request.nextUrl?.pathname ?? new URL(request.url).pathname
   return pathname.replace('/api/auth/', '')
@@ -69,6 +83,28 @@ function getCredentialGroupCallbackProviderId(request: NextRequest, path: string
  */
 function isBlockedSsoMutationPath(path: string): boolean {
   return path.startsWith('sso/') && !path.startsWith(SAML_PROTOCOL_POST_PREFIX)
+}
+
+/**
+ * Client registration and client/consent mutation are not Sim's OAuth surface.
+ *
+ * `allowDynamicClientRegistration: false` gates only `/oauth2/register`; the
+ * plugin's `/oauth2/create-client`, `/update-client`, `/delete-client`,
+ * `/client/rotate-secret` and `/update-consent` are separate endpoints whose
+ * only guard is a session, so without this any signed-in user could register a
+ * client with arbitrary redirect URIs and the full scope set, then phish a
+ * token out of somebody else — or widen their own grant past what they
+ * consented to. Clients are operator-created rows (see
+ * `apps/sim/scripts/create-oauth-client.ts`), and a consent is changed by
+ * granting or revoking it, never by editing the row.
+ *
+ * Deny-by-default, like the SSO block above, so a future plugin version cannot
+ * introduce another unshadowed mutation endpoint. `oauth2/callback/` is the
+ * generic-OAuth *client* callback and belongs to connector linking, not here.
+ */
+function isBlockedOAuthProviderMutationPath(path: string): boolean {
+  if (!path.startsWith('oauth2/') || path.startsWith('oauth2/callback/')) return false
+  return !OAUTH_PROVIDER_PROTOCOL_POST_PATHS.has(path)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -122,6 +158,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isBlockedSsoMutationPath(path)) {
     return NextResponse.json(
       { error: 'SSO provider mutations are handled by application API routes.' },
+      { status: 404 }
+    )
+  }
+
+  if (isBlockedOAuthProviderMutationPath(path)) {
+    return NextResponse.json(
+      { error: 'OAuth client registration is not available.' },
       { status: 404 }
     )
   }

@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeOAuth2Contract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import { isOAuthProviderEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,10 +20,37 @@ const logger = createLogger('OAuth2Authorize')
 
 export const dynamic = 'force-dynamic'
 
+const { GET: betterAuthGET } = toNextJsHandler(auth.handler)
+
 /**
- * Browser-initiated entrypoint for linking a generic OAuth2 account.
+ * Whether this is a client asking Sim to sign its user in — the OAuth provider's
+ * authorize request — rather than a user linking an external account.
+ *
+ * This route sits on the same path Better Auth mounts the provider's authorize
+ * endpoint, so the catch-all never sees it. The two requests cannot be
+ * confused: a provider request names a `client_id`, while a connector link
+ * names either a `providerId` or a `draftId` — the draft leg resolves its
+ * provider server-side and so carries no `providerId`, which is why both are
+ * checked — and never a `client_id`. Whether the id is registered is not
+ * decided here; an unknown one is the plugin's error to return.
+ */
+function isOAuthProviderAuthorize(request: NextRequest): boolean {
+  const query = request.nextUrl.searchParams
+  return query.has('client_id') && !query.has('providerId') && !query.has('draftId')
+}
+
+/**
+ * Browser-initiated entrypoint for linking a generic OAuth2 account, and the
+ * OAuth provider's authorize endpoint when the request is a client's.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
+  if (isOAuthProviderAuthorize(request)) {
+    if (!isOAuthProviderEnabled) {
+      return NextResponse.json({ error: 'OAuth provider is not enabled' }, { status: 404 })
+    }
+    return betterAuthGET(request)
+  }
+
   const baseUrl = getBaseUrl()
 
   const session = await getSession()

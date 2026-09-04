@@ -85,9 +85,12 @@ Persist that value as `CRON_SECRET` on the app **and** on whatever calls these e
 | Retention — logs | `GET /api/logs/cleanup` | Daily | **No** — schedule it yourself |
 | Retention — soft deletes | `GET /api/cron/cleanup-soft-deletes` | Daily | **No** — schedule it yourself |
 | Retention — Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | **No** — schedule it yourself |
+| Retention — OAuth tokens | `GET /api/cron/cleanup-oauth-tokens` | Daily | **No** — schedule it yourself |
 
 <Callout type="warn">
-  Both shipped deployments schedule the data-drain dispatcher but **not** the three retention cleanup endpoints — neither the Helm chart nor Docker Compose's `cron` service. Setting `DATA_RETENTION_ENABLED=true` alone deletes nothing — the windows are evaluated only when one of those endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
+  Both shipped deployments schedule the data-drain dispatcher but **not** the retention cleanup endpoints — neither the Helm chart nor Docker Compose's `cron` service. Setting `DATA_RETENTION_ENABLED=true` alone deletes nothing — the windows are evaluated only when one of those endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
+
+  The OAuth token sweep is the same: with Sim's OAuth provider on, every CLI login leaves a lapsed access-token row behind each hour, and nothing else removes them. It is a no-op when `OAUTH_PROVIDER_ENABLED=false`.
 </Callout>
 
 ```bash
