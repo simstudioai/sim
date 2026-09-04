@@ -150,6 +150,20 @@ describe('withMcpOauthRefreshLock', () => {
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
+  it('stops waiting for a cross-process lock when the caller aborts', async () => {
+    mockAcquireLock.mockResolvedValue(false)
+    const fn = vi.fn(async () => 'should-not-run')
+    const controller = new AbortController()
+    const pending = withMcpOauthRefreshLock('row-abort', fn, controller.signal)
+    const assertion = expect(pending).rejects.toThrow('cancelled')
+
+    await vi.waitFor(() => expect(mockAcquireLock).toHaveBeenCalled())
+    controller.abort(new Error('cancelled'))
+
+    await assertion
+    expect(fn).not.toHaveBeenCalled()
+  })
+
   it('falls open when Redis is unavailable on acquire', async () => {
     mockAcquireLock.mockRejectedValueOnce(new Error('Redis connection refused'))
     const fn = vi.fn(async () => 'uncoordinated')

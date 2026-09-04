@@ -8,7 +8,10 @@ import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { encryptionMock, redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createCoordinatedMcpOauthFetch } from '@/lib/mcp/oauth/coordinated-fetch'
+import {
+  createCoordinatedMcpOauthFetch,
+  createMcpEndpointFetch,
+} from '@/lib/mcp/oauth/coordinated-fetch'
 import { withMcpOauthRefreshLock } from '@/lib/mcp/oauth/storage'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
@@ -447,7 +450,25 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
     expect(new Headers(request.mock.calls[0][1]?.headers).has('authorization')).toBe(false)
   })
 
-  it('does not refresh or retry a request cancelled while waiting for the lock', async () => {
+  it('applies configured headers only to the MCP endpoint', async () => {
+    const request = vi.fn<FetchLike>().mockResolvedValue(new Response(null, { status: 200 }))
+    const scoped = createMcpEndpointFetch(request, {
+      serverUrl: SERVER,
+      headers: { 'x-mcp-credential': 'configured-value' },
+    })
+
+    await scoped(SERVER, { headers: { accept: 'application/json' } })
+    await scoped(TOKEN_URL, { headers: { 'content-type': 'application/x-www-form-urlencoded' } })
+
+    const mcpHeaders = new Headers(request.mock.calls[0][1]?.headers)
+    expect(mcpHeaders.get('x-mcp-credential')).toBe('configured-value')
+    expect(mcpHeaders.get('accept')).toBe('application/json')
+    const oauthHeaders = new Headers(request.mock.calls[1][1]?.headers)
+    expect(oauthHeaders.has('x-mcp-credential')).toBe(false)
+    expect(oauthHeaders.get('content-type')).toBe('application/x-www-form-urlencoded')
+  })
+
+  it('rejects promptly without refreshing when cancelled while waiting for the lock', async () => {
     const entered = deferred()
     const finish = deferred()
     const holder = withMcpOauthRefreshLock('shared-grant', async () => {
@@ -464,12 +485,15 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
     const abort = new AbortController()
     const call = fetchFor(grant, request)(SERVER, { signal: abort.signal })
     const outcome = expect(call).rejects.toThrow('cancelled')
-    await rejected.promise
-    abort.abort(new Error('cancelled'))
-    finish.resolve()
-    await holder
-    await outcome
-    expect(grant.tokenRequest).not.toHaveBeenCalled()
-    expect(request).toHaveBeenCalledTimes(1)
+    try {
+      await rejected.promise
+      abort.abort(new Error('cancelled'))
+      await outcome
+      expect(grant.tokenRequest).not.toHaveBeenCalled()
+      expect(request).toHaveBeenCalledTimes(1)
+    } finally {
+      finish.resolve()
+      await holder
+    }
   })
 })

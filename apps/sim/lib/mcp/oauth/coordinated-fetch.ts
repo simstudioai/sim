@@ -3,7 +3,7 @@ import {
   type OAuthClientProvider,
   UnauthorizedError,
 } from '@modelcontextprotocol/sdk/client/auth.js'
-import { createFetchWithInit, type FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { mcpAuthGuarded } from '@/lib/mcp/oauth/auth'
 import { withMcpOauthRefreshLock } from '@/lib/mcp/oauth/storage'
 
@@ -19,6 +19,23 @@ export interface McpOauthSession extends McpOauthCredentials {
   initialProvider: OAuthClientProvider
 }
 
+/** Applies configured headers only to the MCP endpoint, never to OAuth discovery or token URLs. */
+export function createMcpEndpointFetch(
+  fetchFn: FetchLike,
+  options: { serverUrl: string; headers?: HeadersInit }
+): FetchLike {
+  if (!options.headers) return fetchFn
+  const serverUrl = new URL(options.serverUrl)
+  const configuredHeaders = new Headers(options.headers)
+
+  return (input, init) => {
+    if (new URL(input).href !== serverUrl.href) return fetchFn(input, init)
+    const headers = new Headers(init?.headers)
+    configuredHeaders.forEach((value, key) => headers.set(key, value))
+    return fetchFn(input, { ...init, headers })
+  }
+}
+
 /**
  * Coordinates the SDK's public OAuth flow across clients without locking MCP requests.
  * The transport must omit authProvider so it cannot refresh outside this boundary.
@@ -27,10 +44,9 @@ export interface McpOauthSession extends McpOauthCredentials {
  */
 export function createCoordinatedMcpOauthFetch(
   { credentialId, loadProvider, initialProvider }: McpOauthSession,
-  options: { serverUrl: string; fetch: FetchLike; requestInit?: RequestInit }
+  options: { serverUrl: string; fetch: FetchLike }
 ): FetchLike {
   const serverUrl = new URL(options.serverUrl)
-  const authFetch = createFetchWithInit(options.fetch, options.requestInit)
   let currentProvider = initialProvider
 
   return async (input, init) => {
@@ -63,27 +79,31 @@ export function createCoordinatedMcpOauthFetch(
       if (authenticatedChallenges.has(challengeKey)) return response
 
       await response.body?.cancel()
-      await withMcpOauthRefreshLock(credentialId, async () => {
-        init?.signal?.throwIfAborted()
-        const current = await loadProvider()
-        const latestTokens = await current.tokens()
-        const refreshedElsewhere =
-          latestTokens && latestTokens.access_token !== tokens?.access_token
+      await withMcpOauthRefreshLock(
+        credentialId,
+        async () => {
+          init?.signal?.throwIfAborted()
+          const current = await loadProvider()
+          const latestTokens = await current.tokens()
+          const refreshedElsewhere =
+            latestTokens && latestTokens.access_token !== tokens?.access_token
 
-        init?.signal?.throwIfAborted()
-        if (!refreshedElsewhere) {
-          const result = await mcpAuthGuarded(current, {
-            serverUrl,
-            resourceMetadataUrl: challenge.resourceMetadataUrl,
-            scope: challenge.scope,
-            fetchFn: authFetch,
-          })
-          if (result !== 'AUTHORIZED') throw new UnauthorizedError()
-          authenticatedChallenges.add(challengeKey)
-        }
-        provider = current
-        currentProvider = current
-      })
+          init?.signal?.throwIfAborted()
+          if (!refreshedElsewhere) {
+            const result = await mcpAuthGuarded(current, {
+              serverUrl,
+              resourceMetadataUrl: challenge.resourceMetadataUrl,
+              scope: challenge.scope,
+              fetchFn: options.fetch,
+            })
+            if (result !== 'AUTHORIZED') throw new UnauthorizedError()
+            authenticatedChallenges.add(challengeKey)
+          }
+          provider = current
+          currentProvider = current
+        },
+        init?.signal ?? undefined
+      )
     }
   }
 }
