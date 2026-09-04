@@ -32,6 +32,7 @@ import {
   type ViewerConnectorMembership,
   type WorkspaceMemberConnector,
 } from '@/lib/api/contracts/knowledge'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
@@ -245,7 +246,7 @@ interface CreateConnectorParams {
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes?: number
-  accessMode?: 'workspace' | 'members'
+  accessMode?: ConnectorAccessMode
   credentialGroupId?: string
   credentialGroupOptionId?: string
 }

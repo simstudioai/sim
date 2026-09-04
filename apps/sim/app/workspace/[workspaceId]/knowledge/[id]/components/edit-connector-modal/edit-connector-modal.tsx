@@ -20,6 +20,7 @@ import {
 import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import {
   ConnectorAccessField,
@@ -72,12 +73,18 @@ function currentAccess(connector: ConnectorData): ConnectorAccessSelection {
       credentialGroupOptionId: connector.credentialGroupOptionId ?? undefined,
     }
   }
+  /**
+   * Named rather than folded into the fallback: an unrecognised mode showing as
+   * Workspace would tell an admin their documents are visible to everyone when
+   * they are not, and would silently rewrite the mode on the next save.
+   */
+  if (connector.accessMode === 'admin') return { accessMode: 'admin' }
   return { accessMode: 'workspace' }
 }
 
 function accessChanged(current: ConnectorAccessSelection, next: ConnectorAccessSelection): boolean {
   if (current.accessMode !== next.accessMode) return true
-  if (next.accessMode === 'workspace') return false
+  if (next.accessMode !== 'members') return false
   return (
     current.credentialGroupId !== next.credentialGroupId ||
     current.credentialGroupOptionId !== next.credentialGroupOptionId
@@ -449,7 +456,7 @@ export function EditConnectorModal({
 interface SettingsTabProps {
   connectorConfig: ConnectorMeta | null
   /** The mode the connector is saved in, which the draft `access` may differ from. */
-  persistedAccessMode: 'workspace' | 'members'
+  persistedAccessMode: ConnectorAccessMode
   sourceConfig: ConfigFieldMap
   credentialId: string | null
   canonicalGroups: Map<string, ConnectorConfigField[]>

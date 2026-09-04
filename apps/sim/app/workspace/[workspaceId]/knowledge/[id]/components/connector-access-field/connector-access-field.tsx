@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { ButtonGroup, ButtonGroupItem, ChipCombobox, ChipModalField } from '@sim/emcn'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type ConnectorMemberGroupOptions,
   decodeConnectorMemberGroupOption,
@@ -11,7 +12,7 @@ import type { ConnectorMeta } from '@/connectors/types'
 
 /** What the caller chose; `members` may name the option the connector crawls with. */
 export interface ConnectorAccessSelection {
-  accessMode: 'workspace' | 'members'
+  accessMode: ConnectorAccessMode
   credentialGroupId?: string
   credentialGroupOptionId?: string
 }
@@ -37,6 +38,25 @@ interface ConnectorAccessFieldProps {
 }
 
 /**
+ * Each mode decides who can read the indexed documents, which the three labels
+ * cannot say on their own — and getting it wrong is the kind of mistake that is
+ * only noticed once the wrong person finds a document.
+ */
+function accessHint(input: {
+  mode: ConnectorAccessMode
+  connectorConfig: ConnectorMeta
+  allowMembers: boolean
+}): string | undefined {
+  if (input.mode === 'members') {
+    return `Everyone in the workspace is invited by email to connect their ${input.connectorConfig.name} account when the first sync starts. Each member sees only the documents their own account can open; scheduled, API, and chat runs see workspace-visible documents only.`
+  }
+  if (input.mode === 'admin') {
+    return `Indexed once as the ${input.connectorConfig.name} administrator you name below, keeping each document's own permissions. People see only what ${input.connectorConfig.name} already lets them open; scheduled, API, and chat runs see workspace-visible documents only.`
+  }
+  return input.allowMembers ? undefined : 'Per-member access is turned off for this workspace.'
+}
+
+/**
  * The Access section of a connector's settings: sync as the workspace, or
  * crawl once per member so each person sees only what the source lets them
  * read. Per-member access needs nothing from the admin: a Credential Group is
@@ -57,17 +77,24 @@ export function ConnectorAccessField({
 }: ConnectorAccessFieldProps) {
   if (!groupOptions.supported) return null
 
+  const allowAdmin = Boolean(connectorConfig.mirrorsSourceAcls)
+
   if (!canAdmin) {
-    if (value.accessMode !== 'members') return null
+    if (value.accessMode === 'workspace') return null
     return (
       <ChipModalField type='custom' title='Access'>
-        <ButtonGroup value='members'>
+        <ButtonGroup value={value.accessMode}>
           <ButtonGroupItem value='workspace' disabled>
             Workspace
           </ButtonGroupItem>
           <ButtonGroupItem value='members' disabled>
             Per member
           </ButtonGroupItem>
+          {allowAdmin ? (
+            <ButtonGroupItem value='admin' disabled>
+              Mirror source
+            </ButtonGroupItem>
+          ) : null}
         </ButtonGroup>
       </ChipModalField>
     )
@@ -85,20 +112,12 @@ export function ConnectorAccessField({
       type='custom'
       title='Access'
       error={error?.message}
-      hint={
-        value.accessMode === 'members'
-          ? `Everyone in the workspace is invited by email to connect their ${connectorConfig.name} account when the first sync starts. Each member sees only the documents their own account can open; scheduled, API, and chat runs see workspace-visible documents only.`
-          : allowMembers
-            ? undefined
-            : 'Per-member access is turned off for this workspace.'
-      }
+      hint={accessHint({ mode: value.accessMode, connectorConfig, allowMembers })}
     >
       <div className='flex flex-col gap-2'>
         <ButtonGroup
           value={value.accessMode}
-          onValueChange={(mode) =>
-            onChange(mode === 'members' ? { accessMode: 'members' } : { accessMode: 'workspace' })
-          }
+          onValueChange={(mode) => onChange({ accessMode: mode as ConnectorAccessMode })}
         >
           <ButtonGroupItem value='workspace' disabled={disabled}>
             Workspace
@@ -106,6 +125,11 @@ export function ConnectorAccessField({
           <ButtonGroupItem value='members' disabled={disabled || !allowMembers}>
             Per member
           </ButtonGroupItem>
+          {allowAdmin ? (
+            <ButtonGroupItem value='admin' disabled={disabled}>
+              Mirror source
+            </ButtonGroupItem>
+          ) : null}
         </ButtonGroup>
 
         {value.accessMode === 'members' && showPicker && (

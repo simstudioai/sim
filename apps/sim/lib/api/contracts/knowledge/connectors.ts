@@ -14,16 +14,19 @@ import {
 import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
 
 /**
- * How a connector derives document access. `workspace` syncs as one credential
- * and every document is visible to the workspace; `members` crawls once per
- * Credential Group member and a document is visible to the members whose crawl
- * returned it. `admin` is reserved.
+ * How a connector derives document access.
+ *
+ * `workspace` syncs as one credential and every document is visible to the
+ * whole workspace. `members` crawls once per Credential Group member, and a
+ * document is visible to the members whose own crawl returned it. `admin`
+ * crawls once under an administrative credential and mirrors the source's own
+ * permissions onto each document.
  */
 export const connectorAccessModeSchema = z.enum(['workspace', 'members', 'admin'])
 export type ConnectorAccessMode = z.output<typeof connectorAccessModeSchema>
 
 /** The modes a caller may put a connector into. */
-export const connectorRequestedAccessModeSchema = z.enum(['workspace', 'members'])
+export const connectorRequestedAccessModeSchema = connectorAccessModeSchema
 
 const connectorAccessBindingShape = {
   accessMode: connectorRequestedAccessModeSchema.optional().default('workspace'),
@@ -35,7 +38,7 @@ const connectorAccessBindingShape = {
 
 function requireAccessBinding(
   value: {
-    accessMode: 'workspace' | 'members'
+    accessMode: ConnectorAccessMode
     credentialGroupId?: string
     credentialGroupOptionId?: string
   },

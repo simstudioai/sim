@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -16,8 +17,10 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { connectorServiceAccountSubject } from '@/lib/knowledge/connectors/access-token'
 import { createViewerConnectorEnrollmentLink } from '@/lib/knowledge/connectors/member-provisioning'
 import {
+  type ConnectorAccessTarget,
   performUpdateKnowledgeConnectorAccess,
   resolveKnowledgeConnectorMembersBinding,
 } from '@/lib/knowledge/orchestration/connector-access'
@@ -66,11 +69,40 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
   },
 })
 
+/**
+ * Refuses admin mode on a connector that cannot mirror the source's
+ * permissions, or that has not been told whose eyes to crawl through.
+ *
+ * Both are refusals rather than warnings because the alternative is a corpus
+ * indexed with no ACL at all: every document readable by nobody, which looks
+ * exactly like a broken sync. Failing at the moment the mode is chosen says
+ * what is missing while the person choosing it can still supply it.
+ */
+export function assertConnectorMirrorsSourceAcls(
+  connectorMeta: ConnectorMeta,
+  sourceConfig: unknown
+): void {
+  if (!connectorMeta.mirrorsSourceAcls) {
+    throw new OrchestrationError(
+      'validation',
+      `${connectorMeta.name} cannot mirror source permissions, so it has no administrator mode`
+    )
+  }
+  if (
+    !connectorServiceAccountSubject(connectorMeta.auth, sourceConfig as Record<string, unknown>)
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      `${connectorMeta.name} needs the administrator to crawl as before it can mirror permissions`
+    )
+  }
+}
+
 export interface UpdateKnowledgeConnectorAccessInput {
   knowledgeBaseId: string
   connectorId: string
   assertedWorkspaceId?: string
-  accessMode: 'workspace' | 'members'
+  accessMode: ConnectorAccessMode
   credentialGroupId?: string
   credentialGroupOptionId?: string
   /** Workspace mode: the credential the connector syncs as from now on. */
@@ -80,8 +112,10 @@ export interface UpdateKnowledgeConnectorAccessInput {
 }
 
 /**
- * Moves a connector between workspace and members mode. Admin only: members
- * mode lets the connector crawl as every person enrolled in the option.
+ * Moves a connector between access modes. Admin only: `members` lets the
+ * connector crawl as every person enrolled in the option, and `admin` lets it
+ * crawl as an administrator and mirror the source's own permissions — both are
+ * decisions about whose data the workspace indexes.
  */
 export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateConnectorAccess,
@@ -106,34 +140,39 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
 
-    const target =
-      input.accessMode === 'members'
-        ? {
-            accessMode: 'members' as const,
-            binding: await resolveKnowledgeConnectorMembersBinding({
-              workspaceId,
-              connectorMeta,
-              binding:
-                input.credentialGroupId && input.credentialGroupOptionId
-                  ? {
-                      credentialGroupId: input.credentialGroupId,
-                      credentialGroupOptionId: input.credentialGroupOptionId,
-                    }
-                  : null,
-              actingUserId,
-              sourceConfig: connector.sourceConfig as Record<string, unknown>,
-            }),
-          }
-        : {
-            accessMode: 'workspace' as const,
-            credentialId: await requireUsableCredential({
-              credentialId: input.credentialId,
-              connectorMeta,
-              workspaceId,
-              actingUserId,
-              requestId,
-            }),
-          }
+    let target: ConnectorAccessTarget
+    if (input.accessMode === 'members') {
+      target = {
+        accessMode: 'members',
+        binding: await resolveKnowledgeConnectorMembersBinding({
+          workspaceId,
+          connectorMeta,
+          binding:
+            input.credentialGroupId && input.credentialGroupOptionId
+              ? {
+                  credentialGroupId: input.credentialGroupId,
+                  credentialGroupOptionId: input.credentialGroupOptionId,
+                }
+              : null,
+          actingUserId,
+          sourceConfig: connector.sourceConfig as Record<string, unknown>,
+        }),
+      }
+    } else {
+      if (input.accessMode === 'admin') {
+        assertConnectorMirrorsSourceAcls(connectorMeta, connector.sourceConfig)
+      }
+      target = {
+        accessMode: input.accessMode,
+        credentialId: await requireUsableCredential({
+          credentialId: input.credentialId,
+          connectorMeta,
+          workspaceId,
+          actingUserId,
+          requestId,
+        }),
+      }
+    }
 
     const outcome = await performUpdateKnowledgeConnectorAccess({
       knowledgeBase: { id: context.knowledgeBaseId, name: context.knowledgeBase.name, workspaceId },

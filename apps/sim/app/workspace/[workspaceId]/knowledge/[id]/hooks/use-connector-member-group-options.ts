@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type CredentialGroupProvider,
   findCredentialGroupProviderFromProviderId,
@@ -41,7 +42,7 @@ export function connectorMemberGroupProvider(
 /** The config fields a per-member connector hides: its listing caps, which the server clears. */
 export function memberCapFieldIds(
   connectorConfig: ConnectorMeta | null,
-  accessMode: 'workspace' | 'members'
+  accessMode: ConnectorAccessMode
 ): ReadonlySet<string> {
   return new Set(
     accessMode === 'members' ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? []) : []

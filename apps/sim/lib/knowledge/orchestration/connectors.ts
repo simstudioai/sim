@@ -12,6 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
@@ -148,6 +149,11 @@ export interface PerformCreateKnowledgeConnectorParams extends KnowledgeOperatio
    */
   membersBinding?: ConnectorMembersBinding
   /**
+   * How the connector derives document access. `members` is implied by
+   * `membersBinding`; `admin` has no binding of its own, so it must be named.
+   */
+  accessMode?: ConnectorAccessMode
+  /**
    * Resolves the payer the sync is billed to. A thunk so a request rejected by
    * a guard never pays for the lookup, and so the payer is read at the moment
    * the sync is dispatched.
@@ -193,6 +199,7 @@ export async function performCreateKnowledgeConnector(
     sourceConfig,
     syncIntervalMinutes,
     membersBinding,
+    accessMode,
     resolveBillingAttribution,
     resolveAccessToken,
     request,
@@ -420,7 +427,12 @@ export async function performCreateKnowledgeConnector(
                 credentialGroupOptionId: membersBinding.credentialGroupOptionId,
                 nextMemberSyncAt: now,
               }
-            : {}),
+            : /**
+               * An admin-mode connector is a content-engine connector like a
+               * workspace one; only its documents' ACLs differ, and those are
+               * written by its own crawl. Nothing else here changes.
+               */
+              { accessMode: accessMode === 'admin' ? 'admin' : 'workspace' }),
           createdAt: now,
           updatedAt: now,
         })

@@ -11,6 +11,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -28,6 +29,7 @@ import {
   resolveKnowledgeAttributedUserId,
   resolveKnowledgeBillingAttribution,
 } from '@/lib/knowledge/application/billing'
+import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/application/connector-access'
 import {
   type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeConnectorContext,
@@ -99,8 +101,11 @@ export interface CreateKnowledgeConnectorInput extends KnowledgeConnectorApplica
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes: number
-  /** `members` crawls per Credential Group member; admin only. Defaults to `workspace`. */
-  accessMode?: 'workspace' | 'members'
+  /**
+   * How the connector derives document access; admin only for anything but
+   * `workspace`. Defaults to `workspace`.
+   */
+  accessMode?: ConnectorAccessMode
   credentialGroupId?: string
   credentialGroupOptionId?: string
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
@@ -590,6 +595,24 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     if (!connectorMeta) {
       throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
     }
+    if (input.accessMode === 'admin') {
+      /**
+       * Admin mode indexes a whole source under one administrator's view, so it
+       * is the same class of decision as members mode and takes the same role.
+       */
+      const subjectUserId = resolvePrincipalSubjectUserId(principal)
+      if (context.workspaceId === undefined) {
+        throw new OrchestrationError(
+          'validation',
+          'Administrator mode needs a workspace knowledge base'
+        )
+      }
+      if (!subjectUserId) {
+        throw new OrchestrationError('forbidden', 'Administrator mode needs a signed-in admin')
+      }
+      await requireCurrentHumanRole(subjectUserId, context, 'admin')
+      assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig)
+    }
     let membersBinding: ResolvedMembersBinding | undefined
     if (input.accessMode === 'members') {
       /**
@@ -633,6 +656,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
       syncIntervalMinutes: input.syncIntervalMinutes,
       membersBinding,
+      accessMode: input.accessMode,
       resolveBillingAttribution: () =>
         input.resolveBillingAttribution?.(workspaceId) ??
         resolveKnowledgeBillingAttribution(principal, context),

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -178,12 +179,23 @@ async function releaseSwitchLease(
   return row ?? null
 }
 
+/**
+ * The mode a connector is being moved into, with what that mode needs to run:
+ * a Credential Group binding for `members`, a stored credential for the modes
+ * that sync as one.
+ */
+export type ConnectorAccessTarget =
+  | { accessMode: 'members'; binding: ResolvedMembersBinding }
+  | { accessMode: 'workspace'; credentialId: string }
+  | { accessMode: 'admin'; credentialId: string }
+
+/** A target that syncs as one stored credential — every mode except `members`. */
+type CredentialBackedTarget = Extract<ConnectorAccessTarget, { credentialId: string }>
+
 export interface PerformUpdateKnowledgeConnectorAccessParams extends KnowledgeOperationContext {
   knowledgeBase: { id: string; name: string; workspaceId: string }
   connectorId: string
-  target:
-    | { accessMode: 'members'; binding: ResolvedMembersBinding }
-    | { accessMode: 'workspace'; credentialId: string }
+  target: ConnectorAccessTarget
   resolveBillingAttribution: () => Promise<BillingAttributionSnapshot>
 }
 
@@ -192,6 +204,32 @@ export type PerformUpdateKnowledgeConnectorAccessResult = KnowledgeOrchestration
   /** Whether the switch changed anything; a repeat of the current binding is a no-op. */
   changed: boolean
 }>
+
+/**
+ * What entering a mode does to the ACL of every document the connector already
+ * owns.
+ *
+ * `workspace` publishes them to the workspace. `members` and `admin` both hide
+ * them, because in both the ACL is owned by a later pass — the member engine's
+ * observation graph, or the crawl that mirrors the source's permissions — and
+ * neither has run yet. Hiding on entry is what makes an interrupted switch
+ * safe: documents are hidden early, never shown early.
+ */
+const MODE_ENTRY_ACL: Record<ConnectorAccessMode, readonly string[]> = {
+  workspace: WORKSPACE_ACL,
+  members: EMPTY_ACL,
+  admin: EMPTY_ACL,
+}
+
+/**
+ * Whether a target syncs as one stored credential. Both credential-backed modes
+ * change the same way — swap the credential, keep the documents — so they share
+ * the fast path below; `members` has no credential of its own, its members are
+ * the credentials.
+ */
+function isCredentialBackedTarget(target: ConnectorAccessTarget): target is CredentialBackedTarget {
+  return target.accessMode !== 'members'
+}
 
 /**
  * Moves a connector between access modes under the connector's content lease,
@@ -225,10 +263,10 @@ export async function performUpdateKnowledgeConnectorAccess(
 
   const unchanged =
     target.accessMode === existing.accessMode &&
-    (target.accessMode === 'workspace'
-      ? target.credentialId === existing.credentialId
-      : target.binding.credentialGroupId === existing.credentialGroupId &&
-        target.binding.credentialGroupOptionId === existing.credentialGroupOptionId)
+    (target.accessMode === 'members'
+      ? target.binding.credentialGroupId === existing.credentialGroupId &&
+        target.binding.credentialGroupOptionId === existing.credentialGroupOptionId
+      : target.credentialId === existing.credentialId)
   if (unchanged) {
     /**
      * Re-applying the current binding on a connector whose member sync was
@@ -267,14 +305,14 @@ export async function performUpdateKnowledgeConnectorAccess(
   }
 
   /**
-   * Staying in workspace mode with a different credential moves no document's
-   * visibility, so the lease is not taken. It does change what the source
-   * shows: the new credential may see a different corpus, and only a full
-   * listing reconciles that, so the incremental watermark is dropped and a sync
-   * queued. The write refuses while a sync owns the row, whose terminal write
-   * would otherwise put the watermark straight back.
+   * Staying in the same credential-backed mode with a different credential
+   * moves no document's visibility, so the lease is not taken. It does change
+   * what the source shows: the new credential may see a different corpus, and
+   * only a full listing reconciles that, so the incremental watermark is
+   * dropped and a sync queued. The write refuses while a sync owns the row,
+   * whose terminal write would otherwise put the watermark straight back.
    */
-  if (target.accessMode === 'workspace' && existing.accessMode === 'workspace') {
+  if (target.accessMode === existing.accessMode && isCredentialBackedTarget(target)) {
     const now = new Date()
     const [updated] = await db
       .update(knowledgeConnector)
@@ -451,7 +489,7 @@ export async function performUpdateKnowledgeConnectorAccess(
       const [row] = await tx
         .update(knowledgeConnector)
         .set({
-          accessMode: 'workspace',
+          accessMode: target.accessMode,
           credentialId: target.credentialId,
           credentialGroupId: null,
           credentialGroupOptionId: null,
@@ -474,7 +512,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         .returning({ id: knowledgeConnector.id })
       if (!row) throw new SwitchLeaseLostError()
     })
-    const rewritten = await rewriteConnectorAcls(connectorId, WORKSPACE_ACL, {
+    const rewritten = await rewriteConnectorAcls(connectorId, MODE_ENTRY_ACL[target.accessMode], {
       deadlineAt: deadlineAt,
       lease: { stillHeld: () => switchLeaseHeld(connectorId, switchId) },
     })
@@ -493,7 +531,7 @@ export async function performUpdateKnowledgeConnectorAccess(
       accessRewritePending: !rewritten,
     })
     if (!updated) throw new SwitchLeaseLostError()
-    logger.info(`[${requestId}] Switched connector ${connectorId} to workspace mode`, {
+    logger.info(`[${requestId}] Switched connector ${connectorId} to ${target.accessMode} mode`, {
       rewritten,
     })
     const { encryptedApiKey: _secret, ...connector } = updated
