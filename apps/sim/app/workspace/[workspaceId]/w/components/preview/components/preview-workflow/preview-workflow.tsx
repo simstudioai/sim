@@ -25,6 +25,7 @@ import {
   EDGE_Z_BASE,
   EDGE_Z_MAX,
   getEdgeZIndexForTarget,
+  sortNodesParentsFirst,
   useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
@@ -402,13 +403,7 @@ export function PreviewWorkflow({
     const nodeArray: Node[] = []
     const blocksWithErrorEdge = new Set(errorSourceBlockKey ? errorSourceBlockKey.split(',') : [])
 
-    const sortedBlocks = Object.entries(workflowState.blocks || {}).sort(
-      ([, left], [, right]) =>
-        calculateNestingDepth(left, workflowState.blocks) -
-        calculateNestingDepth(right, workflowState.blocks)
-    )
-
-    sortedBlocks.forEach(([blockId, block]) => {
+    Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
       if (!block || !block.type) {
         logger.warn(`Skipping invalid block: ${blockId}`)
         return
@@ -501,7 +496,7 @@ export function PreviewWorkflow({
       })
     })
 
-    return nodeArray
+    return sortNodesParentsFirst(nodeArray)
   }, [
     blocksStructure,
     loopsStructure,
