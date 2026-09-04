@@ -68,8 +68,11 @@ vi.mock('@/lib/oauth', () => ({
   parseProvider: (provider: string) => ({ baseProvider: provider }),
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
+vi.mock('@/lib/oauth/scopes', () => ({
   getScopeDescription: (scope: string) => scope,
+}))
+
+vi.mock('@/lib/oauth/utils', () => ({
   getServiceConfigByProviderId: () => null,
 }))
 

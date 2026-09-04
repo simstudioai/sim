@@ -2,10 +2,19 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
+import { OAUTH_CLIENT_CAPABILITIES } from '@sim/deployment-config/env-capabilities'
 import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
+import {
+  ADDITIONAL_PROVIDER_IDS,
+  ENV_GATED_SCOPES,
+  getScopeDescription,
+  MANAGED_OAUTH_ADDITIONAL_SCOPES,
+  OAUTH_SCOPES,
+  SERVICE_SCOPE_NOTES,
+} from '../apps/sim/lib/oauth/scopes'
 import type { ToolOutputProperty } from '../apps/sim/tools/types'
 
 /**
@@ -42,6 +51,12 @@ const LANDING_INTEGRATIONS_DATA_PATH = path.join(
   'apps/sim/app/(landing)/integrations/data'
 )
 const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
+const OAUTH_CONFIG_PATH = path.join(rootDir, 'apps/sim/lib/oauth/oauth.ts')
+const OAUTH_REGISTRATION_PATH = path.join(rootDir, 'apps/sim/lib/auth/connectors/providers.ts')
+const SELF_HOSTING_OAUTH_DOC_PATH = path.join(
+  rootDir,
+  'apps/docs/content/docs/platform/self-hosting/integrations-oauth.mdx'
+)
 const sourceFileCache = new Map<string, string>()
 const sourceGlobCache = new Map<string, Promise<string[]>>()
 const blockConfigCache = new Map<string, ReturnType<typeof extractAllBlockConfigs>>()
@@ -461,6 +476,18 @@ const emittedByPath = new Map<string, string>()
  * re-emitted is a genuinely stale page regeneration would remove.
  */
 const wouldDeletePaths: string[] = []
+
+function getErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Per-block failures, collected so a run cannot report success after skipping a
+ * page. {@link generateBlockDoc} catches its own errors so one unreadable block
+ * does not abandon the other 300, but a swallowed error still means a page went
+ * missing or stale, and the exit code is what CI reads.
+ */
+const blockGenerationFailures: string[] = []
 
 /** Writes a generated artifact, or in check mode records its final content for the end-of-run comparison. */
 function emitGeneratedFile(filePath: string, content: string): void {
@@ -1306,6 +1333,437 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
     // Non-fatal: descriptions will be empty strings
   }
   return { desc, name }
+}
+
+/**
+ * Connect-surface facts about one OAuth service that the `## Scopes` section
+ * needs but {@link OAUTH_SCOPES} does not carry.
+ */
+interface OAuthServiceConnectInfo {
+  /** Key this service is declared under, which is also its {@link OAUTH_SCOPES} key. */
+  serviceId: string
+  /** Provider id the scope labels are keyed by, which differs from the service id for Gmail. */
+  providerId: string
+  /** Display name, used to label the service in the self-hosting reference. */
+  name: string
+  /** Base provider key, which is also the OAuth-client capability id. */
+  baseProvider: string
+  /**
+   * Further provider ids whose credentials authenticate this same service,
+   * because the provider runs more than one authorization server. Each is its
+   * own redirect URI, so a reference listing only the primary sends a
+   * self-hoster off to register half of what they need.
+   */
+  additionalProviderIds: readonly string[]
+  /** True for services that have no OAuth flow, so no app registration covers them. */
+  serviceAccountOnly: boolean
+}
+
+interface OAuthProviderConnectInfo {
+  name: string
+  services: OAuthServiceConnectInfo[]
+}
+
+interface OAuthConnectCatalog {
+  services: Map<string, OAuthServiceConnectInfo>
+  providers: Map<string, OAuthProviderConnectInfo>
+}
+
+let oauthConnectCatalogCache: OAuthConnectCatalog | null = null
+
+/**
+ * Read each OAuth service's `providerId` and whether it accepts a self-issued
+ * credential out of `lib/oauth/oauth.ts`.
+ *
+ * Scraped rather than imported because `OAUTH_PROVIDERS` holds React icon
+ * components and reads `env` at module load, neither of which survives outside
+ * Next. Only single-line string properties at the service's own indentation are
+ * matched, so nested config (`providerIdLabels`) cannot be mistaken for one.
+ * The service ids found here are checked against {@link OAUTH_SCOPES}, which is
+ * imported directly, so a service that gains or loses scopes without the other
+ * side following fails generation instead of quietly publishing nothing.
+ */
+export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
+  if (oauthConnectCatalogCache) return oauthConnectCatalogCache
+
+  const services = new Map<string, OAuthServiceConnectInfo>()
+  const providers = new Map<string, OAuthProviderConnectInfo>()
+  const declaresAdditionalProviderIds = new Set<string>()
+  const lines = readSourceFile(OAUTH_CONFIG_PATH).split('\n')
+
+  let baseProvider: string | null = null
+  let serviceId: string | null = null
+  for (const line of lines) {
+    const providerMatch = /^ {2}('?)([\w.-]+)\1: \{$/.exec(line)
+    if (providerMatch) {
+      baseProvider = providerMatch[2]
+      serviceId = null
+      providers.set(baseProvider, { name: baseProvider, services: [] })
+      continue
+    }
+    if (!baseProvider) continue
+
+    const providerNameMatch = /^ {4}name: '(.+)',$/.exec(line)
+    if (providerNameMatch) {
+      providers.get(baseProvider)!.name = providerNameMatch[1]
+      continue
+    }
+
+    const serviceMatch = /^ {6}('?)([\w.-]+)\1: \{$/.exec(line)
+    if (serviceMatch) {
+      serviceId = serviceMatch[2]
+      const service: OAuthServiceConnectInfo = {
+        serviceId,
+        providerId: serviceId,
+        name: serviceId,
+        baseProvider,
+        additionalProviderIds: [],
+        serviceAccountOnly: false,
+      }
+      services.set(serviceId, service)
+      providers.get(baseProvider)!.services.push(service)
+      continue
+    }
+    if (!serviceId) continue
+
+    const service = services.get(serviceId)!
+    const serviceNameMatch = /^ {8}name: '(.+)',$/.exec(line)
+    if (serviceNameMatch) {
+      service.name = serviceNameMatch[1]
+      continue
+    }
+    const servicePropviderMatch = /^ {8}providerId: '([^']+)',$/.exec(line)
+    if (servicePropviderMatch) {
+      service.providerId = servicePropviderMatch[1]
+      continue
+    }
+    // The value comes from ADDITIONAL_PROVIDER_IDS; this only records that the
+    // service claims to have extras, so a service that grows a second
+    // authorization server without the map following is caught below.
+    if (/^ {8}additionalProviderIds: /.test(line)) {
+      declaresAdditionalProviderIds.add(serviceId)
+      continue
+    }
+    if (/^ {8}authType: 'service_account',$/.test(line)) {
+      service.serviceAccountOnly = true
+    }
+  }
+
+  for (const [serviceId, additional] of Object.entries(ADDITIONAL_PROVIDER_IDS)) {
+    const service = services.get(serviceId)
+    if (service) service.additionalProviderIds = additional
+  }
+
+  // A redirect URI that goes undocumented is a connect flow that fails for
+  // whoever picks that authorization server, so the two sides have to agree in
+  // both directions rather than only where the map happens to have an entry.
+  const declaredExtras = [...declaresAdditionalProviderIds].sort()
+  const mappedExtras = Object.keys(ADDITIONAL_PROVIDER_IDS).sort()
+  if (declaredExtras.join() !== mappedExtras.join()) {
+    throw new Error(
+      `Services with additionalProviderIds in lib/oauth/oauth.ts and lib/oauth/scopes.ts ` +
+        `disagree.\n` +
+        `  only in oauth.ts: ${declaredExtras.filter((id) => !mappedExtras.includes(id)).join(', ') || 'none'}\n` +
+        `  only in scopes.ts: ${mappedExtras.filter((id) => !declaredExtras.includes(id)).join(', ') || 'none'}`
+    )
+  }
+
+  const scoped = Object.keys(OAUTH_SCOPES).sort()
+  const declared = [...services.keys()].sort()
+  if (scoped.join() !== declared.join()) {
+    throw new Error(
+      `OAuth services in lib/oauth/oauth.ts and lib/oauth/scopes.ts disagree.\n` +
+        `  only in oauth.ts: ${declared.filter((id) => !scoped.includes(id)).join(', ') || 'none'}\n` +
+        `  only in scopes.ts: ${scoped.filter((id) => !declared.includes(id)).join(', ') || 'none'}`
+    )
+  }
+
+  oauthConnectCatalogCache = { services, providers }
+  return oauthConnectCatalogCache
+}
+
+/**
+ * Render the `## Scopes` table for an OAuth integration.
+ *
+ * Returns an empty string for API-key and unauthenticated blocks: nothing in
+ * the repo states what permissions a user-minted key needs, and a heading with
+ * nothing true under it is worse than no heading.
+ */
+export function buildScopesSection(serviceId: string | undefined, name: string): string {
+  if (!serviceId) return ''
+
+  const connectInfo = loadOAuthConnectCatalog().services.get(serviceId)
+  if (!connectInfo) {
+    throw new Error(
+      `Block "${name}" connects through OAuth service "${serviceId}", which no ` +
+        `OAUTH_PROVIDERS service declares. Its scopes cannot be documented.`
+    )
+  }
+
+  // A handful of providers issue tokens with no scope selection at all
+  // (Notion, ClickUp, Cal.com, Harmonic, Snowflake, NetSuite). An empty table
+  // under a "Scopes" heading would read as a generation bug rather than as the
+  // provider having nothing to choose.
+  const scopes = OAUTH_SCOPES[serviceId as keyof typeof OAUTH_SCOPES]
+  if (scopes.length === 0) return ''
+
+  const rows = scopes
+    .map((scope) => {
+      const description = getScopeDescription(scope, connectInfo.providerId)
+      return `| \`${scope}\` | ${description === scope ? '' : escapeMdxCell(description)} |`
+    })
+    .join('\n')
+
+  const gatedNote = renderEnvGatedScopeNote(serviceId, connectInfo.providerId)
+
+  return (
+    `## Scopes\n\n` +
+    `Connecting ${name} through OAuth requests these scopes.\n\n` +
+    `| Scope | Description |\n| ----- | ----------- |\n${rows}\n` +
+    (gatedNote ? `\n${gatedNote}\n` : '')
+  )
+}
+
+/**
+ * Providers whose callback path is not `/api/auth/oauth2/callback/<provider-id>`.
+ * The generated reference states the standard derivation, so an exception has to
+ * say so where the reader is looking rather than only in the prose below it.
+ */
+const NON_STANDARD_OAUTH_CALLBACKS: Readonly<Record<string, string>> = {
+  trello:
+    'Trello is API-key based rather than OAuth 2.0 and calls back to `/api/auth/trello/callback`.',
+}
+
+const SELF_HOSTING_GENERATED_START = '{/* GENERATED-START:oauth-apps */}'
+const SELF_HOSTING_GENERATED_END = '{/* GENERATED-END:oauth-apps */}'
+
+/**
+ * Which client-id environment variable each connector registration reads.
+ *
+ * One OAuth app is one client id, and more than one connector can be
+ * registered against the same one: `manageengine-sdp` authenticates with
+ * `ZOHO_CLIENT_ID` even though it is its own provider entry. Grouping the
+ * reference by provider alone would leave that connector's redirect URI and
+ * scopes off the page of the app that covers it, and its connect flow would
+ * fail redirect-URI validation for anyone who registered from the docs.
+ *
+ * Read from the registrations themselves, since that is where the runtime
+ * decides which credentials a connector uses.
+ */
+export function loadClientIdEnvByProviderId(): Map<string, string> {
+  const byProviderId = new Map<string, string>()
+  const lines = readSourceFile(OAUTH_REGISTRATION_PATH).split('\n')
+
+  let providerId: string | null = null
+  for (const line of lines) {
+    const providerMatch = /^ {6}providerId: '([^']+)',$/.exec(line)
+    if (providerMatch) {
+      providerId = providerMatch[1]
+      continue
+    }
+    if (!providerId) continue
+
+    const clientIdMatch = /^ {6}clientId: env\.([A-Z0-9_]+) as string,$/.exec(line)
+    if (clientIdMatch) {
+      byProviderId.set(providerId, clientIdMatch[1])
+      providerId = null
+    }
+  }
+
+  return byProviderId
+}
+
+/**
+ * Build the per-OAuth-app reference for the self-hosting page.
+ *
+ * A self-hoster registers one app per provider and grants it permissions before
+ * anyone can connect, so they need the scopes grouped by app rather than spread
+ * over one integration page each. Grouping is by
+ * {@link OAUTH_CLIENT_CAPABILITIES} — the same client-id/secret pairs the app
+ * reads at runtime — so an app that backs nine connectors shows all nine.
+ *
+ * Scopes stay listed per connector instead of unioned per app. The union would
+ * tell someone who only wants SharePoint to grant their Entra registration the
+ * directory-write permissions `microsoft-ad` needs, which is worse advice than
+ * no advice.
+ */
+/**
+ * Sentence naming the scopes a deployment only requests once it sets a flag.
+ *
+ * These are deliberately absent from the tables so a generated page cannot vary
+ * by deployment, which would leave everyone else failing `docs:check`. Saying so
+ * in prose keeps the page honest for the reader who does set the flag.
+ */
+function renderEnvGatedScopeNote(serviceId: string, providerId: string): string {
+  const notes: string[] = []
+
+  const managed = MANAGED_OAUTH_ADDITIONAL_SCOPES[providerId]
+  if (managed) {
+    notes.push(
+      `A managed connection also requests ${renderScopeList(managed)}, which is how Sim ` +
+        `verifies the account behind the credential.`
+    )
+  }
+
+  const gated = ENV_GATED_SCOPES[serviceId as keyof typeof ENV_GATED_SCOPES]
+  if (gated) {
+    notes.push(
+      `With \`${gated.envVar}\` set, Sim also requests ${renderScopeList(gated.scopes)}. ` +
+        `Add them to the app as well, or leave the flag unset.`
+    )
+  }
+
+  const caveat = SERVICE_SCOPE_NOTES[serviceId as keyof typeof SERVICE_SCOPE_NOTES]
+  if (caveat) notes.push(caveat)
+
+  return notes.join(' ')
+}
+
+const renderScopeList = (scopes: readonly string[]): string =>
+  scopes.map((scope) => `\`${scope}\``).join(', ')
+
+/**
+ * Scopes that every connector of one app requests.
+ *
+ * Hoisting these above the table earns its keep only because the repetition is
+ * severe where it happens: all 15 Google connectors carry the two `userinfo`
+ * URLs, and all 9 Microsoft ones carry `openid`, `profile`, `email` and
+ * `offline_access`. Derived from the scope lists rather than hardcoded per
+ * provider, so an app whose connectors stop agreeing simply stops hoisting.
+ *
+ * Returns nothing for a single-connector app, where "every connector below also
+ * requests" would read as a second requirement rather than a shared one.
+ */
+export function sharedScopesAcrossConnectors(scopeLists: readonly (readonly string[])[]): string[] {
+  if (scopeLists.length < 2) return []
+  const [first, ...rest] = scopeLists
+  return first.filter((scope) => rest.every((list) => list.includes(scope)))
+}
+
+function buildSelfHostingOAuthReference(): string {
+  const { providers, services } = loadOAuthConnectCatalog()
+
+  const clientIdEnvByProviderId = loadClientIdEnvByProviderId()
+  const apps = Object.keys(OAUTH_CLIENT_CAPABILITIES)
+    .map((capabilityId) => {
+      const provider = providers.get(capabilityId)
+      if (!provider) {
+        throw new Error(
+          `OAuth client capability "${capabilityId}" has no matching provider in ` +
+            `lib/oauth/oauth.ts, so its app registration cannot be documented.`
+        )
+      }
+
+      // Connectors registered against this app's client id from some other
+      // provider entry. Additive rather than a replacement for the grouping
+      // above, because four capabilities (Instagram, Salesforce, Shopify,
+      // Trello) run custom flows that declare no `clientId: env.X` line.
+      const [clientIdEnv] =
+        OAUTH_CLIENT_CAPABILITIES[capabilityId as keyof typeof OAUTH_CLIENT_CAPABILITIES]
+      const own = new Set(provider.services.map((service) => service.serviceId))
+      const sharedConnectors = [...services.values()].filter(
+        (service) =>
+          !own.has(service.serviceId) &&
+          !service.serviceAccountOnly &&
+          clientIdEnvByProviderId.get(service.providerId) === clientIdEnv
+      )
+
+      return { capabilityId, provider, sharedConnectors }
+    })
+    .sort((a, b) => compareCatalogNames(a.provider.name, b.provider.name))
+
+  const sections = apps.map(({ capabilityId, provider, sharedConnectors }) => {
+    const envVars = OAUTH_CLIENT_CAPABILITIES[
+      capabilityId as keyof typeof OAUTH_CLIENT_CAPABILITIES
+    ]
+      .map((name) => `\`${name}\``)
+      .join(' / ')
+
+    const connectors = [...provider.services, ...sharedConnectors]
+      .filter((service) => !service.serviceAccountOnly)
+      .map((service) => ({
+        service,
+        scopes: OAUTH_SCOPES[service.serviceId as keyof typeof OAUTH_SCOPES] ?? [],
+      }))
+
+    const shared = sharedScopesAcrossConnectors(connectors.map(({ scopes }) => scopes))
+    const sharedLine = shared.length
+      ? `Every connector below also requests ${renderScopeList(shared)}.\n\n`
+      : ''
+
+    const rows = connectors
+      .map(({ service, scopes }) => {
+        const specific = scopes.filter((scope) => !shared.includes(scope))
+        const rendered = specific.length
+          ? renderScopeList(specific)
+          : scopes.length
+            ? 'The shared scopes above, nothing further'
+            : 'None to select'
+        const providerIds = [service.providerId, ...service.additionalProviderIds]
+          .map((id) => `\`${id}\``)
+          .join('<br />')
+        return `| ${escapeMdxCell(service.name)} | ${providerIds} | ${rendered} |`
+      })
+      .join('\n')
+
+    // Deduplicated: a note that applies to every connector of an app (Google's
+    // managed `openid`) is one sentence about the app, not the same sentence
+    // fifteen times.
+    const gatedNotes = [
+      ...new Set(
+        connectors
+          .map(({ service }) => renderEnvGatedScopeNote(service.serviceId, service.providerId))
+          .filter(Boolean)
+      ),
+    ].join(' ')
+
+    const callbackNote = NON_STANDARD_OAUTH_CALLBACKS[capabilityId]
+
+    return (
+      `### ${provider.name}\n\n` +
+      `${envVars}\n\n` +
+      sharedLine +
+      `| Connector | Provider ID | Scopes to grant |\n| --- | --- | --- |\n${rows}\n` +
+      (gatedNotes ? `\n${gatedNotes}\n` : '') +
+      (callbackNote ? `\n${callbackNote}\n` : '')
+    )
+  })
+
+  // Says once, at the top, what every table below is: the OAuth flow's request.
+  // Without it a reader who connects with a Google service account instead reads
+  // the identity scopes as something to grant, and `getServiceAccountToken`
+  // strips exactly those from that token.
+  const preamble =
+    `Each table is what the OAuth flow requests, so it is what the app registration has to ` +
+    `allow. A credential someone issues themselves instead (a service account, a pasted API ` +
+    `token) carries its own access, which these do not govern.\n`
+
+  return `${preamble}\n${sections.join('\n')}`
+}
+
+/**
+ * Replace the generated block on the self-hosting OAuth page in place.
+ *
+ * The page is hand-written apart from this block, so the markers are required
+ * rather than created: silently appending a second copy of the reference is a
+ * worse failure than stopping and saying the markers are gone.
+ */
+function writeSelfHostingOAuthReference(): void {
+  const existing = readSourceFile(SELF_HOSTING_OAUTH_DOC_PATH)
+  const start = existing.indexOf(SELF_HOSTING_GENERATED_START)
+  const end = existing.indexOf(SELF_HOSTING_GENERATED_END)
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(
+      `${SELF_HOSTING_OAUTH_DOC_PATH} is missing the ` +
+        `${SELF_HOSTING_GENERATED_START} / ${SELF_HOSTING_GENERATED_END} markers.`
+    )
+  }
+
+  const next =
+    `${existing.slice(0, start + SELF_HOSTING_GENERATED_START.length)}\n\n` +
+    `${buildSelfHostingOAuthReference()}\n${existing.slice(end)}`
+
+  emitGeneratedFile(SELF_HOSTING_OAUTH_DOC_PATH, next)
 }
 
 /**
@@ -4102,62 +4560,74 @@ async function generateBlockDoc(blockPath: string) {
         continue
       }
 
-      if (
-        blockConfig.type.includes('_trigger') ||
-        blockConfig.type.includes('_webhook') ||
-        blockConfig.type.includes('rss')
-      ) {
-        console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
-        continue
-      }
+      try {
+        if (
+          blockConfig.type.includes('_trigger') ||
+          blockConfig.type.includes('_webhook') ||
+          blockConfig.type.includes('rss')
+        ) {
+          console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
+          continue
+        }
 
-      if (
-        (blockConfig.category === 'blocks' &&
-          !NATIVE_RESOURCE_BLOCK_TYPES.has(stripVersionSuffix(blockConfig.type))) ||
-        blockConfig.type === 'sim_workspace_event' ||
-        blockConfig.type === 'evaluator' ||
-        blockConfig.type === 'number' ||
-        blockConfig.type === 'webhook' ||
-        blockConfig.type === 'schedule' ||
-        blockConfig.type === 'mcp' ||
-        blockConfig.type === 'generic_webhook' ||
-        blockConfig.type === 'rss'
-      ) {
-        continue
-      }
+        if (
+          (blockConfig.category === 'blocks' &&
+            !NATIVE_RESOURCE_BLOCK_TYPES.has(stripVersionSuffix(blockConfig.type))) ||
+          blockConfig.type === 'sim_workspace_event' ||
+          blockConfig.type === 'evaluator' ||
+          blockConfig.type === 'number' ||
+          blockConfig.type === 'webhook' ||
+          blockConfig.type === 'schedule' ||
+          blockConfig.type === 'mcp' ||
+          blockConfig.type === 'generic_webhook' ||
+          blockConfig.type === 'rss'
+        ) {
+          continue
+        }
 
-      // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
-      const displayType = stripVersionSuffix(blockConfig.type)
-      const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${displayType}.mdx`)
+        // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
+        const displayType = stripVersionSuffix(blockConfig.type)
+        const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${displayType}.mdx`)
 
-      const existingContent = readGeneratedFile(outputFilePath)
+        const existingContent = readGeneratedFile(outputFilePath)
 
-      const manualSections = existingContent ? extractManualContent(existingContent) : {}
+        const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
-      const markdown = await generateMarkdownForBlock(blockConfig, displayType)
+        const markdown = await generateMarkdownForBlock(blockConfig, displayType, fileContent)
 
-      let finalContent = markdown
-      if (Object.keys(manualSections).length > 0) {
-        finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
-      }
+        let finalContent = markdown
+        if (Object.keys(manualSections).length > 0) {
+          finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
+        }
 
-      emitGeneratedFile(outputFilePath, finalContent)
-      if (!CHECK_ONLY) {
-        const logType =
-          displayType !== blockConfig.type
-            ? `${displayType} (from ${blockConfig.type})`
-            : displayType
-        console.log(`✓ Generated docs for ${logType}`)
+        emitGeneratedFile(outputFilePath, finalContent)
+        if (!CHECK_ONLY) {
+          const logType =
+            displayType !== blockConfig.type
+              ? `${displayType} (from ${blockConfig.type})`
+              : displayType
+          console.log(`✓ Generated docs for ${logType}`)
+        }
+      } catch (error) {
+        // A file can declare more than one block config (a v1 beside a v2), so
+        // one unusable config must not skip the ones after it. The run still
+        // exits nonzero on the collected failure.
+        console.error(`Error processing ${blockConfig.type} in ${blockPath}:`, error)
+        blockGenerationFailures.push(
+          `${path.relative(rootDir, blockPath)} (${blockConfig.type}): ${getErrorText(error)}`
+        )
       }
     }
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
+    blockGenerationFailures.push(`${path.relative(rootDir, blockPath)}: ${getErrorText(error)}`)
   }
 }
 
 async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
-  displayType?: string
+  displayType?: string,
+  fileContent?: string
 ): Promise<string> {
   const {
     type,
@@ -4296,6 +4766,11 @@ async function generateMarkdownForBlock(
     usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`
   }
 
+  const scopesSection =
+    fileContent && extractAuthType(fileContent) === 'oauth'
+      ? buildScopesSection(extractOAuthServiceId(fileContent), name)
+      : ''
+
   return `---
 title: ${name}
 description: ${description}
@@ -4309,7 +4784,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 ${usageInstructions}
-
+${scopesSection}
 ${toolsSection}
 `
 }
@@ -4969,6 +5444,7 @@ async function generateAllBlockDocs() {
 
     await writeIntegrationsJson(visibleIconMapping)
     writeIntegrationsIconMapping(visibleIconMapping)
+    writeSelfHostingOAuthReference()
 
     // Compute the canonical set of tool docs and clean up anything stale —
     // covers hidden blocks AND blocks re-categorized away from `'tools'`.
@@ -5024,6 +5500,13 @@ if (import.meta.main) {
     .then((success) => {
       if (!success) {
         console.error('Documentation generation failed')
+        process.exit(1)
+      }
+      if (blockGenerationFailures.length > 0) {
+        console.error(
+          `Documentation generation failed for ${blockGenerationFailures.length} block(s):\n` +
+            `- ${blockGenerationFailures.join('\n- ')}`
+        )
         process.exit(1)
       }
       if (CHECK_ONLY) {

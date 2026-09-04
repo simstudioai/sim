@@ -32,6 +32,19 @@ In Sim, the Google Forms integration enables your agents to programmatically acc
 Integrate Google Forms into your workflow. Read form structure, get responses, create forms, update content, and manage notification watches.
 
 
+## Scopes
+
+Connecting Google Forms through OAuth requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive` | Access all Google Drive files |
+| `https://www.googleapis.com/auth/forms.body` | View and manage Google Forms |
+| `https://www.googleapis.com/auth/forms.responses.readonly` | View responses to Google Forms |
+
+A managed connection also requests `openid`, which is how Sim verifies the account behind the credential.
 
 ## Actions
 

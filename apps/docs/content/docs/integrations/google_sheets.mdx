@@ -33,6 +33,18 @@ In Sim, the Google Sheets integration enables your agents to read from, write to
 Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.
 
 
+## Scopes
+
+Connecting Google Sheets through OAuth requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files |
+| `https://www.googleapis.com/auth/drive` | Access all Google Drive files |
+
+A managed connection also requests `openid`, which is how Sim verifies the account behind the credential.
 
 ## Actions
 

@@ -1,14 +1,20 @@
 import fs from 'fs'
 import path from 'path'
+import { OAUTH_CLIENT_CAPABILITIES } from '@sim/deployment-config/env-capabilities'
 import { describe, expect, it } from 'vitest'
+import { OAUTH_SCOPES } from '../apps/sim/lib/oauth/scopes'
 import {
+  buildScopesSection,
   extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
   extractToolInfo,
   extractUserSettableParamIds,
   getToolInfo,
+  loadClientIdEnvByProviderId,
+  loadOAuthConnectCatalog,
   parseConstProperties,
   parsePropertiesContent,
+  sharedScopesAcrossConnectors,
 } from './generate-docs'
 
 describe('documentation tool metadata', () => {
@@ -941,5 +947,200 @@ describe('template interpolation is lexed rather than brace-counted', () => {
     )
 
     expect(ids).toEqual(['a', 'b'])
+  })
+})
+
+describe('the generated Scopes section', () => {
+  /**
+   * A service account or a pasted API token connects the same integration
+   * without this flow, and neither is governed by the table, so the sentence
+   * names the flow rather than the integration.
+   */
+  it('attributes the table to the OAuth flow rather than to the integration', () => {
+    expect(buildScopesSection('sharepoint', 'SharePoint')).toContain(
+      'Connecting SharePoint through OAuth requests these scopes.'
+    )
+  })
+
+  it('lists every scope the service requests, with a label for each', () => {
+    const section = buildScopesSection('sharepoint', 'SharePoint')
+
+    for (const scope of OAUTH_SCOPES.sharepoint) {
+      expect(section).toContain(`| \`${scope}\` |`)
+    }
+    expect(section).not.toMatch(/\| {2}\|/)
+  })
+
+  /**
+   * Slack's approval-gated scopes are appended from an environment flag, so
+   * including them would make the published page depend on which deployment
+   * ran the generator and break `docs:check` for everyone else.
+   */
+  it('keeps scopes that are only requested under an environment flag out of the table', () => {
+    const section = buildScopesSection('slack', 'Slack')
+
+    expect(section).toContain('| `chat:write` |')
+    expect(section).not.toMatch(/\| `assistant:write` \|/)
+  })
+
+  /**
+   * The gated scopes stay out of the table so generated output cannot vary by
+   * deployment, but a self-hoster who sets the flag still has to add them to the
+   * app: Slack rejects the whole authorization when the app is not approved for
+   * one, so omitting them entirely costs that reader the integration.
+   */
+  /**
+   * Dataverse declares a resource scope, but binding an environment swaps it for
+   * that environment's `/.default`, so the rows alone claim a request the
+   * runtime does not make.
+   */
+  it('carries a service caveat the rows cannot state on their own', () => {
+    const section = buildScopesSection('microsoft-dataverse', 'Microsoft Dataverse')
+
+    // The host is normalized to its `.api` form before the request, so the
+    // example has to be the audience Sim actually asks for.
+    expect(section).toContain('`https://contoso.api.crm.dynamics.com/.default`')
+    expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain('.default')
+  })
+
+  /**
+   * A managed connector unions the declared scopes with its own
+   * `additionalScopes`, so a Google table printed from the declared set alone
+   * understates the request by exactly `openid`. Keyed by provider id, which is
+   * what the connector factory matches on and differs from the service id for
+   * Gmail.
+   */
+  it('names the scopes a managed connection adds to the declared set', () => {
+    const gmail = buildScopesSection('gmail', 'Gmail')
+
+    expect(gmail).toContain('A managed connection also requests `openid`')
+    expect(gmail).not.toMatch(/\| `openid` \|/)
+    // Vault has no managed connector, so nothing is added to its request.
+    expect(buildScopesSection('google-vault', 'Google Vault')).not.toContain('managed connection')
+  })
+
+  it('names the opt-in scopes in prose even though the table omits them', () => {
+    const section = buildScopesSection('slack', 'Slack')
+
+    expect(section).toContain('SLACK_EXTENDED_SCOPES')
+    expect(section).toContain('`assistant:write`')
+    expect(section).not.toMatch(/\| `assistant:write` \|/)
+    expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain('SLACK_EXTENDED_SCOPES')
+  })
+
+  /**
+   * Only some self-issued credentials have permissions to pick. A Wealthbox or
+   * Monday token carries its creating user's access with no scope picker at all,
+   * so an instruction to "grant the same scopes" sends the reader hunting for a
+   * setting that does not exist.
+   */
+  /**
+   * A provider that hands out one all-or-nothing token has nothing to choose,
+   * so the heading would introduce an empty table.
+   */
+  it('emits nothing for a service that declares no scopes', () => {
+    expect(OAUTH_SCOPES.notion).toEqual([])
+    expect(buildScopesSection('notion', 'Notion')).toBe('')
+  })
+
+  it('refuses to document a block pointing at an unknown OAuth service', () => {
+    expect(() => buildScopesSection('sharepoint-classic', 'SharePoint')).toThrow(
+      /no OAUTH_PROVIDERS service declares/
+    )
+  })
+
+  it('reads the scope labels under the service own provider id', () => {
+    expect(loadOAuthConnectCatalog().services.get('gmail')?.providerId).toBe('google-email')
+    expect(buildScopesSection('microsoft-word', 'Microsoft Word')).toContain(
+      'Read your Word documents in OneDrive'
+    )
+  })
+})
+
+describe('the self-hosting OAuth app reference', () => {
+  /**
+   * The page is what a self-hoster reads before registering an app, so a
+   * connector missing from its provider's table is a connector nobody can
+   * connect. The hand-maintained version of this table had lost Microsoft Word.
+   */
+  it('covers every OAuth-connectable service of every registrable app', () => {
+    const { providers } = loadOAuthConnectCatalog()
+
+    for (const capabilityId of Object.keys(OAUTH_CLIENT_CAPABILITIES)) {
+      const provider = providers.get(capabilityId)
+
+      expect(provider, capabilityId).toBeDefined()
+      expect(
+        provider!.services.some((service) => !service.serviceAccountOnly),
+        capabilityId
+      ).toBe(true)
+    }
+  })
+
+  /**
+   * Service-account services have no OAuth flow, so no app registration covers
+   * them and listing one would send the reader looking for a client id that
+   * does not exist.
+   */
+  /**
+   * One OAuth app is one client id, and more than one connector can be
+   * registered against it: `manageengine-sdp` reads `ZOHO_CLIENT_ID` despite
+   * being its own provider entry. Grouping by provider alone left its redirect
+   * URI and scopes off the page for the app that covers it.
+   */
+  it('groups a connector under the app whose client id it registers against', () => {
+    const clientIdEnv = loadClientIdEnvByProviderId()
+
+    expect(clientIdEnv.get('manageengine-sdp')).toBe('ZOHO_CLIENT_ID')
+    expect(clientIdEnv.get('zoho-desk')).toBe('ZOHO_CLIENT_ID')
+    expect(clientIdEnv.get('sharepoint')).toBe('MICROSOFT_CLIENT_ID')
+  })
+
+  it('leaves out services that have no OAuth flow', () => {
+    const { services } = loadOAuthConnectCatalog()
+
+    expect(services.get('google-service-account')?.serviceAccountOnly).toBe(true)
+    expect(services.get('snowflake')?.serviceAccountOnly).toBe(true)
+    expect(services.get('gmail')?.serviceAccountOnly).toBe(false)
+  })
+
+  /**
+   * Only apps with several connectors hoist, and only scopes literally present
+   * in every one of them. Hoisting a scope one connector does not request would
+   * tell a reader to over-grant; keeping a scope in a row that every sibling
+   * also needs is the repetition this exists to remove.
+   */
+  it('hoists only the scopes shared by every connector of an app', () => {
+    expect(
+      sharedScopesAcrossConnectors([
+        ['openid', 'email', 'Mail.Send'],
+        ['openid', 'email', 'Files.Read'],
+      ])
+    ).toEqual(['openid', 'email'])
+
+    expect(sharedScopesAcrossConnectors([['openid', 'email']])).toEqual([])
+    expect(sharedScopesAcrossConnectors([['openid'], ['email']])).toEqual([])
+  })
+
+  /**
+   * Salesforce runs a second authorization server for sandboxes under its own
+   * provider id, and each provider id is its own redirect URI. Listing only the
+   * primary sends a self-hoster to register half of what they need, and the
+   * sandbox connect flow then fails redirect-URI validation.
+   */
+  it('lists every provider id a service authenticates through', () => {
+    const salesforce = loadOAuthConnectCatalog().services.get('salesforce')
+
+    expect(salesforce?.additionalProviderIds).toContain('salesforce-sandbox')
+    expect(loadOAuthConnectCatalog().services.get('sharepoint')?.additionalProviderIds).toEqual([])
+  })
+
+  it('reads each service display name and provider id', () => {
+    const { providers } = loadOAuthConnectCatalog()
+    const microsoft = providers.get('microsoft')!
+
+    expect(microsoft.name).toBe('Microsoft')
+    expect(microsoft.services.find((s) => s.serviceId === 'sharepoint')?.name).toBe('SharePoint')
+    expect(microsoft.services.find((s) => s.serviceId === 'gmail')).toBeUndefined()
   })
 })

@@ -33,6 +33,17 @@ In Sim, the Google Calendar integration allows your agents to read, create, upda
 Integrate Google Calendar into the workflow. Can create, read, update, and list calendar events.
 
 
+## Scopes
+
+Connecting Google Calendar through OAuth requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/calendar` | View and manage calendar |
+
+A managed connection also requests `openid`, which is how Sim verifies the account behind the credential.
 
 ## Actions
 

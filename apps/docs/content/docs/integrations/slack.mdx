@@ -56,6 +56,31 @@ If you encounter issues with the Slack integration, contact us at [help@sim.ai](
 Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.
 
 
+## Scopes
+
+Connecting Slack through OAuth requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `channels:read` | View public channels |
+| `channels:history` | Read channel messages |
+| `channels:manage` | Create, archive, and rename public channels |
+| `groups:read` | View private channels |
+| `groups:history` | Read private messages |
+| `groups:write` | Create, archive, and manage private channels |
+| `chat:write` | Send messages |
+| `chat:write.public` | Post to public channels |
+| `im:write` | Send direct messages |
+| `im:read` | View direct message channels |
+| `users:read` | View workspace users |
+| `files:write` | Upload files |
+| `files:read` | Download and read files |
+| `canvases:read` | Read canvas sections |
+| `canvases:write` | Create, edit, and delete canvas documents |
+| `reactions:write` | Add emoji reactions to messages |
+| `reactions:read` | View emoji reactions on messages |
+
+With `SLACK_EXTENDED_SCOPES` set, Sim also requests `assistant:write`, `app_mentions:read`, `im:history`. Add them to the app as well, or leave the flag unset.
 
 ## Actions
 
