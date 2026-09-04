@@ -1,23 +1,20 @@
 import { Extension } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
 import Suggestion from '@tiptap/suggestion'
-import { createSuggestionPopupRenderer } from '../menus/suggestion-popup'
+import { createSuggestionPopupRenderer } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/suggestion-popup'
 import {
   filterSlashCommands,
   type SlashCommandContext,
   type SlashCommandItem,
   type SlashCommandStorage,
-} from './commands'
-import { SlashCommandList } from './slash-command-list'
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/slash-command/commands'
+import { SlashCommandList } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/slash-command/slash-command-list'
+import { SLASH_COMMAND_PLUGIN_KEY } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/suggestion-plugin-keys'
 
 declare module '@tiptap/core' {
   interface Storage {
     slashCommand: SlashCommandStorage
   }
 }
-
-/** Explicit key (distinct from the `@` mention's) so the keymap can detect an open menu. */
-export const SLASH_COMMAND_PLUGIN_KEY = new PluginKey('slashCommand')
 
 /**
  * Adds the `/` slash-command menu to the editor. Typing `/` at the start of a block — or after

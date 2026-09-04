@@ -1,17 +1,20 @@
 import {
   assessTextPaste,
   PASTE_LIMITS,
+  PASTE_RENDER_THRESHOLDS,
   type TextPasteAdmission,
   utf8ByteLength,
 } from '@sim/utils/paste'
 import { Extension } from '@tiptap/core'
-import { Plugin } from '@tiptap/pm/state'
+import { Plugin, type Transaction } from '@tiptap/pm/state'
 import { postProcessSerializedMarkdown } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 export interface RichMarkdownPasteAdmissionOptions {
   maxResultBytes: number
+  maxResultCharacters?: number
   getCurrentText: () => string
-  onRejected: () => void
+  getFrontmatter?: () => string
+  onRejected: (reason?: 'paste' | 'formatting') => void
 }
 
 interface RawMarkdownPasteInput {
@@ -37,7 +40,9 @@ export function assessRawMarkdownPaste(
  */
 export function createRichMarkdownPasteAdmission({
   maxResultBytes,
+  maxResultCharacters = PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS,
   getCurrentText,
+  getFrontmatter = () => '',
   onRejected,
 }: RichMarkdownPasteAdmissionOptions): Extension {
   return Extension.create({
@@ -47,13 +52,27 @@ export function createRichMarkdownPasteAdmission({
     addProseMirrorPlugins() {
       const { editor } = this
       let pasteInProgress = false
+      let pasteRoot: Transaction | null = null
+      let formattingRejected = false
+
+      const finishPaste = () => {
+        pasteInProgress = false
+        pasteRoot = null
+        formattingRejected = false
+      }
 
       return [
         new Plugin({
+          /** View updates occur after the complete synchronous transaction/append pipeline. */
+          view: () => ({ update: finishPaste, destroy: finishPaste }),
           filterTransaction: (transaction) => {
             const isPaste = pasteInProgress || transaction.getMeta('uiEvent') === 'paste'
             if (!isPaste || !transaction.docChanged) return true
-            pasteInProgress = false
+            if (!pasteRoot) {
+              pasteRoot = transaction
+              pasteInProgress = true
+              queueMicrotask(finishPaste)
+            }
 
             if (!editor.markdown) {
               throw new Error('Rich Markdown paste admission requires the Markdown extension')
@@ -61,9 +80,22 @@ export function createRichMarkdownPasteAdmission({
             const projectedMarkdown = postProcessSerializedMarkdown(
               editor.markdown.serialize(transaction.doc.toJSON())
             )
-            if (utf8ByteLength(projectedMarkdown, maxResultBytes) <= maxResultBytes) return true
+            const frontmatter = getFrontmatter()
+            if (
+              frontmatter.length + projectedMarkdown.length <= maxResultCharacters &&
+              utf8ByteLength(frontmatter, maxResultBytes) +
+                utf8ByteLength(projectedMarkdown, maxResultBytes) <=
+                maxResultBytes
+            )
+              return true
 
-            onRejected()
+            if (transaction === pasteRoot) {
+              finishPaste()
+              onRejected('paste')
+            } else if (!formattingRejected) {
+              formattingRejected = true
+              onRejected('formatting')
+            }
             return false
           },
           props: {
@@ -75,7 +107,7 @@ export function createRichMarkdownPasteAdmission({
 
                 if (pastedHtml && utf8ByteLength(pastedHtml, maxResultBytes) > maxResultBytes) {
                   event.preventDefault()
-                  onRejected()
+                  onRejected('paste')
                   return true
                 }
 
@@ -97,16 +129,14 @@ export function createRichMarkdownPasteAdmission({
                     const projectedBytes = Math.max(0, currentBytes - replacedBytes) + pastedBytes
                     if (projectedBytes > maxResultBytes) {
                       event.preventDefault()
-                      onRejected()
+                      onRejected('paste')
                       return true
                     }
                   }
                 }
 
                 pasteInProgress = true
-                queueMicrotask(() => {
-                  pasteInProgress = false
-                })
+                queueMicrotask(finishPaste)
                 return false
               },
             },

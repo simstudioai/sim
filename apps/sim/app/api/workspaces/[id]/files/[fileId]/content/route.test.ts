@@ -44,6 +44,7 @@ const RECORD = {
   folderId: null,
   uploadedAt: new Date('2026-08-04T00:00:00.000Z'),
   updatedAt: new Date('2026-08-04T00:00:00.000Z'),
+  contentUpdatedAt: new Date('2026-09-03T20:00:01.000Z'),
 }
 
 const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID, fileId: FILE_ID }) }
@@ -133,6 +134,43 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
       },
       request,
     })
+  })
+
+  it('passes the content-version precondition to the existing authorized use case', async () => {
+    const expectedUpdatedAt = '2026-09-03T20:00:00.000Z'
+    const response = await PUT(
+      createRequest({ content: 'edited', expectedUpdatedAt }),
+      routeContext
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      file: { contentUpdatedAt: RECORD.contentUpdatedAt.toISOString() },
+    })
+    expect(mocks.updateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: PRINCIPAL,
+        input: expect.objectContaining({ expectedUpdatedAt: new Date(expectedUpdatedAt) }),
+      })
+    )
+  })
+
+  it('rejects invalid content-version tokens before performing a write', async () => {
+    const response = await PUT(
+      createRequest({ content: 'edited', expectedUpdatedAt: 'yesterday' }),
+      routeContext
+    )
+    expect(response.status).toBe(400)
+    expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
+  it('preserves a CAS conflict as 409', async () => {
+    mocks.updateContent.mockRejectedValueOnce(new OrchestrationError('conflict', 'File changed'))
+    const response = await PUT(
+      createRequest({ content: 'edited', expectedUpdatedAt: '2026-09-03T20:00:00.000Z' }),
+      routeContext
+    )
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ error: 'File changed' })
   })
 
   it('allows a base64 JSON body up to what the proxy forwards intact', async () => {

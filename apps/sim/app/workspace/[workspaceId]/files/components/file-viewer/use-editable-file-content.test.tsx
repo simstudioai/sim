@@ -33,6 +33,7 @@ vi.mock('@/hooks/queries/workspace-files', () => ({
     return { data: queryState.fetched, isLoading: queryState.fetched === undefined, error: null }
   },
   useUpdateWorkspaceFileContent: () => ({ mutateAsync: vi.fn(async () => ({ success: true })) }),
+  useReloadWorkspaceFileContent: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('idb-keyval', () => ({
@@ -46,7 +47,7 @@ import {
   RECONCILING_REFETCH_SLOW_INTERVAL_MS,
   RECONCILING_REFETCH_WINDOW_MS,
   useEditableFileContent,
-} from './use-editable-file-content'
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content'
 
 const FILE = {
   id: 'f1',

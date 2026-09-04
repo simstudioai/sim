@@ -12,9 +12,16 @@ import { sleep } from '@sim/utils/helpers'
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
+import {
+  createWorkspaceFileContract,
+  listWorkspaceFilesContract,
+  updateWorkspaceFileContentContract,
+} from '@/lib/api/contracts/workspace-files'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   useCreateWorkspaceFile,
+  useReloadWorkspaceFileContent,
+  useUpdateWorkspaceFileContent,
   useWorkspaceFileContent,
   useWorkspaceFiles,
   type WorkspaceFileContentResult,
@@ -151,6 +158,246 @@ describe('useWorkspaceFileContent refetchInterval passthrough', () => {
     expect(fetchCount).toBe(settled)
     unmount()
   })
+})
+
+describe('useUpdateWorkspaceFileContent version precondition', () => {
+  it('forwards the original version without deriving it from a newer query cache', async () => {
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: 3 } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    let mutation: ReturnType<typeof useUpdateWorkspaceFileContent> | undefined
+    function Probe() {
+      mutation = useUpdateWorkspaceFileContent()
+      return null
+    }
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    )
+    const expectedUpdatedAt = '2026-09-03T20:00:00.000Z'
+    mockRequestJson.mockRejectedValueOnce(new Error('conflict'))
+    await act(async () => {
+      await expect(
+        mutation?.mutateAsync({
+          workspaceId: 'ws-1',
+          fileId: 'file-1',
+          content: 'draft',
+          expectedUpdatedAt,
+        })
+      ).rejects.toThrow('conflict')
+    })
+    expect(mockRequestJson).toHaveBeenCalledExactlyOnceWith(updateWorkspaceFileContentContract, {
+      params: { id: 'ws-1', fileId: 'file-1' },
+      body: { content: 'draft', expectedUpdatedAt },
+    })
+    act(() => root.unmount())
+    client.clear()
+  })
+})
+
+describe('useReloadWorkspaceFileContent', () => {
+  const file: WorkspaceFileRecord = {
+    id: 'file-1',
+    workspaceId: 'ws-1',
+    name: 'notes.md',
+    key: 'workspace/ws-1/immutable-new-notes.md',
+    path: '/notes.md',
+    size: 12,
+    type: 'text/markdown',
+    uploadedBy: 'user-1',
+    uploadedAt: new Date('2026-09-03T20:00:00.000Z'),
+    updatedAt: new Date('2026-09-03T20:00:01.000Z'),
+    contentUpdatedAt: new Date('2026-09-03T20:00:01.000Z'),
+  }
+  let client: QueryClient
+  let root: Root
+  let mutation: ReturnType<typeof useReloadWorkspaceFileContent>
+
+  beforeEach(() => {
+    client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        mutations: { retry: 3 },
+      },
+    })
+    root = createRoot(document.createElement('div'))
+    mockRequestJson.mockResolvedValue({ success: true, files: [file] })
+    function Probe() {
+      mutation = useReloadWorkspaceFileContent()
+      return null
+    }
+    act(() => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    })
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    client.clear()
+  })
+
+  it.each([false, true])('forces matching fresh metadata and bytes for raw=%s', async (raw) => {
+    const oldFile = {
+      ...file,
+      key: 'workspace/ws-1/immutable-old-notes.md',
+      contentUpdatedAt: file.uploadedAt,
+    }
+    const contentKey = workspaceFilesKeys.content('ws-1', file.id, raw ? 'raw' : 'text', file.key)
+    client.setQueryData(workspaceFilesKeys.list('ws-1'), [oldFile])
+    client.setQueryData(contentKey, 'previously cached bytes')
+    const fetchMock = vi.fn(async () => new Response('fresh bytes', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await act(async () => {
+      await expect(
+        mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw })
+      ).resolves.toEqual({
+        file,
+        content: 'fresh bytes',
+      })
+    })
+
+    expect(mockRequestJson).toHaveBeenCalledExactlyOnceWith(listWorkspaceFilesContract, {
+      params: { id: 'ws-1' },
+      query: { scope: 'active' },
+      signal: expect.any(AbortSignal),
+    })
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(expect.any(String), {
+      signal: expect.any(AbortSignal),
+      cache: 'no-store',
+    })
+    const url = new URL(vi.mocked(fetch).mock.calls[0]?.[0] as string, 'http://localhost')
+    expect(url.pathname).toBe(`/api/files/serve/${encodeURIComponent(file.key)}`)
+    expect(url.searchParams.get('context')).toBe('workspace')
+    expect(url.searchParams.has('t')).toBe(true)
+    expect(url.searchParams.get('raw')).toBe(raw ? '1' : null)
+    expect(client.getQueryData(contentKey)).toBe('fresh bytes')
+    expect(client.getQueryData(workspaceFilesKeys.list('ws-1'))).toEqual([file])
+  })
+
+  it('cancels a pending metadata read before resolving the latest version', async () => {
+    const pending = Promise.withResolvers<{ success: boolean; files: WorkspaceFileRecord[] }>()
+    let oldSignal: AbortSignal | undefined
+    mockRequestJson.mockImplementationOnce(
+      (_contract: unknown, input: { signal?: AbortSignal }) => {
+        oldSignal = input.signal
+        return pending.promise
+      }
+    )
+    const previousRead = client
+      .fetchQuery({
+        queryKey: workspaceFilesKeys.list('ws-1'),
+        queryFn: ({ signal }) => mockRequestJson(listWorkspaceFilesContract, { signal }),
+      })
+      .then(
+        () => 'resolved',
+        () => 'cancelled'
+      )
+
+    await act(async () => {
+      await expect(
+        mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: false })
+      ).resolves.toEqual({
+        file,
+        content: '# content',
+      })
+    })
+
+    expect(oldSignal?.aborted).toBe(true)
+    expect(await previousRead).toBe('cancelled')
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
+    pending.resolve({ success: true, files: [] })
+    await pending.promise
+    expect(client.getQueryData(workspaceFilesKeys.list('ws-1'))).toEqual([file])
+  })
+
+  it('forwards cancellation to an in-flight byte read without accepting content', async () => {
+    const started = Promise.withResolvers<void>()
+    const pending = Promise.withResolvers<Response>()
+    let contentSignal: AbortSignal | null | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+        contentSignal = init?.signal
+        started.resolve()
+        return pending.promise
+      })
+    )
+    let outcome: Promise<string> | undefined
+    await act(async () => {
+      outcome = mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: true }).then(
+        () => 'resolved',
+        () => 'cancelled'
+      )
+      await started.promise
+      await client.cancelQueries({ queryKey: workspaceFilesKeys.contentFile('ws-1', file.id) })
+    })
+    expect(contentSignal?.aborted).toBe(true)
+    expect(await outcome).toBe('cancelled')
+    pending.resolve(new Response('late bytes', { status: 200 }))
+    await pending.promise
+    expect(
+      client.getQueryData(workspaceFilesKeys.content('ws-1', file.id, 'raw', file.key))
+    ).toBeUndefined()
+  })
+
+  it.each([
+    { files: [], error: 'File no longer exists' },
+    {
+      files: [{ ...file, contentUpdatedAt: null }],
+      error: 'The latest file version is unavailable',
+    },
+  ])('rejects unusable metadata: $error', async ({ files, error }) => {
+    mockRequestJson.mockResolvedValue({ success: true, files })
+    await act(async () => {
+      await expect(
+        mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: false })
+      ).rejects.toThrow(error)
+    })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(mockRequestJson).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates metadata failure without reading bytes or retrying the operation', async () => {
+    mockRequestJson.mockRejectedValue(new Error('metadata offline'))
+    await act(async () => {
+      await expect(
+        mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: false })
+      ).rejects.toThrow('metadata offline')
+    })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(mockRequestJson).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([404, 500])(
+    'propagates a %s byte failure without replacing cached bytes',
+    async (status) => {
+      const contentKey = workspaceFilesKeys.content('ws-1', file.id, 'text', file.key)
+      client.setQueryData(contentKey, 'cached bytes')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('unavailable', { status }))
+      )
+      await act(async () => {
+        await expect(
+          mutation.mutateAsync({ workspaceId: 'ws-1', fileId: file.id, raw: false })
+        ).rejects.toThrow(
+          status === 404
+            ? 'File content is no longer at the requested storage key'
+            : 'Failed to fetch file content'
+        )
+      })
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(client.getQueryData(contentKey)).toBe('cached bytes')
+    }
+  )
 })
 
 /**

@@ -19,6 +19,7 @@ import {
   listWorkspaceFilesContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
+  type UpdateWorkspaceFileContentBody,
   updateWorkspaceFileContentContract,
   updateWorkspaceFileDimensionsContract,
 } from '@/lib/api/contracts/workspace-files'
@@ -584,23 +585,23 @@ export function useCreateWorkspaceFile() {
 /**
  * Update workspace file content mutation
  */
-interface UpdateFileContentParams {
+interface UpdateFileContentParams extends UpdateWorkspaceFileContentBody {
   workspaceId: string
   fileId: string
-  content: string
-  encoding?: 'base64' | 'utf-8'
 }
 
 export function useUpdateWorkspaceFileContent() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId, content, encoding }: UpdateFileContentParams) => {
+    retry: false,
+    mutationFn: async ({ workspaceId, fileId, ...body }: UpdateFileContentParams) => {
       return requestJson(updateWorkspaceFileContentContract, {
         params: { id: workspaceId, fileId },
-        body: encoding ? { content, encoding } : { content },
+        body,
       })
     },
+    /** A lost response may follow a committed write; reconcile bytes and versions even after transport errors. */
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
@@ -613,6 +614,40 @@ export function useUpdateWorkspaceFileContent() {
     onError: (error) => {
       logger.error('Failed to update file content:', error)
     },
+  })
+}
+
+/** Reloads matching immutable bytes and their version before a user discards a conflicting draft. */
+export function useReloadWorkspaceFileContent() {
+  const queryClient = useQueryClient()
+  const source = useFileContentSource()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      fileId,
+      raw,
+    }: {
+      workspaceId: string
+      fileId: string
+      raw: boolean
+    }) => {
+      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      const files = await queryClient.fetchQuery({
+        ...getWorkspaceFilesQueryOptions(workspaceId),
+        staleTime: 0,
+      })
+      const file = files.find((record) => record.id === fileId)
+      if (!file) throw new Error('File no longer exists')
+      if (!file.contentUpdatedAt) throw new Error('The latest file version is unavailable')
+      const content = await queryClient.fetchQuery({
+        queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', file.key),
+        queryFn: ({ signal }) =>
+          fetchWorkspaceFileContent(source.buildUrl(file.key, { raw, bust: true }), signal),
+        staleTime: 0,
+      })
+      return { file, content }
+    },
+    retry: false,
   })
 }
 
