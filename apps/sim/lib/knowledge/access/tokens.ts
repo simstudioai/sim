@@ -19,15 +19,16 @@ export const WORKSPACE_ACL: readonly string[] = Object.freeze([WORKSPACE_ACCESS_
 export const EMPTY_ACL: readonly string[] = Object.freeze([])
 
 /**
- * The most tokens one document's ACL may carry.
+ * The most tokens one document's ACL may carry — a bug detector, not a tuned
+ * capacity.
  *
- * Every read compares the document's ACL against the caller's token set as one
- * array overlap, so an ACL is only as cheap as it is short; a runaway one — a
- * page restricted to a five-thousand-person space, a group expanded per member
- * — degrades the GIN index for every other document in the workspace. Onyx
- * declares the same 5,000 ceiling and, by its own comment, never enforces it.
- * Ours is enforced, and a document that exceeds it fails closed rather than
- * being stored with an ACL that would have to be truncated to fit.
+ * With group tokens a legitimate document names at most tens of principals. An
+ * ACL in the thousands means a connector expanded a group to its members, which
+ * is the exact failure group tokens exist to prevent, and which costs every
+ * other document in the workspace: the GIN index holds one entry per array
+ * element per row, and every read overlaps the caller's set against it. The
+ * number is a generous ceiling above anything real; a document past it fails
+ * closed rather than being stored with an ACL truncated to fit.
  */
 export const MAX_ACL_TOKENS = 5000
 
