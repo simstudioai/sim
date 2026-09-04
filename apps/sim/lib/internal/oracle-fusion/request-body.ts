@@ -3,39 +3,53 @@ import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limit
 const MAX_JSON_NESTING_DEPTH = 100
 const MAX_JSON_NODE_COUNT = 100_000
 
+class OracleFusionRequestBodyError extends Error {}
+
 interface JsonBudgetState {
   bytes: number
   nodes: number
   ancestors: WeakSet<object>
+  fragments: string[]
 }
 
 type JsonBudgetFrame =
   | { kind: 'value'; value: unknown; depth: number }
-  | { kind: 'array'; value: unknown[]; index: number; depth: number }
+  | {
+      kind: 'array'
+      owner: unknown[]
+      values: unknown[]
+      index: number
+      depth: number
+    }
   | {
       kind: 'object'
-      value: Record<string, unknown>
-      keys: string[]
+      owner: Record<string, unknown>
+      entries: [string, unknown][]
       index: number
       depth: number
     }
 
 /** Serializes a bounded request body containing only plain JSON data. */
 export function serializeOracleFusionJsonBody(body: unknown): string {
-  assertJsonBodyWithinLimit(body)
-  const serialized = JSON.stringify(body)
-  if (serialized === undefined) throwNonPlainJsonError()
-  if (Buffer.byteLength(serialized, 'utf8') > MAX_INLINE_MATERIALIZATION_BYTES) {
-    throwRequestBodyLimitError()
+  try {
+    const state = serializeJsonBodyWithinLimit(body)
+    const serialized = state.fragments.join('')
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_INLINE_MATERIALIZATION_BYTES) {
+      throwRequestBodyLimitError()
+    }
+    return serialized
+  } catch (error) {
+    if (error instanceof OracleFusionRequestBodyError) throw error
+    throwNonPlainJsonError()
   }
-  return serialized
 }
 
-function assertJsonBodyWithinLimit(body: unknown): void {
+function serializeJsonBodyWithinLimit(body: unknown): JsonBudgetState {
   const state: JsonBudgetState = {
     bytes: 0,
     nodes: 0,
     ancestors: new WeakSet<object>(),
+    fragments: [],
   }
   const frames: JsonBudgetFrame[] = [{ kind: 'value', value: body, depth: 0 }]
 
@@ -44,130 +58,162 @@ function assertJsonBodyWithinLimit(body: unknown): void {
     if (!frame) break
 
     if (frame.kind === 'array') {
-      if (frame.index >= frame.value.length) {
-        addJsonBytes(state, 1)
-        state.ancestors.delete(frame.value)
+      if (frame.index >= frame.values.length) {
+        appendJsonFragment(state, ']')
+        state.ancestors.delete(frame.owner)
         continue
       }
-      if (frame.index > 0) addJsonBytes(state, 1)
-      const descriptor = Object.getOwnPropertyDescriptor(frame.value, String(frame.index))
-      if (!descriptor || descriptor.get || descriptor.set) throwNonPlainJsonError()
+      if (frame.index > 0) appendJsonFragment(state, ',')
       frames.push({ ...frame, index: frame.index + 1 })
       frames.push({
         kind: 'value',
-        value: descriptor.value,
+        value: frame.values[frame.index],
         depth: frame.depth + 1,
       })
       continue
     }
 
     if (frame.kind === 'object') {
-      if (frame.index >= frame.keys.length) {
-        addJsonBytes(state, 1)
-        state.ancestors.delete(frame.value)
+      if (frame.index >= frame.entries.length) {
+        appendJsonFragment(state, '}')
+        state.ancestors.delete(frame.owner)
         continue
       }
-      const key = frame.keys[frame.index]
-      const descriptor = Object.getOwnPropertyDescriptor(frame.value, key)
-      if (!descriptor || descriptor.get || descriptor.set) throwNonPlainJsonError()
-      if (frame.index > 0) addJsonBytes(state, 1)
-      addJsonBytes(state, jsonStringByteLength(key) + 1)
+      const [key, value] = frame.entries[frame.index]
+      if (frame.index > 0) appendJsonFragment(state, ',')
+      appendJsonString(state, key)
+      appendJsonFragment(state, ':')
       frames.push({ ...frame, index: frame.index + 1 })
-      frames.push({
-        kind: 'value',
-        value: descriptor.value,
-        depth: frame.depth + 1,
-      })
+      frames.push({ kind: 'value', value, depth: frame.depth + 1 })
       continue
     }
 
     admitJsonNode(state)
     const { value, depth } = frame
     if (depth > MAX_JSON_NESTING_DEPTH) {
-      throw new Error('Oracle Fusion request body exceeds the JSON nesting limit')
+      throw new OracleFusionRequestBodyError(
+        'Oracle Fusion request body exceeds the JSON nesting limit'
+      )
     }
     if (value === null) {
-      addJsonBytes(state, 4)
+      appendJsonFragment(state, 'null')
     } else if (typeof value === 'string') {
-      addJsonBytes(state, jsonStringByteLength(value))
+      appendJsonString(state, value)
     } else if (typeof value === 'boolean') {
-      addJsonBytes(state, value ? 4 : 5)
+      appendJsonFragment(state, value ? 'true' : 'false')
     } else if (typeof value === 'number') {
       if (!Number.isFinite(value)) throwNonPlainJsonError()
-      addJsonBytes(state, JSON.stringify(value).length)
+      appendJsonFragment(state, JSON.stringify(value))
     } else if (Array.isArray(value)) {
-      if (Object.getPrototypeOf(value) !== Array.prototype) throwNonPlainJsonError()
-      assertContainerIsPlain(value)
+      const prototype = Object.getPrototypeOf(value)
+      if (prototype !== Array.prototype) throwNonPlainJsonError()
       if (state.ancestors.has(value)) {
-        throw new Error('Oracle Fusion request body must not be cyclic')
+        throw new OracleFusionRequestBodyError('Oracle Fusion request body must not be cyclic')
       }
-      if (value.length * 2 + 1 > MAX_INLINE_MATERIALIZATION_BYTES - state.bytes) {
+      const values = captureArrayValues(value, prototype)
+      if (values.length * 2 + 1 > MAX_INLINE_MATERIALIZATION_BYTES - state.bytes) {
         throwRequestBodyLimitError()
       }
       state.ancestors.add(value)
-      addJsonBytes(state, 1)
-      frames.push({ kind: 'array', value, index: 0, depth })
+      appendJsonFragment(state, '[')
+      frames.push({ kind: 'array', owner: value, values, index: 0, depth })
     } else if (isRecordLike(value)) {
       const prototype = Object.getPrototypeOf(value)
       if (prototype !== Object.prototype && prototype !== null) throwNonPlainJsonError()
-      assertContainerIsPlain(value)
       if (state.ancestors.has(value)) {
-        throw new Error('Oracle Fusion request body must not be cyclic')
+        throw new OracleFusionRequestBodyError('Oracle Fusion request body must not be cyclic')
       }
+      const entries = captureObjectEntries(value, prototype)
       state.ancestors.add(value)
-      addJsonBytes(state, 1)
-      frames.push({
-        kind: 'object',
-        value,
-        keys: Object.keys(value),
-        index: 0,
-        depth,
-      })
+      appendJsonFragment(state, '{')
+      frames.push({ kind: 'object', owner: value, entries, index: 0, depth })
     } else {
       throwNonPlainJsonError()
     }
   }
+
+  return state
 }
 
 function isRecordLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function assertContainerIsPlain(value: object): void {
-  for (
-    let candidate: object | null = value;
-    candidate;
-    candidate = Object.getPrototypeOf(candidate)
-  ) {
+function rejectInheritedJsonSerialization(prototype: object | null): void {
+  for (let candidate = prototype; candidate; candidate = Object.getPrototypeOf(candidate)) {
     if (Object.hasOwn(candidate, 'toJSON')) throwNonPlainJsonError()
   }
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key === 'symbol') throwNonPlainJsonError()
-    if (key === 'length' && Array.isArray(value)) continue
-    const descriptor = Object.getOwnPropertyDescriptor(value, key)
-    if (descriptor?.get || descriptor?.set) throwNonPlainJsonError()
-    if (Array.isArray(value)) {
-      const index = Number(key)
-      if (
-        !Number.isSafeInteger(index) ||
-        index < 0 ||
-        String(index) !== key ||
-        index >= value.length
-      ) {
-        throwNonPlainJsonError()
-      }
-    }
+}
+
+function captureArrayValues(value: unknown[], prototype: object): unknown[] {
+  rejectInheritedJsonSerialization(prototype)
+  const ownKeys = Reflect.ownKeys(value)
+  if (ownKeys.length > MAX_JSON_NODE_COUNT + 1) throwComplexityLimitError()
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length')
+  const length = lengthDescriptor?.value
+  if (
+    typeof length !== 'number' ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length >= MAX_JSON_NODE_COUNT
+  ) {
+    throwComplexityLimitError()
   }
+  const values = new Array<unknown>(length)
+  let captured = 0
+
+  for (const key of ownKeys) {
+    if (typeof key === 'symbol') throwNonPlainJsonError()
+    if (key === 'length') continue
+    const index = Number(key)
+    if (!Number.isSafeInteger(index) || index < 0 || String(index) !== key || index >= length) {
+      throwNonPlainJsonError()
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    if (!descriptor || descriptor.get || descriptor.set) throwNonPlainJsonError()
+    values[index] = descriptor.value
+    captured += 1
+  }
+
+  if (captured !== length) throwNonPlainJsonError()
+  return values
+}
+
+function captureObjectEntries(
+  value: Record<string, unknown>,
+  prototype: object | null
+): [string, unknown][] {
+  rejectInheritedJsonSerialization(prototype)
+  const ownKeys = Reflect.ownKeys(value)
+  if (ownKeys.length > MAX_JSON_NODE_COUNT) throwComplexityLimitError()
+  const entries: [string, unknown][] = []
+
+  for (const key of ownKeys) {
+    if (typeof key === 'symbol' || key === 'toJSON') throwNonPlainJsonError()
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    if (!descriptor || descriptor.get || descriptor.set) throwNonPlainJsonError()
+    if (descriptor.enumerable) entries.push([key, descriptor.value])
+  }
+
+  return entries
 }
 
 function admitJsonNode(state: JsonBudgetState): void {
   state.nodes += 1
-  if (state.nodes > MAX_JSON_NODE_COUNT) {
-    throw new Error('Oracle Fusion request body exceeds the JSON complexity limit')
-  }
+  if (state.nodes > MAX_JSON_NODE_COUNT) throwComplexityLimitError()
 }
 
-function addJsonBytes(state: JsonBudgetState, bytes: number): void {
+function appendJsonFragment(state: JsonBudgetState, fragment: string): void {
+  reserveJsonBytes(state, Buffer.byteLength(fragment, 'utf8'))
+  state.fragments.push(fragment)
+}
+
+function appendJsonString(state: JsonBudgetState, value: string): void {
+  reserveJsonBytes(state, jsonStringByteLength(value))
+  state.fragments.push(JSON.stringify(value))
+}
+
+function reserveJsonBytes(state: JsonBudgetState, bytes: number): void {
   state.bytes += bytes
   if (state.bytes > MAX_INLINE_MATERIALIZATION_BYTES) throwRequestBodyLimitError()
 }
@@ -203,11 +249,19 @@ function jsonStringByteLength(value: string): number {
 }
 
 function throwRequestBodyLimitError(): never {
-  throw new Error('Oracle Fusion request body exceeds the inline payload limit')
+  throw new OracleFusionRequestBodyError(
+    'Oracle Fusion request body exceeds the inline payload limit'
+  )
+}
+
+function throwComplexityLimitError(): never {
+  throw new OracleFusionRequestBodyError(
+    'Oracle Fusion request body exceeds the JSON complexity limit'
+  )
 }
 
 function throwNonPlainJsonError(): never {
-  throw new Error(
+  throw new OracleFusionRequestBodyError(
     'Oracle Fusion request body must contain plain JSON data without accessors or custom serialization'
   )
 }

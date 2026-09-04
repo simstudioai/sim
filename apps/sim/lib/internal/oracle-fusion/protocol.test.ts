@@ -48,10 +48,19 @@ describe('parseOracleFusionCollection', () => {
   it('accepts an empty terminal page and returns its current nextOffset', () => {
     expect(
       parseOracleFusionCollection(
-        { items: [], count: 0, hasMore: false, limit: 25, offset: 0 },
-        (item) => item
+        { items: [], count: 0, hasMore: false, limit: 25, offset: 10, totalResults: 5 },
+        (item) => item,
+        { expectedOffset: 10 }
       )
-    ).toEqual({ items: [], count: 0, hasMore: false, limit: 25, offset: 0, nextOffset: 0 })
+    ).toEqual({
+      items: [],
+      count: 0,
+      hasMore: false,
+      limit: 25,
+      offset: 10,
+      totalResults: 5,
+      nextOffset: 10,
+    })
   })
 
   it('accepts omitted items only for an unambiguous empty terminal page', () => {
@@ -179,6 +188,19 @@ describe('Oracle self links', () => {
       )
     ).toThrow('Oracle self link is malformed')
   })
+
+  it.each(['\t', '\n', '\r'])(
+    'rejects a self-link key containing the raw control character %j before URL parsing',
+    (control) => {
+      expect(() =>
+        extractOracleFusionOpaqueKey(
+          resource(`${ORIGIN}${COLLECTION}/bad${control}key`),
+          ORIGIN,
+          COLLECTION_ADDRESS
+        )
+      ).toThrow('Oracle self link is malformed')
+    }
+  )
 
   it.each([
     [`${ORIGIN}/other/abc`, 'collection path'],

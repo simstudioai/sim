@@ -78,6 +78,29 @@ describe('serializeOracleFusionJsonBody', () => {
     }
   })
 
+  it('serializes the descriptor values captured from a proxy exactly once', () => {
+    const target = { value: 'first' }
+    let descriptorReads = 0
+    const proxy = new Proxy(target, {
+      getOwnPropertyDescriptor(current, key) {
+        descriptorReads += 1
+        const descriptor = Reflect.getOwnPropertyDescriptor(current, key)
+        return descriptor ? { ...descriptor, value: `read-${descriptorReads}` } : undefined
+      },
+    })
+
+    expect(serializeOracleFusionJsonBody(proxy)).toBe('{"value":"read-1"}')
+    expect(descriptorReads).toBe(1)
+
+    const arrayProxy = new Proxy([1], {
+      get(_current, key) {
+        if (key === 'length') throw new Error('array length getter must not run')
+        return undefined
+      },
+    })
+    expect(serializeOracleFusionJsonBody(arrayProxy)).toBe('[1]')
+  })
+
   it('rejects cycles, excessive nesting, and excessive complexity', () => {
     const cycle: unknown[] = []
     cycle.push(cycle)
