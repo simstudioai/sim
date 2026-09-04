@@ -17,10 +17,12 @@ import { OCI_SERVICE_ID } from '@/lib/oauth/types'
 const staticPolicy = createOciStaticEndpointPolicy({
   serviceId: OCI_SERVICE_ID,
   serviceName: 'identity',
+  hostnameTemplate: 'regional-oci',
 })
 const discoveryPolicy = createOciDiscoveredEndpointPolicy({
   serviceId: OCI_SERVICE_ID,
   serviceName: 'database',
+  hostnameTemplate: 'regional',
   responsePolicy: staticPolicy,
   source: { kind: 'json', path: ['endpoint'] },
 })
@@ -33,7 +35,12 @@ describe('OCI region registry', () => {
       expect(region.id).toBe(id)
       expect(region.realm.id).toMatch(/^oc\d+$/)
       expect(region.realm.domain).toMatch(/^(?:oraclecloud|oraclegovcloud)/)
-      expect(regionalOciHostname('identity', region)).toBe(`identity.${id}.${region.realm.domain}`)
+      expect(regionalOciHostname('identity', region, 'regional-oci')).toBe(
+        `identity.${id}.oci.${region.realm.domain}`
+      )
+      expect(regionalOciHostname('objectstorage', region, 'regional')).toBe(
+        `objectstorage.${id}.${region.realm.domain}`
+      )
     }
   })
 
@@ -58,8 +65,8 @@ describe('OCI endpoint policies', () => {
     expect(Object.isFrozen(staticPolicy)).toBe(true)
     const endpoint = resolveStaticOciEndpoint(staticPolicy, region)
     expect(endpoint).toMatchObject({
-      origin: 'https://identity.us-ashburn-1.oraclecloud.com',
-      hostname: 'identity.us-ashburn-1.oraclecloud.com',
+      origin: 'https://identity.us-ashburn-1.oci.oraclecloud.com',
+      hostname: 'identity.us-ashburn-1.oci.oraclecloud.com',
       serviceId: OCI_SERVICE_ID,
       serviceName: 'identity',
       provenance: 'static',
@@ -69,7 +76,7 @@ describe('OCI endpoint policies', () => {
     expect(Object.isFrozen(endpoint.region.realm)).toBe(true)
     expect(Reflect.set(endpoint, 'origin', 'https://attacker.example')).toBe(false)
     expect(Reflect.set(endpoint.region, 'id', 'attacker-region-1')).toBe(false)
-    expect(endpoint.origin).toBe('https://identity.us-ashburn-1.oraclecloud.com')
+    expect(endpoint.origin).toBe('https://identity.us-ashburn-1.oci.oraclecloud.com')
     expect(endpoint.region.id).toBe('us-ashburn-1')
   })
 
@@ -104,6 +111,7 @@ describe('OCI endpoint policies', () => {
     const policy = createOciDiscoveredEndpointPolicy({
       serviceId: OCI_SERVICE_ID,
       serviceName: 'database',
+      hostnameTemplate: 'regional',
       responsePolicy: staticPolicy,
       source: { kind: 'header', name: 'Endpoint' },
       allowRegionalHost: true,
@@ -118,8 +126,19 @@ describe('OCI endpoint policies', () => {
 
   it('rejects malformed policy declarations and forged region mappings', () => {
     expect(() =>
-      createOciStaticEndpointPolicy({ serviceId: OCI_SERVICE_ID, serviceName: 'bad.name' })
+      createOciStaticEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName: 'bad.name',
+        hostnameTemplate: 'regional',
+      })
     ).toThrow('service name')
+    expect(() =>
+      createOciStaticEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName: 'identity',
+        hostnameTemplate: 'arbitrary' as never,
+      })
+    ).toThrow('hostname template')
     expect(() =>
       resolveStaticOciEndpoint(staticPolicy, {
         id: region.id,
@@ -130,9 +149,11 @@ describe('OCI endpoint policies', () => {
       createOciDiscoveredEndpointPolicy({
         serviceId: OCI_SERVICE_ID,
         serviceName: 'database',
+        hostnameTemplate: 'regional',
         responsePolicy: createOciStaticEndpointPolicy({
           serviceId: 'slack',
           serviceName: 'identity',
+          hostnameTemplate: 'regional-oci',
         }),
         source: { kind: 'json', path: ['endpoint'] },
       })

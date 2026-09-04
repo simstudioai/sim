@@ -111,12 +111,12 @@ describe('OCI API-key credential setup', () => {
 
     await expect(
       verifyAndEncryptOciApiKeyCredential(fields({ privateKey: encryptedPrivateKey }))
-    ).rejects.toThrow('private key or passphrase')
+    ).rejects.toEqual(new OciCredentialVerificationError('invalid_credentials'))
     await expect(
       verifyAndEncryptOciApiKeyCredential(
         fields({ privateKey: encryptedPrivateKey, privateKeyPassphrase: passphrase.trim() })
       )
-    ).rejects.toThrow('private key or passphrase')
+    ).rejects.toEqual(new OciCredentialVerificationError('invalid_credentials'))
   })
 
   it('rejects malformed, non-RSA, and undersized keys before network or encryption', async () => {
@@ -134,7 +134,9 @@ describe('OCI API-key credential setup', () => {
       }),
     ]
     for (const invalid of cases) {
-      await expect(verifyAndEncryptOciApiKeyCredential(invalid)).rejects.toThrow()
+      await expect(verifyAndEncryptOciApiKeyCredential(invalid)).rejects.toEqual(
+        new OciCredentialVerificationError('invalid_credentials')
+      )
     }
     expect(dependencies.verifySetup).not.toHaveBeenCalled()
     expect(dependencies.encryptSecret).not.toHaveBeenCalled()
@@ -153,7 +155,9 @@ describe('OCI API-key credential setup', () => {
       fields({ tenancyOcid: `ocid1.tenancy.oc1..${'a'.repeat(240)}` }),
     ]
     for (const invalid of invalidCases) {
-      await expect(verifyAndEncryptOciApiKeyCredential(invalid)).rejects.toThrow()
+      await expect(verifyAndEncryptOciApiKeyCredential(invalid)).rejects.toEqual(
+        new OciCredentialVerificationError('invalid_credentials')
+      )
     }
     expect(dependencies.verifySetup).not.toHaveBeenCalled()
     expect(dependencies.encryptSecret).not.toHaveBeenCalled()

@@ -393,6 +393,9 @@ function OciApiKeyServiceAccountModal({
           }}
           placeholder='-----BEGIN PRIVATE KEY-----'
           minHeight={120}
+          className={
+            privateKey ? '[&_textarea:not(:focus)]:[-webkit-text-security:disc]' : undefined
+          }
           mono
           required
         />

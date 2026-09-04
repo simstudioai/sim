@@ -875,6 +875,7 @@ export async function verifyOciApiKeyCredentialForSetup(
   const policy = createOciStaticEndpointPolicy({
     serviceId: OCI_SERVICE_ID,
     serviceName: 'objectstorage',
+    hostnameTemplate: 'regional',
   })
   const endpoint = resolveStaticOciEndpoint(policy, resolveEffectiveOciRegion(material.region))
   const url = buildRequestUrl(endpoint, '/n/', [])

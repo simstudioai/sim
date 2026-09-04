@@ -2,6 +2,7 @@ import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import type { OAuthService } from '@/lib/oauth/types'
 
 export type OciDestinationProvenance = 'static' | 'authenticated-discovery'
+export type OciHostnameTemplate = 'regional' | 'regional-oci'
 
 export interface OciRealm {
   readonly id: string
@@ -32,6 +33,7 @@ export interface OciStaticEndpointPolicy {
   readonly kind: 'static'
   readonly serviceId: OAuthService
   readonly serviceName: string
+  readonly hostnameTemplate: OciHostnameTemplate
   readonly [ociEndpointPolicyBrand]: true
 }
 
@@ -43,6 +45,7 @@ export interface OciDiscoveredEndpointPolicy {
   readonly kind: 'authenticated-discovery'
   readonly serviceId: OAuthService
   readonly serviceName: string
+  readonly hostnameTemplate: OciHostnameTemplate
   readonly responsePolicy: OciEndpointPolicy
   readonly source: OciDiscoverySource
   readonly allowRegionalHost: boolean
@@ -203,6 +206,12 @@ function assertServiceName(value: string): void {
   }
 }
 
+function assertHostnameTemplate(value: OciHostnameTemplate): void {
+  if (value !== 'regional' && value !== 'regional-oci') {
+    throw new Error('OCI endpoint policy hostname template is invalid')
+  }
+}
+
 function assertDiscoverySource(source: OciDiscoverySource): void {
   if (source.kind === 'header') {
     if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(source.name)) {
@@ -227,12 +236,15 @@ function assertDiscoverySource(source: OciDiscoverySource): void {
 export function createOciStaticEndpointPolicy(params: {
   serviceId: OAuthService
   serviceName: string
+  hostnameTemplate: OciHostnameTemplate
 }): OciStaticEndpointPolicy {
   assertServiceName(params.serviceName)
+  assertHostnameTemplate(params.hostnameTemplate)
   return Object.freeze({
     kind: 'static',
     serviceId: params.serviceId,
     serviceName: params.serviceName,
+    hostnameTemplate: params.hostnameTemplate,
   }) as OciStaticEndpointPolicy
 }
 
@@ -240,11 +252,13 @@ export function createOciStaticEndpointPolicy(params: {
 export function createOciDiscoveredEndpointPolicy(params: {
   serviceId: OAuthService
   serviceName: string
+  hostnameTemplate: OciHostnameTemplate
   responsePolicy: OciEndpointPolicy
   source: OciDiscoverySource
   allowRegionalHost?: boolean
 }): OciDiscoveredEndpointPolicy {
   assertServiceName(params.serviceName)
+  assertHostnameTemplate(params.hostnameTemplate)
   assertDiscoverySource(params.source)
   if (params.responsePolicy.serviceId !== params.serviceId) {
     throw new Error('OCI discovery source policy must have the same owning service')
@@ -257,15 +271,22 @@ export function createOciDiscoveredEndpointPolicy(params: {
     kind: 'authenticated-discovery',
     serviceId: params.serviceId,
     serviceName: params.serviceName,
+    hostnameTemplate: params.hostnameTemplate,
     responsePolicy: params.responsePolicy,
     source,
     allowRegionalHost: params.allowRegionalHost ?? false,
   }) as OciDiscoveredEndpointPolicy
 }
 
-export function regionalOciHostname(serviceName: string, region: OciRegion): string {
+export function regionalOciHostname(
+  serviceName: string,
+  region: OciRegion,
+  hostnameTemplate: OciHostnameTemplate
+): string {
   assertServiceName(serviceName)
-  return `${serviceName}.${region.id}.${region.realm.domain}`
+  assertHostnameTemplate(hostnameTemplate)
+  const ociLabel = hostnameTemplate === 'regional-oci' ? '.oci' : ''
+  return `${serviceName}.${region.id}${ociLabel}.${region.realm.domain}`
 }
 
 function validateOciOrigin(params: {
@@ -301,7 +322,11 @@ function validateOciOrigin(params: {
   ) {
     throw new Error('OCI destination must be an exact HTTPS origin with the default port')
   }
-  const regionalHostname = regionalOciHostname(params.policy.serviceName, knownRegion)
+  const regionalHostname = regionalOciHostname(
+    params.policy.serviceName,
+    knownRegion,
+    params.policy.hostnameTemplate
+  )
   const hostnameMatches =
     params.provenance === 'static'
       ? url.hostname === regionalHostname
@@ -327,7 +352,7 @@ export function resolveStaticOciEndpoint(
   policy: OciStaticEndpointPolicy,
   region: OciRegion
 ): OciPreparedEndpoint {
-  const hostname = regionalOciHostname(policy.serviceName, region)
+  const hostname = regionalOciHostname(policy.serviceName, region, policy.hostnameTemplate)
   return validateOciOrigin({
     origin: `https://${hostname}`,
     policy,

@@ -242,6 +242,29 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     }
   )
 
+  it('classifies local OCI field validation as rejected credentials', async () => {
+    const { OciCredentialVerificationError } = await import(
+      '@/lib/credentials/oci-api-key-service-account.server'
+    )
+    mockVerifyAndEncryptOci.mockRejectedValue(
+      new OciCredentialVerificationError('invalid_credentials')
+    )
+
+    await expect(
+      verifyAndBuildServiceAccountSecret('oci-api-key-service-account', {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: 'invalid-fingerprint',
+        privateKey: 'invalid-key',
+        region: 'us-ashburn-1',
+      })
+    ).rejects.toMatchObject({
+      name: 'ServiceAccountSecretError',
+      message: 'OCI rejected the API-key credential',
+      providerErrorCode: 'invalid_credentials',
+    })
+  })
+
   it('does not misclassify an internal OCI credential failure as rejected credentials', async () => {
     const internalFailure = new Error('internal encryption failure')
     mockVerifyAndEncryptOci.mockRejectedValue(internalFailure)
