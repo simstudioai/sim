@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   predicates: undefined as unknown,
   rows: [] as { encryptedServiceAccountKey: string | null }[],
   secureFetch: vi.fn(),
+  validateUrl: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -44,7 +45,8 @@ vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decryptS
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   DEFAULT_MAX_RESPONSE_BYTES: 100 * 1024 * 1024,
-  secureFetchWithValidation: mocks.secureFetch,
+  secureFetchWithPinnedIP: mocks.secureFetch,
+  validateUrlWithDNS: mocks.validateUrl,
 }))
 
 vi.mock('@sim/utils/retry', () => ({
@@ -176,7 +178,7 @@ async function createPreparedClient(params: { region?: string } = {}): Promise<{
 }
 
 function authorizationFromLastRequest(): string {
-  const options = mocks.secureFetch.mock.calls.at(-1)?.[1] as { headers: Record<string, string> }
+  const options = mocks.secureFetch.mock.calls.at(-1)?.[2] as { headers: Record<string, string> }
   return options.headers.authorization
 }
 
@@ -187,6 +189,11 @@ describe('credential-bound OCI client', () => {
     mocks.decryptSecret.mockReset().mockResolvedValue({ decrypted: SECRET })
     mocks.backoff.mockReset().mockReturnValue(0)
     mocks.secureFetch.mockReset().mockResolvedValue(secureResponse({}))
+    mocks.validateUrl.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+      originalHostname: 'identity.us-ashburn-1.oci.oraclecloud.com',
+    })
   })
 
   afterEach(() => {
@@ -312,7 +319,7 @@ describe('credential-bound OCI client', () => {
     expect(authorizationFromLastRequest()).toBe(
       'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host content-type content-length x-content-sha256",signature="W2/OGoa2XuOin6+CQt32/+/lAXG5PWoamkAHr/k84oCYGUuub2mEYw1z9p4gc6/GPgeZ30wVp4DNVLzOjup3nJir1WsEsYzAk27XAIRVjxiQ7oBzCccnSnB88KLeNz1NDz7r4QPQGxZ50MBQEe0C+DEH2P+utpfFN73o7GCUhIN9hb27COg4l7ffdSLgjBWPN/B4AiZXpjz3I/GRHo29otGAhZ3MiX10gJTjy+qeAchAfmXmTx/nJqNhF0Aj255+B2lepCrHdkpcBpiTs5E+ppE6VvML0ByQ9ZLzBISB4MBljuFyey6tnTkueT73fqjQyM/OT+aO9HrAlemc3HSAXA=="'
     )
-    expect(mocks.secureFetch.mock.calls[0][1].headers).toMatchObject({
+    expect(mocks.secureFetch.mock.calls[0][2].headers).toMatchObject({
       'content-length': '0',
       'content-type': 'application/json',
       'x-content-sha256': '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
@@ -338,13 +345,15 @@ describe('credential-bound OCI client', () => {
       maxResponseBytes: 1024,
     })
 
-    const [url, options] = mocks.secureFetch.mock.calls[0] as [
+    const [url, resolvedIP, options] = mocks.secureFetch.mock.calls[0] as [
+      string,
       string,
       { body: Uint8Array; headers: Record<string, string> },
     ]
     expect(url).toBe(
       'https://identity.us-ashburn-1.oci.oraclecloud.com/v1/%E2%98%83?z=last&a=&a=%20%21%27%28%29%2A'
     )
+    expect(resolvedIP).toBe('203.0.113.10')
     expect([...options.body]).toEqual([...body])
     expect(options.body).not.toBe(body)
     expect(options.headers).toMatchObject({
@@ -380,7 +389,7 @@ describe('credential-bound OCI client', () => {
         timeoutMs: 10_000,
         maxResponseBytes: 1024,
       })
-      const options = mocks.secureFetch.mock.calls.at(-1)?.[1]
+      const options = mocks.secureFetch.mock.calls.at(-1)?.[2]
       expect(options.method).toBe(method)
       expect(options).not.toHaveProperty('body')
       expect(options.headers).not.toHaveProperty('content-length')
@@ -410,7 +419,7 @@ describe('credential-bound OCI client', () => {
         timeoutMs: 10_000,
         maxResponseBytes: 1024,
       })
-      expect(mocks.secureFetch.mock.calls.at(-1)?.[1].headers['content-length']).toBe('0')
+      expect(mocks.secureFetch.mock.calls.at(-1)?.[2].headers['content-length']).toBe('0')
     }
   )
 
@@ -515,8 +524,8 @@ describe('credential-bound OCI client', () => {
       maxResponseBytes: 1024,
     })
 
-    const first = mocks.secureFetch.mock.calls[0][1]
-    const second = mocks.secureFetch.mock.calls[1][1]
+    const first = mocks.secureFetch.mock.calls[0][2]
+    const second = mocks.secureFetch.mock.calls[1][2]
     expect([...first.body]).toEqual([...second.body])
     expect(first.headers['opc-retry-token']).toBe('operation-token')
     expect(second.headers['opc-retry-token']).toBe('operation-token')
@@ -809,13 +818,45 @@ describe('credential-bound OCI client', () => {
     await assertion
   })
 
+  it('does not start a pinned request when destination validation outlives the deadline', async () => {
+    vi.useFakeTimers()
+    let finishValidation:
+      | ((value: { isValid: true; resolvedIP: string; originalHostname: string }) => void)
+      | undefined
+    mocks.validateUrl.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishValidation = resolve
+        })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/test',
+      timeoutMs: 100,
+      maxResponseBytes: 1024,
+    })
+    const assertion = expect(pending).rejects.toMatchObject({ code: 'deadline_exceeded' })
+    await vi.advanceTimersByTimeAsync(101)
+    await assertion
+    finishValidation?.({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+      originalHostname: 'identity.us-ashburn-1.oci.oraclecloud.com',
+    })
+    await Promise.resolve()
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
+  })
+
   it('propagates caller abort while setup destination validation is pending', async () => {
     const controller = new AbortController()
-    mocks.secureFetch.mockImplementationOnce(() => new Promise(() => {}))
+    mocks.validateUrl.mockImplementationOnce(() => new Promise(() => {}))
     const pending = verifyOciApiKeyCredentialForSetup(SECRET, controller.signal)
-    await vi.waitFor(() => expect(mocks.secureFetch).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(mocks.validateUrl).toHaveBeenCalledOnce())
     controller.abort()
     await expect(pending).rejects.toMatchObject({ code: 'aborted' })
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
   })
 
   it('does not start setup destination validation after an earlier caller abort', async () => {
@@ -824,16 +865,32 @@ describe('credential-bound OCI client', () => {
     await expect(
       verifyOciApiKeyCredentialForSetup(SECRET, controller.signal)
     ).rejects.toMatchObject({ code: 'aborted' })
+    expect(mocks.validateUrl).not.toHaveBeenCalled()
     expect(mocks.secureFetch).not.toHaveBeenCalled()
   })
 
   it('applies the setup deadline while destination validation is pending', async () => {
     vi.useFakeTimers()
-    mocks.secureFetch.mockImplementationOnce(() => new Promise(() => {}))
+    let finishValidation:
+      | ((value: { isValid: true; resolvedIP: string; originalHostname: string }) => void)
+      | undefined
+    mocks.validateUrl.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishValidation = resolve
+        })
+    )
     const pending = verifyOciApiKeyCredentialForSetup(SECRET)
     const assertion = expect(pending).rejects.toMatchObject({ code: 'deadline_exceeded' })
     await vi.advanceTimersByTimeAsync(10_001)
     await assertion
+    finishValidation?.({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+      originalHostname: 'objectstorage.us-ashburn-1.oraclecloud.com',
+    })
+    await Promise.resolve()
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
   })
 
   it('applies the same deadline while reading the response body', async () => {
