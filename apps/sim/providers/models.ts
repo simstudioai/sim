@@ -93,6 +93,8 @@ interface ModelDefinition {
   contextWindow?: number
   /** ISO date string (YYYY-MM-DD) when the model was first publicly released */
   releaseDate?: string
+  /** Promotes this model on public catalog surfaces, independently of workflow recommendations. */
+  featured?: boolean
   recommended?: boolean
   speedOptimized?: boolean
   /**
@@ -350,6 +352,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1050000,
         releaseDate: '2026-09-03',
+        featured: true,
         recommended: true,
       },
       // GPT-4.1 family
@@ -922,6 +925,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-09-01',
+        featured: true,
       },
       {
         id: 'claude-fable-5',
@@ -1697,6 +1701,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-09-02',
+        featured: true,
         recommended: true,
       },
       {

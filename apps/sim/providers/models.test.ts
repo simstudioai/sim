@@ -50,6 +50,17 @@ describe('OpenAI provider definition', () => {
   })
 })
 
+describe('catalog featured model metadata', () => {
+  it('defines at most one active featured model per provider', () => {
+    for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+      const featuredModels = provider.models.filter((model) => model.featured)
+
+      expect(featuredModels.length).toBeLessThanOrEqual(1)
+      expect(featuredModels.every((model) => model.sunset === undefined)).toBe(true)
+    }
+  })
+})
+
 describe('Anthropic thinking stream visibility', () => {
   it('classifies visible Claude thinking as summarized rather than raw', () => {
     for (const providerId of ['anthropic', 'azure-anthropic'] as const) {
