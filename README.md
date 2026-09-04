@@ -32,11 +32,11 @@ npx sim-setup
 
 Open [http://localhost:3000](http://localhost:3000)
 
-### Desktop
+### Desktop: [macOS](https://sim.ai/api/desktop/update/download)
 
 <a href="https://sim.ai/api/desktop/update/download" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Download-macOS-3B3B3B?logo=apple&logoColor=white&labelColor=1A1A1A" alt="Download Sim for macOS"></a>
 
-Signed and notarized, universal for Apple Silicon and Intel, macOS 12+. That link is never version-pinned — it resolves to the newest release at request time, so it does not need updating. It resolves against sim.ai; a self-hosted install serves the same endpoint on its own origin, so use `https://<your-sim-url>/api/desktop/update/download` to get the build your deployment offers. See the [desktop docs](https://docs.sim.ai/desktop).
+macOS 12+, Apple Silicon and Intel. See the [desktop docs](https://docs.sim.ai/desktop) to point it at a self-hosted deployment.
 
 <p align="center">
   <img src="apps/sim/public/static/readme-platform.png" alt="The Sim platform — chat on the left, the visual workflow builder on the right" width="100%"/>

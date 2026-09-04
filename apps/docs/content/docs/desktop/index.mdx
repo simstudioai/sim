@@ -23,9 +23,9 @@ Sim Desktop is the macOS app for your Sim workspace. Everything the web app does
 One universal build runs natively on both Apple Silicon and Intel Macs. It is signed and notarized by Sim, so Gatekeeper accepts it with no override.
 
 <Callout type="info">
-  That link is never version-pinned — it is a redirect resolved at request time, so it always lands on the newest release. Bookmark it, share it, or put it in an MDM policy and it stays correct across every release.
+  That link is never version-pinned — it is a redirect resolved at request time, so it always lands on the newest release. Bookmark it, share it, or put it in an MDM policy; it stays correct.
 
-  It resolves against sim.ai. Every Sim deployment serves the same endpoint on its own origin, so if you self-host, use yours — `https://sim.example.com/api/desktop/update/download` — and you get the build your deployment offers rather than the one sim.ai does.
+  It resolves against sim.ai. Every deployment serves the same endpoint on its own origin, so if you self-host use yours — `https://sim.example.com/api/desktop/update/download` — to get the build your deployment offers.
 </Callout>
 
 To install a specific version instead of the newest one, pick it from [the releases page](https://github.com/simstudioai/sim/releases) and download that release's `Sim-<version>-universal.dmg`.
@@ -76,7 +76,7 @@ Fresh installs open sim.ai. To use your own deployment, choose **Sim → Server�
 Both the browser and the terminal are capabilities you grant, not defaults you are stuck with — each has a single switch in settings that turns it off entirely.
 
 <Callout type="warn">
-  **What a folder grant does and does not do.** Granting a folder does not copy or upload it, and an agent cannot attach a file from it or stage one for upload — that stays a deliberate act on your part. But when an agent reads or searches inside the grant, the text it reads is a tool result, and tool results go to your Sim server and to the model exactly like anything else in the conversation. Grant folders on that basis: the file stays on your Mac, what an agent reads out of it does not.
+  **What a folder grant does and does not do.** Granting a folder does not copy or upload it, and an agent cannot attach or stage a file from it — that stays your deliberate act. But when an agent reads or searches inside the grant, what it reads is a tool result, and tool results go to your Sim server and to the model like anything else in the conversation. The file stays on your Mac; what an agent reads out of it does not.
 </Callout>
 
 ## Keyboard shortcuts
@@ -135,9 +135,11 @@ The menu bar carries the rest: **Sim → Settings…** (`Cmd` + `,`), **Server�
 
 ## Updates
 
-Sim updates itself, and it checks the deployment it is pointed at rather than a global feed. With **Automatically download updates** on, it downloads in the background and offers to restart — choose **Later** and the update applies the next time you quit. With it off, **Sim → Check for Updates…** starts the download. Nothing is ever forced mid-session.
+Sim checks the deployment it is pointed at rather than a global feed. How it applies what it finds depends on how the app was installed. Nothing is ever forced mid-session either way.
 
-A build that cannot update itself — one installed outside `/Applications`, or one not signed with a Developer ID — offers you the installer to download and replace by hand instead. That is the other reason to install to `/Applications`.
+**Installed in `/Applications`, signed by Sim** — what the download link above gives you. The app replaces itself. With **Automatically download updates** on, it downloads in the background and offers to restart; choose **Later** and the update applies the next time you quit. With it off, nothing downloads until you ask: **Sim → Check for Updates…** reports the available version and waits for you to choose **Download**.
+
+**Anywhere else** — outside `/Applications`, or a build not signed with a Developer ID. The app cannot replace itself, so it offers you the installer to download and swap in by hand. This is the second reason to install to `/Applications`.
 
 Updates come from the deployment you are connected to, so a self-hosted install controls which build its own users are offered. See [Desktop App on Your Deployment](/platform/self-hosting/desktop).
 
