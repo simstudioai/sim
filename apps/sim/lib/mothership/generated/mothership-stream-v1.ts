@@ -23,6 +23,8 @@ export type MothershipStreamV1EventEnvelope =
   | MothershipStreamV1RunResumedEventEnvelope
   | MothershipStreamV1CompactionStartEventEnvelope
   | MothershipStreamV1CompactionDoneEventEnvelope
+  | MothershipStreamV1TaskArmedEventEnvelope
+  | MothershipStreamV1TaskDeliveredEventEnvelope
   | MothershipStreamV1ErrorEventEnvelope
   | MothershipStreamV1CompleteEventEnvelope
 export type MothershipStreamV1TextChannel = 'assistant' | 'thinking'
@@ -366,6 +368,39 @@ export interface MothershipStreamV1CompactionDonePayload {
 export interface MothershipStreamV1CompactionDoneData {
   summary_chars: number
 }
+export interface MothershipStreamV1TaskArmedEventEnvelope {
+  payload: MothershipStreamV1TaskArmedPayload
+  scope?: MothershipStreamV1StreamScope
+  seq: number
+  stream: MothershipStreamV1StreamRef
+  trace?: MothershipStreamV1Trace
+  ts: string
+  type: 'run'
+  v: 1
+}
+export interface MothershipStreamV1TaskArmedPayload {
+  kind: 'task_armed'
+  note: string
+  target: {}
+  taskId: string
+  taskKind: 'timer' | 'workflow_run'
+}
+export interface MothershipStreamV1TaskDeliveredEventEnvelope {
+  payload: MothershipStreamV1TaskDeliveredPayload
+  scope?: MothershipStreamV1StreamScope
+  seq: number
+  stream: MothershipStreamV1StreamRef
+  trace?: MothershipStreamV1Trace
+  ts: string
+  type: 'run'
+  v: 1
+}
+export interface MothershipStreamV1TaskDeliveredPayload {
+  kind: 'task_delivered'
+  status: 'completed' | 'failed' | 'stopped' | 'expired'
+  summary: string
+  taskId: string
+}
 export interface MothershipStreamV1ErrorEventEnvelope {
   payload: MothershipStreamV1ErrorPayload
   scope?: MothershipStreamV1StreamScope
@@ -472,6 +507,8 @@ export type MothershipStreamV1RunKind =
   | 'compaction_start'
   | 'compaction_done'
   | 'steering_applied'
+  | 'task_armed'
+  | 'task_delivered'
 
 export const MothershipStreamV1RunKind = {
   checkpoint_pause: 'checkpoint_pause',
@@ -479,6 +516,8 @@ export const MothershipStreamV1RunKind = {
   compaction_start: 'compaction_start',
   compaction_done: 'compaction_done',
   steering_applied: 'steering_applied',
+  task_armed: 'task_armed',
+  task_delivered: 'task_delivered',
 } as const
 
 export type MothershipStreamV1SessionKind = 'trace' | 'chat' | 'title' | 'start'

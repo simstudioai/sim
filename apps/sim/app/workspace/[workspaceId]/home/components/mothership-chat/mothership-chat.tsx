@@ -165,6 +165,30 @@ interface UserMessageRowProps {
   attachmentWidthClassName: string
 }
 
+/**
+ * A background-task notification that opened a turn (mothership 21-background-tasks.md
+ * §6.4): a muted system chip, never a user bubble — the user did not type it. Shows the
+ * outcome line; the provenance header and the agent's own note stay out of the way.
+ */
+const TaskNotificationRow = memo(function TaskNotificationRow({
+  content,
+  rowClassName,
+}: {
+  content: string
+  rowClassName: string
+}) {
+  const lines = content.split('\n').filter((line) => line.length > 0)
+  const outcome = lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? ''
+  return (
+    <div className={cn('flex w-full justify-center', rowClassName)}>
+      <div className='max-w-[85%] rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[12px] text-[var(--text-secondary)]'>
+        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>Background task</span>
+        {outcome.replace(/^Task [0-9a-f-]+ /, '')}
+      </div>
+    </div>
+  )
+})
+
 const UserMessageRow = memo(function UserMessageRow({
   content,
   contexts,
@@ -803,7 +827,9 @@ export function MothershipChat({
                     style={{ top: virtualItem.start }}
                   >
                     {msg.role === 'user' ? (
-                      interactionPairing.hiddenUserByIndex[index] ? null : (
+                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin === 'task' ? (
+                        <TaskNotificationRow content={msg.content} rowClassName={styles.rowGap} />
+                      ) : (
                         <UserMessageRow
                           content={msg.content}
                           contexts={msg.contexts}

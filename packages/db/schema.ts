@@ -5377,3 +5377,33 @@ export const sandboxImage = pgTable(
     lastUsedIdx: index('sandbox_image_last_used_idx').on(table.lastUsedAt),
   })
 )
+
+/**
+ * Copilot background-task subscriptions (mothership docs/revamp/21-background-tasks.md):
+ * a worker task that watches a workflow execution. The executor's completion path looks
+ * the execution id up here and posts the outcome back to the worker, which owns the task
+ * and its delivery. Rows are deleted once notified; an execution that never finishes
+ * leaves a row the worker's own TTL makes irrelevant.
+ */
+export const copilotTaskSubscriptions = pgTable(
+  'copilot_task_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    taskId: uuid('task_id').notNull(),
+    executionId: text('execution_id').notNull(),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('copilot_task_subscriptions_execution_idx').on(table.executionId),
+    uniqueIndex('copilot_task_subscriptions_task_idx').on(table.taskId),
+  ]
+)

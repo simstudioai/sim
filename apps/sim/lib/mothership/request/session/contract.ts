@@ -289,18 +289,14 @@ function isValidResourcePayload(payload: JsonRecord): boolean {
   return hasAddressableId(resource.id) && typeof resource.type === 'string'
 }
 
+/** Every run kind the generated contract names is valid here — a hand-kept list rejected
+ * `steering_applied` before steering shipped and `task_armed` the day background tasks
+ * did, and an unknown-but-contracted kind escalates to FatalSseEventError, killing the
+ * live turn. The contract is the list. */
+const CONTRACT_RUN_KINDS = new Set<string>(Object.values(MothershipStreamV1RunKind))
+
 function isValidRunPayload(payload: JsonRecord): boolean {
-  const kind = payload.kind
-  return (
-    kind === MothershipStreamV1RunKind.checkpoint_pause ||
-    kind === MothershipStreamV1RunKind.resumed ||
-    kind === MothershipStreamV1RunKind.compaction_start ||
-    kind === MothershipStreamV1RunKind.compaction_done ||
-    // The worker's loss-free steering ack. Rejecting an unknown-but-contracted kind
-    // escalated to FatalSseEventError and would have killed the live turn the moment
-    // steering shipped (found by the Go-parity audit before any user hit it).
-    kind === MothershipStreamV1RunKind.steering_applied
-  )
+  return typeof payload.kind === 'string' && CONTRACT_RUN_KINDS.has(payload.kind)
 }
 
 function isValidErrorPayload(payload: JsonRecord): boolean {

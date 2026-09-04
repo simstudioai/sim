@@ -937,6 +937,15 @@ export const schemaMock = {
     createdAt: 'copilotChats.createdAt',
     updatedAt: 'copilotChats.updatedAt',
   },
+  copilotTaskSubscriptions: {
+    id: 'copilotTaskSubscriptions.id',
+    taskId: 'copilotTaskSubscriptions.taskId',
+    executionId: 'copilotTaskSubscriptions.executionId',
+    chatId: 'copilotTaskSubscriptions.chatId',
+    workspaceId: 'copilotTaskSubscriptions.workspaceId',
+    userId: 'copilotTaskSubscriptions.userId',
+    createdAt: 'copilotTaskSubscriptions.createdAt',
+  },
   copilotMessages: {
     id: 'copilotMessages.id',
     chatId: 'copilotMessages.chatId',

@@ -69,6 +69,8 @@ function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefi
     case 'plan':
       if (!block.planItems?.length) return undefined
       return { type: ContentBlockType.plan, planItems: block.planItems }
+    case 'task':
+      return block.task ? { type: ContentBlockType.task, task: block.task } : undefined
     case MothershipStreamV1EventType.text:
       if (block.lane === 'subagent') {
         if (block.channel === 'thinking') {
@@ -200,6 +202,7 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
   const display: ChatMessage = {
     id: msg.id,
     role: msg.role,
+    ...(msg.origin ? { origin: msg.origin } : {}),
     content: msg.content,
   }
 
