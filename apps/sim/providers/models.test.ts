@@ -62,6 +62,34 @@ describe('Anthropic thinking stream visibility', () => {
   })
 })
 
+describe('Anthropic provider definition', () => {
+  const anthropic = PROVIDER_DEFINITIONS.anthropic
+
+  it('matches Anthropic lifecycle classifications', () => {
+    expect(
+      anthropic.models.filter((model) => model.sunset?.status === 'legacy').map((model) => model.id)
+    ).toEqual([
+      'claude-fable-5',
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+      'claude-sonnet-4-6',
+      'claude-opus-4-5',
+      'claude-sonnet-4-5',
+    ])
+    expect(
+      anthropic.models
+        .filter((model) => model.sunset?.status === 'deprecated')
+        .map((model) => model.id)
+    ).toEqual([
+      'claude-opus-4-1',
+      'claude-opus-4-0',
+      'claude-sonnet-4-0',
+      'claude-3-haiku-20240307',
+    ])
+  })
+})
+
 describe('Meta thinking stream visibility', () => {
   it('classifies private Muse reasoning as not streamed', () => {
     expect(getThinkingStreamVisibility('muse-spark-1.1')).toBe('none')
@@ -92,9 +120,10 @@ describe('prompt caching capability', () => {
     expect(supportsPromptCaching('gpt-5.5')).toBe(false)
   })
 
-  it('reports the vendor minimum prefix, raised for Haiku', () => {
+  it('reports each vendor minimum prefix, including retired Haiku 3', () => {
     expect(getPromptCachingMinimumTokens('claude-sonnet-5')).toBe(1024)
     expect(getPromptCachingMinimumTokens('claude-haiku-4-5')).toBe(4096)
+    expect(getPromptCachingMinimumTokens('claude-3-haiku-20240307')).toBe(2048)
     expect(getPromptCachingMinimumTokens('azure-anthropic/claude-haiku-4-5')).toBe(4096)
     expect(getPromptCachingMinimumTokens('gpt-5.5')).toBeNull()
   })

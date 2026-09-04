@@ -908,7 +908,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 10.0,
           cachedInput: 0.25,
           output: 50.0,
-          updatedAt: '2026-09-01',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -929,7 +929,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 10.0,
           cachedInput: 1.0,
           output: 50.0,
-          updatedAt: '2026-07-01',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -943,6 +943,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-09',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-sonnet-5',
@@ -950,7 +951,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.2,
           output: 10.0,
-          updatedAt: '2026-06-30',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -971,7 +972,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-07-24',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -993,7 +994,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-05-28',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -1006,6 +1007,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-05-28',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-7',
@@ -1013,7 +1015,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-04-16',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -1027,6 +1029,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-16',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-6',
@@ -1049,6 +1052,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-05',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-sonnet-4-6',
@@ -1070,6 +1074,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-5',
@@ -1092,6 +1097,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-11-24',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-1',
@@ -1099,7 +1105,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1112,7 +1118,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-08-05',
-        sunset: { status: 'legacy' },
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'claude-opus-4-0',
@@ -1120,7 +1126,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1141,7 +1147,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1155,6 +1161,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-09-29',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-sonnet-4-0',
@@ -1162,7 +1169,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1183,7 +1190,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.0,
           cachedInput: 0.1,
           output: 5.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1206,11 +1213,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.25,
           cachedInput: 0.03,
           output: 1.25,
-          updatedAt: '2026-04-01',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           maxOutputTokens: 4096,
+          promptCaching: { minimumCacheableTokens: 2048 },
         },
         contextWindow: 200000,
         releaseDate: '2024-03-13',
