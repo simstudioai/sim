@@ -13,19 +13,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 An embedding turns a piece of text into a list of numbers that captures its meaning. Two texts that mean similar things get similar numbers, so you can compare meaning directly instead of matching keywords. That is what powers semantic search, grouping related items, and spotting near-duplicates that are worded differently.
 
-The Embeddings block generates those numbers using OpenAI, Google Gemini, Cohere, or Mistral. Pick a provider, pick one of its models, pass in text, and get a vector back — one vector per input, in the order you supplied them. You can embed a single string or a list of strings in one call.
+The Embeddings block generates those numbers using OpenAI, Google Gemini, Cohere, Mistral, OpenRouter, or a model on your own Ollama server. Pick a provider, pick one of its models, pass in text, and get a vector back — one vector per input, in the order you supplied them. You can embed a single string or a list of strings in one call.
 
 Models differ in what they are good at and what they cost. `text-embedding-3-small` is the cost-efficient general choice, `gemini-embedding-001` gives the highest retrieval quality, `embed-v4.0` handles multilingual content, and `codestral-embed` is tuned for source code. Some models also let you trade vector size against quality, and some accept a task type so the vector is conditioned for how it will be used — the block only offers those controls for the models that actually support them.
 
 Two things worth knowing before you build on it. Vectors are only comparable when they come from the same model at the same size, so changing either means re-embedding everything you intend to compare. And input longer than the model's limit is shortened to fit rather than rejected, with a warning in the run, so chunk long documents yourself when the tail matters.
 
-Sim's knowledge bases embed separately, at a fixed vector width and from a smaller set of models. This block is for embedding text yourself inside a workflow.
+Ollama is the exception to most of the above. It runs on your own deployment, so it needs no API key and adds no provider charge — Sim's own per-run charge still applies — and the model list is whatever you have pulled onto that server rather than a catalog Sim maintains. The block reads it live, drops the models that report a non-embedding capability, and shows each one's vector width next to its name where Ollama reports one. A server too old to report either will list its chat models too and label none of them, so check the model you pick. The block offers no task-type or dimension control for Ollama: task conditioning has no equivalent there, and while recent Ollama builds do accept a dimension override for Matryoshka models, older ones silently ignore it, so Sim uses each model's own width rather than one that may or may not take effect. Point Sim at the server with `OLLAMA_URL`. Sim Cloud runs no Ollama of its own, so without that variable the list comes back empty rather than dialling a loopback address that cannot answer — set it to a reachable server and Cloud will use it like any other deployment.
+
+Sim's knowledge bases embed separately: a base fixes one model and one vector width when it is created, from a smaller set of models. This block is for embedding text yourself inside a workflow.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.
+Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.
 
 
 
@@ -140,6 +142,27 @@ Generate embeddings from text using Mistral's embedding models
 | `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
 | `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
 | `apiKey` | string | Yes | API key for the selected embedding provider |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Generated embeddings |
+| `model` | string | Model used |
+| `provider` | string | Provider used |
+| `dimensions` | number | Dimensionality of each vector |
+| `usage` | json | Token usage |
+
+### Ollama Embeddings
+
+Generate embeddings on a self-hosted Ollama server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
+| `model` | string | Yes | Embedding model pulled on the configured Ollama server |
 
 #### Output
 

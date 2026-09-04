@@ -2981,8 +2981,23 @@ export const embedding = pgTable(
     contentLength: integer('content_length').notNull(),
     tokenCount: integer('token_count').notNull(),
 
-    // Vector embeddings - optimized for text-embedding-3-small with HNSW support
-    embedding: vector('embedding', { dimensions: 1536 }), // For text-embedding-3-small
+    /**
+     * Vector embeddings. A chunk populates exactly the one column matching its
+     * knowledge base's `embedding_dimension`, and the others stay NULL: pgvector
+     * fixes a column's width, so one width per column is the only way to store
+     * models that emit different sizes in the same table. The widths cover what
+     * the popular embedding models emit — 384 (all-minilm), 768 (nomic-embed-text,
+     * embeddinggemma), 1024 (mxbai-embed-large, bge-m3, Voyage), 1536 (OpenAI's
+     * small model), 3072 (OpenAI's large model, gemini-embedding-001).
+     *
+     * `embedding` is the original 1536 column, kept under its bare name so every
+     * row written before the other widths existed stays exactly where it is.
+     */
+    embedding: vector('embedding', { dimensions: 1536 }),
+    embedding384: vector('embedding_384', { dimensions: 384 }),
+    embedding768: vector('embedding_768', { dimensions: 768 }),
+    embedding1024: vector('embedding_1024', { dimensions: 1024 }),
+    embedding3072: vector('embedding_3072', { dimensions: 3072 }),
     embeddingModel: text('embedding_model').notNull().default('text-embedding-3-small'),
 
     // Chunk boundaries and overlap
@@ -3041,9 +3056,51 @@ export const embedding = pgTable(
     kbEnabledIdx: index('emb_kb_enabled_idx').on(table.knowledgeBaseId, table.enabled),
     docEnabledIdx: index('emb_doc_enabled_idx').on(table.documentId, table.enabled),
 
-    // Vector similarity search indexes (HNSW) - optimized for small embeddings
+    // Vector similarity search indexes (HNSW), one per stored width
     embeddingVectorHnswIdx: index('embedding_vector_hnsw_idx')
       .using('hnsw', table.embedding.op('vector_cosine_ops'))
+      .with({
+        m: 16,
+        ef_construction: 64,
+      }),
+    embedding384VectorHnswIdx: index('embedding_384_vector_hnsw_idx')
+      .using('hnsw', table.embedding384.op('vector_cosine_ops'))
+      .with({
+        m: 16,
+        ef_construction: 64,
+      }),
+    embedding768VectorHnswIdx: index('embedding_768_vector_hnsw_idx')
+      .using('hnsw', table.embedding768.op('vector_cosine_ops'))
+      .with({
+        m: 16,
+        ef_construction: 64,
+      }),
+    embedding1024VectorHnswIdx: index('embedding_1024_vector_hnsw_idx')
+      .using('hnsw', table.embedding1024.op('vector_cosine_ops'))
+      .with({
+        m: 16,
+        ef_construction: 64,
+      }),
+    /**
+     * pgvector indexes `vector` only up to 2,000 dimensions and `halfvec` up to
+     * 4,000, so the 3,072 column is indexed through a `halfvec` cast — the
+     * recipe pgvector documents for wider vectors.
+     *
+     * Postgres matches an expression index by its expression, so a query must
+     * repeat the cast to use this index. That makes the comparison itself
+     * half-precision, not just the index scan; only the stored vector keeps its
+     * full width. The cost is nil in practice and bounded in principle: every
+     * component of a `text-embedding-3-large` vector is already exactly
+     * representable in binary16 as OpenAI serves it (measured across 27,648
+     * components: zero changed by the cast), and even a model that is not would
+     * move a cosine distance by binary16's ~5e-4 relative error, orders below
+     * what reorders a result.
+     *
+     * The search layer derives its distance expression per width from one place
+     * so the query and this index cannot drift apart.
+     */
+    embedding3072VectorHnswIdx: index('embedding_3072_vector_hnsw_idx')
+      .using('hnsw', sql`(${table.embedding3072}::halfvec(3072)) halfvec_cosine_ops`)
       .with({
         m: 16,
         ef_construction: 64,
@@ -3074,8 +3131,15 @@ export const embedding = pgTable(
     // Full-text search index
     contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),
 
-    // Ensure embedding exists (simplified since we only support one model)
-    embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+    /**
+     * Exactly one width is populated per chunk. A row with none is an
+     * unsearchable chunk that still counts toward the base; a row with two is a
+     * width the search layer cannot pick between.
+     */
+    embeddingWidthCheck: check(
+      'embedding_width_check',
+      sql`num_nonnulls("embedding", "embedding_384", "embedding_768", "embedding_1024", "embedding_3072") = 1`
+    ),
   })
 )
 

@@ -943,7 +943,7 @@ describe.concurrent('Blocks Module', () => {
 
       expect(providerSubBlock?.commandSearchable).toBe(true)
       expect(providerSubBlock?.value?.()).toBe('openai')
-      expect(providerIds).toEqual(['openai', 'gemini', 'cohere', 'mistral', 'openrouter'])
+      expect(providerIds).toEqual(['openai', 'gemini', 'cohere', 'mistral', 'openrouter', 'ollama'])
 
       for (const provider of providerIds) {
         // Each provider routes to its own registered tool...
@@ -953,7 +953,9 @@ describe.concurrent('Blocks Module', () => {
         const modelSubBlock = block?.subBlocks.find(
           (sb) => sb.id === 'model' && sb.condition?.value === provider
         )
-        if (provider === 'openrouter') {
+        // OpenRouter's catalog is remote and Ollama's is the deployment's own,
+        // so neither can be enumerated here.
+        if (provider === 'openrouter' || provider === 'ollama') {
           expect(modelSubBlock?.selectorKey).toBeTypeOf('string')
         } else {
           expect(

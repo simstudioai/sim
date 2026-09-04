@@ -48,7 +48,14 @@ afterEach(() => {
 })
 
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
-import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
+import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
+
+/** The platform default model and vector width, as a knowledge base records them. */
+const DEFAULT_EMBEDDING_TARGET: KbEmbeddingTarget = {
+  model: 'text-embedding-3-small',
+  dimensions: 1536,
+}
+
 import {
   executeKeywordSearch,
   executeKnowledgeSearch,
@@ -596,7 +603,7 @@ describe('Knowledge Search Utils', () => {
 
       mockNextEmbeddingResponse()
 
-      const result = await generateSearchEmbedding('test query')
+      const result = await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         'https://test.openai.azure.com/openai/deployments/text-embedding-ada-002/embeddings?api-version=2024-12-01-preview',
@@ -621,7 +628,7 @@ describe('Knowledge Search Utils', () => {
 
       mockNextEmbeddingResponse()
 
-      const result = await generateSearchEmbedding('test query')
+      const result = await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         'https://api.openai.com/v1/embeddings',
@@ -649,7 +656,7 @@ describe('Knowledge Search Utils', () => {
 
       mockNextEmbeddingResponse()
 
-      await generateSearchEmbedding('test query')
+      await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         'https://api.openai.com/v1/embeddings',
@@ -673,7 +680,7 @@ describe('Knowledge Search Utils', () => {
 
       mockNextEmbeddingResponse()
 
-      await generateSearchEmbedding('test query', 'text-embedding-3-small')
+      await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         'https://test.openai.azure.com/openai/deployments/custom-embedding-model/embeddings?api-version=2024-12-01-preview',
@@ -695,7 +702,7 @@ describe('Knowledge Search Utils', () => {
         OPENROUTER_API_KEY: undefined,
       })
 
-      await expect(generateSearchEmbedding('test query')).rejects.toThrow(
+      await expect(generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
         'OPENAI_API_KEY is not configured'
       )
     })
@@ -717,7 +724,9 @@ describe('Knowledge Search Utils', () => {
         text: 'Deployment not found',
       })
 
-      await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
+      await expect(generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
+        'Embedding API failed'
+      )
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -738,7 +747,9 @@ describe('Knowledge Search Utils', () => {
         text: 'Rate limit exceeded',
       })
 
-      await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
+      await expect(generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
+        'Embedding API failed'
+      )
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -756,7 +767,7 @@ describe('Knowledge Search Utils', () => {
 
       mockNextEmbeddingResponse()
 
-      await generateSearchEmbedding('test query')
+      await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         expect.any(String),
@@ -782,7 +793,7 @@ describe('Knowledge Search Utils', () => {
 
       mockNextEmbeddingResponse()
 
-      await generateSearchEmbedding('test query', 'text-embedding-3-small')
+      await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         expect.any(String),
@@ -811,7 +822,7 @@ describe('Knowledge Search Utils', () => {
       registry.recordResolved('TOKEN', 'secret-value')
 
       await runWithKnowledgeModelInputProvenance(registry, () =>
-        generateSearchEmbedding('prefix secret-value suffix', 'text-embedding-3-small')
+        generateSearchEmbedding('prefix secret-value suffix', DEFAULT_EMBEDDING_TARGET)
       )
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(

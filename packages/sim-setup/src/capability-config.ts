@@ -731,6 +731,54 @@ export const KNOWLEDGE_SETUP = defineCapabilitySetup(OCR_CAPABILITY, {
   optionOrder: ['local', 'mistral', 'azure-mistral'],
 })
 
+/**
+ * Model and width for the OpenAI family, which reaches the same two variables
+ * every other family does. Both are optional here: leaving them unset keeps the
+ * `text-embedding-3-small` at 1536 dimensions that knowledge bases have always
+ * been created with.
+ */
+const OPENAI_EMBEDDING_MODEL_PROMPTS = [
+  {
+    /**
+     * A choice rather than a free-text field, so picking an OpenAI-family
+     * provider always writes a model this family can serve. As a text field it
+     * pre-filled with whatever was configured before, so switching here from
+     * Gemini or Ollama silently carried that model forward and the transition
+     * then rejected the selection the operator had just made.
+     */
+    type: 'choice',
+    id: 'openai-embedding-model',
+    message: 'Embedding model?',
+    options: [
+      {
+        id: 'small',
+        label: 'text-embedding-3-small (default)',
+        currentWhen: {
+          kind: 'any',
+          conditions: [
+            { kind: 'equals', key: 'KB_EMBEDDING_MODEL', value: 'text-embedding-3-small' },
+            { kind: 'not', condition: { kind: 'present', key: 'KB_EMBEDDING_MODEL' } },
+          ],
+        },
+        env: { KB_EMBEDDING_MODEL: 'text-embedding-3-small' },
+      },
+      {
+        id: 'large',
+        label: 'text-embedding-3-large',
+        currentWhen: { kind: 'equals', key: 'KB_EMBEDDING_MODEL', value: 'text-embedding-3-large' },
+        env: { KB_EMBEDDING_MODEL: 'text-embedding-3-large' },
+      },
+    ],
+  },
+  {
+    type: 'field',
+    key: 'EMBEDDING_OUTPUT_DIMS',
+    input: 'text',
+    hint: 'optional vector width for new knowledge bases: 768, 1024, 1536 (default), or 3072',
+    validate: true,
+  },
+] as const satisfies readonly SetupPrompt[]
+
 export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDDINGS_CAPABILITY, {
   label: 'Knowledge embeddings',
   message: 'Knowledge embedding provider?',
@@ -764,6 +812,7 @@ export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDD
           input: 'text',
           hint: 'optional Azure deployment name; defaults to the embedding model id',
         },
+        ...OPENAI_EMBEDDING_MODEL_PROMPTS,
       ],
     },
     openai: {
@@ -809,6 +858,7 @@ export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDD
             },
           ],
         },
+        ...OPENAI_EMBEDDING_MODEL_PROMPTS,
       ],
     },
     openrouter: {
@@ -820,10 +870,104 @@ export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDD
           input: 'secret',
           required: true,
         },
+        ...OPENAI_EMBEDDING_MODEL_PROMPTS,
+      ],
+    },
+    gemini: {
+      hint: 'gemini-embedding-001, at 768, 1536, or 3072 dimensions',
+      /**
+       * `KB_EMBEDDING_MODEL` is what routes embeddings to Gemini, so the option
+       * writes it rather than asking: picking Gemini here *is* the choice of
+       * model, and there is only one Gemini model knowledge bases can use.
+       */
+      env: { KB_EMBEDDING_MODEL: 'gemini-embedding-001' },
+      prompts: [
+        {
+          type: 'choice',
+          id: 'gemini-credentials',
+          message: 'Gemini credentials?',
+          options: [
+            {
+              id: 'single',
+              label: 'Single API key',
+              currentWhen: { kind: 'present', key: 'GEMINI_API_KEY' },
+              prompts: [{ type: 'field', key: 'GEMINI_API_KEY', input: 'secret', required: true }],
+            },
+            {
+              id: 'rotating',
+              label: 'Rotating key pool',
+              currentWhen: {
+                kind: 'any',
+                conditions: [
+                  { kind: 'present', key: 'GEMINI_API_KEY_1' },
+                  { kind: 'present', key: 'GEMINI_API_KEY_2' },
+                  { kind: 'present', key: 'GEMINI_API_KEY_3' },
+                ],
+              },
+              prompts: [
+                { type: 'field', key: 'GEMINI_API_KEY_1', input: 'secret', required: true },
+                {
+                  type: 'field',
+                  key: 'GEMINI_API_KEY_2',
+                  input: 'secret',
+                  hint: 'optional rotating key',
+                },
+                {
+                  type: 'field',
+                  key: 'GEMINI_API_KEY_3',
+                  input: 'secret',
+                  hint: 'optional rotating key',
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'field',
+          key: 'EMBEDDING_OUTPUT_DIMS',
+          input: 'text',
+          hint: 'vector width for new knowledge bases: 768, 1536 (default), or 3072',
+          validate: true,
+        },
+      ],
+    },
+    ollama: {
+      hint: 'embeddings on your own Ollama; no API key, nothing billed',
+      prompts: [
+        {
+          type: 'field',
+          key: 'OLLAMA_URL',
+          input: 'text',
+          required: true,
+          hint: 'e.g. http://localhost:11434, or http://host.docker.internal:11434 in Docker',
+          validate: true,
+        },
+        {
+          type: 'field',
+          key: 'KB_EMBEDDING_MODEL',
+          input: 'text',
+          required: true,
+          defaultValue: 'ollama/nomic-embed-text',
+          hint: 'ollama/<model>, pulled on that server (nomic-embed-text is 768)',
+        },
+        {
+          /**
+           * Optional and undefaulted on purpose. Sim reads the width from the
+           * server when this is unset, which is more reliable than any answer
+           * the operator can give here — and a default of 768 would be wrong
+           * for a 384-wide model such as `all-minilm` while also suppressing
+           * the lookup that would have got it right.
+           */
+          type: 'field',
+          key: 'EMBEDDING_OUTPUT_DIMS',
+          input: 'text',
+          hint: 'optional — leave blank and Sim reads the width from your Ollama server',
+          validate: true,
+        },
       ],
     },
   },
-  optionOrder: ['openai', 'azure-openai', 'openrouter'],
+  optionOrder: ['openai', 'azure-openai', 'gemini', 'ollama', 'openrouter'],
 })
 
 export const CAPABILITY_SETUPS = [

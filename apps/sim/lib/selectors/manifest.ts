@@ -375,6 +375,7 @@ export const selectorManifest = {
   'workspace.secretNames': internalSelector(),
   'workspace.rawSecretNames': internalSelector(),
   'workspace.sandboxes': internalSelector(['language'], { detail: true }),
+  'providers.ollamaEmbeddingModels': internalSelector(),
   'providers.openrouterEmbeddingModels': internalSelector(),
   'workspace.triggerTypes': {
     classification: 'local',

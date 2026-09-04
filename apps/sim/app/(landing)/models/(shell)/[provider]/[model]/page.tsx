@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -200,6 +201,28 @@ export default async function ModelPage({
               }
             />
             <InfoRow label='Output price' value={`${formatPrice(model.pricing.output)}/1M`} />
+            {model.pricing.tiers?.map((tier) => {
+              const threshold = formatTokenCount(tier.aboveInputTokens)
+
+              return (
+                <Fragment key={tier.aboveInputTokens}>
+                  <InfoRow
+                    label={`Input price (> ${threshold})`}
+                    value={`${formatPrice(tier.input)}/1M`}
+                  />
+                  <InfoRow
+                    label={`Cached input (> ${threshold})`}
+                    value={
+                      tier.cachedInput !== undefined ? `${formatPrice(tier.cachedInput)}/1M` : 'N/A'
+                    }
+                  />
+                  <InfoRow
+                    label={`Output price (> ${threshold})`}
+                    value={`${formatPrice(tier.output)}/1M`}
+                  />
+                </Fragment>
+              )
+            })}
             <InfoRow
               label='Context window'
               value={model.contextWindow ? formatTokenCount(model.contextWindow) : 'Unknown'}

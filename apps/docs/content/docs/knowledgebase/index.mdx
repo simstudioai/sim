@@ -23,6 +23,8 @@ When you upload a document, Sim processes it in the background:
 
 A document is searchable once its status reads `completed`. Open any document to view, edit, merge, or split its chunks.
 
+Every knowledge base records the embedding model and the vector width it was built with, and keeps them for its lifetime. Two bases built differently cannot be searched in one request — vectors are only comparable when they come from the same model at the same size — so search them separately, or rebuild one to match. On Sim Cloud every base uses `text-embedding-3-small` at 1,536 dimensions; self-hosted deployments choose both with [`KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS`](/platform/self-hosting/environment-variables), including models on their own Ollama.
+
 ## What you can upload
 
 Sim accepts PDF, Word, text, Markdown, HTML, Excel, PowerPoint, CSV, JSON, and YAML files, up to 100 MB each (best under 50 MB). Scanned PDFs work too: with Azure or [Mistral OCR](https://docs.mistral.ai/ocr/) configured, Sim extracts text from image-based pages.

@@ -4,11 +4,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   EMBEDDING_MODELS,
+  findEmbeddingModelInfo,
   getEmbeddingModelInfo,
   getKbEligibleModels,
+  getKbEmbeddingDimensions,
   getModelsForProvider,
   hasApproximateTokenCount,
-  KB_EMBEDDING_DIMENSIONS,
+  KB_EMBEDDING_STORAGE_DIMENSIONS,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { EMBEDDING_MODEL_PRICING } from '@/providers/models'
@@ -58,14 +60,21 @@ describe('embedding catalog', () => {
     }
   })
 
-  it('only marks a model KB-eligible when it can emit the fixed KB vector width', () => {
+  it('only marks a model KB-eligible when it can emit a storable vector width', () => {
     for (const modelId of getKbEligibleModels()) {
-      const info = EMBEDDING_MODELS[modelId]
-      const canEmit =
-        info.nativeDimensions === KB_EMBEDDING_DIMENSIONS ||
-        info.supportedDimensions?.includes(KB_EMBEDDING_DIMENSIONS)
-      expect(canEmit, `${modelId} cannot emit ${KB_EMBEDDING_DIMENSIONS} dimensions`).toBe(true)
+      const widths = getKbEmbeddingDimensions(EMBEDDING_MODELS[modelId])
+      expect(
+        widths,
+        `${modelId} emits none of ${KB_EMBEDDING_STORAGE_DIMENSIONS.join(', ')}`
+      ).not.toHaveLength(0)
     }
+  })
+
+  it('resolves an ollama-prefixed model to every storable width', () => {
+    const info = getEmbeddingModelInfo('ollama/nomic-embed-text')
+    expect(info.provider).toBe('ollama')
+    expect(getKbEmbeddingDimensions(info)).toEqual([...KB_EMBEDDING_STORAGE_DIMENSIONS])
+    expect(findEmbeddingModelInfo('ollama/')).toBeUndefined()
   })
 
   it('keeps the KB-eligible set to the three models knowledge bases already index with', () => {

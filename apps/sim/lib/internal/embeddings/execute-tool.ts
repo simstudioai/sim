@@ -4,6 +4,11 @@ import { executeEmbedding } from '@/lib/internal/embeddings/operations'
 import { type EmbeddingProvider, embeddingsInputSchema } from '@/lib/internal/embeddings/schema'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 
+/**
+ * Every tool id the embeddings family registers must appear here, or its
+ * handler rejects the call as an unsupported tool. `execute-tool.test.ts` pins
+ * this map to the registry's family list so the two cannot drift.
+ */
 const PROVIDERS_BY_TOOL_ID: Record<string, EmbeddingProvider> = {
   openai_embeddings: 'openai',
   embeddings_openai: 'openai',
@@ -11,7 +16,12 @@ const PROVIDERS_BY_TOOL_ID: Record<string, EmbeddingProvider> = {
   embeddings_gemini: 'gemini',
   embeddings_cohere: 'cohere',
   embeddings_mistral: 'mistral',
+  embeddings_ollama: 'ollama',
 }
+
+/** @internal Exported so the registry's family list can be pinned against it. */
+export const EMBEDDINGS_TOOL_PROVIDERS: Readonly<Record<string, EmbeddingProvider>> =
+  PROVIDERS_BY_TOOL_ID
 
 export const executeEmbeddingsTool: InternalToolOperationHandler = async (request) => {
   request.signal?.throwIfAborted()
