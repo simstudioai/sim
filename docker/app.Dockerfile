@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: runtime-only dependencies (inherited by the final image)
 # ========================================
-FROM oven/bun:1.3.14-slim AS base
+FROM oven/bun:1.4.1-slim AS base
 
 # Install Node.js 24 (Active LTS) and the runtime dependencies once in base.
 # Node runs only the isolated-vm sandbox worker (the app itself runs under Bun);
