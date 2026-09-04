@@ -21,7 +21,10 @@ import {
 } from '@/lib/internal/oracle-epm/endpoint'
 import { OracleEpmError } from '@/lib/internal/oracle-epm/errors'
 import { defineOracleEpmRouteSpace } from '@/lib/internal/oracle-epm/route-space'
-import type { OracleEpmValidatedLink } from '@/lib/internal/oracle-epm/types'
+import type {
+  OracleEpmEndpointDeclaration,
+  OracleEpmValidatedLink,
+} from '@/lib/internal/oracle-epm/types'
 
 const routes = defineOracleEpmRouteSpace({
   context: ['SyntheticAlpha', 'rest'],
@@ -418,5 +421,301 @@ describe('Oracle EPM guarded client', () => {
     await expect(client.requestValidatedLink({} as OracleEpmValidatedLink)).rejects.toBeInstanceOf(
       OracleEpmError
     )
+  })
+
+  describe('repository path parameters', () => {
+    const declaration = {
+      method: 'GET',
+      version: 'v3',
+      path: [
+        oracleEpmLiteral('files'),
+        oracleEpmPathParameter('fileName', { maxBytes: 255, mode: 'repository-path' }),
+        oracleEpmLiteral('contents'),
+      ],
+      query: { token: oracleEpmQuery.string({ maxBytes: 128 }) },
+      body: 'none',
+      response: 'stream',
+      timeoutMs: 5_000,
+      maxResponseBytes: 4_096,
+    } satisfies OracleEpmEndpointDeclaration
+    const download = routes.defineEndpoint(declaration)
+    const prefix = 'https://epm.example.com/gateway/acme/SyntheticAlpha/rest/v3'
+    const client = createOracleEpmClient({
+      instanceUrl: 'https://epm.example.com/gateway/acme',
+      accessToken: Buffer.from('u:p').toString('base64'),
+    })
+
+    it.each([
+      ['outbox/reports/results.csv', 'outbox%2Freports%2Fresults.csv'],
+      ['inbox\\Monthly Report.csv', 'inbox%5CMonthly%20Report.csv'],
+      ['outbox\\reports/results.csv', 'outbox%5Creports%2Fresults.csv'],
+      ['outbox/résumé-😀.csv', 'outbox%2Fr%C3%A9sum%C3%A9-%F0%9F%98%80.csv'],
+      [' report.csv ', '%20report.csv%20'],
+      ['outbox/100%.csv', 'outbox%2F100%25.csv'],
+      ['outbox%2Freport.csv', 'outbox%252Freport.csv'],
+      ['outbox/%2e%2e/report.csv', 'outbox%2F%252e%252e%2Freport.csv'],
+    ])('encodes raw filename %j once without rewriting it', async (fileName, encoded) => {
+      await client.request(download, { pathParams: { fileName } })
+      expect(mockSecureFetch.mock.calls[0][0]).toBe(`${prefix}/files/${encoded}/contents`)
+      expect(mockValidateUrl).toHaveBeenCalledWith(
+        'https://epm.example.com',
+        'Oracle EPM destination',
+        'configuredEndpoint',
+        { logDetails: false }
+      )
+    })
+
+    it.each([
+      '',
+      '/file.csv',
+      '\\file.csv',
+      '\\\\server\\file.csv',
+      'C:\\file.csv',
+      'c:file.csv',
+      'outbox//file.csv',
+      'outbox\\\\file.csv',
+      'outbox/\\file.csv',
+      'outbox/',
+      'outbox\\',
+      '.',
+      '..',
+      './file.csv',
+      '../file.csv',
+      'outbox/./file.csv',
+      'outbox/../file.csv',
+      'outbox\\..\\file.csv',
+      'outbox/..',
+      'outbox/\nfile.csv',
+      'outbox/\u0000file.csv',
+      'outbox/\u007ffile.csv',
+      'outbox/\uD800.csv',
+      'a'.repeat(256),
+      'é'.repeat(128),
+    ])('rejects invalid raw filename %j before DNS or fetch', async (fileName) => {
+      await expect(client.request(download, { pathParams: { fileName } })).rejects.toMatchObject({
+        category: 'invalid_input',
+      })
+      expect(mockValidateUrl).not.toHaveBeenCalled()
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    })
+
+    it('accepts the full 255-byte raw UTF-8 boundary', async () => {
+      const fileName = `${'é'.repeat(127)}x`
+      await client.request(download, { pathParams: { fileName } })
+      expect(mockSecureFetch.mock.calls[0][0]).toBe(
+        `${prefix}/files/${encodeURIComponent(fileName)}/contents`
+      )
+    })
+
+    it.each([undefined, 'segment'] as const)(
+      'keeps mode %j strict for ordinary IDs',
+      async (mode) => {
+        const endpoint = routes.defineEndpoint({
+          ...declaration,
+          path: [oracleEpmLiteral('jobs'), oracleEpmPathParameter('jobId', { maxBytes: 64, mode })],
+        })
+        for (const jobId of ['folder/id', 'folder\\id']) {
+          await expect(client.request(endpoint, { pathParams: { jobId } })).rejects.toMatchObject({
+            category: 'invalid_input',
+          })
+        }
+        expect(mockValidateUrl).not.toHaveBeenCalled()
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+        await client.request(endpoint, { pathParams: { jobId: 'job 42' } })
+        expect(mockSecureFetch.mock.calls[0][0]).toBe(`${prefix}/jobs/job%2042`)
+      }
+    )
+
+    it('does not let request input select the parameter mode', async () => {
+      await expect(
+        client.request(getJob, { pathParams: { jobId: 'folder/id', mode: 'repository-path' } })
+      ).rejects.toMatchObject({ category: 'invalid_input' })
+      expect(mockValidateUrl).not.toHaveBeenCalled()
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    })
+
+    describe.each(['endpoint', 'route'] as const)('%s-bound returned links', (binding) => {
+      function definePolicy(endpointDeclaration = declaration, preserveGatewayBasePath = true) {
+        return routes.defineReturnedLinkPolicy({
+          relation: 'download',
+          method: 'GET',
+          ...(binding === 'endpoint'
+            ? { endpoint: routes.defineEndpoint(endpointDeclaration) }
+            : {
+                version: endpointDeclaration.version,
+                path: endpointDeclaration.path,
+                query: endpointDeclaration.query,
+                response: endpointDeclaration.response,
+                timeoutMs: endpointDeclaration.timeoutMs,
+                maxResponseBytes: endpointDeclaration.maxResponseBytes,
+              }),
+          preserveGatewayBasePath,
+        })
+      }
+      const policy = definePolicy()
+
+      it.each([
+        'outbox%2Freports%2Fresults.csv',
+        'inbox%5CMonthly%20Report.csv',
+        'outbox%2fr%C3%A9sum%C3%A9-%F0%9F%98%80.csv',
+        'outbox%2F100%25.csv',
+        'outbox%2F%2525252561.csv',
+        `${'%C3%A9'.repeat(127)}x`,
+      ])('retains filename encoding and query bytes for %s', async (encoded) => {
+        const href = `${prefix}/files/${encoded}/contents?token=secret%2bvalue`
+        const link = client.validateReturnedLink(policy, { rel: 'download', href })
+        expect(Object.isFrozen(link)).toBe(true)
+        expect(Object.keys(link)).toEqual([])
+        expect(JSON.stringify(link)).toBe('{}')
+        await client.requestValidatedLink(link)
+        expect(mockSecureFetch.mock.calls[0][0]).toBe(href)
+
+        const otherClient = createOracleEpmClient({
+          instanceUrl: 'https://epm.example.com/gateway/acme',
+          accessToken: Buffer.from('other:p').toString('base64'),
+        })
+        await expect(otherClient.requestValidatedLink(link)).rejects.toMatchObject({
+          category: 'invalid_input',
+        })
+        expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+      })
+
+      it.each([
+        'outbox/report.csv',
+        'outbox\\report.csv',
+        '%2Freport.csv',
+        '%5C%5Cserver%5Creport.csv',
+        'C%3A%5Creport.csv',
+        'c%3Areport.csv',
+        'outbox%2F%2Freport.csv',
+        'outbox%2F',
+        'outbox%2F.%2Freport.csv',
+        'outbox%2F..%2Fsecret.csv',
+        'outbox%5C..%5Csecret.csv',
+        'outbox%2F%252e%252e%2Fsecret.csv',
+        'outbox%252F%252e%252e%252Fsecret.csv',
+        'outbox%2F%00report.csv',
+        'outbox%2F%250areport.csv',
+        'outbox%2F%7freport.csv',
+        'outbox%2F%ED%A0%80.csv',
+        'outbox%2Fbad%.csv',
+        'outbox%2F%25FF.csv',
+        '%C3%A9'.repeat(128),
+        '%252525252561.csv',
+      ])('rejects invalid encoded filenames %s', (encoded) => {
+        expect(() =>
+          client.validateReturnedLink(policy, {
+            rel: 'download',
+            href: `${prefix}/files/${encoded}/contents`,
+          })
+        ).toThrow(OracleEpmError)
+        expect(mockValidateUrl).not.toHaveBeenCalled()
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+      })
+
+      it('validates bounds and patterns against the once-decoded filename', async () => {
+        const boundedDeclaration = {
+          ...declaration,
+          path: [
+            oracleEpmPathParameter('fileName', {
+              maxBytes: 14,
+              pattern: /^outbox\/%61\.csv$/,
+              mode: 'repository-path',
+            }),
+          ],
+        }
+        const endpoint = routes.defineEndpoint(boundedDeclaration)
+        const boundedPolicy = definePolicy(boundedDeclaration)
+        const fileName = 'outbox/%61.csv'
+        const href = `${prefix}/outbox%2F%2561.csv`
+        await client.request(endpoint, { pathParams: { fileName } })
+        const handle = client.validateReturnedLink(boundedPolicy, { rel: 'download', href })
+        await client.requestValidatedLink(handle)
+        expect(mockSecureFetch.mock.calls.map(([url]) => url)).toEqual([href, href])
+        for (const invalid of ['outbox/a.csv', 'inbox/%61.csv', 'outbox/long%61.csv']) {
+          await expect(
+            client.request(endpoint, { pathParams: { fileName: invalid } })
+          ).rejects.toMatchObject({ category: 'invalid_input' })
+          expect(() =>
+            client.validateReturnedLink(boundedPolicy, {
+              rel: 'download',
+              href: `${prefix}/${encodeURIComponent(invalid)}`,
+            })
+          ).toThrow(OracleEpmError)
+        }
+        expect(mockSecureFetch).toHaveBeenCalledTimes(2)
+      })
+
+      it('preserves the declared gateway-prefix policy', async () => {
+        const originHref =
+          'https://epm.example.com/SyntheticAlpha/rest/v3/files/outbox%2Freport.csv/contents'
+        expect(() =>
+          client.validateReturnedLink(policy, { rel: 'download', href: originHref })
+        ).toThrow(OracleEpmError)
+        const originPolicy = definePolicy(declaration, false)
+        const handle = client.validateReturnedLink(originPolicy, {
+          rel: 'download',
+          href: originHref,
+        })
+        await client.requestValidatedLink(handle)
+        expect(mockSecureFetch.mock.calls[0][0]).toBe(originHref)
+        expect(() =>
+          client.validateReturnedLink(originPolicy, {
+            rel: 'download',
+            href: `${prefix}/files/outbox%2Freport.csv/contents`,
+          })
+        ).toThrow(OracleEpmError)
+      })
+
+      it.each([
+        [
+          'origin',
+          `${prefix.replace('epm.example.com', 'other.example.com')}/files/outbox%2Freport.csv/contents`,
+        ],
+        [
+          'userinfo',
+          `${prefix.replace('https://', 'https://user@')}/files/outbox%2Freport.csv/contents`,
+        ],
+        [
+          'gateway',
+          `${prefix.replace('/gateway/acme/', '/gateway%2Facme/')}/files/outbox%2Freport.csv/contents`,
+        ],
+        [
+          'context',
+          `${prefix.replace('/SyntheticAlpha/rest/', '/SyntheticAlpha%2Frest/')}/files/outbox%2Freport.csv/contents`,
+        ],
+        ['literal', `${prefix}/files%2Fextra/outbox%2Freport.csv/contents`],
+        ['suffix', `${prefix}/files/outbox%2Freport.csv/contents%2Fextra`],
+        ['extra segment', `${prefix}/files/outbox%2Freport.csv/extra/contents`],
+        ['duplicate query', `${prefix}/files/outbox%2Freport.csv/contents?token=a&token=b`],
+        ['unknown query', `${prefix}/files/outbox%2Freport.csv/contents?unknown=x`],
+        ['fragment', `${prefix}/files/outbox%2Freport.csv/contents#fragment`],
+      ])('preserves the %s restriction', (_label, href) => {
+        expect(() => client.validateReturnedLink(policy, { rel: 'download', href })).toThrow(
+          OracleEpmError
+        )
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+      })
+
+      it('keeps ordinary parameters, methods, and relations strict on repository endpoints', () => {
+        const mixedPolicy = definePolicy({
+          ...declaration,
+          path: [...declaration.path, oracleEpmPathParameter('jobId', { maxBytes: 64 })],
+        })
+        const href = `${prefix}/files/outbox%2Freport.csv/contents`
+        for (const jobId of ['a%2Fb', 'a%5Cb']) {
+          expect(() =>
+            client.validateReturnedLink(mixedPolicy, { rel: 'download', href: `${href}/${jobId}` })
+          ).toThrow(OracleEpmError)
+        }
+        expect(() =>
+          client.validateReturnedLink(policy, { rel: 'download', method: 'POST', href })
+        ).toThrow(OracleEpmError)
+        expect(() => client.validateReturnedLink(policy, { rel: 'other', href })).toThrow(
+          OracleEpmError
+        )
+        expect(mockSecureFetch).not.toHaveBeenCalled()
+      })
+    })
   })
 })

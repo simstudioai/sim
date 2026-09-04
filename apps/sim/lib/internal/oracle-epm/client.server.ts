@@ -55,22 +55,38 @@ function assertExactKeys(
   }
 }
 
+function validatePathStructure(
+  value: string,
+  mode: 'segment' | 'repository-path' = 'segment'
+): void {
+  if (!value || FORBIDDEN_LINK_TEXT.test(value) || MALFORMED_UTF16.test(value)) {
+    throw oracleEpmLocalError('invalid_input')
+  }
+  if (mode === 'repository-path') {
+    if (
+      /^[A-Za-z]:/.test(value) ||
+      value.split(/[/\\]/).some((part) => !part || part === '.' || part === '..')
+    ) {
+      throw oracleEpmLocalError('invalid_input')
+    }
+  } else if (value === '.' || value === '..' || /[/\\]/.test(value)) {
+    throw oracleEpmLocalError('invalid_input')
+  }
+}
+
+/** Validates raw caller input without decoding or rewriting the filename. */
 function validatePathValue(
   value: unknown,
   declaration: Extract<OracleEpmPathPart, { kind: 'parameter' }>
 ): string {
   if (
     typeof value !== 'string' ||
-    !value ||
-    value === '.' ||
-    value === '..' ||
-    /[/\\\u0000-\u001f\u007f]/.test(value) ||
-    MALFORMED_UTF16.test(value) ||
     Buffer.byteLength(value, 'utf8') > declaration.maxBytes ||
     (declaration.pattern && !declaration.pattern.test(value))
   ) {
     throw oracleEpmLocalError('invalid_input')
   }
+  validatePathStructure(value, declaration.mode)
   return value
 }
 
@@ -312,7 +328,11 @@ async function projectResponse(
   }
 }
 
-function decodeReturnedPathSegment(encoded: string): string {
+/** Decodes one wire segment; additional decoded copies are only inspected for safety. */
+function decodeReturnedPathSegment(
+  encoded: string,
+  mode: 'segment' | 'repository-path' = 'segment'
+): string {
   let decoded: string
   try {
     decoded = decodeURIComponent(encoded)
@@ -320,23 +340,19 @@ function decodeReturnedPathSegment(encoded: string): string {
     throw oracleEpmLocalError('invalid_input')
   }
   let safetyValue = decoded
+  if (mode === 'repository-path') validatePathStructure(safetyValue, mode)
   for (let depth = 0; depth < 4 && /%[0-9A-Fa-f]{2}/.test(safetyValue); depth += 1) {
     try {
       safetyValue = decodeURIComponent(safetyValue)
     } catch {
       throw oracleEpmLocalError('invalid_input')
     }
+    if (mode === 'repository-path') validatePathStructure(safetyValue, mode)
   }
-  if (
-    !decoded ||
-    /%[0-9A-Fa-f]{2}/.test(safetyValue) ||
-    safetyValue === '.' ||
-    safetyValue === '..' ||
-    /[/\\\u0000-\u001f\u007f]/.test(safetyValue) ||
-    MALFORMED_UTF16.test(decoded)
-  ) {
+  if (/%[0-9A-Fa-f]{2}/.test(safetyValue)) {
     throw oracleEpmLocalError('invalid_input')
   }
+  validatePathStructure(safetyValue, mode)
   return decoded
 }
 
@@ -348,7 +364,7 @@ function rawReturnedPathSegments(href: string): string[] {
   if (!rawPath) return []
   const segments = rawPath.slice(1).split('/')
   if (segments.some((segment) => !segment)) throw oracleEpmLocalError('invalid_input')
-  return segments.map(decodeReturnedPathSegment)
+  return segments
 }
 
 function matchReturnedPath(
@@ -357,8 +373,11 @@ function matchReturnedPath(
 ): void {
   if (candidate.length !== expected.length) throw oracleEpmLocalError('invalid_input')
   for (let index = 0; index < expected.length; index += 1) {
-    const decoded = candidate[index]
     const part = expected[index]
+    const decoded = decodeReturnedPathSegment(
+      candidate[index],
+      part.kind === 'parameter' ? part.mode : undefined
+    )
     if (part.kind === 'literal') {
       if (decoded !== part.value) throw oracleEpmLocalError('invalid_input')
     } else {
@@ -519,17 +538,18 @@ export function createOracleEpmClient(input: {
       if (url.origin !== destinationData.origin || url.username || url.password || url.hash)
         throw oracleEpmLocalError('invalid_input')
       const route = getOracleEpmRouteSpace(policy.routeSpace)
-      const prefix = [...destinationData.baseSegments, ...route.context, policy.version]
-      const prefixMatches = (expected: readonly string[]): boolean =>
-        expected.every((part, index) => candidate[index] === part)
-      if (policy.preserveGatewayBasePath && !prefixMatches(prefix))
+      const prefix = [
+        ...(policy.preserveGatewayBasePath ? destinationData.baseSegments : []),
+        ...route.context,
+        policy.version,
+      ]
+      if (
+        candidate.length !== prefix.length + policy.path.length ||
+        prefix.some((part, index) => decodeReturnedPathSegment(candidate[index]) !== part)
+      ) {
         throw oracleEpmLocalError('invalid_input')
-      const pathStart = policy.preserveGatewayBasePath ? prefix.length : route.context.length + 1
-      if (!policy.preserveGatewayBasePath) {
-        const routePrefix = [...route.context, policy.version]
-        if (!prefixMatches(routePrefix)) throw oracleEpmLocalError('invalid_input')
       }
-      matchReturnedPath(candidate.slice(pathStart), policy.path)
+      matchReturnedPath(candidate.slice(prefix.length), policy.path)
       const seen = new Set<string>()
       for (const [name, value] of url.searchParams) {
         if (seen.has(name) || !Object.hasOwn(policy.query, name))

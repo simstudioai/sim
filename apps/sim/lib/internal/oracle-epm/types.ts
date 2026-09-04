@@ -17,8 +17,11 @@ export type OracleEpmPathPart =
   | {
       readonly kind: 'parameter'
       readonly name: string
+      /** Maximum UTF-8 bytes in the complete raw parameter, capped at 255. */
       readonly maxBytes: number
       readonly pattern?: RegExp
+      /** Defaults to segment; repository paths remain one encoded parameter. */
+      readonly mode?: 'segment' | 'repository-path'
     }
 
 /** Bounded scalar query input admitted by an endpoint or returned-link policy. */

@@ -34,6 +34,53 @@ describe('Oracle EPM endpoints', () => {
     expect(Object.isFrozen(declaration.query)).toBe(true)
   })
 
+  it.each([undefined, 'segment', 'repository-path'] as const)(
+    'preserves and freezes path parameter mode %j',
+    (mode) => {
+      const endpoint = routes.defineEndpoint({
+        method: 'GET',
+        version: 'V1',
+        path: [oracleEpmPathParameter('fileName', { maxBytes: 255, mode })],
+        body: 'none',
+        response: 'stream',
+        timeoutMs: 1_000,
+        maxResponseBytes: 1_024,
+      })
+      const parameter = getOracleEpmEndpoint(endpoint).path[0]
+      expect(parameter).toEqual({ kind: 'parameter', name: 'fileName', maxBytes: 255, mode })
+      expect(Object.isFrozen(parameter)).toBe(true)
+      expect(Reflect.set(parameter, 'mode', 'unexpected')).toBe(false)
+    }
+  )
+
+  it.each(['', 'repository', 'SEGMENT', null, 1])('rejects invalid path mode %j', (mode) => {
+    expect(() =>
+      routes.defineEndpoint({
+        method: 'GET',
+        version: 'v3',
+        path: [oracleEpmPathParameter('fileName', { maxBytes: 255, mode: mode as 'segment' })],
+        body: 'none',
+        response: 'stream',
+        timeoutMs: 1_000,
+        maxResponseBytes: 1_024,
+      })
+    ).toThrow('path parameter declaration')
+  })
+
+  it('keeps the 255-byte declaration ceiling for repository paths', () => {
+    expect(() =>
+      routes.defineEndpoint({
+        method: 'GET',
+        version: 'v3',
+        path: [oracleEpmPathParameter('fileName', { maxBytes: 256, mode: 'repository-path' })],
+        body: 'none',
+        response: 'stream',
+        timeoutMs: 1_000,
+        maxResponseBytes: 1_024,
+      })
+    ).toThrow('path parameter declaration')
+  })
+
   it('rejects versions with the wrong case and dangerous headers', () => {
     expect(() =>
       routes.defineEndpoint({

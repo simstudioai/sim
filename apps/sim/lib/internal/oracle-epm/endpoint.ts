@@ -67,7 +67,8 @@ function validatePath(path: readonly OracleEpmPathPart[]): void {
       names.has(part.name) ||
       !Number.isInteger(part.maxBytes) ||
       part.maxBytes < 1 ||
-      part.maxBytes > MAX_LITERAL_BYTES
+      part.maxBytes > MAX_LITERAL_BYTES ||
+      (part.mode !== undefined && part.mode !== 'segment' && part.mode !== 'repository-path')
     ) {
       throw new Error('Oracle EPM endpoint path parameter declaration is invalid')
     }
@@ -186,10 +187,10 @@ export function oracleEpmLiteral(value: string): OracleEpmPathPart {
   return Object.freeze({ kind: 'literal', value })
 }
 
-/** Defines one individually encoded path parameter. */
+/** Defines one raw path parameter, encoded once even when it contains repository folders. */
 export function oracleEpmPathParameter(
   name: string,
-  options: { maxBytes: number; pattern?: RegExp }
+  options: { maxBytes: number; pattern?: RegExp; mode?: 'segment' | 'repository-path' }
 ): OracleEpmPathPart {
   return Object.freeze({ kind: 'parameter', name, ...options })
 }
