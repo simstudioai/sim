@@ -47,24 +47,49 @@ import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 
 export type OciRequestMethod = 'GET' | 'HEAD' | 'DELETE' | 'POST' | 'PUT' | 'PATCH'
 
-export type OciRetryPolicy =
-  | { readonly kind: 'safe'; readonly maxAttempts: number }
-  | { readonly kind: 'tokenized'; readonly maxAttempts: number; readonly retryToken: string }
+export interface OciSafeRetryPolicy {
+  readonly kind: 'safe'
+  readonly maxAttempts: number
+}
 
-export interface OciRequest {
+export interface OciTokenizedRetryPolicy {
+  readonly kind: 'tokenized'
+  readonly maxAttempts: number
+  readonly retryToken: string
+}
+
+export type OciRetryPolicy = OciSafeRetryPolicy | OciTokenizedRetryPolicy
+
+interface OciRequestBase {
   readonly endpoint: OciPreparedEndpoint
-  readonly method: OciRequestMethod
   readonly encodedPath: string
   readonly queryPairs?: readonly (readonly [string, string])[]
   readonly headers?: Readonly<Record<string, string>>
-  readonly body?: Uint8Array
-  readonly contentType?: string
   readonly timeoutMs: number
   readonly maxResponseBytes: number
   readonly responseHeaders?: readonly string[]
-  readonly retry?: OciRetryPolicy
   readonly signal?: AbortSignal
 }
+
+export type OciRequest =
+  | (OciRequestBase & {
+      readonly method: 'GET' | 'HEAD'
+      readonly body?: never
+      readonly contentType?: never
+      readonly retry?: OciRetryPolicy
+    })
+  | (OciRequestBase & {
+      readonly method: 'DELETE'
+      readonly body?: never
+      readonly contentType?: never
+      readonly retry?: OciTokenizedRetryPolicy
+    })
+  | (OciRequestBase & {
+      readonly method: 'POST' | 'PUT' | 'PATCH'
+      readonly body: Uint8Array
+      readonly contentType: string
+      readonly retry?: OciTokenizedRetryPolicy
+    })
 
 declare const authenticatedOciResponseBrand: unique symbol
 
@@ -121,6 +146,7 @@ interface SignedOciRequest {
 }
 
 const BODY_METHODS: ReadonlySet<OciRequestMethod> = new Set(['POST', 'PUT', 'PATCH'])
+const SAFE_RETRY_METHODS: ReadonlySet<OciRequestMethod> = new Set(['GET', 'HEAD'])
 const REQUEST_METHODS: ReadonlySet<string> = new Set([
   'GET',
   'HEAD',
@@ -470,6 +496,7 @@ function validateRequest(request: OciRequest): {
       typeof request.retry !== 'object' ||
       Array.isArray(request.retry) ||
       (request.retry.kind !== 'safe' && request.retry.kind !== 'tokenized') ||
+      (request.retry.kind === 'safe' && !SAFE_RETRY_METHODS.has(request.method)) ||
       Object.keys(request.retry).some(
         (key) =>
           key !== 'kind' &&
@@ -715,17 +742,19 @@ export async function createOciClient(params: CreateOciClientParams): Promise<Oc
   }
 
   let materialPromise: Promise<OciCredentialMaterial> | undefined
-  let lastSigningTime = 0
+  let credentialMaterial: OciCredentialMaterial | undefined
   const preparedEndpoints = new WeakSet<object>()
   const endpointPolicies = new WeakMap<object, OciEndpointPolicy>()
   const responseSnapshots = new WeakMap<object, BoundResponseSnapshot>()
 
-  const getMaterial = () => {
+  const getMaterial = async () => {
     materialPromise ??= loadCredentialMaterial({
       credentialId: params.credentialId,
       workspaceId: params.workspaceId,
     })
-    return materialPromise
+    const material = await materialPromise
+    credentialMaterial = material
+    return material
   }
   const assertPolicyOwner = (policy: OciEndpointPolicy) => {
     if (policy.serviceId !== params.serviceId) throw new OciClientError('invalid_endpoint')
@@ -734,12 +763,6 @@ export async function createOciClient(params: CreateOciClientParams): Promise<Oc
     const material = await getMaterial()
     return resolveEffectiveOciRegion(material.region, params.region)
   }
-  const nextSigningDate = () => {
-    const now = Math.max(Date.now(), lastSigningTime + 1000)
-    lastSigningTime = now
-    return new Date(now)
-  }
-
   const client: OciClient = {
     async prepareStaticEndpoint(policy) {
       assertPolicyOwner(policy)
@@ -781,11 +804,12 @@ export async function createOciClient(params: CreateOciClientParams): Promise<Oc
       }
       const endpointPolicy = endpointPolicies.get(request.endpoint)
       if (!endpointPolicy) throw new OciClientError('invalid_endpoint')
+      const material = credentialMaterial
+      if (!material) throw new OciClientError('invalid_endpoint')
       const validated = validateRequest(request)
       const url = buildRequestUrl(request.endpoint, request.encodedPath, validated.queryPairs)
       const deadline = createDeadline(request.timeoutMs, request.signal)
       try {
-        const material = await getMaterial()
         for (let attempt = 1; attempt <= validated.attempts; attempt += 1) {
           if (deadline.signal.aborted) {
             throw new OciClientError(deadline.expired() ? 'deadline_exceeded' : 'aborted')
@@ -802,7 +826,7 @@ export async function createOciClient(params: CreateOciClientParams): Promise<Oc
             },
             body: validated.body,
             contentType: request.contentType,
-            signingDate: nextSigningDate(),
+            signingDate: new Date(),
           })
 
           let response: SecureFetchResponse
