@@ -11,6 +11,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { CONTENT_ENGINE_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
@@ -161,7 +162,7 @@ async function markSyncPending(connectorId: string): Promise<string | null> {
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
-        eq(knowledgeConnector.accessMode, 'workspace'),
+        inArray(knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.syncLockToken),
         connectorIsLive()

@@ -15,6 +15,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 
 import {
   connectorServiceAccountScopes,
+  connectorServiceAccountSubject,
   resolveConnectorAccessToken,
 } from '@/lib/knowledge/connectors/access-token'
 import type { ConnectorAuthConfig } from '@/connectors/types'
@@ -120,7 +121,8 @@ describe('resolveConnectorAccessToken', () => {
       'credential-1',
       'credential-owner',
       'req-1',
-      ['https://www.googleapis.com/auth/drive']
+      ['https://www.googleapis.com/auth/drive'],
+      undefined
     )
   })
 
@@ -160,5 +162,77 @@ describe('resolveConnectorAccessToken', () => {
         requestId: 'req-1',
       })
     ).resolves.toBeNull()
+  })
+})
+
+describe('connectorServiceAccountSubject', () => {
+  const withSubject: ConnectorAuthConfig = {
+    ...OAUTH_AUTH,
+    serviceAccountSubjectFieldId: 'adminEmail',
+  }
+
+  it('reads the administrator from the field the connector names', () => {
+    expect(connectorServiceAccountSubject(withSubject, { adminEmail: 'Admin@Corp.com ' })).toBe(
+      'admin@corp.com'
+    )
+  })
+
+  it('has no subject when the connector names no field', () => {
+    expect(
+      connectorServiceAccountSubject(OAUTH_AUTH, { adminEmail: 'admin@corp.com' })
+    ).toBeUndefined()
+  })
+
+  it('treats a blank or missing value as no subject', () => {
+    expect(connectorServiceAccountSubject(withSubject, {})).toBeUndefined()
+    expect(connectorServiceAccountSubject(withSubject, { adminEmail: '  ' })).toBeUndefined()
+    expect(connectorServiceAccountSubject(withSubject, { adminEmail: 42 })).toBeUndefined()
+  })
+})
+
+describe('impersonation on the connector path', () => {
+  const withSubject: ConnectorAuthConfig = {
+    ...OAUTH_AUTH,
+    serviceAccountSubjectFieldId: 'adminEmail',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
+  })
+
+  it('mints as the administrator the connector is configured to crawl as', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: withSubject,
+        connector: credentialConnector('credential-1'),
+        userId: 'credential-owner',
+        requestId: 'req-1',
+        sourceConfig: { adminEmail: 'admin@corp.com' },
+      })
+    ).resolves.toEqual({ accessToken: 'access-token', subject: 'admin@corp.com' })
+    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
+      'credential-1',
+      'credential-owner',
+      'req-1',
+      OAUTH_AUTH.requiredScopes,
+      'admin@corp.com'
+    )
+  })
+
+  it('impersonates nobody when no source config is supplied', async () => {
+    await resolveConnectorAccessToken({
+      auth: withSubject,
+      connector: credentialConnector('credential-1'),
+      userId: 'credential-owner',
+      requestId: 'req-1',
+    })
+    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
+      'credential-1',
+      'credential-owner',
+      'req-1',
+      OAUTH_AUTH.requiredScopes,
+      undefined
+    )
   })
 })

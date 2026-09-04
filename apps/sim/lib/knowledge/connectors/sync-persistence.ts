@@ -6,6 +6,9 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
+
+export type { SyncDocumentAccess } from '@/lib/knowledge/connectors/access-modes'
+
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import {
   EMPTY_ACL,
@@ -13,6 +16,7 @@ import {
   validateAcl,
   WORKSPACE_ACL,
 } from '@/lib/knowledge/access/tokens'
+import { aclIsDerived, type SyncDocumentAccess } from '@/lib/knowledge/connectors/access-modes'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
@@ -25,24 +29,6 @@ import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { DocumentTags, ExternalDocument } from '@/connectors/types'
 
 const logger = createLogger('ConnectorSyncPersistence')
-
-/**
- * Who may read a document the sync writes.
- *
- * A workspace-mode connector's documents are visible to the whole workspace on
- * insert and on every update. `members` and `admin` both derive their ACL from
- * something the content sync does not know — who observed the document, or what
- * the source's own permissions say — so their documents are born hidden and
- * made visible by a separate pass, and a content update never touches the ACL.
- * Born hidden is what makes the fail-closed direction the default: a document
- * indexed before its ACL is known is invisible, never workspace-wide.
- */
-export type SyncDocumentAccess = 'workspace' | 'members' | 'admin'
-
-/** Whether this mode's ACL is owned by a pass other than the content sync. */
-function aclIsDerived(access: SyncDocumentAccess): boolean {
-  return access !== 'workspace'
-}
 
 function insertedDocumentAcl(access: SyncDocumentAccess): string[] {
   return [...(aclIsDerived(access) ? EMPTY_ACL : WORKSPACE_ACL)]

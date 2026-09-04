@@ -613,3 +613,137 @@ describe('Google Drive change feed', () => {
     expect(googleDriveConnector.isChangeCursorInvalidError!(new Error('other'))).toBe(false)
   })
 })
+
+describe('mirroring Drive permissions onto listed documents', () => {
+  const ADMIN = { adminEmail: 'admin@corp.com' }
+
+  function fileListResponse(files: unknown[]): Response {
+    return jsonResponse({ kind: 'drive#fileList', files })
+  }
+
+  function driveFile(overrides: Record<string, unknown>) {
+    return {
+      id: FILE_ID,
+      name: 'Plan',
+      mimeType: GOOGLE_DOCUMENT_MIME_TYPE,
+      modifiedTime: '2026-01-01T00:00:00Z',
+      ...overrides,
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  async function listWith(file: Record<string, unknown>, sourceConfig: Record<string, unknown>) {
+    mockFetch.mockResolvedValueOnce(fileListResponse([file]))
+    const result = await googleDriveConnector.listDocuments('token', sourceConfig, undefined, {})
+    return result.documents[0]
+  }
+
+  it('asks Drive for the permissions it needs to mirror', async () => {
+    mockFetch.mockResolvedValueOnce(fileListResponse([]))
+    await googleDriveConnector.listDocuments('token', ADMIN, undefined, {})
+
+    const url = String(mockFetch.mock.calls[0][0])
+    expect(decodeURIComponent(url)).toContain('permissions(id,type,emailAddress,domain,role,')
+    expect(decodeURIComponent(url)).toContain('permissionIds')
+    expect(decodeURIComponent(url)).toContain('driveId')
+  })
+
+  it('tags each document with who may read it', async () => {
+    const doc = await listWith(
+      driveFile({
+        permissions: [
+          { id: 'p1', type: 'user', emailAddress: 'Alice@corp.com' },
+          { id: 'p2', type: 'group', emailAddress: 'eng@corp.com' },
+        ],
+      }),
+      ADMIN
+    )
+
+    expect(doc.acl).toEqual(['g:google-drive:corp.com:eng@corp.com', 'u:alice@corp.com'])
+  })
+
+  /**
+   * The tenant is baked into every stored group token, so it has to come from
+   * the administrator's own domain rather than anything a file happens to carry.
+   */
+  it('names the group directory after the administrator the crawl runs as', async () => {
+    const doc = await listWith(
+      driveFile({ permissions: [{ id: 'p1', type: 'group', emailAddress: 'eng@other.com' }] }),
+      { adminEmail: 'Admin@Corp.com' }
+    )
+
+    expect(doc.acl).toEqual(['g:google-drive:corp.com:eng@other.com'])
+  })
+
+  it('mirrors no ACL at all when no administrator is configured', async () => {
+    const doc = await listWith(
+      driveFile({ permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }] }),
+      {}
+    )
+
+    expect(doc.acl).toBeUndefined()
+  })
+
+  /**
+   * Drive sometimes reports more permission ids than it expands. The subset that
+   * arrived is not the safe answer — the grants that went missing are the ones
+   * nobody checked — so the file is left readable by nobody.
+   */
+  it('refuses a partial permission set rather than mirroring a subset', async () => {
+    const doc = await listWith(
+      driveFile({
+        permissionIds: ['p1', 'p2'],
+        permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }],
+      }),
+      ADMIN
+    )
+
+    expect(doc.acl).toBeUndefined()
+  })
+
+  it('accepts a permission set that matches the ids Drive reported', async () => {
+    const doc = await listWith(
+      driveFile({
+        permissionIds: ['p1'],
+        permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }],
+      }),
+      ADMIN
+    )
+
+    expect(doc.acl).toEqual(['u:alice@corp.com'])
+  })
+
+  it('keeps an openly shared file out of search until the admin opts in', async () => {
+    const shared = driveFile({ permissions: [{ id: 'p1', type: 'domain', domain: 'corp.com' }] })
+
+    await expect(listWith(shared, ADMIN)).resolves.toMatchObject({ acl: ['link'] })
+    await expect(listWith(shared, { ...ADMIN, openSharing: 'domain' })).resolves.toMatchObject({
+      acl: ['g:google-drive:corp.com:domain:corp.com'],
+    })
+  })
+
+  it('never makes a link-only share findable, even with open sharing on', async () => {
+    const doc = await listWith(
+      driveFile({ permissions: [{ id: 'p1', type: 'anyone', allowFileDiscovery: false }] }),
+      { ...ADMIN, openSharing: 'anyone' }
+    )
+
+    expect(doc.acl).toEqual(['link'])
+  })
+
+  it('records the shared drive a file lives on', async () => {
+    const doc = await listWith(
+      driveFile({
+        driveId: 'shared-drive-1',
+        permissions: [{ id: 'p1', type: 'user', emailAddress: 'alice@corp.com' }],
+      }),
+      ADMIN
+    )
+
+    expect(doc.acl).toEqual(['g:google-drive:corp.com:shared-drive-1', 'u:alice@corp.com'])
+  })
+})

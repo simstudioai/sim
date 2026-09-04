@@ -2,6 +2,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import {
+  type DrivePermission,
+  driveFileAcl,
+  type OpenSharingPolicy,
+} from '@/lib/knowledge/access/drive-permissions'
+import {
   attachRetryHeaders,
   isRetryableError,
   type RetryOptions,
@@ -210,6 +215,16 @@ interface DriveFile {
   starred?: boolean
   trashed?: boolean
   parents?: string[]
+  permissions?: DrivePermission[]
+  /**
+   * Requested alongside `permissions` because Drive sometimes omits the
+   * expanded permission objects while still reporting their ids — Onyx hit the
+   * same thing. A file whose two counts disagree has an ACL we did not fully
+   * see, so it is mirrored as readable by nobody rather than under a subset of
+   * its real grants.
+   */
+  permissionIds?: string[]
+  driveId?: string
 }
 
 interface DriveChange {
@@ -432,7 +447,67 @@ function buildQuery(sourceConfig: Record<string, unknown>, lastSyncAt?: Date): s
   return parts.join(' and ')
 }
 
-function fileToStub(file: DriveFile): ExternalDocument {
+/**
+ * The provider segment of every group token a Drive crawl writes. Fixed, and
+ * baked into stored ACLs, so it must never change.
+ */
+const GOOGLE_DRIVE_ACL_PROVIDER_ID = 'google-drive'
+
+interface DriveAclContext {
+  providerId: string
+  tenantId: string
+  policy: OpenSharingPolicy
+}
+
+/**
+ * The context an admin-mode crawl needs to name the principals on a file: which
+ * directory a group belongs to, and how far the admin has opted into open
+ * sharing being searchable.
+ *
+ * The tenant is the impersonated administrator's email domain, which is the
+ * Workspace domain the crawl is looking at. It has to be decided once and kept:
+ * it is baked into every stored `g:` token, so deriving it differently later
+ * would orphan every ACL already written. Null when no administrator is
+ * configured, which is every crawl that is not mirroring permissions.
+ */
+function driveAclContext(sourceConfig: Record<string, unknown>): DriveAclContext | null {
+  const admin = typeof sourceConfig.adminEmail === 'string' ? sourceConfig.adminEmail : ''
+  const domain = admin.trim().toLowerCase().split('@')[1]
+  if (!domain) return null
+  const openSharing = sourceConfig.openSharing
+  return {
+    providerId: GOOGLE_DRIVE_ACL_PROVIDER_ID,
+    tenantId: domain,
+    policy: {
+      domain: openSharing === 'domain' || openSharing === 'anyone',
+      anyone: openSharing === 'anyone',
+    },
+  }
+}
+
+/**
+ * The file's mirrored ACL, or undefined when this crawl cannot speak for it.
+ *
+ * Drive sometimes returns fewer expanded permissions than it reports ids for,
+ * which is why both are requested. Mirroring the subset that did arrive would
+ * store the file under narrower grants than it really has — which sounds like
+ * the safe direction but is not, because the grants that went missing are
+ * exactly the ones nobody verified. Undefined leaves the file readable by
+ * nobody until a crawl sees the whole set.
+ */
+function fileAcl(file: DriveFile, context: DriveAclContext | null): string[] | undefined {
+  if (!context || !file.permissions) return undefined
+  if (file.permissionIds && file.permissionIds.length !== file.permissions.length) return undefined
+  return driveFileAcl({
+    permissions: file.permissions,
+    providerId: context.providerId,
+    tenantId: context.tenantId,
+    policy: context.policy,
+    driveId: file.driveId,
+  })
+}
+
+function fileToStub(file: DriveFile, acl?: string[]): ExternalDocument {
   /**
    * Sheets moved from a first-sheet-only CSV export to the complete XLSX source.
    * The namespace forces one rehydration for existing rows whose old hash would
@@ -446,6 +521,7 @@ function fileToStub(file: DriveFile): ExternalDocument {
     title: file.name || 'Untitled',
     content: '',
     contentDeferred: true,
+    ...(acl ? { acl } : {}),
     mimeType: 'text/plain',
     sourceUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
     contentHash: `${hashNamespace}:${file.id}:${file.modifiedTime ?? ''}`,
@@ -488,7 +564,7 @@ export const googleDriveConnector: ConnectorConfig = {
       pageSize: String(effectivePageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents)',
+        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents,driveId,permissionIds,permissions(id,type,emailAddress,domain,role,allowFileDiscovery,permittedBy))',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -526,10 +602,15 @@ export const googleDriveConnector: ConnectorConfig = {
      */
     const incompleteSearch = data.incompleteSearch === true
 
+    const aclContext = driveAclContext(sourceConfig)
     const pageDocuments = files
       .filter((f) => isGoogleWorkspaceFile(f.mimeType) || isSupportedTextFile(f.mimeType))
       .map((f) =>
-        stubOrSkipBySize(fileToStub(f), Number(f.size) || undefined, CONNECTOR_MAX_FILE_BYTES)
+        stubOrSkipBySize(
+          fileToStub(f, fileAcl(f, aclContext)),
+          Number(f.size) || undefined,
+          CONNECTOR_MAX_FILE_BYTES
+        )
       )
 
     const page = takeIndexableWithinCap(

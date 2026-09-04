@@ -17,6 +17,12 @@ export interface ConnectorAccessToken {
   accessToken: string
   /** Atlassian only — the Confluence/Jira cloud id the credential is bound to. */
   cloudId?: string
+  /**
+   * The person the credential is acting as, when it is a service account using
+   * domain-wide delegation. Names the tenant whose permissions the crawl sees,
+   * so ACL mirroring can attribute a group to the right directory.
+   */
+  subject?: string
 }
 
 /**
@@ -30,6 +36,25 @@ export interface ConnectorAccessToken {
 export function connectorServiceAccountScopes(auth: ConnectorAuthConfig): string[] | undefined {
   if (auth.mode !== 'oauth') return undefined
   return auth.serviceAccountScopes ?? auth.requiredScopes
+}
+
+/**
+ * The person a service-account credential should act as for this connector, or
+ * `undefined` when the connector names no subject field or the field is blank.
+ *
+ * Trimmed and case-folded, so the same administrator spelled two ways is one
+ * subject — and so the value can be read back as the source's tenant without
+ * each caller re-normalising it.
+ */
+export function connectorServiceAccountSubject(
+  auth: ConnectorAuthConfig,
+  sourceConfig: Record<string, unknown>
+): string | undefined {
+  if (auth.mode !== 'oauth' || !auth.serviceAccountSubjectFieldId) return undefined
+  const raw = sourceConfig[auth.serviceAccountSubjectFieldId]
+  if (typeof raw !== 'string') return undefined
+  const subject = raw.trim().toLowerCase()
+  return subject.length > 0 ? subject : undefined
 }
 
 /**
@@ -50,6 +75,8 @@ export async function resolveConnectorAccessToken(params: {
   connector: { credentialId: string | null; encryptedApiKey: string | null }
   userId: string
   requestId: string
+  /** Read only for the subject a service-account credential impersonates. */
+  sourceConfig?: Record<string, unknown>
 }): Promise<ConnectorAccessToken | null> {
   const { auth, connector, userId, requestId } = params
 
@@ -66,16 +93,21 @@ export async function resolveConnectorAccessToken(params: {
     throw new Error('OAuth connector is missing credential ID')
   }
 
+  const subject = params.sourceConfig
+    ? connectorServiceAccountSubject(auth, params.sourceConfig)
+    : undefined
   const bundle = await resolveCredentialTokenBundle(
     connector.credentialId,
     userId,
     requestId,
-    connectorServiceAccountScopes(auth)
+    connectorServiceAccountScopes(auth),
+    subject
   )
   if (!bundle?.accessToken) return null
 
   return {
     accessToken: bundle.accessToken,
     ...(bundle.cloudId ? { cloudId: bundle.cloudId } : {}),
+    ...(subject ? { subject } : {}),
   }
 }

@@ -23,6 +23,21 @@ export type ConnectorAuthConfig =
        * genuinely coincide, which is the common case.
        */
       serviceAccountScopes?: string[]
+      /**
+       * The config field naming the person a service-account credential acts
+       * as, through domain-wide delegation.
+       *
+       * A service account owns nothing in a Workspace domain, so a crawl under
+       * one sees an empty corpus until it impersonates somebody; the source's
+       * whole content and permission model is only visible through an
+       * administrator's eyes.
+       *
+       * The subject belongs to the connector, not the credential. One
+       * `google-service-account` credential matches every Google service, so a
+       * subject stored on it would silently apply to a workflow reading that
+       * person's mail as well as to this crawl reading their Drive.
+       */
+      serviceAccountSubjectFieldId?: string
     }
   | {
       mode: 'apiKey'
@@ -100,6 +115,19 @@ export interface ExternalDocument {
    * stale indexed content and persists the skipped state as authoritative.
    */
   skippedExistingDisposition?: 'replace'
+  /**
+   * Who may read this document, mirrored from the source's own permissions.
+   * Only meaningful for a connector whose meta sets
+   * {@link ConnectorMeta.mirrorsSourceAcls}, and only used by an admin-mode
+   * crawl; every other mode derives access some other way and ignores it.
+   *
+   * Deliberately applied by a pass of its own rather than by the write that
+   * stores the document. A document whose content is unchanged is never
+   * written at all, and a permission change with no content change is the
+   * common case — so an ACL that rode along with the content write would only
+   * ever land for documents that happened to be edited.
+   */
+  acl?: readonly string[]
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }
@@ -270,6 +298,19 @@ export interface ConnectorMeta {
    * whenever the connector crawls per member.
    */
   permissionScopedListing?: { capFieldIds: readonly string[] }
+
+  /**
+   * Set when the connector's listing reports each document's own permissions,
+   * so one crawl under an administrative credential can mirror the source's
+   * access model instead of asking every person to connect their own account.
+   *
+   * The connector fills {@link ExternalDocument.acl} on every document it
+   * lists — changed or not, since the ACL pass reads the whole listing — using
+   * the token vocabulary in `lib/knowledge/access/tokens`. A document it lists
+   * without an ACL is readable by nobody, so a connector must set this only
+   * where it can speak for every document it returns.
+   */
+  mirrorsSourceAcls?: true
 }
 
 /**

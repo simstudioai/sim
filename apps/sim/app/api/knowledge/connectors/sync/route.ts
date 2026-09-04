@@ -8,6 +8,7 @@ import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attr
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CONTENT_ENGINE_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import { dispatchSync } from '@/lib/knowledge/connectors/queue'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
@@ -304,7 +305,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(
         and(
           inArray(knowledgeConnector.status, ['active', 'error']),
-          eq(knowledgeConnector.accessMode, 'workspace'),
+          inArray(knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
           lte(knowledgeConnector.nextSyncAt, now),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),

@@ -15,6 +15,12 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
+import {
+  CONTENT_ENGINE_ACCESS_MODES,
+  documentAccessForMode,
+  isContentEngineAccessMode,
+} from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
   resolveConnectorAccessToken,
@@ -35,6 +41,7 @@ import {
 } from '@/lib/knowledge/connectors/sync-lock'
 import {
   type KnowledgeBaseOwner,
+  persistDocumentAcls,
   restoreWorkspaceDocumentAcls,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import {
@@ -54,7 +61,7 @@ import {
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import type { ConnectorAuthConfig, SyncResult } from '@/connectors/types'
+import type { ConnectorAuthConfig, ExternalDocument, SyncResult } from '@/connectors/types'
 
 const logger = createLogger('ConnectorSyncEngine')
 
@@ -67,6 +74,46 @@ export {
 } from '@/lib/knowledge/documents/types'
 
 const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
+/**
+ * Writes the ACLs an admin-mode listing mirrored from the source.
+ *
+ * Reads the whole listing, not just the documents whose content changed: a
+ * membership or sharing change moves no content, so restricting this to changed
+ * documents would let a revoked grant stay readable until somebody happened to
+ * edit the file.
+ *
+ * A listed document the connector could not speak for gets an empty ACL, which
+ * hides it. That is the safe direction and it is visible — a connector
+ * declaring {@link ConnectorMeta.mirrorsSourceAcls} is promising an ACL for
+ * every document it lists, so a missing one is a bug in the connector rather
+ * than an expected state to paper over.
+ */
+async function applySourceMirroredAcls(
+  connectorId: string,
+  externalDocs: readonly ExternalDocument[]
+): Promise<void> {
+  const acls = new Map<string, readonly string[]>()
+  let unattributed = 0
+  for (const doc of externalDocs) {
+    if (!doc.acl) unattributed += 1
+    acls.set(doc.externalId, doc.acl ?? EMPTY_ACL)
+  }
+
+  const written = await persistDocumentAcls(connectorId, acls)
+  logger.info('Mirrored source permissions onto connector documents', {
+    connectorId,
+    listed: acls.size,
+    ...written,
+    ...(unattributed > 0 ? { unattributed } : {}),
+  })
+  if (unattributed > 0) {
+    logger.error('Connector listed documents without an ACL; they are readable by nobody', {
+      connectorId,
+      unattributed,
+    })
+  }
+}
 
 /** Whether an automatic connector sync may begin from this persisted state. */
 export function isConnectorRunnableStatus(status: string): boolean {
@@ -505,7 +552,8 @@ export function buildSyncSuccessUpdate(
 async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
   connectorConfig: { auth: ConnectorAuthConfig },
-  userId: string
+  userId: string,
+  sourceConfig: Record<string, unknown>
 ): Promise<ConnectorAccessToken> {
   const requestId = `sync-${connector.credentialId}`
   const resolved = await resolveConnectorAccessToken({
@@ -513,6 +561,7 @@ async function resolveAccessToken(
     connector,
     userId,
     requestId,
+    sourceConfig,
   })
 
   if (!resolved) {
@@ -591,8 +640,8 @@ export async function executeSync(
    * lease is mutually exclusive with this one. Refused before any write so a
    * stale queue entry can never run a workspace-wide crawl over it.
    */
-  if (connectorBeforeLock.accessMode !== 'workspace') {
-    logger.info('Skipping sync: connector does not sync as the workspace', {
+  if (!isContentEngineAccessMode(connectorBeforeLock.accessMode)) {
+    logger.info('Skipping sync: connector is not driven by the content engine', {
       connectorId,
       accessMode: connectorBeforeLock.accessMode,
     })
@@ -671,7 +720,7 @@ export async function executeSync(
     .set(buildSyncLockAcquisition(syncLogId, new Date()))
     .where(
       and(
-        eq(knowledgeConnector.accessMode, 'workspace'),
+        inArray(knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
         eq(knowledgeConnector.id, connectorId),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         /**
@@ -774,11 +823,21 @@ export async function executeSync(
       }
     }
 
-    let credentialToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
+    let credentialToken = await resolveAccessToken(
+      connector,
+      connectorConfig,
+      credentialUserId,
+      sourceConfig
+    )
     /** Re-resolves the token for every OAuth call after the first, so a long run outlives a short-lived token. */
     const refreshOAuthToken = async (): Promise<void> => {
       if (connectorConfig.auth.mode === 'oauth') {
-        credentialToken = await resolveAccessToken(connector, connectorConfig, credentialUserId)
+        credentialToken = await resolveAccessToken(
+          connector,
+          connectorConfig,
+          credentialUserId,
+          sourceConfig
+        )
       }
     }
 
@@ -921,8 +980,17 @@ export async function executeSync(
           ),
       },
       lease,
-      documentAccess: 'workspace',
+      documentAccess: documentAccessForMode(connectorBeforeLock.accessMode),
     })
+
+    /**
+     * After the content pass, so a document inserted by this run — born hidden
+     * — is present to be made readable, and before reconciliation, so a
+     * revoked grant lands even on a run that removes nothing.
+     */
+    if (connectorBeforeLock.accessMode === 'admin') {
+      await applySourceMirroredAcls(connectorId, externalDocs)
+    }
 
     const reconciliationHoldNotice = await reconcileDeletions({
       connectorId,

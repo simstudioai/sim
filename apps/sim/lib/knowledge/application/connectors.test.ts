@@ -340,7 +340,8 @@ describe('knowledge connector application use cases', () => {
       'credential-1',
       'credential-owner',
       expect.any(String),
-      ['read:confluence-content.all']
+      ['read:confluence-content.all'],
+      undefined
     )
     expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('access-token', { space: 'ENG' })
     expect(mocks.resolveBilling).toHaveBeenCalledWith('workspace-a')

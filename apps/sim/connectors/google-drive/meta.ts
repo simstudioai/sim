@@ -12,12 +12,50 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     mode: 'oauth',
     provider: 'google-drive',
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
+    /**
+     * Read-only, and narrower than the interactive scope above: a crawl under
+     * domain-wide delegation reads every file in the domain, so it should never
+     * hold write access. The directory scopes are what let group grants be
+     * resolved to the people in them.
+     */
+    serviceAccountScopes: [
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/drive.metadata.readonly',
+      'https://www.googleapis.com/auth/admin.directory.group.readonly',
+      'https://www.googleapis.com/auth/admin.directory.user.readonly',
+    ],
+    serviceAccountSubjectFieldId: 'adminEmail',
   },
 
   /** `files.list` under a member's token returns only what that member can open. */
   permissionScopedListing: { capFieldIds: ['maxFiles'] },
 
+  /** `files.list` reports each file's own permissions, so one crawl can mirror them. */
+  mirrorsSourceAcls: true,
+
   configFields: [
+    {
+      id: 'adminEmail',
+      title: 'Crawl as',
+      type: 'short-input',
+      required: false,
+      placeholder: 'admin@yourcompany.com',
+      description:
+        'A Google Workspace administrator the service account acts as. Required to mirror Drive permissions; leave blank when syncing with your own Google account.',
+    },
+    {
+      id: 'openSharing',
+      title: 'Openly shared files',
+      type: 'dropdown',
+      required: false,
+      description:
+        'Files shared beyond named people and groups. Kept out of search by default, because a domain-wide or public share is more often an accident than an intention. Never applies to link-only shares, which stay unsearchable.',
+      options: [
+        { label: 'Keep out of search', id: 'none' },
+        { label: 'Anyone in the domain can find', id: 'domain' },
+        { label: 'Anyone can find', id: 'anyone' },
+      ],
+    },
     {
       id: 'folderSelector',
       title: 'Folders',
