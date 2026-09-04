@@ -90,6 +90,9 @@ export function parseOracleFusionCollection<T>(
   if (totalResults !== undefined && !envelope.hasMore && totalResults > pageEnd) {
     throw new Error('Oracle collection hasMore contradicts totalResults')
   }
+  if (totalResults !== undefined && envelope.hasMore && totalResults <= pageEnd) {
+    throw new Error('Oracle collection hasMore contradicts totalResults')
+  }
   if (options.expectedOffset !== undefined) {
     const expectedOffset = nonNegativeInteger(
       options.expectedOffset,

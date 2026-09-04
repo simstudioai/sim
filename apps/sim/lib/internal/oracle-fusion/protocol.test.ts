@@ -66,7 +66,8 @@ describe('parseOracleFusionCollection', () => {
   it.each([
     { items: [], count: 0, hasMore: false, limit: 25, offset: 5, totalResults: 6 },
     { items: [{}], count: 1, hasMore: false, limit: 25, offset: 5, totalResults: 7 },
-  ])('rejects terminal pagination metadata while results remain %#', (value) => {
+    { items: [{}], count: 1, hasMore: true, limit: 25, offset: 5, totalResults: 6 },
+  ])('rejects pagination metadata that contradicts total results %#', (value) => {
     expect(() => parseOracleFusionCollection(value, (item) => item)).toThrow(
       'hasMore contradicts totalResults'
     )
