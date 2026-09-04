@@ -218,7 +218,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
   })
 
   it.each(['service_unavailable', 'invalid_response'] as const)(
-    'classifies OCI %s failures as provider outages without exposing provider details',
+    'preserves the dedicated OCI %s classification for orchestration',
     async (code) => {
       const { OciCredentialVerificationError } = await import(
         '@/lib/credentials/oci-api-key-service-account.server'
@@ -233,16 +233,16 @@ describe('verifyAndBuildServiceAccountSecret', () => {
         region: 'us-ashburn-1',
       }).catch((error: unknown) => error)
 
-      expect(failure).toBeInstanceOf(ServiceAccountSecretError)
+      expect(failure).toBeInstanceOf(OciCredentialVerificationError)
       expect(failure).toMatchObject({
-        message: 'OCI is temporarily unavailable for credential verification',
-        providerErrorCode: 'provider_unavailable',
+        message: code,
+        code,
       })
       expect(JSON.stringify(failure)).not.toContain('provider-secret-key')
     }
   )
 
-  it('classifies local OCI field validation as rejected credentials', async () => {
+  it('preserves the dedicated OCI invalid-credential classification for orchestration', async () => {
     const { OciCredentialVerificationError } = await import(
       '@/lib/credentials/oci-api-key-service-account.server'
     )
@@ -258,11 +258,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
         privateKey: 'invalid-key',
         region: 'us-ashburn-1',
       })
-    ).rejects.toMatchObject({
-      name: 'ServiceAccountSecretError',
-      message: 'OCI rejected the API-key credential',
-      providerErrorCode: 'invalid_credentials',
-    })
+    ).rejects.toMatchObject({ message: 'invalid_credentials', code: 'invalid_credentials' })
   })
 
   it('does not misclassify an internal OCI credential failure as rejected credentials', async () => {

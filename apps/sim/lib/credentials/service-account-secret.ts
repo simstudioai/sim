@@ -20,10 +20,7 @@ import {
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
-import {
-  OciCredentialVerificationError,
-  verifyAndEncryptOciApiKeyCredential,
-} from '@/lib/credentials/oci-api-key-service-account.server'
+import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
 import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
@@ -87,10 +84,7 @@ export interface ServiceAccountSecretResult {
 
 /** Thrown when a service-account secret is missing or fails provider verification. */
 export class ServiceAccountSecretError extends Error {
-  constructor(
-    message: string,
-    readonly providerErrorCode?: string
-  ) {
+  constructor(message: string) {
     super(message)
     this.name = 'ServiceAccountSecretError'
   }
@@ -239,36 +233,22 @@ async function buildOciApiKeyServiceAccountSecret(
       'tenancyOcid, userOcid, fingerprint, privateKey, and region are required for OCI API-key credentials'
     )
   }
-  try {
-    const result = await verifyAndEncryptOciApiKeyCredential({
-      tenancyOcid,
-      userOcid,
-      fingerprint,
-      privateKey,
-      ...(privateKeyPassphrase !== undefined ? { privateKeyPassphrase } : {}),
-      region,
-    })
-    const principal: ServiceAccountPrincipal = { kind: 'user', id: result.userOcid }
-    const metadata = serviceAccountPrincipalMetadata(principal)
-    return {
-      providerId: OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
-      encryptedServiceAccountKey: result.encryptedServiceAccountKey,
-      displayName: result.userOcid,
-      auditMetadata: metadata,
-      principal,
-    }
-  } catch (error) {
-    if (error instanceof OciCredentialVerificationError) {
-      const providerUnavailable =
-        error.code === 'service_unavailable' || error.code === 'invalid_response'
-      throw new ServiceAccountSecretError(
-        providerUnavailable
-          ? 'OCI is temporarily unavailable for credential verification'
-          : 'OCI rejected the API-key credential',
-        providerUnavailable ? 'provider_unavailable' : 'invalid_credentials'
-      )
-    }
-    throw error
+  const result = await verifyAndEncryptOciApiKeyCredential({
+    tenancyOcid,
+    userOcid,
+    fingerprint,
+    privateKey,
+    ...(privateKeyPassphrase !== undefined ? { privateKeyPassphrase } : {}),
+    region,
+  })
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.userOcid }
+  const metadata = serviceAccountPrincipalMetadata(principal)
+  return {
+    providerId: OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.userOcid,
+    auditMetadata: metadata,
+    principal,
   }
 }
 

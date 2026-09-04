@@ -35,6 +35,7 @@ import {
   deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
+import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
 import type { ServiceAccountFieldId } from '@/lib/credentials/service-account-fields'
 import {
   ServiceAccountSecretError,
@@ -44,7 +45,6 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import {
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-  OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -296,24 +296,6 @@ export async function updateCredentialRecord(
     if (hasRotationSecret) {
       const providerId = params.credential.providerId ?? ''
 
-      if (providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) {
-        const requiredOciFields = [
-          'tenancyOcid',
-          'userOcid',
-          'fingerprint',
-          'privateKey',
-          'region',
-        ] as const
-        const missingOciFields = requiredOciFields.filter((field) => params[field] === undefined)
-        if (missingOciFields.length > 0) {
-          return {
-            success: false,
-            error: `OCI credential rotation requires the complete signing tuple; missing ${missingOciFields.join(', ')}`,
-            errorCode: 'validation',
-          }
-        }
-      }
-
       // A reconnect rebuilds the secret blob from the submitted fields only, and
       // the modal never prefills (secrets are never echoed back). For an actual
       // secret that is correct - the admin retypes it. But a non-secret selector
@@ -422,11 +404,17 @@ export async function updateCredentialRecord(
         }
       } catch (error) {
         if (error instanceof ServiceAccountSecretError) {
+          return { success: false, error: error.message, errorCode: 'validation' }
+        }
+        if (error instanceof OciCredentialVerificationError) {
+          const providerUnavailable = error.code !== 'invalid_credentials'
           return {
             success: false,
-            error: error.message,
+            error: providerUnavailable
+              ? 'OCI is temporarily unavailable for credential verification'
+              : 'OCI rejected the API-key credential',
             errorCode: 'validation',
-            providerErrorCode: error.providerErrorCode,
+            providerErrorCode: providerUnavailable ? 'provider_unavailable' : 'invalid_credentials',
           }
         }
         if (error instanceof AtlassianValidationError) {
