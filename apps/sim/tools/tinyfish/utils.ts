@@ -154,8 +154,8 @@ export function mapRunSummary(raw: TinyFishRawRunSummary): TinyFishRunSummary {
  * `POST /v1/automation/run-async`.
  *
  * Optional fields are omitted rather than sent as null so TinyFish applies its
- * own documented defaults (`lite` browser profile, `default` agent mode, 150
- * max steps, no proxy, no vault).
+ * own documented defaults (`lite` browser engine, `default` agent mode, 150
+ * max steps, no proxy, no vault, no Browser Context Profile).
  */
 export function buildAutomationBody(params: {
   url: string
@@ -168,6 +168,8 @@ export function buildAutomationBody(params: {
   proxyCountryCode?: string
   useVault?: boolean
   credentialItemIds?: string | string[]
+  useProfile?: boolean
+  profileId?: string
   webhookUrl?: string
 }): Record<string, unknown> {
   const body: Record<string, unknown> = {
@@ -200,6 +202,18 @@ export function buildAutomationBody(params: {
     if (credentialItemIds.length > 0) body.credential_item_ids = credentialItemIds
   }
 
+  /**
+   * `profile_id` is sent only alongside `use_profile: true`, because TinyFish
+   * rejects the id on its own with a 400. Without an id the run falls back to
+   * the account's default Browser Context Profile, which is also a 400 when no
+   * default has been set.
+   */
+  if (params.useProfile) {
+    body.use_profile = true
+    const profileId = params.profileId?.trim()
+    if (profileId) body.profile_id = profileId
+  }
+
   if (params.webhookUrl) body.webhook_url = params.webhookUrl
 
   return body
@@ -223,7 +237,8 @@ export const AUTOMATION_TOOL_PARAMS = {
     type: 'string',
     required: false,
     visibility: 'user-or-llm',
-    description: 'Browser engine: "lite" (standard) or "stealth" (anti-detection)',
+    description:
+      'Browser engine: "lite" (standard) or "stealth" (anti-detection). Not a Browser Context Profile — use useProfile for saved logins',
   },
   agentMode: {
     type: 'string',
@@ -267,6 +282,20 @@ export const AUTOMATION_TOOL_PARAMS = {
     visibility: 'user-only',
     description: 'Comma-separated vault credential URIs to scope the run to',
   },
+  useProfile: {
+    type: 'boolean',
+    required: false,
+    visibility: 'user-or-llm',
+    description:
+      'Start the run from a saved Browser Context Profile, reusing the logged-in session stored in it',
+  },
+  profileId: {
+    type: 'string',
+    required: false,
+    visibility: 'user-or-llm',
+    description:
+      'Browser Context Profile to start from, such as "prof_abc123". Requires useProfile; omit to use the account default',
+  },
   apiKey: {
     type: 'string',
     required: true,
@@ -284,8 +313,8 @@ export const AUTOMATION_TOOL_PARAMS = {
  * are therefore model input and are projected to canonical secret placeholders
  * before the request is formatted.
  *
- * The target URL, browser profile, proxy settings, and vault scoping are ordinary
- * request inputs and keep their normal semantics. The schema is projected as the
+ * The target URL, browser engine, proxy settings, and Browser Context Profile and
+ * vault scoping are ordinary request inputs and keep their normal semantics. The schema is projected as the
  * whole param rather than through `applyProjected` because it reaches the request
  * formatter unparsed, matching `tools/exa/search.ts`.
  */

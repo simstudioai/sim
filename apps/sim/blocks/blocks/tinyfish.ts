@@ -65,6 +65,7 @@ export const TinyFishBlock: BlockConfig<TinyFishRunResponse> = {
           { text: 'as', field: 'format' },
         ],
         tinyfish_list_vault_items: ['List credentials from the connected vault'],
+        tinyfish_list_profiles: ['List saved browser profiles'],
       },
     },
   },
@@ -82,6 +83,7 @@ export const TinyFishBlock: BlockConfig<TinyFishRunResponse> = {
         { label: 'Search', id: 'tinyfish_search' },
         { label: 'Fetch URLs', id: 'tinyfish_fetch' },
         { label: 'List Vault Items', id: 'tinyfish_list_vault_items' },
+        { label: 'List Browser Profiles', id: 'tinyfish_list_profiles' },
       ],
       value: () => 'tinyfish_run',
     },
@@ -147,8 +149,9 @@ Return ONLY the JSON Schema - no explanations, no extra text.`,
     },
     {
       id: 'browserProfile',
-      title: 'Browser Profile',
+      title: 'Browser Engine',
       type: 'dropdown',
+      description: 'Which browser the agent drives. Unrelated to a saved Browser Context Profile',
       options: [
         { label: 'Lite (standard browser)', id: 'lite' },
         { label: 'Stealth (anti-detection)', id: 'stealth' },
@@ -217,6 +220,28 @@ Return ONLY the JSON Schema - no explanations, no extra text.`,
         field: 'operation',
         value: AUTOMATION_OPERATIONS,
         and: { field: 'useVault', value: true },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'useProfile',
+      title: 'Use Browser Profile',
+      type: 'switch',
+      description: 'Start the run from a saved browser session, so the agent is already logged in',
+      condition: { field: 'operation', value: AUTOMATION_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'profileId',
+      title: 'Browser Profile ID',
+      type: 'short-input',
+      placeholder: 'prof_abc123def4567890',
+      description:
+        'Run List Browser Profiles to find it. Leave empty to use your default profile, which the run requires you to have set',
+      condition: {
+        field: 'operation',
+        value: AUTOMATION_OPERATIONS,
+        and: { field: 'useProfile', value: true },
       },
       mode: 'advanced',
     },
@@ -439,6 +464,7 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
       'tinyfish_search',
       'tinyfish_fetch',
       'tinyfish_list_vault_items',
+      'tinyfish_list_profiles',
     ],
     config: {
       tool: (params) => {
@@ -457,6 +483,8 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
             return 'tinyfish_fetch'
           case 'tinyfish_list_vault_items':
             return 'tinyfish_list_vault_items'
+          case 'tinyfish_list_profiles':
+            return 'tinyfish_list_profiles'
           default:
             return 'tinyfish_run'
         }
@@ -496,6 +524,8 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
     proxyCountryCode: { type: 'string', description: 'Proxy country code' },
     useVault: { type: 'boolean', description: 'Allow vault credentials during the run' },
     credentialItemIds: { type: 'string', description: 'Comma-separated vault credential URIs' },
+    useProfile: { type: 'boolean', description: 'Start the run from a saved browser session' },
+    profileId: { type: 'string', description: 'Browser Context Profile to start the run from' },
     webhookUrl: { type: 'string', description: 'HTTPS endpoint notified on run lifecycle events' },
     runId: { type: 'string', description: 'Run identifier' },
     status: { type: 'string', description: 'Run status filter' },
@@ -565,6 +595,11 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
       type: 'json',
       description:
         'Vault credentials available to a run [{itemId, connectionId, label, vaultName, domains, fieldMetadata, hasTotp}]',
+    },
+    profiles: {
+      type: 'json',
+      description:
+        'Browser Context Profiles a run can start from [{profileId, name, proxyCountryCode, fingerprintSeed, createdAt, isDefault}]',
     },
   },
 }

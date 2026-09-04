@@ -74,7 +74,7 @@ Run a TinyFish web agent against a website and wait for it to finish, returning 
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | Target website URL the agent starts on |
 | `goal` | string | Yes | Natural-language description of what to accomplish on the website |
-| `browserProfile` | string | No | Browser engine: "lite" \(standard\) or "stealth" \(anti-detection\) |
+| `browserProfile` | string | No | Browser engine: "lite" \(standard\) or "stealth" \(anti-detection\). Not a Browser Context Profile — use useProfile for saved logins |
 | `agentMode` | string | No | Agent behavior: "default" or "strict" \(fail fast\) |
 | `maxSteps` | number | No | Maximum tool-call steps before the agent stops \(1-500, default 150\) |
 | `outputSchema` | json | No | JSON Schema draft-07 contract the run result must satisfy |
@@ -82,6 +82,8 @@ Run a TinyFish web agent against a website and wait for it to finish, returning 
 | `proxyCountryCode` | string | No | Proxy country: US, GB, CA, DE, FR, JP, or AU |
 | `useVault` | boolean | No | Let the run use credentials from the connected TinyFish vault |
 | `credentialItemIds` | string | No | Comma-separated vault credential URIs to scope the run to |
+| `useProfile` | boolean | No | Start the run from a saved Browser Context Profile, reusing the logged-in session stored in it |
+| `profileId` | string | No | Browser Context Profile to start from, such as "prof_abc123". Requires useProfile; omit to use the account default |
 | `apiKey` | string | Yes | TinyFish API key |
 
 #### Output
@@ -120,7 +122,7 @@ Queue a TinyFish web agent run and return its run ID immediately, without waitin
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | Target website URL the agent starts on |
 | `goal` | string | Yes | Natural-language description of what to accomplish on the website |
-| `browserProfile` | string | No | Browser engine: "lite" \(standard\) or "stealth" \(anti-detection\) |
+| `browserProfile` | string | No | Browser engine: "lite" \(standard\) or "stealth" \(anti-detection\). Not a Browser Context Profile — use useProfile for saved logins |
 | `agentMode` | string | No | Agent behavior: "default" or "strict" \(fail fast\) |
 | `maxSteps` | number | No | Maximum tool-call steps before the agent stops \(1-500, default 150\) |
 | `outputSchema` | json | No | JSON Schema draft-07 contract the run result must satisfy |
@@ -128,6 +130,8 @@ Queue a TinyFish web agent run and return its run ID immediately, without waitin
 | `proxyCountryCode` | string | No | Proxy country: US, GB, CA, DE, FR, JP, or AU |
 | `useVault` | boolean | No | Let the run use credentials from the connected TinyFish vault |
 | `credentialItemIds` | string | No | Comma-separated vault credential URIs to scope the run to |
+| `useProfile` | boolean | No | Start the run from a saved Browser Context Profile, reusing the logged-in session stored in it |
+| `profileId` | string | No | Browser Context Profile to start from, such as "prof_abc123". Requires useProfile; omit to use the account default |
 | `apiKey` | string | Yes | TinyFish API key |
 | `webhookUrl` | string | No | HTTPS URL notified when the run completes, fails, or is cancelled |
 
@@ -346,5 +350,27 @@ List the credentials available from password managers connected to TinyFish, wit
 |     ↳ `label` | string | Field name |
 |     ↳ `type` | string | STRING, CONCEALED, or OTP |
 |   ↳ `hasTotp` | boolean | Whether the credential carries a TOTP secret |
+
+### TinyFish List Browser Profiles
+
+List the Browser Context Profiles saved on the TinyFish account, with the ids an agent run can start from to reuse a logged-in session
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | TinyFish API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `profiles` | array | Browser Context Profiles an agent run can start from |
+|   ↳ `profileId` | string | Profile identifier, used as the Browser Profile ID on a run |
+|   ↳ `name` | string | Profile name, such as "Salesforce Production" |
+|   ↳ `proxyCountryCode` | string | Country the profile proxies through, null when it has no proxy |
+|   ↳ `fingerprintSeed` | string | Seed for the browser fingerprint the profile replays |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the profile was created |
+|   ↳ `isDefault` | boolean | Whether runs with no Browser Profile ID use this one, null when the API does not report it |
 
 

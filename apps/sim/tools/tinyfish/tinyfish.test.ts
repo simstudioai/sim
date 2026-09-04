@@ -7,6 +7,7 @@ import { cancelRunTool } from '@/tools/tinyfish/cancel_run'
 import { fetchUrlsTool } from '@/tools/tinyfish/fetch_urls'
 import { getRunTool } from '@/tools/tinyfish/get_run'
 import { TINYFISH_AGENT_STEP_USD } from '@/tools/tinyfish/hosting'
+import { listProfilesTool } from '@/tools/tinyfish/list_profiles'
 import { listRunsTool } from '@/tools/tinyfish/list_runs'
 import { listVaultItemsTool } from '@/tools/tinyfish/list_vault_items'
 import { runTool } from '@/tools/tinyfish/run'
@@ -84,6 +85,47 @@ describe('buildAutomationBody', () => {
     })
     expect(unscoped).not.toHaveProperty('use_vault')
     expect(unscoped).not.toHaveProperty('credential_item_ids')
+  })
+
+  it('selects a browser context profile only when the profile is opted into', () => {
+    const scoped = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: true,
+      profileId: 'prof_abc123',
+    })
+    expect(scoped.use_profile).toBe(true)
+    expect(scoped.profile_id).toBe('prof_abc123')
+
+    const unscoped = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      profileId: 'prof_abc123',
+    })
+    expect(unscoped).not.toHaveProperty('use_profile')
+    expect(unscoped).not.toHaveProperty('profile_id')
+  })
+
+  it('falls back to the account default profile when no id is given', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: true,
+      profileId: '   ',
+    })
+    expect(body.use_profile).toBe(true)
+    expect(body).not.toHaveProperty('profile_id')
+  })
+
+  it('keeps the browser engine and the context profile as separate fields', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      browserProfile: 'stealth',
+      useProfile: true,
+    })
+    expect(body.browser_profile).toBe('stealth')
+    expect(body.use_profile).toBe(true)
   })
 
   it('parses a stringified output schema into an object', () => {
@@ -584,6 +626,64 @@ describe('tinyfish_list_vault_items', () => {
   })
 })
 
+describe('tinyfish_list_profiles', () => {
+  it('maps a profile onto the id a run starts from', async () => {
+    const result = await listProfilesTool.transformResponse!(
+      jsonResponse({
+        profiles: [
+          {
+            id: 'prof_abc123def4567890',
+            name: 'Salesforce Production',
+            proxy_country_code: 'US',
+            fingerprint_seed: '12345678',
+            created_at: '2026-06-04T18:00:00.000Z',
+            set_as_default: true,
+          },
+        ],
+      })
+    )
+
+    expect(result.output.profiles[0]).toEqual({
+      profileId: 'prof_abc123def4567890',
+      name: 'Salesforce Production',
+      proxyCountryCode: 'US',
+      fingerprintSeed: '12345678',
+      createdAt: '2026-06-04T18:00:00.000Z',
+      isDefault: true,
+    })
+  })
+
+  it('reads the list out of a bare array or a data envelope, neither of which the API documents', async () => {
+    const bare = await listProfilesTool.transformResponse!(
+      jsonResponse([{ id: 'prof_1', name: 'One' }])
+    )
+    expect(bare.output.profiles.map((profile) => profile.profileId)).toEqual(['prof_1'])
+
+    const enveloped = await listProfilesTool.transformResponse!(
+      jsonResponse({ data: [{ id: 'prof_2', name: 'Two' }] })
+    )
+    expect(enveloped.output.profiles.map((profile) => profile.profileId)).toEqual(['prof_2'])
+  })
+
+  it('reports an unknown default rather than guessing the profile is not the default', async () => {
+    const result = await listProfilesTool.transformResponse!(
+      jsonResponse({ profiles: [{ id: 'prof_1', name: 'One' }] })
+    )
+    expect(result.output.profiles[0].isDefault).toBeNull()
+  })
+
+  it('surfaces the API error on a non-2xx response', async () => {
+    await expect(
+      listProfilesTool.transformResponse!(
+        jsonResponse(
+          { error: { code: 'unauthorized', message: 'Invalid API key' } },
+          { status: 401 }
+        )
+      )
+    ).rejects.toThrow('unauthorized: Invalid API key')
+  })
+})
+
 describe('TinyFish block', () => {
   it('routes every operation to its own tool', () => {
     for (const toolId of TinyFishBlock.tools.access) {
@@ -618,6 +718,14 @@ describe('TinyFish block', () => {
     expect(
       TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxSteps: '  ' })
     ).not.toHaveProperty('maxSteps')
+  })
+
+  it('shows the profile id only once a profile is opted into', () => {
+    const profileId = TinyFishBlock.subBlocks.find((subBlock) => subBlock.id === 'profileId')
+    expect(profileId?.condition).toMatchObject({
+      field: 'operation',
+      and: { field: 'useProfile', value: true },
+    })
   })
 
   it('always shows an API key field for the operations hosted keys cannot cover', () => {
