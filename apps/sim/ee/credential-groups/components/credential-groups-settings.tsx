@@ -8,6 +8,8 @@ import { useQueryState } from 'nuqs'
 import {
   credentialGroupIdParam,
   credentialGroupIdUrlKeys,
+  credentialGroupPeopleSearchParam,
+  credentialGroupPeopleSearchUrlKeys,
   credentialGroupProviderSearchParam,
   credentialGroupProviderSearchUrlKeys,
   credentialGroupTabParam,
@@ -54,15 +56,22 @@ export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettin
     ...credentialGroupProviderSearchParam.parser,
     ...credentialGroupProviderSearchUrlKeys,
   })
+  /** Scoped to one group's enrolled people, and reset alongside the other two. */
+  const [, setPeopleSearch] = useQueryState(credentialGroupPeopleSearchParam.key, {
+    ...credentialGroupPeopleSearchParam.parser,
+    ...credentialGroupPeopleSearchUrlKeys,
+  })
   const openGroup = (groupId: string) => {
     void setSelectedGroupId(groupId)
     void setSelectedTab(null)
     void setProviderSearch(null)
+    void setPeopleSearch(null)
   }
   const closeGroup = () => {
     void setSelectedGroupId(null, { history: 'replace' })
     void setSelectedTab(null)
     void setProviderSearch(null)
+    void setPeopleSearch(null)
   }
   const selectedGroup = selectedGroupId
     ? groups.find((group) => group.id === selectedGroupId)
