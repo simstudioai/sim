@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest'
-import { isRoundTripSafe } from './round-trip-safety'
+import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
+import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 
 describe('isRoundTripSafe', () => {
   it('passes ordinary markdown and lossless normalizations', () => {
@@ -27,6 +28,55 @@ describe('isRoundTripSafe', () => {
 
   it('passes inline code without an interior backtick', () => {
     expect(isRoundTripSafe('use `npm install` here')).toBe(true)
+  })
+
+  it.each([
+    ['[![foo][image]](/dest)', '[image]: /url'],
+    ['[![foo][]](/dest)', '[foo]: /url'],
+    ['[![foo]](/dest)', '[foo]: /url'],
+    ['[![foo](/url)][link]', '[link]: /dest'],
+    ['[![foo][image]][link]', '[image]: /url\n[link]: /dest'],
+    ['[![foo][image]][link]', '[image]: /url "Image"\n[link]: /dest "Link"'],
+  ])('keeps %s in source mode when rich parsing loses its wrapping link', (body, definitions) => {
+    for (const prefix of ['', '- ', '1. ']) {
+      expect(isRoundTripSafe(`${prefix}${body}\n\n${definitions}`)).toBe(false)
+    }
+  })
+
+  it.each([
+    ['[foo][link]', '[link]: /dest'],
+    ['[foo][]', '[foo]: /dest'],
+    ['[foo]', '[foo]: /dest'],
+    ['![foo][link]', '[link]: /image'],
+  ])(
+    'keeps task references in source mode regardless of definition order: %s',
+    (body, definitions) => {
+      const tasks = `- [x] ${body}\n  - [ ] ${body}`
+      for (const source of [`${tasks}\n\n${definitions}`, `${definitions}\n\n${tasks}`]) {
+        expect(isRoundTripSafe(source)).toBe(false)
+        expect(normalizeMarkdownContent(source)).toBe(source)
+      }
+    }
+  )
+
+  it('does not count reference-looking code or escaped brackets as links', () => {
+    expect(isRoundTripSafe('- [ ] `[foo][link]`')).toBe(true)
+    expect(isRoundTripSafe('- [ ] \\[foo\\]\\[link\\]')).toBe(true)
+    expect(isRoundTripSafe('```md\n[![foo][image]](/dest)\n\n[image]: /url\n```')).toBe(true)
+  })
+
+  it('allows adjacent equal links to merge without treating the lower token count as data loss', () => {
+    expect(isRoundTripSafe('[a](/url)[b](/url)')).toBe(true)
+    expect(isRoundTripSafe('[a][link][b][link]\n\n[link]: /url')).toBe(true)
+    expect(isRoundTripSafe('- [ ] [a](/url)[b](/url)')).toBe(true)
+    expect(isRoundTripSafe('![a](/image)\n\n![b](/image)')).toBe(true)
+  })
+
+  it('does not let another link or image hide a lost wrapping link or duplicate table image', () => {
+    expect(isRoundTripSafe('[other](/dest)\n\n1. [![foo][image]](/dest)\n\n[image]: /url')).toBe(
+      false
+    )
+    expect(isRoundTripSafe('![kept](/image)\n\n| h |\n| --- |\n| <img src="/image"> |')).toBe(false)
   })
 
   it('passes a code block followed by other content (idempotent block separation)', () => {
@@ -84,12 +134,29 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('Use a<br>break or the pipe | operator.')).toBe(true)
   })
 
-  it('rejects <br> inside a table cell (flattened to a space)', () => {
-    expect(isRoundTripSafe('| a | b |\n| --- | --- |\n| one<br>two | x |')).toBe(false)
+  it('supports <br> inside a table cell without flattening its hard break', () => {
+    expect(isRoundTripSafe('| a | b |\n| --- | --- |\n| one<br>two | x |')).toBe(true)
   })
 
   it('allows <img> (a supported, resizable image node)', () => {
     expect(isRoundTripSafe('<img src="https://e.com/i.png" width="320">')).toBe(true)
+    expect(isRoundTripSafe('<img src="https://e.com/i.png">')).toBe(true)
+    expect(isRoundTripSafe('<img src="/image?a=1&amp;b=2">')).toBe(true)
+    expect(isRoundTripSafe("<img src='/image' width='40'>")).toBe(true)
+    expect(isRoundTripSafe('<img src=/image>')).toBe(true)
+  })
+
+  it.each([
+    '| <img src="/image.png"> |\n| --- |\n| body |',
+    '| header |\n| --- |\n| <img src="/image.png"> |',
+    '| header |\n| --- |\n| <IMG src="/image.png"> |',
+    '| header |\n| --- |\n| [<img src="/image.png">](/dest) |',
+  ])('refuses unsupported HTML images inside GFM tables: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+  })
+
+  it('allows literal HTML image examples in table code spans', () => {
+    expect(isRoundTripSafe('| header |\n| --- |\n| `<img src="/image.png">` |')).toBe(true)
   })
 
   it('does not flag a fenced block that merely contains html or backticks', () => {
@@ -271,6 +338,7 @@ describe('editability gate — realistic documents stay editable', () => {
 
   it('frontmatter does not gate editability', () => {
     expect(isRoundTripSafe('---\ntitle: Hello\ntags: [a, b]\n---\n\n# Body\n\nText.')).toBe(true)
+    expect(isRoundTripSafe('---\ntitle: "[![foo][image]](/dest)"\n---\n\n# Body')).toBe(true)
   })
 })
 

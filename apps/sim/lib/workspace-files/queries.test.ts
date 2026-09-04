@@ -29,8 +29,8 @@ const STORED_FILE = {
   folderId: null,
   uploadedAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-02T00:00:00.000Z'),
-  /** Stored, but absent from `workspaceFileRecordSchema`. */
   contentUpdatedAt: new Date('2026-01-03T00:00:00.000Z'),
+  serverOnlyField: 'not part of the public contract',
 }
 
 describe('listWorkspaceFilesWithShares', () => {
@@ -48,7 +48,8 @@ describe('listWorkspaceFilesWithShares', () => {
   it('strips fields the response contract does not declare', async () => {
     const [file] = await listWorkspaceFilesWithShares('ws-1', 'active')
 
-    expect(file).not.toHaveProperty('contentUpdatedAt')
+    expect(file).not.toHaveProperty('serverOnlyField')
+    expect(file.contentUpdatedAt).toEqual(STORED_FILE.contentUpdatedAt)
     expect(file.id).toBe('file-1')
     expect(file.uploadedAt).toEqual(new Date('2026-01-01T00:00:00.000Z'))
   })

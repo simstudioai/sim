@@ -1,13 +1,13 @@
 import { Extension } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
 import Suggestion from '@tiptap/suggestion'
-import { createSuggestionPopupRenderer } from '../menus/suggestion-popup'
-import { MentionList } from './mention-list'
-import { createMentionStore, type MentionStore } from './mention-store'
-import type { MentionItem } from './types'
-
-/** Distinct from the `/` slash command's key — two plugins can't share one key. Exported so the keymap can detect an open menu. */
-export const MENTION_PLUGIN_KEY = new PluginKey('mention')
+import { MentionList } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-list'
+import {
+  createMentionStore,
+  type MentionStore,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-store'
+import type { MentionItem } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/types'
+import { createSuggestionPopupRenderer } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/suggestion-popup'
+import { MENTION_PLUGIN_KEY } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/suggestion-plugin-keys'
 
 /**
  * Per-editor storage for the `@` mention extension. The host component populates {@link store} with

@@ -10,10 +10,13 @@ import { Editor } from '@tiptap/core'
 import { GapCursor } from '@tiptap/pm/gapcursor'
 import { AllSelection, NodeSelection } from '@tiptap/pm/state'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMarkdownEditorExtensions } from './editor-extensions'
-import { postProcessSerializedMarkdown } from './markdown-fidelity'
-import { MENTION_PLUGIN_KEY } from './mention'
-import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
+import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
+import { postProcessSerializedMarkdown } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import {
+  MENTION_PLUGIN_KEY,
+  SLASH_COMMAND_PLUGIN_KEY,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/suggestion-plugin-keys'
 
 function editorWith(content: string): Editor {
   return new Editor({ extensions: createMarkdownEditorExtensions({ placeholder: '' }), content })
@@ -87,6 +90,7 @@ describe('suggestion-aware arrow keymap', () => {
     editor.commands.insertContent('@gma')
 
     expect(MENTION_PLUGIN_KEY.getState(editor.state)?.active).toBe(true)
+    expect(MENTION_PLUGIN_KEY.get(editor.state)?.spec.key).toBe(MENTION_PLUGIN_KEY)
     editor.destroy()
   })
 
@@ -96,6 +100,7 @@ describe('suggestion-aware arrow keymap', () => {
     editor.commands.insertContent('/')
 
     expect(SLASH_COMMAND_PLUGIN_KEY.getState(editor.state)?.active).toBe(true)
+    expect(SLASH_COMMAND_PLUGIN_KEY.get(editor.state)?.spec.key).toBe(SLASH_COMMAND_PLUGIN_KEY)
     editor.destroy()
   })
 
@@ -351,7 +356,9 @@ describe('list Backspace (clear / outdent)', () => {
     expect(editor.state.selection.empty).toBe(true)
     expect(editor.state.selection.$from.parent.type.name).toBe('paragraph')
     expect(editor.state.selection.$from.parent.textContent).toBe('')
-    expect(editor.getMarkdown().trim()).toBe('- one')
+    const saved = postProcessSerializedMarkdown(editor.getMarkdown())
+    editor.commands.setContent(parseMarkdownToDoc(saved))
+    expect(blockShape(editor)).toEqual(['bulletList', 'paragraph'])
     editor.destroy()
   })
 
@@ -508,20 +515,46 @@ describe('empty list-item Enter', () => {
     Element.prototype.scrollIntoView = vi.fn()
   })
 
-  it('removes an empty MIDDLE item instead of splitting the list into a stranded paragraph', () => {
+  it.each([
+    ['bulletList', '- one\n- two\n- three'],
+    ['orderedList', '1. one\n2. two\n3. three'],
+    ['taskList', '- [ ] one\n- [ ] two\n- [x] three'],
+  ])('removes an empty middle %s item without splitting the list', (listType, markdown) => {
     const editor = editorWith('')
-    editor.commands.setContent('- one\n- two\n- three', { contentType: 'markdown' })
+    editor.commands.setContent(markdown, { contentType: 'markdown' })
     editor.commands.focus()
     emptyItem(editor, 'two')
     pressKey(editor, 'Enter')
 
-    const { md, reparsed } = markdownRoundTrip(editor)
-    expect(md.trim()).toBe('- one\n- three')
-    expect(reparsed).toBe(md)
+    expect(editor.state.doc.child(0).type.name).toBe(listType)
+    expect(editor.state.doc.child(0).childCount).toBe(2)
+    expect(editor.state.selection.$from.parent.textContent).toBe('one')
+
+    const saved = postProcessSerializedMarkdown(editor.getMarkdown())
+    editor.commands.setContent(parseMarkdownToDoc(saved))
+    expect(editor.state.doc.child(0).type.name).toBe(listType)
+    expect(editor.state.doc.child(0).childCount).toBe(2)
+    expect(postProcessSerializedMarkdown(editor.getMarkdown())).toBe(saved)
     editor.destroy()
   })
 
-  it('leaves an empty TRAILING item to the default (exits the list)', () => {
+  it('Enter twice after a middle bullet preserves the existing whole-list behavior', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('- one\n- two', { contentType: 'markdown' })
+    editor.commands.setTextSelection(6)
+    pressKey(editor, 'Enter')
+    expect(editor.isActive('listItem')).toBe(true)
+    expect(editor.state.selection.$from.parent.textContent).toBe('')
+    pressKey(editor, 'Enter')
+
+    expect(editor.isActive('listItem')).toBe(true)
+    expect(editor.state.selection.$from.parent.textContent).toBe('one')
+    expect(editor.state.selection.$from.parentOffset).toBe(3)
+    expect(editor.getMarkdown().trim()).toBe('- one\n- two')
+    editor.destroy()
+  })
+
+  it('exits an empty trailing item into a paragraph', () => {
     const editor = editorWith('')
     editor.commands.setContent('- one\n- two', { contentType: 'markdown' })
     editor.commands.focus()
@@ -577,6 +610,91 @@ describe('empty list-item Enter', () => {
     expect(editor.state.doc.textContent).toBe('more')
     const list = editor.getJSON().content?.find((n) => n.type === 'bulletList')
     expect(list?.content).toHaveLength(1)
+    editor.destroy()
+  })
+})
+
+describe('list item descendant preservation', () => {
+  it.each(['Backspace', 'Enter'])(
+    '%s preserves nested descendants without lifting their parent',
+    (key) => {
+      const editor = editorWith(
+        '<ul><li><p>one</p></li><li><p></p><ul><li><p><strong>child</strong></p><ul><li><p>grandchild</p></li></ul></li></ul></li><li><p>three</p></li></ul>'
+      )
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'paragraph' && node.content.size === 0) {
+          editor.commands.setTextSelection(pos + 1)
+        }
+      })
+      const before = editor.getJSON()
+      pressKey(editor, key)
+
+      expect(editor.state.selection.$from.parent.textContent).toBe('one')
+      expect(editor.state.doc.textContent).toBe('onechildgrandchildthree')
+      expect(editor.getHTML()).toContain('<strong>child</strong>')
+      expect(editor.state.doc.child(0).type.name).toBe('bulletList')
+      expect(editor.state.doc.child(0).childCount).toBe(3)
+      expect(editor.state.doc.child(0).child(1).textContent).toBe('childgrandchild')
+      expect(editor.commands.undo()).toBe(true)
+      expect(editor.getJSON()).toEqual(before)
+      editor.destroy()
+    }
+  )
+
+  it.each(['Backspace', 'Enter'])(
+    '%s removes a replaceable leading paragraph while retaining the whole list',
+    (key) => {
+      const editor = editorWith(
+        '<ul><li><p>one</p></li><li><p></p><p>continuation</p></li><li><p>three</p></li></ul>'
+      )
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'paragraph' && node.content.size === 0) {
+          editor.commands.setTextSelection(pos + 1)
+        }
+      })
+      pressKey(editor, key)
+
+      expect(editor.state.selection.$from.parent.textContent).toBe('one')
+      expect(editor.state.selection.$from.parentOffset).toBe(3)
+      expect(editor.state.doc.child(0).child(1).childCount).toBe(1)
+      expect(editor.state.doc.textContent).toBe('onecontinuationthree')
+      editor.destroy()
+    }
+  )
+})
+
+describe('code select-all boundaries', () => {
+  function selectAllKey(editor: Editor): void {
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'a',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+    )
+  }
+
+  it('does not shrink a selection that spans a code block and prose', () => {
+    const editor = editorWith('<pre><code>alpha</code></pre><p>beta</p>')
+    editor.commands.setTextSelection({ from: 2, to: 10 })
+    selectAllKey(editor)
+
+    expect(editor.state.selection instanceof AllSelection).toBe(true)
+    expect(editor.state.selection.from).toBe(0)
+    expect(editor.state.selection.to).toBe(editor.state.doc.content.size)
+    editor.destroy()
+  })
+
+  it('selects code first and the document on the second press', () => {
+    const editor = editorWith('<pre><code>alpha</code></pre><p>beta</p>')
+    editor.commands.setTextSelection(3)
+    selectAllKey(editor)
+
+    expect(editor.state.selection.from).toBe(1)
+    expect(editor.state.selection.to).toBe(6)
+    selectAllKey(editor)
+    expect(editor.state.selection instanceof AllSelection).toBe(true)
     editor.destroy()
   })
 })

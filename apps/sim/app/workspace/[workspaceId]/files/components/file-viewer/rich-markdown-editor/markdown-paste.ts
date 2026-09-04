@@ -1,7 +1,22 @@
-import { Extension } from '@tiptap/core'
+import { type Editor, Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
-import { normalizeLinkHref } from './markdown-fidelity'
-import { parseMarkdownToDoc } from './markdown-parse'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+
+interface MarkdownPasteStorage {
+  pasteWithoutFormatting: boolean
+}
+
+declare module '@tiptap/core' {
+  interface Storage {
+    markdownPaste: MarkdownPasteStorage
+  }
+}
+
+/** Lets higher-precedence image handlers defer to the same per-editor clipboard intent. */
+export function isPlainTextPaste(editor: Editor): boolean {
+  return editor.storage.markdownPaste?.pasteWithoutFormatting ?? false
+}
 
 /**
  * A single link the paste can wrap a selection in: an http(s) URL, a `mailto:` to a real address, a bare
@@ -27,9 +42,8 @@ function pastedLinkHref(text: string): string | null {
 
 /**
  * Structural markdown — strong signals the plain text is genuinely markdown (a link, image, badge,
- * list, heading, blockquote, fenced block, or GFM table). Our parser round-trips these more faithfully
- * than generic HTML→DOM mapping (GFM alignment, escaping, the `./raw-markdown-snippet.ts` constructs),
- * so they are parsed even when the clipboard also carries an HTML sibling.
+ * list, heading, blockquote, fenced block, or GFM table). Only used after clipboard provenance has
+ * established that the source is plain text or explicitly Markdown.
  */
 const STRUCTURAL_MARKDOWN_HINTS: ReadonlyArray<RegExp> = [
   /^#{1,6}\s/m,
@@ -78,19 +92,15 @@ const VSCODE_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
 }
 
 /**
- * Extracts the source language from VSCode's `vscode-editor-data` clipboard payload (a JSON blob with a
- * `mode` field), mapping the few ids that differ from our code-block values. Returns `''` when the
- * payload is absent, unparseable, or a non-code mode (plaintext/markdown). A real code language makes
- * the paste handler emit a fenced code block — otherwise VSCode's per-token colored-span HTML would
- * fall through to ProseMirror's default parser and flatten into plain paragraphs — while an empty
- * result falls through so markdown copied from VSCode still parses as markdown.
+ * Reads VSCode's raw clipboard mode. The caller distinguishes Markdown provenance from code
+ * language aliases; absent or malformed metadata returns an empty mode.
  */
-function parseVscodeLanguage(data: string | undefined): string {
+function parseVscodeMode(data: string | undefined): string {
   if (!data) return ''
   try {
     const mode = (JSON.parse(data) as { mode?: unknown }).mode
     if (typeof mode !== 'string') return ''
-    return VSCODE_LANGUAGE_ALIASES[mode] ?? mode
+    return mode
   } catch {
     return ''
   }
@@ -146,28 +156,70 @@ function stripNonContentHtml(html: string): string {
  * untouched (code is meant to stay literal).
  *
  * Provenance decides plain-text-vs-HTML: a `text/html` sibling (copied from a browser, Slack, Notion,
- * GitHub, or this editor) is the signal the source was rich. Structural markdown is still parsed from
- * the plain-text sibling regardless — our parser is more faithful for GFM tables and escaping. But
- * inline-only marks are equally expressible in HTML, so when a rich sibling is present we defer to the
- * DOM path, which preserves structure the plain text can't encode. A plain-text-only clipboard (a
- * terminal, a code editor, a `.md` file) always parses.
+ * GitHub, or this editor) is the signal the source was rich. Defer to that structure even when literal
+ * cell text resembles Markdown. VSCode's explicit Markdown mode is the exception: its colored-span
+ * HTML represents source, not a rendered document. Explicit paste-without-formatting bypasses every
+ * transformation, including link wrapping and source-language code blocks.
  *
  * The strictness of the parse matters: `marked` follows CommonMark flanking rules, so `*text*` becomes
  * emphasis but a space-flanked `5 * width * height` stays literal. The editor sets `enablePasteRules:
  * false` so StarterKit's lenient mark paste rules (which would mangle that expression on either path)
  * never run — emphasis is owned by this parser on the plain path and by real HTML tags on the DOM path.
  */
-export const MarkdownPaste = Extension.create({
+export const MarkdownPaste = Extension.create<Record<string, never>, MarkdownPasteStorage>({
   name: 'markdownPaste',
+  /** Clipboard intent must run before Link's selection-wrapping paste handler. */
+  priority: 1_100,
+
+  addStorage() {
+    return { pasteWithoutFormatting: false }
+  },
 
   addProseMirrorPlugins() {
-    const { editor } = this
+    const { editor, storage } = this
     return [
       new Plugin({
         props: {
+          handleDOMEvents: {
+            keydown: (_view, event) => {
+              storage.pasteWithoutFormatting =
+                !event.isComposing &&
+                event.keyCode !== 229 &&
+                event.key.toLowerCase() === 'v' &&
+                (event.metaKey || event.ctrlKey) &&
+                event.shiftKey
+              return false
+            },
+            keyup: () => {
+              storage.pasteWithoutFormatting = false
+              return false
+            },
+            blur: () => {
+              storage.pasteWithoutFormatting = false
+              return false
+            },
+          },
           transformPastedHTML: (html) => stripNonContentHtml(html),
-          handlePaste: (view, event) => {
+          handlePaste: (view, event, slice) => {
+            const pasteWithoutFormatting = storage.pasteWithoutFormatting
+            storage.pasteWithoutFormatting = false
             if (!editor.isEditable) return false
+            if (pasteWithoutFormatting) {
+              const text =
+                event.clipboardData?.getData('text/plain') ||
+                event.clipboardData?.getData('Text') ||
+                event.clipboardData?.getData('text/uri-list')
+              if (!text) return true
+              view.dispatch(
+                view.state.tr
+                  .replaceSelection(slice)
+                  .setMeta('paste', true)
+                  .setMeta('uiEvent', 'paste')
+                  .setMeta('preventAutolink', true)
+                  .scrollIntoView()
+              )
+              return true
+            }
             if (editor.isActive('codeBlock') || editor.isActive('code')) return false
             const text = event.clipboardData?.getData('text/plain')
             if (!text) return false
@@ -181,7 +233,8 @@ export const MarkdownPaste = Extension.create({
               const safeHref = href ? normalizeLinkHref(href) : ''
               if (safeHref) return editor.commands.setLink({ href: safeHref })
             }
-            const language = parseVscodeLanguage(event.clipboardData?.getData('vscode-editor-data'))
+            const mode = parseVscodeMode(event.clipboardData?.getData('vscode-editor-data'))
+            const language = VSCODE_LANGUAGE_ALIASES[mode] ?? mode
             if (language) {
               return editor.commands.insertContent({
                 type: 'codeBlock',
@@ -189,10 +242,10 @@ export const MarkdownPaste = Extension.create({
                 content: [{ type: 'text', text }],
               })
             }
-            if (!hasAny(STRUCTURAL_MARKDOWN_HINTS, text)) {
-              if (!hasAny(INLINE_MARK_HINTS, text)) return false
-              if (event.clipboardData?.getData('text/html')) return false
-            }
+            const isMarkdownSource = mode === 'markdown' || mode === 'md' || mode === 'mdx'
+            if (event.clipboardData?.getData('text/html') && !isMarkdownSource) return false
+            if (!hasAny(STRUCTURAL_MARKDOWN_HINTS, text) && !hasAny(INLINE_MARK_HINTS, text))
+              return false
             const doc = parseMarkdownToDoc(text)
             if (!doc.content?.length) return false
             return editor.commands.insertContent(doc)

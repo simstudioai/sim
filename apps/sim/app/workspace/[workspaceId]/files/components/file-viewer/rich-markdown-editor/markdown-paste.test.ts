@@ -5,9 +5,12 @@
  * `[text](url)` text — except inside a code block, where it must stay literal.
  */
 import { Editor } from '@tiptap/core'
-import { afterEach, describe, expect, it } from 'vitest'
-import { createMarkdownContentExtensions } from './extensions'
-import { MarkdownPaste } from './markdown-paste'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import {
+  isPlainTextPaste,
+  MarkdownPaste,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
 
 let editor: Editor | null = null
 
@@ -17,7 +20,30 @@ afterEach(() => {
 })
 
 function mount(editable = true): Editor {
-  return new Editor({ extensions: [...createMarkdownContentExtensions(), MarkdownPaste], editable })
+  return new Editor({
+    extensions: [...createMarkdownContentExtensions(), MarkdownPaste],
+    enablePasteRules: false,
+    editable,
+  })
+}
+
+function dispatchPaste(
+  ed: Editor,
+  text: string,
+  html = '',
+  extra: Record<string, string> = {},
+  files: File[] = []
+) {
+  const event = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      getData: (type: string) =>
+        type === 'text/plain' ? text : type === 'text/html' ? html : (extra[type] ?? ''),
+      files,
+      items: [],
+    },
+  })
+  ed.view.dom.dispatchEvent(event)
 }
 
 /** Run the plugin paste handlers the way ProseMirror would, with a mocked clipboard. */
@@ -47,6 +73,83 @@ function transformHtml(ed: Editor, html: string): string {
 }
 
 describe('markdown paste', () => {
+  it.each(['ctrlKey', 'metaKey'] as const)(
+    'shares %s plain-paste intent with higher-precedence image handlers',
+    (modifier) => {
+      const upload = vi.fn()
+      editor = mount()
+      const ed = editor
+      ed.setOptions({
+        editorProps: {
+          handlePaste: (_view, event) => {
+            if (isPlainTextPaste(ed)) return false
+            if (event.clipboardData?.files.length) {
+              upload()
+              return true
+            }
+            return false
+          },
+        },
+      })
+      ed.commands.setContent('<p>keep selected text</p>')
+      ed.commands.setTextSelection({ from: 1, to: 19 })
+      const image = new File(['image'], 'image.png', { type: 'image/png' })
+      const plainPasteShortcut = () => {
+        ed.view.dom.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'V',
+            [modifier]: true,
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true,
+          })
+        )
+      }
+
+      plainPasteShortcut()
+      expect(isPlainTextPaste(ed)).toBe(true)
+      dispatchPaste(ed, '', '<img src="/image.png">', {}, [image])
+      expect(upload).not.toHaveBeenCalled()
+      expect(ed.state.doc.textContent).toBe('keep selected text')
+      expect(ed.state.doc.childCount).toBe(1)
+      expect(ed.state.doc.firstChild?.type.name).toBe('paragraph')
+      expect(isPlainTextPaste(ed)).toBe(false)
+
+      plainPasteShortcut()
+      dispatchPaste(ed, 'caption', '<img src="/image.png">', {}, [image])
+      expect(upload).not.toHaveBeenCalled()
+      expect(ed.state.doc.textContent).toBe('caption')
+      dispatchPaste(ed, '', '<img src="/image.png">', {}, [image])
+      expect(upload).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('keeps plain-paste intent per editor and clears it on keyup or blur', () => {
+    editor = mount()
+    const other = mount()
+    try {
+      const startPlainPaste = () =>
+        editor?.view.dom.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'V',
+            ctrlKey: true,
+            shiftKey: true,
+            bubbles: true,
+          })
+        )
+      startPlainPaste()
+      expect(isPlainTextPaste(editor)).toBe(true)
+      expect(isPlainTextPaste(other)).toBe(false)
+      editor.view.dom.dispatchEvent(new KeyboardEvent('keyup', { key: 'V', bubbles: true }))
+      expect(isPlainTextPaste(editor)).toBe(false)
+      startPlainPaste()
+      editor.view.dom.dispatchEvent(new Event('blur'))
+      expect(isPlainTextPaste(editor)).toBe(false)
+    } finally {
+      other.destroy()
+    }
+  })
+
   it('renders a pasted inline link as a link mark', () => {
     editor = mount()
     expect(paste(editor, '[inline link](https://example.com)')).toBe(true)
@@ -69,18 +172,18 @@ describe('markdown paste', () => {
     expect(paste(editor, 'just a normal sentence with no syntax')).toBe(false)
   })
 
-  it("prefers the markdown parser over DOM mapping when the HTML sibling's plain-text side also looks like markdown", () => {
+  it('preserves the rich HTML sibling even when its plain text resembles Markdown', () => {
     editor = mount()
-    expect(paste(editor, '# heading', '<h1>heading</h1>')).toBe(true)
+    dispatchPaste(editor, '# heading', '<h1>heading</h1>')
     const json = JSON.stringify(editor.getJSON())
     expect(json).toContain('"type":"heading"')
   })
 
-  it('preserves GFM table alignment on a paste that carries both text/plain and text/html', () => {
+  it('preserves GFM alignment when VSCode explicitly identifies Markdown source', () => {
     editor = mount()
     const table = '| a | b |\n| :-- | --: |\n| 1 | 2 |'
     const html = '<table><tr><td>a</td><td>b</td></tr><tr><td>1</td><td>2</td></tr></table>'
-    expect(paste(editor, table, html)).toBe(true)
+    expect(paste(editor, table, html, { 'vscode-editor-data': '{"mode":"markdown"}' })).toBe(true)
     const json = JSON.stringify(editor.getJSON())
     expect(json).toContain('"align":"left"')
     expect(json).toContain('"align":"right"')
@@ -173,15 +276,53 @@ describe('markdown paste', () => {
     expect(editor.getText()).toBe(text)
   })
 
-  it('parses markdown-shaped plain text even when an HTML sibling is present', () => {
+  it('pastes rendered document structure from HTML instead of reinterpreting its plain text', () => {
     editor = mount()
     const html = '<h1>Title</h1><ul><li>a</li><li>b</li></ul>'
-    expect(paste(editor, '# Title\n\n- a\n- b', html)).toBe(true)
+    dispatchPaste(editor, '# Title\n\n- a\n- b', html)
     const json = JSON.stringify(editor.getJSON())
     expect(json).toContain('"type":"heading"')
     expect(json).toContain('"type":"bulletList"')
     expect(json).not.toContain('# Title')
   })
+
+  it('does not flatten a rich table containing literal Markdown-shaped cell text', () => {
+    editor = mount()
+    dispatchPaste(
+      editor,
+      'Label\tValue\n**literal**\t42',
+      '<table><tr><th>Label</th><th>Value</th></tr><tr><td>**literal**</td><td>42</td></tr></table>'
+    )
+    expect(editor.state.doc.firstChild?.type.name).toBe('table')
+    expect(editor.state.doc.textContent).toContain('**literal**')
+    expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"bold"')
+  })
+
+  it.each(['# literal', '**literal**', 'https://example.com'])(
+    'honors paste without formatting for %s and replaces the selection',
+    (text) => {
+      editor = mount()
+      editor.commands.setContent('<p>replace</p>')
+      editor.commands.setTextSelection({ from: 1, to: 8 })
+      editor.view.dom.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'V',
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+      dispatchPaste(editor, text, `<h1>${text}</h1>`, {
+        'vscode-editor-data': '{"mode":"typescript"}',
+      })
+      expect(editor.state.doc.firstChild?.type.name).toBe('paragraph')
+      expect(editor.state.doc.textContent).toBe(text)
+      expect(editor.state.doc.firstChild?.firstChild?.marks).toEqual([])
+      dispatchPaste(editor, '# Heading')
+      expect(editor.isActive('heading')).toBe(true)
+    }
+  )
 
   it('preserves the structural blocks of a multi-block document, in order, on paste', () => {
     editor = mount()

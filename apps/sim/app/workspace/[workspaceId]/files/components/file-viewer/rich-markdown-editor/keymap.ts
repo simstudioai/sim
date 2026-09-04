@@ -4,8 +4,10 @@ import { GapCursor } from '@tiptap/pm/gapcursor'
 import type { ResolvedPos } from '@tiptap/pm/model'
 import { NodeSelection, Plugin, PluginKey, Selection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { MENTION_PLUGIN_KEY } from './mention'
-import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
+import {
+  MENTION_PLUGIN_KEY,
+  SLASH_COMMAND_PLUGIN_KEY,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/suggestion-plugin-keys'
 
 /** Leaf nodes that have no text position, so they can only be reached as a NodeSelection. */
 const SELECTABLE_LEAVES = new Set(['horizontalRule', 'image'])
@@ -58,7 +60,7 @@ function getListItemContext($from: ResolvedPos): ListItemContext | null {
       blockEmpty: $from.parent.content.size === 0,
       hasSiblingBlocks: item.childCount > 1,
       isTrailing: $from.index(listDepth) === list.childCount - 1,
-      isFirstBlock: $from.index(depth) === 0,
+      isFirstBlock: $from.depth === depth + 1 && $from.index(depth) === 0,
     }
   }
   return null
@@ -177,42 +179,16 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
 }
 
 /**
- * Editor-specific keyboard behavior layered on top of StarterKit's defaults:
+ * Keyboard behavior layered over StarterKit. Backspace first undoes autoformatting, then clears
+ * headings, outdents list items, and handles empty wrappers without selecting unrelated content.
+ * Enter exits trailing empty items and outdents nested items. Empty middle items retain the existing
+ * removal behavior: lifting them splits the list and can discard delayed collaborative edits.
+ * Multi-block items remove only the empty block. Code select-all is scoped only while both
+ * endpoints remain inside the same code block, then expands to the document on a second press.
  *
- * - **Backspace** at the start of a heading reverts it to a paragraph (ProseMirror's default joins or
- *   no-ops, stranding the heading style; a second Backspace then merges as usual). At the start of a
- *   *list or task item* it outdents or clears in place via {@link getListItemContext}: a nested item outdents one
- *   level, a top-level item with text lifts out of the list into a paragraph (keeping the text), and a
- *   top-level *empty trailing* (or sole) item lifts into an empty paragraph in place — so the blank
- *   bullet made by pressing Enter can be cleared back to normal text on the same line instead of being
- *   deleted with the caret jumping to the previous block. The one case lift can't take is a top-level
- *   *empty, non-trailing* item: lifting it strands an empty paragraph between the two list halves, which
- *   re-parses to a different markdown document (an empty line between list items is a loose list, not a
- *   break); that item is removed via {@link removeEmptyWrappedBlock} instead, keeping the list whole. An
- *   empty block inside a *blockquote* is likewise removed via {@link removeEmptyWrappedBlock}. At the
- *   start of a block whose previous sibling is a divider or image, where ProseMirror's `joinBackward`
- *   can't cross the leaf and no-ops: an *empty* block is deleted (clearing the blank line between/below
- *   dividers without touching the divider itself), while a *non-empty* block selects the leaf — so a
- *   first Backspace highlights what a second deletes, the same highlight-before-delete affordance as
- *   clicking it and parity with the arrow-key leaf selection.
- * - **Enter** on an empty *nested* list/task item outdents it one level, on an empty
- *   *non-trailing top-level* item removes it ({@link removeEmptyWrappedBlock}) rather than splitting the
- *   list around a stranded empty paragraph (which does not round-trip), and on an empty *trailing* item
- *   falls through to the default, which exits the list — the standard "press Enter on a blank bullet to
- *   leave the list".
- * - **Mod-A** inside a code block selects only that block's contents; pressing it again (when the
- *   block is already fully selected) falls through to the default whole-document select-all, the
- *   same scoped behavior as a code editor.
- * - **ArrowUp/ArrowDown** select an adjacent divider or image, whether arrowing off a textblock edge
- *   ({@link selectAdjacentLeaf}) or stepping from one already-selected leaf to the next
- *   ({@link selectAdjacentSelectedLeaf}). (The `Mod-Shift-Arrow` block-reorder chords live separately
- *   in `./block-mover.ts`.)
- *
- * Plus a plugin that (a) highlights dividers/images falling inside a focused range selection (e.g.
- * select-all), which the browser's native text highlight skips because leaves carry no text; hiding
- * that custom decoration on blur keeps it in sync with the native text highlight, and (b) flags the
- * editor (`data-gap-between-leaves`) while a gap cursor sits between two leaves, so the CSS can hide
- * its otherwise-stray caret.
+ * Leaf arrow navigation and focused-range decorations provide keyboard selection for images and
+ * dividers. Suggestions retain their own arrow handling. A root gap between leaves is tagged so
+ * the editor's local styles can suppress a duplicate caret.
  */
 export const RichMarkdownKeymap = Extension.create({
   name: 'richMarkdownKeymap',
@@ -221,13 +197,11 @@ export const RichMarkdownKeymap = Extension.create({
   addKeyboardShortcuts() {
     return {
       Backspace: ({ editor }) => {
+        if (editor.commands.undoInputRule()) return true
         const { selection, doc } = editor.state
         if (!selection.empty || selection.$from.parentOffset !== 0) return false
         const { $from } = selection
-        // A gap cursor at the start of the doc resolves at the top level (`depth === 0`, offset 0):
-        // `$from.before(0)` below throws, and falling through instead is no better — TipTap's
-        // blockquote Backspace handler crashes on the same resolution (`$from.node(-1)` is
-        // undefined). There is nothing before the gap for Backspace to act on, so consume the key.
+        /** Root gaps have no parent boundary and no preceding content to remove. */
         if ($from.depth === 0) return true
         if ($from.parent.type.name === 'heading') {
           return editor.commands.setParagraph()
@@ -235,20 +209,6 @@ export const RichMarkdownKeymap = Extension.create({
         const listCtx = getListItemContext($from)
         if (listCtx?.isFirstBlock) {
           const { itemType, isNested, blockEmpty, hasSiblingBlocks, isTrailing } = listCtx
-          // Backspace at the start of a bullet outdents or clears it in place rather than
-          // deleting the row and jumping the caret to the previous block.
-          // - Nested item → outdent one level (empty or not).
-          // - Top-level item whose first line has content (text OR an inline image/mention) → lift out of
-          //   the list into a paragraph, keeping that content.
-          // - Top-level item whose empty first block has *sibling* blocks (a continuation paragraph, a
-          //   block image, a nested list) → remove only that empty first block via {@link
-          //   removeEmptyWrappedBlock}, leaving the rest of the item intact (never lift the whole item).
-          // - Top-level empty single-block item that is trailing (or the sole item) → lift into an empty
-          //   paragraph in place, so a fresh bullet made with Enter can be cleared to normal text in place.
-          // A top-level *empty, non-trailing* single-block item is the one case lift can't take: it strands
-          // an empty paragraph between the two list halves, which re-parses to a different markdown document
-          // (an empty line between list items is a loose list, not a break). That case removes the row via
-          // {@link removeEmptyWrappedBlock} instead, which keeps the list whole and round-trips.
           if (isNested || !blockEmpty) return editor.commands.liftListItem(itemType)
           if (hasSiblingBlocks) return removeEmptyWrappedBlock(editor, $from)
           if (isTrailing) return editor.commands.liftListItem(itemType)
@@ -280,20 +240,14 @@ export const RichMarkdownKeymap = Extension.create({
         if ($from.parent.content.size !== 0) return false
         const listCtx = getListItemContext($from)
         if (!listCtx?.isFirstBlock) return false
-        // Enter on an empty item, mirroring the Backspace cases above: a nested item outdents one level;
-        // an empty first block that has *sibling* blocks (continuation paragraph, block image, nested
-        // list) removes only that empty block in place, keeping the rest of the item — never exiting the
-        // list or splitting it; a trailing single-block item falls through to the default (exits the
-        // list); and a non-trailing single-block item is removed rather than splitting the list around a
-        // stranded empty paragraph (which does not round-trip).
         if (listCtx.isNested) return editor.commands.liftListItem(listCtx.itemType)
         if (listCtx.hasSiblingBlocks) return removeEmptyWrappedBlock(editor, $from)
         if (listCtx.isTrailing) return false
         return removeEmptyWrappedBlock(editor, $from)
       },
       'Mod-a': ({ editor }) => {
-        const { $from } = editor.state.selection
-        if ($from.parent.type.name !== 'codeBlock') return false
+        const { $from, $to } = editor.state.selection
+        if ($from.parent.type.name !== 'codeBlock' || !$from.sameParent($to)) return false
         const from = $from.start($from.depth)
         const to = $from.end($from.depth)
         if (editor.state.selection.from === from && editor.state.selection.to === to) return false

@@ -1,28 +1,32 @@
-import type { Extensions, JSONContent, MarkdownRendererHelpers, Node } from '@tiptap/core'
+import { Extension, type Extensions, type JSONContent, type Node } from '@tiptap/core'
 import { Code } from '@tiptap/extension-code'
+import { Document } from '@tiptap/extension-document'
+import { HardBreak } from '@tiptap/extension-hard-break'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Paragraph } from '@tiptap/extension-paragraph'
-import {
-  renderTableToMarkdown,
-  Table,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from '@tiptap/extension-table'
+import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
-import { MarkdownCodeBlock } from './code-block-schema'
-import { Highlight } from './highlight'
-import { MarkdownImage } from './image-schema'
-import { MarkdownLinkInputRule } from './link-input-rule'
-import { MarkdownMention } from './mention/mention-node'
-import { SIM_LINK_SCHEME } from './mention/sim-link'
+import { JoiningBulletList } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/bullet-list'
+import { MarkdownCodeBlock } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block-schema'
+import { Highlight } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/highlight'
+import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
+import { MarkdownLinkInputRule } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/link-input-rule'
+import { joinListInputRules } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/list-input-rules'
+import { MarkdownMention } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-node'
+import { SIM_LINK_SCHEME } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/sim-link'
+import { createJoiningOrderedList } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/ordered-list'
 import {
   FootnoteDef,
   FootnoteRef,
   RawHtmlBlock,
   RawInlineHtml,
-} from './raw-markdown-snippet-schema'
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/raw-markdown-snippet-schema'
+import {
+  createMarkdownTable,
+  excludeTableBlockInputRules,
+  selectionTouchesTable,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/table'
 
 /**
  * The `@`-mention link scheme, registered on the Link mark — without it the schema strips the
@@ -38,30 +42,74 @@ const SIM_LINK_PROTOCOL = { scheme: SIM_LINK_SCHEME, optionalSlashes: true } as 
  */
 const InlineCode = Code.extend({ excludes: '' })
 
+/** GFM's inline HTML keeps consecutive/leading/trailing breaks in one paragraph on reload. */
+const MarkdownHardBreak = HardBreak.extend({ renderMarkdown: () => '<br>' })
+
+const TABLE_BLOCK_PREFIX_NODES = new Set(['heading', 'blockquote', 'horizontalRule'])
+
+/** Input rules must respect the same table capabilities as toolbar and keyboard commands. */
+const TableAwareStarterKit = StarterKit.extend({
+  addExtensions() {
+    return (this.parent?.() ?? []).map((extension) =>
+      extension.type === 'node' && TABLE_BLOCK_PREFIX_NODES.has(extension.name)
+        ? extension.extend({
+            addCommands() {
+              const parent = this.parent?.()
+              if (this.name !== 'horizontalRule') return parent ?? {}
+              return {
+                ...parent,
+                setHorizontalRule: () => (props) =>
+                  !selectionTouchesTable(props.state) &&
+                  (parent?.setHorizontalRule?.()(props) ?? false),
+              }
+            },
+            addInputRules() {
+              return excludeTableBlockInputRules(this.parent?.() ?? [])
+            },
+          })
+        : extension
+    )
+  },
+})
+
+/** Standard HTML represents a structural empty paragraph where Markdown whitespace is ambiguous. */
+const EmptyParagraphMarkdown = Extension.create({
+  name: 'emptyParagraphMarkdown',
+  markdownTokenName: 'html',
+  parseMarkdown: (token) =>
+    token.block && /^\s*<p>[ \t]*<\/p>\s*$/.test(token.raw ?? '') ? { type: 'paragraph' } : [],
+})
+
 /**
- * Table that escapes interior `|` characters when serializing cells. The upstream serializer
- * joins cells with `|` without escaping, so a cell containing a literal pipe silently splits
- * into phantom columns on round-trip (data loss). Escaping must happen on the `table` node —
- * `tableCell`/`tableHeader` have no markdown renderer; the table renders cell children directly. Only
- * `|` is escaped — `renderChildren` already escapes backslashes, so escaping them again would
- * double-escape and break round-trip idempotency (CodeQL's "missing backslash escape" is a false
- * positive here; covered by the table round-trip tests).
- *
- * The upstream serializer also wraps the table in its own leading/trailing blank lines; left in,
- * the block joiner adds another, so an interior table churns its surrounding whitespace to
- * `\n\n\n` on the first edit. Trimming the table's own output lets the joiner own the single
- * blank-line separator — without touching blank lines inside fenced code (those live in the code
- * node's text, not here).
+ * Blank lines between lists are loose-list spacing in CommonMark, not a paragraph. Serialize an
+ * explicit empty element for that structural boundary, while retaining ordinary document spacing
+ * and omitting the editor's final typing placeholder from the persisted content.
  */
-const PipeSafeTable = Table.extend({
-  renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
-    renderTableToMarkdown(node, {
-      ...h,
-      renderChildren: (nodes, separator) =>
-        h.renderChildren(nodes, separator).replace(/\|/g, '\\|'),
-    })
-      .replace(/^\n+/, '')
-      .replace(/\n+$/, ''),
+const MarkdownDocument = Document.extend({
+  renderMarkdown: (node: JSONContent, h) => {
+    const content = node.content ?? []
+    let lastContentIndex = content.length - 1
+    while (
+      lastContentIndex >= 0 &&
+      content[lastContentIndex].type === 'paragraph' &&
+      !content[lastContentIndex].content?.length
+    ) {
+      lastContentIndex--
+    }
+    return content
+      .map((child, index, siblings) => {
+        if (
+          child.type === 'paragraph' &&
+          !child.content?.length &&
+          index < lastContentIndex &&
+          ['bulletList', 'orderedList', 'taskList'].includes(siblings[index - 1]?.type ?? '')
+        ) {
+          return '<p></p>'
+        }
+        return h.renderChild?.(child, index) ?? h.renderChildren([child])
+      })
+      .join('\n\n')
+  },
 })
 
 /**
@@ -78,8 +126,9 @@ const PipeSafeTable = Table.extend({
  *   ProseMirror text never carries it and re-serialization is stable.
  */
 function guardParagraphLeading(text: string): string {
+  if (!text.trim()) return text
   const stripped = text.replace(/^[ \t]+/, '')
-  if (/^(#{1,6}([ \t]|$)|[-+][ \t]|-(?:[ \t]*-){2,}[ \t]*$)/.test(stripped)) {
+  if (/^(#{1,6}([ \t]|$)|[-+][ \t]|-(?:[ \t]*-){2,}[ \t]*$|=+[ \t]*$)/.test(stripped)) {
     return `\\${stripped}`
   }
   const ordered = /^(\d{1,9})([.)][ \t])/.exec(stripped)
@@ -93,8 +142,23 @@ function guardParagraphLeading(text: string): string {
  * paragraph renders as just its inline children; this override wraps that with the leading guard.
  */
 const BlockSafeParagraph = Paragraph.extend({
-  renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
-    guardParagraphLeading(h.renderChildren(node.content ?? [])),
+  renderMarkdown: (node: JSONContent, h, context) => {
+    if (!node.content?.length && context.parentType === 'blockquote') return '<p></p>'
+    const rendered = h.renderChildren(node.content ?? [])
+    let codeDelimiter = 0
+    return rendered
+      .split('\n')
+      .map((line) => {
+        const guarded = codeDelimiter === 0 ? guardParagraphLeading(line) : line
+        for (const match of line.matchAll(/\\.|`+/g)) {
+          if (match[0][0] !== '`') continue
+          if (codeDelimiter === 0) codeDelimiter = match[0].length
+          else if (codeDelimiter === match[0].length) codeDelimiter = 0
+        }
+        return guarded
+      })
+      .join('\n')
+  },
 })
 
 /**
@@ -126,29 +190,55 @@ export function createMarkdownContentExtensions(
   nodeViews: ContentNodeViews = {},
   options: { disableHistory?: boolean } = {}
 ): Extensions {
-  const codeBlock = (nodeViews.codeBlock ?? MarkdownCodeBlock).configure({
-    HTMLAttributes: { class: 'code-editor-theme' },
-  })
+  const codeBlock = (nodeViews.codeBlock ?? MarkdownCodeBlock)
+    .extend({
+      addInputRules() {
+        return excludeTableBlockInputRules(this.parent?.() ?? [])
+      },
+    })
+    .configure({ HTMLAttributes: { class: 'code-editor-theme' } })
   return [
-    StarterKit.configure({
+    TableAwareStarterKit.configure({
       link: { openOnClick: false, protocols: [SIM_LINK_PROTOCOL] },
       underline: false,
       codeBlock: false,
       code: false,
       paragraph: false,
-      // Collaboration provides its own (Yjs-backed) undo/redo — disabling the
-      // built-in history avoids the two fighting over the shared document.
+      bulletList: false,
+      orderedList: false,
+      document: false,
+      hardBreak: false,
+      /** Collaboration owns undo/redo whenever the document is shared. */
       ...(options.disableHistory ? { undoRedo: false as const } : {}),
     }),
+    MarkdownDocument,
     BlockSafeParagraph,
+    EmptyParagraphMarkdown,
+    JoiningBulletList.extend({
+      addInputRules() {
+        return excludeTableBlockInputRules(this.parent?.() ?? [])
+      },
+    }),
+    createJoiningOrderedList(),
+    MarkdownHardBreak,
     InlineCode,
     Highlight,
     codeBlock,
     (nodeViews.image ?? MarkdownImage).configure({ allowBase64: true }),
     nodeViews.mention ?? MarkdownMention,
     TaskList,
-    TaskItem.configure({ nested: true }),
-    PipeSafeTable.configure({ resizable: true }),
+    TaskItem.extend({
+      addInputRules() {
+        return excludeTableBlockInputRules(
+          joinListInputRules(
+            this.parent?.() ?? [],
+            this.editor.schema.nodes[this.options.taskListTypeName],
+            { joinBefore: true }
+          )
+        )
+      },
+    }).configure({ nested: true }),
+    createMarkdownTable().configure({ resizable: false }),
     TableRow,
     TableHeader,
     TableCell,
