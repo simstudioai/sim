@@ -98,12 +98,14 @@ export const listProfilesTool: ToolConfig<
           },
           fingerprintSeed: {
             type: 'string',
-            description: 'Seed for the browser fingerprint the profile replays',
+            description:
+              'Seed for the browser fingerprint the profile replays, null when the API omits it',
             optional: true,
           },
           createdAt: {
             type: 'string',
-            description: 'ISO 8601 timestamp when the profile was created',
+            description:
+              'ISO 8601 timestamp when the profile was created, null when the API omits it',
             optional: true,
           },
           isDefault: {

@@ -150,6 +150,19 @@ export function mapRunSummary(raw: TinyFishRawRunSummary): TinyFishRunSummary {
 }
 
 /**
+ * Reads a workflow switch as a boolean.
+ *
+ * The editor's switch control stores a real boolean, but a workflow that was
+ * imported or generated rather than clicked together can carry the serialized
+ * string instead, and `'false'` is truthy. Every flag on the automation body is
+ * read through here so a disabled switch cannot enable a proxy, a vault, or a
+ * saved authenticated session.
+ */
+function isEnabled(value: boolean | string | undefined): boolean {
+  return value === true || value === 'true'
+}
+
+/**
  * Builds the request body shared by `POST /v1/automation/run` and
  * `POST /v1/automation/run-async`.
  *
@@ -164,11 +177,11 @@ export function buildAutomationBody(params: {
   agentMode?: string
   maxSteps?: number
   outputSchema?: string | Record<string, unknown>
-  proxyEnabled?: boolean
+  proxyEnabled?: boolean | string
   proxyCountryCode?: string
-  useVault?: boolean
+  useVault?: boolean | string
   credentialItemIds?: string | string[]
-  useProfile?: boolean
+  useProfile?: boolean | string
   profileId?: string
   webhookUrl?: string
 }): Record<string, unknown> {
@@ -187,7 +200,7 @@ export function buildAutomationBody(params: {
   }
   if (Object.keys(agentConfig).length > 0) body.agent_config = agentConfig
 
-  if (params.proxyEnabled) {
+  if (isEnabled(params.proxyEnabled)) {
     const proxyConfig: Record<string, unknown> = { enabled: true, type: 'tetra' }
     if (params.proxyCountryCode) proxyConfig.country_code = params.proxyCountryCode
     body.proxy_config = proxyConfig
@@ -196,7 +209,7 @@ export function buildAutomationBody(params: {
   const outputSchema = parseJsonSchema(params.outputSchema)
   if (outputSchema) body.output_schema = outputSchema
 
-  if (params.useVault) {
+  if (isEnabled(params.useVault)) {
     body.use_vault = true
     const credentialItemIds = parseList(params.credentialItemIds)
     if (credentialItemIds.length > 0) body.credential_item_ids = credentialItemIds
@@ -208,7 +221,7 @@ export function buildAutomationBody(params: {
    * the account's default Browser Context Profile, which is also a 400 when no
    * default has been set.
    */
-  if (params.useProfile) {
+  if (isEnabled(params.useProfile)) {
     body.use_profile = true
     const profileId = params.profileId?.trim()
     if (profileId) body.profile_id = profileId
@@ -282,17 +295,23 @@ export const AUTOMATION_TOOL_PARAMS = {
     visibility: 'user-only',
     description: 'Comma-separated vault credential URIs to scope the run to',
   },
+  /**
+   * A Browser Context Profile carries a logged-in session, so activating one is
+   * as sensitive as handing the run a credential. Both fields are therefore
+   * `user-only` — the same visibility the vault fields above use — which keeps
+   * them out of the tool schema the agent model writes.
+   */
   useProfile: {
     type: 'boolean',
     required: false,
-    visibility: 'user-or-llm',
+    visibility: 'user-only',
     description:
       'Start the run from a saved Browser Context Profile, reusing the logged-in session stored in it',
   },
   profileId: {
     type: 'string',
     required: false,
-    visibility: 'user-or-llm',
+    visibility: 'user-only',
     description:
       'Browser Context Profile to start from, such as "prof_abc123". Requires useProfile; omit to use the account default',
   },

@@ -23,7 +23,8 @@ With TinyFish in Sim, you can:
 
 - **Automate any site, API or not**: Log into vendor portals, legacy ERPs, and internal tools that never shipped an API, and pull the data out.
 - **Get typed results, not scraped HTML**: Supply a JSON Schema in **Output Schema** and TinyFish holds the agent to it, re-prompting on mismatch and reporting every field that did not match in `schemaValidation`.
-- **Survive bot detection**: Switch **Browser Profile** to `stealth` for anti-detection, and enable the Tetra proxy with a country when the page is geo-restricted.
+- **Survive bot detection**: Switch **Browser Engine** to `stealth` for anti-detection, and enable the Tetra proxy with a country when the page is geo-restricted.
+- **Stay logged in between runs**: Enable **Use Browser Profile** to start a run from a Browser Context Profile — saved browser state you log into once on TinyFish. **List Browser Profiles** returns the ids to choose from; leaving the id empty uses your default profile. Pair it with the vault so an expired session can be repaired.
 - **Log in safely**: Connect a password manager to TinyFish's vault, then enable **Use Vault Credentials** and scope a run to specific credential URIs. **List Vault Items** returns those URIs as display-safe metadata — labels, domains, field names — so credentials never travel through the workflow.
 - **Run work that outlives a step**: **Start Agent Run** queues an automation and returns a run ID immediately; **Get Run**, **Cancel Run**, and **List Runs** track it afterwards, and a webhook URL can notify you on completion.
 - **Read the live web cheaply**: Pair **Search** and **Fetch URLs** to gather current sources before an agent writes or answers.
@@ -369,8 +370,8 @@ List the Browser Context Profiles saved on the TinyFish account, with the ids an
 |   ↳ `profileId` | string | Profile identifier, used as the Browser Profile ID on a run |
 |   ↳ `name` | string | Profile name, such as "Salesforce Production" |
 |   ↳ `proxyCountryCode` | string | Country the profile proxies through, null when it has no proxy |
-|   ↳ `fingerprintSeed` | string | Seed for the browser fingerprint the profile replays |
-|   ↳ `createdAt` | string | ISO 8601 timestamp when the profile was created |
+|   ↳ `fingerprintSeed` | string | Seed for the browser fingerprint the profile replays, null when the API omits it |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the profile was created, null when the API omits it |
 |   ↳ `isDefault` | boolean | Whether runs with no Browser Profile ID use this one, null when the API does not report it |
 
 

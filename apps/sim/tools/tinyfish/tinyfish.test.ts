@@ -117,6 +117,33 @@ describe('buildAutomationBody', () => {
     expect(body).not.toHaveProperty('profile_id')
   })
 
+  it('treats a serialized off switch as off, not as a truthy string', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: 'false',
+      useVault: 'false',
+      proxyEnabled: 'false',
+      proxyCountryCode: 'GB',
+    })
+    expect(body).not.toHaveProperty('use_profile')
+    expect(body).not.toHaveProperty('use_vault')
+    expect(body).not.toHaveProperty('proxy_config')
+  })
+
+  it('honours a serialized on switch, which an imported workflow can carry', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: 'true',
+      useVault: 'true',
+      proxyEnabled: 'true',
+    })
+    expect(body.use_profile).toBe(true)
+    expect(body.use_vault).toBe(true)
+    expect(body.proxy_config).toEqual({ enabled: true, type: 'tetra' })
+  })
+
   it('keeps the browser engine and the context profile as separate fields', () => {
     const body = buildAutomationBody({
       url: 'https://example.com',
@@ -623,6 +650,15 @@ describe('tinyfish_list_vault_items', () => {
       fieldMetadata: [{ fieldId: 'password', label: 'Password', type: 'CONCEALED' }],
       hasTotp: true,
     })
+  })
+})
+
+describe('tinyfish profile visibility', () => {
+  it('keeps the profile fields out of the schema the agent model writes', () => {
+    for (const tool of [runTool, runAsyncTool]) {
+      expect(tool.params.useProfile.visibility).toBe('user-only')
+      expect(tool.params.profileId.visibility).toBe('user-only')
+    }
   })
 })
 
