@@ -13,7 +13,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
-import { createCoordinatedMcpOauthFetch } from '@/lib/mcp/oauth/coordinated-fetch'
+import {
+  createCoordinatedMcpOauthFetch,
+  createMcpEndpointFetch,
+} from '@/lib/mcp/oauth/coordinated-fetch'
 import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
@@ -127,17 +130,22 @@ export class McpClient {
         : createGuardedMcpFetch(this.config.url)
       : undefined
     this.closeGuardedTransport = guarded?.close
+    const oauthFetch = useOauth
+      ? createMcpEndpointFetch(guarded?.fetch ?? fetch, {
+          serverUrl: this.config.url,
+          headers: this.config.headers,
+        })
+      : undefined
     const transportFetch =
-      useOauth && options.oauthCredentials
+      options.oauthCredentials && oauthFetch
         ? createCoordinatedMcpOauthFetch(options.oauthCredentials, {
             serverUrl: this.config.url,
-            fetch: guarded?.fetch ?? fetch,
-            requestInit: { headers: this.config.headers },
+            fetch: oauthFetch,
           })
-        : guarded?.fetch
+        : (oauthFetch ?? guarded?.fetch)
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
-      requestInit: { headers: this.config.headers },
+      ...(useOauth ? {} : { requestInit: { headers: this.config.headers } }),
       ...(transportFetch ? { fetch: transportFetch } : {}),
     })
 

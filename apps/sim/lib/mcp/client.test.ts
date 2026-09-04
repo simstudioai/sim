@@ -465,7 +465,7 @@ describe('McpClient notification handler', () => {
     expect(logged).not.toContain('test-session')
   })
 
-  it('passes configured headers for OAuth transports as well as header auth transports', () => {
+  it('scopes configured headers to the MCP endpoint for OAuth transports', () => {
     const authProvider = {} as unknown as NonNullable<McpClientOptions['authProvider']>
     new McpClient({
       config: {
@@ -479,10 +479,13 @@ describe('McpClient notification handler', () => {
 
     expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
       new URL('https://test.example.com/mcp'),
-      {
+      expect.objectContaining({
         authProvider,
-        requestInit: { headers: { 'X-Sim-Via': 'workflow' } },
-      }
+        fetch: expect.any(Function),
+      })
+    )
+    expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      'requestInit'
     )
   })
 })
