@@ -4,6 +4,7 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { extractDocAssets } from '@/lib/copilot/tools/server/files/doc-asset-extract'
+import { MAX_OOXML_CENTRAL_DIRECTORY_RECORDS, ZipBombError } from '@/lib/file-parsers/ooxml-limits'
 
 const THEME_XML = `<?xml version="1.0"?>
 <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office">
@@ -141,6 +142,21 @@ describe('extractDocAssets', () => {
     })
     expect(slide.texts[1].bold).toBeUndefined()
     expect(slide.texts.some((t) => t.text.includes('grouped'))).toBe(false)
+  })
+
+  it('refuses an archive the OOXML guard rejects', async () => {
+    // Every media entry is inflated into a retained Buffer with no cap of its
+    // own, so the guard is the only thing bounding this. Tripping its
+    // record-count ceiling asserts the call site is guarded without building a
+    // multi-megabyte fixture; the size ceilings are covered in zip-guard.test.ts.
+    const zip = new JSZip()
+    for (let index = 0; index <= MAX_OOXML_CENTRAL_DIRECTORY_RECORDS; index++) {
+      zip.file(`ppt/media/image${index}.png`, PNG_BYTES)
+    }
+
+    await expect(
+      extractDocAssets(await zip.generateAsync({ type: 'nodebuffer' }), 'pptx')
+    ).rejects.toThrow(ZipBombError)
   })
 
   it('tolerates a package with no theme or media', async () => {

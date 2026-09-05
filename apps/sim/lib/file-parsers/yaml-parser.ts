@@ -10,7 +10,7 @@ import { measureYamlExpansion, type YamlExpansionLimits } from '@/lib/file-parse
  * the byte cap bounds output a sub-1 KB input can inflate to hundreds of MB;
  * the depth cap bounds the traversal's own working set.
  */
-const FILE_PARSER_YAML_LIMITS: YamlExpansionLimits = {
+export const FILE_PARSER_YAML_LIMITS: YamlExpansionLimits = {
   maxNodes: 5_000_000,
   maxSerializedBytes: 64 * 1024 * 1024,
   maxDepth: 500,
