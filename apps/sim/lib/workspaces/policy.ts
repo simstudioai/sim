@@ -17,7 +17,6 @@ import type { DbOrTx } from '@/lib/db/types'
 import {
   capabilityRefusal,
   isEntitledOrganizationCapabilityWithheld,
-  isOrganizationCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
@@ -98,6 +97,16 @@ export interface WorkspaceCreationPolicy {
    * any membership as a mid-create join.
    */
   observedOrganizationId: string | null
+  /**
+   * The organization whose permission-group regime governed this decision, from
+   * {@link resolveGoverningPermissionGroupOrganization} (`null` for none).
+   *
+   * Carried on the policy so creation can reuse it instead of resolving the
+   * identical value a second time: React's `cache()` memo does not span these
+   * two calls (an App Route installs no cache dispatcher), so the entitlement
+   * read would otherwise be issued twice per request.
+   */
+  governingPermissionGroupOrganizationId: string | null
   /** Discriminant for blocked states the workspace mode cannot distinguish. */
   blockedReasonCode?: 'organization-subscription-inactive' | 'permission-group-denied'
 }
@@ -126,7 +135,8 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
 
 /**
  * The organization whose permission-group regime governs this creation, or
- * `null` when none does.
+ * `null` when none does — resolved BEFORE the transaction opens and passed into
+ * {@link lockWorkspaceCreationContext}.
  *
  * Governed by the organization the caller belongs to even when the resulting
  * workspace would be personal: a personal workspace is precisely the escape a
@@ -135,31 +145,12 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
  * membership, and {@link lockWorkspaceCreationContext} refuses to commit unless
  * live membership still equals it — so a verdict reached for this organization
  * can never be applied to a different one.
- */
-function governingOrganizationIdFor({
-  organizationId,
-  observedOrganizationId,
-}: {
-  organizationId: string | null
-  observedOrganizationId: string | null
-}): string | null {
-  return organizationId ?? observedOrganizationId
-}
-
-/**
- * Whether permission groups govern this creation at all — resolved BEFORE the
- * transaction opens, and passed into {@link lockWorkspaceCreationContext} as
- * `permissionGroupsGovernCreation`.
  *
- * Only the entitlement half of the decision is answered here, and it is answered
- * here because it cannot be answered anywhere else:
- * {@link isOrganizationPermissionRegimeActive} bottoms out in the `cache()`d
- * `isOrganizationOnEnterprisePlan`, which admits no executor by design
- * (`billing/core/subscription.ts` — an options object would miss the memo, and
- * bypassing it turns a read failure into `config: null`, meaning every
- * capability ALLOWED). Running it inside the transaction is what checked out a
- * SECOND pooled connection while three advisory locks were held — the pool
- * deadlock `packages/db/tx-tripwire.ts` fires on.
+ * Only the entitlement half of the decision is answered here, because it cannot
+ * be answered anywhere else — see {@link isOrganizationPermissionRegimeActive}
+ * for why that read admits no executor. Running it on the transaction executor
+ * would check out a second pooled connection while three advisory locks are
+ * held — what `packages/db/tx-tripwire.ts` fires on.
  *
  * Nothing is lost by settling it early. `permission_group:<org>` serializes
  * permission-group writes, not subscription changes, so holding it across this
@@ -169,17 +160,20 @@ function governingOrganizationIdFor({
  * request, which is the same answer the route's own preflight gave microseconds
  * earlier.
  *
+ * The `forUpdate` subscription re-read below accepts Team *or* Enterprise; the
+ * permission-group regime is Enterprise-only, so it cannot stand in for this.
+ *
  * The mutable half — the default group's `workspace.create` capability — is NOT
  * decided here. It is re-read inside the transaction under the permission-group
  * lock, which is what actually closes the revocation window.
  */
-export async function isWorkspaceCreationGovernedByPermissionGroups(params: {
+export async function resolveGoverningPermissionGroupOrganization(params: {
   organizationId: string | null
   observedOrganizationId: string | null
-}): Promise<boolean> {
-  const governingOrganizationId = governingOrganizationIdFor(params)
-  if (!governingOrganizationId) return false
-  return isOrganizationPermissionRegimeActive(governingOrganizationId)
+}): Promise<string | null> {
+  const organizationId = params.organizationId ?? params.observedOrganizationId
+  if (!organizationId) return null
+  return (await isOrganizationPermissionRegimeActive(organizationId)) ? organizationId : null
 }
 
 /**
@@ -193,17 +187,23 @@ export async function isWorkspaceCreationGovernedByPermissionGroups(params: {
  * mutation takes. That is the whole point of doing it inside the transaction:
  * reading it anywhere else leaves a window in which an admin's revocation
  * commits between the check and the insert. The caller supplies
- * `permissionGroupsGovernCreation` because the entitlement half of that decision
- * cannot run on a transaction executor — see
- * {@link isWorkspaceCreationGovernedByPermissionGroups}.
+ * `governingPermissionGroupOrganizationId` because the entitlement half of that
+ * decision cannot run on a transaction executor — see
+ * {@link resolveGoverningPermissionGroupOrganization}.
  *
  * LOCK ORDER: `organization-mutation:<org>` → `user-billing-identity:<user>` →
- * `<user>:<org>` → `permission_group:<org>`. The permission-group lock is taken
- * LAST, and safely so: it is a leaf everywhere it is held (see
- * `lib/permission-groups/locks.ts`), so no transaction holding it can be waiting
- * on any of the three above it, and no cycle can form. It is also taken only
- * AFTER live membership has been confirmed, so a caller who turns out not to
- * belong to the organization never serializes against its admins.
+ * `<user>:<org>` → `permission_group:<org>` (a leaf lock — see
+ * `lib/permission-groups/locks.ts`). The permission-group lock is taken LAST,
+ * and only AFTER live membership has been confirmed, so a caller who turns out
+ * not to belong to the organization never serializes against its admins.
+ *
+ * It is also taken after the organization's own revalidation — the `FOR UPDATE`
+ * subscription re-read and the owner lookup — so an org-wide key that every
+ * permission-group admin write contends on is not held across a blocking row
+ * lock that can wait out the full `lock_timeout`. Only the capability read and
+ * the caller's inserts need its protection. The refusal order shifts with it:
+ * an organization that BOTH lapsed and withholds the capability now reports the
+ * lapse, which is the condition the admin must fix first anyway.
  */
 export async function lockWorkspaceCreationContext(
   tx: DbOrTx,
@@ -211,12 +211,12 @@ export async function lockWorkspaceCreationContext(
     userId,
     organizationId,
     observedOrganizationId,
-    permissionGroupsGovernCreation,
+    governingPermissionGroupOrganizationId,
   }: {
     userId: string
     organizationId: string | null
     observedOrganizationId: string | null
-    permissionGroupsGovernCreation: boolean
+    governingPermissionGroupOrganizationId: string | null
   }
 ): Promise<{ billedAccountUserId: string }> {
   await acquireOrganizationUserMutationLocks(tx, {
@@ -231,15 +231,38 @@ export async function lockWorkspaceCreationContext(
     throw new WorkspaceCreationContextChangedError()
   }
 
-  const governingOrganizationId = governingOrganizationIdFor({
-    organizationId,
-    observedOrganizationId,
-  })
-  if (permissionGroupsGovernCreation && governingOrganizationId) {
-    await acquirePermissionGroupOrgLock(tx, governingOrganizationId)
+  let billedAccountUserId = userId
+  if (organizationId) {
+    if (isBillingEnabled) {
+      if (!currentMembership || !isOrgAdminRole(currentMembership.role)) {
+        throw new WorkspaceCreationContextChangedError()
+      }
+      const currentSubscription = await getOrganizationSubscription(organizationId, {
+        executor: tx,
+        onError: 'throw',
+        forUpdate: true,
+      })
+      if (
+        !currentSubscription ||
+        !hasUsableSubscriptionStatus(currentSubscription.status) ||
+        (!isTeam(currentSubscription.plan) && !isEnterprise(currentSubscription.plan))
+      ) {
+        throw new WorkspaceCreationContextChangedError()
+      }
+    }
+
+    const currentOwnerId = await getOrganizationOwnerId(organizationId, tx)
+    if (!currentOwnerId) throw new WorkspaceCreationContextChangedError()
+    billedAccountUserId = currentOwnerId
+  }
+
+  if (governingPermissionGroupOrganizationId) {
+    await acquirePermissionGroupOrgLock(tx, governingPermissionGroupOrganizationId, {
+      lockTimeoutAlreadyBounded: true,
+    })
     if (
       await isEntitledOrganizationCapabilityWithheld(
-        governingOrganizationId,
+        governingPermissionGroupOrganizationId,
         'workspace.create',
         tx
       )
@@ -248,29 +271,7 @@ export async function lockWorkspaceCreationContext(
     }
   }
 
-  if (!organizationId) return { billedAccountUserId: userId }
-
-  if (isBillingEnabled) {
-    if (!currentMembership || !isOrgAdminRole(currentMembership.role)) {
-      throw new WorkspaceCreationContextChangedError()
-    }
-    const currentSubscription = await getOrganizationSubscription(organizationId, {
-      executor: tx,
-      onError: 'throw',
-      forUpdate: true,
-    })
-    if (
-      !currentSubscription ||
-      !hasUsableSubscriptionStatus(currentSubscription.status) ||
-      (!isTeam(currentSubscription.plan) && !isEnterprise(currentSubscription.plan))
-    ) {
-      throw new WorkspaceCreationContextChangedError()
-    }
-  }
-
-  const currentOwnerId = await getOrganizationOwnerId(organizationId, tx)
-  if (!currentOwnerId) throw new WorkspaceCreationContextChangedError()
-  return { billedAccountUserId: currentOwnerId }
+  return { billedAccountUserId }
 }
 
 interface GetWorkspaceCreationPolicyParams {
@@ -466,8 +467,15 @@ export async function getWorkspaceCreationPolicy({
               .limit(1)
           )[0]?.role
 
-  const governingOrganizationId = organizationId ?? membership?.organizationId ?? null
-  if (governingOrganizationId) {
+  /**
+   * Resolved once here and returned on the policy, so the creation call that
+   * follows in the same request does not re-issue the entitlement read.
+   */
+  const governingPermissionGroupOrganizationId = await resolveGoverningPermissionGroupOrganization({
+    organizationId,
+    observedOrganizationId: membership?.organizationId ?? null,
+  })
+  if (governingPermissionGroupOrganizationId) {
     /**
      * A new workspace carries no `permissionGroupWorkspace` row, so a member of
      * a scoped group would land in a workspace that group does not target — the
@@ -480,7 +488,13 @@ export async function getWorkspaceCreationPolicy({
      * so exempting it would leave the gate answering only the case it is not for.
      */
     // permission-group-enforced: workspace.create — no workspace exists yet, so the workspace-scoped funnel has nothing to resolve a group against
-    if (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create')) {
+    if (
+      await isEntitledOrganizationCapabilityWithheld(
+        governingPermissionGroupOrganizationId,
+        'workspace.create',
+        db
+      )
+    ) {
       return {
         canCreate: false,
         workspaceMode:
@@ -496,6 +510,7 @@ export async function getWorkspaceCreationPolicy({
           'Your permission group does not allow creating workspaces. Ask an organization admin to change it.',
         status: 403,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
         blockedReasonCode: 'permission-group-denied',
       }
     }
@@ -514,6 +529,7 @@ export async function getWorkspaceCreationPolicy({
       reason: 'Only organization owners and admins can create organization workspaces.',
       status: 403,
       observedOrganizationId: membership?.organizationId ?? null,
+      governingPermissionGroupOrganizationId,
     }
   }
 
@@ -544,6 +560,7 @@ export async function getWorkspaceCreationPolicy({
         reason: null,
         status: 200,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
       }
     }
 
@@ -559,6 +576,7 @@ export async function getWorkspaceCreationPolicy({
       reason: null,
       status: 200,
       observedOrganizationId: membership?.organizationId ?? null,
+      governingPermissionGroupOrganizationId,
     }
   }
 
@@ -583,6 +601,7 @@ export async function getWorkspaceCreationPolicy({
           reason: 'Only organization owners and admins can create organization workspaces.',
           status: 403,
           observedOrganizationId: membership?.organizationId ?? null,
+          governingPermissionGroupOrganizationId,
         }
       }
 
@@ -596,6 +615,7 @@ export async function getWorkspaceCreationPolicy({
         reason: null,
         status: 200,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
       }
     }
 
@@ -620,6 +640,7 @@ export async function getWorkspaceCreationPolicy({
           "Your organization's subscription is inactive. Ask an organization owner to reactivate it before creating workspaces.",
         status: 403,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
         blockedReasonCode: 'organization-subscription-inactive',
       }
     }
@@ -651,6 +672,7 @@ export async function getWorkspaceCreationPolicy({
       reason: `This plan supports up to ${maxWorkspaces} personal workspace${maxWorkspaces === 1 ? '' : 's'}.`,
       status: 403,
       observedOrganizationId: membership?.organizationId ?? null,
+      governingPermissionGroupOrganizationId,
     }
   }
 
@@ -664,6 +686,7 @@ export async function getWorkspaceCreationPolicy({
     reason: null,
     status: 200,
     observedOrganizationId: membership?.organizationId ?? null,
+    governingPermissionGroupOrganizationId,
   }
 }
 

@@ -23,7 +23,17 @@ const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
  *
  * `pg_advisory_xact_lock` auto-releases at transaction end (safe on pooled
  * connections), and `lock_timeout` bounds the wait (raising SQLSTATE 55P03)
- * instead of hanging if a holder is stuck.
+ * instead of hanging if a holder is stuck. The key string is the contention
+ * identity: any change to its format silently stops contending with in-flight
+ * holders.
+ *
+ * `lockTimeoutAlreadyBounded` skips the `set_config` round trip for a caller
+ * that has already bounded `lock_timeout` transaction-locally at the same
+ * 5000ms — every advisory lock in `lib/billing/organizations/membership.ts`
+ * does, and workspace creation takes those first. It stays a separate statement
+ * rather than being folded into the `pg_advisory_xact_lock` select: target-list
+ * evaluation order is unspecified, so the bound might not be in force when the
+ * lock is requested.
  *
  * LOCK ORDER: this is a LEAF lock. Every transaction that holds it — the five
  * `organizations/[id]/permission-groups` route transactions, and the workspace
@@ -38,11 +48,14 @@ const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
  */
 export async function acquirePermissionGroupOrgLock(
   tx: DbOrTx,
-  organizationId: string
+  organizationId: string,
+  options?: { lockTimeoutAlreadyBounded?: boolean }
 ): Promise<void> {
-  await tx.execute(
-    sql`select set_config('lock_timeout', ${`${PERMISSION_GROUP_LOCK_TIMEOUT_MS}ms`}, true)`
-  )
+  if (!options?.lockTimeoutAlreadyBounded) {
+    await tx.execute(
+      sql`select set_config('lock_timeout', ${`${PERMISSION_GROUP_LOCK_TIMEOUT_MS}ms`}, true)`
+    )
+  }
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended(${`permission_group:${organizationId}`}, 0))`
   )

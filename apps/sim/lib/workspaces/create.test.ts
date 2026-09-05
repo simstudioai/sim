@@ -1,30 +1,26 @@
 /**
  * @vitest-environment node
  */
+import {
+  dbChainMockFns,
+  resetDbChainMock,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockTransaction,
-  mockIsWorkspaceCreationGovernedByPermissionGroups,
+  mockResolveGoverningPermissionGroupOrganization,
   mockLockWorkspaceCreationContext,
   mockGetWorkspaceInvitePolicy,
-  mockSaveWorkflowToNormalizedTables,
 } = vi.hoisted(() => ({
-  mockTransaction: vi.fn(),
-  mockIsWorkspaceCreationGovernedByPermissionGroups: vi.fn(),
+  mockResolveGoverningPermissionGroupOrganization: vi.fn(),
   mockLockWorkspaceCreationContext: vi.fn(),
   mockGetWorkspaceInvitePolicy: vi.fn(),
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { transaction: mockTransaction },
 }))
 
 /** The starter workflow is not what these cases are about, and it reaches the block registry. */
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: () => ({ workflowState: {} }),
@@ -34,8 +30,7 @@ vi.mock('@/lib/workspaces/policy', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/workspaces/policy')>()
   return {
     ...actual,
-    isWorkspaceCreationGovernedByPermissionGroups:
-      mockIsWorkspaceCreationGovernedByPermissionGroups,
+    resolveGoverningPermissionGroupOrganization: mockResolveGoverningPermissionGroupOrganization,
     lockWorkspaceCreationContext: mockLockWorkspaceCreationContext,
     getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
   }
@@ -60,15 +55,13 @@ const params = {
 describe('createWorkspace capability-gate placement', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockGetWorkspaceInvitePolicy.mockResolvedValue({})
   })
 
   /**
-   * The ENTITLEMENT half must be settled before the transaction opens: it
-   * bottoms out in the `cache()`d `isOrganizationOnEnterprisePlan`, which admits
-   * no executor, so running it inside checked out a SECOND pooled connection
-   * while three advisory locks were held — what `packages/db/tx-tripwire.ts`
-   * fires on, and what pushed concurrent creates past the 5s `lock_timeout`.
+   * The ENTITLEMENT half must be settled before the transaction opens — see
+   * {@link resolveGoverningPermissionGroupOrganization}.
    *
    * Asserted as an explicit ordering rather than inferred from the absence of a
    * tripwire warning: nothing else in the unit suite can catch a regression
@@ -76,13 +69,13 @@ describe('createWorkspace capability-gate placement', () => {
    * instrumentation never runs.
    */
   it('resolves the permission regime before opening the transaction', async () => {
-    mockIsWorkspaceCreationGovernedByPermissionGroups.mockResolvedValue(true)
+    mockResolveGoverningPermissionGroupOrganization.mockResolvedValue('org-1')
     /**
      * The callback is deliberately NOT invoked, so the transaction's own
      * internals stay out of the assertion and cannot fail it for an unrelated
      * reason.
      */
-    mockTransaction.mockResolvedValue({
+    dbChainMockFns.transaction.mockResolvedValue({
       id: 'ws-1',
       name: params.name,
       organizationId: 'org-1',
@@ -93,27 +86,27 @@ describe('createWorkspace capability-gate placement', () => {
 
     await createWorkspace(params)
 
-    expect(mockIsWorkspaceCreationGovernedByPermissionGroups).toHaveBeenCalledWith({
+    expect(mockResolveGoverningPermissionGroupOrganization).toHaveBeenCalledWith({
       organizationId: 'org-1',
       observedOrganizationId: 'org-1',
     })
     expect(
-      mockIsWorkspaceCreationGovernedByPermissionGroups.mock.invocationCallOrder[0]
-    ).toBeLessThan(mockTransaction.mock.invocationCallOrder[0])
+      mockResolveGoverningPermissionGroupOrganization.mock.invocationCallOrder[0]
+    ).toBeLessThan(dbChainMockFns.transaction.mock.invocationCallOrder[0])
   })
 
   /**
    * The capability itself is enforced INSIDE the transaction, under the
-   * permission-group lock — so the regime answer has to reach
+   * permission-group lock — so the governing organization has to reach
    * `lockWorkspaceCreationContext`. Dropping it there would silently skip the
    * gate for every governed organization.
    */
-  it('carries the regime answer into the locked creation context', async () => {
-    mockIsWorkspaceCreationGovernedByPermissionGroups.mockResolvedValue(true)
+  it('carries the governing organization into the locked creation context', async () => {
+    mockResolveGoverningPermissionGroupOrganization.mockResolvedValue('org-1')
     mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'creator-1' })
     const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
-    mockTransaction.mockImplementation((callback: (executor: DbOrTx) => Promise<unknown>) =>
-      callback(tx)
+    dbChainMockFns.transaction.mockImplementation(
+      (callback: (executor: DbOrTx) => Promise<unknown>) => callback(tx)
     )
 
     await createWorkspace({ ...params, skipDefaultWorkflow: true })
@@ -122,14 +115,40 @@ describe('createWorkspace capability-gate placement', () => {
       userId: 'creator-1',
       organizationId: 'org-1',
       observedOrganizationId: 'org-1',
-      permissionGroupsGovernCreation: true,
+      governingPermissionGroupOrganizationId: 'org-1',
     })
+  })
+
+  /**
+   * The preflight policy resolved this value microseconds earlier in the same
+   * request, and React's `cache()` memo does not span the two calls, so a
+   * forwarded answer must be used as-is rather than re-read.
+   */
+  it('reuses the governing organization the caller already resolved', async () => {
+    mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'creator-1' })
+    const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
+    dbChainMockFns.transaction.mockImplementation(
+      (callback: (executor: DbOrTx) => Promise<unknown>) => callback(tx)
+    )
+
+    await createWorkspace({
+      ...params,
+      skipDefaultWorkflow: true,
+      governingPermissionGroupOrganizationId: 'org-1',
+    })
+
+    expect(mockResolveGoverningPermissionGroupOrganization).not.toHaveBeenCalled()
+    expect(mockLockWorkspaceCreationContext).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ governingPermissionGroupOrganizationId: 'org-1' })
+    )
   })
 })
 
 describe('createDefaultPersonalWorkspaceInTransaction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   /**
@@ -147,12 +166,27 @@ describe('createDefaultPersonalWorkspaceInTransaction', () => {
       userName: 'Ada Lovelace',
     })
 
-    expect(mockIsWorkspaceCreationGovernedByPermissionGroups).not.toHaveBeenCalled()
+    expect(mockResolveGoverningPermissionGroupOrganization).not.toHaveBeenCalled()
     expect(mockLockWorkspaceCreationContext).toHaveBeenCalledWith(tx, {
       userId: 'user-1',
       organizationId: null,
       observedOrganizationId: null,
-      permissionGroupsGovernCreation: false,
+      governingPermissionGroupOrganizationId: null,
     })
+  })
+
+  /** The starter workflow is built before the locks, so it must still be written. */
+  it('seeds the starter workflow it built before taking the locks', async () => {
+    mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'user-1' })
+    const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
+
+    await createDefaultPersonalWorkspaceInTransaction(tx, {
+      userId: 'user-1',
+      userName: 'Ada Lovelace',
+    })
+
+    expect(
+      workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
+    ).toHaveBeenCalledWith(expect.any(String), {}, { workspaceId: null, subjectUserId: null }, tx)
   })
 })

@@ -94,14 +94,14 @@ function inactiveUserAccessControlContext(organizationId: string | null): UserAc
 /**
  * The organization's single default group (`isDefault`), or `null`.
  *
- * Takes an executor so a caller that must read the group under
- * `acquirePermissionGroupOrgLock` — inside the transaction that holds it — can
- * do so on the transaction's own connection instead of checking out a second
- * one from the pool.
+ * The executor is required, not defaulted: a caller that must read the group
+ * under `acquirePermissionGroupOrgLock` has to read it on the transaction's own
+ * connection, and a default would let that caller silently check out a second
+ * pooled connection while advisory locks are held.
  */
 async function resolveDefaultGroup(
   organizationId: string,
-  executor: DbOrTx = db
+  executor: DbOrTx
 ): Promise<ResolvedPermissionGroup | null> {
   const [defaultGroup] = await executor
     .select({
@@ -190,7 +190,7 @@ export async function resolveWorkspaceGroup(
     }
   }
 
-  return resolveDefaultGroup(organizationId)
+  return resolveDefaultGroup(organizationId, db)
 }
 
 /**
@@ -293,7 +293,7 @@ export async function getUserPermissionConfigForOrganization(
   if (!(await isOrganizationPermissionRegimeActive(organizationId))) {
     return mergeEnvAllowlist(null)
   }
-  return getEntitledOrganizationPermissionConfig(organizationId)
+  return getEntitledOrganizationPermissionConfig(organizationId, db)
 }
 
 /**
@@ -332,7 +332,7 @@ export async function isOrganizationPermissionRegimeActive(
  */
 export async function getEntitledOrganizationPermissionConfig(
   organizationId: string,
-  executor: DbOrTx = db
+  executor: DbOrTx
 ): Promise<PermissionGroupConfig | null> {
   const resolved = await resolveDefaultGroup(organizationId, executor)
   return mergeEnvAllowlist(resolved?.config ?? null)

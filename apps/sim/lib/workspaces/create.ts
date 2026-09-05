@@ -9,8 +9,8 @@ import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/util
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 import {
   getWorkspaceInvitePolicy,
-  isWorkspaceCreationGovernedByPermissionGroups,
   lockWorkspaceCreationContext,
+  resolveGoverningPermissionGroupOrganization,
   resolveInviteFlags,
   WORKSPACE_MODE,
 } from '@/lib/workspaces/policy'
@@ -27,6 +27,15 @@ export interface CreateWorkspaceParams {
   organizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
+  /**
+   * The governing organization already resolved by
+   * {@link getWorkspaceCreationPolicy}, forwarded so the entitlement read is not
+   * issued twice in one request. `undefined` means unresolved — a caller that
+   * did not go through the preflight omits it and {@link createWorkspace}
+   * resolves it — while `null` is the resolved answer "no organization governs
+   * this creation".
+   */
+  governingPermissionGroupOrganizationId?: string | null
 }
 
 export interface CreatedWorkspace {
@@ -56,13 +65,13 @@ export function emitWorkspaceCreatedPlatformEvent(params: {
 /** {@link CreateWorkspaceParams} plus the pre-transaction entitlement answer. */
 export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParams {
   /**
-   * Whether permission groups govern this creation, from
-   * {@link isWorkspaceCreationGovernedByPermissionGroups}. Required rather than
-   * defaulted: the `workspace.create` capability is enforced under the
-   * permission-group lock inside this transaction, and a silently-defaulted
-   * `false` would skip that gate rather than fail to compile.
+   * The organization whose permission-group regime governs this creation, from
+   * {@link resolveGoverningPermissionGroupOrganization} (`null` for none).
+   * Required rather than optional: the `workspace.create` capability is enforced
+   * under that organization's permission-group lock inside this transaction, and
+   * a silently-omitted value would skip the gate rather than fail to compile.
    */
-  permissionGroupsGovernCreation: boolean
+  governingPermissionGroupOrganizationId: string | null
 }
 
 /**
@@ -84,18 +93,20 @@ export async function createWorkspaceInTransaction(
     organizationId,
     workspaceMode,
     billedAccountUserId,
-    permissionGroupsGovernCreation,
+    governingPermissionGroupOrganizationId,
   }: TransactionalCreateWorkspaceParams
 ): Promise<CreatedWorkspace> {
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
   const color = explicitColor || getRandomWorkspaceColor()
+  /** Built before the locks: it takes no arguments, so nothing makes it wait for them. */
+  const defaultWorkflowArtifacts = skipDefaultWorkflow ? null : buildDefaultWorkflowArtifacts()
   const lockedCreationContext = await lockWorkspaceCreationContext(tx, {
     userId,
     organizationId,
     observedOrganizationId,
-    permissionGroupsGovernCreation,
+    governingPermissionGroupOrganizationId,
   })
   const committedBilledAccountUserId =
     workspaceMode === WORKSPACE_MODE.ORGANIZATION
@@ -139,7 +150,7 @@ export async function createWorkspaceInTransaction(
   }
   await tx.insert(permissions).values(permissionRows)
 
-  if (!skipDefaultWorkflow) {
+  if (defaultWorkflowArtifacts) {
     await tx.insert(workflow).values({
       id: workflowId,
       userId,
@@ -154,10 +165,9 @@ export async function createWorkspaceInTransaction(
       runCount: 0,
       variables: {},
     })
-    const { workflowState } = buildDefaultWorkflowArtifacts()
     await saveWorkflowToNormalizedTables(
       workflowId,
-      workflowState,
+      defaultWorkflowArtifacts.workflowState,
       {
         /** Actorless: workspace creation seeds a platform-authored starter workflow. */
         workspaceId: null,
@@ -186,18 +196,23 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
   /**
    * Resolved before the transaction opens because the entitlement read it
    * performs cannot run on a transaction executor — see
-   * {@link isWorkspaceCreationGovernedByPermissionGroups}. The capability itself
-   * is enforced inside the transaction, under the permission-group lock.
+   * {@link resolveGoverningPermissionGroupOrganization}. The capability itself is
+   * enforced inside the transaction, under the permission-group lock. A caller
+   * that already holds the creation policy forwards its answer, so the read is
+   * issued once per request rather than once per call.
    */
-  const permissionGroupsGovernCreation = await isWorkspaceCreationGovernedByPermissionGroups({
-    organizationId: params.organizationId,
-    observedOrganizationId: params.observedOrganizationId,
-  })
+  const governingPermissionGroupOrganizationId =
+    params.governingPermissionGroupOrganizationId !== undefined
+      ? params.governingPermissionGroupOrganizationId
+      : await resolveGoverningPermissionGroupOrganization({
+          organizationId: params.organizationId,
+          observedOrganizationId: params.observedOrganizationId,
+        })
 
   let created: CreatedWorkspace
   try {
     created = await db.transaction((tx) =>
-      createWorkspaceInTransaction(tx, { ...params, permissionGroupsGovernCreation })
+      createWorkspaceInTransaction(tx, { ...params, governingPermissionGroupOrganizationId })
     )
   } catch (error) {
     logger.error('Failed to create workspace', { userId: params.userId, error })
@@ -235,10 +250,9 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
  *
  * Runs inside an EXTERNAL transaction (the enterprise owner claim). Both
  * `organizationId` and `observedOrganizationId` are `null` by construction, so
- * no organization governs this creation, `permissionGroupsGovernCreation` is
- * `false` on evidence rather than by omission, and the permission-group lock is
- * never taken — which is also why this path cannot deadlock against the locks
- * the enclosing transaction already holds.
+ * no organization governs this creation and the permission-group lock is never
+ * taken — which is why this path cannot deadlock against the locks the enclosing
+ * transaction already holds.
  */
 export async function createDefaultPersonalWorkspaceInTransaction(
   tx: DbOrTx,
@@ -252,6 +266,6 @@ export async function createDefaultPersonalWorkspaceInTransaction(
     organizationId: null,
     workspaceMode: WORKSPACE_MODE.PERSONAL,
     billedAccountUserId: params.userId,
-    permissionGroupsGovernCreation: false,
+    governingPermissionGroupOrganizationId: null,
   })
 }

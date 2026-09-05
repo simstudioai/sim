@@ -97,18 +97,9 @@ export async function isOrganizationCapabilityWithheld(
 
 /**
  * {@link isOrganizationCapabilityWithheld} for an organization whose regime the
- * caller has ALREADY established with `isOrganizationPermissionRegimeActive`,
- * reading the group on the given executor.
- *
- * For the one caller that must answer this question inside the transaction that
- * commits the governed act, under `acquirePermissionGroupOrgLock`, so an admin
- * cannot revoke the capability in the check-to-write window. Splitting the
- * entitlement half off is what lets the remaining read run on the transaction's
- * own connection instead of checking out a second pooled one.
- *
- * Passing an executor without having checked entitlement would read a stale
- * default group as authoritative for an organization the regime no longer
- * governs, so that check is the caller's obligation, not an optional one.
+ * caller has ALREADY established, reading the group on the given executor. That
+ * establishment is the caller's obligation, not an optional one — see
+ * {@link getEntitledOrganizationPermissionConfig}.
  */
 export async function isEntitledOrganizationCapabilityWithheld(
   organizationId: string,
