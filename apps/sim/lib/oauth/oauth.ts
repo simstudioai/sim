@@ -960,6 +960,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  oracle_fusion_risk_management: {
+    name: 'Oracle Fusion Risk Management',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_risk_management: {
+        name: 'Oracle Fusion Risk Management',
+        description: 'Manage compliance records, investigate incidents, and simulate access conflicts.',
+        providerId: 'oracle_fusion_risk_management',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_risk_management',
+  },
   netsuite: {
     name: 'Oracle NetSuite',
     icon: NetSuiteIcon,

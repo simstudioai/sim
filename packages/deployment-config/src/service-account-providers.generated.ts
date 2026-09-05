@@ -27,6 +27,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   linear: 'linear-service-account',
   monday: 'monday-service-account',
   notion: 'notion-service-account',
+  oracle_fusion_risk_management: 'oracle-fusion-service-account',
   pipedrive: 'pipedrive-service-account',
   salesforce: 'salesforce-service-account',
   shopify: 'shopify-service-account',

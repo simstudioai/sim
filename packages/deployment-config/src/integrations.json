@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,486 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_risk_management",
+      "slug": "oracle-fusion-risk-management",
+      "name": "Oracle Fusion Risk Management",
+      "description": "Manage compliance records, investigate incidents, and simulate access conflicts",
+      "longDescription": "Connect an Oracle Fusion integration-user credential to maintain Financial Reporting Compliance processes, risks, controls, issue remediation fields, assessment results, supporting relationships, and test procedures. Investigate Advanced Controls incidents, simulate proposed access, and administer Risk Management assignment groups. Each list returns one bounded page. Identifiers and resource numeric values are returned as decimal strings; pagination values remain numbers. Supply integer IDs as quoted decimal strings in mutation JSON. Group security assignments secure the group itself. Assessment updates do not certify or approve assessments, simulations do not grant access or create incidents, and changing control metadata does not execute controls. Requires licensed and enabled Oracle product features, REST privileges, and object-level access. No risk updates, issue creation, approval/provisioning workflows, control execution, test-plan creation, binary attachments, tenant-specific flexfield writes, or platform administration are included.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_risk_management",
+      "operations": [
+        {
+          "name": "Create Advanced Control Comment",
+          "description": "advanced control comment fields"
+        },
+        {
+          "name": "Create Assignment Group",
+          "description": "assignment group fields"
+        },
+        {
+          "name": "Create Control",
+          "description": "control fields"
+        },
+        {
+          "name": "Create Control Assertion",
+          "description": "control assertion fields"
+        },
+        {
+          "name": "Create Control Comment",
+          "description": "control comment fields"
+        },
+        {
+          "name": "Create Group Member",
+          "description": "group member fields"
+        },
+        {
+          "name": "Create Group Security Assignment",
+          "description": "group security assignment fields"
+        },
+        {
+          "name": "Create Incident Comment",
+          "description": "incident comment fields"
+        },
+        {
+          "name": "Create Process",
+          "description": "process fields"
+        },
+        {
+          "name": "Create Process Comment",
+          "description": "process comment fields"
+        },
+        {
+          "name": "Create Process Risk",
+          "description": "process risk fields"
+        },
+        {
+          "name": "Create Risk",
+          "description": "risk fields"
+        },
+        {
+          "name": "Create Risk Comment",
+          "description": "risk comment fields"
+        },
+        {
+          "name": "Create Test Plan Activity",
+          "description": "test plan activity fields"
+        },
+        {
+          "name": "Create Test Plan Step",
+          "description": "test plan step fields"
+        },
+        {
+          "name": "Delete Assignment Group",
+          "description": "Oracle acknowledged deletion of the selected record or association"
+        },
+        {
+          "name": "Delete Control Assertion",
+          "description": "Oracle acknowledged deletion of the selected record or association"
+        },
+        {
+          "name": "Delete Control Test Plan",
+          "description": "Oracle acknowledged deletion of the selected record or association"
+        },
+        {
+          "name": "Delete Group Member",
+          "description": "Oracle acknowledged deletion of the selected record or association"
+        },
+        {
+          "name": "Delete Group Security Assignment",
+          "description": "Oracle acknowledged deletion of the selected record or association"
+        },
+        {
+          "name": "Delete Process Risk",
+          "description": "Oracle acknowledged deletion of the selected record or association"
+        },
+        {
+          "name": "Delete Test Plan Step",
+          "description": "Oracle acknowledged deletion of the selected record or association"
+        },
+        {
+          "name": "Get Access Simulation Status",
+          "description": "Oracle simulation status: Started, Completed, Failed, or Queued"
+        },
+        {
+          "name": "Get Advanced Control",
+          "description": "advanced control fields"
+        },
+        {
+          "name": "Get Advanced Control Comment",
+          "description": "advanced control comment fields"
+        },
+        {
+          "name": "Get Advanced Control Job",
+          "description": "advanced control job fields"
+        },
+        {
+          "name": "Get Advanced Control Perspective",
+          "description": "advanced control perspective fields"
+        },
+        {
+          "name": "Get Assignment Group",
+          "description": "assignment group fields"
+        },
+        {
+          "name": "Get Control",
+          "description": "control fields"
+        },
+        {
+          "name": "Get Control Assertion",
+          "description": "control assertion fields"
+        },
+        {
+          "name": "Get Control Assessment Result",
+          "description": "control assessment result fields"
+        },
+        {
+          "name": "Get Control Comment",
+          "description": "control comment fields"
+        },
+        {
+          "name": "Get Control Perspective",
+          "description": "control perspective fields"
+        },
+        {
+          "name": "Get Control Risk",
+          "description": "control risk fields"
+        },
+        {
+          "name": "Get Control Test Plan",
+          "description": "control test plan fields"
+        },
+        {
+          "name": "Get Group Eligible User",
+          "description": "group eligible user fields"
+        },
+        {
+          "name": "Get Group Member",
+          "description": "group member fields"
+        },
+        {
+          "name": "Get Group Security Assignment",
+          "description": "group security assignment fields"
+        },
+        {
+          "name": "Get Incident",
+          "description": "incident fields"
+        },
+        {
+          "name": "Get Incident Attribute",
+          "description": "incident attribute fields"
+        },
+        {
+          "name": "Get Incident Comment",
+          "description": "incident comment fields"
+        },
+        {
+          "name": "Get Incident Perspective",
+          "description": "incident perspective fields"
+        },
+        {
+          "name": "Get Issue",
+          "description": "issue fields"
+        },
+        {
+          "name": "Get Open Incident",
+          "description": "open incident fields"
+        },
+        {
+          "name": "Get Process",
+          "description": "process fields"
+        },
+        {
+          "name": "Get Process Action Item",
+          "description": "process action item fields"
+        },
+        {
+          "name": "Get Process Assessment Result",
+          "description": "process assessment result fields"
+        },
+        {
+          "name": "Get Process Comment",
+          "description": "process comment fields"
+        },
+        {
+          "name": "Get Process Perspective",
+          "description": "process perspective fields"
+        },
+        {
+          "name": "Get Process Risk",
+          "description": "process risk fields"
+        },
+        {
+          "name": "Get Risk",
+          "description": "risk fields"
+        },
+        {
+          "name": "Get Risk Assessment Result",
+          "description": "risk assessment result fields"
+        },
+        {
+          "name": "Get Risk Comment",
+          "description": "risk comment fields"
+        },
+        {
+          "name": "Get Risk Control",
+          "description": "risk control fields"
+        },
+        {
+          "name": "Get Risk Perspective",
+          "description": "risk perspective fields"
+        },
+        {
+          "name": "Get Risk Process",
+          "description": "risk process fields"
+        },
+        {
+          "name": "Get Securable Eligible User",
+          "description": "securable eligible user fields"
+        },
+        {
+          "name": "Get Securable Role Type",
+          "description": "securable role type fields"
+        },
+        {
+          "name": "Get Securable Type",
+          "description": "securable type fields"
+        },
+        {
+          "name": "Get Simulation Result",
+          "description": "simulation result fields"
+        },
+        {
+          "name": "Get Test Plan Activity",
+          "description": "test plan activity fields"
+        },
+        {
+          "name": "Get Test Plan Step",
+          "description": "test plan step fields"
+        },
+        {
+          "name": "List Advanced Control Comments",
+          "description": "One page of advanced control comment records"
+        },
+        {
+          "name": "List Advanced Control Jobs",
+          "description": "One page of advanced control job records"
+        },
+        {
+          "name": "List Advanced Control Perspectives",
+          "description": "One page of advanced control perspective records"
+        },
+        {
+          "name": "List Advanced Controls",
+          "description": "One page of advanced control records"
+        },
+        {
+          "name": "List Assignment Groups",
+          "description": "One page of assignment group records"
+        },
+        {
+          "name": "List Control Assertions",
+          "description": "One page of control assertion records"
+        },
+        {
+          "name": "List Control Assessment Results",
+          "description": "One page of control assessment result records"
+        },
+        {
+          "name": "List Control Comments",
+          "description": "One page of control comment records"
+        },
+        {
+          "name": "List Control Perspectives",
+          "description": "One page of control perspective records"
+        },
+        {
+          "name": "List Control Risks",
+          "description": "One page of control risk records"
+        },
+        {
+          "name": "List Control Test Plans",
+          "description": "One page of control test plan records"
+        },
+        {
+          "name": "List Controls",
+          "description": "One page of control records"
+        },
+        {
+          "name": "List Group Eligible Users",
+          "description": "One page of group eligible user records"
+        },
+        {
+          "name": "List Group Members",
+          "description": "One page of group member records"
+        },
+        {
+          "name": "List Group Security Assignments",
+          "description": "One page of group security assignment records"
+        },
+        {
+          "name": "List Incident Attributes",
+          "description": "One page of incident attribute records"
+        },
+        {
+          "name": "List Incident Comments",
+          "description": "One page of incident comment records"
+        },
+        {
+          "name": "List Incident Perspectives",
+          "description": "One page of incident perspective records"
+        },
+        {
+          "name": "List Incidents",
+          "description": "One page of incident records"
+        },
+        {
+          "name": "List Issues",
+          "description": "One page of issue records"
+        },
+        {
+          "name": "List Open Incidents",
+          "description": "One page of open incident records"
+        },
+        {
+          "name": "List Process Action Items",
+          "description": "One page of process action item records"
+        },
+        {
+          "name": "List Process Assessment Results",
+          "description": "One page of process assessment result records"
+        },
+        {
+          "name": "List Process Comments",
+          "description": "One page of process comment records"
+        },
+        {
+          "name": "List Process Perspectives",
+          "description": "One page of process perspective records"
+        },
+        {
+          "name": "List Process Risks",
+          "description": "One page of process risk records"
+        },
+        {
+          "name": "List Processes",
+          "description": "One page of process records"
+        },
+        {
+          "name": "List Risk Assessment Results",
+          "description": "One page of risk assessment result records"
+        },
+        {
+          "name": "List Risk Comments",
+          "description": "One page of risk comment records"
+        },
+        {
+          "name": "List Risk Controls",
+          "description": "One page of risk control records"
+        },
+        {
+          "name": "List Risk Perspectives",
+          "description": "One page of risk perspective records"
+        },
+        {
+          "name": "List Risk Processes",
+          "description": "One page of risk process records"
+        },
+        {
+          "name": "List Risks",
+          "description": "One page of risk records"
+        },
+        {
+          "name": "List Securable Eligible Users",
+          "description": "One page of securable eligible user records"
+        },
+        {
+          "name": "List Securable Role Types",
+          "description": "One page of securable role type records"
+        },
+        {
+          "name": "List Securable Types",
+          "description": "One page of securable type records"
+        },
+        {
+          "name": "List Simulation Results",
+          "description": "One page of simulation result records"
+        },
+        {
+          "name": "List Test Plan Activities",
+          "description": "One page of test plan activity records"
+        },
+        {
+          "name": "List Test Plan Steps",
+          "description": "One page of test plan step records"
+        },
+        {
+          "name": "Run Access Simulation",
+          "description": "Simulation tracking ID; submission does not mean analysis is complete or access was granted"
+        },
+        {
+          "name": "Update Advanced Control",
+          "description": "advanced control fields"
+        },
+        {
+          "name": "Update Assignment Group",
+          "description": "assignment group fields"
+        },
+        {
+          "name": "Update Control",
+          "description": "control fields"
+        },
+        {
+          "name": "Update Control Assertion",
+          "description": "control assertion fields"
+        },
+        {
+          "name": "Update Control Assessment Result",
+          "description": "control assessment result fields"
+        },
+        {
+          "name": "Update Control Test Plan",
+          "description": "control test plan fields"
+        },
+        {
+          "name": "Update Group Security Assignment",
+          "description": "group security assignment fields"
+        },
+        {
+          "name": "Update Incident",
+          "description": "incident fields"
+        },
+        {
+          "name": "Update Issue",
+          "description": "issue fields"
+        },
+        {
+          "name": "Update Process",
+          "description": "process fields"
+        },
+        {
+          "name": "Update Process Assessment Result",
+          "description": "process assessment result fields"
+        },
+        {
+          "name": "Update Risk Assessment Result",
+          "description": "risk assessment result fields"
+        },
+        {
+          "name": "Update Test Plan Step",
+          "description": "test plan step fields"
+        }
+      ],
+      "operationCount": 115,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "oracle_fusion_risk_management",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",
