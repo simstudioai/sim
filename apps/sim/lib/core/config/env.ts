@@ -403,6 +403,8 @@ export const env = createEnv({
 
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
+    DEPLOYMENT_IP_EXECUTIONS_PER_MINUTE:   z.string().optional().default('60'),   // Executions one client IP may drive against a single deployed chat, billed to that chat's owner
+    DEPLOYMENT_EXECUTIONS_PER_MINUTE:      z.string().optional().default('300'),  // Executions one deployed chat may serve per minute across all callers (owner-spend backstop)
     MANUAL_EXECUTION_LIMIT:                z.string().optional().default('999999'),// Manual execution bypass value (effectively unlimited)
     RATE_LIMIT_FREE_SYNC:                  z.string().optional(),                  // Free tier sync API executions per minute (default 50). With billing disabled, setting it explicitly opts into rate limiting
     RATE_LIMIT_FREE_ASYNC:                 z.string().optional(),                  // Free tier async API executions per minute (default 200). With billing disabled, setting it explicitly opts into rate limiting

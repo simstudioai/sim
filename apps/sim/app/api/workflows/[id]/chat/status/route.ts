@@ -1,91 +1,32 @@
-import { db } from '@sim/db'
-import { chat } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { and, eq, isNull } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
 import { getChatDeploymentStatusContract } from '@/lib/api/contracts/deployments'
-import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-
-const logger = createLogger('ChatStatusAPI')
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  chatDeploymentOperations,
+  readWorkflowChatDeploymentStatus,
+} from '@/lib/chat-deployments/application'
+import { createInternalChatDeploymentErrorPolicy } from '@/app/api/chat/error-policy'
 
 /**
- * GET endpoint to check if a workflow has an active chat deployment
+ * GET — whether a workflow publishes a chat, and which one.
+ *
+ * This previously reimplemented a deployment read inline behind a bare workflow
+ * `read` check, serving the `allowedEmails` allow-list, `hasPassword` and the
+ * customization blob to any workspace viewer. The editor now gets those from
+ * `/api/chat/manage/{id}`, which gates them at workspace admin.
  */
-export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const parsed = await parseRequest(getChatDeploymentStatusContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { id } = parsed.data.params
-    const requestId = generateRequestId()
-
-    try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        return createErrorResponse('Unauthorized', 401)
-      }
-
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId: id,
-        userId: auth.userId,
-        action: 'read',
-      })
-      if (!authorization.allowed) {
-        return createErrorResponse(
-          authorization.message || 'Access denied',
-          authorization.status || 403
-        )
-      }
-
-      // Find any active chat deployments for this workflow
-      const deploymentResults = await db
-        .select({
-          id: chat.id,
-          identifier: chat.identifier,
-          title: chat.title,
-          description: chat.description,
-          customizations: chat.customizations,
-          authType: chat.authType,
-          allowedEmails: chat.allowedEmails,
-          outputConfigs: chat.outputConfigs,
-          includeThinking: chat.includeThinking,
-          includeToolCalls: chat.includeToolCalls,
-          password: chat.password,
-          isActive: chat.isActive,
-        })
-        .from(chat)
-        .where(and(eq(chat.workflowId, id), isNull(chat.archivedAt)))
-        .limit(1)
-
-      const isDeployed = deploymentResults.length > 0 && deploymentResults[0].isActive
-      const deploymentInfo =
-        deploymentResults.length > 0
-          ? {
-              id: deploymentResults[0].id,
-              identifier: deploymentResults[0].identifier,
-              title: deploymentResults[0].title,
-              description: deploymentResults[0].description,
-              customizations: deploymentResults[0].customizations,
-              authType: deploymentResults[0].authType,
-              allowedEmails: deploymentResults[0].allowedEmails,
-              outputConfigs: deploymentResults[0].outputConfigs,
-              includeThinking: deploymentResults[0].includeThinking ?? false,
-              includeToolCalls: deploymentResults[0].includeToolCalls ?? false,
-              hasPassword: Boolean(deploymentResults[0].password),
-            }
-          : null
-
-      return createSuccessResponse({
-        isDeployed,
-        deployment: deploymentInfo,
-      })
-    } catch (error: any) {
-      logger.error(`[${requestId}] Error checking chat deployment status:`, error)
-      return createErrorResponse(error.message || 'Failed to check chat deployment status', 500)
-    }
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: getChatDeploymentStatusContract,
+  auth: internalSessionAuth,
+  operation: chatDeploymentOperations.list,
+  rateLimit: internalRateLimits.none({
+    reason: 'Authenticated workspace UI chat status reads retain their existing admission policy.',
+  }),
+  errorPolicy: createInternalChatDeploymentErrorPolicy('Failed to check chat deployment status'),
+  mapInput: ({ params }) => ({ workflowId: params.id }),
+  useCase: readWorkflowChatDeploymentStatus,
+  present: ({ isDeployed, deployment }) => ({ isDeployed, deployment }),
+})

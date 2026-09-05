@@ -122,6 +122,33 @@ export async function enforceRecipientRateLimit(
 }
 
 /**
+ * Apply a token bucket to one resource, independently of who is calling.
+ *
+ * The backstop for a cost borne by a resource's owner rather than by its
+ * caller: a deployed chat runs its owner's workflow on their plan bucket,
+ * credits and concurrency reservation for anyone holding the link, so a per-IP
+ * limit alone leaves the owner exposed to attempts spread across addresses and
+ * to callers whose proxy chain resolves to no IP at all. Pair it with
+ * {@link enforceIpRateLimitWithIndependentBackstop}, which is the "deferring
+ * unresolved clients to an independent non-IP limit" half of the same shape.
+ *
+ * Consult the per-IP bucket first and return on its refusal: debiting both
+ * unconditionally would let one flooding IP drain the resource's budget at full
+ * speed and 429 the legitimate audience with it.
+ */
+export async function enforceResourceRateLimit(
+  bucketName: string,
+  resourceId: string,
+  config: TokenBucketConfig
+): Promise<NextResponse | null> {
+  const key = `route:${bucketName}:resource:${resourceId}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
+  if (allowed) return null
+  logger.warn('Resource rate limit exceeded', { bucket: bucketName, resourceId })
+  return buildRateLimitResponse(resetAt)
+}
+
+/**
  * Apply a per-workspace token bucket. Use for routes whose cost is borne by the
  * workspace rather than the acting user — a shared budget any member spends
  * against, so N admins cannot each get a full allowance.

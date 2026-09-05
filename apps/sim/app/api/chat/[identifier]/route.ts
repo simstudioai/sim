@@ -8,7 +8,12 @@ import { deployedChatPostContract } from '@/lib/api/contracts/chats'
 import { parseRequest } from '@/lib/api/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
+import {
+  enforceIpRateLimitWithIndependentBackstop,
+  enforceResourceRateLimit,
+  type TokenBucketConfig,
+} from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -48,6 +53,29 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const CHAT_MAX_REQUEST_BYTES = Number.parseInt(env.CHAT_MAX_REQUEST_BYTES, 10) || 220 * 1024 * 1024
+
+/** A per-minute ceiling, as a bucket that refills its whole allowance each minute. */
+function executionsPerMinute(value: string | undefined, fallback: number): TokenBucketConfig {
+  const perMinute = envNumber(value, fallback, { min: 1, integer: true })
+  return { maxTokens: perMinute, refillRate: perMinute, refillIntervalMs: 60_000 }
+}
+
+/**
+ * Executions one client IP may drive against a single deployed chat.
+ *
+ * A deployed chat runs the owner's workflow on the owner's plan bucket, credit
+ * balance and concurrency reservation for whoever holds the link, so every
+ * ceiling on that path belongs to the payer and none of them bound the caller.
+ * Sized well above a human conversation and above shared-NAT aggregation, so it
+ * costs a flooder a botnet rather than costing a real audience its session.
+ */
+const CHAT_EXECUTION_IP_LIMIT = executionsPerMinute(env.DEPLOYMENT_IP_EXECUTIONS_PER_MINUTE, 60)
+
+/**
+ * What bounds the owner's exposure when attempts are spread across addresses,
+ * and the only bound left when the proxy chain resolves to no client IP.
+ */
+const CHAT_EXECUTION_LIMIT = executionsPerMinute(env.DEPLOYMENT_EXECUTIONS_PER_MINUTE, 300)
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
@@ -168,6 +196,22 @@ export const POST = withRouteHandler(
       if (!input && (!files || files.length === 0)) {
         return createErrorResponse('No input provided', 400)
       }
+
+      // Both buckets apply regardless of the chat's auth type: an email or SSO
+      // visitor is still not the payer.
+      const ipLimited = await enforceIpRateLimitWithIndependentBackstop(
+        `chat-execute:${deployment.id}`,
+        request,
+        CHAT_EXECUTION_IP_LIMIT
+      )
+      if (ipLimited) return ipLimited
+
+      const deploymentLimited = await enforceResourceRateLimit(
+        'chat-execute',
+        deployment.id,
+        CHAT_EXECUTION_LIMIT
+      )
+      if (deploymentLimited) return deploymentLimited
 
       const executionId = generateId()
 
