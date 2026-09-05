@@ -230,7 +230,7 @@ describe('Account Reconciliation job behavior', () => {
     ['purgearchivetransactions', true, false],
     ['importtmpremappedtransactions', true, false],
     ['unmatchtransactions', true, false],
-    ['unmatchtransactionsbyautomatch', true, false],
+    ['unmatchtransactionsbyautomatch', false, false],
   ] as const)(
     'projects only documented artifacts for %s on launch and after waiting',
     async (jobName, hasLog, hasArchive) => {

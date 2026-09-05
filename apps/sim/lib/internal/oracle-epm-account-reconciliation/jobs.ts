@@ -30,7 +30,6 @@ const matchingJobArtifacts: Record<string, readonly ArcsArtifactRelation[]> = {
   purgearchivetransactions: ['log-content'],
   importtmpremappedtransactions: ['log-content'],
   unmatchtransactions: ['log-content'],
-  unmatchtransactionsbyautomatch: ['log-content'],
 }
 
 export function classifyArcsStatus(status: number): 'pending' | 'succeeded' | 'failed' {

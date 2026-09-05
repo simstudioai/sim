@@ -167,7 +167,6 @@ describe('Account Reconciliation public integration contract', () => {
       'import_matching_transactions',
       'purge_archived_transactions',
       'purge_matched_transactions',
-      'unmatch_auto_match_job',
       'unmatch_transactions',
     ]
     for (const action of actions) {
