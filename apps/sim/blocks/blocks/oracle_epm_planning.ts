@@ -148,8 +148,74 @@ const OPERATION_INPUT_FIELDS: Record<string, Record<string, string>> = {
     loginLevel: 'loginLevel',
     jobName: 'configuredJobName',
   },
+  oracle_epm_planning_run_data_map: {
+    application: 'application',
+    jobName: 'dataMapName',
+    clearData: 'clearData',
+    overrideMembersMap: 'overrideMembersMap',
+    overrideExclusionMembersMap: 'overrideExclusionMembersMap',
+  },
+  oracle_epm_planning_list_user_variable_values: {
+    application: 'application',
+    offset: 'offset',
+    limit: 'limit',
+  },
+  oracle_epm_planning_set_user_variable_values: {
+    application: 'application',
+    userVariableValues: 'userVariableValues',
+  },
+  oracle_epm_planning_list_planning_units: {
+    application: 'application',
+    scenario: 'scenario',
+    planningVersion: 'planningVersion',
+    offset: 'offset',
+    limit: 'limit',
+  },
+  oracle_epm_planning_get_planning_unit_actions: {
+    application: 'application',
+    puhIdentifier: 'puhIdentifier',
+    pmMembers: 'pmMembers',
+    approvalOptions: 'approvalOptions',
+  },
+  oracle_epm_planning_get_planning_unit_history: {
+    application: 'application',
+    puIdentifier: 'puIdentifier',
+    annotSeq: 'annotSeq',
+    logSeq: 'logSeq',
+    offset: 'offset',
+    limit: 'limit',
+  },
+  oracle_epm_planning_change_planning_unit_status: {
+    application: 'application',
+    puhIdentifier: 'puhIdentifier',
+    pmMembers: 'pmMembers',
+    actionId: 'actionId',
+    comments: 'comments',
+  },
+  oracle_epm_planning_get_insights: {
+    application: 'application',
+    cube: 'cube',
+    insightSlice: 'insightSlice',
+    retrievalMode: 'retrievalMode',
+    calendar: 'calendar',
+  },
+  oracle_epm_planning_summarize_insights: {
+    application: 'application',
+    summaryInputMode: 'summaryInputMode',
+    insightIds: 'insightIds',
+    cube: 'cube',
+    insightSlice: 'insightSlice',
+    retrievalMode: 'retrievalMode',
+    calendar: 'calendar',
+    summarySize: 'summarySize',
+  },
 }
 const JSON_FIELDS = new Set([
+  'overrideMembersMap',
+  'overrideExclusionMembersMap',
+  'userVariableValues',
+  'insightSlice',
+  'insightIds',
   'variables',
   'parameters',
   'gridDefinition',
@@ -157,6 +223,7 @@ const JSON_FIELDS = new Set([
   'importOptions',
 ])
 const BOOLEAN_FIELDS = new Set([
+  'clearData',
   'derivedValues',
   'clearEssbaseData',
   'clearPlanningData',
@@ -175,6 +242,12 @@ function operationParams(params: Record<string, unknown>): Record<string, unknow
   )
   result.oauthCredential = params.oauthCredential
   for (const [wire, field] of Object.entries(fields)) {
+    if (params.operation === 'oracle_epm_planning_summarize_insights') {
+      if (params.summaryInputMode === 'ids' &&
+        ['cube', 'insightSlice', 'retrievalMode', 'calendar'].includes(wire)) continue
+      if (params.summaryInputMode === 'slice' && wire === 'insightIds') continue
+    }
+    if (wire === 'calendar' && params.retrievalMode !== 'FORCE_RECOMPUTE') continue
     const value = params[field]
     if (value === undefined || value === null || value === '') continue
     if (JSON_FIELDS.has(wire)) {
@@ -192,6 +265,12 @@ function operationParams(params: Record<string, unknown>): Record<string, unknow
         integer: true,
         min: wire === 'offset' ? 0 : 1,
         max: wire === 'offset' ? 1_000_000 : wire === 'limit' ? 1000 : 3600,
+      })
+    } else if (['actionId', 'approvalOptions', 'annotSeq', 'logSeq', 'summarySize'].includes(wire)) {
+      result[wire] = parseOptionalNumberInput(value, field, {
+        integer: true,
+        min: wire === 'annotSeq' || wire === 'logSeq' ? -1 : wire === 'approvalOptions' ? 0 : 1,
+        max: wire === 'approvalOptions' ? 1 : wire === 'summarySize' ? 10000 : Number.MAX_SAFE_INTEGER,
       })
     } else if (wire === 'jobId' && typeof value === 'number') {
       if (!Number.isSafeInteger(value) || value < 0)
@@ -213,9 +292,9 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
   type: 'oracle_epm_planning',
   name: 'Oracle EPM Planning & FreeForm',
   description:
-    'Manage Planning and FreeForm metadata, variables, rules, jobs, grids, forms and files',
+    'Manage Planning and FreeForm data, jobs, approvals, user variables and IPM insights',
   longDescription:
-    'Connect an Oracle EPM service-account credential to Planning and FreeForm. Discover applications, cubes and dimensions; manage dynamic members and substitution variables; run rules and configured jobs; transfer data slices, forms and repository files; and perform explicit cube refresh and login-access changes. Job submission and waiting are separate. Inline results are limited to 16 MiB and downloaded Sim files to 100 MiB. Discovery permissions may be broader than execution permissions: manual names remain available.',
+    'Connect an Oracle EPM service-account credential to Planning and FreeForm. Discover applications, cubes and dimensions; manage dynamic members and substitution variables; run rules and configured jobs; transfer data slices, forms and repository files; and perform explicit cube refresh and login-access changes. Run data maps with explicit target clearing, manage user-variable values, inspect owned planning units and perform explicit approval actions, and retrieve or summarize IPM insights. Planning application modules use tenant-configured cubes and rules, not separate integrations. Insight retrieval defaults to existing results; recomputation is explicit and permission-dependent. Job submission and waiting are separate. Inline results are limited to 16 MiB and downloaded Sim files to 100 MiB. Discovery permissions may be broader than execution permissions: manual names remain available.',
   docsLink: 'https://docs.sim.ai/integrations/oracle_epm_planning',
   authMode: AuthMode.ApiKey,
   category: 'tools',
@@ -595,6 +674,99 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
             core: true,
           },
         ],
+        oracle_epm_planning_run_data_map: [
+          {
+            text: 'Run data map',
+            field: ['dataMapNameSelector', 'dataMapNameManual'],
+            core: true,
+          },
+          {
+            text: 'in',
+            field: ['applicationSelector', 'applicationManual'],
+            core: true,
+          },
+        ],
+        oracle_epm_planning_list_user_variable_values: [
+          {
+            text: 'List user-variable values in',
+            field: ['applicationSelector', 'applicationManual'],
+            core: true,
+          },
+        ],
+        oracle_epm_planning_set_user_variable_values: [
+          {
+            text: 'Set user-variable values in',
+            field: ['applicationSelector', 'applicationManual'],
+            core: true,
+          },
+        ],
+        oracle_epm_planning_list_planning_units: [
+          {
+            text: 'List owned planning units in',
+            field: ['applicationSelector', 'applicationManual'],
+            core: true,
+          },
+        ],
+        oracle_epm_planning_get_planning_unit_actions: [
+          {
+            text: 'List available actions for',
+            field: 'pmMembers',
+            core: true,
+          },
+          {
+            text: 'in',
+            field: 'puhIdentifier',
+            core: true,
+          },
+        ],
+        oracle_epm_planning_get_planning_unit_history: [
+          {
+            text: 'Read history for',
+            field: 'puIdentifier',
+            core: true,
+          },
+        ],
+        oracle_epm_planning_change_planning_unit_status: [
+          {
+            text: 'Apply action',
+            field: 'actionId',
+            core: true,
+          },
+          {
+            text: 'to',
+            field: 'pmMembers',
+            core: true,
+          },
+          {
+            text: 'in',
+            field: 'puhIdentifier',
+            core: true,
+          },
+        ],
+        oracle_epm_planning_get_insights: [
+          {
+            text: 'Get insights for',
+            field: 'insightSlice',
+            core: true,
+          },
+          {
+            text: 'in cube',
+            field: ['cubeSelector', 'cubeManual'],
+            core: true,
+          },
+        ],
+        oracle_epm_planning_summarize_insights: [
+          {
+            text: 'Summarize insights using',
+            field: 'summaryInputMode',
+            core: true,
+          },
+          {
+            text: 'in',
+            field: ['applicationSelector', 'applicationManual'],
+            core: true,
+          },
+        ],
       },
     },
   },
@@ -662,6 +834,15 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         { label: 'Delete File', id: 'oracle_epm_planning_delete_file' },
         { label: 'Refresh Cube', id: 'oracle_epm_planning_refresh_cube' },
         { label: 'Set Administration Mode', id: 'oracle_epm_planning_set_administration_mode' },
+        { label: 'Run Data Map', id: 'oracle_epm_planning_run_data_map' },
+        { label: 'List User Variable Values', id: 'oracle_epm_planning_list_user_variable_values' },
+        { label: 'Set User Variable Values', id: 'oracle_epm_planning_set_user_variable_values' },
+        { label: 'List Planning Units', id: 'oracle_epm_planning_list_planning_units' },
+        { label: 'Get Planning Unit Actions', id: 'oracle_epm_planning_get_planning_unit_actions' },
+        { label: 'Get Planning Unit History', id: 'oracle_epm_planning_get_planning_unit_history' },
+        { label: 'Change Planning Unit Status', id: 'oracle_epm_planning_change_planning_unit_status' },
+        { label: 'Get Insights', id: 'oracle_epm_planning_get_insights' },
+        { label: 'Summarize Insights', id: 'oracle_epm_planning_summarize_insights' },
       ],
       value: () => 'oracle_epm_planning_list_applications',
       required: true,
@@ -696,6 +877,15 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
           'oracle_epm_planning_import_application_data',
           'oracle_epm_planning_refresh_cube',
           'oracle_epm_planning_set_administration_mode',
+          'oracle_epm_planning_run_data_map',
+          'oracle_epm_planning_list_user_variable_values',
+          'oracle_epm_planning_set_user_variable_values',
+          'oracle_epm_planning_list_planning_units',
+          'oracle_epm_planning_get_planning_unit_actions',
+          'oracle_epm_planning_get_planning_unit_history',
+          'oracle_epm_planning_change_planning_unit_status',
+          'oracle_epm_planning_get_insights',
+          'oracle_epm_planning_summarize_insights',
         ],
       },
       required: {
@@ -725,6 +915,15 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
           'oracle_epm_planning_import_application_data',
           'oracle_epm_planning_refresh_cube',
           'oracle_epm_planning_set_administration_mode',
+          'oracle_epm_planning_run_data_map',
+          'oracle_epm_planning_list_user_variable_values',
+          'oracle_epm_planning_set_user_variable_values',
+          'oracle_epm_planning_list_planning_units',
+          'oracle_epm_planning_get_planning_unit_actions',
+          'oracle_epm_planning_get_planning_unit_history',
+          'oracle_epm_planning_change_planning_unit_status',
+          'oracle_epm_planning_get_insights',
+          'oracle_epm_planning_summarize_insights',
         ],
       },
       type: 'project-selector',
@@ -765,6 +964,15 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
           'oracle_epm_planning_import_application_data',
           'oracle_epm_planning_refresh_cube',
           'oracle_epm_planning_set_administration_mode',
+          'oracle_epm_planning_run_data_map',
+          'oracle_epm_planning_list_user_variable_values',
+          'oracle_epm_planning_set_user_variable_values',
+          'oracle_epm_planning_list_planning_units',
+          'oracle_epm_planning_get_planning_unit_actions',
+          'oracle_epm_planning_get_planning_unit_history',
+          'oracle_epm_planning_change_planning_unit_status',
+          'oracle_epm_planning_get_insights',
+          'oracle_epm_planning_summarize_insights',
         ],
       },
       required: {
@@ -794,6 +1002,15 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
           'oracle_epm_planning_import_application_data',
           'oracle_epm_planning_refresh_cube',
           'oracle_epm_planning_set_administration_mode',
+          'oracle_epm_planning_run_data_map',
+          'oracle_epm_planning_list_user_variable_values',
+          'oracle_epm_planning_set_user_variable_values',
+          'oracle_epm_planning_list_planning_units',
+          'oracle_epm_planning_get_planning_unit_actions',
+          'oracle_epm_planning_get_planning_unit_history',
+          'oracle_epm_planning_change_planning_unit_status',
+          'oracle_epm_planning_get_insights',
+          'oracle_epm_planning_summarize_insights',
         ],
       },
       type: 'short-input',
@@ -804,9 +1021,11 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     {
       id: 'cubeSelector',
       title: 'Cube',
-      condition: {
+      condition: (values) => ({
         field: 'operation',
         value: [
+          'oracle_epm_planning_get_insights',
+          ...(values?.summaryInputMode === 'slice' ? ['oracle_epm_planning_summarize_insights'] : []),
           'oracle_epm_planning_list_dimensions',
           'oracle_epm_planning_get_dimension',
           'oracle_epm_planning_list_substitution_variables',
@@ -820,17 +1039,19 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
           'oracle_epm_planning_get_member',
           'oracle_epm_planning_add_member',
         ],
-      },
-      required: {
+      }),
+      required: (values) => ({
         field: 'operation',
         value: [
+          ...(values?.summaryInputMode === 'slice' ? ['oracle_epm_planning_summarize_insights'] : []),
+          'oracle_epm_planning_get_insights',
           'oracle_epm_planning_list_dimensions',
           'oracle_epm_planning_get_dimension',
           'oracle_epm_planning_export_data_slice',
           'oracle_epm_planning_import_data_slice',
           'oracle_epm_planning_clear_data_slice',
         ],
-      },
+      }),
       type: 'project-selector',
       canonicalParamId: 'cube',
       serviceId: 'oracle-epm',
@@ -842,9 +1063,11 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     {
       id: 'cubeManual',
       title: 'Cube',
-      condition: {
+      condition: (values) => ({
         field: 'operation',
         value: [
+          'oracle_epm_planning_get_insights',
+          ...(values?.summaryInputMode === 'slice' ? ['oracle_epm_planning_summarize_insights'] : []),
           'oracle_epm_planning_list_dimensions',
           'oracle_epm_planning_get_dimension',
           'oracle_epm_planning_list_substitution_variables',
@@ -858,17 +1081,19 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
           'oracle_epm_planning_get_member',
           'oracle_epm_planning_add_member',
         ],
-      },
-      required: {
+      }),
+      required: (values) => ({
         field: 'operation',
         value: [
+          ...(values?.summaryInputMode === 'slice' ? ['oracle_epm_planning_summarize_insights'] : []),
+          'oracle_epm_planning_get_insights',
           'oracle_epm_planning_list_dimensions',
           'oracle_epm_planning_get_dimension',
           'oracle_epm_planning_export_data_slice',
           'oracle_epm_planning_import_data_slice',
           'oracle_epm_planning_clear_data_slice',
         ],
-      },
+      }),
       type: 'short-input',
       canonicalParamId: 'cube',
       mode: 'advanced',
@@ -880,7 +1105,13 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       title: 'Offset',
       condition: {
         field: 'operation',
-        value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_job_details'],
+        value: [
+          'oracle_epm_planning_list_user_variable_values',
+          'oracle_epm_planning_list_planning_units',
+          'oracle_epm_planning_get_planning_unit_history',
+          'oracle_epm_planning_list_dimensions',
+          'oracle_epm_planning_get_job_details',
+        ],
       },
       required: false,
       type: 'short-input',
@@ -892,7 +1123,13 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       title: 'Limit',
       condition: {
         field: 'operation',
-        value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_job_details'],
+        value: [
+          'oracle_epm_planning_list_user_variable_values',
+          'oracle_epm_planning_list_planning_units',
+          'oracle_epm_planning_get_planning_unit_history',
+          'oracle_epm_planning_list_dimensions',
+          'oracle_epm_planning_get_job_details',
+        ],
       },
       required: false,
       type: 'short-input',
@@ -1415,6 +1652,382 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
         { label: 'All Users', id: 'All Users' },
       ],
     },
+    {
+      id: 'objectType',
+      title: 'Data Map Job Type',
+      type: 'dropdown',
+      options: [{
+        label: 'Plan Type Map',
+        id: 'PLAN_TYPE_MAP',
+      }],
+      defaultValue: 'PLAN_TYPE_MAP',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      description: 'Discovery filter only. Run Data Map always submits PLAN_TYPE_MAP.',
+    },
+    {
+      id: 'dataMapNameSelector',
+      title: 'Data Map',
+      type: 'project-selector',
+      canonicalParamId: 'dataMapName',
+      mode: 'basic',
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      serviceId: 'oracle-epm',
+      selectorKey: 'oracleEpmPlanning.jobDefinitions',
+      dependsOn: ['credential', 'applicationSelector', 'objectType'],
+    },
+    {
+      id: 'dataMapNameManual',
+      title: 'Data Map',
+      type: 'short-input',
+      canonicalParamId: 'dataMapName',
+      mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      placeholder: 'Enter a configured data-map job name',
+    },
+    {
+      id: 'clearData',
+      title: 'Clear Data',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      placeholder: 'Explicitly clear the target region before copying. Destructive when true; Sim defaults to false, while Oracle defaults to true.',
+      defaultValue: false,
+    },
+    {
+      id: 'overrideMembersMap',
+      title: 'Override Members Map (JSON)',
+      type: 'code',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      required: false,
+      placeholder: 'Optional dimension-to-member-selection map, for example {"Period":"ILvl0Descendants(Q1)"}. Values must be strings.',
+      language: 'json',
+      canvasNoun: 'member selections',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate only the requested Oracle Planning JSON using supplied tenant names. Optional dimension-to-member-selection map, for example {"Period":"ILvl0Descendants(Q1)"}. Values must be strings. Return ONLY JSON; do not invent names or unsupported fields.',
+        placeholder: 'Describe the requested overrideMembersMap',
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'overrideExclusionMembersMap',
+      title: 'Override Exclusion Members Map (JSON)',
+      type: 'code',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_run_data_map'],
+      },
+      required: false,
+      placeholder: 'Optional dimension-to-excluded-member-selection map, for example {"Period":"Jan"}. Values must be strings.',
+      language: 'json',
+      canvasNoun: 'member selections',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate only the requested Oracle Planning JSON using supplied tenant names. Optional dimension-to-excluded-member-selection map, for example {"Period":"Jan"}. Values must be strings. Return ONLY JSON; do not invent names or unsupported fields.',
+        placeholder: 'Describe the requested overrideExclusionMembersMap',
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'userVariableValues',
+      title: 'User Variable Values (JSON)',
+      type: 'code',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_set_user_variable_values'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_set_user_variable_values'],
+      },
+      placeholder: '1–1000 user-variable values: [{userName, name, dimension, member}]. Names are tenant-specific; do not assume batch atomicity.',
+      language: 'json',
+      canvasNoun: 'user-variable values',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate only the requested Oracle Planning JSON using supplied tenant names. 1–1000 user-variable values: [{userName, name, dimension, member}]. Names are tenant-specific; do not assume batch atomicity. Return ONLY JSON; do not invent names or unsupported fields.',
+        placeholder: 'Describe the requested userVariableValues',
+      },
+    },
+    {
+      id: 'scenario',
+      title: 'Scenario',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_planning_units'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_planning_units'],
+      },
+      placeholder: 'Exact scenario member name for the planning units.',
+    },
+    {
+      id: 'planningVersion',
+      title: 'Planning Version',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_planning_units'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_planning_units'],
+      },
+      placeholder: 'Exact version member name for the planning units, not the REST API version.',
+    },
+    {
+      id: 'puhIdentifier',
+      title: 'Planning Unit Hierarchy',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_actions', 'oracle_epm_planning_change_planning_unit_status'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_actions', 'oracle_epm_planning_change_planning_unit_status'],
+      },
+      placeholder: 'Raw Oracle planning-unit hierarchy identifier for scenario and version, including required quotes and :: separators. Not a numeric puId or a URL. Maximum 255 UTF-8 bytes; do not percent-encode.',
+    },
+    {
+      id: 'puIdentifier',
+      title: 'Planning Unit Identifier',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_history'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_history'],
+      },
+      placeholder: 'Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode.',
+    },
+    {
+      id: 'pmMembers',
+      title: 'PM Members',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_actions', 'oracle_epm_planning_change_planning_unit_status'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_actions', 'oracle_epm_planning_change_planning_unit_status'],
+      },
+      placeholder: 'Oracle PM-member selection (Entity: Secondary member), preserving tenant-specific quoting and comma-separated member names.',
+    },
+    {
+      id: 'actionId',
+      title: 'Action ID',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_change_planning_unit_status'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_change_planning_unit_status'],
+      },
+      placeholder: 'Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership.',
+    },
+    {
+      id: 'comments',
+      title: 'Comments',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_change_planning_unit_status'],
+      },
+      required: false,
+      placeholder: 'Optional comment for the explicit approval transition.',
+      mode: 'advanced',
+    },
+    {
+      id: 'approvalOptions',
+      title: 'Approval Options',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_actions'],
+      },
+      required: false,
+      placeholder: '0 for limited approvals or 1 for full approvals (default 1).',
+      mode: 'advanced',
+    },
+    {
+      id: 'annotSeq',
+      title: 'Annot Seq',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_history'],
+      },
+      required: false,
+      placeholder: 'Annotation sequence to retrieve replies; -1 (default) with logSeq -1 retrieves parent nodes.',
+      mode: 'advanced',
+    },
+    {
+      id: 'logSeq',
+      title: 'Log Seq',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_history'],
+      },
+      required: false,
+      placeholder: 'History sequence to retrieve replies; -1 (default) with annotSeq -1 retrieves parent nodes.',
+      mode: 'advanced',
+    },
+    {
+      id: 'insightSlice',
+      title: 'Insight Slice (JSON)',
+      type: 'code',
+      condition: (values) => ({
+        field: 'operation',
+        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
+          ? []
+          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+      }),
+      required: (values) => ({
+        field: 'operation',
+        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
+          ? []
+          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+      }),
+      placeholder: 'IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid.',
+      language: 'json',
+      canvasNoun: 'insight slice',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate only the requested Oracle Planning JSON using supplied tenant names. IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid. Return ONLY JSON; do not invent names or unsupported fields.',
+        placeholder: 'Describe the requested insightSlice',
+      },
+    },
+    {
+      id: 'retrievalMode',
+      title: 'Retrieval Mode',
+      type: 'dropdown',
+      condition: (values) => ({
+        field: 'operation',
+        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
+          ? []
+          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+      }),
+      required: false,
+      placeholder: 'USE_EXISTING (default) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role.',
+      mode: 'advanced',
+      defaultValue: 'USE_EXISTING',
+      options: [{
+        id: 'USE_EXISTING',
+        label: 'Use Existing Insights',
+      }, {
+        id: 'FORCE_RECOMPUTE',
+        label: 'Recompute Insights',
+      }],
+    },
+    {
+      id: 'calendar',
+      title: 'Calendar',
+      type: 'short-input',
+      condition: (values) => ({
+        field: 'operation',
+        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
+          ? []
+          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+        and: { field: 'retrievalMode', value: 'FORCE_RECOMPUTE' },
+      }),
+      required: (values) => ({
+        field: 'operation',
+        value: values?.operation === 'oracle_epm_planning_summarize_insights' && values?.summaryInputMode !== 'slice'
+          ? []
+          : ['oracle_epm_planning_get_insights', 'oracle_epm_planning_summarize_insights'],
+        and: { field: 'retrievalMode', value: 'FORCE_RECOMPUTE' },
+      }),
+      placeholder: 'Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE.',
+      mode: 'advanced',
+    },
+    {
+      id: 'insightIds',
+      title: 'Insight IDs (JSON)',
+      type: 'code',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_summarize_insights'],
+        and: { field: 'summaryInputMode', value: 'ids' },
+      },
+      required: { field: 'operation', value: ['oracle_epm_planning_summarize_insights'], and: { field: 'summaryInputMode', value: 'ids' } },
+      placeholder: '1–1000 insight ID strings returned by Get Insights; required in ids summary mode.',
+      language: 'json',
+      canvasNoun: 'member selections',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate only the requested Oracle Planning JSON using supplied tenant names. 1–1000 insight ID strings returned by Get Insights; required in ids summary mode. Return ONLY JSON; do not invent names or unsupported fields.',
+        placeholder: 'Describe the requested insightIds',
+      },
+    },
+    {
+      id: 'summaryInputMode',
+      title: 'Summary Input Mode',
+      type: 'dropdown',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_summarize_insights'],
+      },
+      required: {
+        field: 'operation',
+        value: ['oracle_epm_planning_summarize_insights'],
+      },
+      placeholder: 'ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice.',
+      defaultValue: 'ids',
+      options: [{
+        id: 'ids',
+        label: 'Insight IDs',
+      }, {
+        id: 'slice',
+        label: 'Insight Slice',
+      }],
+    },
+    {
+      id: 'summarySize',
+      title: 'Summary Size',
+      type: 'short-input',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_summarize_insights'],
+      },
+      required: false,
+      placeholder: 'Maximum summary length in words (default 100; Sim range 1–10000). Output format is always text.',
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: [
@@ -1447,10 +2060,107 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       'oracle_epm_planning_delete_file',
       'oracle_epm_planning_refresh_cube',
       'oracle_epm_planning_set_administration_mode',
+      'oracle_epm_planning_run_data_map',
+      'oracle_epm_planning_list_user_variable_values',
+      'oracle_epm_planning_set_user_variable_values',
+      'oracle_epm_planning_list_planning_units',
+      'oracle_epm_planning_get_planning_unit_actions',
+      'oracle_epm_planning_get_planning_unit_history',
+      'oracle_epm_planning_change_planning_unit_status',
+      'oracle_epm_planning_get_insights',
+      'oracle_epm_planning_summarize_insights',
     ],
     config: { tool: (params) => params.operation, params: operationParams },
   },
   inputs: {
+    clearData: {
+      type: 'boolean',
+      description: 'Explicitly clear the target region before copying. Destructive when true; Sim defaults to false, while Oracle defaults to true.',
+    },
+    overrideMembersMap: {
+      type: 'json',
+      description: 'Optional dimension-to-member-selection map, for example {"Period":"ILvl0Descendants(Q1)"}. Values must be strings.',
+    },
+    overrideExclusionMembersMap: {
+      type: 'json',
+      description: 'Optional dimension-to-excluded-member-selection map, for example {"Period":"Jan"}. Values must be strings.',
+    },
+    userVariableValues: {
+      type: 'array',
+      description: '1–1000 user-variable values: [{userName, name, dimension, member}]. Names are tenant-specific; do not assume batch atomicity.',
+    },
+    scenario: {
+      type: 'string',
+      description: 'Exact scenario member name for the planning units.',
+    },
+    planningVersion: {
+      type: 'string',
+      description: 'Exact version member name for the planning units, not the REST API version.',
+    },
+    puhIdentifier: {
+      type: 'string',
+      description: 'Raw Oracle planning-unit hierarchy identifier for scenario and version, including required quotes and :: separators. Not a numeric puId or a URL. Maximum 255 UTF-8 bytes; do not percent-encode.',
+    },
+    puIdentifier: {
+      type: 'string',
+      description: 'Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode.',
+    },
+    pmMembers: {
+      type: 'string',
+      description: 'Oracle PM-member selection (Entity: Secondary member), preserving tenant-specific quoting and comma-separated member names.',
+    },
+    actionId: {
+      type: 'number',
+      description: 'Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership.',
+    },
+    comments: {
+      type: 'string',
+      description: 'Optional comment for the explicit approval transition.',
+    },
+    approvalOptions: {
+      type: 'number',
+      description: '0 for limited approvals or 1 for full approvals (default 1).',
+    },
+    annotSeq: {
+      type: 'number',
+      description: 'Annotation sequence to retrieve replies; -1 (default) with logSeq -1 retrieves parent nodes.',
+    },
+    logSeq: {
+      type: 'number',
+      description: 'History sequence to retrieve replies; -1 (default) with annotSeq -1 retrieves parent nodes.',
+    },
+    insightSlice: {
+      type: 'json',
+      description: 'IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid.',
+    },
+    retrievalMode: {
+      type: 'string',
+      description: 'USE_EXISTING (default) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role.',
+    },
+    calendar: {
+      type: 'string',
+      description: 'Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE.',
+    },
+    insightIds: {
+      type: 'array',
+      description: '1–1000 insight ID strings returned by Get Insights; required in ids summary mode.',
+    },
+    summaryInputMode: {
+      type: 'string',
+      description: 'ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice.',
+    },
+    summarySize: {
+      type: 'number',
+      description: 'Maximum summary length in words (default 100; Sim range 1–10000). Output format is always text.',
+    },
+    dataMapName: {
+      type: 'string',
+      description: 'Configured data-map job name',
+    },
+    objectType: {
+      type: 'string',
+      description: 'Data-map discovery filter PLAN_TYPE_MAP',
+    },
     operation: { type: 'string', description: 'Planning operation' },
     oauthCredential: { type: 'string', description: 'Oracle EPM service-account credential' },
     application: {
@@ -1568,6 +2278,62 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     },
   },
   outputs: {
+    userVariableValues: {
+      type: 'array',
+      description: 'One page of user-variable values; Oracle provides no completion flag',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_user_variable_values'],
+      },
+    },
+    planningUnits: {
+      type: 'array',
+      description: 'One page of owned planning units; numeric puId is not a compound identifier',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_list_planning_units'],
+      },
+    },
+    planningUnitActions: {
+      type: 'array',
+      description: 'Available actions without performing any transition',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_actions'],
+      },
+    },
+    planningUnitHistory: {
+      type: 'array',
+      description: 'One page of owned-unit history and annotations',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_planning_unit_history'],
+      },
+    },
+    planningUnitAction: {
+      type: 'json',
+      description: 'Oracle confirmation returned in self-link data, not a job snapshot',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_change_planning_unit_status'],
+      },
+    },
+    insights: {
+      type: 'array',
+      description: 'IPM insights in this response; inspect hasMore before treating the results as complete',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_get_insights'],
+      },
+    },
+    summary: {
+      type: 'string',
+      description: 'Oracle IPM summary in text format',
+      condition: {
+        field: 'operation',
+        value: ['oracle_epm_planning_summarize_insights'],
+      },
+    },
     applications: {
       type: 'array',
       description: 'Available applications',
@@ -1585,13 +2351,13 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     },
     totalResults: {
       type: 'number',
-      description: 'Total dimensions',
-      condition: { field: 'operation', value: ['oracle_epm_planning_list_dimensions'] },
+      description: 'Total dimension or insight count reported by Oracle',
+      condition: { field: 'operation', value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_insights'] },
     },
     hasMore: {
       type: 'boolean',
-      description: 'More dimension pages are available',
-      condition: { field: 'operation', value: ['oracle_epm_planning_list_dimensions'] },
+      description: 'Additional results exist; insights do not expose a documented pagination input',
+      condition: { field: 'operation', value: ['oracle_epm_planning_list_dimensions', 'oracle_epm_planning_get_insights'] },
     },
     dimension: {
       type: 'json',
@@ -1618,8 +2384,8 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
     },
     updated: {
       type: 'boolean',
-      description: 'All supplied variables were accepted',
-      condition: { field: 'operation', value: ['oracle_epm_planning_set_substitution_variables'] },
+      description: 'Oracle accepted the variable update request; user-variable batches have no atomicity guarantee',
+      condition: { field: 'operation', value: ['oracle_epm_planning_set_substitution_variables', 'oracle_epm_planning_set_user_variable_values'] },
     },
     deleted: {
       type: 'boolean',
@@ -1643,6 +2409,7 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
       condition: {
         field: 'operation',
         value: [
+          'oracle_epm_planning_run_data_map',
           'oracle_epm_planning_run_job',
           'oracle_epm_planning_run_rule',
           'oracle_epm_planning_run_ruleset',
@@ -1701,6 +2468,42 @@ export const OracleEpmPlanningBlockMeta = {
   tags: ['automation', 'data-analytics'],
   url: 'https://www.oracle.com/performance-management/planning/',
   templates: [
+    {
+      icon: NetSuiteIcon,
+      title: 'Push an approved data map',
+      prompt:
+        'Build a workflow that selects a configured PLAN_TYPE_MAP job, requires an explicit clearData choice defaulting to false, submits only supplied dimension overrides, and waits for the returned job ID. Never replay the submission automatically.',
+      modules: ['workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+    },
+    {
+      icon: NetSuiteIcon,
+      title: 'Maintain user-specific planning context',
+      prompt:
+        'Build a workflow that pages user-variable values, updates only an explicitly approved batch of userName/name/dimension/member entries, then reads the relevant values again. Respect caller permissions and do not assume the batch is transactional.',
+      modules: ['workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+    },
+    {
+      icon: NetSuiteIcon,
+      title: 'Review owned planning units',
+      prompt:
+        'Build a workflow that lists owned planning units for supplied scenario and version names, reads their history using exact manual compound identifiers, and retrieves available actions. Perform a status or ownership change only after an explicit choice and approval. Never treat puId as the compound path identifier.',
+      modules: ['workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+    },
+    {
+      icon: NetSuiteIcon,
+      title: 'Summarize existing planning insights',
+      prompt:
+        'Build a workflow that retrieves IPM insights with USE_EXISTING and an insight-specific slice, reports hasMore and totalResults without claiming incomplete results are complete, then summarizes selected insight ID strings as text. Never recompute insights implicitly.',
+      modules: ['workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+    },
     {
       icon: NetSuiteIcon,
       title: 'Run a Planning rule and monitor it',

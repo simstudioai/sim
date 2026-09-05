@@ -113,6 +113,175 @@ export const planningListApplicationsInputSchema = z.object({
   ...authFields,
 })
 
+const memberOverrides = z.record(name, z.string().min(1))
+const sequence = z.number().int().min(-1).safe()
+const compoundIdentifier = name.refine(
+  (value) => Buffer.byteLength(value, 'utf8') <= 255,
+  'Compound identifiers are limited to 255 UTF-8 bytes'
+)
+const userVariableValue = z.object({ userName: name, name, dimension: name, member: name })
+const insightAxis = z.object({ dimensions: strings, segments: z.array(matrix) }).strict()
+/** https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/get_insigh.html */
+export const insightSliceSchema = z.object({
+  pov: z.object({ members: strings, dimensions: strings }).strict(),
+  columnAxisDefinition: insightAxis,
+  rowAxisDefinition: insightAxis,
+}).strict()
+const insightFields = {
+  cube: name,
+  insightSlice: insightSliceSchema,
+  retrievalMode: z.enum(['USE_EXISTING', 'FORCE_RECOMPUTE']).optional(),
+  calendar: name.optional(),
+}
+
+export const planningRunDataMapInputSchema = z.object({
+  ...authFields,
+  application: name,
+  jobName: name,
+  clearData: z.boolean(),
+  overrideMembersMap: memberOverrides.optional(),
+  overrideExclusionMembersMap: memberOverrides.optional(),
+})
+export const planningListUserVariableValuesInputSchema = z.object({
+  ...authFields,
+  application: name,
+  offset: inputFields.offset.optional(),
+  limit: inputFields.limit.optional(),
+})
+export const planningSetUserVariableValuesInputSchema = z.object({
+  ...authFields,
+  application: name,
+  userVariableValues: z.array(userVariableValue.strict()).min(1).max(1000),
+})
+export const planningListPlanningUnitsInputSchema = z.object({
+  ...authFields,
+  application: name,
+  scenario: name,
+  planningVersion: name,
+  offset: inputFields.offset.optional(),
+  limit: inputFields.limit.optional(),
+})
+export const planningGetPlanningUnitActionsInputSchema = z.object({
+  ...authFields,
+  application: name,
+  puhIdentifier: compoundIdentifier,
+  pmMembers: z.string().min(1).max(65536),
+  approvalOptions: z.union([z.literal(0), z.literal(1)]).optional(),
+})
+export const planningGetPlanningUnitHistoryInputSchema = z.object({
+  ...authFields,
+  application: name,
+  puIdentifier: compoundIdentifier,
+  annotSeq: sequence.optional(),
+  logSeq: sequence.optional(),
+  offset: inputFields.offset.optional(),
+  limit: inputFields.limit.optional(),
+})
+export const planningChangePlanningUnitStatusInputSchema = z.object({
+  ...authFields,
+  application: name,
+  puhIdentifier: compoundIdentifier,
+  pmMembers: z.string().min(1).max(65536),
+  actionId: count.positive(),
+  comments: z.string().max(65536).optional(),
+})
+export const planningGetInsightsInputSchema = z.object({
+  ...authFields,
+  application: name,
+  ...insightFields,
+}).refine((input) => input.retrievalMode !== 'FORCE_RECOMPUTE' || !!input.calendar, {
+  message: 'Recomputing insights requires a calendar',
+  path: ['calendar'],
+})
+/** Explicit mode prevents stale IDs from overriding a slice in Oracle's request precedence. */
+export const planningSummarizeInsightsInputSchema = z.object({
+  ...authFields,
+  application: name,
+  summaryInputMode: z.enum(['ids', 'slice']),
+  insightIds: z.array(z.string().regex(/^[0-9]{1,32}$/)).min(1).max(1000).optional(),
+  ...insightFields,
+  cube: name.optional(),
+  insightSlice: insightSliceSchema.optional(),
+  summarySize: z.number().int().min(1).max(10000).optional(),
+}).superRefine((input, context) => {
+  if (input.summaryInputMode === 'ids') {
+    if (!input.insightIds) context.addIssue({ code: 'custom', path: ['insightIds'], message: 'Insight IDs are required' })
+  } else {
+    if (!input.cube) context.addIssue({ code: 'custom', path: ['cube'], message: 'A cube is required for slice summaries' })
+    if (!input.insightSlice) context.addIssue({ code: 'custom', path: ['insightSlice'], message: 'An insight slice is required' })
+    if (input.retrievalMode === 'FORCE_RECOMPUTE' && !input.calendar) context.addIssue({ code: 'custom', path: ['calendar'], message: 'Recomputing insights requires a calendar' })
+  }
+})
+
+/** User values are distinct from user-variable definitions and substitution variables. */
+export const userVariableValuesSchema = z.object({ items: z.array(userVariableValue).max(1000) })
+/** https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/list_all_planning_units.html */
+export const planningUnitsSchema = z.object({ items: z.array(z.object({
+  name: z.string().nullable(),
+  value: z.number().finite(),
+  owner: z.string(),
+  version: z.string(),
+  entity: z.string(),
+  status: z.string(),
+  scenario: z.string(),
+  formattedValue: z.string(),
+  puName: z.string(),
+  subStatus: z.string(),
+  secMember: z.string().nullable(),
+  puAlias: z.string(),
+  scenarioAlias: z.string().nullable(),
+  versionAlias: z.string().nullable(),
+  puId: count,
+})).max(1000) })
+export const planningUnitActionsSchema = z.object({
+  items: z.array(z.object({ actionId: count, name: z.string() })).max(1000),
+})
+/** The history page's media-type label conflicts with its explicit JSON body and field table. */
+export const planningUnitHistorySchema = z.object({ items: z.array(z.object({
+  comment: z.string(),
+  hasHistory: z.boolean(),
+  logSeq: sequence,
+  staticImage: z.boolean(),
+  authorImagePath: z.string(),
+  commentTitle: z.string(),
+  commentDate: z.string(),
+  commentSubTitle: z.string(),
+  parentAnntSeq: sequence,
+  isChildNode: z.boolean(),
+  type: z.string().optional(),
+})).max(1000) })
+/** Status changes return a confirmation in self-link data, not a job envelope. */
+export const planningUnitStatusSchema = z.object({ links: z.array(z.object({
+  rel: z.string(),
+  href: z.string(),
+  action: z.string(),
+  data: z.object({ pmMembers: z.string(), action: z.string(), comments: z.string() }).optional(),
+})).max(1000) })
+export const insightsSchema = z.object({
+  items: z.array(z.object({
+    id: count.transform(String),
+    type: z.enum(['ANOMALY', 'MOVEMENT_VARIANCE_INSIGHTS', 'HISTORICAL_INSIGHTS', 'FUTURE_INSIGHTS']),
+    accountName: z.string().optional(),
+    sourceAccountName: z.string().optional(),
+    planType: z.string().optional(),
+    actualImpact: z.string().optional(),
+    percentImpact: z.string().optional(),
+    createdDate: z.string().optional(),
+    description: z.string().optional(),
+    outlierValue: z.number().finite().optional(),
+    standardVariance: z.string().optional(),
+    actualImpactValue: z.number().finite().optional(),
+    priority: z.string().optional(),
+    pov: z.string().optional(),
+    percentageDiff: z.string().optional(),
+    anomalyPeriod: z.string().optional(),
+    percentageDiffFromAnomaly: z.string().optional(),
+  })),
+  totalResults: count,
+  hasMore: z.boolean(),
+})
+export const insightSummarySchema = z.object({ summary: z.string() })
+
 export const planningListCubesInputSchema = z.object({
   ...authFields,
   application: inputFields.application,

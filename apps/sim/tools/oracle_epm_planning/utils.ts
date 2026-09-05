@@ -24,6 +24,128 @@ export const oracleEpmPlanningAuthParamFields = {
 } satisfies ToolConfig['params']
 
 export const oracleEpmPlanningParamFields = {
+  clearData: {
+    type: 'boolean',
+    description: 'Explicitly clear the target region before copying. Destructive when true; Sim defaults to false, while Oracle defaults to true.',
+    visibility: 'user-or-llm',
+  },
+  overrideMembersMap: {
+    type: 'json',
+    description: 'Optional dimension-to-member-selection map, for example {"Period":"ILvl0Descendants(Q1)"}. Values must be strings.',
+    visibility: 'user-or-llm',
+  },
+  overrideExclusionMembersMap: {
+    type: 'json',
+    description: 'Optional dimension-to-excluded-member-selection map, for example {"Period":"Jan"}. Values must be strings.',
+    visibility: 'user-or-llm',
+  },
+  userVariableValues: {
+    type: 'array',
+    description: '1–1000 user-variable values: [{userName, name, dimension, member}]. Names are tenant-specific; do not assume batch atomicity.',
+    items: {
+      type: 'object',
+      required: ['userName', 'name', 'dimension', 'member'],
+      additionalProperties: false,
+      properties: {
+        userName: {
+          type: 'string',
+        },
+        name: {
+          type: 'string',
+        },
+        dimension: {
+          type: 'string',
+        },
+        member: {
+          type: 'string',
+        },
+      },
+    },
+    visibility: 'user-or-llm',
+  },
+  scenario: {
+    type: 'string',
+    description: 'Exact scenario member name for the planning units.',
+    visibility: 'user-or-llm',
+  },
+  planningVersion: {
+    type: 'string',
+    description: 'Exact version member name for the planning units, not the REST API version.',
+    visibility: 'user-or-llm',
+  },
+  puhIdentifier: {
+    type: 'string',
+    description: 'Raw Oracle planning-unit hierarchy identifier for scenario and version, including required quotes and :: separators. Not a numeric puId or a URL. Maximum 255 UTF-8 bytes; do not percent-encode.',
+    visibility: 'user-or-llm',
+  },
+  puIdentifier: {
+    type: 'string',
+    description: 'Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode.',
+    visibility: 'user-or-llm',
+  },
+  pmMembers: {
+    type: 'string',
+    description: 'Oracle PM-member selection (Entity: Secondary member), preserving tenant-specific quoting and comma-separated member names.',
+    visibility: 'user-or-llm',
+  },
+  actionId: {
+    type: 'number',
+    description: 'Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership.',
+    visibility: 'user-or-llm',
+  },
+  comments: {
+    type: 'string',
+    description: 'Optional comment for the explicit approval transition.',
+    visibility: 'user-or-llm',
+  },
+  approvalOptions: {
+    type: 'number',
+    description: '0 for limited approvals or 1 for full approvals (default 1).',
+    visibility: 'user-or-llm',
+  },
+  annotSeq: {
+    type: 'number',
+    description: 'Annotation sequence to retrieve replies; -1 (default) with logSeq -1 retrieves parent nodes.',
+    visibility: 'user-or-llm',
+  },
+  logSeq: {
+    type: 'number',
+    description: 'History sequence to retrieve replies; -1 (default) with annotSeq -1 retrieves parent nodes.',
+    visibility: 'user-or-llm',
+  },
+  insightSlice: {
+    type: 'json',
+    description: 'IPM slice: pov {members:string[], dimensions:string[]}; rowAxisDefinition and columnAxisDefinition each {dimensions:string[], segments:string[][][]}. Not a Planning data grid.',
+    visibility: 'user-or-llm',
+  },
+  retrievalMode: {
+    type: 'string',
+    description: 'USE_EXISTING (default) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role.',
+    visibility: 'user-or-llm',
+  },
+  calendar: {
+    type: 'string',
+    description: 'Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE.',
+    visibility: 'user-or-llm',
+  },
+  insightIds: {
+    type: 'array',
+    description: '1–1000 insight ID strings returned by Get Insights; required in ids summary mode.',
+    items: {
+      type: 'string',
+    },
+    visibility: 'user-or-llm',
+  },
+  summaryInputMode: {
+    type: 'string',
+    description: 'ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice.',
+    visibility: 'user-or-llm',
+  },
+  summarySize: {
+    type: 'number',
+    description: 'Maximum summary length in words (default 100; Sim range 1–10000). Output format is always text.',
+    visibility: 'user-or-llm',
+  },
   application: {
     type: 'string',
     description: 'Application name, exactly as configured in Oracle.',

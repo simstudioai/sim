@@ -43,6 +43,15 @@ const EXPECTED_IDS = [
   'oracle_epm_planning_delete_file',
   'oracle_epm_planning_refresh_cube',
   'oracle_epm_planning_set_administration_mode',
+  'oracle_epm_planning_run_data_map',
+  'oracle_epm_planning_list_user_variable_values',
+  'oracle_epm_planning_set_user_variable_values',
+  'oracle_epm_planning_list_planning_units',
+  'oracle_epm_planning_get_planning_unit_actions',
+  'oracle_epm_planning_get_planning_unit_history',
+  'oracle_epm_planning_change_planning_unit_status',
+  'oracle_epm_planning_get_insights',
+  'oracle_epm_planning_summarize_insights',
 ]
 const FIELD_MAPPING: Record<string, Record<string, string>> = {
   oracle_epm_planning_list_applications: {},
@@ -189,6 +198,67 @@ const FIELD_MAPPING: Record<string, Record<string, string>> = {
     loginLevel: 'loginLevel',
     jobName: 'configuredJobName',
   },
+  oracle_epm_planning_run_data_map: {
+    application: 'application',
+    jobName: 'dataMapName',
+    clearData: 'clearData',
+    overrideMembersMap: 'overrideMembersMap',
+    overrideExclusionMembersMap: 'overrideExclusionMembersMap',
+  },
+  oracle_epm_planning_list_user_variable_values: {
+    application: 'application',
+    offset: 'offset',
+    limit: 'limit',
+  },
+  oracle_epm_planning_set_user_variable_values: {
+    application: 'application',
+    userVariableValues: 'userVariableValues',
+  },
+  oracle_epm_planning_list_planning_units: {
+    application: 'application',
+    scenario: 'scenario',
+    planningVersion: 'planningVersion',
+    offset: 'offset',
+    limit: 'limit',
+  },
+  oracle_epm_planning_get_planning_unit_actions: {
+    application: 'application',
+    puhIdentifier: 'puhIdentifier',
+    pmMembers: 'pmMembers',
+    approvalOptions: 'approvalOptions',
+  },
+  oracle_epm_planning_get_planning_unit_history: {
+    application: 'application',
+    puIdentifier: 'puIdentifier',
+    annotSeq: 'annotSeq',
+    logSeq: 'logSeq',
+    offset: 'offset',
+    limit: 'limit',
+  },
+  oracle_epm_planning_change_planning_unit_status: {
+    application: 'application',
+    puhIdentifier: 'puhIdentifier',
+    pmMembers: 'pmMembers',
+    actionId: 'actionId',
+    comments: 'comments',
+  },
+  oracle_epm_planning_get_insights: {
+    application: 'application',
+    cube: 'cube',
+    insightSlice: 'insightSlice',
+    retrievalMode: 'retrievalMode',
+    calendar: 'calendar',
+  },
+  oracle_epm_planning_summarize_insights: {
+    application: 'application',
+    summaryInputMode: 'summaryInputMode',
+    insightIds: 'insightIds',
+    cube: 'cube',
+    insightSlice: 'insightSlice',
+    retrievalMode: 'retrievalMode',
+    calendar: 'calendar',
+    summarySize: 'summarySize',
+  },
 }
 const allTools: InternalToolConfig[] = Object.values(tools)
 const block = OracleEpmPlanningBlock
@@ -197,12 +267,13 @@ function operationMatches(
   operation: string
 ): boolean {
   if (value === true || value === undefined) return true
-  if (!value || typeof value === 'function') return false
+  if (!value) return false
+  if (typeof value === 'function') return operationMatches(value({ operation, summaryInputMode: 'slice', retrievalMode: 'FORCE_RECOMPUTE' }), operation)
   return (Array.isArray(value.value) ? value.value : [value.value]).includes(operation)
 }
 describe('Planning integration surface (NetSuite whole-integration precedent)', () => {
-  it('registers exactly the agreed 29 actions, with complete generated metadata', () => {
-    expect(allTools).toHaveLength(29)
+  it('registers exactly the agreed 38 actions, with complete generated metadata', () => {
+    expect(allTools).toHaveLength(38)
     expect(block.tools.access).toEqual(EXPECTED_IDS)
     expect(allTools.map((tool) => tool.id).sort()).toEqual([...EXPECTED_IDS].sort())
     expect(
@@ -256,6 +327,7 @@ describe('Planning integration surface (NetSuite whole-integration precedent)', 
       [
         'application',
         'cube',
+        'dataMapName',
         'dimension',
         'file',
         'fileName',
@@ -281,7 +353,7 @@ describe('Planning integration surface (NetSuite whole-integration precedent)', 
     expect(OracleEpmPlanningBlockMeta.skills.length).toBeGreaterThanOrEqual(5)
     expect(block.icon).toBe(OracleEpmPlanningBlockMeta.templates[0].icon)
   })
-  it('has a canvas sentence for all 29 operations', () => {
+  it('has a canvas sentence for all 38 operations', () => {
     expect(Object.keys(block.canvasPresentation!.sentences!.byOperation!)).toEqual(EXPECTED_IDS)
   })
 })

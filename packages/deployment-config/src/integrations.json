@@ -16156,8 +16156,8 @@
       "type": "oracle_epm_planning",
       "slug": "oracle-epm-planning-freeform",
       "name": "Oracle EPM Planning & FreeForm",
-      "description": "Manage Planning and FreeForm metadata, variables, rules, jobs, grids, forms and files",
-      "longDescription": "Connect an Oracle EPM service-account credential to Planning and FreeForm. Discover applications, cubes and dimensions; manage dynamic members and substitution variables; run rules and configured jobs; transfer data slices, forms and repository files; and perform explicit cube refresh and login-access changes. Job submission and waiting are separate. Inline results are limited to 16 MiB and downloaded Sim files to 100 MiB. Discovery permissions may be broader than execution permissions: manual names remain available.",
+      "description": "Manage Planning and FreeForm data, jobs, approvals, user variables and IPM insights",
+      "longDescription": "Connect an Oracle EPM service-account credential to Planning and FreeForm. Discover applications, cubes and dimensions; manage dynamic members and substitution variables; run rules and configured jobs; transfer data slices, forms and repository files; and perform explicit cube refresh and login-access changes. Run data maps with explicit target clearing, manage user-variable values, inspect owned planning units and perform explicit approval actions, and retrieve or summarize IPM insights. Planning application modules use tenant-configured cubes and rules, not separate integrations. Insight retrieval defaults to existing results; recomputation is explicit and permission-dependent. Job submission and waiting are separate. Inline results are limited to 16 MiB and downloaded Sim files to 100 MiB. Discovery permissions may be broader than execution permissions: manual names remain available.",
       "bgColor": "#FFFFFF",
       "iconName": "NetSuiteIcon",
       "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_planning",
@@ -16277,9 +16277,45 @@
         {
           "name": "Set Administration Mode",
           "description": "Change application login access. Administrators mode logs off Interactive Users and Planners when the job completes. Requires Service Administrator."
+        },
+        {
+          "name": "Run Data Map",
+          "description": "Submit a configured data map once. Service Administrator required. Clearing the target is destructive; clearData must be explicit (Oracle defaults to true). Use Wait for Job separately."
+        },
+        {
+          "name": "List User Variable Values",
+          "description": "Read one bounded page of user-variable values. Administrators can read all users; other users can read their own. No completion indicator is provided by Oracle."
+        },
+        {
+          "name": "Set User Variable Values",
+          "description": "Set a batch of user-variable values, distinct from substitution variables. Administrators can update other users; non-administrators can update their own values. Oracle does not guarantee transactional batch behavior."
+        },
+        {
+          "name": "List Planning Units",
+          "description": "Read one page of planning units owned by the requesting Service Administrator for a scenario and version. This is not discovery of every user’s units; no completion flag is documented."
+        },
+        {
+          "name": "Get Planning Unit Actions",
+          "description": "List available approval actions for units owned by the requesting Service Administrator. Does not change ownership or status."
+        },
+        {
+          "name": "Get Planning Unit History",
+          "description": "Read a bounded page of history and annotations for an owned planning unit. Any application user can read their own units; use sequence identifiers to request replies explicitly."
+        },
+        {
+          "name": "Change Planning Unit Status",
+          "description": "Perform one explicitly chosen approval action. Service Administrator required; units must be owned by the caller and have compatible hierarchy levels and statuses. May change status or ownership; no automatic preflight or retry."
+        },
+        {
+          "name": "Get Insights",
+          "description": "Retrieve IPM insights using the insight-specific slice. Defaults to existing insights. Recomputing requires a calendar and Administrator or IPM Manage role. Results may be incomplete; Oracle documents no pagination input."
+        },
+        {
+          "name": "Summarize Insights",
+          "description": "Return an IPM text summary by insight IDs or by slice. Slice mode requires a cube and insight slice. Defaults to existing insights; recomputing requires a calendar and Administrator or IPM Manage role."
         }
       ],
-      "operationCount": 29,
+      "operationCount": 38,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

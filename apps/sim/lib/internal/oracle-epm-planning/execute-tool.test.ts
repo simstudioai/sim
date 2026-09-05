@@ -39,6 +39,7 @@ const CASES: {
   response: unknown
   output: string
   body?: unknown
+  form?: Record<string, string>
   query?: Record<string, string>
 }[] = [
   {
@@ -716,6 +717,362 @@ const CASES: {
       },
     },
   },
+  {
+    operation: 'run_data_map',
+    input: {
+      application: 'Vision',
+      jobName: 'Reporting',
+      clearData: false,
+      overrideMembersMap: {
+        Period: 'ILvl0Descendants(Q1)',
+      },
+      overrideExclusionMembersMap: {
+        Period: 'Jan',
+      },
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: -1,
+      details: null,
+      jobName: 'Reporting',
+      descriptiveStatus: 'Processing',
+    },
+    output: 'job',
+    body: {
+      jobType: 'PLAN_TYPE_MAP',
+      jobName: 'Reporting',
+      parameters: {
+        clearData: false,
+        overrideMembersMap: {
+          Period: 'ILvl0Descendants(Q1)',
+        },
+        overrideExclusionMembersMap: {
+          Period: 'Jan',
+        },
+      },
+    },
+    source: 'plan_type_map.html',
+  },
+  {
+    operation: 'list_user_variable_values',
+    input: {
+      application: 'Vision',
+      offset: 25,
+      limit: 10,
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/uservariablevalues',
+    response: {
+      items: [
+        {
+          userName: 'planner',
+          name: 'CurrentEntity',
+          dimension: 'Entity',
+          member: 'Marketing',
+        },
+      ],
+    },
+    output: 'userVariableValues',
+    query: {
+      offset: '25',
+      limit: '10',
+    },
+    source: 'planning_get_user_variables_for_app.html',
+  },
+  {
+    operation: 'set_user_variable_values',
+    input: {
+      application: 'Vision',
+      userVariableValues: [
+        {
+          userName: 'planner',
+          name: 'CurrentEntity',
+          dimension: 'Entity',
+          member: 'Marketing',
+        },
+      ],
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/uservariablevalues',
+    response: null,
+    output: 'updated',
+    body: {
+      items: [
+        {
+          userName: 'planner',
+          name: 'CurrentEntity',
+          dimension: 'Entity',
+          member: 'Marketing',
+        },
+      ],
+    },
+    source: 'planning_set_user_variables.html',
+  },
+  {
+    operation: 'list_planning_units',
+    input: {
+      application: 'Vision',
+      scenario: 'Forecast',
+      planningVersion: 'Working',
+      offset: 5,
+      limit: 10,
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/planningunits',
+    response: {
+      items: [
+        {
+          name: null,
+          value: -1,
+          owner: 'planner',
+          version: 'Working',
+          entity: 'Marketing',
+          status: 'Under Review',
+          scenario: 'Forecast',
+          formattedValue: '',
+          puName: 'Marketing',
+          subStatus: '',
+          secMember: null,
+          puAlias: 'Marketing',
+          scenarioAlias: null,
+          versionAlias: null,
+          puId: 50410,
+        },
+      ],
+    },
+    output: 'planningUnits',
+    form: {
+
+    },
+    query: {
+      q: '{"scenario":"Forecast","version":"Working"}',
+      offset: '5',
+      limit: '10',
+    },
+    source: 'list_all_planning_units.html',
+  },
+  {
+    operation: 'get_planning_unit_actions',
+    input: {
+      application: 'Vision',
+      puhIdentifier: 'Forecast::"Working"',
+      pmMembers: '"Sales & Services: Retail",Marketing',
+      approvalOptions: 0,
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast%3A%3A%22Working%22/availableactions',
+    response: {
+      items: [
+        {
+          actionId: 6,
+          name: 'Promote',
+        },
+      ],
+    },
+    output: 'planningUnitActions',
+    form: {
+      pmMembers: '"Sales & Services: Retail",Marketing',
+    },
+    query: {
+      q: '{"options":0}',
+    },
+    source: 'get_available_planning_unit_actions.html',
+  },
+  {
+    operation: 'get_planning_unit_history',
+    input: {
+      application: 'Vision',
+      puIdentifier: 'Forecast::"Working"::Marketing::',
+      annotSeq: 1,
+      logSeq: -1,
+      offset: 0,
+      limit: 10,
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast%3A%3A%22Working%22%3A%3AMarketing%3A%3A/historyandannotations',
+    response: {
+      items: [
+        {
+          comment: 'Review note',
+          hasHistory: false,
+          logSeq: -1,
+          staticImage: true,
+          authorImagePath: '/Images/GhostUser.png',
+          commentTitle: 'planner',
+          commentDate: '8/22/14 3:41 PM',
+          commentSubTitle: '',
+          parentAnntSeq: 1,
+          isChildNode: false,
+        },
+      ],
+    },
+    output: 'planningUnitHistory',
+    query: {
+      q: '{"annotSeq":1,"logSeq":-1}',
+      offset: '0',
+      limit: '10',
+    },
+    source: 'get_planning_unit_history_and_annotations.html',
+  },
+  {
+    operation: 'change_planning_unit_status',
+    input: {
+      application: 'Vision',
+      puhIdentifier: 'Forecast::"Working"',
+      pmMembers: 'Marketing',
+      actionId: 6,
+      comments: 'Ready & reviewed + approved',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast%3A%3A%22Working%22/actions',
+    response: {
+      links: [
+        {
+          rel: 'self',
+          href: 'https://epm.example.com/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast%3A%3A%22Working%22/actions',
+          action: 'POST',
+          data: {
+            pmMembers: '"Marketing"',
+            action: 'PROMOTE',
+            comments: '"Ready & reviewed + approved"',
+          },
+        },
+      ],
+    },
+    output: 'planningUnitAction',
+    form: {
+      actionId: '6',
+      pmMembers: 'Marketing',
+      comments: 'Ready & reviewed + approved',
+    },
+    source: 'change_planning_unit_status.html',
+  },
+  {
+    operation: 'get_insights',
+    input: {
+      application: 'Vision',
+      cube: 'Plan1',
+      insightSlice: {
+        pov: {
+          members: [
+            'Sales',
+          ],
+          dimensions: [
+            'Account',
+          ],
+        },
+        columnAxisDefinition: {
+          dimensions: [
+            'Period',
+          ],
+          segments: [
+            [
+              [
+                'Jan',
+                'Feb',
+              ],
+            ],
+          ],
+        },
+        rowAxisDefinition: {
+          dimensions: [
+            'Scenario',
+          ],
+          segments: [
+            [
+              [
+                'Forecast',
+              ],
+            ],
+          ],
+        },
+      },
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/insights',
+    response: {
+      items: [
+        {
+          id: 426,
+          type: 'HISTORICAL_INSIGHTS',
+          accountName: 'Sales',
+          outlierValue: 0,
+          actualImpactValue: 12079.16,
+          percentImpact: '32.40%',
+        },
+      ],
+      totalResults: 2,
+      hasMore: true,
+    },
+    output: 'insights',
+    body: {
+      dataSourceType: 'CUBE',
+      location: 'Plan1',
+      slice: {
+        pov: {
+          members: [
+            'Sales',
+          ],
+          dimensions: [
+            'Account',
+          ],
+        },
+        columnAxisDefinition: {
+          dimensions: [
+            'Period',
+          ],
+          segments: [
+            [
+              [
+                'Jan',
+                'Feb',
+              ],
+            ],
+          ],
+        },
+        rowAxisDefinition: {
+          dimensions: [
+            'Scenario',
+          ],
+          segments: [
+            [
+              [
+                'Forecast',
+              ],
+            ],
+          ],
+        },
+      },
+      retrievalMode: 'USE_EXISTING',
+    },
+    source: 'get_insigh.html',
+  },
+  {
+    operation: 'summarize_insights',
+    input: {
+      application: 'Vision',
+      summaryInputMode: 'ids',
+      insightIds: [
+        '426',
+      ],
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/insights/summary',
+    response: {
+      summary: 'Forecast variance requires review.',
+    },
+    output: 'summary',
+    body: {
+      format: 'text',
+      size: 100,
+      ids: [
+        '426',
+      ],
+    },
+    source: 'insigh_summ.html',
+  },
 ]
 
 async function invoke(operation: string, input: Record<string, unknown>, signal?: AbortSignal) {
@@ -822,7 +1179,138 @@ describe('Planning operation contracts through the real foundation', () => {
     expect(Object.fromEntries(new URL(url).searchParams)).toEqual(entry.query ?? {})
     expect(options.method).toBe(entry.method)
     if (entry.body !== undefined) expect(JSON.parse(options.body)).toEqual(entry.body)
-    else expect(options.body).toBeUndefined()
+    else if (entry.form !== undefined) {
+      expect(options.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+      const encoded = new TextDecoder().decode(options.body)
+      expect(Object.fromEntries(new URLSearchParams(encoded))).toEqual(entry.form)
+    } else expect(options.body).toBeUndefined()
+  })
+  it('requires explicit data-map clearing without widening generic job parameters', async () => {
+    for (const [operation, input] of [
+      ['run_data_map', { application: 'Vision', jobName: 'Reporting' }],
+      ['run_data_map', { application: 'Vision', jobName: 'Reporting', clearData: false, overrideMembersMap: { Period: ['Jan'] } }],
+      ['run_job', { application: 'Vision', jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters: { overrideMembersMap: { Period: 'Jan' } } }],
+    ] as const) {
+      expect((await invoke(operation, input)).status).toBe(400)
+    }
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+  it.each([400, 403])('does not hide or replay a user-variable batch error (%i)', async (status) => {
+    respond({ items: [{ id: 'member', details: 'Invalid selection' }] }, status)
+    const entry = CASES.find((item) => item.operation === 'set_user_variable_values')!
+    const result = await invoke(entry.operation, entry.input)
+    expect(result.status).toBe(status)
+    expect(result.result.success).toBe(false)
+    expect(result.result.output.updated).toBeUndefined()
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('accepts only empty 204 as user-variable write confirmation', async () => {
+    const entry = CASES.find((item) => item.operation === 'set_user_variable_values')!
+    respond(null, 204)
+    expect((await invoke(entry.operation, entry.input)).result.output).toEqual({ updated: true })
+    respond({ updated: true }, 200)
+    expect((await invoke(entry.operation, entry.input)).result.success).toBe(false)
+  })
+  it('returns empty bounded lists without manufacturing completion flags', async () => {
+    for (const operation of ['list_user_variable_values', 'list_planning_units', 'get_planning_unit_history']) {
+      const entry = CASES.find((item) => item.operation === operation)!
+      respond({ items: [] })
+      const { result } = await invoke(operation, entry.input)
+      expect(result.output).toEqual({ [entry.output]: [] })
+      expect((await invoke(operation, { ...entry.input, limit: -1 })).status).toBe(400)
+      expect((await invoke(operation, { ...entry.input, limit: 1001 })).status).toBe(400)
+    }
+  })
+  it('rejects malformed user-variable values and oversized batches before requests', async () => {
+    for (const userVariableValues of [[], [{ name: 'CurrentEntity' }], Array(1001).fill({ userName: 'planner', name: 'CurrentEntity', dimension: 'Entity', member: 'Marketing' })]) {
+      expect((await invoke('set_user_variable_values', { application: 'Vision', userVariableValues })).status).toBe(400)
+    }
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+  it('preserves documented null planning-unit metadata and annotation sequences', async () => {
+    const units = CASES.find((item) => item.operation === 'list_planning_units')!
+    respond(units.response)
+    expect((await invoke(units.operation, units.input)).result.output.planningUnits?.[0]).toMatchObject({
+      name: null, secMember: null, scenarioAlias: null, versionAlias: null, puId: 50410,
+    })
+    const history = CASES.find((item) => item.operation === 'get_planning_unit_history')!
+    respond(history.response)
+    expect((await invoke(history.operation, history.input)).result.output.planningUnitHistory?.[0]).toMatchObject({
+      hasHistory: false, logSeq: -1, parentAnntSeq: 1,
+    })
+  })
+  it('does not confuse approval confirmation with a job or echo unconfirmed input', async () => {
+    const entry = CASES.find((item) => item.operation === 'change_planning_unit_status')!
+    respond(entry.response)
+    expect((await invoke(entry.operation, entry.input)).result.output).toEqual({
+      planningUnitAction: { pmMembers: '"Marketing"', action: 'PROMOTE', comments: '"Ready & reviewed + approved"' },
+    })
+    for (const response of [{}, { links: [] }, { jobId: 42, status: 0 }]) {
+      respond(response)
+      expect((await invoke(entry.operation, entry.input)).result.success).toBe(false)
+    }
+  })
+  it.each([
+    ['https://other.example.com/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast/actions', 'POST'],
+    ['https://epm.example.com/HyperionPlanning/rest/v2/applications/Vision/planningunits/Forecast/actions', 'POST'],
+    ['https://epm.example.com/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast/actions', 'GET'],
+  ])('rejects invalid approval confirmation links without replay: %s %s', async (href, action) => {
+    respond({ links: [{ rel: 'self', href, action, data: { pmMembers: 'Marketing', action: 'PROMOTE', comments: '' } }] })
+    const entry = CASES.find((item) => item.operation === 'change_planning_unit_status')!
+    expect((await invoke(entry.operation, entry.input)).result.success).toBe(false)
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('normalizes insight IDs for summaries while preserving incomplete-result information', async () => {
+    const entry = CASES.find((item) => item.operation === 'get_insights')!
+    respond(entry.response)
+    const { result } = await invoke(entry.operation, entry.input)
+    expect(result.output).toMatchObject({ insights: [{ id: '426', outlierValue: 0 }], totalResults: 2, hasMore: true })
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    respond({ items: [], totalResults: 0, hasMore: false })
+    expect((await invoke(entry.operation, entry.input)).result.output).toEqual({ insights: [], totalResults: 0, hasMore: false })
+    respond({ items: [], totalResults: 0 })
+    expect((await invoke(entry.operation, entry.input)).result.success).toBe(false)
+  })
+  it('requires the distinct insight slice and an explicit calendar for recomputation', async () => {
+    const entry = CASES.find((item) => item.operation === 'get_insights')!
+    expect((await invoke(entry.operation, { ...entry.input, retrievalMode: 'FORCE_RECOMPUTE' })).status).toBe(400)
+    expect((await invoke(entry.operation, { ...entry.input, insightSlice: { pov: [], columns: [], rows: [] } })).status).toBe(400)
+    expect(mocks.fetch).not.toHaveBeenCalled()
+    respond(entry.response)
+    await invoke(entry.operation, { ...entry.input, retrievalMode: 'FORCE_RECOMPUTE', calendar: 'Fiscal' })
+    expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toMatchObject({ retrievalMode: 'FORCE_RECOMPUTE', calendar: 'Fiscal' })
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('sends only the selected summary mode and always requests text', async () => {
+    const get = CASES.find((item) => item.operation === 'get_insights')!
+    respond({ summary: 'Variance summary', warnings: [], resolvedNarrative: { ignored: true } })
+    const ids = await invoke('summarize_insights', { ...get.input, summaryInputMode: 'ids', insightIds: ['426'], retrievalMode: 'FORCE_RECOMPUTE', calendar: 'Stale', summarySize: 80 })
+    expect(ids.result.output).toEqual({ summary: 'Variance summary' })
+    expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toEqual({ ids: ['426'], format: 'text', size: 80 })
+    await invoke('summarize_insights', { ...get.input, summaryInputMode: 'slice', insightIds: ['999'] })
+    expect(JSON.parse(mocks.fetch.mock.calls[1][2].body)).toEqual({
+      dataSourceType: 'CUBE', location: 'Plan1', slice: get.input.insightSlice,
+      retrievalMode: 'USE_EXISTING', format: 'text', size: 100,
+    })
+  })
+  it('rejects incomplete summary inputs and undocumented JSON summaries', async () => {
+    for (const input of [
+      { summaryInputMode: 'ids' },
+      { summaryInputMode: 'ids', insightIds: [426] },
+      { summaryInputMode: 'slice', cube: 'Plan1' },
+      { summaryInputMode: 'slice', insightSlice: {} },
+      { summaryInputMode: 'unknown', insightIds: ['426'] },
+    ]) expect((await invoke('summarize_insights', { application: 'Vision', ...input })).status).toBe(400)
+    expect(mocks.fetch).not.toHaveBeenCalled()
+    respond({ summary: { text: 'Not a documented text result' } })
+    expect((await invoke('summarize_insights', { application: 'Vision', summaryInputMode: 'ids', insightIds: ['426'] })).result.success).toBe(false)
+  })
+  it('rejects oversized insight summaries clearly instead of truncating them', async () => {
+    respond({ summary: 'x'.repeat(16 * 1024 * 1024) })
+    const result = await invoke('summarize_insights', { application: 'Vision', summaryInputMode: 'ids', insightIds: ['426'] })
+    expect(result.status).toBe(413)
+    expect(result.result.success).toBe(false)
+    expect(result.result.output.summary).toBeUndefined()
   })
   it('normalizes only documented job and boolean variants', async () => {
     const job = {

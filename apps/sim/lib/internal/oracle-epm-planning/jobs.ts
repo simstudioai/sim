@@ -9,6 +9,7 @@ import {
 } from '@/lib/internal/oracle-epm-planning/schema'
 import type {
   OracleEpmPlanningResponse,
+  PlanningDataMapParameters,
   PlanningJob,
   PlanningJobParameters,
 } from '@/tools/oracle_epm_planning/types'
@@ -39,7 +40,7 @@ export async function submitPlanningJob(
     application: string
     jobType: string
     jobName?: string
-    parameters?: PlanningJobParameters
+    parameters?: PlanningJobParameters | PlanningDataMapParameters
   },
   context: PlanningOperationContext
 ): Promise<PlanningJob> {

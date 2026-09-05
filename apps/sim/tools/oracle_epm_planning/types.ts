@@ -133,7 +133,101 @@ export interface PlanningRepositoryFile {
 /** Runtime prompt/job parameter names are defined by the customer's deployed jobs. */
 export type PlanningJobParameters = Record<string, string | number | boolean>
 
+/** Only the dedicated data-map action accepts nested job parameters. */
+export interface PlanningDataMapParameters {
+  clearData: boolean
+  overrideMembersMap?: Record<string, string>
+  overrideExclusionMembersMap?: Record<string, string>
+}
+
+export interface PlanningUserVariableValue {
+  userName: string
+  name: string
+  dimension: string
+  member: string
+}
+
+/** IPM slices are not Planning data grids. */
+export interface PlanningInsightSlice {
+  pov: { members: string[]; dimensions: string[] }
+  columnAxisDefinition: { dimensions: string[]; segments: string[][][] }
+  rowAxisDefinition: { dimensions: string[]; segments: string[][][] }
+}
+
+export interface PlanningUnit {
+  name: string | null
+  value: number
+  owner: string
+  version: string
+  entity: string
+  status: string
+  scenario: string
+  formattedValue: string
+  puName: string
+  subStatus: string
+  secMember: string | null
+  puAlias: string
+  scenarioAlias: string | null
+  versionAlias: string | null
+  puId: number
+}
+
+export interface PlanningUnitHistory {
+  comment: string
+  hasHistory: boolean
+  logSeq: number
+  staticImage: boolean
+  authorImagePath: string
+  commentTitle: string
+  commentDate: string
+  commentSubTitle: string
+  parentAnntSeq: number
+  isChildNode: boolean
+  type?: string
+}
+
+export interface PlanningInsight {
+  /** Oracle's numeric identifier normalized to a string for summary requests. */
+  id: string
+  type: string
+  accountName?: string
+  sourceAccountName?: string
+  planType?: string
+  actualImpact?: string
+  percentImpact?: string
+  createdDate?: string
+  description?: string
+  outlierValue?: number
+  standardVariance?: string
+  actualImpactValue?: number
+  priority?: string
+  pov?: string
+  percentageDiff?: string
+  anomalyPeriod?: string
+  percentageDiffFromAnomaly?: string
+}
+
 export interface OracleEpmPlanningInputs {
+  clearData: boolean
+  overrideMembersMap: Record<string, string>
+  overrideExclusionMembersMap: Record<string, string>
+  userVariableValues: PlanningUserVariableValue[]
+  scenario: string
+  planningVersion: string
+  puhIdentifier: string
+  puIdentifier: string
+  pmMembers: string
+  actionId: number
+  comments: string
+  approvalOptions: number
+  annotSeq: number
+  logSeq: number
+  insightSlice: PlanningInsightSlice
+  retrievalMode: 'USE_EXISTING' | 'FORCE_RECOMPUTE'
+  calendar: string
+  insightIds: string[]
+  summaryInputMode: 'ids' | 'slice'
+  summarySize: number
   application: string
   cube: string
   dimension: string
@@ -178,6 +272,42 @@ type PlanningParams<
   Partial<Pick<OracleEpmPlanningInputs, O>>
 
 export type OracleEpmPlanningListApplicationsParams = PlanningParams<never, never>
+export type OracleEpmPlanningRunDataMapParams = PlanningParams<
+  'application' | 'jobName' | 'clearData',
+  'overrideMembersMap' | 'overrideExclusionMembersMap'
+>
+export type OracleEpmPlanningListUserVariableValuesParams = PlanningParams<
+  'application',
+  'offset' | 'limit'
+>
+export type OracleEpmPlanningSetUserVariableValuesParams = PlanningParams<
+  'application' | 'userVariableValues',
+  never
+>
+export type OracleEpmPlanningListPlanningUnitsParams = PlanningParams<
+  'application' | 'scenario' | 'planningVersion',
+  'offset' | 'limit'
+>
+export type OracleEpmPlanningGetPlanningUnitActionsParams = PlanningParams<
+  'application' | 'puhIdentifier' | 'pmMembers',
+  'approvalOptions'
+>
+export type OracleEpmPlanningGetPlanningUnitHistoryParams = PlanningParams<
+  'application' | 'puIdentifier',
+  'annotSeq' | 'logSeq' | 'offset' | 'limit'
+>
+export type OracleEpmPlanningChangePlanningUnitStatusParams = PlanningParams<
+  'application' | 'puhIdentifier' | 'pmMembers' | 'actionId',
+  'comments'
+>
+export type OracleEpmPlanningGetInsightsParams = PlanningParams<
+  'application' | 'cube' | 'insightSlice',
+  'retrievalMode' | 'calendar'
+>
+export type OracleEpmPlanningSummarizeInsightsParams = PlanningParams<
+  'application' | 'summaryInputMode',
+  'insightIds' | 'cube' | 'insightSlice' | 'retrievalMode' | 'calendar' | 'summarySize'
+>
 export type OracleEpmPlanningListCubesParams = PlanningParams<'application', never>
 export type OracleEpmPlanningListDimensionsParams = PlanningParams<
   'application' | 'cube',
@@ -271,6 +401,13 @@ export type OracleEpmPlanningSetAdministrationModeParams = PlanningParams<
 >
 
 export interface OracleEpmPlanningOutput {
+  userVariableValues?: PlanningUserVariableValue[]
+  planningUnits?: PlanningUnit[]
+  planningUnitActions?: { actionId: number; name: string }[]
+  planningUnitHistory?: PlanningUnitHistory[]
+  planningUnitAction?: { pmMembers: string; action: string; comments: string }
+  insights?: PlanningInsight[]
+  summary?: string
   applications?: PlanningApplication[]
   cubes?: PlanningCube[]
   dimensions?: PlanningDimension[]

@@ -69,6 +69,20 @@ function interop(
 }
 
 const jsonPost = { method: 'POST', body: 'json', maxRequestBytes: PLANNING_INLINE_BYTES } as const
+/** Form encoding is product-local; the foundation bounds the bytes and declares the header. */
+const formPost = {
+  method: 'POST',
+  body: 'stream',
+  maxRequestBytes: PLANNING_INLINE_BYTES,
+  headers: {
+    contentType: {
+      name: 'Content-Type',
+      maxBytes: 64,
+      pattern: /^application\/x-www-form-urlencoded$/,
+      required: true,
+    },
+  },
+} as const
 const uploadPath = [
   literal('applicationsnapshots'),
   parameter('fileName', { maxBytes: 255, mode: 'repository-path' }),
@@ -88,6 +102,25 @@ const octetHeader = {
 
 /** Each action cites its official contract in its operation and public tool file. */
 export const planningEndpoints = {
+  userVariableValues: planning([...application, literal('uservariablevalues')], { query: page }),
+  setUserVariableValues: planning([...application, literal('uservariablevalues')], {
+    ...jsonPost,
+    response: 'empty',
+  }),
+  planningUnits: planning([...application, literal('planningunits')], {
+    ...formPost,
+    query: { ...page, q: { ...q, required: true } },
+  }),
+  planningUnitActions: planning([...application, literal('planningunits'), name('puhIdentifier'), literal('availableactions')], {
+    ...formPost,
+    query: { q },
+  }),
+  planningUnitHistory: planning([...application, literal('planningunits'), name('puIdentifier'), literal('historyandannotations')], {
+    query: { ...page, q },
+  }),
+  changePlanningUnitStatus: planning([...application, literal('planningunits'), name('puhIdentifier'), literal('actions')], formPost),
+  insights: planning([...application, literal('insights')], jsonPost),
+  insightSummary: planning([...application, literal('insights'), literal('summary')], jsonPost),
   applications: planning([literal('applications')]),
   cubes: planning([...application, literal('plantypes')]),
   dimensions: planning([...cube, literal('dimensions')], { query: page }),
@@ -159,6 +192,12 @@ export const planningEndpoints = {
 }
 
 export const planningLinkPolicies = {
+  planningUnitStatus: planningRouteSpace.defineReturnedLinkPolicy({
+    relation: 'self',
+    method: 'POST',
+    endpoint: planningEndpoints.changePlanningUnitStatus,
+    preserveGatewayBasePath: true,
+  }),
   uploadStatus: planningInteropRouteSpace.defineReturnedLinkPolicy({
     relation: 'Job Status',
     method: 'GET',

@@ -3,6 +3,15 @@ import { createOracleEpmClient } from '@/lib/internal/oracle-epm/client.server'
 import { OracleEpmError } from '@/lib/internal/oracle-epm/errors'
 import {
   executeOracleEpmPlanningAddMember,
+  executeOracleEpmPlanningRunDataMap,
+  executeOracleEpmPlanningListUserVariableValues,
+  executeOracleEpmPlanningSetUserVariableValues,
+  executeOracleEpmPlanningListPlanningUnits,
+  executeOracleEpmPlanningGetPlanningUnitActions,
+  executeOracleEpmPlanningGetPlanningUnitHistory,
+  executeOracleEpmPlanningChangePlanningUnitStatus,
+  executeOracleEpmPlanningGetInsights,
+  executeOracleEpmPlanningSummarizeInsights,
   executeOracleEpmPlanningClearDataSlice,
   executeOracleEpmPlanningDeleteFile,
   executeOracleEpmPlanningDeleteSubstitutionVariable,
@@ -38,6 +47,15 @@ import {
   PlanningInputError,
   type PlanningOperationContext,
   planningAddMemberInputSchema,
+  planningRunDataMapInputSchema,
+  planningListUserVariableValuesInputSchema,
+  planningSetUserVariableValuesInputSchema,
+  planningListPlanningUnitsInputSchema,
+  planningGetPlanningUnitActionsInputSchema,
+  planningGetPlanningUnitHistoryInputSchema,
+  planningChangePlanningUnitStatusInputSchema,
+  planningGetInsightsInputSchema,
+  planningSummarizeInsightsInputSchema,
   planningClearDataSliceInputSchema,
   planningDeleteFileInputSchema,
   planningDeleteSubstitutionVariableInputSchema,
@@ -107,6 +125,60 @@ export const executeOracleEpmPlanningTool: InternalToolOperationHandler = async 
   try {
     assertPlanningPayload(request.input)
     switch (request.toolId) {
+      case 'oracle_epm_planning_run_data_map':
+        return await executeParsed(
+          request,
+          planningRunDataMapInputSchema,
+          executeOracleEpmPlanningRunDataMap
+        )
+      case 'oracle_epm_planning_list_user_variable_values':
+        return await executeParsed(
+          request,
+          planningListUserVariableValuesInputSchema,
+          executeOracleEpmPlanningListUserVariableValues
+        )
+      case 'oracle_epm_planning_set_user_variable_values':
+        return await executeParsed(
+          request,
+          planningSetUserVariableValuesInputSchema,
+          executeOracleEpmPlanningSetUserVariableValues
+        )
+      case 'oracle_epm_planning_list_planning_units':
+        return await executeParsed(
+          request,
+          planningListPlanningUnitsInputSchema,
+          executeOracleEpmPlanningListPlanningUnits
+        )
+      case 'oracle_epm_planning_get_planning_unit_actions':
+        return await executeParsed(
+          request,
+          planningGetPlanningUnitActionsInputSchema,
+          executeOracleEpmPlanningGetPlanningUnitActions
+        )
+      case 'oracle_epm_planning_get_planning_unit_history':
+        return await executeParsed(
+          request,
+          planningGetPlanningUnitHistoryInputSchema,
+          executeOracleEpmPlanningGetPlanningUnitHistory
+        )
+      case 'oracle_epm_planning_change_planning_unit_status':
+        return await executeParsed(
+          request,
+          planningChangePlanningUnitStatusInputSchema,
+          executeOracleEpmPlanningChangePlanningUnitStatus
+        )
+      case 'oracle_epm_planning_get_insights':
+        return await executeParsed(
+          request,
+          planningGetInsightsInputSchema,
+          executeOracleEpmPlanningGetInsights
+        )
+      case 'oracle_epm_planning_summarize_insights':
+        return await executeParsed(
+          request,
+          planningSummarizeInsightsInputSchema,
+          executeOracleEpmPlanningSummarizeInsights
+        )
       case 'oracle_epm_planning_list_applications':
         return await executeParsed(
           request,
