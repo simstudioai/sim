@@ -179,6 +179,72 @@ export const selectorManifest = {
   'microsoft.planner.plans': providerSelector([], { listMode: 'paginated', detail: true }),
   'notion.databases': providerSelector([], { detail: true }),
   'notion.pages': providerSelector([], { detail: true }),
+  'oracleFusionScm.inventoryOrganizations': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.items': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.supplyRequests': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.supplyOrderLines': providerSelector(['collectionId'], {
+    readiness: { all: ['oauthCredential', 'collectionId'] },
+    sourceFields: { collectionId: ['supplyRequestKey'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.shipments': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.shipmentLines': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.manufacturingWorkOrders': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.maintenanceWorkOrders': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.transferOrders': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.transferOrderLines': providerSelector(['collectionId'], {
+    readiness: { all: ['oauthCredential', 'collectionId'] },
+    sourceFields: { collectionId: ['transferOrderKey'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.salesOrders': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionScm.salesOrderLines': providerSelector(['collectionId'], {
+    readiness: { all: ['oauthCredential', 'collectionId'] },
+    sourceFields: { collectionId: ['salesOrderKey'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'netsuite.recordTypes': providerSelector(['jobId'], {
     detail: true,
     unknownDetail: true,
