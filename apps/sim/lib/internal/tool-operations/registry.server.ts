@@ -783,6 +783,34 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+
+const ORACLE_FUSION_FINANCIALS_TOOL_IDS = [
+  'oracle_fusion_financials_list_payables_invoices',
+  'oracle_fusion_financials_get_payables_invoice',
+  'oracle_fusion_financials_list_payables_invoice_lines',
+  'oracle_fusion_financials_get_payables_invoice_line',
+  'oracle_fusion_financials_list_payables_invoice_installments',
+  'oracle_fusion_financials_get_payables_invoice_installment',
+  'oracle_fusion_financials_list_payables_invoice_distributions',
+  'oracle_fusion_financials_get_payables_invoice_distribution',
+  'oracle_fusion_financials_list_payables_applied_prepayments',
+  'oracle_fusion_financials_get_payables_applied_prepayment',
+  'oracle_fusion_financials_list_payables_available_prepayments',
+  'oracle_fusion_financials_get_payables_available_prepayment',
+  'oracle_fusion_financials_list_payables_payments',
+  'oracle_fusion_financials_get_payables_payment',
+  'oracle_fusion_financials_list_payables_payment_related_invoices',
+  'oracle_fusion_financials_get_payables_payment_related_invoice',
+  'oracle_fusion_financials_list_payment_process_requests',
+  'oracle_fusion_financials_get_payment_process_request',
+  'oracle_fusion_financials_list_payables_invoice_holds',
+  'oracle_fusion_financials_get_payables_invoice_hold',
+  'oracle_fusion_financials_list_payables_payment_terms',
+  'oracle_fusion_financials_get_payables_payment_term',
+  'oracle_fusion_financials_list_payables_payment_term_lines',
+  'oracle_fusion_financials_get_payables_payment_term_line',
+] as const
+
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1430,6 +1458,10 @@ registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_FINANCIALS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-financials/execute-tool'))
+    .executeOracleFusionFinancialsTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool

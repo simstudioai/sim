@@ -188,6 +188,10 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracleFusionFinancials.invoices': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },

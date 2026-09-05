@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,121 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_financials",
+      "slug": "oracle-fusion-cloud-financials",
+      "name": "Oracle Fusion Cloud Financials",
+      "description": "Read Oracle Fusion Payables invoices, distributions, prepayments, holds, payments, and terms",
+      "longDescription": "Connect a reusable Oracle Fusion Cloud Financials service account with a Fusion application URL, username, and password for Basic authentication. Read bounded pages and individual Payables invoices, lines, distributions, installments, prepayments, holds, payments, paid invoices, payment process requests, and payment terms without exposing write operations, arbitrary expansions, or opaque credential secrets.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_financials",
+      "operations": [
+        {
+          "name": "List Payables Invoices",
+          "description": "List one page of Oracle Fusion Payables invoices using a fixed safe projection."
+        },
+        {
+          "name": "Get Payables Invoice",
+          "description": "Get one Oracle Fusion Payables invoice by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Payables Invoice Lines",
+          "description": "List one page of lines for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "Get Payables Invoice Line",
+          "description": "Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key."
+        },
+        {
+          "name": "List Payables Invoice Installments",
+          "description": "List one page of payment installments for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "Get Payables Invoice Installment",
+          "description": "Get one Oracle Fusion Payables invoice installment by its opaque key."
+        },
+        {
+          "name": "List Payables Invoice Distributions",
+          "description": "List one page of accounting distributions for a Payables invoice line."
+        },
+        {
+          "name": "Get Payables Invoice Distribution",
+          "description": "Get one accounting distribution for an Oracle Fusion Payables invoice line."
+        },
+        {
+          "name": "List Payables Applied Prepayments",
+          "description": "List one page of prepayments already applied to a Payables invoice."
+        },
+        {
+          "name": "Get Payables Applied Prepayment",
+          "description": "Get one prepayment already applied to a Payables invoice."
+        },
+        {
+          "name": "List Payables Available Prepayments",
+          "description": "List one page of prepayments available to apply to a Payables invoice."
+        },
+        {
+          "name": "Get Payables Available Prepayment",
+          "description": "Get one prepayment available to apply to a Payables invoice."
+        },
+        {
+          "name": "List Payables Payments",
+          "description": "List one page of Oracle Fusion Payables payments using a fixed safe projection."
+        },
+        {
+          "name": "Get Payables Payment",
+          "description": "Get one Oracle Fusion Payables payment by its CheckId."
+        },
+        {
+          "name": "List Payment-Related Invoices",
+          "description": "List one page of paid invoices related to a Payables payment."
+        },
+        {
+          "name": "Get Payment-Related Invoice",
+          "description": "Get one paid invoice related to an Oracle Fusion Payables payment."
+        },
+        {
+          "name": "List Payment Process Requests",
+          "description": "List one page of Oracle Fusion payment process requests and their statuses."
+        },
+        {
+          "name": "Get Payment Process Request",
+          "description": "Get one Oracle Fusion payment process request and its current status."
+        },
+        {
+          "name": "List Payables Invoice Holds",
+          "description": "List one page of Oracle Fusion Payables invoice holds and release details."
+        },
+        {
+          "name": "Get Payables Invoice Hold",
+          "description": "Get one Oracle Fusion Payables invoice hold and its release details."
+        },
+        {
+          "name": "List Payables Payment Terms",
+          "description": "List one page of Oracle Fusion Payables payment term headers."
+        },
+        {
+          "name": "Get Payables Payment Term",
+          "description": "Get one Oracle Fusion Payables payment term header."
+        },
+        {
+          "name": "List Payables Payment Term Lines",
+          "description": "List one page of calculation lines for a Payables payment term."
+        },
+        {
+          "name": "Get Payables Payment Term Line",
+          "description": "Get one calculation line for an Oracle Fusion Payables payment term."
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics", "payments"]
     },
     {
       "type": "netsuite",
