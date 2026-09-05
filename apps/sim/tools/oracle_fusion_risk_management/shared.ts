@@ -5,7 +5,13 @@ import {
   type RiskOperation,
   type RiskOperationDefinition,
 } from '@/tools/oracle_fusion_risk_management/types'
-import type { InternalToolConfig, OAuthConfig, OutputProperty, ToolConfig, ToolResponse } from '@/tools/types'
+import type {
+  InternalToolConfig,
+  OAuthConfig,
+  OutputProperty,
+  ToolConfig,
+  ToolResponse,
+} from '@/tools/types'
 
 export const RISK_OAUTH_CONFIG = {
   required: true,

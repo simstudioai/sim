@@ -1186,8 +1186,7 @@ export const ISSUE_OUTPUT_PROPERTIES = {
   },
   LikelihoodCode: {
     type: 'string',
-    description:
-      'The code indicating the likelihood of the issue recurring: HIGH, LOW, or MEDIUM.',
+    description: 'The code indicating the likelihood of the issue recurring: HIGH, LOW, or MEDIUM.',
     optional: true,
   },
   Name: {
@@ -1316,7 +1315,8 @@ export const PROCESS_COMMENT_OUTPUT_PROPERTIES = {
 export const PROCESS_PERSPECTIVE_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   Name: {
     type: 'string',
@@ -1361,7 +1361,8 @@ export const RISK_COMMENT_OUTPUT_PROPERTIES = {
 export const RISK_PERSPECTIVE_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   Name: {
     type: 'string',
@@ -1407,7 +1408,8 @@ export const CONTROL_COMMENT_OUTPUT_PROPERTIES = {
 export const CONTROL_PERSPECTIVE_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ControlId: {
     type: 'string',
@@ -1426,7 +1428,8 @@ export const CONTROL_PERSPECTIVE_OUTPUT_PROPERTIES = {
 export const PROCESS_RISK_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ProcessId: {
     type: 'string',
@@ -1444,7 +1447,8 @@ export const PROCESS_RISK_OUTPUT_PROPERTIES = {
 export const RISK_PROCESS_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ProcessId: {
     type: 'string',
@@ -1463,7 +1467,8 @@ export const RISK_PROCESS_OUTPUT_PROPERTIES = {
 export const RISK_CONTROL_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ChildId: {
     type: 'string',
@@ -1482,7 +1487,8 @@ export const RISK_CONTROL_OUTPUT_PROPERTIES = {
 export const CONTROL_RISK_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ChildId: {
     type: 'string',
@@ -1917,7 +1923,8 @@ export const CONTROL_ASSESSMENT_RESULT_OUTPUT_PROPERTIES = {
 export const CONTROL_ASSERTION_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   AssertionCode: {
     type: 'string',
@@ -2039,7 +2046,8 @@ export const TEST_PLAN_STEP_OUTPUT_PROPERTIES = {
 export const TEST_PLAN_ACTIVITY_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ActivityCode: {
     type: 'string',
@@ -2144,7 +2152,8 @@ export const ADVANCED_CONTROL_OUTPUT_PROPERTIES = {
 export const ADVANCED_CONTROL_COMMENT_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   CreatedBy: {
     type: 'string',
@@ -2182,7 +2191,8 @@ export const ADVANCED_CONTROL_COMMENT_OUTPUT_PROPERTIES = {
 export const ADVANCED_CONTROL_PERSPECTIVE_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ControlId: {
     type: 'string',
@@ -2206,7 +2216,8 @@ export const ADVANCED_CONTROL_PERSPECTIVE_OUTPUT_PROPERTIES = {
 export const INCIDENT_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   AccessPointName: {
     type: 'string',
@@ -2388,7 +2399,8 @@ export const INCIDENT_OUTPUT_PROPERTIES = {
 export const INCIDENT_COMMENT_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   CreatedBy: {
     type: 'string',
@@ -2431,7 +2443,8 @@ export const INCIDENT_COMMENT_OUTPUT_PROPERTIES = {
 export const INCIDENT_ATTRIBUTE_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   AttributeName: {
     type: 'string',
@@ -2473,7 +2486,8 @@ export const INCIDENT_PERSPECTIVE_OUTPUT_PROPERTIES = {
 export const OPEN_INCIDENT_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   ConflictingRoles: {
     type: 'string',
@@ -2625,7 +2639,8 @@ export const ADVANCED_CONTROL_JOB_OUTPUT_PROPERTIES = {
 export const SIMULATION_RESULT_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   conflictingRole: {
     type: 'string',
@@ -2670,7 +2685,8 @@ export const SIMULATION_RESULT_OUTPUT_PROPERTIES = {
 export const ASSIGNMENT_GROUP_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   CreatedBy: {
     type: 'string',
@@ -2732,7 +2748,6 @@ export const ASSIGNMENT_GROUP_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 export const GROUP_MEMBER_OUTPUT_PROPERTIES = {
-
   Displayname: {
     type: 'string',
     description: 'The member display name.',
@@ -2770,7 +2785,6 @@ export const GROUP_MEMBER_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 export const GROUP_SECURITY_ASSIGNMENT_OUTPUT_PROPERTIES = {
-
   AccessorDisplayName: {
     type: 'string',
     description:
@@ -2838,7 +2852,8 @@ export const GROUP_SECURITY_ASSIGNMENT_OUTPUT_PROPERTIES = {
 export const GROUP_ELIGIBLE_USER_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   DisplayName: {
     type: 'string',
@@ -2871,7 +2886,8 @@ export const GROUP_ELIGIBLE_USER_OUTPUT_PROPERTIES = {
 export const SECURABLE_TYPE_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   Meaning: {
     type: 'string',
@@ -2888,7 +2904,8 @@ export const SECURABLE_TYPE_OUTPUT_PROPERTIES = {
 export const SECURABLE_ROLE_TYPE_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   Meaning: {
     type: 'string',
@@ -2915,7 +2932,8 @@ export const SECURABLE_ROLE_TYPE_OUTPUT_PROPERTIES = {
 export const SECURABLE_ELIGIBLE_USER_OUTPUT_PROPERTIES = {
   key: {
     type: 'string',
-    description: 'Opaque key from the validated Oracle self link; use with the same parent resource',
+    description:
+      'Opaque key from the validated Oracle self link; use with the same parent resource',
   },
   DisplayName: {
     type: 'string',
@@ -2950,8 +2968,16 @@ export const RISK_PAGINATION_OUTPUTS = {
   hasMore: { type: 'boolean', description: 'Whether another page is available' },
   limit: { type: 'number', description: 'Oracle page limit' },
   offset: { type: 'number', description: 'Offset of this page' },
-  nextOffset: { type: 'number', description: 'Offset for the next explicit request', optional: true },
-  totalResults: { type: 'number', description: 'Estimated total when requested and returned', optional: true },
+  nextOffset: {
+    type: 'number',
+    description: 'Offset for the next explicit request',
+    optional: true,
+  },
+  totalResults: {
+    type: 'number',
+    description: 'Estimated total when requested and returned',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export interface OracleFusionRiskManagementResponse extends ToolResponse {

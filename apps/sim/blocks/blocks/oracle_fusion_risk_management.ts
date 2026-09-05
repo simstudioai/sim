@@ -997,7 +997,12 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
       title: 'Filter',
       type: 'long-input',
       mode: 'advanced',
-      condition: { field: 'operation', value: listOperations.filter((id) => id !== 'oracle_fusion_risk_management_list_simulation_results') },
+      condition: {
+        field: 'operation',
+        value: listOperations.filter(
+          (id) => id !== 'oracle_fusion_risk_management_list_simulation_results'
+        ),
+      },
       placeholder: 'Oracle q expression using queryable fields for this resource',
       wandConfig: {
         enabled: true,
@@ -1006,10 +1011,36 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
         placeholder: 'Describe which records to retrieve',
       },
     },
-    { id: 'orderBy', title: 'Sort Order', type: 'short-input', mode: 'advanced', condition: { field: 'operation', value: listOperations } },
-    { id: 'limit', title: 'Page Size', type: 'short-input', mode: 'advanced', placeholder: '100', condition: { field: 'operation', value: listOperations } },
-    { id: 'offset', title: 'Offset', type: 'short-input', mode: 'advanced', placeholder: '0', condition: { field: 'operation', value: listOperations } },
-    { id: 'totalResults', title: 'Include Estimated Total', type: 'switch', mode: 'advanced', condition: { field: 'operation', value: listOperations } },
+    {
+      id: 'orderBy',
+      title: 'Sort Order',
+      type: 'short-input',
+      mode: 'advanced',
+      condition: { field: 'operation', value: listOperations },
+    },
+    {
+      id: 'limit',
+      title: 'Page Size',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: '100',
+      condition: { field: 'operation', value: listOperations },
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: '0',
+      condition: { field: 'operation', value: listOperations },
+    },
+    {
+      id: 'totalResults',
+      title: 'Include Estimated Total',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: listOperations },
+    },
   ],
   tools: {
     access: [
@@ -1132,12 +1163,20 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     config: {
       tool: (params) => {
         const operation = params.operation
-        if (typeof operation !== 'string' || !Object.hasOwn(RISK_OPERATIONS, operation)) throw new Error('Select a Risk Management operation')
+        if (typeof operation !== 'string' || !Object.hasOwn(RISK_OPERATIONS, operation)) {
+          throw new Error('Select a Risk Management operation')
+        }
         return operation
       },
       params: (params) => {
-        if (typeof params.operation !== 'string' || !Object.hasOwn(RISK_OPERATIONS, params.operation)) throw new Error('Select a Risk Management operation')
-        const definition: RiskOperationDefinition = RISK_OPERATIONS[params.operation as keyof typeof RISK_OPERATIONS]
+        if (
+          typeof params.operation !== 'string' ||
+          !Object.hasOwn(RISK_OPERATIONS, params.operation)
+        ) {
+          throw new Error('Select a Risk Management operation')
+        }
+        const definition: RiskOperationDefinition =
+          RISK_OPERATIONS[params.operation as keyof typeof RISK_OPERATIONS]
         const result: Record<string, unknown> = {}
         for (const field of definition.params) {
           const value = params[field]
@@ -1150,8 +1189,16 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
             const value = params[field]
             if (typeof value === 'string' && value.trim()) result[field] = value.trim()
           }
-          const limit = parseOptionalNumberInput(params.limit, 'Page size', { integer: true, min: 1, max: 100 })
-          const offset = parseOptionalNumberInput(params.offset, 'Offset', { integer: true, min: 0, max: 1_000_000 })
+          const limit = parseOptionalNumberInput(params.limit, 'Page size', {
+            integer: true,
+            min: 1,
+            max: 100,
+          })
+          const offset = parseOptionalNumberInput(params.offset, 'Offset', {
+            integer: true,
+            min: 0,
+            max: 1_000_000,
+          })
           const totalResults = parseOptionalBooleanInput(params.totalResults)
           if (limit !== undefined) result.limit = limit
           if (offset !== undefined) result.offset = offset
@@ -1165,56 +1212,168 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     operation: { type: 'string', description: 'Selected Risk Management action' },
     oauthCredential: { type: 'string', description: 'Oracle Fusion service-account credential' },
     actionItemId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    activityKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
+    activityKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
     advancedControlId: { type: 'string', description: 'Oracle identifier as a string' },
-    assertionKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    attributeKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
+    assertionKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    attributeKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
     commentId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    commentKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    controlAssessmentResultId: { type: 'string', description: 'Exact decimal identifier as a string' },
+    commentKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    controlAssessmentResultId: {
+      type: 'string',
+      description:
+        'Exact decimal identifier as a string',
+    },
     controlId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    groupKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    incidentKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
+    groupKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    incidentKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
     issueId: { type: 'string', description: 'Exact decimal identifier as a string' },
     jobId: { type: 'string', description: 'Exact decimal identifier as a string' },
     memberId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    openIncidentKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    perspectiveKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    processAssessmentResultId: { type: 'string', description: 'Exact decimal identifier as a string' },
+    openIncidentKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    perspectiveKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    processAssessmentResultId: {
+      type: 'string',
+      description:
+        'Exact decimal identifier as a string',
+    },
     processId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    provisioningInfo: { type: 'json', description: 'JSON object mapping role codes to arrays of data-access scope strings. Supported scope kinds: BUSINESS_UNIT, LEDGER_SET, DATA_ACCESS_SET, ASSET_BOOK, REFERENCE_DATA_SET. Maximum 100 roles and 100 scopes per role. This runs analysis only; it grants no access and creates no incidents.' },
-    relationshipKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    requestId: { type: 'string', description: 'Simulation request identifier returned by Run Access Simulation, preserved as a decimal string' },
-    riskAssessmentResultId: { type: 'string', description: 'Exact decimal identifier as a string' },
+    provisioningInfo: {
+      type: 'json',
+      description:
+        'JSON object mapping role codes to arrays of data-access scope strings. Supported scope kinds: BUSINESS_UNIT, LEDGER_SET, DATA_ACCESS_SET, ASSET_BOOK, REFERENCE_DATA_SET. Maximum 100 roles and 100 scopes per role. This runs analysis only; it grants no access and creates no incidents.',
+    },
+    relationshipKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    requestId: {
+      type: 'string',
+      description:
+        'Simulation request identifier returned by Run Access Simulation, preserved as a decimal string',
+    },
+    riskAssessmentResultId: {
+      type: 'string',
+      description:
+        'Exact decimal identifier as a string',
+    },
     riskId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    roleTypeKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    securableTypeKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    securityAssignmentId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    simulationResultKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
+    roleTypeKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    securableTypeKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    securityAssignmentId: {
+      type: 'string',
+      description:
+        'Exact decimal identifier as a string',
+    },
+    simulationResultKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
     stepId: { type: 'string', description: 'Exact decimal identifier as a string' },
     testPlanId: { type: 'string', description: 'Exact decimal identifier as a string' },
     treeId: { type: 'string', description: 'Exact decimal identifier as a string' },
-    userKey: { type: 'string', description: 'Opaque key returned by the corresponding list action; retain the same parent identifiers' },
-    userName: { type: 'string', description: 'Exact Oracle Security Console username whose existing and proposed access will be simulated' },
-    body: { type: 'json', description: 'Documented writable fields for the selected action; quote integer IDs and include required fields described by the tool' },
+    userKey: {
+      type: 'string',
+      description:
+        'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    },
+    userName: {
+      type: 'string',
+      description:
+        'Exact Oracle Security Console username whose existing and proposed access will be simulated',
+    },
+    body: {
+      type: 'json',
+      description:
+        'Documented writable fields for the selected action; quote integer IDs and include required fields described by the tool',
+    },
     q: { type: 'string', description: 'Oracle resource filter' },
     orderBy: { type: 'string', description: 'Oracle resource sort order' },
     limit: { type: 'number', description: 'One page of 1-100 records' },
     offset: { type: 'number', description: 'Zero-based page offset' },
-    totalResults: { type: 'boolean', description: 'Request estimated total count' },
+    totalResults: {
+      type: 'boolean',
+      description:
+        'Request estimated total count',
+    },
   },
   outputs: {
-    record: { type: 'json', description: 'Selected compliance record, relationship, assessment result, incident, or assignment. Fields depend on the action; identifiers and numeric resource attributes are strings.' },
-    items: { type: 'json', description: 'One bounded page of projected records with documented identifiers, names, status, and resource-specific fields' },
+    record: {
+      type: 'json',
+      description:
+        'Selected compliance record, relationship, assessment result, incident, or assignment. Fields depend on the action; identifiers and numeric resource attributes are strings.',
+    },
+    items: {
+      type: 'json',
+      description:
+        'One bounded page of projected records with documented identifiers, names, status, and resource-specific fields',
+    },
     count: { type: 'number', description: 'Records in the returned page' },
     hasMore: { type: 'boolean', description: 'Whether another page is available' },
     limit: { type: 'number', description: 'Oracle page limit' },
     offset: { type: 'number', description: 'Offset of this page' },
-    nextOffset: { type: 'number', description: 'Offset for the next explicit request when another page exists' },
-    totalResults: { type: 'number', description: 'Estimated total count when requested and returned' },
+    nextOffset: {
+      type: 'number',
+      description:
+        'Offset for the next explicit request when another page exists',
+    },
+    totalResults: {
+      type: 'number',
+      description:
+        'Estimated total count when requested and returned',
+    },
     deleted: { type: 'boolean', description: 'Deletion acknowledged by Oracle for delete actions' },
-    requestId: { type: 'string', description: 'Submitted access-simulation tracking ID; analysis may still be pending' },
-    status: { type: 'string', description: 'Simulation job status returned by Get Access Simulation Status' },
+    requestId: {
+      type: 'string',
+      description:
+        'Submitted access-simulation tracking ID; analysis may still be pending',
+    },
+    status: {
+      type: 'string',
+      description:
+        'Simulation job status returned by Get Access Simulation Status',
+    },
   },
 }
 

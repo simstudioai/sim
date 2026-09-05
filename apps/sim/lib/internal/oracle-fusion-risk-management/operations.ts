@@ -644,7 +644,9 @@ export async function executeRiskOperation(
     (record.ControlId !== params.controlId ||
       record.AssertionCode !== (body as { AssertionCode: string }).AssertionCode)
   ) {
-    throw new RiskResponseError('Oracle Fusion returned a different control assertion than requested')
+    throw new RiskResponseError(
+      'Oracle Fusion returned a different control assertion than requested'
+    )
   }
   return { success: true, output: { record } }
 }

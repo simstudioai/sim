@@ -158,44 +158,98 @@ describe('Risk Management provider contracts', () => {
   })
 
   it('returns the new opaque key when updating an assertion composite key', async () => {
-    mocks.request.mockResolvedValue(record(`frcControls/${ID}/child/assertions/NEWKEY`, { ControlId: ID, AssertionCode: 'ACCURACY' }))
-    const result = await execute('update_control_assertion', { controlId: ID, assertionKey: KEY, body: { AssertionCode: 'ACCURACY' } })
-    expect(result.output).toMatchObject({ record: { key: 'NEWKEY', ControlId: ID, AssertionCode: 'ACCURACY' } })
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'PATCH', address: { relativePath: `frcControls/${ID}/child/assertions/${KEY}` } })
+    mocks.request.mockResolvedValue(
+      record(`frcControls/${ID}/child/assertions/NEWKEY`, {
+        ControlId: ID,
+        AssertionCode: 'ACCURACY',
+      })
+    )
+    const result = await execute('update_control_assertion', {
+      controlId: ID,
+      assertionKey: KEY,
+      body: { AssertionCode: 'ACCURACY' },
+    })
+    expect(result.output).toMatchObject({
+      record: { key: 'NEWKEY', ControlId: ID, AssertionCode: 'ACCURACY' },
+    })
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'PATCH',
+      address: { relativePath: `frcControls/${ID}/child/assertions/${KEY}` },
+    })
     expect(mocks.request).toHaveBeenCalledTimes(1)
   })
 
   it.each([
     ['999', 'ACCURACY'],
     [ID, 'EXISTENCE'],
-  ])('rejects an assertion update response for the wrong parent or code', async (controlId, code) => {
-    mocks.request.mockResolvedValue(record(`frcControls/${controlId}/child/assertions/NEWKEY`, { ControlId: controlId, AssertionCode: code }))
-    await expect(execute('update_control_assertion', { controlId: ID, assertionKey: KEY, body: { AssertionCode: 'ACCURACY' } })).rejects.toThrow()
-    expect(mocks.request).toHaveBeenCalledTimes(1)
-  })
+  ])(
+    'rejects an assertion update response for the wrong parent or code',
+    async (controlId, code) => {
+      mocks.request.mockResolvedValue(
+        record(`frcControls/${controlId}/child/assertions/NEWKEY`, {
+          ControlId: controlId,
+          AssertionCode: code,
+        })
+      )
+      await expect(
+        execute('update_control_assertion', {
+          controlId: ID,
+          assertionKey: KEY,
+          body: { AssertionCode: 'ACCURACY' },
+        })
+      ).rejects.toThrow()
+      expect(mocks.request).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it('binds relationship creation to the selected process', async () => {
-    mocks.request.mockResolvedValue(record(`frcProcesses/${ID}/child/relatedRisks/${KEY}`, { ProcessId: ID, RiskId: '8' }))
+    mocks.request.mockResolvedValue(
+      record(`frcProcesses/${ID}/child/relatedRisks/${KEY}`, { ProcessId: ID, RiskId: '8' })
+    )
     await execute('create_process_risk', { processId: ID, body: { RiskId: '8' } })
-    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[0][1].body)).toBe(`{"ProcessId":${ID},"RiskId":8}`)
+    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[0][1].body)).toBe(
+      `{"ProcessId":${ID},"RiskId":8}`
+    )
     mocks.request.mockClear()
-    await expect(execute('create_process_risk', { processId: ID, body: { ProcessId: '7', RiskId: '8' } })).rejects.toThrow('parent')
+    await expect(
+      execute('create_process_risk', { processId: ID, body: { ProcessId: '7', RiskId: '8' } })
+    ).rejects.toThrow('parent')
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
   it('keeps group navigation keys separate from business IDs in child mutations', async () => {
-    mocks.request.mockResolvedValueOnce(record(`userAssignmentGroups/${KEY}`, { GroupId: 'group-business-id', Name: 'Reviewers' }))
-    mocks.request.mockResolvedValueOnce(record(`userAssignmentGroups/${KEY}/child/members/7`, { Id: '7', GroupId: 'group-business-id', UserId: 'user-guid' }))
+    mocks.request.mockResolvedValueOnce(
+      record(`userAssignmentGroups/${KEY}`, { GroupId: 'group-business-id', Name: 'Reviewers' })
+    )
+    mocks.request.mockResolvedValueOnce(
+      record(`userAssignmentGroups/${KEY}/child/members/7`, {
+        Id: '7',
+        GroupId: 'group-business-id',
+        UserId: 'user-guid',
+      })
+    )
     await execute('create_group_member', { groupKey: KEY, body: { UserId: 'user-guid' } })
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'GET', address: { relativePath: `userAssignmentGroups/${KEY}` } })
-    expect(mocks.request.mock.calls[1][1]).toMatchObject({ method: 'POST', address: { relativePath: `userAssignmentGroups/${KEY}/child/members` } })
-    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[1][1].body)).toBe('{"GroupId":"group-business-id","UserId":"user-guid"}')
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'GET',
+      address: { relativePath: `userAssignmentGroups/${KEY}` },
+    })
+    expect(mocks.request.mock.calls[1][1]).toMatchObject({
+      method: 'POST',
+      address: { relativePath: `userAssignmentGroups/${KEY}/child/members` },
+    })
+    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[1][1].body)).toBe(
+      '{"GroupId":"group-business-id","UserId":"user-guid"}'
+    )
     expect(mocks.request).toHaveBeenCalledTimes(2)
   })
 
   it('does not mutate when the selected group resolves to a different parent', async () => {
-    mocks.request.mockResolvedValue(record('userAssignmentGroups/wrong-key', { GroupId: 'group-business-id' }))
-    await expect(execute('create_group_member', { groupKey: KEY, body: { UserId: 'user-guid' } })).rejects.toThrow('different resource')
+    mocks.request.mockResolvedValue(
+      record('userAssignmentGroups/wrong-key', { GroupId: 'group-business-id' })
+    )
+    await expect(
+      execute('create_group_member', { groupKey: KEY, body: { UserId: 'user-guid' } })
+    ).rejects.toThrow('different resource')
     expect(mocks.request).toHaveBeenCalledTimes(1)
     expect(mocks.request.mock.calls[0][1].method).toBe('GET')
   })
@@ -206,46 +260,113 @@ describe('Risk Management provider contracts', () => {
     const result = await execute('get_incident', { advancedControlId: ID, incidentKey: KEY })
     expect(result.output).toMatchObject({ record: { key: KEY, Id: null, Status: 'Accepted' } })
     mocks.request.mockResolvedValue(page([record(path, { Id: null, Status: 'Accepted' })]))
-    expect((await execute('list_incidents', { advancedControlId: ID })).output).toMatchObject({ items: [{ key: KEY, Id: null }] })
-    mocks.request.mockResolvedValue(record(`${path}/child/dynamicAttributes/attribute-hash`, { Id: 'business-attribute-id', AttributeName: 'Amount', AttributeValue: '1' }))
-    expect((await execute('get_incident_attribute', { advancedControlId: ID, incidentKey: KEY, attributeKey: 'attribute-hash' })).output).toMatchObject({ record: { key: 'attribute-hash', Id: 'business-attribute-id' } })
+    expect((await execute('list_incidents', { advancedControlId: ID })).output).toMatchObject({
+      items: [{ key: KEY, Id: null }],
+    })
+    mocks.request.mockResolvedValue(
+      record(`${path}/child/dynamicAttributes/attribute-hash`, {
+        Id: 'business-attribute-id',
+        AttributeName: 'Amount',
+        AttributeValue: '1',
+      })
+    )
+    expect(
+      (
+        await execute('get_incident_attribute', {
+          advancedControlId: ID,
+          incidentKey: KEY,
+          attributeKey: 'attribute-hash',
+        })
+      ).output
+    ).toMatchObject({ record: { key: 'attribute-hash', Id: 'business-attribute-id' } })
   })
 
   it('uses the full control/test-plan path for a step mutation', async () => {
     const path = `frcControls/${ID}/child/testPlans/4/child/steps/5`
     mocks.request.mockResolvedValue(record(path, { StepId: '5', TestPlanId: '4', StepOrder: 2 }))
-    await execute('update_test_plan_step', { controlId: ID, testPlanId: '4', stepId: '5', body: { StepOrder: 2 } })
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'PATCH', address: { relativePath: path }, body: { StepOrder: 2 } })
+    await execute('update_test_plan_step', {
+      controlId: ID,
+      testPlanId: '4',
+      stepId: '5',
+      body: { StepOrder: 2 },
+    })
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'PATCH',
+      address: { relativePath: path },
+      body: { StepOrder: 2 },
+    })
   })
 
   it('updates process action items through the parent PATCH only', async () => {
     mocks.request.mockResolvedValue(record(`frcProcesses/${ID}`, { ProcessId: ID }))
-    await execute('update_process', { processId: ID, body: { actionItems: [{ ActionId: '7', ProgressCode: 'Blocked' }] } })
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'PATCH', address: { relativePath: `frcProcesses/${ID}` } })
-    expect(() => riskWriteSchemas.update_process.parse({ actionItems: [{ ProgressCode: 'Blocked' }] })).toThrow()
+    await execute('update_process', {
+      processId: ID,
+      body: { actionItems: [{ ActionId: '7', ProgressCode: 'Blocked' }] },
+    })
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'PATCH',
+      address: { relativePath: `frcProcesses/${ID}` },
+    })
+    expect(() =>
+      riskWriteSchemas.update_process.parse({ actionItems: [{ ProgressCode: 'Blocked' }] })
+    ).toThrow()
   })
 
   it('keeps incident updates scoped to one incident and preserves attribute name/value pairs', async () => {
     const path = `advancedControls/${ID}/child/incidents/incident-key`
     mocks.request.mockResolvedValue(record(path, { Id: 'incident-key', Status: 'Accepted' }))
-    await execute('update_incident', { advancedControlId: ID, incidentKey: 'incident-key', body: { Status: 'Accepted' } })
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'PATCH', address: { relativePath: path } })
-    mocks.request.mockResolvedValue(page([record(`${path}/child/dynamicAttributes/attribute-key`, { Id: 'attribute-key', AttributeName: 'Amount', AttributeValue: '123.45' })]))
-    const result = await execute('list_incident_attributes', { advancedControlId: ID, incidentKey: 'incident-key' })
-    expect(result.output).toMatchObject({ items: [{ AttributeName: 'Amount', AttributeValue: '123.45' }] })
+    await execute('update_incident', {
+      advancedControlId: ID,
+      incidentKey: 'incident-key',
+      body: { Status: 'Accepted' },
+    })
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'PATCH',
+      address: { relativePath: path },
+    })
+    mocks.request.mockResolvedValue(
+      page([
+        record(`${path}/child/dynamicAttributes/attribute-key`, {
+          Id: 'attribute-key',
+          AttributeName: 'Amount',
+          AttributeValue: '123.45',
+        }),
+      ])
+    )
+    const result = await execute('list_incident_attributes', {
+      advancedControlId: ID,
+      incidentKey: 'incident-key',
+    })
+    expect(result.output).toMatchObject({
+      items: [{ AttributeName: 'Amount', AttributeValue: '123.45' }],
+    })
   })
 
   it('submits simulation and retrieves status/results separately without provisioning', async () => {
     mocks.request.mockResolvedValue({ result: ID })
-    const result = await execute('run_access_simulation', { userName: 'example-user', provisioningInfo: { EXAMPLE_ROLE: ['BUSINESS_UNIT = Example'] } })
+    const result = await execute('run_access_simulation', {
+      userName: 'example-user',
+      provisioningInfo: { EXAMPLE_ROLE: ['BUSINESS_UNIT = Example'] },
+    })
     expect(result.output).toEqual({ requestId: ID })
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'POST', address: { relativePath: 'advancedControlsRolesProvisioning/action/runUserProvisioningAnalysis' } })
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'POST',
+      address: {
+        relativePath: 'advancedControlsRolesProvisioning/action/runUserProvisioningAnalysis',
+      },
+    })
     mocks.request.mockResolvedValue({ result: 'Queued' })
-    expect((await execute('get_access_simulation_status', { requestId: ID })).output).toEqual({ status: 'Queued' })
-    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[1][1].body)).toBe(`{"requestId":${ID}}`)
+    expect((await execute('get_access_simulation_status', { requestId: ID })).output).toEqual({
+      status: 'Queued',
+    })
+    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[1][1].body)).toBe(
+      `{"requestId":${ID}}`
+    )
     mocks.request.mockResolvedValue(page([]))
     await execute('list_simulation_results', { requestId: ID })
-    expect(mocks.request.mock.calls[2][1].query.finder).toBe(`getUserProvisioningAnalysisIncidents;requestId=${ID}`)
+    expect(mocks.request.mock.calls[2][1].query.finder).toBe(
+      `getUserProvisioningAnalysisIncidents;requestId=${ID}`
+    )
   })
 
   it.each([
@@ -261,14 +382,21 @@ describe('Risk Management provider contracts', () => {
     await expect(execute('get_process', { processId: Number(ID) })).rejects.toThrow()
     await expect(execute('list_processes', { limit: 101 })).rejects.toThrow()
     await expect(execute('list_processes', { offset: 1_000_001 })).rejects.toThrow()
-    expect(() => riskWriteSchemas.update_process.parse({ perspectives: Array.from({ length: 101 }, () => ({ PerspItemId: '4' })) })).toThrow()
-    const cyclic: Record<string, unknown> = {}; cyclic.self = cyclic
+    expect(() =>
+      riskWriteSchemas.update_process.parse({
+        perspectives: Array.from({ length: 101 }, () => ({ PerspItemId: '4' })),
+      })
+    ).toThrow()
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
     expect(() => parseRiskBody(cyclic)).toThrow('bounded')
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
   it('does not retry a mutation with an uncertain provider outcome', async () => {
-    mocks.request.mockRejectedValue(new OracleFusionProviderError('Oracle Fusion request timed out', 504))
+    mocks.request.mockRejectedValue(
+      new OracleFusionProviderError('Oracle Fusion request timed out', 504)
+    )
     await expect(execute('create_process', { body: { Name: 'Review' } })).rejects.toThrow()
     expect(mocks.request).toHaveBeenCalledTimes(1)
   })
@@ -284,8 +412,17 @@ describe('Risk Management provider contracts', () => {
   })
 
   it('enforces the Fusion credential family before provider execution', async () => {
-    mocks.resolveAccount.mockResolvedValue({ credentialType: 'service_account', providerId: 'other-service' })
-    const response = await executeOracleFusionRiskManagementTool({ toolId: 'oracle_fusion_risk_management_list_processes', input: AUTH, headers: new Headers(), context: { workflowId: 'workflow' }, requestId: 'request' })
+    mocks.resolveAccount.mockResolvedValue({
+      credentialType: 'service_account',
+      providerId: 'other-service',
+    })
+    const response = await executeOracleFusionRiskManagementTool({
+      toolId: 'oracle_fusion_risk_management_list_processes',
+      input: AUTH,
+      headers: new Headers(),
+      context: { workflowId: 'workflow' },
+      requestId: 'request',
+    })
     expect(response.status).toBe(403)
     expect(mocks.request).not.toHaveBeenCalled()
   })
@@ -296,8 +433,15 @@ describe('Risk Management provider contracts', () => {
     expect(tools.map((tool) => tool.id).sort()).toEqual(Object.keys(RISK_OPERATIONS).sort())
     for (const tool of tools) {
       expect(registered.has(tool.id)).toBe(true)
-      expect(tool.oauth).toMatchObject({ credentialKind: 'service-account', authoritativeParams: ['instanceUrl'] })
-      const projected = tool.operation.input({ ...AUTH, arbitraryUrl: 'https://example.com', body: { Name: 'unused' } })
+      expect(tool.oauth).toMatchObject({
+        credentialKind: 'service-account',
+        authoritativeParams: ['instanceUrl'],
+      })
+      const projected = tool.operation.input({
+        ...AUTH,
+        arbitraryUrl: 'https://example.com',
+        body: { Name: 'unused' },
+      })
       expect(projected).not.toHaveProperty('arbitraryUrl')
     }
   })

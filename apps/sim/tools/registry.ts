@@ -3375,17 +3375,17 @@ import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
   oracleFusionRiskManagementCreateAdvancedControlCommentTool,
   oracleFusionRiskManagementCreateAssignmentGroupTool,
-  oracleFusionRiskManagementCreateControlTool,
   oracleFusionRiskManagementCreateControlAssertionTool,
   oracleFusionRiskManagementCreateControlCommentTool,
+  oracleFusionRiskManagementCreateControlTool,
   oracleFusionRiskManagementCreateGroupMemberTool,
   oracleFusionRiskManagementCreateGroupSecurityAssignmentTool,
   oracleFusionRiskManagementCreateIncidentCommentTool,
-  oracleFusionRiskManagementCreateProcessTool,
   oracleFusionRiskManagementCreateProcessCommentTool,
   oracleFusionRiskManagementCreateProcessRiskTool,
-  oracleFusionRiskManagementCreateRiskTool,
+  oracleFusionRiskManagementCreateProcessTool,
   oracleFusionRiskManagementCreateRiskCommentTool,
+  oracleFusionRiskManagementCreateRiskTool,
   oracleFusionRiskManagementCreateTestPlanActivityTool,
   oracleFusionRiskManagementCreateTestPlanStepTool,
   oracleFusionRiskManagementDeleteAssignmentGroupTool,
@@ -3396,39 +3396,39 @@ import {
   oracleFusionRiskManagementDeleteProcessRiskTool,
   oracleFusionRiskManagementDeleteTestPlanStepTool,
   oracleFusionRiskManagementGetAccessSimulationStatusTool,
-  oracleFusionRiskManagementGetAdvancedControlTool,
   oracleFusionRiskManagementGetAdvancedControlCommentTool,
   oracleFusionRiskManagementGetAdvancedControlJobTool,
   oracleFusionRiskManagementGetAdvancedControlPerspectiveTool,
+  oracleFusionRiskManagementGetAdvancedControlTool,
   oracleFusionRiskManagementGetAssignmentGroupTool,
-  oracleFusionRiskManagementGetControlTool,
   oracleFusionRiskManagementGetControlAssertionTool,
   oracleFusionRiskManagementGetControlAssessmentResultTool,
   oracleFusionRiskManagementGetControlCommentTool,
   oracleFusionRiskManagementGetControlPerspectiveTool,
   oracleFusionRiskManagementGetControlRiskTool,
   oracleFusionRiskManagementGetControlTestPlanTool,
+  oracleFusionRiskManagementGetControlTool,
   oracleFusionRiskManagementGetGroupEligibleUserTool,
   oracleFusionRiskManagementGetGroupMemberTool,
   oracleFusionRiskManagementGetGroupSecurityAssignmentTool,
-  oracleFusionRiskManagementGetIncidentTool,
   oracleFusionRiskManagementGetIncidentAttributeTool,
   oracleFusionRiskManagementGetIncidentCommentTool,
   oracleFusionRiskManagementGetIncidentPerspectiveTool,
+  oracleFusionRiskManagementGetIncidentTool,
   oracleFusionRiskManagementGetIssueTool,
   oracleFusionRiskManagementGetOpenIncidentTool,
-  oracleFusionRiskManagementGetProcessTool,
   oracleFusionRiskManagementGetProcessActionItemTool,
   oracleFusionRiskManagementGetProcessAssessmentResultTool,
   oracleFusionRiskManagementGetProcessCommentTool,
   oracleFusionRiskManagementGetProcessPerspectiveTool,
   oracleFusionRiskManagementGetProcessRiskTool,
-  oracleFusionRiskManagementGetRiskTool,
+  oracleFusionRiskManagementGetProcessTool,
   oracleFusionRiskManagementGetRiskAssessmentResultTool,
   oracleFusionRiskManagementGetRiskCommentTool,
   oracleFusionRiskManagementGetRiskControlTool,
   oracleFusionRiskManagementGetRiskPerspectiveTool,
   oracleFusionRiskManagementGetRiskProcessTool,
+  oracleFusionRiskManagementGetRiskTool,
   oracleFusionRiskManagementGetSecurableEligibleUserTool,
   oracleFusionRiskManagementGetSecurableRoleTypeTool,
   oracleFusionRiskManagementGetSecurableTypeTool,
@@ -3477,15 +3477,15 @@ import {
   oracleFusionRiskManagementRunAccessSimulationTool,
   oracleFusionRiskManagementUpdateAdvancedControlTool,
   oracleFusionRiskManagementUpdateAssignmentGroupTool,
-  oracleFusionRiskManagementUpdateControlTool,
   oracleFusionRiskManagementUpdateControlAssertionTool,
   oracleFusionRiskManagementUpdateControlAssessmentResultTool,
   oracleFusionRiskManagementUpdateControlTestPlanTool,
+  oracleFusionRiskManagementUpdateControlTool,
   oracleFusionRiskManagementUpdateGroupSecurityAssignmentTool,
   oracleFusionRiskManagementUpdateIncidentTool,
   oracleFusionRiskManagementUpdateIssueTool,
-  oracleFusionRiskManagementUpdateProcessTool,
   oracleFusionRiskManagementUpdateProcessAssessmentResultTool,
+  oracleFusionRiskManagementUpdateProcessTool,
   oracleFusionRiskManagementUpdateRiskAssessmentResultTool,
   oracleFusionRiskManagementUpdateTestPlanStepTool,
 } from '@/tools/oracle_fusion_risk_management'
@@ -10017,8 +10017,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   oracle_fusion_risk_management_get_incident_perspective:
     oracleFusionRiskManagementGetIncidentPerspectiveTool,
   oracle_fusion_risk_management_get_issue: oracleFusionRiskManagementGetIssueTool,
-  oracle_fusion_risk_management_get_open_incident:
-    oracleFusionRiskManagementGetOpenIncidentTool,
+  oracle_fusion_risk_management_get_open_incident: oracleFusionRiskManagementGetOpenIncidentTool,
   oracle_fusion_risk_management_get_process: oracleFusionRiskManagementGetProcessTool,
   oracle_fusion_risk_management_get_process_action_item:
     oracleFusionRiskManagementGetProcessActionItemTool,
@@ -10041,14 +10040,12 @@ export const tools: Record<string, ExecutableToolConfig> = {
     oracleFusionRiskManagementGetSecurableEligibleUserTool,
   oracle_fusion_risk_management_get_securable_role_type:
     oracleFusionRiskManagementGetSecurableRoleTypeTool,
-  oracle_fusion_risk_management_get_securable_type:
-    oracleFusionRiskManagementGetSecurableTypeTool,
+  oracle_fusion_risk_management_get_securable_type: oracleFusionRiskManagementGetSecurableTypeTool,
   oracle_fusion_risk_management_get_simulation_result:
     oracleFusionRiskManagementGetSimulationResultTool,
   oracle_fusion_risk_management_get_test_plan_activity:
     oracleFusionRiskManagementGetTestPlanActivityTool,
-  oracle_fusion_risk_management_get_test_plan_step:
-    oracleFusionRiskManagementGetTestPlanStepTool,
+  oracle_fusion_risk_management_get_test_plan_step: oracleFusionRiskManagementGetTestPlanStepTool,
   oracle_fusion_risk_management_list_advanced_control_comments:
     oracleFusionRiskManagementListAdvancedControlCommentsTool,
   oracle_fusion_risk_management_list_advanced_control_jobs:
@@ -10067,15 +10064,13 @@ export const tools: Record<string, ExecutableToolConfig> = {
     oracleFusionRiskManagementListControlCommentsTool,
   oracle_fusion_risk_management_list_control_perspectives:
     oracleFusionRiskManagementListControlPerspectivesTool,
-  oracle_fusion_risk_management_list_control_risks:
-    oracleFusionRiskManagementListControlRisksTool,
+  oracle_fusion_risk_management_list_control_risks: oracleFusionRiskManagementListControlRisksTool,
   oracle_fusion_risk_management_list_control_test_plans:
     oracleFusionRiskManagementListControlTestPlansTool,
   oracle_fusion_risk_management_list_controls: oracleFusionRiskManagementListControlsTool,
   oracle_fusion_risk_management_list_group_eligible_users:
     oracleFusionRiskManagementListGroupEligibleUsersTool,
-  oracle_fusion_risk_management_list_group_members:
-    oracleFusionRiskManagementListGroupMembersTool,
+  oracle_fusion_risk_management_list_group_members: oracleFusionRiskManagementListGroupMembersTool,
   oracle_fusion_risk_management_list_group_security_assignments:
     oracleFusionRiskManagementListGroupSecurityAssignmentsTool,
   oracle_fusion_risk_management_list_incident_attributes:
@@ -10096,15 +10091,12 @@ export const tools: Record<string, ExecutableToolConfig> = {
     oracleFusionRiskManagementListProcessCommentsTool,
   oracle_fusion_risk_management_list_process_perspectives:
     oracleFusionRiskManagementListProcessPerspectivesTool,
-  oracle_fusion_risk_management_list_process_risks:
-    oracleFusionRiskManagementListProcessRisksTool,
+  oracle_fusion_risk_management_list_process_risks: oracleFusionRiskManagementListProcessRisksTool,
   oracle_fusion_risk_management_list_processes: oracleFusionRiskManagementListProcessesTool,
   oracle_fusion_risk_management_list_risk_assessment_results:
     oracleFusionRiskManagementListRiskAssessmentResultsTool,
-  oracle_fusion_risk_management_list_risk_comments:
-    oracleFusionRiskManagementListRiskCommentsTool,
-  oracle_fusion_risk_management_list_risk_controls:
-    oracleFusionRiskManagementListRiskControlsTool,
+  oracle_fusion_risk_management_list_risk_comments: oracleFusionRiskManagementListRiskCommentsTool,
+  oracle_fusion_risk_management_list_risk_controls: oracleFusionRiskManagementListRiskControlsTool,
   oracle_fusion_risk_management_list_risk_perspectives:
     oracleFusionRiskManagementListRiskPerspectivesTool,
   oracle_fusion_risk_management_list_risk_processes:
