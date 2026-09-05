@@ -156,9 +156,7 @@ async function prepareDestination(
 function parentParams(args: ExecuteServerSelectorArgs, definition: SelectorDefinition) {
   if (!definition.parent) return {}
   const value =
-    definition.parent === 'supplierId'
-      ? args.context.supplierId
-      : args.context.poHeaderId
+    definition.parent === 'supplierId' ? args.context.supplierId : args.context.poHeaderId
   const result = procurementIdentifierSchema.safeParse(value)
   if (!result.success) throw new SelectorContextUnavailableError()
   return { [definition.parent]: result.data }

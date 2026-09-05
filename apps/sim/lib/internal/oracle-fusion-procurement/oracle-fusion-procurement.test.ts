@@ -661,7 +661,9 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     mocks.request.mockResolvedValue(responseFor(contract))
     const { result } = await invoke(contract.slug, contract.params)
     expect(result.success).toBe(true)
-    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[0][1].body)).toBe(testCase.expected)
+    expect(serializeOracleFusionJsonBody(mocks.request.mock.calls[0][1].body)).toBe(
+      testCase.expected
+    )
   })
 
   it('preserves exact nested request integers and false/zero without changing the caller body', async () => {
@@ -671,7 +673,9 @@ describe('Oracle Fusion Procurement integration contracts', () => {
       lines: [{ LineNumber: 1, LineTypeId: ID, Quantity: 0, Price: 0 }],
     }
     const original = structuredClone(body)
-    mocks.request.mockResolvedValue(resourceItem('draftPurchaseOrders', `draftPurchaseOrders/${KEY}`))
+    mocks.request.mockResolvedValue(
+      resourceItem('draftPurchaseOrders', `draftPurchaseOrders/${KEY}`)
+    )
     const response = await invoke('create_draft_purchase_order', {
       buyerId: ID,
       documentStyleId: ID,
@@ -695,7 +699,10 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     mocks.request.mockResolvedValue({ result: 'SUCCESS' })
     await invoke('submit_purchase_requisition', { requisitionKey: KEY })
     expect(mocks.request.mock.calls[0][1].body).toEqual({})
-    await invoke('submit_purchase_requisition', { requisitionKey: KEY, requestFundsOverrideFlag: false })
+    await invoke('submit_purchase_requisition', {
+      requisitionKey: KEY,
+      requestFundsOverrideFlag: false,
+    })
     expect(mocks.request.mock.calls[1][1].body).toEqual({ requestFundsOverrideFlag: false })
   })
 
@@ -750,9 +757,7 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   })
 
   it('returns only the requested page and a usable next offset', async () => {
-    mocks.request.mockResolvedValue(
-      page([resourceItem('suppliers', `suppliers/${ID}`)], 50, true)
-    )
+    mocks.request.mockResolvedValue(page([resourceItem('suppliers', `suppliers/${ID}`)], 50, true))
     const { result } = await invoke('list_suppliers', { offset: 50, limit: 100 })
     expect(result.output).toMatchObject({ count: 1, offset: 50, hasMore: true, nextOffset: 51 })
     expect(mocks.request).toHaveBeenCalledTimes(1)
@@ -763,10 +768,13 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     { items: [], count: 0, offset: 0, limit: 100, hasMore: true },
     { items: [], count: 0, offset: 1, limit: 100, hasMore: false },
     { items: 'not-an-array', count: 0, offset: 0, limit: 100, hasMore: false },
-  ])('rejects a malformed collection instead of reporting an empty successful list', async (invalid) => {
-    mocks.request.mockResolvedValue(invalid)
-    expect((await invoke('list_suppliers')).status).toBe(502)
-  })
+  ])(
+    'rejects a malformed collection instead of reporting an empty successful list',
+    async (invalid) => {
+      mocks.request.mockResolvedValue(invalid)
+      expect((await invoke('list_suppliers')).status).toBe(502)
+    }
+  )
 
   it.each([true, false])('uses authoritative self links for opaque keys (v9=%s)', async (v9) => {
     mocks.request.mockResolvedValue(
@@ -800,7 +808,9 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   })
 
   it('checks that PATCH returns the same document', async () => {
-    mocks.request.mockResolvedValue(resourceItem('draftPurchaseOrders', 'draftPurchaseOrders/OTHER'))
+    mocks.request.mockResolvedValue(
+      resourceItem('draftPurchaseOrders', 'draftPurchaseOrders/OTHER')
+    )
     expect(
       (
         await invoke('update_draft_purchase_order', {
@@ -933,7 +943,9 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   })
 
   it('preserves a safe provider status and propagates cancellation', async () => {
-    mocks.request.mockRejectedValue(new OracleFusionProviderError('Oracle Fusion access denied', 403))
+    mocks.request.mockRejectedValue(
+      new OracleFusionProviderError('Oracle Fusion access denied', 403)
+    )
     expect((await invoke('list_suppliers')).status).toBe(403)
     const controller = new AbortController()
     controller.abort(new Error('Stopped'))

@@ -180,7 +180,7 @@ const SELECTOR_CONTRACTS: SelectorContract[] = [
   {
     name: 'procurementBusinessUnits',
     path: 'procurementBusinessUnitsLOV',
-    itemKey: ID,
+    itemKey: KEY,
     fields: { ProcurementBUId: ID, ProcurementBU: 'West', AgentAction: 'MANAGE_PURCHASE_ORDERS' },
     option: { id: ID, label: 'West', meta: { detail: 'MANAGE_PURCHASE_ORDERS' } },
     filter: `ProcurementBUId=${ID}`,
@@ -219,39 +219,42 @@ describe('Oracle Fusion Procurement selectors', () => {
     mocks.bundle.mockResolvedValue(PREPARED)
   })
 
-  it.each(SELECTOR_CONTRACTS)('$name lists and resolves the correct workflow value', async (entry) => {
-    const input = args(entry.name)
-    Object.assign(input.context, entry.context)
-    const item = resource(`${entry.path}/${entry.itemKey}`, entry.fields)
-    mocks.request.mockResolvedValue(page([item]))
-    expect(await attachment(input).execute(input, PREPARED)).toEqual({
-      kind: 'list',
-      items: [entry.option],
-    })
-    expect(mocks.request.mock.lastCall![1]).toMatchObject({
-      method: 'GET',
-      address: { family: 'fscm', relativePath: entry.path },
-      query: { limit: 100, offset: 0 },
-    })
-    mocks.request.mockClear()
-    mocks.request.mockResolvedValue(entry.filter ? page([item]) : item)
-    input.request = { kind: 'detail', id: entry.option.id }
-    expect(await attachment(input).execute(input, PREPARED)).toEqual({
-      kind: 'detail',
-      item: entry.option,
-    })
-    expect(mocks.request).toHaveBeenCalledTimes(1)
-    expect(mocks.request.mock.lastCall![1].address.relativePath).toBe(
-      entry.filter ? entry.path : `${entry.path}/${entry.itemKey}`
-    )
-    if (entry.filter) {
-      expect(mocks.request.mock.lastCall![1].query).toMatchObject({
-        q: entry.filter,
-        limit: 1,
-        offset: 0,
+  it.each(SELECTOR_CONTRACTS)(
+    '$name lists and resolves the correct workflow value',
+    async (entry) => {
+      const input = args(entry.name)
+      Object.assign(input.context, entry.context)
+      const item = resource(`${entry.path}/${entry.itemKey}`, entry.fields)
+      mocks.request.mockResolvedValue(page([item]))
+      expect(await attachment(input).execute(input, PREPARED)).toEqual({
+        kind: 'list',
+        items: [entry.option],
       })
+      expect(mocks.request.mock.lastCall![1]).toMatchObject({
+        method: 'GET',
+        address: { family: 'fscm', relativePath: entry.path },
+        query: { limit: 100, offset: 0 },
+      })
+      mocks.request.mockClear()
+      mocks.request.mockResolvedValue(entry.filter ? page([item]) : item)
+      input.request = { kind: 'detail', id: entry.option.id }
+      expect(await attachment(input).execute(input, PREPARED)).toEqual({
+        kind: 'detail',
+        item: entry.option,
+      })
+      expect(mocks.request).toHaveBeenCalledTimes(1)
+      expect(mocks.request.mock.lastCall![1].address.relativePath).toBe(
+        entry.filter ? entry.path : `${entry.path}/${entry.itemKey}`
+      )
+      if (entry.filter) {
+        expect(mocks.request.mock.lastCall![1].query).toMatchObject({
+          q: entry.filter,
+          limit: 1,
+          offset: 0,
+        })
+      }
     }
-  })
+  )
 
   it('prepares the destination exclusively from the authorized Fusion credential', async () => {
     const input = args('suppliers')

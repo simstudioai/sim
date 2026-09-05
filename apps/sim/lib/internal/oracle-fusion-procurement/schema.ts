@@ -403,19 +403,21 @@ const requestDate = z.string().date()
 const requestDateTime = z.union([z.string().datetime({ offset: true }), requestDate])
 
 /** 26C: op-suppliers-supplierid-child-addresses-post.html */
-const supplierAddressBodySchema = z.object({
-  CountryCode: z.string().max(2),
-  Email: z.string().max(320).optional(),
-  AddressName: z.string().max(240).nullable().optional(),
-  AddressLine1: z.string().max(240).nullable().optional(),
-  AddressLine2: z.string().max(240).nullable().optional(),
-  City: z.string().max(60).nullable().optional(),
-  State: z.string().max(60).nullable().optional(),
-  Province: z.string().max(60).nullable().optional(),
-  PostalCode: z.string().max(60).nullable().optional(),
-  AddressPurposeOrderingFlag: z.boolean().nullable().optional(),
-  AddressPurposeRFQOrBiddingFlag: z.boolean().nullable().optional(),
-}).strict()
+const supplierAddressBodySchema = z
+  .object({
+    CountryCode: z.string().max(2),
+    Email: z.string().max(320).optional(),
+    AddressName: z.string().max(240).nullable().optional(),
+    AddressLine1: z.string().max(240).nullable().optional(),
+    AddressLine2: z.string().max(240).nullable().optional(),
+    City: z.string().max(60).nullable().optional(),
+    State: z.string().max(60).nullable().optional(),
+    Province: z.string().max(60).nullable().optional(),
+    PostalCode: z.string().max(60).nullable().optional(),
+    AddressPurposeOrderingFlag: z.boolean().nullable().optional(),
+    AddressPurposeRFQOrBiddingFlag: z.boolean().nullable().optional(),
+  })
+  .strict()
 
 /** 26C: op-suppliers-supplierid-child-sites-suppliersiteid-child-assignments-post.html */
 const supplierSiteAssignmentBodySchema = z
