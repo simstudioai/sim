@@ -1,6 +1,10 @@
 import type { ComponentType } from 'react'
 
 export const selectorContextKeys = [
+  'personId',
+  'eventId',
+  'recordId',
+  'effectiveDate',
   'oauthCredential',
   'domain',
   'teamId',

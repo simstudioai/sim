@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,185 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_learning",
+      "slug": "oracle-fusion-learning",
+      "name": "Oracle Fusion Learning",
+      "description": "Manage Fusion Learning catalog drafts, assignments, events, and learning records",
+      "longDescription": "Connect Oracle Fusion Cloud Learning using a reusable Fusion integration-user credential. Author self-paced and event drafts, enroll learners, read completion evidence, update permitted learning states, and process administrator assignment profiles. Learner and manager records remain subject to Oracle data security. Self-paced and event APIs require enabled tenant features and appropriate catalog privileges; classic available-offerings catalogs, package uploads, and publication are not included. HCM worker and organization operations remain in the HCM integration.",
+      "bgColor": "#F80000",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_learning",
+      "operations": [
+        {
+          "name": "List Self Paced Items",
+          "description": "List or search self-paced catalog items in an enabled Fusion Learning tenant."
+        },
+        {
+          "name": "Get Self Paced Item",
+          "description": "Read a self-paced catalog item by its learning item ID."
+        },
+        {
+          "name": "Create Self Paced Item",
+          "description": "Author a self-paced catalog draft. Creation does not publish the item."
+        },
+        {
+          "name": "Update Self Paced Item",
+          "description": "Update documented self-paced metadata or lifecycle fields. Oracle enforces draft and activation rules."
+        },
+        {
+          "name": "Delete Self Paced Item",
+          "description": "Delete an initial-draft self-paced item. Published items require the documented deactivation lifecycle."
+        },
+        {
+          "name": "List Learning Events",
+          "description": "List or search Learning events. Requires the event API and unified catalog to be enabled."
+        },
+        {
+          "name": "Get Learning Event",
+          "description": "Read Learning event metadata and scheduling fields."
+        },
+        {
+          "name": "Create Learning Event",
+          "description": "Create a Learning event draft with catalog visibility and scheduling metadata."
+        },
+        {
+          "name": "Update Learning Event",
+          "description": "Update event metadata, capacity, scheduling, or documented cancellation and closure fields."
+        },
+        {
+          "name": "List Event Activities",
+          "description": "List activities belonging to one Learning event; search uses activity number."
+        },
+        {
+          "name": "Create Event Activity",
+          "description": "Create a scheduled activity within a Learning event."
+        },
+        {
+          "name": "Update Event Activity",
+          "description": "Update an event activity schedule, attendance rules, or classroom metadata."
+        },
+        {
+          "name": "Delete Event Activity",
+          "description": "Delete an event activity when its lifecycle permits deletion."
+        },
+        {
+          "name": "List Learning Records",
+          "description": "List learning assignments for one person within the credential owner’s learner or manager data access."
+        },
+        {
+          "name": "Get Learning Record",
+          "description": "Read one person’s learning assignment, including Oracle’s existing completion state."
+        },
+        {
+          "name": "Create Learning Record",
+          "description": "Enroll or assign a person to a learning item. Oracle may return pending, approval, or waitlist status."
+        },
+        {
+          "name": "Update Learning Record",
+          "description": "Update permitted assignment fields, including completion or withdrawal where the role and lifecycle allow."
+        },
+        {
+          "name": "List Selected Course Offerings",
+          "description": "List offerings selected under one learning assignment. This is not an available-offerings catalog."
+        },
+        {
+          "name": "Select Course Offering",
+          "description": "Select an offering for a person’s course assignment. Enrollment policies may require approval or waitlisting."
+        },
+        {
+          "name": "Update Selected Course Offering",
+          "description": "Update the documented status, due date, or justification of a selected offering assignment."
+        },
+        {
+          "name": "List Completion Details",
+          "description": "Read activity completion details for an assignment or its selected offering."
+        },
+        {
+          "name": "Update Completion Detail",
+          "description": "Change a root assignment activity attempt status or completion reason. Activity completion does not imply course completion."
+        },
+        {
+          "name": "List Completion Summaries",
+          "description": "Read Oracle’s completion aggregates for an assignment or selected offering. Progress is not necessarily a percentage."
+        },
+        {
+          "name": "List Learning Record Action Hints",
+          "description": "Read Oracle’s permitted-action hints for an assignment or selected offering; hints do not override authorization."
+        },
+        {
+          "name": "List Enrollment History",
+          "description": "Read ordered enrollment status messages for an assignment or selected offering."
+        },
+        {
+          "name": "List Assignment Profiles",
+          "description": "List or search administrator assignment profiles within the credential owner’s data access."
+        },
+        {
+          "name": "Get Assignment Profile",
+          "description": "Read an assignment profile and its processing settings."
+        },
+        {
+          "name": "Create Assignment Profile",
+          "description": "Create an administrator assignment profile for a learning item. Processing is a separate action."
+        },
+        {
+          "name": "Update Assignment Profile",
+          "description": "Update assignment profile scheduling, completion, renewal, or processing rules."
+        },
+        {
+          "name": "Process Assignment Profile",
+          "description": "Request assignment profile processing. The numeric result is an acknowledgement, not a verified job ID or assignment success count."
+        },
+        {
+          "name": "List Assignment Profile Records",
+          "description": "Read assignment results and processing statuses belonging to one assignment profile."
+        },
+        {
+          "name": "List Assignment Profile Criteria",
+          "description": "List selection criteria belonging to an assignment profile."
+        },
+        {
+          "name": "Add Assignment Profile Criterion",
+          "description": "Add a documented selection criterion to an assignment profile using the tenant’s criterion type and source ID."
+        },
+        {
+          "name": "Remove Assignment Profile Criterion",
+          "description": "Remove a selection criterion from its assignment profile."
+        },
+        {
+          "name": "List Learning Item Audiences",
+          "description": "List audience relationships for one learning item."
+        },
+        {
+          "name": "Add Learning Item Audience",
+          "description": "Add a person or learning organization audience relationship to a learning item."
+        },
+        {
+          "name": "Remove Learning Item Audience",
+          "description": "Remove an audience relationship from its learning item."
+        },
+        {
+          "name": "Get Content Item",
+          "description": "Read safe Learning content metadata by content ID. Upload credentials and locations are excluded."
+        },
+        {
+          "name": "Create Web Link Content",
+          "description": "Create URL content with ORA_AUTO tracking. This does not upload a package or publish a catalog item."
+        },
+        {
+          "name": "Update Content Item",
+          "description": "Update safe content metadata. Package uploads, ingestion controls, and upload authentication are not supported."
+        }
+      ],
+      "operationCount": 40,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["automation"]
     },
     {
       "type": "netsuite",
