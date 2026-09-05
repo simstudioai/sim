@@ -105,36 +105,47 @@ jobs:
             --per-page 100 \
             --format json > disks.json
 
-          # Two independent guards, because the blast radius of a wrong key is a
+          # Reduce the listing to the deletable set ONCE, so the staleness test and
+          # the bulk-delete guard below both count the same things. Deriving the
+          # guard's denominator from the raw entries instead would double-count
+          # architecture variants (which are deliberately grouped into one key) and
+          # would also count entries the regex rejected, so the guard could never
+          # fire.
+          #
+          # Two independent filters, because the blast radius of a wrong key is a
           # cache every CI job depends on:
           #   1. --search narrows server-side to the node_modules family.
           #   2. The regex re-proves each key's full shape locally.
           # The event segment is [a-z_]+ rather than an enumerated push|pull_request
-          # because the key interpolates ${{ github.event_name }}: a
-          # workflow_dispatch disk already exists that an enumerated list would
-          # have skipped forever. Verified against the live account — this matches
-          # every node_modules disk and none of the bun/turbo/Docker disks, which
-          # are mounted every run, never go idle, and must survive.
+          # because the key interpolates ${{ github.event_name }} and a
+          # workflow_dispatch disk already exists that an enumerated list would have
+          # skipped forever. `-fork` is a separate optional segment rather than part
+          # of that class: test-build.yml appends it after the event name, so a fork
+          # key reads `pull_request-fork` and a character class cannot span the
+          # hyphen. Without it, fork disks would never be collected.
           #
-          # Grouped by key before the staleness test because `delete` without
-          # --arch removes every architecture variant, so a key may only go when
-          # its NEWEST variant is stale.
-          jq -r --arg repo "$TARGET_REPO" --argjson days "$RETENTION_DAYS" '
-            (now - ($days * 86400)) as $cutoff
-            | .entries
+          # Grouped by key because `delete` without --arch removes every
+          # architecture variant, so a key may only go when its NEWEST variant is
+          # stale.
+          jq --arg repo "$TARGET_REPO" '
+            .entries
             | map(select(.type == "stickydisk"))
-            | map(select(.key | test("^" + ($repo | gsub("/"; "\\/")) + "-node-modules-[a-z_]+-[0-9a-f]{64}$")))
+            | map(select(.key | test("^" + ($repo | gsub("/"; "\\/")) + "-node-modules-[a-z_]+(-fork)?-[0-9a-f]{64}$")))
             | group_by(.key)
             | map({
                 key: .[0].key,
                 gb: (map(.size_bytes) | add / 1000000000 * 100 | round / 100),
                 last_used: (map(.last_used_at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) | max)
               })
+          ' disks.json > eligible.json
+
+          jq -r --argjson days "$RETENTION_DAYS" '
+            (now - ($days * 86400)) as $cutoff
             | map(select(.last_used < $cutoff))
             | .[] | "\(.key)\t\(.gb)"
-          ' disks.json > stale.tsv
+          ' eligible.json > stale.tsv
 
-          total=$(jq '[.entries[] | select(.type == "stickydisk")] | length' disks.json)
+          total=$(jq 'length' eligible.json)
           count=$(wc -l < stale.tsv | tr -d ' ')
           reclaimed=$(awk -F'\t' '{s+=$2} END {printf "%.1f", s+0}' stale.tsv)
           {
