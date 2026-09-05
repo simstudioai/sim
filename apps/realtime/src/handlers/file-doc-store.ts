@@ -63,11 +63,11 @@ const RELEASE_LOCK_SCRIPT =
  * Returns 1 if THIS call wrote the seed, 0 if the stream already had content.
  */
 const SEED_IF_EMPTY_SCRIPT =
-  "local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[6]) then return 0 end; if redis.call('xlen', KEYS[1]) == 0 then redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[4]); if ARGV[6] ~= '0' then redis.call('set', KEYS[3], ARGV[6], 'EX', ARGV[4]) end; redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[5], ARGV[3]); redis.call('expire', KEYS[1], ARGV[4]); return 1 else return 0 end"
+  "local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[6]) then return 0 end; if redis.call('xlen', KEYS[1]) == 0 then redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[4]); if ARGV[6] ~= '0' then redis.call('set', KEYS[3], ARGV[6], 'EX', ARGV[4]) end; redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[5], ARGV[3]); redis.call('expire', KEYS[1], ARGV[4]); redis.call('expire', KEYS[4], ARGV[4]); return 1 else return 0 end"
 
 /** Orders a durable replacement with seeds and merges, and fences publishers in the same transaction. */
 const INVALIDATE_DOCUMENT_SCRIPT =
-  "local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[1]) then return 0 end; if version == ARGV[1] and redis.call('get', KEYS[2]) == ARGV[3] then return 0 end; redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[2]); redis.call('set', KEYS[3], ARGV[1], 'EX', ARGV[2]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); return 1"
+  "local invalidated = redis.call('get', KEYS[6]); if invalidated and tonumber(invalidated) >= tonumber(ARGV[1]) then return 0 end; local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[1]) then return 0 end; if version == ARGV[1] and redis.call('get', KEYS[2]) == ARGV[3] then return 0 end; redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[2]); redis.call('set', KEYS[3], ARGV[1], 'EX', ARGV[2]); redis.call('set', KEYS[6], ARGV[1], 'EX', ARGV[2]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); return 1"
 
 /** Upgrades an existing pre-negotiation stream without ever resurrecting a missing stream. */
 const ADOPT_GENERATION_SCRIPT =
@@ -75,7 +75,11 @@ const ADOPT_GENERATION_SCRIPT =
 
 /** Atomically fence XADD so stale rooms cannot recreate a replaced or expired stream. Returns false when fenced. */
 const APPEND_UPDATE_SCRIPT =
-  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; if ARGV[3] ~= '' then return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1') else return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]) end"
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; for _, key in ipairs(KEYS) do redis.call('expire', key, ARGV[5]) end; if ARGV[3] ~= '' then return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1') else return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]) end"
+
+/** Renew stream metadata atomically, so an invalidation watermark cannot expire ahead of its stream. */
+const REFRESH_DOCUMENT_TTLS_SCRIPT =
+  "for _, key in ipairs(KEYS) do redis.call('expire', key, ARGV[1]) end; return 1"
 
 /** A compacted snapshot replaces the seed entry, so it must carry that seed's generation forward. */
 const APPEND_SNAPSHOT_SCRIPT =
@@ -86,7 +90,7 @@ const APPEND_SNAPSHOT_SCRIPT =
  * lost, so a retry with the same id must not inflate the stream or its compaction counters.
  */
 const APPEND_CLIENT_UPDATE_SCRIPT =
-  "local generation = redis.call('get', KEYS[3]) or ''; if generation ~= ARGV[6] or redis.call('exists', KEYS[1]) == 0 then return -1 end; if redis.call('zscore', KEYS[2], ARGV[1]) then redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 0 end; local id = redis.call('xadd', KEYS[1], '*', ARGV[2], ARGV[3]); local score = string.match(id, '^(%d+)'); redis.call('zadd', KEYS[2], score, ARGV[1]); local excess = redis.call('zcard', KEYS[2]) - tonumber(ARGV[4]); if excess > 0 then redis.call('zpopmin', KEYS[2], excess) end; if redis.call('ttl', KEYS[2]) < 0 then redis.call('expire', KEYS[2], ARGV[5]) end; redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 1"
+  "local generation = redis.call('get', KEYS[3]) or ''; if generation ~= ARGV[6] or redis.call('exists', KEYS[1]) == 0 then return -1 end; redis.call('expire', KEYS[4], ARGV[5]); if redis.call('zscore', KEYS[2], ARGV[1]) then redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 0 end; local id = redis.call('xadd', KEYS[1], '*', ARGV[2], ARGV[3]); local score = string.match(id, '^(%d+)'); redis.call('zadd', KEYS[2], score, ARGV[1]); local excess = redis.call('zcard', KEYS[2]) - tonumber(ARGV[4]); if excess > 0 then redis.call('zpopmin', KEYS[2], excess) end; if redis.call('ttl', KEYS[2]) < 0 then redis.call('expire', KEYS[2], ARGV[5]) end; redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 1"
 
 /**
  * Monotonic set of the synced-version token: overwrite ONLY when the new value is greater than the
@@ -130,6 +134,8 @@ export const REDIS_AGENT_ORIGIN = Symbol('file-doc-redis-agent')
 const STREAM_PREFIX = 'filedoc:stream:'
 const CLIENT_UPDATE_PREFIX = 'filedoc:updates:'
 const GENERATION_PREFIX = 'filedoc:generation:'
+/** Retries must remain idempotent after a seed replaces the generation tombstone. */
+const INVALIDATION_VERSION_PREFIX = 'filedoc:invalidatedver:'
 /** Cluster-wide "durable version the live doc is synced to" (the persist If-Match token). */
 const SYNC_VERSION_PREFIX = 'filedoc:syncver:'
 const SEED_LOCK_PREFIX = 'filedoc:seedlock:'
@@ -210,6 +216,12 @@ const CLIENT_UPDATE_DEDUPE_CAPACITY = 16_384
 
 const streamKey = (name: string) => `${STREAM_PREFIX}${name}`
 const generationKey = (name: string) => `${GENERATION_PREFIX}${name}`
+const documentKeys = (name: string) => [
+  streamKey(name),
+  generationKey(name),
+  `${SYNC_VERSION_PREFIX}${name}`,
+  `${INVALIDATION_VERSION_PREFIX}${name}`,
+]
 
 export class FileDocInvalidatedError extends Error {
   constructor() {
@@ -314,7 +326,7 @@ export class FileDocStore {
   /** Dedicated connection for blocking XREAD (a blocking command monopolizes its connection). */
   private read: RedisClientType | null = null
   private readonly rooms = new Map<string, StoreRoom>()
-  private readonly localInvalidations = new Map<string, number>()
+  private readonly localInvalidations = new Map<string, { version: number; expiresAt: number }>()
   private running = false
   private heartbeat: ReturnType<typeof setInterval> | null = null
 
@@ -417,6 +429,7 @@ export class FileDocStore {
       })
       if (this.rooms.get(name) !== room) return
       for (const entry of entries) this.applyEntry(name, room, entry.id, entry.message)
+      if (room.generationInvalidated) throw new FileDocInvalidatedError()
       const docId = room.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
       if (room.generation === null && typeof docId === 'string') {
         const adopted = await this.write.eval(ADOPT_GENERATION_SCRIPT, {
@@ -426,7 +439,7 @@ export class FileDocStore {
         if (adopted !== docId) throw new FileDocInvalidatedError()
         room.generation = docId
       }
-      await this.write.expire(streamKey(name), STREAM_TTL_SEC)
+      await this.refreshDocumentTtls(name)
     } catch (error) {
       logger.warn(`FileDocStore catch-up failed for ${name}`, {
         error: getErrorMessage(error),
@@ -438,14 +451,13 @@ export class FileDocStore {
   /** Deregister a room the relay is destroying, so the tailer stops touching its (about-to-be-destroyed) doc. */
   detachRoom(name: string): void {
     this.rooms.delete(name)
-    this.localInvalidations.delete(name)
   }
 
   /**
    * Append a locally-applied update to the shared stream so every task converges, AWAITING the write
    * and retrying a transient failure ({@link PUBLISH_MAX_RETRIES}) so a Redis blip can't silently drop
-   * an edit from the shared log. Only the `xAdd` is retried; the TTL refresh + compaction check are
-   * post-write best-effort and never re-trigger the append. Throws if the append ultimately fails.
+   * an edit from the shared log. The append and metadata TTL renewal are atomic; post-write
+   * compaction never re-triggers the append. Throws if the append ultimately fails.
    */
   private async appendUpdate(
     name: string,
@@ -471,8 +483,8 @@ export class FileDocStore {
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
         const id = await this.write.eval(APPEND_UPDATE_SCRIPT, {
-          keys: [streamKey(name), generationKey(name)],
-          arguments: [UPDATE_FIELD, encoded, marker, expectedGeneration],
+          keys: documentKeys(name),
+          arguments: [UPDATE_FIELD, encoded, marker, expectedGeneration, String(STREAM_TTL_SEC)],
         })
         if (id === null || id === false) throw new FileDocInvalidatedError()
         break
@@ -489,8 +501,6 @@ export class FileDocStore {
         await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
       }
     }
-    await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
-    await this.write.expire(generationKey(name), STREAM_TTL_SEC).catch(() => {})
     const room = this.rooms.get(name)
     if (room) {
       room.publishes += 1
@@ -557,7 +567,12 @@ export class FileDocStore {
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
         const appended = await this.write.eval(APPEND_CLIENT_UPDATE_SCRIPT, {
-          keys: [streamKey(name), `${CLIENT_UPDATE_PREFIX}${name}`, generationKey(name)],
+          keys: [
+            streamKey(name),
+            `${CLIENT_UPDATE_PREFIX}${name}`,
+            generationKey(name),
+            `${INVALIDATION_VERSION_PREFIX}${name}`,
+          ],
           arguments: [
             dedupeMember,
             UPDATE_FIELD,
@@ -605,8 +620,11 @@ export class FileDocStore {
    */
   async seedIfEmpty(name: string, update: Uint8Array, version = 0): Promise<boolean> {
     if (!this.enabled) {
-      if ((this.localInvalidations.get(name) ?? 0) > version) return false
-      this.localInvalidations.delete(name)
+      const invalidation = this.localInvalidations.get(name)
+      if (invalidation && invalidation.expiresAt > Date.now() && invalidation.version > version)
+        return false
+      const room = this.rooms.get(name)
+      if (room) room.generationInvalidated = false
       return true
     }
     if (!this.write) throw new Error('FileDocStore is not initialized')
@@ -616,7 +634,7 @@ export class FileDocStore {
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
         const wrote = await this.write.eval(SEED_IF_EMPTY_SCRIPT, {
-          keys: [streamKey(name), generationKey(name), `${SYNC_VERSION_PREFIX}${name}`],
+          keys: documentKeys(name),
           arguments: [
             UPDATE_FIELD,
             encoded,
@@ -626,7 +644,7 @@ export class FileDocStore {
             String(version),
           ],
         })
-        await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
+        await this.refreshDocumentTtls(name).catch(() => {})
         const room = this.rooms.get(name)
         if (wrote === 1 && room) room.generation = generation
         return wrote === 1
@@ -645,13 +663,21 @@ export class FileDocStore {
 
   /**
    * Fences an unsupported durable replacement before deleting its stream. The next authoritative
-   * seed replaces the tombstone; abandoned tombstones expire with the stream TTL.
+   * seed replaces the tombstone. A separate version watermark deduplicates retries across reseeds;
+   * both expire with the stream TTL once the document is idle.
    */
   async invalidateDocument(name: string, version: number): Promise<boolean> {
     if (!this.enabled) {
-      if (!this.rooms.has(name)) return true
-      if ((this.localInvalidations.get(name) ?? 0) >= version) return false
-      this.localInvalidations.set(name, version)
+      const now = Date.now()
+      const previous = this.localInvalidations.get(name)
+      if (previous && previous.expiresAt > now && previous.version >= version) return false
+      this.localInvalidations.set(name, { version, expiresAt: now + STREAM_TTL_SEC * 1_000 })
+      const room = this.rooms.get(name)
+      if (room) room.generationInvalidated = true
+      if (!this.heartbeat) {
+        this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
+        this.heartbeat.unref()
+      }
       return true
     }
     if (!this.write) throw new Error('FileDocStore is not initialized')
@@ -663,6 +689,7 @@ export class FileDocStore {
           `${SYNC_VERSION_PREFIX}${name}`,
           `${CLIENT_UPDATE_PREFIX}${name}`,
           `${AGENT_STREAM_PREFIX}${name}`,
+          `${INVALIDATION_VERSION_PREFIX}${name}`,
         ],
         arguments: [String(version), String(STREAM_TTL_SEC), INVALIDATED_GENERATION],
       })) === 1
@@ -676,7 +703,7 @@ export class FileDocStore {
   }
 
   async isDocumentGenerationCurrent(name: string, generation?: string): Promise<boolean> {
-    if (!this.enabled) return !this.localInvalidations.has(name)
+    if (!this.enabled) return !this.rooms.get(name)?.generationInvalidated
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const current = await this.write.get(generationKey(name))
     return current === null ? !generation : current === generation
@@ -964,7 +991,9 @@ export class FileDocStore {
       if (
         room.generationInvalidated ||
         (room.generation !== null && room.generation !== generation) ||
-        (room.generation === null && room.seededObserved)
+        (room.generation === null &&
+          room.seededObserved &&
+          room.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey) !== generation)
       ) {
         room.generationInvalidated = true
         return
@@ -1146,14 +1175,28 @@ export class FileDocStore {
     }
   }
 
+  private async refreshDocumentTtls(name: string): Promise<void> {
+    await this.write?.eval(REFRESH_DOCUMENT_TTLS_SCRIPT, {
+      keys: documentKeys(name),
+      arguments: [String(STREAM_TTL_SEC)],
+    })
+  }
+
   private async refreshTtls(): Promise<void> {
-    if (!this.write) return
+    if (!this.write) {
+      const now = Date.now()
+      for (const [name, invalidation] of this.localInvalidations) {
+        if (this.rooms.has(name)) invalidation.expiresAt = now + STREAM_TTL_SEC * 1_000
+        else if (invalidation.expiresAt <= now) this.localInvalidations.delete(name)
+      }
+      if (this.localInvalidations.size === 0 && this.heartbeat) {
+        clearInterval(this.heartbeat)
+        this.heartbeat = null
+      }
+      return
+    }
     for (const name of this.rooms.keys()) {
-      await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
-      // Keep the synced-version key alive as long as its stream, so an open-but-idle doc's persist
-      // If-Match token can't expire out from under it (which would force a needless reconcile).
-      await this.write.expire(`${SYNC_VERSION_PREFIX}${name}`, STREAM_TTL_SEC).catch(() => {})
-      await this.write.expire(generationKey(name), STREAM_TTL_SEC).catch(() => {})
+      await this.refreshDocumentTtls(name).catch(() => {})
     }
   }
 }

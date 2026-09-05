@@ -45,10 +45,11 @@ const fidelityLexer = new Marked({ gfm: true })
 const SUPPORTED_IMAGE_ATTRIBUTES = new Set(['src', 'alt', 'title', 'width', 'height'])
 
 /**
- * Unsupported or duplicate HTML image attributes require source mode; a stable serialization
- * is not lossless if parsing already discarded those attributes.
+ * Count tags that image parsing would lose attributes from, including duplicates. Raw snippets
+ * may preserve these verbatim, so compare the counts before and after the first serialization.
  */
-function hasUnsupportedHtmlImageAttribute(content: string): boolean {
+function unsupportedHtmlImages(content: string): Map<string, number> {
+  const images = new Map<string, number>()
   const tokenizer = new Tokenizer()
   new Lexer({ gfm: true, tokenizer })
   const imagePattern = /<img(?=[\s/>])/gi
@@ -61,11 +62,14 @@ function hasUnsupportedHtmlImageAttribute(content: string): boolean {
     const pattern = /(?:^|\s)([^\s=/>]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
     for (const attribute of attributes.matchAll(pattern)) {
       const name = attribute[1].toLowerCase()
-      if (!SUPPORTED_IMAGE_ATTRIBUTES.has(name) || seen.has(name)) return true
+      if (!SUPPORTED_IMAGE_ATTRIBUTES.has(name) || seen.has(name)) {
+        images.set(tag.raw, (images.get(tag.raw) ?? 0) + 1)
+        break
+      }
       seen.add(name)
     }
   }
-  return false
+  return images
 }
 
 function imageSources(token: Token): string[] {
@@ -168,11 +172,14 @@ export function isRoundTripSafe(content: string): boolean {
   const stripped = stripCode(content)
   if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripped))) return false
   if (hasOrphanReferenceDefinition(stripped)) return false
-  if (hasUnsupportedHtmlImageAttribute(stripped)) return false
   try {
     const source = inspectMarkdownFidelity(content)
     if (source.hasTaskReference || source.hasTableHtmlImage) return false
     const once = serializeMarkdownDocument(content)
+    const preservedImages = unsupportedHtmlImages(stripCode(once))
+    for (const [tag, count] of unsupportedHtmlImages(stripped)) {
+      if ((preservedImages.get(tag) ?? 0) < count) return false
+    }
     const serialized = inspectMarkdownFidelity(once)
     for (const [target, count] of source.targets) {
       if ((serialized.targets.get(target) ?? 0) < count) return false

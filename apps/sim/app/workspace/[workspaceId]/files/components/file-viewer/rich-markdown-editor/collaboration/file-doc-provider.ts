@@ -730,6 +730,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (!docId) return
 
     this.updateFlushInProgress = true
+    let hasUnjournaledUpdates = false
     try {
       const update = Y.mergeUpdates(this.pendingUpdateBatch)
       this.pendingUpdateBatch = []
@@ -737,6 +738,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
         ? Y.mergeUpdates([this.inFlightUpdate.update, update])
         : update
       const saved = await this.journal?.save(docId, journalUpdate, Y.encodeStateAsUpdate(this.doc))
+      hasUnjournaledUpdates = this.pendingUpdateBatch.length > 0
       if (this.disposed || this.fatal) {
         this.queuePendingUpdate(update)
         return
@@ -758,7 +760,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     } finally {
       this.updateFlushInProgress = false
       this.updateBeforeUnloadProtection()
-      if (this.pendingUpdateBatch.length > 0 && !this.inFlightUpdate) {
+      if (this.pendingUpdateBatch.length > 0 && (hasUnjournaledUpdates || !this.inFlightUpdate)) {
         this.scheduleUpdateFlush(0)
       }
     }

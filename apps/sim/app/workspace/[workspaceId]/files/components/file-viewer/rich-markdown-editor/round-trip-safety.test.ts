@@ -6,6 +6,21 @@ import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/co
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 
 describe('isRoundTripSafe', () => {
+  it.each([
+    '<div align="center">\n<img src="/logo.svg" class="logo" width="200">\n</div>',
+    '<!-- example: <img src="/x" class="hero"> -->',
+    '<img src="a>b" class="hero">',
+    '---\nexample: \'<img src="/x" class="hero">\'\n---\n# Heading',
+  ])('allows image attributes preserved verbatim in raw content: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(true)
+    expect(normalizeMarkdownContent(source).trim()).toBe(source)
+  })
+
+  it('does not let a preserved raw tag hide an identical image tag that loses attributes', () => {
+    const tag = '<img src="/logo.svg" class="logo" width="200">'
+    expect(isRoundTripSafe(`<div>\n${tag}\n</div>\n\n${tag}`)).toBe(false)
+  })
+
   it('passes ordinary markdown and lossless normalizations', () => {
     expect(isRoundTripSafe('# Title\n\nA **bold** word and a [link](https://sim.ai).')).toBe(true)
     expect(isRoundTripSafe('- one\n- two\n\n```js\nconst x = 1\n```')).toBe(true)
@@ -161,7 +176,6 @@ describe('isRoundTripSafe', () => {
   })
 
   it.each([
-    '<img src="a>b" class="hero">',
     '[<img src="a>b" class="hero">](/link)',
     '[<img src="/image" title="a>b" class="hero" width="30">](/link)',
     "[<img src='/image' title='a>b' data-credit='Alice' width='30'>](/link)",
