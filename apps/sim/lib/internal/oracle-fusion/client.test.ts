@@ -24,6 +24,7 @@ import {
   requestOracleFusionJson,
 } from '@/lib/internal/oracle-fusion/client'
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
+import { oracleFusionExactInteger } from '@/lib/internal/oracle-fusion/request-body'
 
 const ORIGIN = 'https://vision.fa.us2.oraclecloud.com'
 const BASIC = Buffer.from('integration-user:password').toString('base64')
@@ -158,6 +159,22 @@ describe('Oracle Fusion client', () => {
       })
     }
   )
+
+  it('sends an exact numeric identifier in the mutation body without rounding or quoting', async () => {
+    await requestOracleFusionJson(CREDENTIAL, {
+      address: { family: 'fscm', relativePath: 'projectBudgets' },
+      method: 'POST',
+      mediaType: 'application/json',
+      body: { ProjectId: oracleFusionExactInteger('999999999999999999') },
+    })
+
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+    expect(mockSecureFetch.mock.calls[0][2]).toMatchObject({
+      method: 'POST',
+      body: '{"ProjectId":999999999999999999}',
+      headers: { 'REST-Framework-Version': '9', 'Content-Type': 'application/json' },
+    })
+  })
 
   it('sends DELETE without a body and consumes an empty-mode success without JSON parsing', async () => {
     const stream = new ReadableStream<Uint8Array>({

@@ -3,7 +3,146 @@
  */
 import { describe, expect, it } from 'vitest'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
-import { serializeOracleFusionJsonBody } from '@/lib/internal/oracle-fusion/request-body'
+import {
+  type OracleFusionExactInteger,
+  oracleFusionExactInteger,
+  serializeOracleFusionJsonBody,
+} from '@/lib/internal/oracle-fusion/request-body'
+
+describe('oracleFusionExactInteger', () => {
+  it.each([
+    '0',
+    '42',
+    '-42',
+    '9007199254740991',
+    '999999999999999999',
+    '-999999999999999999',
+    '9'.repeat(128),
+    `-${'9'.repeat(128)}`,
+  ])('serializes the exact integer %s without quotes or rounding', (digits) => {
+    const integer = oracleFusionExactInteger(digits)
+    expect(serializeOracleFusionJsonBody(integer)).toBe(digits)
+    expect(serializeOracleFusionJsonBody({ id: integer, text: digits, array: [integer] })).toBe(
+      `{"id":${digits},"text":"${digits}","array":[${digits}]}`
+    )
+  })
+
+  it.each([
+    '',
+    ' ',
+    ' 1',
+    '1 ',
+    '1\n',
+    '1\r',
+    '1\r\n',
+    '1\t',
+    '1\u2028',
+    '1\u2029',
+    '1\u0000',
+    '1\u007f',
+    '1\uD800',
+    '1😀',
+    '１２',
+    '+1',
+    '-0',
+    '00',
+    '01',
+    '-01',
+    '-',
+    '1.0',
+    '1.5',
+    '1e3',
+    '1E+3',
+    '0x10',
+    'NaN',
+    'Infinity',
+    '1,"injected":true',
+    '9'.repeat(129),
+    `-${'9'.repeat(129)}`,
+  ])('rejects noncanonical or excessive integer text %# with a fixed error', (digits) => {
+    expect(() => oracleFusionExactInteger(digits)).toThrow(
+      new Error(
+        'Oracle Fusion exact integer must be a canonical decimal string of at most 128 digits'
+      )
+    )
+  })
+
+  it.each(
+    [
+      undefined,
+      null,
+      42,
+      Number.MAX_SAFE_INTEGER + 1,
+      42n,
+      false,
+      {},
+      ['42'],
+      { toString: () => '42' },
+    ].map((value) => ({ value }))
+  )('rejects non-string values without coercion %#', ({ value }) => {
+    expect(() => oracleFusionExactInteger(value as unknown as string)).toThrow(
+      new Error(
+        'Oracle Fusion exact integer must be a canonical decimal string of at most 128 digits'
+      )
+    )
+  })
+
+  it('keeps validated digits private in a frozen in-process wrapper', () => {
+    const integer = oracleFusionExactInteger('999999999999999999')
+    expect(Object.isFrozen(integer)).toBe(true)
+    expect(Reflect.ownKeys(integer)).toEqual([])
+    expect(JSON.stringify(integer)).toBe('{}')
+    expect(Reflect.set(integer, 'value', '0')).toBe(false)
+    expect(serializeOracleFusionJsonBody(integer)).toBe('999999999999999999')
+  })
+
+  it('does not treat copied wrappers or lookalike objects as raw numbers', () => {
+    const integer = oracleFusionExactInteger('999999999999999999')
+    const lookalike = Object.freeze({
+      rawJSON: '999999999999999999',
+    }) as unknown as OracleFusionExactInteger
+    expect(serializeOracleFusionJsonBody(lookalike)).toBe('{"rawJSON":"999999999999999999"}')
+    expect(serializeOracleFusionJsonBody({ ...integer })).toBe('{}')
+    expect(serializeOracleFusionJsonBody(structuredClone(integer))).toBe('{}')
+    expect(() => serializeOracleFusionJsonBody(Object.create(integer))).toThrow('plain JSON data')
+    expect(() => serializeOracleFusionJsonBody({ toJSON: () => integer })).toThrow(
+      'plain JSON data'
+    )
+    expect(() =>
+      serializeOracleFusionJsonBody(
+        Object.defineProperty({}, 'id', {
+          enumerable: true,
+          get: () => integer,
+        })
+      )
+    ).toThrow('plain JSON data')
+  })
+
+  it('counts wrappers against nesting and node budgets as scalar values', () => {
+    const integer = oracleFusionExactInteger('0')
+    let nested: unknown = integer
+    for (let index = 0; index < 100; index += 1) nested = [nested]
+    expect(serializeOracleFusionJsonBody(nested)).toBe(`${'['.repeat(100)}0${']'.repeat(100)}`)
+    expect(() => serializeOracleFusionJsonBody([nested])).toThrow('nesting limit')
+
+    expect(serializeOracleFusionJsonBody(new Array(99_999).fill(integer)).length).toBe(199_999)
+    expect(() =>
+      serializeOracleFusionJsonBody({ values: new Array(99_998).fill(integer), extra: integer })
+    ).toThrow('complexity limit')
+  })
+
+  it('charges the full unquoted integer text to the existing byte budget', () => {
+    const digits = '9'.repeat(128)
+    const integer = oracleFusionExactInteger(digits)
+    const padding = 'x'.repeat(MAX_INLINE_MATERIALIZATION_BYTES - digits.length - 5)
+    const serialized = serializeOracleFusionJsonBody([padding, integer])
+    expect(Buffer.byteLength(serialized, 'utf8')).toBe(MAX_INLINE_MATERIALIZATION_BYTES)
+    expect(serialized.endsWith(`",${digits}]`)).toBe(true)
+    expect(() => serializeOracleFusionJsonBody([`${padding}x`, integer])).toThrow(
+      'inline payload limit'
+    )
+  })
+})
 
 describe('serializeOracleFusionJsonBody', () => {
   it('serializes plain objects, arrays, null-prototype objects, and JSON scalars', () => {

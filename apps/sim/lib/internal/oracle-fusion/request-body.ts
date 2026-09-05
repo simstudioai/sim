@@ -2,8 +2,39 @@ import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limit
 
 const MAX_JSON_NESTING_DEPTH = 100
 const MAX_JSON_NODE_COUNT = 100_000
+const MAX_EXACT_INTEGER_DIGITS = 128
+/** The final assertion requires the entire string, including any trailing line breaks. */
+const CANONICAL_EXACT_INTEGER = /^(?:0|-?[1-9][0-9]*)(?![\s\S])/
+const exactIntegerValues = new WeakMap<object, string>()
+
+declare const oracleFusionExactIntegerBrand: unique symbol
+
+/** An in-process exact integer recognized only by the Fusion request-body serializer. */
+export interface OracleFusionExactInteger {
+  readonly [oracleFusionExactIntegerBrand]: true
+}
 
 class OracleFusionRequestBodyError extends Error {}
+
+/**
+ * Preserves a canonical decimal integer as an unquoted JSON number, capped at 128 magnitude digits.
+ * Construct in server-side request builders after product-specific range and sign validation.
+ * Keep persisted workflow inputs as strings; create this wrapper after any other JSON serialization.
+ */
+export function oracleFusionExactInteger(value: string): OracleFusionExactInteger {
+  if (
+    typeof value !== 'string' ||
+    value.length > MAX_EXACT_INTEGER_DIGITS + (value.startsWith('-') ? 1 : 0) ||
+    !CANONICAL_EXACT_INTEGER.test(value)
+  ) {
+    throw new OracleFusionRequestBodyError(
+      'Oracle Fusion exact integer must be a canonical decimal string of at most 128 digits'
+    )
+  }
+  const integer = Object.freeze({}) as OracleFusionExactInteger
+  exactIntegerValues.set(integer, value)
+  return integer
+}
 
 interface JsonBudgetState {
   bytes: number
@@ -29,7 +60,7 @@ type JsonBudgetFrame =
       depth: number
     }
 
-/** Serializes a bounded request body containing only plain JSON data. */
+/** Serializes a bounded request body containing plain JSON data and validated exact integers. */
 export function serializeOracleFusionJsonBody(body: unknown): string {
   try {
     const state = serializeJsonBodyWithinLimit(body)
@@ -95,7 +126,11 @@ function serializeJsonBodyWithinLimit(body: unknown): JsonBudgetState {
         'Oracle Fusion request body exceeds the JSON nesting limit'
       )
     }
-    if (value === null) {
+    const exactInteger =
+      value !== null && typeof value === 'object' ? exactIntegerValues.get(value) : undefined
+    if (exactInteger !== undefined) {
+      appendJsonFragment(state, exactInteger)
+    } else if (value === null) {
       appendJsonFragment(state, 'null')
     } else if (typeof value === 'string') {
       appendJsonString(state, value)
