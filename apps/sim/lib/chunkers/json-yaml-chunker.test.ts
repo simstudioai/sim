@@ -90,6 +90,20 @@ describe('JsonYamlChunker', () => {
       expect(chunks).toBeNull()
     })
 
+    it('keeps structure for a many-small-node document that fits the budget', async () => {
+      const flags = JSON.stringify(Array.from({ length: 250_000 }, (_, i) => i % 2 === 0))
+
+      const chunks = await JsonYamlChunker.chunkStructured(flags, {
+        chunkSize: 1024,
+        minCharactersPerChunk: 1,
+        maxChunks: 1000,
+      })
+
+      expect(chunks).not.toBeNull()
+      expect(chunks?.length).toBeGreaterThan(1)
+      expect(chunks?.[0].text).toContain('true')
+    })
+
     it('never parses source larger than one output budget', async () => {
       const oversized = JSON.stringify({ value: 'x'.repeat(5 * 1024 * 1024) })
       const parse = vi.spyOn(JSON, 'parse')

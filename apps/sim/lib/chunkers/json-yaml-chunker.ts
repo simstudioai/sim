@@ -23,14 +23,39 @@ type BoundedChunkMetadataMode = 'text-offsets' | 'preserve-range'
 const MAX_DEPTH = 5
 
 /**
- * Smallest expansion ceiling this chunker imposes, so a knowledge base
- * configured with tiny chunks keeps structural chunking on documents it indexes
- * perfectly well today.
+ * Smallest source ceiling this chunker imposes, so a knowledge base configured
+ * with tiny chunks keeps structural chunking on documents it indexes perfectly
+ * well today.
  */
-const MIN_EXPANSION_BYTES = 4 * 1024 * 1024
+const MIN_SOURCE_BYTES = 4 * 1024 * 1024
 
 /**
- * How large an expanded document this chunker will materialize.
+ * How far a document may legitimately expand past its own source.
+ *
+ * `measureYamlExpansion` charges a flat per-node allowance, so a compact source
+ * of small values is charged well above its own length — `[1,1,1]` costs about
+ * 22 estimated bytes per element against two in source. An order of magnitude of
+ * headroom therefore covers ordinary document shape, while alias expansion
+ * overshoots it by several orders.
+ */
+const MAX_EXPANSION_RATIO = 16
+
+/**
+ * Longest source this chunker will parse: the most text it could ever emit, one
+ * output budget's worth. A larger document cannot be indexed whole by any
+ * chunker — `ChunkBudget` stops it either way — so parsing it buys nothing.
+ */
+function resolveMaxSourceBytes(maxChunks: number | undefined, chunkSize: number): number {
+  if (maxChunks === undefined) return FILE_PARSER_YAML_LIMITS.maxSerializedBytes
+
+  return Math.min(
+    FILE_PARSER_YAML_LIMITS.maxSerializedBytes,
+    Math.max(MIN_SOURCE_BYTES, maxChunks * tokensToChars(chunkSize))
+  )
+}
+
+/**
+ * What the document is allowed to expand to once it is walked as a tree.
  *
  * Structural chunking re-serializes what it parsed, so its cost follows the
  * document's *expanded* size rather than its source size, and `yaml.load`
@@ -38,27 +63,19 @@ const MIN_EXPANSION_BYTES = 4 * 1024 * 1024
  * of megabytes of expansion. `ChunkBudget` cannot bound that: it counts emitted
  * chunks, and every parse and serialization happens before the first is emitted.
  *
- * The ceiling is the most text this chunker could ever emit, one output budget's
- * worth, because a larger document cannot be indexed whole by any chunker and
- * paying to expand it buys nothing. Transient allocation therefore stays the
- * same order as the output, and every document that fits the budget is chunked
- * exactly as before.
+ * Two expansions are admissible: one that stays within the output budget, and
+ * one that stays proportionate to the source. Taking the larger of the two keeps
+ * transient allocation tied to work the chunker would have done anyway, without
+ * charging an ordinary large document for the estimator's per-node conservatism.
+ * Neither is ever allowed past what the file parser itself would hand over.
  */
-function resolveExpansionLimits(
-  maxChunks: number | undefined,
-  chunkSize: number
-): YamlExpansionLimits {
-  const emittable =
-    maxChunks === undefined
-      ? FILE_PARSER_YAML_LIMITS.maxSerializedBytes
-      : maxChunks * tokensToChars(chunkSize)
-
+function resolveExpansionLimits(sourceBytes: number, maxSourceBytes: number): YamlExpansionLimits {
   return {
     /** Bytes bind here; every reached node charges some, so a self-referential anchor still terminates. */
     maxNodes: Number.MAX_SAFE_INTEGER,
     maxSerializedBytes: Math.min(
       FILE_PARSER_YAML_LIMITS.maxSerializedBytes,
-      Math.max(MIN_EXPANSION_BYTES, emittable)
+      Math.max(maxSourceBytes, sourceBytes * MAX_EXPANSION_RATIO)
     ),
     maxDepth: FILE_PARSER_YAML_LIMITS.maxDepth,
   }
@@ -68,13 +85,13 @@ export class JsonYamlChunker {
   private chunkSize: number
   private minCharactersPerChunk: number
   private maxChunks?: number
-  private readonly expansionLimits: YamlExpansionLimits
+  private readonly maxSourceBytes: number
 
   constructor(options: ChunkerOptions = {}) {
     this.chunkSize = normalizeTokenChunkSize(options.chunkSize ?? 1024, 'JSON/YAML chunk size')
     this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
     this.maxChunks = options.maxChunks
-    this.expansionLimits = resolveExpansionLimits(this.maxChunks, this.chunkSize)
+    this.maxSourceBytes = resolveMaxSourceBytes(this.maxChunks, this.chunkSize)
   }
 
   /**
@@ -86,9 +103,9 @@ export class JsonYamlChunker {
    * expansion, and the indentation a pretty-printed re-serialization adds.
    */
   private parseWithinLimits(content: string): JsonValue | undefined {
-    if (content.length > this.expansionLimits.maxSerializedBytes) {
+    if (content.length > this.maxSourceBytes) {
       return this.reject(
-        `source of ${content.length} characters exceeds the ${this.expansionLimits.maxSerializedBytes}-byte ceiling`
+        `source of ${content.length} characters exceeds the ${this.maxSourceBytes}-byte ceiling`
       )
     }
 
@@ -105,7 +122,8 @@ export class JsonYamlChunker {
 
     if (parsed === undefined) return undefined
 
-    const measured = measureYamlExpansion(parsed, this.expansionLimits)
+    const limits = resolveExpansionLimits(content.length, this.maxSourceBytes)
+    const measured = measureYamlExpansion(parsed, limits)
     if (!measured.within) return this.reject(measured.reason)
 
     return parsed as JsonValue
