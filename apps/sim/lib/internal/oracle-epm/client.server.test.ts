@@ -550,7 +550,7 @@ describe('Oracle EPM guarded client', () => {
     }
   )
 
-  it.each(['download', 'Job Status'])(
+  it.each(['download', 'Job Status', 'exported/artifact', 'imported/artifact'])(
     'keeps %s links opaque and client-owned',
     async (relation) => {
       const download = routes.defineEndpoint({
@@ -626,7 +626,12 @@ describe('Oracle EPM guarded client', () => {
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%2Fabc?token=x',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files%5Cabc?token=x',
       'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files\\abc?token=x',
-    ].flatMap((href) => ['download', 'Job Status'].map((relation) => ({ relation, href })))
+    ].flatMap((href) =>
+      ['download', 'Job Status', 'exported/artifact', 'imported/artifact'].map((relation) => ({
+        relation,
+        href,
+      }))
+    )
   )('rejects unsafe $relation link $href', ({ relation, href }) => {
     const policy = routes.defineReturnedLinkPolicy({
       relation,
@@ -650,44 +655,62 @@ describe('Oracle EPM guarded client', () => {
     expect(mockSecureFetch).not.toHaveBeenCalled()
   })
 
-  it.each(['download', 'Job Status'])('rejects an incorrect %s link method', (relation) => {
-    const policy = routes.defineReturnedLinkPolicy({
-      relation,
-      method: 'GET',
-      version: 'v3',
-      path: [oracleEpmLiteral('files'), oracleEpmPathParameter('fileId', { maxBytes: 32 })],
-      response: 'stream',
-      timeoutMs: 5_000,
-      maxResponseBytes: 4_096,
-      preserveGatewayBasePath: true,
-    })
-    const client = createOracleEpmClient({
-      instanceUrl: 'https://epm.example.com/gateway',
-      accessToken: Buffer.from('u:p').toString('base64'),
-    })
-    expect(() =>
-      client.validateReturnedLink(policy, {
-        rel: relation,
-        method: 'POST',
-        href: 'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc',
+  it.each(['download', 'Job Status', 'exported/artifact', 'imported/artifact'])(
+    'rejects an incorrect %s link method',
+    (relation) => {
+      const policy = routes.defineReturnedLinkPolicy({
+        relation,
+        method: 'GET',
+        version: 'v3',
+        path: [oracleEpmLiteral('files'), oracleEpmPathParameter('fileId', { maxBytes: 32 })],
+        response: 'stream',
+        timeoutMs: 5_000,
+        maxResponseBytes: 4_096,
+        preserveGatewayBasePath: true,
       })
-    ).toThrow()
-    expect(mockValidateUrl).not.toHaveBeenCalled()
-    expect(mockSecureFetch).not.toHaveBeenCalled()
-  })
+      const client = createOracleEpmClient({
+        instanceUrl: 'https://epm.example.com/gateway',
+        accessToken: Buffer.from('u:p').toString('base64'),
+      })
+      expect(() =>
+        client.validateReturnedLink(policy, {
+          rel: relation,
+          method: 'POST',
+          href: 'https://epm.example.com/gateway/SyntheticAlpha/rest/v3/files/abc',
+        })
+      ).toThrow()
+      expect(mockValidateUrl).not.toHaveBeenCalled()
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
-    'job status',
-    'Job status',
-    ' Job Status',
-    'Job Status ',
-    'Job  Status',
-    'Job\tStatus',
-    'Job Status\n',
-    'download',
-  ])('rejects nonmatching relation %j before DNS or network access', (rel) => {
+    ...[
+      'job status',
+      'Job status',
+      ' Job Status',
+      'Job Status ',
+      'Job  Status',
+      'Job\tStatus',
+      'Job Status\n',
+      'download',
+    ].map((rel) => ({ relation: 'Job Status', rel })),
+    ...[
+      'Exported/artifact',
+      'exported/Artifact',
+      ' exported/artifact',
+      'exported/artifact ',
+      'exported/artifact\n',
+      'exported%2Fartifact',
+      'exported\\artifact',
+      'exported//artifact',
+      'exported/artifact/extra',
+      'imported/artifact',
+      'self',
+    ].map((rel) => ({ relation: 'exported/artifact', rel })),
+  ])('rejects $rel for $relation before DNS or network access', ({ relation, rel }) => {
     const policy = routes.defineReturnedLinkPolicy({
-      relation: 'Job Status',
+      relation,
       method: 'GET',
       endpoint: getJob,
       preserveGatewayBasePath: true,

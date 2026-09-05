@@ -12,8 +12,8 @@ import type {
 } from '@/lib/internal/oracle-epm/types'
 
 const policies = new WeakMap<object, OracleEpmReturnedLinkPolicyDefinition>()
-/** Single ASCII spaces separate words; the final assertion rejects trailing line breaks too. */
-const RELATION = /^[A-Za-z][A-Za-z0-9._-]*(?: [A-Za-z0-9._-]+)*(?![\s\S])/
+/** Slashes are literal relation characters; single ASCII spaces separate words. */
+const RELATION = /^[A-Za-z][A-Za-z0-9._/-]*(?: [A-Za-z0-9._/-]+)*(?![\s\S])/
 
 /** Internal frozen link policy available only after runtime-brand validation. */
 export interface OracleEpmReturnedLinkPolicyDefinition {
