@@ -89,6 +89,16 @@ describe('table operation registry', () => {
       tableOperations.updateRow.id,
       tableOperations.deleteRow.id,
       tableOperations.upsertRow.id,
+      // The folder tools the Table block's folder operations run under, plus
+      // `update`, which `table_move` calls with only a `folderPath` set. Without
+      // `executor` here every one of those calls 403s while the v2 route tests
+      // still pass, because v2 authenticates as a workspace API key instead.
+      tableOperations.listFolders.id,
+      tableOperations.createFolder.id,
+      tableOperations.updateFolder.id,
+      tableOperations.deleteFolder.id,
+      tableOperations.restoreFolder.id,
+      tableOperations.update.id,
     ])
 
     for (const operation of Object.values(tableOperations)) {

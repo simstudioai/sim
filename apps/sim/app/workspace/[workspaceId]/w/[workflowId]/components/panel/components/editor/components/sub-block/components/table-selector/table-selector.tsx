@@ -1,9 +1,13 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  isTableInFolderScope,
+  parseFolderScope,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table-selector/scope'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -52,8 +56,56 @@ export function TableSelector({
     'table'
   )
 
+  /*
+   * A sibling folder field narrows what this picker offers, so a user cannot
+   * build a selection from outside the folder they just chose. Purely a
+   * design-time affordance — the folder never travels, because every operation
+   * here addresses exactly one table.
+   *
+   * Falling back to this control's own id keeps the hook call unconditional for
+   * a picker with no folder scope; its own value is a table id, never a folder
+   * path, so the scope reads as absent.
+   *
+   * A plain read of the field id is correct only because the scope has no
+   * advanced twin (pinned in table-folders.test.ts). If one is ever added, this
+   * must become `useActiveCanonicalSubBlockValue` — with both halves of a pair
+   * filled, the serializer resolves the basic member, and a hand-rolled read can
+   * disagree with the value the run actually uses.
+   */
+  const [folderScopeValue] = useSubBlockValue<unknown>(
+    blockId,
+    subBlock.folderScope?.fieldId ?? subBlock.id
+  )
+  const folderScopePath =
+    subBlock.folderScope && typeof folderScopeValue === 'string' ? folderScopeValue.trim() : ''
+
   const value = isPreview ? previewValue : storeValue
   const tableId = typeof value === 'string' ? value : null
+
+  const scoped = useMemo(() => {
+    /* Decode the scope once for the whole list rather than per row. */
+    const scopeSegments = parseFolderScope(folderScopePath)
+    return scopeSegments?.length
+      ? tables.filter((table) => isTableInFolderScope(table, tableFolders, scopeSegments))
+      : tables
+  }, [tables, tableFolders, folderScopePath])
+
+  /*
+   * Narrowing the folder must not leave a selection the picker no longer shows.
+   * Filtering alone would render the placeholder while the block kept running
+   * against the hidden table — the config would say one thing and the run do
+   * another. Dropping the value makes the empty picker true.
+   *
+   * Only a table that IS loaded and IS out of scope is cleared. A table absent
+   * from the list is a different situation (still loading, or deleted) and
+   * clearing there would destroy a valid config over a transient cache state.
+   */
+  useEffect(() => {
+    if (isPreview || disabled || isLoading || !tableId) return
+    if (!tables.some((table) => table.id === tableId)) return
+    if (scoped.some((table) => table.id === tableId)) return
+    setStoreValue('')
+  }, [isPreview, disabled, isLoading, tableId, tables, scoped, setStoreValue])
 
   /**
    * Two tables can share a name in different folders, so a colliding name is
@@ -63,8 +115,8 @@ export function TableSelector({
    * disambiguated too. The folder path keeps its authored casing.
    */
   const options = useMemo<ComboboxOption[]>(() => {
-    const duplicateNames = collectDuplicateNames(tables.map((table) => table.name.toLowerCase()))
-    return tables.map((table) => ({
+    const duplicateNames = collectDuplicateNames(scoped.map((table) => table.name.toLowerCase()))
+    return scoped.map((table) => ({
       label: disambiguateLabelByFolder(
         table.name.toLowerCase(),
         table.folderId,
@@ -73,7 +125,7 @@ export function TableSelector({
       ),
       value: table.id,
     }))
-  }, [tables, tableFolders])
+  }, [scoped, tableFolders])
 
   const handleChange = useCallback(
     (selectedValue: string) => {

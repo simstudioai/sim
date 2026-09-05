@@ -16,6 +16,7 @@ import {
   loadActiveFolderPathIndex,
   resolveFolderPathFilter,
 } from '@/lib/folders/queries'
+import { collectFolderDepths } from '@/lib/folders/subtree'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveTableWorkspaceContext } from '@/lib/table/application/context'
 import { throwTableOperationFailure } from '@/lib/table/application/errors'
@@ -27,8 +28,31 @@ export interface ListTableFoldersInput {
   search?: string
   sortBy?: Exclude<FolderSortBy, 'position'>
   sortOrder?: ListSortOrder
+  /**
+   * Walk the whole subtree under `parentPath` rather than listing only its
+   * direct children. Requires a `parentPath`: an omitted one already lists
+   * every folder in the workspace, so there is nothing left to widen.
+   */
+  recursive?: boolean
+  /** Deepest level to include when recursive, counted from `parentPath`. 1 is direct children. */
+  maxDepth?: number
 }
 
+/**
+ * Lists a workspace's table folders, either as one folder's direct children or
+ * as its whole subtree.
+ *
+ * `depthById` is how deep each returned folder sits below `parentPath`, and it
+ * is the reason the recursive case narrows in memory rather than in SQL: depth
+ * is a property of the hierarchy, and the index already holds the entire active
+ * tree the depths have to be walked from. `null` for the legacy unscoped
+ * listing, which has no folder to be deep relative to.
+ *
+ * Search stays in the query and filters the RESULT, not the traversal — a match
+ * deep in the tree is still reported even when no ancestor's name matches — so
+ * the walk reads the unfiltered tree from the index and the filtered rows from
+ * the query.
+ */
 export const listTableFoldersUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.listFolders,
   resolveContext: ({ input }: { input: ListTableFoldersInput }) =>
@@ -38,15 +62,27 @@ export const listTableFoldersUseCase = defineAuthorizedTableUseCase({
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
     const parentFilter = resolveFolderPathFilter(index, input.parentPath)
-    if (parentFilter.kind === 'noMatch') return { folders: [], index }
-    const folders = await listActiveFolderRows(context.workspaceId, 'table', {
-      parentId: parentFilter.kind === 'folder' ? parentFilter.folderId : undefined,
+    if (parentFilter.kind === 'noMatch') return { folders: [], index, depthById: null }
+
+    const rootId = parentFilter.kind === 'folder' ? parentFilter.folderId : undefined
+    const recursive = input.recursive === true && rootId !== undefined
+    const rows = await listActiveFolderRows(context.workspaceId, 'table', {
+      parentId: recursive ? undefined : rootId,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
-    return { folders, index }
+
+    if (rootId === undefined) return { folders: rows, index, depthById: null }
+    const depthById = collectFolderDepths([...index.rowById.values()], rootId, {
+      maxDepth: recursive ? input.maxDepth : 1,
+    })
+    return {
+      folders: recursive ? rows.filter((row) => depthById.has(row.id)) : rows,
+      index,
+      depthById,
+    }
   },
 })
 
