@@ -175,7 +175,11 @@ describe('Learning operation dispatch', () => {
     ],
     ['process_assignment_profile', 'executeProcessAssignmentProfile', { profileId: '1' }],
     ['list_assignment_profile_records', 'executeListAssignmentProfileRecords', { profileId: '1' }],
-    ['list_assignment_profile_criteria', 'executeListAssignmentProfileCriteria', { profileId: '1' }],
+    [
+      'list_assignment_profile_criteria',
+      'executeListAssignmentProfileCriteria',
+      { profileId: '1' },
+    ],
     [
       'add_assignment_profile_criterion',
       'executeAddAssignmentProfileCriterion',
@@ -206,7 +210,11 @@ describe('Learning operation dispatch', () => {
       'executeCreateWebLinkContent',
       { body: { Title: 'Web course', URL: 'https://example.com' } },
     ],
-    ['update_content_item', 'executeUpdateContentItem', { contentId: '1', body: { Description: null } }],
+    [
+      'update_content_item',
+      'executeUpdateContentItem',
+      { contentId: '1', body: { Description: null } },
+    ],
   ] as const)('dispatches %s through its product schema', async (operation, handler, input) => {
     const signal = new AbortController().signal
     const response = await invoke({

@@ -164,12 +164,10 @@ describe('Learning operations through the Fusion client', () => {
     const detail = linked('learnerLearningRecords/record-key/child/completionDetails/detail-key', {
       activityAssignmentRecordId: '3',
     })
-    mocks.json
-      .mockResolvedValueOnce(page([detail]))
-      .mockResolvedValueOnce({
-        activityAssignmentRecordId: '3',
-        activityAttemptStatus: 'ORA_ASSN_TASK_COMPLETED',
-      })
+    mocks.json.mockResolvedValueOnce(page([detail])).mockResolvedValueOnce({
+      activityAssignmentRecordId: '3',
+      activityAttemptStatus: 'ORA_ASSN_TASK_COMPLETED',
+    })
     await operations.executeUpdateCompletionDetail({
       ...auth,
       personId: '1',
@@ -323,7 +321,9 @@ describe('Learning operations through the Fusion client', () => {
       'learnerLearningRecords/record-key/child/selectedCourseOfferings'
     )
     expect(request.method).toBe('POST')
-    expect(serializeOracleFusionJsonBody(request.body)).toBe('{"learningItemId":5,"assignedToId":1}')
+    expect(serializeOracleFusionJsonBody(request.body)).toBe(
+      '{"learningItemId":5,"assignedToId":1}'
+    )
   })
 
   it('adds profile criteria using the documented child name and exact source ID', async () => {
@@ -347,7 +347,10 @@ describe('Learning operations through the Fusion client', () => {
   it('will not delete an audience returned for a different learning item', async () => {
     mocks.json.mockResolvedValueOnce(
       page([
-        linked('learningItemAudiences/audience-key', { learnRelationId: '8', learningItemId: '99' }),
+        linked('learningItemAudiences/audience-key', {
+          learnRelationId: '8',
+          learningItemId: '99',
+        }),
       ])
     )
     await expect(
