@@ -10,20 +10,45 @@
 
 import {
   createAgentWithToolsWorkflowState,
+  createBlock,
   createComplexWorkflowState,
   createConditionalWorkflowState,
   createInvalidSerializedWorkflow,
   createInvalidWorkflowState,
+  createLoopBlock,
   createLoopWorkflowState,
   createMinimalWorkflowState,
   createMissingMetadataWorkflow,
+  createParallelBlock,
 } from '@sim/testing/factories'
-import { blocksMock, toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
+import {
+  blocksMock,
+  createMockGetBlock,
+  mockBlockConfigs,
+  toolsMetadataMock,
+  toolsUtilsMock,
+} from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
+import { DAGBuilder } from '@/executor/dag/builder'
 import { Serializer } from '@/serializer/index'
 import type { SerializedWorkflow } from '@/serializer/types'
 
-vi.mock('@/blocks', () => blocksMock)
+vi.mock('@/blocks', () => ({
+  ...blocksMock,
+  getBlock: createMockGetBlock({
+    condition: {
+      ...mockBlockConfigs.condition,
+      subBlocks: [
+        ...mockBlockConfigs.condition.subBlocks,
+        { id: 'conditions', type: 'condition-input' },
+      ],
+    },
+    router_v2: {
+      ...mockBlockConfigs.condition,
+      subBlocks: [{ id: 'routes', type: 'router-input' }],
+    },
+  }),
+}))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
 vi.mock('@/tools/metadata', () => toolsMetadataMock)
 
@@ -82,6 +107,148 @@ describe('Serializer', () => {
       expect(falsePathConnection).toBeDefined()
       expect(falsePathConnection?.target).toBe('agent2')
     })
+
+    it.concurrent.each(['agent1', 'condition1'])(
+      'should keep disabled block %s and its incoming and outgoing connections',
+      (disabledBlockId) => {
+        const { blocks, edges, loops } = createConditionalWorkflowState()
+        const serializer = new Serializer()
+
+        blocks[disabledBlockId].enabled = false
+
+        const serialized = serializer.serializeWorkflow(blocks, edges, loops)
+
+        expect(serialized.blocks.find((b) => b.id === disabledBlockId)?.enabled).toBe(false)
+        expect(serialized.connections).toEqual([
+          { source: 'starter', target: 'condition1' },
+          { source: 'condition1', target: 'agent1', sourceHandle: 'condition-true' },
+          { source: 'condition1', target: 'agent2', sourceHandle: 'condition-false' },
+        ])
+      }
+    )
+
+    it.concurrent('should preserve connections that reference a block that does not exist', () => {
+      const { blocks, edges, loops } = createConditionalWorkflowState()
+      const serializer = new Serializer()
+
+      const { agent1: _removed, ...remainingBlocks } = blocks
+
+      const serialized = serializer.serializeWorkflow(remainingBlocks, edges, loops)
+
+      expect(serialized.blocks.find((b) => b.id === 'agent1')).toBeUndefined()
+      expect(serialized.connections).toEqual([
+        { source: 'starter', target: 'condition1' },
+        { source: 'condition1', target: 'agent1', sourceHandle: 'condition-true' },
+        { source: 'condition1', target: 'agent2', sourceHandle: 'condition-false' },
+      ])
+    })
+
+    it.concurrent(
+      'should preserve connections from a missing source without changing valid edges',
+      () => {
+        const { blocks, edges, loops } = createMinimalWorkflowState()
+        edges.push({ id: 'dangling', source: 'missing', target: 'agent1' })
+
+        const serialized = new Serializer().serializeWorkflow(blocks, edges, loops)
+
+        expect(serialized.connections).toEqual([
+          { source: 'starter', target: 'agent1' },
+          { source: 'missing', target: 'agent1' },
+        ])
+        expect(edges).toHaveLength(2)
+        expect(Object.keys(blocks)).toEqual(['starter', 'agent1'])
+      }
+    )
+
+    it.concurrent.each([
+      { blockType: 'condition', configKey: 'conditions', handlePrefix: 'condition-' },
+      { blockType: 'router_v2', configKey: 'routes', handlePrefix: 'router-' },
+    ] as const)(
+      'should preserve inferred $blockType route handles when an earlier target is missing',
+      ({ blockType, configKey, handlePrefix }) => {
+        const { blocks } = createMinimalWorkflowState()
+        blocks.branch = createBlock({
+          id: 'branch',
+          type: blockType,
+          subBlocks: {
+            [configKey]: {
+              id: configKey,
+              type: blockType === 'condition' ? 'condition-input' : 'router-input',
+              value: JSON.stringify([
+                { id: 'first', title: 'if', value: 'true' },
+                { id: 'second', title: 'else', value: '' },
+              ]),
+            },
+          },
+        })
+        const edges = [
+          { id: 'entry', source: 'starter', target: 'branch' },
+          { id: 'first', source: 'branch', target: 'missing' },
+          { id: 'second', source: 'branch', target: 'agent1' },
+        ]
+
+        const serialized = new Serializer().serializeWorkflow(blocks, edges)
+        const dag = new DAGBuilder().build(serialized, { triggerBlockId: 'starter' })
+
+        expect(serialized.connections).toEqual([
+          { source: 'starter', target: 'branch' },
+          { source: 'branch', target: 'missing' },
+          { source: 'branch', target: 'agent1' },
+        ])
+        expect(Array.from(dag.nodes.get('branch')!.outgoingEdges.values())).toEqual([
+          expect.objectContaining({
+            target: 'agent1',
+            sourceHandle: `${handlePrefix}second`,
+          }),
+        ])
+        expect(edges[2]).not.toHaveProperty('sourceHandle')
+      }
+    )
+
+    it.concurrent.each(['loop', 'parallel'] as const)(
+      'should preserve connections to and from a %s container',
+      (containerType) => {
+        const { blocks } = createMinimalWorkflowState()
+        blocks.container =
+          containerType === 'loop'
+            ? createLoopBlock({ id: 'container' })
+            : createParallelBlock({ id: 'container' })
+        blocks.agent1.data = { parentId: 'container' }
+        const edges = [
+          { id: 'entry', source: 'starter', target: 'container' },
+          {
+            id: 'body',
+            source: 'container',
+            target: 'agent1',
+            sourceHandle: `${containerType}-start-source`,
+          },
+          {
+            id: 'end',
+            source: 'agent1',
+            target: 'container',
+            targetHandle: `${containerType}-end-target`,
+          },
+        ]
+
+        const serialized = new Serializer().serializeWorkflow(blocks, edges)
+
+        expect(serialized.connections).toEqual([
+          { source: 'starter', target: 'container' },
+          {
+            source: 'container',
+            target: 'agent1',
+            sourceHandle: `${containerType}-start-source`,
+          },
+          {
+            source: 'agent1',
+            target: 'container',
+            targetHandle: `${containerType}-end-target`,
+          },
+        ])
+        const containers = containerType === 'loop' ? serialized.loops : serialized.parallels
+        expect(containers?.container.nodes).toEqual(['agent1'])
+      }
+    )
 
     it.concurrent('should serialize a workflow with loops correctly', () => {
       const { blocks, edges, loops } = createLoopWorkflowState()
