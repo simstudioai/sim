@@ -9,8 +9,8 @@ describe('selector manifest', () => {
     const count = (classification: (typeof classifications)[number]) =>
       classifications.filter((value) => value === classification).length
 
-    expect(Object.keys(selectorManifest)).toHaveLength(94)
-    expect(count('provider-server')).toBe(82)
+    expect(Object.keys(selectorManifest)).toHaveLength(100)
+    expect(count('provider-server')).toBe(88)
     expect(count('internal-server')).toBe(11)
     expect(count('local')).toBe(1)
     expect(classifications).not.toContain('provider-legacy')
@@ -36,7 +36,7 @@ describe('selector manifest', () => {
     const rawConnectionKeys = providerKeys.filter(
       (key) => !serverSelectorRegistry[key as keyof typeof serverSelectorRegistry].credential
     )
-    expect(providerKeys).toHaveLength(82)
+    expect(providerKeys).toHaveLength(88)
     expect(rawConnectionKeys.sort()).toEqual([
       'cloudwatch.logGroups',
       'cloudwatch.logStreams',

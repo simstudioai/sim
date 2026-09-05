@@ -40,6 +40,7 @@ import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
+import { oracleFusionRecruitingListCandidatesTool } from '@/tools/oracle_fusion_recruiting/list_candidates'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
@@ -172,6 +173,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  oracle_fusion_recruiting_list_candidates: oracleFusionRecruitingListCandidatesTool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -1121,6 +1123,80 @@ describe('executeTool Function', () => {
     })
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('binds Oracle Fusion Recruiting execution to the credential destination and rejects URL spoofing', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'resolved-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      credentialType: 'service_account',
+    })
+
+    const result = await executeTool(
+      'oracle_fusion_recruiting_list_candidates',
+      {
+        oauthCredential: 'oracle-credential-id',
+        accessToken: 'spoofed-token',
+        instanceUrl: 'https://attacker.example.com',
+        limit: 25,
+      },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      oauthCredential: 'oracle-credential-id',
+      accessToken: 'resolved-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      limit: 25,
+    })
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolId: 'oracle_fusion_recruiting_list_candidates',
+        input: expect.objectContaining({
+          oauthCredential: 'oracle-credential-id',
+          accessToken: 'resolved-token',
+          instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+          limit: 25,
+        }),
+      })
+    )
+    const operationInput = mockExecuteInternalToolOperation.mock.calls.at(-1)?.[0].input
+    expect(operationInput?.accessToken).not.toBe('spoofed-token')
+    expect(operationInput?.instanceUrl).not.toBe('https://attacker.example.com')
+  })
+
+  it('rejects a non-service-account credential before Oracle Fusion Recruiting execution', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'oauth-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      credentialType: 'oauth',
+    })
+
+    const result = await executeTool(
+      'oracle_fusion_recruiting_list_candidates',
+      { oauthCredential: 'wrong-kind-credential' },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'List Candidates requires a service-account credential',
+    })
+    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
   it('preserves a registered operation failure without turning it into success', async () => {

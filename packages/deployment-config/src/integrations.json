@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,137 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_recruiting",
+      "slug": "oracle-fusion-recruiting",
+      "name": "Oracle Fusion Recruiting",
+      "description": "Manage candidates and requisitions, and read applications, offers, and recruiting lookups",
+      "longDescription": "Use a saved Oracle Fusion integration-user credential to manage candidates, candidate phones, and job requisitions. Read candidate education, experience, skills, attachment metadata, published jobs, applications, offers, interview schedule lookups, requisition templates, and recruiting representatives. Lists return one bounded page. Interview schedules contain lookup metadata, not appointments. Oracle privileges and data security govern access; use a dedicated least-privilege integration user. Write bodies accept only the documented scalar fields listed by each tool; nested child mutations and custom fields are not supported.",
+      "bgColor": "#F80000",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_recruiting",
+      "operations": [
+        {
+          "name": "List Candidates",
+          "description": "List candidates."
+        },
+        {
+          "name": "Get Candidate",
+          "description": "Get candidate."
+        },
+        {
+          "name": "Create Candidate",
+          "description": "Create candidate."
+        },
+        {
+          "name": "Update Candidate",
+          "description": "Update candidate."
+        },
+        {
+          "name": "Delete Candidate",
+          "description": "Delete candidate."
+        },
+        {
+          "name": "List Candidate Phones",
+          "description": "List candidate phones."
+        },
+        {
+          "name": "Get Candidate Phone",
+          "description": "Get candidate phone."
+        },
+        {
+          "name": "Create Candidate Phone",
+          "description": "Create candidate phone."
+        },
+        {
+          "name": "Update Candidate Phone",
+          "description": "Update candidate phone."
+        },
+        {
+          "name": "Delete Candidate Phone",
+          "description": "Delete candidate phone."
+        },
+        {
+          "name": "List Candidate Education",
+          "description": "List candidate education."
+        },
+        {
+          "name": "List Candidate Experience",
+          "description": "List candidate experience."
+        },
+        {
+          "name": "List Candidate Skills",
+          "description": "List candidate skills."
+        },
+        {
+          "name": "List Candidate Attachments",
+          "description": "List candidate attachments. Returns metadata only; does not download file contents."
+        },
+        {
+          "name": "List Requisitions",
+          "description": "List requisitions."
+        },
+        {
+          "name": "Get Requisition",
+          "description": "Get requisition."
+        },
+        {
+          "name": "Create Requisition",
+          "description": "Create requisition."
+        },
+        {
+          "name": "Update Requisition",
+          "description": "Update requisition."
+        },
+        {
+          "name": "Delete Requisition",
+          "description": "Delete requisition."
+        },
+        {
+          "name": "List Requisition Postings",
+          "description": "List requisition postings."
+        },
+        {
+          "name": "List Applications",
+          "description": "List applications."
+        },
+        {
+          "name": "Get Application",
+          "description": "Get application."
+        },
+        {
+          "name": "List Offers",
+          "description": "List offers."
+        },
+        {
+          "name": "Get Offer",
+          "description": "Get offer."
+        },
+        {
+          "name": "List Interview Schedules",
+          "description": "List interview schedules. Returns schedule lookup metadata, not interview appointments."
+        },
+        {
+          "name": "Get Interview Schedule",
+          "description": "Get interview schedule. Returns schedule lookup metadata, not interview appointments."
+        },
+        {
+          "name": "List Requisition Templates",
+          "description": "List requisition templates."
+        },
+        {
+          "name": "List Recruiting Representatives",
+          "description": "List recruiting representatives."
+        }
+      ],
+      "operationCount": 28,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["automation"]
     },
     {
       "type": "netsuite",
