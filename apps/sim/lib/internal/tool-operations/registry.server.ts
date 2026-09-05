@@ -802,6 +802,33 @@ const SEARCH_TOOL_IDS = ['search_tool'] as const
 
 const SMS_TOOL_IDS = ['sms_send'] as const
 
+const ORACLE_EPM_NARRATIVE_REPORTING_TOOL_IDS = [
+  'oracle_epm_narrative_reporting_list_library_artifacts',
+  'oracle_epm_narrative_reporting_get_library_artifact',
+  'oracle_epm_narrative_reporting_create_library_folder',
+  'oracle_epm_narrative_reporting_create_library_file',
+  'oracle_epm_narrative_reporting_delete_library_artifact',
+  'oracle_epm_narrative_reporting_list_reports',
+  'oracle_epm_narrative_reporting_get_report',
+  'oracle_epm_narrative_reporting_get_report_global_pov',
+  'oracle_epm_narrative_reporting_get_report_prompts',
+  'oracle_epm_narrative_reporting_download_report_output',
+  'oracle_epm_narrative_reporting_list_books',
+  'oracle_epm_narrative_reporting_get_book',
+  'oracle_epm_narrative_reporting_get_book_global_pov',
+  'oracle_epm_narrative_reporting_download_book_output',
+  'oracle_epm_narrative_reporting_list_report_snapshots',
+  'oracle_epm_narrative_reporting_get_report_snapshot',
+  'oracle_epm_narrative_reporting_create_report_snapshot',
+  'oracle_epm_narrative_reporting_download_report_snapshot_output',
+  'oracle_epm_narrative_reporting_get_report_package',
+  'oracle_epm_narrative_reporting_refresh_package_data_sources',
+  'oracle_epm_narrative_reporting_get_job',
+  'oracle_epm_narrative_reporting_wait_for_job',
+  'oracle_epm_narrative_reporting_export_library_artifact',
+  'oracle_epm_narrative_reporting_import_library_artifact',
+] as const
+
 const MICROSOFT_WORD_TOOL_IDS = [
   'microsoft_word_append',
   'microsoft_word_create',
@@ -1442,6 +1469,10 @@ registerFamily(handlerLoaders, SEARCH_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, SMS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/sms/execute-tool')).executeSmsTool
+})
+registerFamily(handlerLoaders, ORACLE_EPM_NARRATIVE_REPORTING_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-narrative-reporting/execute-tool'))
+    .executeOracleEpmNarrativeReportingTool
 })
 registerFamily(handlerLoaders, MICROSOFT_WORD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-word/execute-tool')).executeMicrosoftWordTool

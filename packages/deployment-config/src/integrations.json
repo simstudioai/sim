@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,121 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_narrative_reporting",
+      "slug": "oracle-epm-narrative-reporting",
+      "name": "Oracle EPM Narrative Reporting",
+      "description": "Work with Narrative Reporting reports, books, library artifacts, snapshots, and jobs",
+      "longDescription": "Connect a reusable Oracle EPM service-account credential to the environment stored in that credential. Discover library artifacts, reports and books; render reports, books and report snapshots to execution files; inspect package metadata; and submit or monitor snapshot, refresh, export and import jobs. Downloads are capped at 100 MiB. Job submission is not completion. Leave block retries disabled for create, delete, snapshot, refresh, export and import operations; reconcile an uncertain Oracle outcome before submitting again. Temporary-file transfer and package list/preview/published-output operations remain unavailable pending verified Oracle contracts. Doclet lifecycle, publishing, bursting and database backups are not supported.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_narrative_reporting",
+      "operations": [
+        {
+          "name": "List Library Artifacts",
+          "description": "List one bounded page of repository artifacts or a folder’s children."
+        },
+        {
+          "name": "Get Library Artifact",
+          "description": "Read repository artifact metadata by its repository ID."
+        },
+        {
+          "name": "Create Library Folder",
+          "description": "Create a folder in the Oracle Narrative Reporting library."
+        },
+        {
+          "name": "Create Library File",
+          "description": "Create a library file referencing an already uploaded Oracle file. This does not upload a Sim file."
+        },
+        {
+          "name": "Delete Library Artifact",
+          "description": "Delete a repository artifact by ID. This changes the Oracle library."
+        },
+        {
+          "name": "List Reports",
+          "description": "List one bounded page of native Narrative Reporting reports."
+        },
+        {
+          "name": "Get Report",
+          "description": "Read native report metadata."
+        },
+        {
+          "name": "Get Report Global POV",
+          "description": "Read the report’s global point-of-view dimensions and suggested members."
+        },
+        {
+          "name": "Get Report Prompts",
+          "description": "Read native prompt IDs and valid selections for report rendering."
+        },
+        {
+          "name": "Download Report Output",
+          "description": "Render a report as PDF and store it as a UserFile. Maximum download 100 MiB."
+        },
+        {
+          "name": "List Books",
+          "description": "List one bounded page of native Narrative Reporting books."
+        },
+        {
+          "name": "Get Book",
+          "description": "Read native book metadata."
+        },
+        {
+          "name": "Get Book Global POV",
+          "description": "Read the book’s global point-of-view dimensions and suggested members."
+        },
+        {
+          "name": "Download Book Output",
+          "description": "Render a book as PDF or XLSX using a bodyless POST and store it as a UserFile, up to 100 MiB."
+        },
+        {
+          "name": "List Report Snapshots",
+          "description": "List one bounded page of report snapshots, not database backups."
+        },
+        {
+          "name": "Get Report Snapshot",
+          "description": "Read report snapshot metadata by its native report snapshot ID."
+        },
+        {
+          "name": "Create Report Snapshot",
+          "description": "Submit a report snapshot creation job. Use Wait for Job separately to establish completion."
+        },
+        {
+          "name": "Download Report Snapshot Output",
+          "description": "Download a report snapshot’s PDF output as a UserFile, up to 100 MiB."
+        },
+        {
+          "name": "Get Report Package",
+          "description": "Read metadata for an existing report package by its native package ID."
+        },
+        {
+          "name": "Refresh Package Data Sources",
+          "description": "Submit a package data source refresh job by package name. This does not publish the package."
+        },
+        {
+          "name": "Get Job",
+          "description": "Read job status without waiting or following artifact result links."
+        },
+        {
+          "name": "Wait for Job",
+          "description": "Poll an existing job within a bounded wait. Preserve its ID on timeout; never resubmit the operation."
+        },
+        {
+          "name": "Export Library Artifact",
+          "description": "Submit an artifact export job; completion requires a separate wait. Automatic Temporary-export downloading is not supported."
+        },
+        {
+          "name": "Import Library Artifact",
+          "description": "Submit an import job from an existing provider file. Completion requires a separate wait."
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["document-processing", "cloud"]
     },
     {
       "type": "netsuite",
