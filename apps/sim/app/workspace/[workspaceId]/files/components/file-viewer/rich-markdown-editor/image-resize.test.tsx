@@ -23,16 +23,19 @@ vi.mock(
 
 vi.mock(
   '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-inspector',
-  () => ({ ImageInspector: () => null })
+  () => ({ ImageInspector: vi.fn(() => null) })
 )
 
 import { ResizableImageView } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+import { ImageInspector } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-inspector'
 
 let host: HTMLDivElement
 let root: Root
 const editor = { isEditable: true, isDestroyed: false, commands: { focus: vi.fn() } }
 
 beforeEach(() => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.clearAllMocks()
   editor.isEditable = true
   editor.isDestroyed = false
   host = document.createElement('div')
@@ -89,6 +92,37 @@ function renderImage(updateAttributes: ReturnType<typeof vi.fn>): HTMLButtonElem
 }
 
 describe('ResizableImageView', () => {
+  it.each(['read-only', 'destroyed'] as const)(
+    'rejects queued image detail and size changes after the editor becomes %s',
+    (state) => {
+      const updateAttributes = vi.fn()
+      renderImage(updateAttributes)
+      const inspector = vi.mocked(ImageInspector).mock.calls.at(-1)![0]
+      if (state === 'read-only') editor.isEditable = false
+      else editor.isDestroyed = true
+
+      act(() => {
+        inspector.onApply({ alt: 'changed', href: 'https://example.com' })
+        inspector.onResetSize()
+      })
+      expect(updateAttributes).not.toHaveBeenCalled()
+    }
+  )
+
+  it('applies image details and resets dimensions while the editor remains editable', () => {
+    const updateAttributes = vi.fn()
+    renderImage(updateAttributes)
+    const inspector = vi.mocked(ImageInspector).mock.calls.at(-1)![0]
+    act(() => {
+      inspector.onApply({ alt: 'changed', href: 'https://example.com' })
+      inspector.onResetSize()
+    })
+    expect(updateAttributes.mock.calls).toEqual([
+      [{ alt: 'changed', href: 'https://example.com' }],
+      [{ width: null, height: null }],
+    ])
+  })
+
   it('keeps the width automatic when only an explicit height is stored', () => {
     renderImage(vi.fn())
     const image = host.querySelector<HTMLImageElement>('img')

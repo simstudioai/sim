@@ -268,9 +268,8 @@ const AGENT_SYNC_ORIGIN = Symbol('file-doc-agent-sync')
 const MAX_LEGACY_FRAME_BYTES = FILE_DOC_LIMITS.updateBytes + 64
 
 /**
- * Preflight the update-bearing inner Yjs message before `readSyncMessage` can mutate the room. Legacy
- * clients use the unacknowledged sync channel, so the relay itself must ensure any applied update also
- * fits the durable Redis stream; checking only the outer frame leaves a small framing-sized gap.
+ * Checks the inner update before readSyncMessage mutates the room: the legacy outer-frame limit
+ * includes framing headroom, which must not allow an update too large for the shared stream.
  */
 function hasOversizedLegacyUpdate(bytes: Uint8Array): boolean {
   const decoder = decoding.createDecoder(bytes)
@@ -441,15 +440,11 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
       await store.setSyncedVersion(name, result.version, generation)
       return
     }
-    // status === 'conflict': the durable file advanced out-of-band since our If-Match token. We do NOT
-    // re-persist against the current stream: an external write commits durable BEFORE its chokepoint merge
-    // (`applyEditToLiveFileDoc`) reaches the stream, so a re-persist landing in that window would CAS-pass
-    // with a stream that still lacks the external content and clobber the committed write. Instead leave the
-    // durable content authoritative — the chokepoint merges the change into the stream and, ONLY once it is
-    // actually there, advances the synced version (via the merge's own `recordVersion`); a later flush
-    // (a subsequent debounced persist, or the final flush) then projects the converged stream with a token
-    // that matches. The session's edits stay in the stream meanwhile. Deliberately do NOT advance the synced
-    // version here: before the stream reflects the durable content, that would let the next flush clobber it.
+    /**
+     * External writes commit before merging into the stream. Retrying or advancing the synced
+     * version here could overwrite content not yet merged; leave the durable file authoritative
+     * until the merge advances the version, then let a later flush persist the converged state.
+     */
     logger.warn(
       `Persist conflict for file ${room.fileId}; durable content advanced out-of-band, left authoritative`
     )
@@ -579,10 +574,8 @@ export async function flushAllFileDocRooms(): Promise<void> {
 }
 
 /**
- * Bring a room's document to its AUTHORITATIVE state — reflecting the file's shared stream and
- * carrying its seed — so the join can attach a client to a document that is already whole. Rejects
- * when hydration or seeding cannot complete; serving an unseeded or partial room would make a client
- * appear editable before the authoritative document exists.
+ * Waits for shared hydration and authoritative seeding before joining; failures must not expose
+ * an editable partial document.
  */
 async function ensureRoomReady(
   name: string,

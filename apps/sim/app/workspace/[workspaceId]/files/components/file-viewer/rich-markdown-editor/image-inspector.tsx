@@ -16,7 +16,6 @@ interface ImageInspectorProps extends ImageDetails {
   onReturnFocus: () => void
 }
 
-/** Selection-local controls for accessible image text, links, and explicit sizing. */
 export function ImageInspector({
   alt,
   href,

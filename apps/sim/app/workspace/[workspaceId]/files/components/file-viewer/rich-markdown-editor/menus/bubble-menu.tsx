@@ -164,10 +164,8 @@ export function EditorBubbleMenu({
   }, [editor])
 
   /**
-   * Linear-style reveal: the toolbar stays hidden while the pointer is down (the drag gate in
-   * `shouldShow`) and surfaces on release. `pointerup`/`pointercancel`/`blur` listen on `window` so a
-   * release outside the editor — or a cancelled touch gesture — still clears the drag flag; otherwise it
-   * could wedge `true` and suppress the toolbar for later keyboard selections.
+   * Window-level release/cancel/blur handlers clear the drag gate even outside the editor,
+   * preventing a lost pointer release from suppressing later keyboard selections.
    */
   useEffect(() => {
     const dom = editor.view.dom

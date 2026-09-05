@@ -44,7 +44,6 @@ export const FILE_DOC_EVENTS = {
 /** Schema assumed for peers from before schema negotiation was added. */
 export const FILE_DOC_LEGACY_SCHEMA_VERSION = 1
 
-/** Current collaborative-document schema understood by this client and relay. */
 export const FILE_DOC_SCHEMA_VERSION = 1
 
 /**
@@ -205,7 +204,6 @@ export interface FileDocUpdatePayload {
   update: Uint8Array
 }
 
-/** Relay acknowledgement for a {@link FileDocUpdatePayload}. */
 export type FileDocUpdateAck =
   | { status: 'accepted'; updateId: string }
   | {

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { FILE_DOC_LIMITS } from '@sim/realtime-protocol/file-doc'
-import { update as updateValue } from 'idb-keyval'
+import { get, update as updateValue } from 'idb-keyval'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
@@ -75,6 +75,117 @@ describe('PendingFileDocUpdateJournal', () => {
 
     await expect(subject.load('doc-1')).resolves.toMatchObject({ docId: 'doc-1', pendingUpdate })
     expect(updateValue).toHaveBeenCalledTimes(writes)
+  })
+
+  it.each(['pendingUpdate', 'recoverySnapshot'] as const)(
+    'isolates malformed %s bytes without replaying or deleting them',
+    async (field) => {
+      const subject = journal()
+      const valid = updateWith('preserved snapshot')
+      const invalid = new Uint8Array([255])
+      const pending = field === 'pendingUpdate' ? invalid : valid
+      const snapshot = field === 'recoverySnapshot' ? invalid : valid
+      await subject.save('doc-1', pending, snapshot)
+
+      await expect(subject.load('doc-1')).resolves.toBeNull()
+      await expect(journal().load()).resolves.toBeNull()
+      expect([...storage.values()]).toEqual([
+        expect.objectContaining({
+          documents: [
+            expect.objectContaining({
+              docId: 'doc-1',
+              pendingUpdate: pending,
+              recoverySnapshot: snapshot,
+              quarantined: true,
+            }),
+          ],
+        }),
+      ])
+
+      const newUpdate = updateWith('new edits')
+      await expect(subject.save('doc-1', newUpdate, newUpdate)).resolves.toMatchObject({
+        status: 'saved',
+        pendingUpdate: newUpdate,
+      })
+      await expect(subject.load('doc-1')).resolves.toMatchObject({ pendingUpdate: newUpdate })
+      await subject.clear('doc-1', newUpdate)
+      await expect(subject.load()).resolves.toBeNull()
+      expect([...storage.values()]).toEqual([
+        expect.objectContaining({
+          documents: [expect.objectContaining({ pendingUpdate: pending, quarantined: true })],
+        }),
+      ])
+    }
+  )
+
+  it('ignores malformed recovery even if browser storage cannot be updated', async () => {
+    const subject = journal()
+    const invalid = new Uint8Array([255])
+    await subject.save('doc-1', invalid, invalid)
+    const before = structuredClone([...storage.values()])
+    vi.mocked(updateValue).mockRejectedValueOnce(new Error('Storage denied'))
+
+    await expect(subject.load()).resolves.toBeNull()
+    expect([...storage.values()]).toEqual(before)
+  })
+
+  it('does not quarantine a record that another tab replaced after the read', async () => {
+    const subject = journal()
+    const invalid = new Uint8Array([255])
+    await subject.save('doc-1', invalid, invalid)
+    const stale = structuredClone([...storage.values()][0])
+    storage.clear()
+    const valid = updateWith('concurrent valid edits')
+    await subject.save('doc-1', valid, valid)
+    vi.mocked(get).mockResolvedValueOnce(stale)
+
+    await expect(subject.load()).resolves.toBeNull()
+    await expect(subject.load()).resolves.toMatchObject({ pendingUpdate: valid })
+  })
+
+  it('prioritizes valid recovery within the existing record cap', async () => {
+    const subject = journal()
+    const valid = updateWith('valid')
+    await subject.save('first', valid, valid)
+    const invalid = new Uint8Array([255])
+    await subject.save('invalid', invalid, invalid)
+    await expect(subject.load('invalid')).resolves.toBeNull()
+    await subject.save('second', valid, valid)
+    await subject.save('third', valid, valid)
+
+    for (const docId of ['first', 'second', 'third']) {
+      await expect(subject.load(docId)).resolves.toMatchObject({ docId })
+    }
+    expect([...storage.values()]).toEqual([
+      expect.objectContaining({
+        documents: expect.arrayContaining([
+          expect.objectContaining({ docId: 'first' }),
+          expect.objectContaining({ docId: 'second' }),
+          expect.objectContaining({ docId: 'third' }),
+        ]),
+      }),
+    ])
+    expect((storage.values().next().value as { documents: unknown[] }).documents).toHaveLength(3)
+  })
+
+  it('does not extend malformed recovery retention while quarantining it', async () => {
+    vi.useFakeTimers()
+    try {
+      const subject = journal()
+      const invalid = new Uint8Array([255])
+      await subject.save('invalid', invalid, invalid)
+      await vi.advanceTimersByTimeAsync(6 * 24 * 60 * 60 * 1_000)
+      await expect(subject.load()).resolves.toBeNull()
+      await vi.advanceTimersByTimeAsync(2 * 24 * 60 * 60 * 1_000)
+      const valid = updateWith('new edits')
+      await subject.save('current', valid, valid)
+
+      expect([...storage.values()]).toEqual([
+        expect.objectContaining({ documents: [expect.objectContaining({ docId: 'current' })] }),
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('distinguishes unavailable browser storage from a configured size limit', async () => {

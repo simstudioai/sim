@@ -234,8 +234,14 @@ export function ResizableImageView({
           alt={attrs.alt ?? ''}
           href={typeof attrs.href === 'string' ? attrs.href : ''}
           hasCustomSize={Boolean(attrs.width || attrs.height)}
-          onApply={({ alt, href }) => updateAttributes({ alt, href: href || null })}
-          onResetSize={() => updateAttributes({ width: null, height: null })}
+          onApply={({ alt, href }) => {
+            if (!editor.isEditable || editor.isDestroyed) return
+            updateAttributes({ alt, href: href || null })
+          }}
+          onResetSize={() => {
+            if (!editor.isEditable || editor.isDestroyed) return
+            updateAttributes({ width: null, height: null })
+          }}
           onReturnFocus={() => editor.commands.focus()}
         />
       )}

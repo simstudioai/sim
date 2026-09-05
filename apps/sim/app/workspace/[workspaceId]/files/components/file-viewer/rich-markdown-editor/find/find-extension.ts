@@ -195,7 +195,6 @@ function replaceMatch(transaction: EditorState['tr'], match: FindMatch, replacem
   )
 }
 
-/** Replaces the active match as one ordinary editor transaction. */
 export function replaceActiveFindMatch(
   editor: Editor,
   replacement: string,
