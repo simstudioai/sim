@@ -84,8 +84,7 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
   {
     id: 'slack_list_channels',
     name: 'Slack List Channels',
-    description:
-      'List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages.',
+    description: 'List accessible public and private Slack channels.',
     version: '1.1.0',
 
     oauth: {
@@ -93,7 +92,6 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
       provider: 'slack',
       /** Slack enforces the required scope for the target conversation type. */
       requiredScopes: [],
-      authoritativeParams: ['credentialType'],
     },
 
     params: {
@@ -115,17 +113,11 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
         visibility: 'hidden',
         description: 'OAuth access token or bot token for Slack API',
       },
-      credentialType: {
-        type: 'string',
-        required: false,
-        visibility: 'hidden',
-        description: 'Credential type supplied by authorized token resolution',
-      },
       includePrivate: {
         type: 'boolean',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Include private channels the bot is a member of (default: true)',
+        description: 'Include private channels the connected account can access (default: true)',
       },
       excludeArchived: {
         type: 'boolean',
@@ -153,9 +145,6 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
         const conversationTypes = ['public_channel']
         if (resolveBooleanParam(params.includePrivate, 'Include private channels', true)) {
           conversationTypes.push('private_channel')
-        }
-        if (params.credentialType === 'managed_oauth') {
-          conversationTypes.push('im', 'mpim')
         }
         url.searchParams.set('types', conversationTypes.join(','))
         url.searchParams.set(
@@ -204,8 +193,7 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
     outputs: {
       channels: {
         type: 'array',
-        description:
-          'Accessible public and private channels, plus direct and group DMs for credential-group user tokens',
+        description: 'Accessible public and private channels',
         items: {
           type: 'object',
           properties: CONVERSATION_LIST_OUTPUT_PROPERTIES,
@@ -213,12 +201,12 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
       },
       ids: {
         type: 'array',
-        description: 'Conversation IDs for every returned channel or DM',
+        description: 'Conversation IDs for every returned channel',
         items: { type: 'string', description: 'Slack conversation ID' },
       },
       names: {
         type: 'array',
-        description: 'Names of returned channels and group DMs; one-to-one DMs have no name',
+        description: 'Names of returned channels',
         items: { type: 'string', description: 'Slack conversation name' },
       },
       count: {
