@@ -179,6 +179,16 @@ export const selectorManifest = {
   'microsoft.planner.plans': providerSelector([], { listMode: 'paginated', detail: true }),
   'notion.databases': providerSelector([], { detail: true }),
   'notion.pages': providerSelector([], { detail: true }),
+  'oracle_epm_tax_reporting.applications': providerSelector([], {
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_epm_tax_reporting.jobDefinitions': providerSelector(['projectId', 'objectType'], {
+    sourceFields: { projectId: ['application'], objectType: ['jobType', 'operation'] },
+    readiness: { all: ['oauthCredential', 'projectId', 'objectType'] },
+    detail: true,
+    unknownDetail: true,
+  }),
   'netsuite.recordTypes': providerSelector(['jobId'], {
     detail: true,
     unknownDetail: true,

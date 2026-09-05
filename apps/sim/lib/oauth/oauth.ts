@@ -1028,6 +1028,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracle_epm_tax_reporting: {
+    name: 'Oracle EPM Tax Reporting',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_epm_tax_reporting: {
+        name: 'Oracle EPM Tax Reporting',
+        description:
+          'Run Tax Reporting rules, metadata jobs, supplemental data workflows, and reports.',
+        providerId: 'oracle_epm_tax_reporting',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_epm_tax_reporting',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,

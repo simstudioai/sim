@@ -1428,6 +1428,42 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
 })
+registerFamily(
+  handlerLoaders,
+  [
+    'oracle_epm_tax_reporting_get_api_version',
+    'oracle_epm_tax_reporting_list_applications',
+    'oracle_epm_tax_reporting_list_job_definitions',
+    'oracle_epm_tax_reporting_get_member',
+    'oracle_epm_tax_reporting_add_member',
+    'oracle_epm_tax_reporting_export_data_slice',
+    'oracle_epm_tax_reporting_import_data_slice',
+    'oracle_epm_tax_reporting_clear_data_slice',
+    'oracle_epm_tax_reporting_copy_data',
+    'oracle_epm_tax_reporting_clear_data',
+    'oracle_epm_tax_reporting_run_rule',
+    'oracle_epm_tax_reporting_run_ruleset',
+    'oracle_epm_tax_reporting_execute_job',
+    'oracle_epm_tax_reporting_get_job_status',
+    'oracle_epm_tax_reporting_get_job_details',
+    'oracle_epm_tax_reporting_get_child_job_details',
+    'oracle_epm_tax_reporting_export_metadata',
+    'oracle_epm_tax_reporting_import_metadata',
+    'oracle_epm_tax_reporting_import_supplemental_collection_data',
+    'oracle_epm_tax_reporting_deploy_form_templates',
+    'oracle_epm_tax_reporting_import_supplemental_dimension_members',
+    'oracle_epm_tax_reporting_generate_report',
+    'oracle_epm_tax_reporting_generate_user_details_report',
+    'oracle_epm_tax_reporting_get_report_status',
+    'oracle_epm_tax_reporting_list_files',
+    'oracle_epm_tax_reporting_upload_file',
+    'oracle_epm_tax_reporting_download_file',
+  ],
+  async () => {
+    return (await import('@/lib/internal/oracle-epm-tax-reporting/execute-tool'))
+      .executeTaxReportingTool
+  }
+)
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
 })
