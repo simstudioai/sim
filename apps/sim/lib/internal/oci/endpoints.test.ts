@@ -93,6 +93,142 @@ describe('OCI endpoint policies', () => {
     })
   })
 
+  it.each(['secrets.vaults', 'ingestion.logging', 'identity', 'telemetry-ingestion', 'a', 'a0'])(
+    'constructs exact regional hosts for the service prefix %s',
+    (serviceName) => {
+      const policy = createOciStaticEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName,
+        hostnameTemplate: 'regional-oci',
+      })
+      expect(Object.isFrozen(policy)).toBe(true)
+      expect(policy.serviceName).toBe(serviceName)
+      for (const regionId of ['us-ashburn-1', 'us-gov-ashburn-1']) {
+        const selectedRegion = getOciRegion(regionId)
+        expect(resolveStaticOciEndpoint(policy, selectedRegion).origin).toBe(
+          `https://${serviceName}.${regionId}.oci.${selectedRegion.realm.domain}`
+        )
+      }
+    }
+  )
+
+  it('preserves multi-label ownership in authenticated discovery', () => {
+    const policy = createOciDiscoveredEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'secrets.vaults',
+      hostnameTemplate: 'regional-oci',
+      responsePolicy: staticPolicy,
+      source: { kind: 'json', path: ['endpoint'] },
+    })
+    expect(Object.isFrozen(policy)).toBe(true)
+    expect(
+      resolveDiscoveredOciEndpoint(
+        policy,
+        region,
+        'https://resource.secrets.vaults.us-ashburn-1.oci.oraclecloud.com'
+      ).serviceName
+    ).toBe('secrets.vaults')
+    for (const origin of [
+      'https://resource.vaults.us-ashburn-1.oci.oraclecloud.com',
+      'https://resource.secrets.vaults.eu-frankfurt-1.oci.oraclecloud.com',
+      'https://resource.secrets.vaults.us-ashburn-1.oci.oraclegovcloud.com',
+      'https://resource.secrets.vaults.us-ashburn-1.oci.oraclecloud.com.attacker.example',
+    ]) {
+      expect(() => resolveDiscoveredOciEndpoint(policy, region, origin)).toThrow()
+    }
+  })
+
+  it.each([
+    '',
+    '.',
+    '.identity',
+    'identity.',
+    'secrets..vaults',
+    '-identity',
+    'identity-',
+    '1identity',
+    'Identity',
+    'identity_service',
+    'identity service',
+    'identity\n',
+    'identity\r',
+    'identity\t',
+    'identity\0',
+    'identité',
+    'https://identity',
+    'identity:443',
+    'identity/path',
+    'identity\\path',
+    '*.identity',
+    'identity?x=1',
+    'identity#fragment',
+    'identity@host',
+    'a'.repeat(64),
+    null,
+    undefined,
+    42,
+    ['identity'],
+  ])('rejects malformed service prefixes in both policy factories: %j', (serviceName) => {
+    expect(() =>
+      createOciStaticEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName: serviceName as never,
+        hostnameTemplate: 'regional',
+      })
+    ).toThrow('service name')
+    expect(() =>
+      createOciDiscoveredEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName: serviceName as never,
+        hostnameTemplate: 'regional',
+        responsePolicy: staticPolicy,
+        source: { kind: 'json', path: ['endpoint'] },
+      })
+    ).toThrow('service name')
+  })
+
+  it('bounds labels, prefixes, and complete hostnames', () => {
+    const label = 'a'.repeat(63)
+    expect(regionalOciHostname(label, region, 'regional')).toBe(
+      `${label}.${region.id}.${region.realm.domain}`
+    )
+    const prefix = [label, label, label, 'b'.repeat(61)].join('.')
+    expect(prefix.length).toBe(253)
+    const policy = createOciStaticEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: prefix,
+      hostnameTemplate: 'regional',
+    })
+    expect(policy.serviceName).toBe(prefix)
+    expect(() =>
+      createOciStaticEndpointPolicy({
+        ...policy,
+        serviceName: `${prefix}b`,
+      })
+    ).toThrow('service name')
+    expect(() => resolveStaticOciEndpoint(policy, region)).toThrow('hostname')
+
+    const suffix = `.${region.id}.oci.${region.realm.domain}`
+    const boundedPrefix = [label, label, label, 'b'.repeat(253 - suffix.length - 192)].join('.')
+    const boundedPolicy = createOciStaticEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: boundedPrefix,
+      hostnameTemplate: 'regional-oci',
+    })
+    expect(resolveStaticOciEndpoint(boundedPolicy, region).hostname.length).toBe(253)
+    expect(() => regionalOciHostname(`${boundedPrefix}b`, region, 'regional-oci')).toThrow(
+      'hostname'
+    )
+    const boundedDiscovery = createOciDiscoveredEndpointPolicy({
+      ...boundedPolicy,
+      responsePolicy: staticPolicy,
+      source: { kind: 'json', path: ['endpoint'] },
+    })
+    expect(() =>
+      resolveDiscoveredOciEndpoint(boundedDiscovery, region, `https://a.${boundedPrefix}${suffix}`)
+    ).toThrow()
+  })
+
   it.each([
     'http://resource.database.us-ashburn-1.oraclecloud.com',
     'https://resource.database.us-ashburn-1.oraclecloud.com:8443',
@@ -128,7 +264,7 @@ describe('OCI endpoint policies', () => {
     expect(() =>
       createOciStaticEndpointPolicy({
         serviceId: OCI_SERVICE_ID,
-        serviceName: 'bad.name',
+        serviceName: 'bad..name',
         hostnameTemplate: 'regional',
       })
     ).toThrow('service name')

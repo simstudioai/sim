@@ -176,6 +176,7 @@ const REGION_REALMS = {
 } as const satisfies Record<string, OciRealmId>
 
 export const OCI_REGION_IDS = Object.freeze(Object.keys(REGION_REALMS))
+const MAX_HOSTNAME_LENGTH = 253
 
 function normalizeRegionId(regionId: string): string {
   return regionId.trim().toLowerCase()
@@ -203,7 +204,13 @@ export function resolveEffectiveOciRegion(defaultRegion: string, override?: stri
 }
 
 function assertServiceName(value: string): void {
-  if (!/^[a-z][a-z0-9-]{0,62}$/.test(value)) {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > MAX_HOSTNAME_LENGTH ||
+    /[^a-z0-9.-]/.test(value) ||
+    value.split('.').some((label) => !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  ) {
     throw new Error('OCI endpoint policy service name is invalid')
   }
 }
@@ -288,7 +295,11 @@ export function regionalOciHostname(
   assertServiceName(serviceName)
   assertHostnameTemplate(hostnameTemplate)
   const ociLabel = hostnameTemplate === 'regional-oci' ? '.oci' : ''
-  return `${serviceName}.${region.id}${ociLabel}.${region.realm.domain}`
+  const hostname = `${serviceName}.${region.id}${ociLabel}.${region.realm.domain}`
+  if (hostname.length > MAX_HOSTNAME_LENGTH) {
+    throw new Error('OCI endpoint policy hostname is invalid')
+  }
+  return hostname
 }
 
 function validateOciOrigin(params: {
@@ -319,6 +330,7 @@ function validateOciOrigin(params: {
     url.pathname !== '/' ||
     url.search !== '' ||
     url.hash !== '' ||
+    url.hostname.length > MAX_HOSTNAME_LENGTH ||
     isIpLiteral(unwrapIpv6Brackets(url.hostname)) ||
     url.origin !== params.origin
   ) {
