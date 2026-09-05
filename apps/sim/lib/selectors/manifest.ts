@@ -189,6 +189,12 @@ export const selectorManifest = {
     unknownDetail: true,
   }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
+  'oracle_epm_data.connections': providerSelector([], { detail: true }),
+  'oracle_epm_data.files': providerSelector([], { detail: true }),
+  'oracle_epm_data.locations': providerSelector(['application', 'period', 'category'], {
+    readiness: { all: ['oauthCredential', 'application', 'period', 'category'] },
+    detail: true,
+  }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
     listMode: 'paginated',
