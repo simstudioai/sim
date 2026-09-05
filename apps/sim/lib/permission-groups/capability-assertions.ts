@@ -1,3 +1,4 @@
+import type { DbOrTx } from '@/lib/db/types'
 import {
   CAPABILITY_RULES,
   refuseCapability,
@@ -5,7 +6,10 @@ import {
 } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+import {
+  getEntitledOrganizationPermissionConfig,
+  getUserPermissionConfigForOrganization,
+} from '@/lib/permission-groups/resolve.server'
 
 /**
  * Re-exported so a caller that gates inline reaches the refusal sentence and the
@@ -88,5 +92,22 @@ export async function isOrganizationCapabilityWithheld(
   return capabilityDeniedBy(
     capability,
     await getUserPermissionConfigForOrganization(organizationId)
+  )
+}
+
+/**
+ * {@link isOrganizationCapabilityWithheld} for an organization whose regime the
+ * caller has ALREADY established, reading the group on the given executor. That
+ * establishment is the caller's obligation, not an optional one — see
+ * {@link getEntitledOrganizationPermissionConfig}.
+ */
+export async function isEntitledOrganizationCapabilityWithheld(
+  organizationId: string,
+  capability: StaticPermissionGroupCapability,
+  executor: DbOrTx
+): Promise<boolean> {
+  return capabilityDeniedBy(
+    capability,
+    await getEntitledOrganizationPermissionConfig(organizationId, executor)
   )
 }

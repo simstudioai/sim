@@ -98,12 +98,13 @@ import { POST } from '@/app/api/v1/knowledge/search/route'
 
 const mockCheckKnowledgeBaseAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 
-const baseKb = (id: string, embeddingModel: string) => ({
+const baseKb = (id: string, embeddingModel: string, embeddingDimension = 1536) => ({
   id,
   userId: 'user-1',
   name: `KB ${id}`,
   workspaceId: 'ws-1',
   embeddingModel,
+  embeddingDimension,
   deletedAt: null,
 })
 
@@ -150,7 +151,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     expect(res.status).toBe(200)
     expect(mockGenerateSearchEmbedding).toHaveBeenCalledWith(
       'hello',
-      'gemini-embedding-001',
+      { model: 'gemini-embedding-001', dimensions: 1536 },
       'ws-1'
     )
     expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
@@ -189,6 +190,28 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
         billingAttribution: SYSTEM_BILLING_ATTRIBUTION,
       })
     )
+  })
+
+  it('rejects cross-KB queries with mixed vector widths, which store in different columns', async () => {
+    mockCheckKnowledgeBaseAccess
+      .mockResolvedValueOnce({
+        hasAccess: true,
+        knowledgeBase: baseKb('kb-1536', 'text-embedding-3-large', 1536),
+      })
+      .mockResolvedValueOnce({
+        hasAccess: true,
+        knowledgeBase: baseKb('kb-3072', 'text-embedding-3-large', 3072),
+      })
+
+    const req = createMockRequest('POST', {
+      workspaceId: 'ws-1',
+      knowledgeBaseIds: ['kb-1536', 'kb-3072'],
+      query: 'hello',
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(400)
+    expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
   })
 
   it('rejects cross-KB queries with mixed embedding models', async () => {

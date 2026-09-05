@@ -1,10 +1,12 @@
 ---
-title: Desktop App
+title: Desktop App on Your Deployment
 description: Point the macOS desktop app at your own Sim deployment
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+This page is about pointing the app at a deployment you run. For installing and using it, see [Sim Desktop](/desktop).
 
 The Sim desktop app is a native macOS shell around a Sim deployment. It is **not** tied to sim.ai — the build bakes in only a *default* server, and every runtime boundary (navigation, content security policy, cookie storage, the update feed) is derived from the server you point it at.
 
@@ -23,7 +25,7 @@ Every Sim deployment exposes two public endpoints:
 | `/api/desktop/update/download` | Redirects (302) to the newest installer for this deployment's release channel |
 | `/api/desktop/update/latest-mac.yml` | The update manifest installed apps poll |
 
-Both resolve against Sim's public GitHub releases, and the installers themselves are downloaded from GitHub. Nothing is built, signed, or hosted by you: your deployment decides *which* release its clients are offered and serves the manifest, so installed apps poll your server instead of sim.ai — but they cannot be served artifacts of your own from this path. To ship your own build, see [Building your own shell](#building-your-own-shell).
+Both resolve against Sim's public GitHub releases, and the installers themselves are downloaded from GitHub. Nothing is built, signed, or hosted by you: your deployment decides *which* release its clients are offered and serves the manifest, so installed apps poll your server instead of sim.ai — but they cannot be served artifacts of your own from this path, and a self-updating stable build falls back to Sim's own feed if yours stops answering. To ship your own build, see [Building your own shell](#building-your-own-shell).
 
 Both endpoints cache their GitHub lookups for **5 minutes**, and both respond the same way when they cannot answer:
 
@@ -34,6 +36,12 @@ Both endpoints cache their GitHub lookups for **5 minutes**, and both respond th
 | `502` | GitHub could not be read — unreachable, rate-limited, or every candidate release lacked valid desktop artifacts |
 
 The Sim server needs outbound access to `api.github.com` and `github.com` for these to resolve. Unauthenticated GitHub API requests are capped at 60/hour per IP; set `GITHUB_TOKEN` on the Sim server to raise that to 5000/hour.
+
+### What an installed app does when the feed fails
+
+A `404` carries a header the shell reads as *no update available*, so the app reports it is up to date. Anything else — `502`, a timeout, a connection failure — means the feed is unavailable, and only a self-updating build (Developer ID, installed in `/Applications`) has anywhere else to go: on the stable channel it falls back to Sim's packaged GitHub feed, and on `dev` or `staging` it skips the check, since that fallback carries only stable artifacts their bundle identity cannot install. Every other build simply stops being offered updates until the feed answers again.
+
+Release selection is therefore yours only while the feed answers. With `APPCONFIG_ENVIRONMENT` unset both paths resolve the same release, so the fallback is invisible; it matters when your deployment serves a channel that disagrees with stable.
 
 ### Which channel your deployment serves
 

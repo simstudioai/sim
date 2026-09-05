@@ -302,6 +302,7 @@ async function runPasswordImport(
     passwordsAdded: outcome.added,
     passwordsUpdated: outcome.updated,
     passwordsSkipped: outcome.skipped + read.skipped,
+    ...(read.error ? { error: read.error } : {}),
   }
   logger.info('Chrome password import finished', {
     added: result.passwordsAdded,
@@ -321,6 +322,7 @@ async function runPasswordImport(
  * source order breaks ties deterministically before applying the vault policy.
  *
  * One damaged store does not discard credentials already read from the other.
+ * A partial read carries its failure to the UI alongside the imported counts.
  * If no store can produce any useful signal, the first concrete reader error
  * is surfaced instead of reporting a misleading successful import of zero.
  */
@@ -328,7 +330,7 @@ async function readProfilePasswords(
   paths: readonly string[],
   key: Buffer,
   deps: ImportServiceDeps
-): Promise<ReadPasswordsResult> {
+): Promise<ReadPasswordsResult & { error?: BrowserPasswordImportResult['error'] }> {
   const combined: ReadPasswordsResult = { credentials: [], skipped: 0, rowsSeen: 0 }
   const credentialIndexes = new Map<string, number>()
   let successfulReads = 0
@@ -379,6 +381,7 @@ async function readProfilePasswords(
   if (firstFailure !== undefined) {
     // Category only: database names and paths are deliberately absent.
     logger.warn('Could not read every password store in the selected browser profile')
+    return { ...combined, error: categorize(firstFailure, 'password') }
   }
   return combined
 }

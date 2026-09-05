@@ -5,7 +5,7 @@ export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageRe
   id: 'sqs_send',
   name: 'SQS Send Message',
   description: 'Send a message to an Amazon SQS queue',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -34,11 +34,25 @@ export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageRe
         'SQS queue URL (e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue)',
     },
     data: {
-      type: 'object',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
         'Message body to send as JSON object (e.g., { "action": "process", "payload": {...} })',
+    },
+    delaySeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Seconds to delay delivery of this message, 0-900. Not supported per-message on FIFO queues',
+    },
+    messageAttributes: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Message attributes keyed by name, each { "dataType": "String" | "Number", "stringValue": "..." }. A custom label such as Number.float is allowed; Binary attributes are not supported',
     },
     messageGroupId: {
       type: 'string',
@@ -61,6 +75,8 @@ export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageRe
       secretAccessKey: params.secretAccessKey,
       queueUrl: params.queueUrl,
       data: params.data,
+      delaySeconds: params.delaySeconds,
+      messageAttributes: params.messageAttributes,
       messageGroupId: params.messageGroupId,
       messageDeduplicationId: params.messageDeduplicationId,
     }),
@@ -78,6 +94,9 @@ export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageRe
       output: {
         message: data.message || 'SQS send message executed successfully',
         id: data.id || '',
+        md5OfMessageBody: data.md5OfMessageBody ?? null,
+        md5OfMessageAttributes: data.md5OfMessageAttributes ?? null,
+        sequenceNumber: data.sequenceNumber ?? null,
       },
       error: undefined,
     }
@@ -86,5 +105,23 @@ export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageRe
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
     id: { type: 'string', description: 'Message ID' },
+    md5OfMessageBody: {
+      type: 'string',
+      description: 'MD5 digest of the message body, for verifying SQS received it intact',
+      optional: true,
+      nullable: true,
+    },
+    md5OfMessageAttributes: {
+      type: 'string',
+      description: 'MD5 digest of the message attributes',
+      optional: true,
+      nullable: true,
+    },
+    sequenceNumber: {
+      type: 'string',
+      description: 'Large, non-consecutive sequence number assigned by a FIFO queue',
+      optional: true,
+      nullable: true,
+    },
   },
 }

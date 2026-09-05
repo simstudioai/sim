@@ -3,6 +3,16 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IAMBaseResponse } from '@/tools/iam/types'
 
+/**
+ * Raised when `contextEntries` is not a JSON array of context entries.
+ *
+ * A simulation that quietly drops the caller's condition context keys returns a
+ * *wrong* permission answer — `aws:SourceIp` never applies, so a policy that should
+ * have denied reports `allowed`. Rejecting the input is the only safe outcome.
+ */
+const CONTEXT_ENTRIES_SHAPE_ERROR =
+  'Condition Context Keys must be a JSON array of { contextKeyName, contextKeyValues, contextKeyType }'
+
 export const IAMBlock: BlockConfig<IAMBaseResponse> = {
   type: 'iam',
   name: 'AWS IAM',
@@ -56,6 +66,13 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
         detach_role_policy: [
           { text: 'Detach policy', field: 'policyArn', core: true },
           { text: 'from role', field: 'roleName', core: true },
+        ],
+        get_policy: [{ text: 'Fetch policy', field: 'policyArn', core: true }],
+        list_access_keys: ['List access keys', { text: ', for user', field: 'userName' }],
+        update_access_key: [
+          { text: 'Set access key', field: 'accessKeyIdToUpdate', core: true },
+          { text: 'to', field: 'accessKeyStatus', core: true },
+          { text: 'for user', field: 'userName' },
         ],
         list_policies: [
           'List managed policies',
@@ -117,8 +134,11 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
         { label: 'Attach Role Policy', id: 'attach_role_policy' },
         { label: 'Detach Role Policy', id: 'detach_role_policy' },
         { label: 'List Policies', id: 'list_policies' },
+        { label: 'Get Policy', id: 'get_policy' },
         { label: 'Create Access Key', id: 'create_access_key' },
         { label: 'Delete Access Key', id: 'delete_access_key' },
+        { label: 'List Access Keys', id: 'list_access_keys' },
+        { label: 'Update Access Key', id: 'update_access_key' },
         { label: 'List Groups', id: 'list_groups' },
         { label: 'Add User to Group', id: 'add_user_to_group' },
         { label: 'Remove User from Group', id: 'remove_user_from_group' },
@@ -166,6 +186,8 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'detach_user_policy',
           'create_access_key',
           'delete_access_key',
+          'list_access_keys',
+          'update_access_key',
           'add_user_to_group',
           'remove_user_from_group',
           'list_attached_user_policies',
@@ -174,7 +196,6 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       required: {
         field: 'operation',
         value: [
-          'get_user',
           'create_user',
           'delete_user',
           'attach_user_policy',
@@ -225,6 +246,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'detach_user_policy',
           'attach_role_policy',
           'detach_role_policy',
+          'get_policy',
         ],
       },
       required: {
@@ -234,6 +256,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'detach_user_policy',
           'attach_role_policy',
           'detach_role_policy',
+          'get_policy',
         ],
       },
     },
@@ -274,6 +297,27 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       placeholder: 'AKIA...',
       condition: { field: 'operation', value: 'delete_access_key' },
       required: { field: 'operation', value: 'delete_access_key' },
+    },
+    {
+      id: 'accessKeyIdToUpdate',
+      title: 'Access Key ID to Update',
+      canvasNoun: 'an access key ID',
+      type: 'short-input',
+      placeholder: 'AKIA...',
+      condition: { field: 'operation', value: 'update_access_key' },
+      required: { field: 'operation', value: 'update_access_key' },
+    },
+    {
+      id: 'accessKeyStatus',
+      title: 'Access Key Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Active', id: 'Active' },
+        { label: 'Inactive', id: 'Inactive' },
+      ],
+      value: () => 'Inactive',
+      condition: { field: 'operation', value: 'update_access_key' },
+      required: { field: 'operation', value: 'update_access_key' },
     },
     {
       id: 'path',
@@ -361,6 +405,23 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'contextEntries',
+      title: 'Condition Context Keys (JSON)',
+      type: 'code',
+      placeholder:
+        '[{"contextKeyName":"aws:SourceIp","contextKeyValues":["203.0.113.10"],"contextKeyType":"ip"}]',
+      condition: { field: 'operation', value: 'simulate_principal_policy' },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of AWS IAM simulation context entries. Each element must have contextKeyName (a full condition context key such as aws:SourceIp), contextKeyValues (an array of strings), and contextKeyType (one of string, stringList, numeric, numericList, boolean, booleanList, ip, ipList, binary, binaryList, date, dateList). Return ONLY the JSON array - no explanations, no extra text.',
+        generationType: 'json-array',
+        placeholder: 'Describe the request conditions to simulate, e.g. "from IP 203.0.113.10"',
+      },
+    },
+    {
       id: 'pathPrefix',
       title: 'Path Prefix',
       type: 'short-input',
@@ -393,6 +454,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'list_groups',
           'list_attached_role_policies',
           'list_attached_user_policies',
+          'list_access_keys',
           'simulate_principal_policy',
         ],
       },
@@ -413,6 +475,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'list_groups',
           'list_attached_role_policies',
           'list_attached_user_policies',
+          'list_access_keys',
           'simulate_principal_policy',
         ],
       },
@@ -435,8 +498,11 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       'iam_attach_role_policy',
       'iam_detach_role_policy',
       'iam_list_policies',
+      'iam_get_policy',
       'iam_create_access_key',
       'iam_delete_access_key',
+      'iam_list_access_keys',
+      'iam_update_access_key',
       'iam_list_groups',
       'iam_add_user_to_group',
       'iam_remove_user_from_group',
@@ -473,10 +539,16 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
             return 'iam_detach_role_policy'
           case 'list_policies':
             return 'iam_list_policies'
+          case 'get_policy':
+            return 'iam_get_policy'
           case 'create_access_key':
             return 'iam_create_access_key'
           case 'delete_access_key':
             return 'iam_delete_access_key'
+          case 'list_access_keys':
+            return 'iam_list_access_keys'
+          case 'update_access_key':
+            return 'iam_update_access_key'
           case 'list_groups':
             return 'iam_list_groups'
           case 'add_user_to_group':
@@ -494,8 +566,15 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
         }
       },
       params: (params) => {
-        const { operation, maxItems, maxSessionDuration, onlyAttached, resourceArns, ...rest } =
-          params
+        const {
+          operation,
+          maxItems,
+          maxSessionDuration,
+          onlyAttached,
+          resourceArns,
+          contextEntries,
+          ...rest
+        } = params
 
         const connectionConfig = {
           region: rest.region,
@@ -517,6 +596,8 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
             if (rest.marker) result.marker = rest.marker
             break
           case 'get_user':
+            if (rest.userName) result.userName = rest.userName
+            break
           case 'delete_user':
             result.userName = rest.userName
             break
@@ -558,11 +639,27 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
             }
             if (rest.marker) result.marker = rest.marker
             break
+          case 'get_policy':
+            result.policyArn = rest.policyArn
+            break
           case 'create_access_key':
             if (rest.userName) result.userName = rest.userName
             break
           case 'delete_access_key':
             result.accessKeyIdToDelete = rest.accessKeyIdToDelete
+            if (rest.userName) result.userName = rest.userName
+            break
+          case 'list_access_keys':
+            if (rest.userName) result.userName = rest.userName
+            if (maxItems) {
+              const parsed = Number.parseInt(String(maxItems), 10)
+              if (!Number.isNaN(parsed)) result.maxItems = parsed
+            }
+            if (rest.marker) result.marker = rest.marker
+            break
+          case 'update_access_key':
+            result.accessKeyIdToUpdate = rest.accessKeyIdToUpdate
+            result.status = rest.accessKeyStatus
             if (rest.userName) result.userName = rest.userName
             break
           case 'add_user_to_group':
@@ -592,6 +689,20 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
             result.policySourceArn = rest.policySourceArn
             result.actionNames = rest.actionNames
             if (resourceArns) result.resourceArns = resourceArns
+            if (contextEntries) {
+              let parsed: unknown = contextEntries
+              if (typeof contextEntries === 'string') {
+                try {
+                  parsed = JSON.parse(contextEntries)
+                } catch {
+                  throw new Error(CONTEXT_ENTRIES_SHAPE_ERROR)
+                }
+              }
+              if (!Array.isArray(parsed)) {
+                throw new Error(CONTEXT_ENTRIES_SHAPE_ERROR)
+              }
+              if (parsed.length > 0) result.contextEntries = parsed
+            }
             if (maxItems) {
               const parsed = Number.parseInt(String(maxItems), 10)
               if (!Number.isNaN(parsed)) result.maxResults = parsed
@@ -615,6 +726,8 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     assumeRolePolicyDocument: { type: 'string', description: 'Trust policy JSON' },
     groupName: { type: 'string', description: 'IAM group name' },
     accessKeyIdToDelete: { type: 'string', description: 'Access key ID to delete' },
+    accessKeyIdToUpdate: { type: 'string', description: 'Access key ID to activate or deactivate' },
+    accessKeyStatus: { type: 'string', description: 'Access key status to set (Active, Inactive)' },
     path: { type: 'string', description: 'Resource path' },
     description: { type: 'string', description: 'Role description' },
     maxSessionDuration: { type: 'number', description: 'Max session duration in seconds' },
@@ -628,6 +741,11 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     resourceArns: {
       type: 'string',
       description: 'Comma-separated resource ARNs to simulate against',
+    },
+    contextEntries: {
+      type: 'json',
+      description:
+        'Condition context keys supplied to the simulation, as a JSON array of { contextKeyName, contextKeyValues, contextKeyType }',
     },
   },
   outputs: {
@@ -719,7 +837,9 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     },
     secretAccessKey: {
       type: 'string',
-      description: 'Secret access key (only shown once)',
+      description:
+        'Secret access key, returned only when the key is created. Hidden from logs and the trace; reference it downstream rather than printing it.',
+      hiddenFromDisplay: true,
     },
     status: {
       type: 'string',
@@ -741,10 +861,43 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       type: 'json',
       description: 'List of attached managed policies with policyName and policyArn',
     },
+    accessKeys: {
+      type: 'json',
+      description:
+        "An IAM user's access key metadata (accessKeyId, userName, status, createDate). The secret is never returned by this operation.",
+    },
+    policyName: {
+      type: 'string',
+      description: 'Policy name',
+    },
+    policyId: {
+      type: 'string',
+      description: 'Policy ID',
+    },
+    attachmentCount: {
+      type: 'number',
+      description: 'Number of entities the policy is attached to',
+    },
+    isAttachable: {
+      type: 'boolean',
+      description: 'Whether the policy can be attached to an entity',
+    },
+    updateDate: {
+      type: 'string',
+      description: 'Date the resource was last updated',
+    },
+    defaultVersionId: {
+      type: 'string',
+      description: 'Identifier of the default policy version',
+    },
+    permissionsBoundaryUsageCount: {
+      type: 'number',
+      description: 'Number of entities using the policy as a permissions boundary',
+    },
     evaluationResults: {
       type: 'json',
       description:
-        'Policy simulation results per action: evalActionName, evalResourceName, evalDecision (allowed/explicitDeny/implicitDeny), matchedStatements (sourcePolicyId, sourcePolicyType), missingContextValues',
+        'One result per simulated action. evalDecision is the AGGREGATE, most-restrictive decision across every resource ARN (any explicitDeny makes the whole result explicitDeny), and evalResourceName is the resource-type ARN template AWS echoes back, not a customer ARN. Read the verdict for an individual ARN from resourceSpecificResults[]: evalResourceName, evalResourceDecision, matchedStatements, missingContextValues, permissionsBoundaryAllowed.',
     },
   },
 }
@@ -829,14 +982,14 @@ export const IAMBlockMeta = {
       description:
         'List IAM users, roles, and their attached policies to produce an access audit. Use for security reviews and least-privilege checks.',
       content:
-        '# Audit IAM Permissions\n\nReport who and what has access in IAM.\n\n## Steps\n1. List users and roles to establish the inventory.\n2. For each principal of interest, list attached user or role policies.\n3. Optionally simulate principal policy to confirm whether a principal can perform sensitive actions.\n4. Flag overly broad policies, unused principals, or access keys that should be rotated.\n\n## Output\nAn audit summary: principals and their attached policies, with risky or excessive grants called out. Do not expose secret values.',
+        '# Audit IAM Permissions\n\nReport who and what has access in IAM.\n\n## Steps\n1. List users and roles to establish the inventory.\n2. For each principal of interest, list attached user or role policies. Get a policy by ARN when you need its description to judge intent — list policies never returns one.\n3. List each user’s access keys to find keys that are stale or still Active but unused.\n4. Optionally simulate principal policy to confirm whether a principal can perform sensitive actions, reading the per-resource verdict from resourceSpecificResults.\n5. Flag overly broad policies, unused principals, or access keys that should be rotated.\n\n## Output\nAn audit summary: principals, their attached policies, and their access key inventory, with risky or excessive grants called out. Do not expose secret values.',
     },
     {
       name: 'check-effective-permissions',
       description:
         'Use IAM policy simulation to verify whether a user or role can perform specific actions on resources. Use for troubleshooting access and validating changes.',
       content:
-        '# Check Effective Permissions\n\nDetermine whether a principal is actually allowed to do something.\n\n## Steps\n1. Identify the principal (user or role) and the actions and resource ARNs to test.\n2. Run simulate principal policy for those actions against the resources.\n3. Read the allowed or denied decision for each action, noting which statement governs it.\n4. If denied unexpectedly, inspect the attached policies to explain why.\n\n## Output\nA per-action allow/deny verdict with the governing policy, and a plain-language explanation of any denial.',
+        '# Check Effective Permissions\n\nDetermine whether a principal is actually allowed to do something.\n\n## Steps\n1. Identify the principal (user or role) and the actions and resource ARNs to test.\n2. Run simulate principal policy for those actions against the resources. If any policy is gated by a condition, supply the condition context keys so it does not simulate as denied for missing context.\n3. Read the per-resource verdict from resourceSpecificResults — evalResourceName plus evalResourceDecision. The top-level evalDecision is the aggregate across every ARN you passed, so one explicitly denied bucket makes the whole action read as explicitDeny; do not report that as a denial on the other resources. The top-level evalResourceName is a resource-type ARN template, not one of your ARNs.\n4. If a resource is denied unexpectedly, read its matchedStatements and missingContextValues, then inspect the attached policies to explain why.\n\n## Output\nA verdict per action AND per resource ARN, with the governing policy for each, and a plain-language explanation of any denial.',
     },
     {
       name: 'provision-iam-principal',
@@ -850,7 +1003,7 @@ export const IAMBlockMeta = {
       description:
         'Create a fresh IAM access key for a user and delete the old one to complete a safe rotation. Use for scheduled key rotation and remediating aged keys.',
       content:
-        '# Rotate Access Keys\n\nReplace a user’s access key following the two-step rotation pattern.\n\n## Steps\n1. Create a new access key for the target user so two keys exist briefly.\n2. Hand the new key to its consumer securely and let dependents switch over and verify they still work.\n3. Once the new key is confirmed in use, delete the old access key by its ID.\n4. Confirm only the intended key remains for the user.\n\n## Output\nReport the user, that a new key was issued, and the old key ID that was deleted. Never print the secret access key value — reference keys only by their access key ID.',
+        '# Rotate Access Keys\n\nReplace a user’s access key following the two-step rotation pattern.\n\n## Steps\n1. List the user’s access keys to see which keys exist, their status, and their age.\n2. Create a new access key for the target user so two keys exist briefly.\n3. Hand the new key to its consumer securely and let dependents switch over and verify they still work.\n4. Deactivate the old key by updating its status to Inactive, and leave it that way long enough to prove nothing still depends on it. Reactivate it if something breaks.\n5. Once the new key is confirmed in use, delete the old access key by its ID.\n6. List the access keys again to confirm only the intended key remains for the user.\n\n## Output\nReport the user, that a new key was issued, and the old key ID that was deactivated and then deleted. Never print the secret access key value — reference keys only by their access key ID.',
     },
   ],
 } as const satisfies BlockMeta

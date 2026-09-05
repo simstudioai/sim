@@ -141,9 +141,12 @@ export function useFileDocCollaboration({
       }
       reportOthersRef.current([...byUser.values()])
     }
+    const handleDisconnect = () => reportOthersRef.current([])
     socket.on(FILE_DOC_EVENTS.PRESENCE, handlePresence)
+    socket.on('disconnect', handleDisconnect)
     return () => {
       socket.off(FILE_DOC_EVENTS.PRESENCE, handlePresence)
+      socket.off('disconnect', handleDisconnect)
       reportOthersRef.current([])
     }
   }, [enabled, socket, fileId])

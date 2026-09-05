@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -1033,7 +1033,7 @@
       "slug": "amazon-sqs",
       "name": "Amazon SQS",
       "description": "Connect to Amazon SQS",
-      "longDescription": "Integrate Amazon SQS into the workflow. Can send messages to SQS queues.",
+      "longDescription": "Integrate Amazon SQS into the workflow. Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.",
       "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
       "iconName": "SQSIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sqs",
@@ -1041,12 +1041,92 @@
         {
           "name": "Send Message",
           "description": "Send a message to an Amazon SQS queue"
+        },
+        {
+          "name": "Send Message Batch",
+          "description": "Send up to 10 messages to an Amazon SQS queue in a single request"
+        },
+        {
+          "name": "Receive Message",
+          "description": "Receive up to 10 messages from an Amazon SQS queue, with optional long polling"
+        },
+        {
+          "name": "Delete Message",
+          "description": "Delete a received message from an Amazon SQS queue using its receipt handle"
+        },
+        {
+          "name": "Delete Message Batch",
+          "description": "Delete up to 10 received messages from an Amazon SQS queue in a single request"
+        },
+        {
+          "name": "Change Message Visibility",
+          "description": "Change how long a received Amazon SQS message stays hidden from other consumers"
+        },
+        {
+          "name": "Change Message Visibility Batch",
+          "description": "Change the visibility timeout of up to 10 received Amazon SQS messages at once"
+        },
+        {
+          "name": "List Queues",
+          "description": "List Amazon SQS queue URLs in a region, optionally filtered by name prefix"
+        },
+        {
+          "name": "Get Queue URL",
+          "description": "Resolve an Amazon SQS queue name to its queue URL"
+        },
+        {
+          "name": "Get Queue Attributes",
+          "description": "Read configuration and message-count attributes of an Amazon SQS queue"
+        },
+        {
+          "name": "Set Queue Attributes",
+          "description": "Update configuration attributes of an existing Amazon SQS queue"
+        },
+        {
+          "name": "Create Queue",
+          "description": "Create a standard or FIFO Amazon SQS queue"
+        },
+        {
+          "name": "Delete Queue",
+          "description": "Delete an Amazon SQS queue and every message still in it"
+        },
+        {
+          "name": "Purge Queue",
+          "description": "Delete every message in an Amazon SQS queue while keeping the queue itself"
+        },
+        {
+          "name": "List Dead-Letter Source Queues",
+          "description": "List the Amazon SQS queues that use a given queue as their dead-letter queue"
+        },
+        {
+          "name": "List Queue Tags",
+          "description": "List the cost-allocation tags attached to an Amazon SQS queue"
+        },
+        {
+          "name": "Tag Queue",
+          "description": "Add or overwrite cost-allocation tags on an Amazon SQS queue"
+        },
+        {
+          "name": "Untag Queue",
+          "description": "Remove cost-allocation tags from an Amazon SQS queue"
+        },
+        {
+          "name": "Start Message Move Task",
+          "description": "Start redriving messages out of an Amazon SQS dead-letter queue"
+        },
+        {
+          "name": "List Message Move Tasks",
+          "description": "List the most recent message move tasks for an Amazon SQS source queue"
+        },
+        {
+          "name": "Cancel Message Move Task",
+          "description": "Cancel an in-progress Amazon SQS message move task"
         }
       ],
-      "operationCount": 1,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "messaging", "automation"]
@@ -2228,12 +2308,24 @@
           "description": "List managed IAM policies"
         },
         {
+          "name": "Get Policy",
+          "description": "Get details about a managed IAM policy, including its description — the field ListPolicies never returns"
+        },
+        {
           "name": "Create Access Key",
           "description": "Create a new access key pair for an IAM user"
         },
         {
           "name": "Delete Access Key",
           "description": "Delete an access key pair for an IAM user"
+        },
+        {
+          "name": "List Access Keys",
+          "description": "List an IAM user's access key IDs with their status and age — use to find stale keys and to confirm which keys remain after a rotation"
+        },
+        {
+          "name": "Update Access Key",
+          "description": "Activate or deactivate an IAM access key — deactivate an old key and verify nothing breaks before deleting it"
         },
         {
           "name": "List Groups",
@@ -2260,7 +2352,7 @@
           "description": "Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks"
         }
       ],
-      "operationCount": 21,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2299,12 +2391,24 @@
           "description": "Look up a user in the Identity Store by email address"
         },
         {
+          "name": "Describe User",
+          "description": "Resolve an Identity Store user ID to the user behind it. Use to turn the principalId on an account assignment into a name and email."
+        },
+        {
           "name": "Get Group",
           "description": "Look up a group in the Identity Store by display name"
         },
         {
+          "name": "Describe Group",
+          "description": "Resolve an Identity Store group ID to the group behind it. Use to turn the principalId on an account assignment into a group name."
+        },
+        {
           "name": "List Groups",
           "description": "List all groups in the Identity Store"
+        },
+        {
+          "name": "List Group Memberships",
+          "description": "List the users who belong to an Identity Store group"
         },
         {
           "name": "Create Account Assignment",
@@ -2323,11 +2427,15 @@
           "description": "Check the deprovisioning status of an account assignment deletion request"
         },
         {
-          "name": "List Account Assignments",
-          "description": "List all account assignments for a specific user or group across all accounts"
+          "name": "List Account Assignments For Principal",
+          "description": "List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals."
+        },
+        {
+          "name": "List Assignments For Account",
+          "description": "List every principal assigned a specific permission set on a specific AWS account. Use for per-account access reviews."
         }
       ],
-      "operationCount": 12,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2531,6 +2639,113 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["cloud", "identity"]
+    },
+    {
+      "type": "ssm",
+      "slug": "aws-systems-manager",
+      "name": "AWS Systems Manager",
+      "description": "Run commands, manage parameters, and audit managed nodes",
+      "longDescription": "Integrate AWS Systems Manager into your workflow. Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.",
+      "bgColor": "#E7157B",
+      "iconName": "SSMIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/ssm",
+      "operations": [
+        {
+          "name": "Send Command",
+          "description": "Run an SSM document on managed nodes with AWS Systems Manager Run Command"
+        },
+        {
+          "name": "List Commands",
+          "description": "List Run Command executions in an AWS account"
+        },
+        {
+          "name": "List Command Invocations",
+          "description": "List the per-node invocations of Run Command executions"
+        },
+        {
+          "name": "Get Command Invocation",
+          "description": "Read the output and status of a Run Command execution on one managed node"
+        },
+        {
+          "name": "Cancel Command",
+          "description": "Cancel an in-flight Run Command execution"
+        },
+        {
+          "name": "Get Parameter",
+          "description": "Read one parameter from AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Get Parameters",
+          "description": "Read up to ten parameters from AWS Systems Manager Parameter Store by name"
+        },
+        {
+          "name": "Get Parameters By Path",
+          "description": "Read parameters under a Parameter Store hierarchy path"
+        },
+        {
+          "name": "Put Parameter",
+          "description": "Create or update a parameter in AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Delete Parameter",
+          "description": "Delete a parameter from AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Describe Parameters",
+          "description": "List Parameter Store parameter metadata without reading any values"
+        },
+        {
+          "name": "Describe Instance Information",
+          "description": "List managed nodes registered with AWS Systems Manager and their agent status"
+        },
+        {
+          "name": "Describe Instance Patches",
+          "description": "List the patches reported for one managed node"
+        },
+        {
+          "name": "Describe Instance Patch States",
+          "description": "Read patch compliance summaries for a set of managed nodes"
+        },
+        {
+          "name": "List Compliance Items",
+          "description": "List individual compliance findings reported to AWS Systems Manager"
+        },
+        {
+          "name": "List Compliance Summaries",
+          "description": "Read compliant and non-compliant counts per compliance type"
+        },
+        {
+          "name": "Start Automation Execution",
+          "description": "Start an AWS Systems Manager Automation runbook execution"
+        },
+        {
+          "name": "Describe Automation Executions",
+          "description": "List Automation runbook executions in an AWS account"
+        },
+        {
+          "name": "Get Automation Execution",
+          "description": "Read the status, outputs, and step results of one Automation execution"
+        },
+        {
+          "name": "Stop Automation Execution",
+          "description": "Stop a running AWS Systems Manager Automation execution"
+        },
+        {
+          "name": "List Documents",
+          "description": "List SSM documents and runbooks available to an AWS account"
+        },
+        {
+          "name": "Get Document",
+          "description": "Read the content of an SSM document or Automation runbook"
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "automation"]
     },
     {
       "type": "textract_v2",
@@ -5058,6 +5273,81 @@
       "tags": ["cloud"]
     },
     {
+      "type": "cloudtrail",
+      "slug": "cloudtrail",
+      "name": "CloudTrail",
+      "description": "Audit who did what in AWS with CloudTrail event history and Lake queries",
+      "longDescription": "Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan. Requires AWS access key and secret access key.",
+      "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+      "iconName": "CloudTrailIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/cloudtrail",
+      "operations": [
+        {
+          "name": "Look Up Events",
+          "description": "Look up AWS CloudTrail management or Insights events from the last 90 days in a Region"
+        },
+        {
+          "name": "Describe Trails",
+          "description": "Retrieve the full configuration of one or more CloudTrail trails in the current Region"
+        },
+        {
+          "name": "Get Trail",
+          "description": "Retrieve the settings of a single CloudTrail trail by name or ARN"
+        },
+        {
+          "name": "Get Trail Status",
+          "description": "Check whether a CloudTrail trail is logging and surface its most recent delivery errors"
+        },
+        {
+          "name": "List Trails",
+          "description": "List the ARN, name, and home Region of every CloudTrail trail visible to the account"
+        },
+        {
+          "name": "Get Event Selectors",
+          "description": "Read which management, data, and network activity events a CloudTrail trail is configured to log"
+        },
+        {
+          "name": "Get Insight Selectors",
+          "description": "Read which CloudTrail Insights types are enabled on a trail or event data store"
+        },
+        {
+          "name": "Start Lake Query",
+          "description": "Start a CloudTrail Lake SQL query over an event data store"
+        },
+        {
+          "name": "Describe Lake Query",
+          "description": "Check the status, run time, and scan statistics of a CloudTrail Lake query"
+        },
+        {
+          "name": "Get Lake Query Results",
+          "description": "Fetch a page of result rows from a finished CloudTrail Lake query"
+        },
+        {
+          "name": "Cancel Lake Query",
+          "description": "Cancel a running CloudTrail Lake query"
+        },
+        {
+          "name": "List Event Data Stores",
+          "description": "List the CloudTrail Lake event data stores in the account for the current Region"
+        },
+        {
+          "name": "Get Event Data Store",
+          "description": "Retrieve the configuration of a single CloudTrail Lake event data store"
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags on CloudTrail trails, event data stores, dashboards, or channels"
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["cloud", "monitoring", "identity"]
+    },
+    {
       "type": "cloudwatch",
       "slug": "cloudwatch",
       "name": "CloudWatch",
@@ -7460,7 +7750,7 @@
       "slug": "embeddings",
       "name": "Embeddings",
       "description": "Generate embeddings",
-      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.",
+      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.",
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",
@@ -17945,6 +18235,360 @@
       "tags": ["data-analytics", "enrichment", "document-processing"]
     },
     {
+      "type": "quickbooks",
+      "slug": "quickbooks",
+      "name": "QuickBooks",
+      "description": "Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.",
+      "bgColor": "#2CA01C",
+      "iconName": "QuickBooksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
+      "operations": [
+        {
+          "name": "Get Company Info",
+          "description": "Get information about the connected QuickBooks Online company"
+        },
+        {
+          "name": "Read Master Data",
+          "description": "List or read one account, class, customer, department, employee, item, or vendor"
+        },
+        {
+          "name": "Create Customer",
+          "description": "Create a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Customer",
+          "description": "Sparse-update a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Create Employee",
+          "description": "Create a non-payroll employee profile in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Employee",
+          "description": "Read, merge, and full-update a non-payroll employee profile"
+        },
+        {
+          "name": "Create Vendor",
+          "description": "Create a vendor in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Vendor",
+          "description": "Read, merge, and full-update a vendor in QuickBooks Online"
+        },
+        {
+          "name": "Create Item",
+          "description": "Create a Service or Non-inventory item in QuickBooks Online"
+        },
+        {
+          "name": "Update Item",
+          "description": "Read, merge, and full-update an item without changing its type"
+        },
+        {
+          "name": "Read Sales Transactions",
+          "description": "List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt"
+        },
+        {
+          "name": "Create Estimate",
+          "description": "Create an estimate with bounded item and description lines"
+        },
+        {
+          "name": "Update Estimate",
+          "description": "Sparse-update an estimate using its current sync token"
+        },
+        {
+          "name": "Create Invoice",
+          "description": "Create an invoice without emailing or collecting payment"
+        },
+        {
+          "name": "Update Invoice",
+          "description": "Sparse-update an invoice using its current sync token"
+        },
+        {
+          "name": "Void Invoice",
+          "description": "Void an invoice after explicit confirmation"
+        },
+        {
+          "name": "Create Sales Receipt",
+          "description": "Create a sales receipt for a completed customer sale"
+        },
+        {
+          "name": "Update Sales Receipt",
+          "description": "Sparse-update a sales receipt using its current sync token"
+        },
+        {
+          "name": "Create Customer Payment",
+          "description": "Record a customer payment with optional bounded invoice allocations"
+        },
+        {
+          "name": "Update Customer Payment",
+          "description": "Read, merge, and full-update a customer payment using its current sync token"
+        },
+        {
+          "name": "Void Customer Payment",
+          "description": "Void a customer payment after explicit confirmation"
+        },
+        {
+          "name": "Create Credit Memo",
+          "description": "Create a customer credit memo with bounded sales lines"
+        },
+        {
+          "name": "Update Credit Memo",
+          "description": "Read, merge, and full-update a credit memo using its current sync token"
+        },
+        {
+          "name": "Create Refund Receipt",
+          "description": "Create a customer refund receipt against a required deposit account"
+        },
+        {
+          "name": "Update Refund Receipt",
+          "description": "Read, merge, and full-update a refund receipt using its current sync token"
+        },
+        {
+          "name": "Read Purchasing Transactions",
+          "description": "List or read one purchase order, bill, bill payment, vendor credit, or purchase"
+        },
+        {
+          "name": "Create Purchase Order",
+          "description": "Create a purchase order with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase Order",
+          "description": "Read, merge, and full-update purchase-order header fields"
+        },
+        {
+          "name": "Create Bill",
+          "description": "Create a vendor bill with optional Purchase Order line links without paying it"
+        },
+        {
+          "name": "Update Bill",
+          "description": "Read, merge, and full-update bill header fields using its current sync token"
+        },
+        {
+          "name": "Create Bill Payment",
+          "description": "Record a check or credit-card payment allocated to one or more bills"
+        },
+        {
+          "name": "Update Bill Payment",
+          "description": "Read, merge, and full-update a BillPayment without changing allocations"
+        },
+        {
+          "name": "Create Vendor Credit",
+          "description": "Create a vendor credit without applying it to a bill"
+        },
+        {
+          "name": "Update Vendor Credit",
+          "description": "Read, merge, and full-update vendor-credit header fields"
+        },
+        {
+          "name": "Create Purchase or Expense",
+          "description": "Record a cash, check, or credit-card purchase with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase or Expense",
+          "description": "Read, merge, and full-update purchase header fields without changing lines"
+        },
+        {
+          "name": "Read Accounting Transactions",
+          "description": "List or read one journal entry, deposit, or transfer"
+        },
+        {
+          "name": "Create Journal Entry",
+          "description": "Post a balanced journal entry after explicit confirmation"
+        },
+        {
+          "name": "Update Journal Entry",
+          "description": "Sparse-update journal-entry header fields after explicit confirmation"
+        },
+        {
+          "name": "Create Deposit",
+          "description": "Create a deposit with bounded account lines"
+        },
+        {
+          "name": "Update Deposit",
+          "description": "Sparse-update deposit header fields using the current sync token and destination account"
+        },
+        {
+          "name": "Run Financial Report",
+          "description": "Run a fixed QuickBooks financial report with verified accountant-focused filters"
+        },
+        {
+          "name": "Email Transaction",
+          "description": "Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery."
+        },
+        {
+          "name": "Download Transaction PDF",
+          "description": "Download a supported QuickBooks transaction as a bounded PDF file"
+        },
+        {
+          "name": "Read Attachments",
+          "description": "List attachment metadata for a fixed QuickBooks entity or read one attachment by ID"
+        },
+        {
+          "name": "Add Attachment",
+          "description": "Attach one supported file or one note to a fixed QuickBooks entity"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a QuickBooks file attachment as a stored Sim file"
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [
+        {
+          "id": "quickbooks_invoice_events",
+          "name": "QuickBooks Invoice Events",
+          "description": "Trigger when selected Invoice events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_customer_events",
+          "name": "QuickBooks Customer Events",
+          "description": "Trigger when selected Customer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_estimate_events",
+          "name": "QuickBooks Estimate Events",
+          "description": "Trigger when selected Estimate events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_payment_events",
+          "name": "QuickBooks Payment Events",
+          "description": "Trigger when selected Payment events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_credit_memo_events",
+          "name": "QuickBooks Credit Memo Events",
+          "description": "Trigger when selected Credit Memo events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_refund_receipt_events",
+          "name": "QuickBooks Refund Receipt Events",
+          "description": "Trigger when selected Refund Receipt events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_sales_receipt_events",
+          "name": "QuickBooks Sales Receipt Events",
+          "description": "Trigger when selected Sales Receipt events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_vendor_events",
+          "name": "QuickBooks Vendor Events",
+          "description": "Trigger when selected Vendor events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_bill_events",
+          "name": "QuickBooks Bill Events",
+          "description": "Trigger when selected Bill events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_bill_payment_events",
+          "name": "QuickBooks Bill Payment Events",
+          "description": "Trigger when selected Bill Payment events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_purchase_order_events",
+          "name": "QuickBooks Purchase Order Events",
+          "description": "Trigger when selected Purchase Order events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_purchase_events",
+          "name": "QuickBooks Purchase Events",
+          "description": "Trigger when selected Purchase events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_vendor_credit_events",
+          "name": "QuickBooks Vendor Credit Events",
+          "description": "Trigger when selected Vendor Credit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_deposit_events",
+          "name": "QuickBooks Deposit Events",
+          "description": "Trigger when selected Deposit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_entry_events",
+          "name": "QuickBooks Journal Entry Events",
+          "description": "Trigger when selected Journal Entry events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_transfer_events",
+          "name": "QuickBooks Transfer Events",
+          "description": "Trigger when selected Transfer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_item_events",
+          "name": "QuickBooks Item Events",
+          "description": "Trigger when selected Item events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_employee_events",
+          "name": "QuickBooks Employee Events",
+          "description": "Trigger when selected Employee events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_time_activity_events",
+          "name": "QuickBooks Time Activity Events",
+          "description": "Trigger when selected Time Activity events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_account_events",
+          "name": "QuickBooks Account Events",
+          "description": "Trigger when selected Account events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_budget_events",
+          "name": "QuickBooks Budget Events",
+          "description": "Trigger when selected Budget events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_class_events",
+          "name": "QuickBooks Class Events",
+          "description": "Trigger when selected Class events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_currency_events",
+          "name": "QuickBooks Currency Events",
+          "description": "Trigger when selected Currency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_department_events",
+          "name": "QuickBooks Department Events",
+          "description": "Trigger when selected Department events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_code_events",
+          "name": "QuickBooks Journal Code Events",
+          "description": "Trigger when selected Journal Code events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_payment_method_events",
+          "name": "QuickBooks Payment Method Events",
+          "description": "Trigger when selected Payment Method events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_preferences_updated",
+          "name": "QuickBooks Preferences Updated",
+          "description": "Trigger when QuickBooks Preferences are updated"
+        },
+        {
+          "id": "quickbooks_tax_agency_events",
+          "name": "QuickBooks Tax Agency Events",
+          "description": "Trigger when selected Tax Agency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_term_events",
+          "name": "QuickBooks Term Events",
+          "description": "Trigger when selected Term events occur in QuickBooks"
+        }
+      ],
+      "triggerCount": 29,
+      "authType": "oauth",
+      "oauthServiceId": "quickbooks",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "automation", "data-analytics"]
+    },
+    {
       "type": "quiver",
       "slug": "quiver",
       "name": "Quiver",
@@ -24367,9 +25011,13 @@
         {
           "name": "List Vault Items",
           "description": "List the credentials available from password managers connected to TinyFish, with the URIs an agent run can be scoped to"
+        },
+        {
+          "name": "List Browser Profiles",
+          "description": "List the Browser Context Profiles saved on the TinyFish account, with the ids an agent run can start from to reuse a logged-in session"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 9,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

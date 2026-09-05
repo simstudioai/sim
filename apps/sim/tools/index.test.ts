@@ -3061,6 +3061,57 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it('accepts an authoritative QuickBooks realmId only from credential resolution', async () => {
+    const toolId = 'test_quickbooks_realm_authority'
+    const credentialRealmId = '123456789'
+    const mockTool = {
+      id: toolId,
+      name: 'QuickBooks Realm Authority Test',
+      description: 'Verifies credential-derived QuickBooks company identity',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'quickbooks',
+        authoritativeParams: ['realmId'] as const,
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        realmId: { type: 'string', required: true, visibility: 'hidden' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) =>
+          `https://quickbooks.example.com/v3/company/${params.realmId}/companyinfo/${params.realmId}`,
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+    ;(tools as Record<string, unknown>)[toolId] = mockTool
+
+    try {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'quickbooks-token',
+        realmId: credentialRealmId,
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'quickbooks-credential',
+        realmId: '999999999',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        `https://quickbooks.example.com/v3/company/${credentialRealmId}/companyinfo/${credentialRealmId}`,
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, toolId)
+    }
+  })
+
   it('accepts credential-group provenance only from credential resolution', async () => {
     const toolId = 'test_credential_type_authority'
     const mockTool = {

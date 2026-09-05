@@ -1942,6 +1942,15 @@ async function executeToolImplementation(
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
         }
+        if (data.realmId && tool.oauth?.authoritativeParams?.includes('realmId')) {
+          contextParams.realmId = data.realmId
+        }
+        if (
+          data.quickBooksEnvironment &&
+          tool.oauth?.authoritativeParams?.includes('quickBooksEnvironment')
+        ) {
+          contextParams.quickBooksEnvironment = data.quickBooksEnvironment
+        }
         if (data.authStyle && !contextParams.authStyle) {
           contextParams.authStyle = data.authStyle
         }

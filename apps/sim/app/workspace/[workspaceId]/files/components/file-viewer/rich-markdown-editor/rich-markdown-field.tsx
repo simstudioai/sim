@@ -217,6 +217,7 @@ function LoadedRichMarkdownField({
       pasteAdmission: {
         maxResultBytes: PASTE_LIMITS.RICH_MARKDOWN_BYTES,
         getCurrentText: () => lastSyncedBodyRef.current,
+        getFrontmatter: () => frontmatterRef.current,
         onRejected: warnRichMarkdownPasteLimit,
       },
     })

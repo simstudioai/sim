@@ -117,12 +117,10 @@ describe('browser permission prompt', () => {
 
   it('describes the scope and consequence of site and media access', () => {
     expect(browserPermissionPrompt(siteRequest)).toEqual({
-      title: 'Allow this browser task to visit https://outside.example?',
-      text: expect.stringContaining('send requests to and receive data from this origin'),
+      title: 'Open another website?',
+      text: expect.stringContaining('This page wants to open https://outside.example.'),
     })
-    expect(browserPermissionPrompt(siteRequest).text).toContain(
-      'the full path and query remain hidden'
-    )
+    expect(browserPermissionPrompt(siteRequest).text).toContain('for the rest of this browser task')
     expect(browserPermissionPrompt(mediaRequest)).toEqual({
       title: 'Allow https://meeting.example to use your microphone and camera?',
       text: expect.stringContaining('until it navigates'),
@@ -144,10 +142,9 @@ describe('browser permission prompt', () => {
     expect(dialog).not.toBeNull()
     const labelledBy = dialog?.getAttribute('aria-labelledby')
     expect(labelledBy).toBeTruthy()
-    expect(document.getElementById(labelledBy ?? '')?.textContent).toBe(
-      'Allow this browser task to visit https://outside.example?'
-    )
-    expect(dialog?.textContent).toContain('the full path and query remain hidden')
+    expect(document.getElementById(labelledBy ?? '')?.textContent).toBe('Open another website?')
+    expect(dialog?.textContent).toContain('https://outside.example')
+    expect(dialog?.textContent).toContain('for the rest of this browser task')
     expect(document.querySelector('[data-native-surface-occlusion="modal"]')).not.toBeNull()
     expect(document.querySelector('[data-chip-modal-default-policy="dismiss"]')).not.toBeNull()
     expect(document.activeElement).toBe(buttonByText('Block'))
@@ -155,6 +152,22 @@ describe('browser permission prompt', () => {
     act(() => buttonByText('Block').click())
     expect(onDecision).toHaveBeenCalledOnce()
     expect(onDecision).toHaveBeenCalledWith(siteRequest.requestId, 'respond-site-permission', false)
+  })
+
+  it('keeps long destinations in the wrapping body instead of the truncated title', () => {
+    const origin = `https://${'a'.repeat(63)}.${'b'.repeat(63)}.example`
+    mount(
+      createElement(BrowserPermissionModal, {
+        request: { ...siteRequest, origin },
+        open: true,
+        onDecision: vi.fn(),
+      })
+    )
+    const dialog = document.querySelector('[role="dialog"]')
+    const descriptionId = dialog?.getAttribute('aria-describedby')
+    const description = document.getElementById(descriptionId ?? '')
+    expect(description?.textContent).toContain(origin)
+    expect(description?.classList.contains('break-words')).toBe(true)
   })
 
   it('makes Allow an explicit primary decision', () => {

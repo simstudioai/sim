@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   activeElementSecrecy,
   clickElement,
@@ -8,11 +8,13 @@ import {
   describeFocusedEditable,
   describePointTarget,
   focusElementForTyping,
+  getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
+  readCheckableElementState,
   readChildFrameElementState,
   readPageActionState,
   readPageText,
@@ -150,6 +152,7 @@ describe('serialization contract', () => {
     ],
     ['pressKeyOnPage', pressKeyOnPage, ['a', 'KeyA', 65, false, false, false, false]],
     ['readPageActionState', readPageActionState, []],
+    ['readCheckableElementState', readCheckableElementState, [0]],
     ['scrollPage', scrollPage, ['down', 100]],
     ['selectOptionInElement', selectOptionInElement, [0, 'value']],
     ['readSelectElementState', readSelectElementState, [0]],
@@ -157,6 +160,7 @@ describe('serialization contract', () => {
     ['readPageText', readPageText, []],
     ['pageContainsText', pageContainsText, ['needle']],
     ['getViewportInfo', getViewportInfo, []],
+    ['getElementScreenshotRect', getElementScreenshotRect, [0]],
     ['describePointTarget', describePointTarget, [10, 10]],
     ['describeFocusedEditable', describeFocusedEditable, []],
   ]
@@ -625,6 +629,32 @@ describe('collectSnapshot', () => {
     expect(outlineOf(collectSnapshot())).toContain('gridcell "party-parrot"')
   })
 
+  it('reports native and ARIA control state in the snapshot', () => {
+    document.body.innerHTML = `
+      <input type="checkbox" aria-label="Email alerts" />
+      <input type="radio" aria-label="Weekly" checked />
+      <input type="checkbox" aria-label="Partial selection" />
+      <button aria-expanded="false" aria-pressed="true">Filters</button>
+      <div role="switch" aria-label="Dark mode" aria-checked="mixed"></div>
+      <div role="tab" aria-selected="true">Activity</div>
+      <textarea aria-label="Notes" readonly required></textarea>
+      <div role="textbox" aria-label="Summary" aria-readonly="true" aria-required="true"></div>
+    `
+    for (const element of document.body.children) visible(element as HTMLElement)
+    document.querySelector<HTMLInputElement>('[aria-label="Partial selection"]')!.indeterminate =
+      true
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toMatch(/checkbox "Email alerts" \[ref=\d+\] unchecked/)
+    expect(outline).toMatch(/radio "Weekly" \[ref=\d+\] checked/)
+    expect(outline).toMatch(/checkbox "Partial selection" \[ref=\d+\] mixed/)
+    expect(outline).toMatch(/button "Filters" \[ref=\d+\] aria-expanded=false aria-pressed=true/)
+    expect(outline).toMatch(/switch "Dark mode" \[ref=\d+\] aria-checked=mixed/)
+    expect(outline).toMatch(/tab "Activity" \[ref=\d+\] aria-selected=true/)
+    expect(outline).toMatch(/textbox "Notes" \[ref=\d+\] readonly required/)
+    expect(outline).toMatch(/textbox "Summary" \[ref=\d+\] aria-readonly aria-required/)
+  })
+
   it('does not duplicate every descendant of an inherited pointer target', () => {
     document.body.innerHTML = `
       <div style="cursor: pointer">
@@ -920,6 +950,305 @@ describe('collectSnapshot', () => {
     const after = readPageActionState(false, ref) as { targetState: unknown }
 
     expect(after.targetState).toEqual(before.targetState)
+  })
+})
+
+describe('semantic control state', () => {
+  it('scopes a fresh snapshot to one card without reading sibling geometry', () => {
+    document.body.innerHTML =
+      '<div role="group" tabindex="0" aria-label="Selected card"><button>Save card</button><input type="password" value="private" /></div><button>Outside card</button>'
+    for (const element of document.querySelectorAll('*')) visible(element)
+    const full = outlineOf(collectSnapshot())
+    const oldRootRef = refFor(full, 'Selected card')
+    const outside = document.querySelector('body > button')!
+    const outsideGeometry = vi.spyOn(outside, 'getBoundingClientRect')
+
+    const scoped = runSerialized(collectSnapshot, [100, oldRootRef]) as {
+      scoped: boolean
+      outline: string
+      refIds: number[]
+    }
+    expect(scoped.scoped).toBe(true)
+    expect(scoped.outline).toContain('Selected card')
+    expect(scoped.outline).toContain('Save card')
+    expect(scoped.outline).not.toContain('Outside card')
+    expect(scoped.outline).not.toContain('private')
+    expect(scoped.refIds.every((id) => id >= 100)).toBe(true)
+    expect(window.__simAgentResolveElement?.(oldRootRef)).toBeNull()
+    expect(outsideGeometry).not.toHaveBeenCalled()
+  })
+
+  it('rejects stale or framed snapshot roots without replacing the page registry', () => {
+    const button = document.createElement('button')
+    document.body.append(visible(button))
+    register(button)
+    button.remove()
+    expect(collectSnapshot(10, 0)).toMatchObject({ error: 'stale' })
+    expect(window.__simAgentElements?.[0]).toBe(button)
+
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const child = frame.contentDocument!.createElement('button')
+    frame.contentDocument!.body.append(visible(child))
+    register(child)
+    expect(collectSnapshot(10, 0)).toEqual({ error: 'framed-snapshot' })
+  })
+
+  it.each(['detached', 'hidden', 'renamed'])(
+    'rejects a %s root before scoped capture without adopting a lookalike',
+    (change) => {
+      document.body.innerHTML =
+        '<div id="card" tabindex="0" aria-label="Selected card"><button>Save card</button></div>'
+      for (const element of document.querySelectorAll('*')) visible(element)
+      const root = document.querySelector('#card')!
+      const rootRef = refFor(outlineOf(collectSnapshot()), 'Selected card')
+      const replacement = root.cloneNode(true) as HTMLElement
+      for (const element of [replacement, ...replacement.querySelectorAll('*')]) visible(element)
+      if (change === 'detached') root.replaceWith(replacement)
+      else {
+        root.after(replacement)
+        if (change === 'hidden') root.setAttribute('hidden', '')
+        else root.setAttribute('aria-label', 'Different card')
+      }
+
+      expect(runSerialized(collectSnapshot, [100, rootRef])).toMatchObject({ error: 'stale' })
+      expect(window.__simAgentElements?.[rootRef]).toBe(root)
+      expect(runSerialized(collectSnapshot, [100, rootRef])).toMatchObject({ error: 'stale' })
+    }
+  )
+
+  it('marks unreadable scoped frame content truncated', () => {
+    const root = visible(document.createElement('div'))
+    const frame = visible(document.createElement('iframe'))
+    root.append(frame)
+    document.body.append(root)
+    register(root)
+    Object.defineProperty(frame, 'contentDocument', { value: null })
+    expect(collectSnapshot(10, 0)).toMatchObject({ scoped: true, truncated: true })
+  })
+
+  it('does not recover scoped refs into a different card after the original closes', () => {
+    document.body.innerHTML =
+      '<div tabindex="0" aria-label="Selected card"><button id="save">Save card</button></div>'
+    for (const element of document.querySelectorAll('*')) visible(element)
+    const root = document.querySelector('body > div')!
+    const rootRef = refFor(outlineOf(collectSnapshot()), 'Selected card')
+    const saveRef = refFor(outlineOf(collectSnapshot(10, rootRef)), 'Save card')
+    const replacement = root.cloneNode(true) as HTMLElement
+    for (const element of [replacement, ...replacement.querySelectorAll('*')]) visible(element)
+    root.replaceWith(replacement)
+
+    expect(window.__simAgentResolveElement?.(saveRef)).toBeNull()
+    expect(window.__simAgentStaleReason).toContain('scoped snapshot root')
+  })
+
+  it('keeps scoped snapshots bounded when a selected container is very large', () => {
+    const root = document.createElement('div')
+    root.tabIndex = 0
+    root.setAttribute('aria-label', 'Large card')
+    document.body.append(visible(root))
+    register(root)
+    for (let index = 0; index < 400; index++) {
+      const button = visible(document.createElement('button'))
+      button.textContent = `Action ${index}`
+      root.append(button)
+    }
+    const scoped = collectSnapshot(10, 0) as { refIds: number[]; truncated: boolean }
+    expect(scoped.refIds).toHaveLength(300)
+    expect(scoped.truncated).toBe(true)
+  })
+
+  it('distinguishes hidden registered nodes from detached nodes without action recovery', () => {
+    const button = visible(document.createElement('button'))
+    document.body.append(button)
+    register(button)
+    window.__simAgentResolveElement = vi.fn(() => null)
+    button.style.display = 'none'
+
+    expect(readPageActionState(false, 0, 'registered')).toMatchObject({
+      targetState: { present: true, rendered: false },
+    })
+    button.remove()
+    expect(readPageActionState(false, 0, 'registered')).toMatchObject({
+      targetState: { present: false, rendered: false },
+    })
+    expect(window.__simAgentResolveElement).not.toHaveBeenCalled()
+  })
+
+  it('does not report a text input as an unchecked control', () => {
+    const input = visible(document.createElement('input'))
+    document.body.append(input)
+    register(input)
+
+    expect(readPageActionState(false, 0, 'registered')).toMatchObject({
+      targetState: { present: true, checked: undefined },
+    })
+    expect(readPageActionState(false, 1, 'registered')).toEqual({ error: 'stale' })
+  })
+
+  it.each([true, false])(
+    'reports native disclosure state as %s without inventing it on other elements',
+    (open) => {
+      document.body.innerHTML =
+        '<details><summary>Details</summary></details><dialog></dialog><button>Other</button>'
+      const details = document.querySelector('details')!
+      const dialog = document.querySelector('dialog')!
+      details.open = open
+      dialog.open = open
+      const elements = [
+        details,
+        document.querySelector('summary')!,
+        dialog,
+        document.querySelector('button')!,
+      ]
+      register(...elements.map(visible))
+      for (let id = 0; id < elements.length; id++) {
+        expect(runSerialized(readPageActionState, [false, id, 'registered'])).toMatchObject({
+          targetState: { open: id === 3 ? undefined : open },
+        })
+      }
+    }
+  )
+
+  it.each(['checkbox', 'radio'])('reads native %s state with XHTML tag casing', (type) => {
+    const input = visible(document.createElement('input'))
+    input.type = type
+    input.checked = true
+    Object.defineProperty(input, 'tagName', { value: 'input' })
+    document.body.append(input)
+    register(input)
+
+    expect(runSerialized(readPageActionState, [false, 0, 'registered'])).toMatchObject({
+      targetState: { checked: true },
+    })
+  })
+
+  it('preserves native and ARIA mixed states instead of reporting unchecked', () => {
+    document.body.innerHTML =
+      '<input type="checkbox" /><div role="checkbox" aria-checked="mixed"></div>'
+    const checkbox = visible(document.querySelector('input') as HTMLInputElement)
+    checkbox.indeterminate = true
+    register(checkbox, visible(document.querySelector('div') as HTMLDivElement))
+
+    expect(readCheckableElementState(0)).toMatchObject({ checked: 'mixed' })
+    expect(readCheckableElementState(1)).toMatchObject({ checked: 'mixed' })
+  })
+
+  it('honors disabled fieldsets and ARIA-disabled ancestors', () => {
+    document.body.innerHTML =
+      '<fieldset disabled><input type="checkbox" /></fieldset><div aria-disabled="true"><button role="switch" aria-checked="false"></button></div>'
+    register(
+      visible(document.querySelector('input') as HTMLInputElement),
+      visible(document.querySelector('button') as HTMLButtonElement)
+    )
+
+    expect(readCheckableElementState(0)).toMatchObject({ disabled: true })
+    expect(readCheckableElementState(1)).toMatchObject({ disabled: true })
+  })
+
+  it.each([true, false])(
+    'reads ARIA-disabled=%s across shadow boundaries for waits and checked state',
+    (disabled) => {
+      const host = visible(document.createElement('div'))
+      host.setAttribute('aria-disabled', String(disabled))
+      const nestedHost = visible(document.createElement('div'))
+      host.attachShadow({ mode: 'open' }).append(nestedHost)
+      const checkbox = visible(document.createElement('input'))
+      checkbox.type = 'checkbox'
+      nestedHost.attachShadow({ mode: 'open' }).append(checkbox)
+      document.body.append(host)
+      register(checkbox)
+
+      expect(runSerialized(readCheckableElementState, [0])).toMatchObject({ disabled })
+      expect(runSerialized(readPageActionState, [false, 0, 'registered'])).toMatchObject({
+        targetState: { disabled },
+      })
+    }
+  )
+
+  it('reads native and ARIA checkable controls without mutating them', () => {
+    document.body.innerHTML = `
+      <input type="checkbox" checked />
+      <button role="switch" aria-checked="false" aria-disabled="true">Alerts</button>
+    `
+    const checkbox = visible(document.querySelector('input') as HTMLInputElement)
+    const toggle = visible(document.querySelector('button') as HTMLButtonElement)
+    register(checkbox, toggle)
+
+    expect(readCheckableElementState(0)).toMatchObject({
+      checked: true,
+      disabled: false,
+      kind: 'input:checkbox',
+    })
+    expect(readCheckableElementState(1)).toMatchObject({
+      checked: false,
+      disabled: true,
+      kind: 'role:switch',
+    })
+    expect(checkbox.checked).toBe(true)
+  })
+
+  it('returns a viewport-clamped element screenshot rectangle', () => {
+    const button = visible(document.createElement('button'))
+    button.scrollIntoView = vi.fn()
+    button.getBoundingClientRect = () =>
+      ({
+        x: -10,
+        y: 5,
+        width: 120,
+        height: 20,
+        top: 5,
+        left: -10,
+        right: 110,
+        bottom: 25,
+      }) as DOMRect
+    document.body.append(button)
+    register(button)
+
+    expect(getElementScreenshotRect(0)).toMatchObject({
+      x: 0,
+      y: 5,
+      width: 110,
+      height: 20,
+      element: 'button',
+    })
+    expect(button.scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('rejects a replacement screenshot target even when its geometry matches', () => {
+    const button = visible(document.createElement('button'))
+    button.id = 'save'
+    button.textContent = 'Save'
+    document.body.append(button)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Save')
+    expect(getElementScreenshotRect(ref)).toMatchObject({ width: 100, height: 20 })
+    button.replaceWith(visible(button.cloneNode(true) as HTMLElement))
+
+    expect(runSerialized(getElementScreenshotRect, [ref])).toMatchObject({ error: 'stale' })
+    expect(window.__simAgentElements?.[ref]).toBe(button)
+  })
+
+  it('rejects same-origin frame crops rather than using frame-local coordinates', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const button = frame.contentDocument!.createElement('button')
+    frame.contentDocument!.body.append(button)
+    register(visible(button))
+
+    expect(getElementScreenshotRect(0)).toEqual({ error: 'framed-screenshot' })
+    expect(readPageActionState(false, 0, 'registered')).toEqual({ error: 'framed-wait' })
+  })
+
+  it('does not scroll an offscreen element into view for a screenshot', () => {
+    const button = visible(document.createElement('button'))
+    button.scrollIntoView = vi.fn()
+    document.body.append(button)
+    button.getBoundingClientRect = () =>
+      ({ left: 0, right: 20, top: 5000, bottom: 5020, width: 20, height: 20 }) as DOMRect
+    register(button)
+
+    expect(getElementScreenshotRect(0)).toEqual({ error: 'not-visible' })
+    expect(button.scrollIntoView).not.toHaveBeenCalled()
   })
 })
 

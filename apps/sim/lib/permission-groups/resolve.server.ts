@@ -22,6 +22,7 @@ import {
   isAccessControlEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -90,11 +91,19 @@ function inactiveUserAccessControlContext(organizationId: string | null): UserAc
   }
 }
 
-/** The organization's single default group (`isDefault`), or `null`. */
+/**
+ * The organization's single default group (`isDefault`), or `null`.
+ *
+ * The executor is required, not defaulted: a caller that must read the group
+ * under `acquirePermissionGroupOrgLock` has to read it on the transaction's own
+ * connection, and a default would let that caller silently check out a second
+ * pooled connection while advisory locks are held.
+ */
 async function resolveDefaultGroup(
-  organizationId: string
+  organizationId: string,
+  executor: DbOrTx
 ): Promise<ResolvedPermissionGroup | null> {
-  const [defaultGroup] = await db
+  const [defaultGroup] = await executor
     .select({
       id: permissionGroup.id,
       name: permissionGroup.name,
@@ -181,7 +190,7 @@ export async function resolveWorkspaceGroup(
     }
   }
 
-  return resolveDefaultGroup(organizationId)
+  return resolveDefaultGroup(organizationId, db)
 }
 
 /**
@@ -281,16 +290,50 @@ export async function getUserPermissionConfig(
 export async function getUserPermissionConfigForOrganization(
   organizationId: string
 ): Promise<PermissionGroupConfig | null> {
-  if (!isHosted && !isAccessControlEnabled) {
+  if (!(await isOrganizationPermissionRegimeActive(organizationId))) {
     return mergeEnvAllowlist(null)
   }
+  return getEntitledOrganizationPermissionConfig(organizationId, db)
+}
 
-  /** `'throw'` for the same reason as in {@link resolveUserAccessControlContextForOrganization}. */
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId, 'throw')
-  if (!isEnterprise) {
-    return mergeEnvAllowlist(null)
-  }
+/**
+ * Whether permission groups govern `organizationId` at all — the deployment
+ * enables Access Control, and the organization holds the Enterprise entitlement
+ * that turns the regime on.
+ *
+ * Split out of {@link getUserPermissionConfigForOrganization} so a caller that
+ * must re-read the *group* under `acquirePermissionGroupOrgLock` can settle this
+ * half BEFORE opening its transaction. The entitlement read cannot move into a
+ * transaction: {@link isOrganizationOnEnterprisePlan} is `cache()`d on its
+ * argument list, so it admits no executor, and giving it one would both miss the
+ * memo on every call and — because an unentitled organization resolves to
+ * `config: null`, meaning every capability ALLOWED — turn a read failure into a
+ * fail-open. The lock never serialized this half either way: it guards
+ * permission-group writes, not subscription changes.
+ *
+ * `'throw'` for the same reason as in
+ * {@link resolveUserAccessControlContextForOrganization}.
+ */
+export async function isOrganizationPermissionRegimeActive(
+  organizationId: string
+): Promise<boolean> {
+  if (!isHosted && !isAccessControlEnabled) return false
+  return isOrganizationOnEnterprisePlan(organizationId, 'throw')
+}
 
-  const resolved = await resolveDefaultGroup(organizationId)
+/**
+ * The organization-level permission config for an organization already known to
+ * be governed — the second half of {@link getUserPermissionConfigForOrganization},
+ * callable on a transaction executor.
+ *
+ * Callers MUST have established {@link isOrganizationPermissionRegimeActive}
+ * first; this function does not re-check entitlement, and reading it as though
+ * it did would apply an unentitled organization's stale default group.
+ */
+export async function getEntitledOrganizationPermissionConfig(
+  organizationId: string,
+  executor: DbOrTx
+): Promise<PermissionGroupConfig | null> {
+  const resolved = await resolveDefaultGroup(organizationId, executor)
   return mergeEnvAllowlist(resolved?.config ?? null)
 }

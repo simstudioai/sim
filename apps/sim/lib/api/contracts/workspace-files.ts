@@ -58,6 +58,8 @@ export const updateWorkspaceFileContentBodySchema = z
   .object({
     content: z.string().max(70_000_000, 'Content is too large'),
     encoding: z.enum(['base64', 'utf-8']).optional(),
+    /** The content-version timestamp returned with the bytes this edit was based on. */
+    expectedUpdatedAt: z.iso.datetime().optional(),
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -95,6 +97,8 @@ export const createWorkspaceFileBodySchema = z
 
 export type CreateWorkspaceFileBody = z.input<typeof createWorkspaceFileBodySchema>
 
+export type UpdateWorkspaceFileContentBody = z.input<typeof updateWorkspaceFileContentBodySchema>
+
 /** No real image approaches this; the bound rejects absurd or hostile values on the backfill path. */
 const IMAGE_DIMENSION_MAX = 100_000
 
@@ -131,6 +135,8 @@ export const workspaceFileRecordSchema = z.object({
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  /** Advances only when file bytes change; metadata edits do not invalidate text drafts. */
+  contentUpdatedAt: z.coerce.date().nullable().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
   share: shareRecordSchema.nullable().optional(),
 })

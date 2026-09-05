@@ -94,6 +94,7 @@ export const ShortInput = memo(function ShortInput({
     triggerId: undefined,
     isPreview,
     useWebhookUrl,
+    providerWebhookUrl: config.providerWebhookUrl,
   })
 
   const wandHook = useWand({
@@ -214,7 +215,9 @@ export const ShortInput = memo(function ShortInput({
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
 
   const effectiveValue =
-    useWebhookUrl && webhookManagement.webhookUrl ? webhookManagement.webhookUrl : baseValue
+    (useWebhookUrl || config.providerWebhookUrl) && webhookManagement.webhookUrl
+      ? webhookManagement.webhookUrl
+      : baseValue
 
   const value = wandHook?.isStreaming ? localContent : effectiveValue
 
@@ -336,7 +339,7 @@ export const ShortInput = memo(function ShortInput({
           }) => {
             const actualValue = wandHook.isStreaming
               ? localContent
-              : useWebhookUrl && webhookManagement.webhookUrl
+              : (useWebhookUrl || config.providerWebhookUrl) && webhookManagement.webhookUrl
                 ? webhookManagement.webhookUrl
                 : ctrlValue
             const actualValueString = actualValue ?? ''

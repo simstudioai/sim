@@ -5,6 +5,7 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { type KnowledgeAccessScope, WORKSPACE_ACCESS_TOKENS } from '@/lib/knowledge/access/types'
+import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
 import {
   coerceTagFilterValue,
@@ -12,6 +13,7 @@ import {
   uncompilableTagFilterError,
 } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
+import { embeddingDistance } from '@/lib/knowledge/vector-columns'
 
 const logger = createLogger('KnowledgeSearchQueries')
 
@@ -164,13 +166,25 @@ export interface SearchResult {
   sourceModifiedAt: Date | null
 }
 
+/**
+ * A query embedding and the width it was produced at. The two travel together
+ * because the width selects both the pgvector column the comparison reads and
+ * the index form it has to be written in; a vector without it cannot be
+ * compared against anything.
+ */
+export interface KnowledgeQueryVector {
+  /** JSON array literal of the embedding, in pgvector's text input format. */
+  vector: string
+  dimensions: KbEmbeddingDimensions
+}
+
 export interface SearchParams {
   knowledgeBaseIds: string[]
   topK: number
   /** What the caller may read; every leg applies it. Required so no leg can be written without it. */
   access: KnowledgeAccessScope
   structuredFilters?: StructuredFilter[]
-  queryVector?: string
+  queryVector?: KnowledgeQueryVector
   distanceThreshold?: number
 }
 
@@ -449,7 +463,7 @@ async function executeTagFilterQuery(
 
 async function executeVectorSearchOnIds(
   embeddingIds: string[],
-  queryVector: string,
+  queryVector: KnowledgeQueryVector,
   topK: number,
   distanceThreshold: number,
   access: KnowledgeAccessScope
@@ -458,23 +472,20 @@ async function executeVectorSearchOnIds(
     return []
   }
 
+  const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
   const rows = await withVectorScanSettings(access, topK, (executor) =>
     executor
-      .select(
-        getSearchResultFields(
-          sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
-        )
-      )
+      .select(getSearchResultFields(distance.as('distance')))
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
         and(
           inArray(embedding.id, embeddingIds),
           ...getVisibilityConditions(access),
-          sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
+          sql`${distance} < ${distanceThreshold}`
         )
       )
-      .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
+      .orderBy(distance)
       .limit(topK)
   )
   return rows.sort((a, b) => a.distance - b.distance)
@@ -535,20 +546,17 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 
   const strategy = getQueryStrategy(knowledgeBaseIds.length, topK)
 
-  const distanceExpr = sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
+  const distance = embeddingDistance(queryVector.dimensions, queryVector.vector)
+  const distanceExpr = distance.as('distance')
   const vectorLeg = (executor: SearchExecutor, kbScope: SQL | undefined, limit: number) =>
     executor
       .select(getSearchResultFields(distanceExpr))
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
-        and(
-          kbScope,
-          ...getVisibilityConditions(access),
-          sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
-        )
+        and(kbScope, ...getVisibilityConditions(access), sql`${distance} < ${distanceThreshold}`)
       )
-      .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
+      .orderBy(distance)
       .limit(limit)
 
   /**
@@ -579,7 +587,7 @@ export interface KeywordSearchParams {
   access: KnowledgeAccessScope
   query: string
   /** Query embedding, so keyword-only hits still carry a real cosine distance. */
-  queryVector: string
+  queryVector: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
 }
 
@@ -600,8 +608,8 @@ export interface KeywordSearchParams {
  * fusion is combining rankings taken over differently-shaped pools.
  *
  * Ranking and hydration are two steps on purpose. Projecting the cosine
- * distance in the ranking query makes Postgres detoast the 1536-dimension
- * vector and compute a distance for *every* full-text match before the `LIMIT`
+ * distance in the ranking query makes Postgres detoast the chunk's vector and
+ * compute a distance for *every* full-text match before the `LIMIT`
  * applies — work that scales with how common the query term is rather than
  * with `topK` (measured at ~59x the buffer reads on a 20k-chunk base for a term
  * matching every row). Ranking therefore touches no vectors, and only the rows
@@ -660,7 +668,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
   const hydrated = await db
     .select(
       getSearchResultFields(
-        sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
+        embeddingDistance(queryVector.dimensions, queryVector.vector).as('distance')
       )
     )
     .from(embedding)
@@ -796,7 +804,7 @@ export interface ExecuteKnowledgeSearchParams {
   boostRecency?: boolean
   query?: string
   /** Required whenever `query` is present. */
-  queryVector?: string
+  queryVector?: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
 }
 

@@ -1,6 +1,7 @@
 import { listCredentialGroupSettings } from '@/lib/credential-groups/application/manage-groups'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { listInternalCredentials } from '@/lib/credentials/application/credential-crud'
+import { fetchOllamaEmbeddingModelCatalog } from '@/lib/embeddings/ollama-model-catalog.server'
 import { fetchOpenRouterEmbeddingModelCatalog } from '@/lib/embeddings/openrouter-model-catalog.server'
 import { getEffectiveEnvironmentVariableNames } from '@/lib/environment/utils'
 import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
@@ -293,6 +294,27 @@ export const internalSelectorAttachments = {
         sandboxes
           .filter((sandbox) => !language || language === 'shell' || sandbox.language === language)
           .map((sandbox) => ({ id: sandbox.id, label: sandbox.name }))
+      )
+    },
+  },
+  'providers.ollamaEmbeddingModels': {
+    destination: 'fixed',
+    async execute(args: ExecuteServerSelectorArgs) {
+      if (isProviderBlacklisted('ollama')) return listSelectorResult([])
+      const models = await fetchOllamaEmbeddingModelCatalog(args.signal)
+      return listSelectorResult(
+        filterBlacklistedModels(models.map((model) => model.id)).map((id) => {
+          const dimensions = models.find((model) => model.id === id)?.dimensions
+          return {
+            id,
+            /**
+             * The width is in the label because matching it to
+             * `EMBEDDING_OUTPUT_DIMS` is the operator's job and Ollama is the one
+             * provider whose widths Sim cannot know ahead of time.
+             */
+            label: dimensions === undefined ? id : `${id} (${dimensions})`,
+          }
+        })
       )
     },
   },

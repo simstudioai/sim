@@ -9,8 +9,10 @@ import { awsIamDeleteRoleContract } from '@/lib/api/contracts/tools/aws/iam-dele
 import { awsIamDeleteUserContract } from '@/lib/api/contracts/tools/aws/iam-delete-user'
 import { awsIamDetachRolePolicyContract } from '@/lib/api/contracts/tools/aws/iam-detach-role-policy'
 import { awsIamDetachUserPolicyContract } from '@/lib/api/contracts/tools/aws/iam-detach-user-policy'
+import { awsIamGetPolicyContract } from '@/lib/api/contracts/tools/aws/iam-get-policy'
 import { awsIamGetRoleContract } from '@/lib/api/contracts/tools/aws/iam-get-role'
 import { awsIamGetUserContract } from '@/lib/api/contracts/tools/aws/iam-get-user'
+import { awsIamListAccessKeysContract } from '@/lib/api/contracts/tools/aws/iam-list-access-keys'
 import { awsIamListAttachedRolePoliciesContract } from '@/lib/api/contracts/tools/aws/iam-list-attached-role-policies'
 import { awsIamListAttachedUserPoliciesContract } from '@/lib/api/contracts/tools/aws/iam-list-attached-user-policies'
 import { awsIamListGroupsContract } from '@/lib/api/contracts/tools/aws/iam-list-groups'
@@ -19,6 +21,7 @@ import { awsIamListRolesContract } from '@/lib/api/contracts/tools/aws/iam-list-
 import { awsIamListUsersContract } from '@/lib/api/contracts/tools/aws/iam-list-users'
 import { awsIamRemoveUserFromGroupContract } from '@/lib/api/contracts/tools/aws/iam-remove-user-from-group'
 import { awsIamSimulatePrincipalPolicyContract } from '@/lib/api/contracts/tools/aws/iam-simulate-principal-policy'
+import { awsIamUpdateAccessKeyContract } from '@/lib/api/contracts/tools/aws/iam-update-access-key'
 import {
   executeIamAddUserToGroup,
   executeIamAttachRolePolicy,
@@ -31,8 +34,10 @@ import {
   executeIamDeleteUser,
   executeIamDetachRolePolicy,
   executeIamDetachUserPolicy,
+  executeIamGetPolicy,
   executeIamGetRole,
   executeIamGetUser,
+  executeIamListAccessKeys,
   executeIamListAttachedRolePolicies,
   executeIamListAttachedUserPolicies,
   executeIamListGroups,
@@ -41,6 +46,7 @@ import {
   executeIamListUsers,
   executeIamRemoveUserFromGroup,
   executeIamSimulatePrincipalPolicy,
+  executeIamUpdateAccessKey,
 } from '@/lib/internal/iam/operations'
 import { executeInternalJsonToolOperation } from '@/lib/internal/tool-operations/execute-json-operation'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
@@ -137,6 +143,14 @@ export const executeIamTool: InternalToolOperationHandler = async ({ toolId, inp
         'Failed to detach user policy',
         signal
       )
+    case 'iam_get_policy':
+      return executeInternalJsonToolOperation(
+        awsIamGetPolicyContract,
+        input,
+        executeIamGetPolicy,
+        'Failed to get IAM policy',
+        signal
+      )
     case 'iam_get_role':
       return executeInternalJsonToolOperation(
         awsIamGetRoleContract,
@@ -151,6 +165,14 @@ export const executeIamTool: InternalToolOperationHandler = async ({ toolId, inp
         input,
         executeIamGetUser,
         'Failed to get IAM user',
+        signal
+      )
+    case 'iam_list_access_keys':
+      return executeInternalJsonToolOperation(
+        awsIamListAccessKeysContract,
+        input,
+        executeIamListAccessKeys,
+        'Failed to list access keys',
         signal
       )
     case 'iam_list_attached_role_policies':
@@ -215,6 +237,14 @@ export const executeIamTool: InternalToolOperationHandler = async ({ toolId, inp
         input,
         executeIamSimulatePrincipalPolicy,
         'Failed to simulate principal policy',
+        signal
+      )
+    case 'iam_update_access_key':
+      return executeInternalJsonToolOperation(
+        awsIamUpdateAccessKeyContract,
+        input,
+        executeIamUpdateAccessKey,
+        'Failed to update access key',
         signal
       )
     default:

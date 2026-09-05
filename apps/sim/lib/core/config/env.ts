@@ -293,7 +293,8 @@ export const env = createEnv({
     AZURE_ANTHROPIC_API_KEY:               z.string().min(1).optional(),           // Azure Anthropic API key
     AZURE_ANTHROPIC_API_VERSION:           z.string().min(1).optional(),           // Azure Anthropic API version (e.g. 2023-06-01)
     KB_OPENAI_MODEL_NAME:                  z.string().optional(),                  // Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set).
-    KB_EMBEDDING_MODEL:                    z.string().optional(),                  // Embedding model used for all new knowledge bases. Must be one of the supported model ids; defaults to text-embedding-3-small.
+    KB_EMBEDDING_MODEL:                    z.string().optional(),                  // Embedding model used for all new knowledge bases. Must be one of the supported model ids, or `ollama/<model>` for a model on OLLAMA_URL; defaults to text-embedding-3-small.
+    EMBEDDING_OUTPUT_DIMS:                 z.coerce.number().int().positive().optional(), // Vector width new knowledge bases are stored at. One of 384, 768, 1024, 1536, 3072, and the configured KB_EMBEDDING_MODEL must emit it; anything else falls back to 1536.
     WAND_OPENAI_MODEL_NAME:                z.string().optional(),                  // Wand generation OpenAI model name (works with both regular OpenAI and Azure OpenAI)
     OCR_AZURE_ENDPOINT:                    z.string().url().optional(),            // Azure Mistral OCR service endpoint
     OCR_AZURE_MODEL_NAME:                  z.string().optional(),                  // Azure Mistral OCR model name for document processing

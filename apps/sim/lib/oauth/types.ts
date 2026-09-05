@@ -78,6 +78,7 @@ export type OAuthProvider =
   | 'asana'
   | 'attio'
   | 'pipedrive'
+  | 'quickbooks'
   | 'hubspot'
   | 'harmonic'
   | 'salesforce'
@@ -138,6 +139,7 @@ export type OAuthService =
   | 'asana'
   | 'attio'
   | 'pipedrive'
+  | 'quickbooks'
   | 'hubspot'
   | 'harmonic'
   | 'salesforce'
@@ -162,6 +164,15 @@ export interface OAuthProviderConfig {
 }
 
 export type OAuthAuthType = 'oauth' | 'service_account'
+
+export interface OAuthClientConfigurationField {
+  id: 'clientId' | 'clientSecret' | 'environment' | 'webhookVerifierToken'
+  label: string
+  placeholder: string
+  secret: boolean
+  options?: readonly { value: string; label: string }[]
+  hint?: string
+}
 
 export interface OAuthServiceConfig {
   name: string
@@ -198,6 +209,11 @@ export interface OAuthServiceConfig {
    * which does not hint that the environment was the problem.
    */
   providerIdPickerHint?: string
+  /** Write-only OAuth app fields a user must supply before provider authorization starts. */
+  clientConfiguration?: {
+    fields: readonly OAuthClientConfigurationField[]
+    redirectPath?: `/${string}`
+  }
 }
 
 /**
@@ -211,6 +227,7 @@ export interface OAuthServiceMetadata {
   name: string
   description: string
   baseProvider: string
+  clientConfiguration?: OAuthServiceConfig['clientConfiguration']
   authType: OAuthAuthType
 }
 

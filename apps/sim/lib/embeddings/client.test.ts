@@ -102,6 +102,7 @@ beforeEach(() => {
     OPENAI_API_KEY_2: undefined,
     OPENAI_API_KEY_3: undefined,
     OPENROUTER_API_KEY: undefined,
+    OLLAMA_URL: undefined,
   })
 })
 
@@ -1381,5 +1382,87 @@ describe('knowledge embedding transport fallback', () => {
     error.quotaExhausted = true
 
     expect(isBYOKEmbeddingCredentialRejection(error)).toBe(false)
+  })
+})
+
+describe('ollama embeddings', () => {
+  function ollamaBody(vectors: number[][], dimensions: number, promptEvalCount = 3) {
+    return {
+      embeddings: vectors.map((vector) => sizedVector(vector, dimensions)),
+      prompt_eval_count: promptEvalCount,
+    }
+  }
+
+  it('embeds against the configured server with no credential and bills nothing', async () => {
+    setEnv({ OLLAMA_URL: 'http://ollama.internal:11434/' })
+    fetchMock.mockResolvedValue(jsonResponse(ollamaBody([[1, 2, 3]], 768)))
+
+    const result = await embed(['hello'], {
+      model: 'ollama/nomic-embed-text',
+      dimensions: 768,
+      projectInputs: null,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('http://ollama.internal:11434/api/embed')
+    expect((init as RequestInit).headers).not.toHaveProperty('Authorization')
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      model: 'nomic-embed-text',
+      input: ['hello'],
+      truncate: true,
+    })
+    expect(result.dimensions).toBe(768)
+    expect(result.modelName).toBe('nomic-embed-text')
+    expect(result.isBYOK).toBe(true)
+    expect(result.billableTokens).toBe(0)
+    expect(result.totalTokens).toBe(3)
+  })
+
+  /**
+   * The width is the operator's to get right, so the failure has to name both
+   * numbers rather than storing a vector the knowledge base cannot query.
+   */
+  it('rejects a model that returns a different width than the base stores', async () => {
+    setEnv({ OLLAMA_URL: 'http://ollama.internal:11434' })
+    fetchMock.mockResolvedValue(jsonResponse(ollamaBody([[1, 2, 3]], 1024)))
+
+    await expect(
+      embed(['hello'], { model: 'ollama/mxbai-embed-large', dimensions: 768, projectInputs: null })
+    ).rejects.toThrow('has 1024 unexpected dimensions; expected 768')
+  })
+
+  /**
+   * A self-hosted deployment runs alongside its own Ollama, so the loopback
+   * default is a working configuration that needs no env var — the same rule
+   * the chat provider and the block's model selector apply. Requiring the
+   * variable here would make embedding stricter than the list that offers the
+   * models.
+   */
+  it('serves a self-hosted deployment from the loopback default', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(ollamaBody([[1, 2, 3]], 768)))
+
+    const result = await embed(['hello'], {
+      model: 'ollama/nomic-embed-text',
+      dimensions: 768,
+      projectInputs: null,
+    })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:11434/api/embed')
+    expect(result.dimensions).toBe(768)
+  })
+
+  it('ignores a caller-supplied key rather than sending one Ollama cannot use', async () => {
+    setEnv({ OLLAMA_URL: 'http://ollama.internal:11434' })
+    fetchMock.mockResolvedValue(jsonResponse(ollamaBody([[1, 2, 3]], 384)))
+
+    await embed(['hello'], {
+      model: 'ollama/all-minilm',
+      dimensions: 384,
+      apiKey: 'sk-not-applicable',
+      projectInputs: null,
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init as RequestInit).headers).toEqual({ 'Content-Type': 'application/json' })
   })
 })

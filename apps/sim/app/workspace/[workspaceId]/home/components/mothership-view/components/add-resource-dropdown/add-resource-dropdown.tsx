@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   Button,
   cn,
@@ -22,6 +22,7 @@ import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
+import { subscribeDesktopPreferences } from '@/lib/desktop'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import {
   type AvailableItem,
@@ -145,6 +146,16 @@ export function useAvailableResources(
 ): AvailableResources {
   const enabled = options?.enabled ?? true
   const excludeTypes = options?.excludeTypes
+  const browserAvailable = useSyncExternalStore(
+    subscribeDesktopPreferences,
+    isBrowserAgentAvailable,
+    () => false
+  )
+  const terminalAvailable = useSyncExternalStore(
+    subscribeDesktopPreferences,
+    isTerminalAvailable,
+    () => false
+  )
   // Destructured without `= []` defaults on purpose: a literal default allocates a
   // fresh array every render while `data` is undefined (exactly the disabled state),
   // which would bust the group memo below on every render. Undefined is stable.
@@ -292,7 +303,7 @@ export function useAvailableResources(
     ]
     // The live browser panel — desktop app only (needs the agent-browser
     // bridge). There is one top-level panel; repeated launches open inner tabs.
-    if (isBrowserAgentAvailable()) {
+    if (browserAvailable) {
       groups.push({
         type: 'browser' as const,
         items: [
@@ -305,7 +316,7 @@ export function useAvailableResources(
     }
     // The live terminal — desktop app only (needs the PTY bridge), and a
     // single top-level panel like the browser.
-    if (isTerminalAvailable()) {
+    if (terminalAvailable) {
       groups.push({
         type: 'terminal' as const,
         items: [
@@ -319,6 +330,8 @@ export function useAvailableResources(
     return groups.filter((g) => !excluded.has(g.type)).sort(byResourceMenuOrder)
   }, [
     enabled,
+    browserAvailable,
+    terminalAvailable,
     workflows,
     folders,
     fileFolders,

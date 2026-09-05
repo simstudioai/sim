@@ -11,10 +11,13 @@ import { File } from '@sim/emcn/icons'
 import { Editor } from '@tiptap/core'
 import { EditorContent, ReactRenderer } from '@tiptap/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMarkdownEditorExtensions } from '../editor-extensions'
-import { MentionList, type MentionListHandle } from './mention-list'
-import { createMentionStore } from './mention-store'
-import type { MentionItem } from './types'
+import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
+import {
+  MentionList,
+  type MentionListHandle,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-list'
+import { createMentionStore } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-store'
+import type { MentionItem } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/types'
 
 const items: MentionItem[] = [
   { kind: 'file', id: 'a', label: 'Alpha', group: 'Files', icon: File },
@@ -139,6 +142,35 @@ describe('MentionList keyboard nav', () => {
     })
     expect(handled).toBe(true)
     expect(command).toHaveBeenCalledWith(items[0])
+  })
+
+  it.each([
+    ['Enter', { shiftKey: true }],
+    ['Tab', { shiftKey: true }],
+    ['Enter', { ctrlKey: true }],
+    ['Tab', { ctrlKey: true }],
+    ['Enter', { metaKey: true }],
+    ['Tab', { altKey: true }],
+    ['ArrowDown', { shiftKey: true }],
+    ['ArrowUp', { metaKey: true }],
+    ['Enter', { isComposing: true }],
+    ['Enter', { keyCode: 229 }],
+  ])('does not consume %s with reserved modifiers or composition %j', (key, options) => {
+    const ref = createRef<MentionListHandle>()
+    const command = vi.fn()
+    const store = createMentionStore()
+    store.set(items)
+    act(() =>
+      root.render(
+        <MentionList ref={ref} query='' command={command} store={store} editor={editor} />
+      )
+    )
+
+    expect(
+      ref.current?.onKeyDown({ event: new KeyboardEvent('keydown', { key, ...options }) })
+    ).toBe(false)
+    expect(command).not.toHaveBeenCalled()
+    expect(container.querySelector('[aria-selected="true"]')?.textContent).toBe('Alpha')
   })
 
   it('exposes a working onKeyDown through ReactRenderer (the suggestion plugin path)', async () => {

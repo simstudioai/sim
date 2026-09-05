@@ -186,7 +186,7 @@ describe('executeManagedMcpToolUseCase', () => {
     expect(mocks.discoverTools).toHaveBeenCalledWith(
       context.mcpServerId,
       context.workspaceId,
-      {},
+      { credentialId: context.credentialId, loadProvider: expect.any(Function) },
       signal,
       { requireComplete: true }
     )

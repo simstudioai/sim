@@ -65,6 +65,7 @@ export const TinyFishBlock: BlockConfig<TinyFishRunResponse> = {
           { text: 'as', field: 'format' },
         ],
         tinyfish_list_vault_items: ['List credentials from the connected vault'],
+        tinyfish_list_profiles: ['List saved browser profiles'],
       },
     },
   },
@@ -82,6 +83,7 @@ export const TinyFishBlock: BlockConfig<TinyFishRunResponse> = {
         { label: 'Search', id: 'tinyfish_search' },
         { label: 'Fetch URLs', id: 'tinyfish_fetch' },
         { label: 'List Vault Items', id: 'tinyfish_list_vault_items' },
+        { label: 'List Browser Profiles', id: 'tinyfish_list_profiles' },
       ],
       value: () => 'tinyfish_run',
     },
@@ -147,8 +149,9 @@ Return ONLY the JSON Schema - no explanations, no extra text.`,
     },
     {
       id: 'browserProfile',
-      title: 'Browser Profile',
+      title: 'Browser Engine',
       type: 'dropdown',
+      description: 'Which browser the agent drives. Unrelated to a saved Browser Context Profile',
       options: [
         { label: 'Lite (standard browser)', id: 'lite' },
         { label: 'Stealth (anti-detection)', id: 'stealth' },
@@ -175,6 +178,15 @@ Return ONLY the JSON Schema - no explanations, no extra text.`,
       type: 'short-input',
       placeholder: '150',
       description: 'Tool-call steps before the agent stops (1-500)',
+      condition: { field: 'operation', value: AUTOMATION_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxDurationSeconds',
+      title: 'Max Duration (seconds)',
+      type: 'short-input',
+      placeholder: '300',
+      description: 'Wall-clock limit before the agent stops. Unlimited when empty',
       condition: { field: 'operation', value: AUTOMATION_OPERATIONS },
       mode: 'advanced',
     },
@@ -217,6 +229,28 @@ Return ONLY the JSON Schema - no explanations, no extra text.`,
         field: 'operation',
         value: AUTOMATION_OPERATIONS,
         and: { field: 'useVault', value: true },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'useProfile',
+      title: 'Use Browser Profile',
+      type: 'switch',
+      description: 'Start the run from a saved browser session, so the agent is already logged in',
+      condition: { field: 'operation', value: AUTOMATION_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'profileId',
+      title: 'Browser Profile ID',
+      type: 'short-input',
+      placeholder: 'prof_abc123def4567890',
+      description:
+        'Run List Browser Profiles to find it. Leave empty to use your default profile, which the run requires you to have set',
+      condition: {
+        field: 'operation',
+        value: AUTOMATION_OPERATIONS,
+        and: { field: 'useProfile', value: true },
       },
       mode: 'advanced',
     },
@@ -439,6 +473,7 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
       'tinyfish_search',
       'tinyfish_fetch',
       'tinyfish_list_vault_items',
+      'tinyfish_list_profiles',
     ],
     config: {
       tool: (params) => {
@@ -457,6 +492,8 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
             return 'tinyfish_fetch'
           case 'tinyfish_list_vault_items':
             return 'tinyfish_list_vault_items'
+          case 'tinyfish_list_profiles':
+            return 'tinyfish_list_profiles'
           default:
             return 'tinyfish_run'
         }
@@ -464,11 +501,30 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
       params: (params) => {
         const result: Record<string, unknown> = {}
 
+        /**
+         * A numeric text input that does not parse is rejected rather than
+         * dropped. Omitting it silently hands the run TinyFish's default — no
+         * wall-clock limit at all for Max Duration — while the block still
+         * shows the value the user typed.
+         */
+        const toFiniteNumber = (value: string, field: string): number => {
+          const parsed = Number(value)
+          if (!Number.isFinite(parsed)) {
+            throw new Error(`Invalid numeric value for ${field}: ${value}`)
+          }
+          return parsed
+        }
+
         const maxSteps = String(params.maxSteps ?? '').trim()
-        if (maxSteps) result.maxSteps = Number(maxSteps)
+        if (maxSteps) result.maxSteps = toFiniteNumber(maxSteps, 'Max Steps')
+
+        const maxDurationSeconds = String(params.maxDurationSeconds ?? '').trim()
+        if (maxDurationSeconds) {
+          result.maxDurationSeconds = toFiniteNumber(maxDurationSeconds, 'Max Duration (seconds)')
+        }
 
         const limit = String(params.limit ?? '').trim()
-        if (limit) result.limit = Number(limit)
+        if (limit) result.limit = toFiniteNumber(limit, 'Limit')
 
         /**
          * The list filter has its own sub-block id so it does not collide with
@@ -492,10 +548,16 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
     browserProfile: { type: 'string', description: 'Browser engine: lite or stealth' },
     agentMode: { type: 'string', description: 'Agent behavior: default or strict' },
     maxSteps: { type: 'number', description: 'Maximum agent steps' },
+    maxDurationSeconds: {
+      type: 'number',
+      description: 'Maximum wall-clock seconds before the agent stops',
+    },
     proxyEnabled: { type: 'boolean', description: 'Route the run through the Tetra proxy' },
     proxyCountryCode: { type: 'string', description: 'Proxy country code' },
     useVault: { type: 'boolean', description: 'Allow vault credentials during the run' },
     credentialItemIds: { type: 'string', description: 'Comma-separated vault credential URIs' },
+    useProfile: { type: 'boolean', description: 'Start the run from a saved browser session' },
+    profileId: { type: 'string', description: 'Browser Context Profile to start the run from' },
     webhookUrl: { type: 'string', description: 'HTTPS endpoint notified on run lifecycle events' },
     runId: { type: 'string', description: 'Run identifier' },
     status: { type: 'string', description: 'Run status filter' },
@@ -548,7 +610,7 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
     runs: {
       type: 'json',
       description:
-        'Runs matching the list filters [{runId, status, goal, createdAt, startedAt, finishedAt, numOfSteps, result, schemaValidation, error, streamingUrl, browserConfig}]',
+        'Runs matching the list filters [{runId, status, goal, createdAt, startedAt, finishedAt, numOfSteps, result, schemaValidation, error, streamingUrl, browserConfig, profileAttached, profileId, profileHint}]',
     },
     total: { type: 'number', description: 'Total runs matching the list filters' },
     nextCursor: { type: 'string', description: 'Cursor for the next page of runs' },
@@ -565,6 +627,24 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
       type: 'json',
       description:
         'Vault credentials available to a run [{itemId, connectionId, label, vaultName, domains, fieldMetadata, hasTotp}]',
+    },
+    profileId: {
+      type: 'string',
+      description: 'Browser Context Profile the run attached, null when none did',
+    },
+    profileAttached: {
+      type: 'boolean',
+      description: 'Whether the run actually started from a Browser Context Profile',
+    },
+    profileHint: {
+      type: 'json',
+      description:
+        'Set when TinyFish believes a Browser Context Profile would fix a failed run {message, setupUrl, reason} — reason is auth_wall or bot_challenge',
+    },
+    profiles: {
+      type: 'json',
+      description:
+        'Browser Context Profiles a run can start from [{profileId, name, proxyCountryCode, fingerprintSeed, domainCount, createdAt, updatedAt, isDefault}]. Every field but profileId and name can be null when the API omits it',
     },
   },
 }
@@ -655,14 +735,14 @@ export const TinyFishBlockMeta = {
       description:
         'Drive a TinyFish web agent to navigate a site and return data matching a JSON schema. Use to pull records — prices, listings, table rows — from pages that have no API.',
       content:
-        '# Extract Structured Data From Site\n\nUse the TinyFish Run Agent operation to read a website and return structured data.\n\n## Steps\n1. Set Website URL to the page the agent should start on. Starting closer to the data costs fewer steps.\n2. Write a Goal that names exactly what to collect and where, e.g. "open the pricing page and collect every plan name and monthly price".\n3. Provide an Output Schema (JSON Schema draft-07) describing the fields you want back. TinyFish re-prompts the agent when the result does not match and reports the mismatches in `schemaValidation`.\n4. Raise Max Steps for deeper flows; switch Browser Profile to Stealth when the site blocks automation.\n\n## Output\nReturn the extracted `result` object. Check `schemaValidation.valid` before trusting it, and report any field the agent could not find rather than filling it in.',
+        '# Extract Structured Data From Site\n\nUse the TinyFish Run Agent operation to read a website and return structured data.\n\n## Steps\n1. Set Website URL to the page the agent should start on. Starting closer to the data costs fewer steps.\n2. Write a Goal that names exactly what to collect and where, e.g. "open the pricing page and collect every plan name and monthly price".\n3. Provide an Output Schema (JSON Schema draft-07) describing the fields you want back. TinyFish re-prompts the agent when the result does not match and reports the mismatches in `schemaValidation`.\n4. Raise Max Steps for deeper flows; switch Browser Engine to Stealth when the site blocks automation.\n\n## Output\nReturn the extracted `result` object. Check `schemaValidation.valid` before trusting it, and report any field the agent could not find rather than filling it in.',
     },
     {
       name: 'automate-web-task',
       description:
         'Have a TinyFish agent complete a multi-step task on a website — logging in, navigating, filling and submitting forms. Use when a site has no API and a person would normally do the clicks.',
       content:
-        '# Automate Web Task\n\nUse the TinyFish Run Agent operation to complete a goal-oriented task on the web.\n\n## Steps\n1. Set Website URL to the entry point and write a Goal that states the steps and the success condition, e.g. "log in, open Billing, download the latest invoice".\n2. Turn on Use Vault Credentials when the task needs a login, and scope it with Vault Credential URIs so only the intended credential is available.\n3. Use Agent Mode "strict" when the run is a test that should fail fast instead of improvising.\n4. Enable Use Proxy and pick a Proxy Country when the site is geo-restricted.\n\n## Output\nReport whether the run completed, what the agent extracted, and the step count. On failure, quote the `error` message and category — AGENT_FAILURE means the goal needs rewording, SYSTEM_FAILURE is worth retrying.',
+        '# Automate Web Task\n\nUse the TinyFish Run Agent operation to complete a goal-oriented task on the web.\n\n## Steps\n1. Set Website URL to the entry point and write a Goal that states the steps and the success condition, e.g. "log in, open Billing, download the latest invoice".\n2. Turn on Use Browser Profile to start from a session that is already logged in, and give a Browser Profile ID to pick one. Turn on Use Vault Credentials when the task needs to log in itself, and scope it with Vault Credential URIs so only the intended credential is available. Pairing both lets TinyFish repair a profile whose session has expired.\n3. Use Agent Mode "strict" when the run is a test that should fail fast instead of improvising.\n4. Enable Use Proxy and pick a Proxy Country when the site is geo-restricted.\n\n## Output\nReport whether the run completed, what the agent extracted, and the step count. On failure, quote the `error` message and category — AGENT_FAILURE means the goal needs rewording, SYSTEM_FAILURE is worth retrying.',
     },
     {
       name: 'search-and-read-the-web',
@@ -683,7 +763,7 @@ export const TinyFishBlockMeta = {
       description:
         'Read a failed TinyFish run and decide whether to retry, reword the goal, or escalate. Use when an automation returns FAILED or a workflow keeps burning steps without a result.',
       content:
-        '# Diagnose A Failed Run\n\nA failed automation comes back as a normal 200 response with the failure inside the run, so read `status` before trusting `result`.\n\n## Steps\n1. Read `error.category`. `AGENT_FAILURE` means the goal or the page is the problem — reword the goal or start the run closer to the target. `SYSTEM_FAILURE` is TinyFish-side; wait `error.retryAfter` seconds and retry the same input. `BILLING_FAILURE` means the TinyFish wallet is empty and no retry will help. `UNKNOWN` should be treated as retryable once.\n2. Compare `numOfSteps` against the Max Steps you set. Hitting the cap means the agent was still working, so raise the cap or narrow the goal.\n3. If an Output Schema was set, read `schemaValidation.errors` — a run can reach the right page and still fail on one mistyped field, and `rePromptAttempts` shows how hard TinyFish already tried to repair it.\n4. For an async run, call Get Run and read the `steps` list to find the last action before the failure. `videoUrl` gives a recording, but the link expires 15 minutes after it is issued.\n\n## Output\nState the category, the concrete cause, and the single next action. Quote `error.message` rather than paraphrasing it, and do not retry a `BILLING_FAILURE` or an `AGENT_FAILURE` without changing the input first.',
+        '# Diagnose A Failed Run\n\nA failed automation comes back as a normal 200 response with the failure inside the run, so read `status` before trusting `result`.\n\n## Steps\n1. Read `error.category`. `AGENT_FAILURE` means the goal or the page is the problem — reword the goal or start the run closer to the target. `SYSTEM_FAILURE` is TinyFish-side; wait `error.retryAfter` seconds and retry the same input. `BILLING_FAILURE` means the TinyFish wallet is empty and no retry will help. `UNKNOWN` should be treated as retryable once.\n2. Read `profileHint` whenever it is set — TinyFish attaches it only when a Browser Context Profile would likely fix the run, so it outranks the category above. `reason` is `auth_wall` (the agent hit a login) or `bot_challenge` (the site blocked automation); the fix is to set up a profile for that domain and rerun with Use Browser Profile on, not to reword the goal.\n3. Compare `numOfSteps` against the Max Steps you set. Hitting the cap means the agent was still working, so raise the cap or narrow the goal. If the run instead stopped early on a slow page, set Max Duration.\n4. If an Output Schema was set, read `schemaValidation.errors` — a run can reach the right page and still fail on one mistyped field, and `rePromptAttempts` shows how hard TinyFish already tried to repair it.\n5. For an async run, call Get Run and read the `steps` list to find the last action before the failure. `videoUrl` gives a recording, but the link expires 15 minutes after it is issued.\n\n## Output\nState the category, the concrete cause, and the single next action. Quote `error.message` rather than paraphrasing it, and do not retry a `BILLING_FAILURE` or an `AGENT_FAILURE` without changing the input first.',
     },
     {
       name: 'queue-and-track-long-runs',

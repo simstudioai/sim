@@ -244,6 +244,39 @@ describe('resolveCredentialToken', () => {
     expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
   })
 
+  it('projects the realm and environment bound to the QuickBooks account identity', async () => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'account-1',
+    })
+    mockGetCredential.mockResolvedValue({
+      providerId: 'quickbooks',
+      accountId:
+        'quickbooks:v2:NkYPLLqX2cM-QABxg0vbv71mQS9s_aRP3v7ZKLvnJyo:sandbox:1234567890:dXNlci0x',
+    })
+    mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: false })
+
+    await expect(
+      resolveCredentialToken(INTERNAL_AUTH, {
+        requestId: 'req-1',
+        resolvedCredential: null,
+        credentialId: 'cred-1',
+      })
+    ).resolves.toEqual({
+      ok: true,
+      token: {
+        accessToken: 'fresh',
+        credentialType: 'oauth',
+        idToken: undefined,
+        realmId: '1234567890',
+        quickBooksEnvironment: 'sandbox',
+      },
+    })
+  })
+
   it('reports a failed refresh as 401 without recording access', async () => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: true,

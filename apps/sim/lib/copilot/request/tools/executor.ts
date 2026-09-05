@@ -1,7 +1,4 @@
-import {
-  BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
-  normalizeBrowserWaitForTimeoutMs,
-} from '@sim/browser-protocol'
+import { browserToolRendererTimeoutMs, isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -255,8 +252,8 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 
 /**
  * How long the resume gate may wait on one pending tool call. Permission
- * prompts receive the long-running budget, while `browser_wait_for` receives
- * its normalized requested timeout plus renderer delivery grace.
+ * prompts receive the long-running budget. Browser calls share the renderer's
+ * budget so authorization and native queueing cannot outlive the resume gate.
  */
 export function pendingToolWaitBudgetMs(
   toolCall:
@@ -264,11 +261,8 @@ export function pendingToolWaitBudgetMs(
     | undefined
 ): number {
   if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
-  if (toolCall?.name === 'browser_wait_for') {
-    return (
-      normalizeBrowserWaitForTimeoutMs(toolCall.params?.timeoutMs) +
-      BROWSER_WAIT_FOR_RENDERER_GRACE_MS
-    )
+  if (toolCall?.name && isCurrentBrowserToolName(toolCall.name)) {
+    return browserToolRendererTimeoutMs(toolCall.name, toolCall.params)
   }
   return toolWatchdogTimeoutMs(toolCall?.name)
 }

@@ -55,6 +55,7 @@ import {
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -232,7 +233,7 @@ export function EditConnectorModal({
     initialCanonicalModes,
   })
 
-  const { ownerBilling, features } = useWorkspaceHostContext()
+  const { ownerBilling } = useWorkspaceHostContext()
   const { canAdmin } = useUserPermissionsContext()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { mutate: updateConnector, isPending: isSavingSettings } = useUpdateConnector()
@@ -243,7 +244,7 @@ export function EditConnectorModal({
    * member keeps it where the flag has since been turned off, so an admin can
    * still bring it back to workspace mode; per-member cannot be re-chosen.
    */
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const showAccessField = memberAccessAvailable || connector.accessMode === 'members'
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)

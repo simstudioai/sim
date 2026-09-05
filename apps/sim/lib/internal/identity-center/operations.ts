@@ -3,10 +3,14 @@ import type { AwsIdentityCenterCheckAssignmentStatusBody } from '@/lib/api/contr
 import type { AwsIdentityCenterCreateAccountAssignmentBody } from '@/lib/api/contracts/tools/aws/identity-center-create-account-assignment'
 import type { AwsIdentityCenterDeleteAccountAssignmentBody } from '@/lib/api/contracts/tools/aws/identity-center-delete-account-assignment'
 import type { AwsIdentityCenterDescribeAccountBody } from '@/lib/api/contracts/tools/aws/identity-center-describe-account'
+import type { AwsIdentityCenterDescribeGroupBody } from '@/lib/api/contracts/tools/aws/identity-center-describe-group'
+import type { AwsIdentityCenterDescribeUserBody } from '@/lib/api/contracts/tools/aws/identity-center-describe-user'
 import type { AwsIdentityCenterGetGroupBody } from '@/lib/api/contracts/tools/aws/identity-center-get-group'
 import type { AwsIdentityCenterGetUserBody } from '@/lib/api/contracts/tools/aws/identity-center-get-user'
 import type { AwsIdentityCenterListAccountAssignmentsBody } from '@/lib/api/contracts/tools/aws/identity-center-list-account-assignments'
 import type { AwsIdentityCenterListAccountsBody } from '@/lib/api/contracts/tools/aws/identity-center-list-accounts'
+import type { AwsIdentityCenterListAssignmentsForAccountBody } from '@/lib/api/contracts/tools/aws/identity-center-list-assignments-for-account'
+import type { AwsIdentityCenterListGroupMembershipsBody } from '@/lib/api/contracts/tools/aws/identity-center-list-group-memberships'
 import type { AwsIdentityCenterListGroupsBody } from '@/lib/api/contracts/tools/aws/identity-center-list-groups'
 import type { AwsIdentityCenterListInstancesBody } from '@/lib/api/contracts/tools/aws/identity-center-list-instances'
 import type { AwsIdentityCenterListPermissionSetsBody } from '@/lib/api/contracts/tools/aws/identity-center-list-permission-sets'
@@ -19,10 +23,14 @@ import {
   createSSOAdminClient,
   deleteAccountAssignment,
   describeAccount,
+  describeGroupById,
+  describeUserById,
   getGroupByDisplayName,
   getUserByEmail,
+  listAccountAssignmentsForAccount,
   listAccountAssignmentsForPrincipal,
   listAccounts,
+  listGroupMemberships,
   listGroups,
   listInstances,
   listPermissionSets,
@@ -203,6 +211,69 @@ export async function executeIdentityCenterListAccountAssignments(
       input.instanceArn,
       input.principalId,
       input.principalType,
+      input.maxResults,
+      input.nextToken,
+      signal
+    )
+  } finally {
+    client.destroy()
+  }
+}
+
+export async function executeIdentityCenterListAssignmentsForAccount(
+  input: AwsIdentityCenterListAssignmentsForAccountBody,
+  signal?: AbortSignal
+) {
+  const client = createSSOAdminClient(input)
+  try {
+    return await listAccountAssignmentsForAccount(
+      client,
+      input.instanceArn,
+      input.accountId,
+      input.permissionSetArn,
+      input.maxResults,
+      input.nextToken,
+      signal
+    )
+  } finally {
+    client.destroy()
+  }
+}
+
+export async function executeIdentityCenterDescribeUser(
+  input: AwsIdentityCenterDescribeUserBody,
+  signal?: AbortSignal
+) {
+  const client = createIdentityStoreClient(input)
+  try {
+    return await describeUserById(client, input.identityStoreId, input.userId, signal)
+  } finally {
+    client.destroy()
+  }
+}
+
+export async function executeIdentityCenterDescribeGroup(
+  input: AwsIdentityCenterDescribeGroupBody,
+  signal?: AbortSignal
+) {
+  const client = createIdentityStoreClient(input)
+  try {
+    return await describeGroupById(client, input.identityStoreId, input.groupId, signal)
+  } finally {
+    client.destroy()
+  }
+}
+
+export async function executeIdentityCenterListGroupMemberships(
+  input: AwsIdentityCenterListGroupMembershipsBody,
+  signal?: AbortSignal
+) {
+  const client = createIdentityStoreClient(input)
+  try {
+    return await listGroupMemberships(
+      client,
+      input.identityStoreId,
+      input.groupId,
       input.maxResults,
       input.nextToken,
       signal
