@@ -1,18 +1,41 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { generateId, generateShortId, isValidUuid } from './id.js'
 
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 describe('generateId', () => {
+  const originalRandomUUID = crypto.randomUUID
+
+  afterEach(() => {
+    crypto.randomUUID = originalRandomUUID
+  })
+
   it('returns a valid UUID v4', () => {
     const id = generateId()
     expect(id).toMatch(UUID_V4_RE)
   })
 
   it('returns unique values across 100 calls', () => {
+    const ids = new Set(Array.from({ length: 100 }, () => generateId()))
+    expect(ids.size).toBe(100)
+  })
+
+  it('falls back to crypto.getRandomValues when randomUUID is unavailable', () => {
+    // Simulates a browser insecure context (plain-HTTP self-hosted deployment,
+    // e.g. issue #3393): `crypto.randomUUID` is undefined there, and the
+    // pre-fix code threw `TypeError: crypto.randomUUID is not a function`.
+    // @ts-expect-error simulating a runtime without crypto.randomUUID
+    crypto.randomUUID = undefined
+    const id = generateId()
+    expect(id).toMatch(UUID_V4_RE)
+  })
+
+  it('returns unique fallback values across 100 calls', () => {
+    // @ts-expect-error simulating a runtime without crypto.randomUUID
+    crypto.randomUUID = undefined
     const ids = new Set(Array.from({ length: 100 }, () => generateId()))
     expect(ids.size).toBe(100)
   })
