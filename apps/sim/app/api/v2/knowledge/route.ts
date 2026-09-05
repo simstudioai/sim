@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   v2CreateKnowledgeBaseContract,
   v2ListKnowledgeBasesContract,
@@ -105,7 +106,7 @@ export const POST = defineV2JsonRoute({
       name: knowledgeBase.name,
       workspaceId: knowledgeBase.workspaceId ?? undefined,
     })
-    if (principal.kind === 'personal_api_key') {
+    if (isUserCredentialPrincipal(principal)) {
       captureServerEvent(
         principal.userId,
         'knowledge_base_created',

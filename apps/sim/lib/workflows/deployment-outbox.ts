@@ -1442,6 +1442,14 @@ function parseOptionalPrincipalActor(value: unknown): PrincipalActor | undefined
       userId: parseRequiredString(record.userId, 'actor.userId'),
     }
   }
+  if (kind === 'oauth_access_token') {
+    return {
+      kind,
+      tokenId: parseRequiredString(record.tokenId, 'actor.tokenId'),
+      clientId: parseRequiredString(record.clientId, 'actor.clientId'),
+      userId: parseRequiredString(record.userId, 'actor.userId'),
+    }
+  }
   if (kind === 'workspace_api_key') {
     return {
       kind,

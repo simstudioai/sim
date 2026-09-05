@@ -13,7 +13,7 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim billing status [options]
 ```
 
-Show billing status and current-period credit usage (credits and storage require a personal API key)
+Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)
 
 **Options**
 
@@ -21,7 +21,7 @@ Show billing status and current-period credit usage (credits and storage require
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>
 
@@ -31,7 +31,7 @@ Show billing status and current-period credit usage (credits and storage require
 sim billing logs [options]
 ```
 
-List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)
+List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)
 
 **Options**
 
@@ -44,6 +44,6 @@ List credit usage events (a personal API key reports only your own events; a wor
 | `--start-date <value>` | No | Custom period start (ISO 8601). |
 | `--end-date <value>` | No | Custom period end (ISO 8601). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>

@@ -30,7 +30,13 @@ describe('sandbox operation registry', () => {
         minimumRole: 'read',
         workspaceApiKey: 'allow',
         capability: 'sandboxes.use',
-        principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+        principalKinds: [
+          'session',
+          'personal_api_key',
+          'oauth_access_token',
+          'workspace_api_key',
+          'delegated',
+        ],
         delegatedServices: ['copilot'],
       })
     }
@@ -52,7 +58,7 @@ describe('sandbox operation registry', () => {
         minimumRole: 'admin',
         workspaceApiKey: 'deny',
         capability: 'sandboxes.use',
-        principalKinds: ['session', 'personal_api_key', 'delegated'],
+        principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
         delegatedServices: ['copilot'],
       })
     }

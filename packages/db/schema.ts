@@ -19,6 +19,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   vector,
@@ -758,9 +759,8 @@ export const secretUsage = pgTable(
      *
      * Empty string rather than null because both this and `actorUserId` sit inside the unique
      * key below, and Postgres treats nulls as distinct — two Copilot rows would never collide,
-     * so the upsert would insert forever instead of incrementing. `NULLS NOT DISTINCT` fixes
-     * that but requires Postgres 15, and this is self-hosted software that must not raise its
-     * database floor for one table. A sentinel keeps the key null-free on every version.
+     * so the upsert would insert forever instead of incrementing. A sentinel keeps the upsert
+     * identity explicit and null-free rather than relying on nullable uniqueness semantics.
      *
      * Deliberately not a foreign key, and neither is `actorUserId`. An `onDelete: 'set null'`
      * would rewrite a key column, so two rows differing only by the deleted id would collide
@@ -3949,6 +3949,182 @@ export const ssoDomain = pgTable(
     verifiedDomainUnique: uniqueIndex('sso_domain_verified_unique')
       .on(table.domain)
       .where(sql`status = 'verified'`),
+  })
+)
+
+/**
+ * OAuth 2.0 provider tables (Better Auth `@better-auth/oauth-provider`).
+ *
+ * Sim is the authorization server: a registered client (the Sim CLI, or an
+ * admin-created third-party app) sends a user through `/api/auth/oauth2/authorize`,
+ * the user consents, and the client redeems a code for an opaque access token and
+ * a rotating refresh token. Tokens are stored hashed; the plaintext exists only in
+ * the client. Column keys follow the plugin's model fields so the Better Auth
+ * drizzle adapter maps them without a per-field `fieldName` override.
+ */
+export const oauthClient = pgTable(
+  'oauth_client',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull().unique(),
+    clientSecret: text('client_secret'),
+    disabled: boolean('disabled').notNull().default(false),
+    skipConsent: boolean('skip_consent'),
+    enableEndSession: boolean('enable_end_session'),
+    subjectType: text('subject_type'),
+    scopes: text('scopes').array(),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at'),
+    updatedAt: timestamp('updated_at'),
+    name: text('name'),
+    uri: text('uri'),
+    icon: text('icon'),
+    contacts: text('contacts').array(),
+    tos: text('tos'),
+    policy: text('policy'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    softwareStatement: text('software_statement'),
+    redirectUris: text('redirect_uris').array().notNull(),
+    postLogoutRedirectUris: text('post_logout_redirect_uris').array(),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    grantTypes: text('grant_types').array(),
+    responseTypes: text('response_types').array(),
+    public: boolean('public'),
+    type: text('type'),
+    requirePKCE: boolean('require_pkce'),
+    referenceId: text('reference_id'),
+    metadata: jsonb('metadata'),
+  },
+  (table) => ({
+    userIdIdx: index('oauth_client_user_id_idx').on(table.userId),
+  })
+)
+
+/** The scopes a user has granted a client; deleted when the user revokes the app. */
+export const oauthConsent = pgTable(
+  'oauth_consent',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    scopes: text('scopes').array().notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_consent_client_id_idx').on(table.clientId),
+    /** One grant per user, client, and reference, including nullable dimensions. */
+    userClientUnique: unique('oauth_consent_user_client_reference_unique')
+      .on(table.userId, table.clientId, table.referenceId)
+      .nullsNotDistinct(),
+  })
+)
+
+/**
+ * One independently revocable login. Every rotating refresh token belongs to
+ * a stable family so replay and logout can atomically remove all descendants.
+ */
+export const oauthTokenFamily = pgTable(
+  'oauth_token_family',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    consentId: text('consent_id').references(() => oauthConsent.id, { onDelete: 'cascade' }),
+    currentGeneration: integer('current_generation').notNull().default(0),
+    createdAt: timestamp('created_at').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_token_family_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_token_family_session_id_idx').on(table.sessionId),
+    userClientIdx: index('oauth_token_family_user_client_idx').on(table.userId, table.clientId),
+    consentIdIdx: index('oauth_token_family_consent_id_idx').on(table.consentId),
+    expiresAtIdx: index('oauth_token_family_expires_at_idx').on(table.expiresAt),
+    generationCheck: check(
+      'oauth_token_family_generation_check',
+      sql`${table.currentGeneration} BETWEEN 0 AND 1000`
+    ),
+  })
+)
+
+/** A member of a rotating refresh-token family. */
+export const oauthRefreshToken = pgTable(
+  'oauth_refresh_token',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    revoked: timestamp('revoked'),
+    authTime: timestamp('auth_time'),
+    scopes: text('scopes').array().notNull(),
+    familyId: text('family_id')
+      .notNull()
+      .references(() => oauthTokenFamily.id, { onDelete: 'cascade' }),
+    generation: integer('generation').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_refresh_token_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_refresh_token_session_id_idx').on(table.sessionId),
+    userClientIdx: index('oauth_refresh_token_user_client_idx').on(table.userId, table.clientId),
+    /** Drives the cleanup pass; nothing else reads tokens by expiry. */
+    expiresAtIdx: index('oauth_refresh_token_expires_at_idx').on(table.expiresAt),
+    familyGenerationUnique: unique('oauth_refresh_token_family_generation_unique').on(
+      table.familyId,
+      table.generation
+    ),
+    generationCheck: check(
+      'oauth_refresh_token_generation_check',
+      sql`${table.generation} BETWEEN 0 AND 1000`
+    ),
+  })
+)
+
+/** An opaque access token, looked up by hash on every bearer-authenticated request. */
+export const oauthAccessToken = pgTable(
+  'oauth_access_token',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    refreshId: text('refresh_id').references(() => oauthRefreshToken.id, {
+      onDelete: 'cascade',
+    }),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_access_token_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_access_token_session_id_idx').on(table.sessionId),
+    refreshIdIdx: index('oauth_access_token_refresh_id_idx').on(table.refreshId),
+    userClientIdx: index('oauth_access_token_user_client_idx').on(table.userId, table.clientId),
+    /** Drives the cleanup pass; nothing else reads tokens by expiry. */
+    expiresAtIdx: index('oauth_access_token_expires_at_idx').on(table.expiresAt),
   })
 )
 

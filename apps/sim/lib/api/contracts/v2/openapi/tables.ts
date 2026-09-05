@@ -7,8 +7,8 @@ import {
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
   RESOURCE_MUTATION_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_ERRORS,
@@ -262,7 +262,7 @@ const declaredRoutes = [
     tableOperation({
       operationId: 'updateTable',
       summary: 'Update Table',
-      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. When at least one field landed before the failure the error body carries \`details.applied\` naming those fields — retry with only the ones missing from it. Its absence means nothing was applied.\n\n${FOLDER_TREE_TOO_LARGE}`,
+      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags are read-only.\n\nNOT atomic: fields are written independently, so a 4xx may follow a partial update. When fields were applied, \`details.applied\` names them; retry only the missing fields. If it is absent, nothing changed.\n\n${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
     }),
@@ -658,7 +658,7 @@ const declaredRoutes = [
       operationId: 'queryTableRows',
       summary: 'Query Rows',
       description:
-        "Query rows with an optional typed predicate, ordered sort specification, and opaque cursor pagination. A predicate may be one condition or an `all`/`any` group; omit it to match every row. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
+        'Query rows using an optional typed condition or `all`/`any` group, ordered sorting, and opaque cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MB cap and may return fewer rows than requested; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and lowers the row cap. Counts come from a separate snapshot at `POST /query/count`; take the count first and treat it as a floor.',
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
@@ -1117,7 +1117,7 @@ const declaredRoutes = [
     tableOperation({
       operationId: 'searchTableRows',
       summary: 'Search Rows',
-      description: `Text-search every cell case-insensitively for the substring \`q\`, optionally within a predicate-filtered and sorted view. This is TEXT search, not the structured predicate read: \`POST /api/v2/tables/{tableId}/query\` is that one, and on this surface \`query\` always means a structured predicate while \`search\` always means text.\n\nIt returns cell COORDINATES — \`{ ordinal, rowId, column }\` — and never row data. \`ordinal\` is the row's zero-based index in the same filtered, sorted view \`POST /query\` pages, so read the rows themselves through that. The result is uncursored and capped: at most ${TABLE_LIMITS.MAX_FIND_MATCHES} matches come back and \`truncated\` is \`true\` when more matched than were returned. There is no cursor to page with — narrow \`q\` or the predicate instead.`,
+      description: `Search every cell case-insensitively for substring \`q\`, optionally within a predicate-filtered, sorted view. This is text search; \`POST /query\` performs structured predicate reads. Results are cell coordinates \`{ ordinal, rowId, column }\`, never row data; \`ordinal\` indexes the same view paged by \`POST /query\`. Results are uncursored and capped at ${TABLE_LIMITS.MAX_FIND_MATCHES}; \`truncated\` signals more matches. Narrow \`q\` or the predicate instead of paging.`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The matching table cells.' },
     }),
@@ -1611,7 +1611,7 @@ const declaredRoutes = [
       operationId: 'restoreTablesFolder',
       summary: 'Restore Folder',
       description:
-        "Un-archive a table folder a recursive `DELETE` archived, along with every subfolder and table archived with it. Address it by the path it held when it was deleted. The restore may legally land it elsewhere: a folder whose parent is still archived is re-rooted to `/`, and a name an active sibling has taken meanwhile is deduplicated — so read the returned folder's `path` rather than assuming the requested one. A path that is not archived answers `404`. `DELETE /api/v2/tables/folders` returns the path it archived, which is the value to keep and send here; unlike the files surface, `GET /api/v2/tables/folders` does not yet list archived folders, so a caller that discards that path cannot recover it over the API.",
+        'Restore a recursively archived table folder with its subfolders and tables, addressed by its former path. If its parent remains archived, it is re-rooted to `/`; active-name conflicts are deduplicated, so use the returned `path`. Non-archived paths return `404`. Preserve the path returned by `DELETE /api/v2/tables/folders`: unlike the files API, the table-folder list cannot discover archived paths.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The restored table folder and what it brought back.' },
     }),
@@ -1836,7 +1836,7 @@ const declaredRoutes = [
       operationId: 'moveTables',
       summary: 'Move Tables and Folders',
       description:
-        'Move up to 100 tables and table folders into one destination folder in a single authorized request. Folders are named by canonical path, and `null` or `/` moves to the workspace root. Best-effort per item: a table filed inside a selected folder is reported in `skipped` because the folder already carries it, an entry that resolves to nothing lands in `notFound`, and an item refused by a lock or a folder cycle lands in `failed` with a reason. An invalid destination fails the whole request before anything moves.',
+        'Move up to 100 tables and canonical-path folders to one destination; `null` or `/` means the workspace root. Processing is best-effort per item: tables already carried by selected folders are `skipped`, missing items are `notFound`, and lock or cycle refusals are `failed` with reasons. An invalid destination rejects the entire request before any move.',
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Per-item outcome of the bulk move.' },
     }),
@@ -1918,8 +1918,8 @@ export const tablesOpenApiDocument = defineOpenApiDocument({
       description: 'Manage tables, columns, rows, views, runs, folders, imports, and exports.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: withErrorExamples({

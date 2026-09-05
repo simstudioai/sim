@@ -63,7 +63,7 @@ describe('readV2ApiCapabilities', () => {
   it('declares its principal policy as frozen data rather than leaving it implicit', () => {
     expect(v2MetaOperations.read).toMatchObject({
       id: 'meta.capabilities.read',
-      principalKinds: ['personal_api_key', 'workspace_api_key'],
+      principalKinds: ['personal_api_key', 'oauth_access_token', 'workspace_api_key'],
     })
     expect(Object.isFrozen(v2MetaOperations.read)).toBe(true)
     expect(Object.isFrozen(v2MetaOperations.read.principalKinds)).toBe(true)

@@ -233,7 +233,7 @@ export function addOperationOptions(
   if (commandSpec.allWorkspaces) {
     command.option(
       '--all-workspaces',
-      'Do not filter to the configured workspace (personal API key required for account-wide access)'
+      'Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access)'
     )
   }
 

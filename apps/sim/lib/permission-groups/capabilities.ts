@@ -130,9 +130,8 @@ function allowlistDenies(allowed: readonly string[] | null, member: string): boo
  * What each capability means in terms of the stored config.
  *
  * `satisfies` rather than an annotation, so adding a capability still fails to
- * compile until it is given a rule — the same completeness gate
- * `FORBIDDEN_DETAIL_CODE_DESCRIPTIONS` uses — while each entry keeps its own
- * `kind`. Annotating would widen every entry to `CapabilityRule`, and
+ * compile until it is given a rule while each entry keeps its own `kind`.
+ * Annotating would widen every entry to `CapabilityRule`, and
  * {@link StaticPermissionGroupCapability} would then resolve to `never`,
  * silently rejecting every capability an operation tried to declare.
  */

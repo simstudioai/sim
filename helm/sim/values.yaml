@@ -1502,6 +1502,17 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Deletes OAuth token rows after the retention tail, including historical
+    # rows after the provider is disabled.
+    cleanupOAuthTokens:
+      enabled: true
+      name: cleanup-oauth-tokens
+      schedule: "0 * * * *"
+      path: "/api/cron/cleanup-oauth-tokens"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Deletes prebuilt sandbox images that no workspace sandbox references and that
     # have gone unused past the retention window, from the provider and locally.
     # A no-op on deployments whose sandbox provider installs at run time.

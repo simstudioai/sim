@@ -316,6 +316,18 @@ function enterpriseFeatureEnabled(
 }
 
 /**
+ * Is Sim acting as an OAuth 2.0 authorization server: the `/oauth2/*` Better
+ * Auth routes, the consent page, and bearer-token acceptance on `/api/v2`.
+ * Explicit opt-in keeps a rolling deployment from issuing a family token on a
+ * new instance and refreshing it through an old instance that lacks the
+ * transactional family implementation. Auth-disabled deployments cannot complete Better Auth's
+ * session-bound authorization flow, so they use the CLI's pairing handoff
+ * instead. Authorized-app history remains visible while issuance is off so
+ * historical grants can still be revoked.
+ */
+export const isOAuthProviderEnabled = !isAuthDisabled && isTruthy(env.OAUTH_PROVIDER_ENABLED)
+
+/**
  * Is SSO enabled for enterprise authentication
  */
 export const isSsoEnabled = enterpriseFeatureEnabled(

@@ -46,6 +46,9 @@ SHELL=/bin/sh
 # Deletes table rows whose TTL column has expired
 */15 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-table-row-ttl"
 
+# Deletes OAuth token rows after the retention tail
+0 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-oauth-tokens"
+
 # Microsoft Graph subscription renewal (Teams chat triggers expire after ~3 days)
 0 */12 * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/renew-subscriptions"
 

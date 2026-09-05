@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   listProfiles,
   readConfigProfile,
+  withCredentialsLock,
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
@@ -79,9 +80,50 @@ describe('configure --set-endpoint', () => {
     expect(readConfigProfile('default')).toMatchObject({ endpoint: 'http://localhost:3000' })
   })
 
+  it('rechecks an OAuth binding after taking the credential lock', async () => {
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.example',
+    })
+    writeConfigProfile('default', { endpoint: 'https://sim.example' })
+
+    let releaseHolder: (() => void) | undefined
+    let holderAcquired: (() => void) | undefined
+    const acquired = new Promise<void>((resolve) => {
+      holderAcquired = resolve
+    })
+    const release = new Promise<void>((resolve) => {
+      releaseHolder = resolve
+    })
+    const holder = withCredentialsLock(async () => {
+      holderAcquired?.()
+      await release
+    })
+    await acquired
+
+    const configure = run('--set-endpoint', 'https://other.example')
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    writeCredentialsProfile('default', {
+      kind: 'oauth',
+      oauth: {
+        accessToken: 'sim_oat_access',
+        refreshToken: 'sim_ort_refresh',
+        expiresAt: Date.now() + 3_600_000,
+        issuer: 'https://sim.example/api/auth',
+        loginId: 'login-1',
+        scope: 'offline_access api:read api:write',
+      },
+    })
+    releaseHolder?.()
+    await holder
+
+    await expect(configure).rejects.toThrow('has an OAuth login bound to')
+    expect(readConfigProfile('default')).toEqual({ endpoint: 'https://sim.example' })
+  })
+
   it('refuses to set an endpoint locally on a shared workspace profile', async () => {
     writeConfigProfile('default', { endpoint: 'https://sim.example' })
-    writeCredentialsProfile('default', 'stored-key')
+    writeCredentialsProfile('default', { kind: 'api_key', apiKey: 'stored-key' })
     writeConfigProfile('acme', { auth_profile: 'default', workspace: 'ws_acme' })
     mocks.profileName = 'acme'
 

@@ -42,8 +42,8 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -148,7 +148,13 @@ const declaredRoutes = [
         'CreateKnowledgeBaseRequest',
         'Create knowledge base request',
         'Workspace, name, description, chunking configuration, and folder placement.',
-        [{ workspaceId: WORKSPACE_ID, name: 'Product Documentation', folderPath: '/Product' }]
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            name: 'Product Documentation',
+            folderPath: '/Product',
+          },
+        ]
       ),
       response: documentedSchema(
         v2CreateKnowledgeBaseContract.response.schema,
@@ -288,7 +294,9 @@ const declaredRoutes = [
       summary: 'Create Knowledge Connector',
       description: `Validate and connect an external source, then queue its initial synchronization. The apiKey field is write-only and is never returned. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'The created connector without secret material.' },
+      success: {
+        description: 'The created connector without secret material.',
+      },
     }),
     {
       query: v2CreateKnowledgeConnectorContract.query,
@@ -329,7 +337,9 @@ const declaredRoutes = [
       summary: 'Get Knowledge Connector',
       description: `Retrieve one connector and its ten most recent synchronization attempts. Stored API keys and encrypted secret material are never returned. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
-      success: { description: 'The connector and recent synchronization history.' },
+      success: {
+        description: 'The connector and recent synchronization history.',
+      },
     }),
     {
       params: documentedSchema(
@@ -393,7 +403,9 @@ const declaredRoutes = [
       summary: 'Delete Knowledge Connector',
       description: `Delete a connector and optionally its synchronized documents. Documents are retained by default. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
-      success: { description: 'Connector deletion acknowledgement and document counts.' },
+      success: {
+        description: 'Connector deletion acknowledgement and document counts.',
+      },
     }),
     {
       params: documentedSchema(
@@ -497,7 +509,9 @@ const declaredRoutes = [
       summary: 'Update Knowledge Connector Documents',
       description: `Exclude connector documents from knowledge search or restore previously excluded documents. Only documents produced by the selected connector can change. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
-      success: { description: 'The selected connector documents were updated.' },
+      success: {
+        description: 'The selected connector documents were updated.',
+      },
     }),
     {
       query: v2UpdateKnowledgeConnectorDocumentsContract.query,
@@ -545,7 +559,9 @@ const declaredRoutes = [
       description:
         'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.',
       errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'PayloadTooLarge'],
-      success: { description: 'Matching document chunks ordered by relevance.' },
+      success: {
+        description: 'Matching document chunks ordered by relevance.',
+      },
     }),
     {
       query: v2SearchKnowledgeContract.query,
@@ -639,7 +655,9 @@ const declaredRoutes = [
       summary: 'Bulk Enable or Disable Documents',
       description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
-      success: { description: 'The number and identifiers of the documents that changed.' },
+      success: {
+        description: 'The number and identifiers of the documents that changed.',
+      },
     }),
     {
       query: v2BulkUpdateKnowledgeDocumentsContract.query,
@@ -730,7 +748,9 @@ const declaredRoutes = [
         'PayloadTooLarge',
         'UnsupportedMediaType',
       ],
-      success: { description: 'The created upload session and transfer instructions.' },
+      success: {
+        description: 'The created upload session and transfer instructions.',
+      },
     }),
     {
       query: v2CreateKnowledgeDocumentUploadContract.query,
@@ -915,7 +935,9 @@ const declaredRoutes = [
       summary: 'Update Document',
       description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
-      success: { description: 'The updated document, or the requeue acknowledgement.' },
+      success: {
+        description: 'The updated document, or the requeue acknowledgement.',
+      },
     }),
     {
       query: v2UpdateKnowledgeDocumentContract.query,
@@ -1060,7 +1082,9 @@ const declaredRoutes = [
       summary: 'Delete Folder',
       description: 'Delete a folder, optionally including nested folders and knowledge bases.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
-      success: { description: 'Folder deletion acknowledgement and deleted item counts.' },
+      success: {
+        description: 'Folder deletion acknowledgement and deleted item counts.',
+      },
     }),
     {
       query: documentedSchema(
@@ -1115,9 +1139,12 @@ const declaredRoutes = [
       operationId: 'addWorkspaceFilesToKnowledgeBase',
       summary: 'Index Workspace Files',
       description:
-        'Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` for its current state. A workspace API key is rejected with `403`; use a personal API key.',
+        'Index stored workspace files without re-uploading bytes. Each reference is authorized independently; unreadable, unsupported, or over-100 MB files appear in `failed` while valid files are queued. This partial outcome returns `200`, not multi-status. Queued documents begin as `pending`; the response carries identities only, so read each document endpoint for current processing state. ' +
+        WORKSPACE_API_KEY_DENIED,
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
-      success: { description: 'Files queued for indexing, with any that could not be.' },
+      success: {
+        description: 'Files queued for indexing, with any that could not be.',
+      },
     }),
     {
       query: v2AddWorkspaceFilesToKnowledgeBaseContract.query,
@@ -1173,8 +1200,8 @@ export const knowledgeOpenApiDocument = defineOpenApiDocument({
         'Create and organize knowledge bases, ingest documents, and search indexed content.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: withErrorExamples({

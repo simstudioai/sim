@@ -38,8 +38,8 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
@@ -380,7 +380,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'readFileText',
       summary: 'Read File Text',
-      description: `Return a file's text content, parsed out of the stored bytes. This reads the file; it writes nothing — \`POST /api/v2/files/{fileId}/unzip\` is the endpoint that unzips an archive into the workspace. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers \`409\` and is worth retrying. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early.`,
+      description: `Extract text from stored file bytes without modifying the file; use \`POST /api/v2/files/{fileId}/unzip\` to unpack archives. Unsupported types return \`400\` and point to raw-byte download; generated documents still compiling return \`409\`, and files above the extraction ceiling return \`413\`. \`degraded: true\` means extraction was incomplete or synthesized from raw bytes and is not authoritative; legacy \`.doc\` and \`.ppt\` extraction may return this best-effort result. \`truncated\` means a parser limit stopped extraction.`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The extracted text and its extraction-quality flags.' },
     }),
@@ -410,7 +410,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'bulkDownloadFiles',
       summary: 'Bulk Download Files',
-      description: `Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. Each parameter accepts at most ${MAX_ZIP_DOWNLOAD_FILES} entries — the same ceiling the resolved selection is held to — and the resolved file count and total bytes are checked again, so an over-broad selection answers \`400\` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      description: `Stream files as a zip. Provide comma-separated file IDs and folder paths; folders expand recursively, and unmatched paths are rejected. Each parameter and the resolved selection allow at most ${MAX_ZIP_DOWNLOAD_FILES} entries, with bytes bounded. Oversized selections return \`400\`; downloads record an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         description: 'The selected files as a zip archive.',
@@ -433,7 +433,7 @@ const declaredRoutes = [
       operationId: 'unzipFile',
       summary: 'Unzip File',
       description:
-        "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. This writes new workspace files; it does not read anything out of the archive into the response — `GET /api/v2/files/{fileId}/text` is the endpoint that returns a file's text. The unpacked files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Unzipping is slow: an archive near the size ceiling can run for minutes. Only one unzip of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and runs that outrun their time budget, answer `413`.",
+        'Unzip a `.zip` archive into a new sibling folder, creating workspace files and returning only counts and the destination path. Use `GET /api/v2/files/{fileId}/text` to read text; page `GET /api/v2/files?folderPath=...` to inspect unpacked files. Large archives can take minutes. Only one unzip per archive may run; concurrent attempts return `409`. Archives above the size ceiling or operations exceeding their time budget return `413`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Counts and destination folder for the unpacked archive.' },
     }),
@@ -464,7 +464,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'downloadFile',
       summary: 'Download File',
-      description: `Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it answers \`409\` while that artifact is still compiling and \`413\` if it renders past the size ceiling. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      description: `Download current file bytes. Generated documents use compiled artifacts, returning \`409\` while compiling and \`413\` above the rendered-size ceiling. Downloading records an audit event. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The file bytes.',
@@ -793,7 +793,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'editFileContent',
       summary: 'Edit File Content',
-      description: `Change part of a text file in place, leaving the rest untouched. \`PUT\` on this path replaces the whole file; this is the partial counterpart. \`search_replace\` matches exact text and requires one match unless \`replaceAll\` is true. \`replace_between\`, \`insert_after\`, and \`delete_between\` match complete lines after trimming surrounding whitespace, so edits remain stable when unrelated changes move the target to another line. Anchored replacement preserves both boundary lines; insertion preserves its anchor; deletion removes the start anchor and preserves the end anchor. Use \`occurrence\` when an anchor line repeats. Only files whose stored bytes are UTF-8 text can be edited: a PDF or DOCX answers \`400\`. A concurrent write answers \`409\`, and retrying means re-reading first.`,
+      description: `Modify part of a text file; \`PUT\` on this path replaces the whole file. \`search_replace\` requires one exact match unless \`replaceAll\` is true. The anchored modes match trimmed complete lines: replacement preserves both boundaries, insertion preserves its anchor, and deletion removes the start but preserves the end. Use \`occurrence\` for repeated anchors. Non-UTF-8 files return \`400\`. Concurrent writes return \`409\`; re-read before retrying.`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'Locked'],
       success: { description: 'The edited file and its new line count.' },
     }),
@@ -843,7 +843,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'searchFileContent',
       summary: 'Search File Content',
-      description: `Search the indexed text of active workspace files and return each matching line with its file id and line number. \`folderPaths\` confines the search to one or more folder trees, which also narrows the reported coverage, so \`complete\` and \`indexStatus\` describe the folders searched rather than the whole workspace. Coverage matters: the index is built asynchronously, so when \`complete\` is \`false\` a term that was not found is **unknown rather than absent**, and acting on the absence risks creating a duplicate of something already stored. \`truncated\` separately reports that more matches exist beyond \`maxResults\`.`,
+      description: `Search indexed text in active workspace files and return matching lines with file IDs and line numbers. \`folderPaths\` limits both results and the coverage reported by \`complete\` and \`indexStatus\`. Because indexing is asynchronous, a missing term is unknown rather than absent when \`complete\` is false. \`truncated\` means additional matches exist beyond \`maxResults\`.`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'Locked'],
       success: { description: 'Matching lines and the index coverage they were drawn from.' },
     }),
@@ -1125,8 +1125,8 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
       description: 'Query the organization audit trail with Enterprise authorization.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   /*

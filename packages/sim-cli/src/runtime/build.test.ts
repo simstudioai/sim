@@ -224,10 +224,10 @@ describe('commands parsed through commander', () => {
   describe('a command whose operation refuses a workspace API key', () => {
     it('says so in the help line it falls back to from the spec summary', () => {
       expect(commandAt('secrets', 'list').helpInformation()).toContain(
-        '(personal API key required)'
+        '(OAuth login or personal API key required)'
       )
       expect(commandAt('mcp-servers', 'tools', 'list').description()).toContain(
-        '(personal API key required)'
+        '(OAuth login or personal API key required)'
       )
     })
 
@@ -238,7 +238,7 @@ describe('commands parsed through commander', () => {
      */
     it('says so on a command carrying a hand-written describe', () => {
       expect(commandAt('workflows', 'undeploy').description()).toBe(
-        'Take a workflow out of deployment (personal API key required)'
+        'Take a workflow out of deployment (OAuth login or personal API key required)'
       )
     })
 
@@ -261,7 +261,7 @@ describe('commands parsed through commander', () => {
         ['credentials', 'reconnect'],
       ]) {
         expect(`${path.join(' ')}: ${builtCommandAt(...path).description()}`).toContain(
-          '(personal API key required)'
+          '(OAuth login or personal API key required)'
         )
       }
     })
@@ -290,7 +290,7 @@ describe('commands parsed through commander', () => {
         const text = readFileSync(source, 'utf8')
         for (const [, operation] of text.matchAll(/V2_OPERATIONS\.([A-Za-z]+)/g)) {
           const spec = (V2_OPERATIONS as Record<string, OperationSpec>)[operation]
-          if (!spec?.personalKeyOnly) continue
+          if (!spec?.workspaceKeyUnsupported) continue
           const suffixed = new RegExp(`describeOperation\\(\\s*V2_OPERATIONS\\.${operation}\\b`)
           if (suffixed.test(text)) continue
           unsuffixed.push(`${source.slice(root.length + 1)} calls ${operation}`)
@@ -959,7 +959,9 @@ describe('commands parsed through commander', () => {
 
   it('supports organization-wide audit listing explicitly', async () => {
     const help = commandAt('audit-logs', 'list').helpInformation()
-    expect(help).toMatch(/--organization <value>.*personal API key required.*required/s)
+    expect(help).toMatch(
+      /--organization <value>.*OAuth login or personal API key required.*required/s
+    )
     expect(help).toContain('--all-workspaces')
     expect(help).toContain('--actor-email')
     expect(help).not.toContain('--actor-id')
@@ -2161,8 +2163,8 @@ describe('flags the root program already owns', () => {
 
 describe('the billing ledger a key can see', () => {
   /**
-   * The defect was silence, not the scoping: a personal key reports the calling
-   * user's own events and a workspace key the whole workspace ledger, and the
+   * The defect was silence, not the scoping: a user credential reports the
+   * caller's own events and a workspace key the whole workspace ledger, and the
    * two answers were indistinguishable — same workspace, same window, same
    * flags, a strictly smaller result and nothing saying why.
    */

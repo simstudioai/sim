@@ -17,6 +17,11 @@ const ApiKeys = dynamic(() =>
     (module) => module.ApiKeys
   )
 )
+const AuthorizedApps = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps').then(
+    (module) => module.AuthorizedApps
+  )
+)
 const Admin = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then(
     (module) => module.Admin
@@ -42,6 +47,7 @@ export function AccountSettingsRenderer({ section }: AccountSettingsRendererProp
   if (section === 'general') return <General />
   if (section === 'billing') return <Billing scope='account' />
   if (section === 'api-keys') return <ApiKeys scope='personal' />
+  if (section === 'authorized-apps') return <AuthorizedApps />
   if (section === 'admin') return <Admin />
   return <Mothership />
 }

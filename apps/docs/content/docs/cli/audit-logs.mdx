@@ -15,7 +15,7 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim audit-logs get <auditLogId> [options]
 ```
 
-Get Audit Log (personal API key required)
+Get Audit Log (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -33,7 +33,7 @@ Get Audit Log (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required). |
 
 </CommandTable>
 
@@ -43,7 +43,7 @@ Get Audit Log (personal API key required)
 sim audit-logs list [options]
 ```
 
-List Audit Logs (personal API key required)
+List Audit Logs (OAuth login or personal API key required)
 
 **Options**
 
@@ -59,8 +59,8 @@ List Audit Logs (personal API key required)
 | `--include-departed` | No | Include actions by users who have left the organization. |
 | `--no-include-departed` | No | Send --include-departed as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required). |
 | `--actor-email <value>` | No | Filter by actor email address. |
-| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>

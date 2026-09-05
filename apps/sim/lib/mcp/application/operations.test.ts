@@ -26,7 +26,7 @@ describe('MCP server operation registry', () => {
   it('requires a human subject for tool discovery', () => {
     expect(mcpServerOperations.discoverTools).toMatchObject({
       workspaceApiKey: 'deny',
-      principalKinds: ['session', 'personal_api_key', 'delegated'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
       delegatedServices: ['copilot', 'executor'],
     })
   })
@@ -109,6 +109,7 @@ describe('MCP server operation registry', () => {
       expect(operation.principalKinds, operation.id).toEqual([
         'session',
         'personal_api_key',
+        'oauth_access_token',
         'delegated',
       ])
       expect(operation.delegatedServices, operation.id).toEqual(['copilot'])

@@ -33,7 +33,7 @@ export const toolExecutionOperations = {
     id: 'tools.execute',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
     capability: 'none',
   }),
 } as const

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlerMocks = vi.hoisted(() => ({
@@ -295,5 +296,116 @@ describe('auth catch-all route SSO provider mutations', () => {
 
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
     expect(await res.json()).toEqual({ data: { url: 'https://idp.example.com' } })
+  })
+})
+
+describe('OAuth provider client endpoints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    handlerMocks.betterAuthPOST.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    )
+  })
+
+  it.each(['.well-known/openid-configuration', 'oauth2/end-session', 'oauth2/userinfo'])(
+    'does not expose the OIDC-only %s endpoint',
+    async (path) => {
+      const getResponse = await GET(
+        createMockRequest('GET', undefined, {}, `http://localhost:3000/api/auth/${path}`)
+      )
+      const postResponse = await POST(
+        createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+      )
+
+      expect(getResponse.status).toBe(404)
+      expect(postResponse.status).toBe(404)
+      expect(getResponse.headers.get('cache-control')).toBe('no-store')
+      expect(handlerMocks.betterAuthGET).not.toHaveBeenCalled()
+      expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+    }
+  )
+
+  /**
+   * The plugin gates client creation on a session alone, so without this any
+   * signed-in user could register a client with arbitrary redirect URIs and
+   * the full scope set. Nothing must reach the plugin.
+   */
+  it.each([
+    'oauth2/create-client',
+    'oauth2/update-client',
+    'oauth2/delete-client',
+    'oauth2/client/rotate-secret',
+    'oauth2/register',
+    'oauth2/introspect',
+    'oauth2/anything-a-future-version-adds',
+  ])('refuses POST /%s without reaching Better Auth', async (path) => {
+    const req = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+
+    const res = await POST(req)
+
+    expect(res.status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'oauth2/token',
+    'oauth2/consent',
+    'oauth2/continue',
+    'oauth2/revoke',
+    'oauth2/public-client-prelogin',
+    'oauth2/callback/jira',
+  ])('lets the protocol endpoint %s through', async (path) => {
+    const req = createMockRequest('POST', {}, {}, `http://localhost:3000/api/auth/${path}`)
+
+    await POST(req)
+
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['oauth2/token', 'oauth2/revoke'])(
+    'rejects repeated form parameters on %s',
+    async (path) => {
+      const req = new NextRequest(`http://localhost:3000/api/auth/${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+        body: 'client_id=client-1&client_id=client-2',
+      })
+
+      const res = await POST(req)
+
+      expect(res.status).toBe(400)
+      expect(res.headers.get('cache-control')).toBe('no-store')
+      await expect(res.json()).resolves.toMatchObject({ error: 'invalid_request' })
+      expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects Basic authentication combined with a body secret', async () => {
+    const req = new NextRequest('http://localhost:3000/api/auth/oauth2/token', {
+      method: 'POST',
+      headers: {
+        authorization: 'Basic Y2xpZW50OnNlY3JldA==',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=authorization_code&client_secret=secret',
+    })
+
+    const res = await POST(req)
+
+    expect(res.status).toBe(400)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+
+  it('passes an ordinary form request through unchanged', async () => {
+    const req = new NextRequest('http://localhost:3000/api/auth/oauth2/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: 'grant_type=authorization_code&client_id=client-1',
+    })
+
+    await POST(req)
+
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledWith(req)
   })
 })

@@ -230,7 +230,10 @@ export const POST = withRouteHandler(
       const manualRun = body.run?.source === 'manual' ? body.run : undefined
 
       if (manualRun && !apiKeyPrincipal) {
-        return v2Error('UNAUTHORIZED', 'Manual execution requires a personal API key')
+        return v2Error(
+          'UNAUTHORIZED',
+          'Manual execution requires an OAuth access token or personal API key'
+        )
       }
       if (manualRun && body.async) {
         return v2Error('BAD_REQUEST', 'Manual execution does not support async mode')
@@ -244,7 +247,7 @@ export const POST = withRouteHandler(
       }
 
       if (body.async && isPublicApiAccess) {
-        return v2Error('BAD_REQUEST', 'Async execution requires an API key')
+        return v2Error('BAD_REQUEST', 'Async execution requires an OAuth access token or API key')
       }
       if (body.async && body.stream) {
         return v2Error('BAD_REQUEST', 'async and stream cannot be combined')

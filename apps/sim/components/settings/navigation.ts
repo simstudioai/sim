@@ -3,6 +3,7 @@ import {
   ChartColumn,
   ClipboardList,
   Clock,
+  Connections,
   Credit,
   Database,
   Globe,
@@ -33,7 +34,13 @@ import type { DeploymentFeatures, DeploymentShape } from '@/lib/api/contracts/wo
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
+export type AccountSettingsSection =
+  | 'general'
+  | 'billing'
+  | 'api-keys'
+  | 'authorized-apps'
+  | 'admin'
+  | 'mothership'
 
 /**
  * Settings a self-hoster needs from the managed service: their profile, what
@@ -580,6 +587,18 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
         description: 'Manage workspace API keys and personal-key policy.',
         group: 'system',
         order: 7,
+      },
+    },
+  },
+  {
+    label: 'Authorized apps',
+    icon: Connections,
+    planes: {
+      account: {
+        id: 'authorized-apps',
+        description: 'Review and revoke apps that can act on your account.',
+        group: 'developer',
+        order: 3,
       },
     },
   },

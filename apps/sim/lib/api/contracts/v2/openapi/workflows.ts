@@ -18,8 +18,8 @@ import {
   RESOURCE_ERRORS,
   RESOURCE_MUTATION_ERRORS,
   RUN_RETENTION,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
@@ -133,10 +133,10 @@ const WORKFLOW_VERSION_EXAMPLE = {
  * caller happens to open first.
  */
 const WORKFLOW_DEPLOYMENT_VS_CHAT =
-  'Not to be confused with `/workflows/{workflowId}/deployments/chat`, which is the hosted chat the workflow is published as. This path governs whether the workflow is executable at all; that one governs one surface it is served on. A workflow can be deployed with no chat, and removing its chat leaves it deployed and executable.'
+  '`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.'
 
 const CHAT_VS_WORKFLOW_DEPLOYMENT =
-  "Not to be confused with `/workflows/{workflowId}/deployment` (singular), which is the workflow's own API deployment — its live version and whether the draft has drifted. That path governs whether the workflow is executable at all; this one governs the hosted chat it is served on. The chat is a singleton of its workflow, so it has no id of its own in any path and no separate create verb: `PUT` is create-or-replace and is the only write."
+  '`/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path.'
 
 const CHAT_DEPLOYMENT_EXAMPLE = {
   id: 'chat_01J8ZK3QW4M6X2R9T7B5C0V2',
@@ -300,7 +300,7 @@ const declaredRoutes = [
       operationId: 'getWorkflowState',
       summary: 'Get Workflow State',
       description:
-        'Get the editable draft graph of a workflow: blocks, edges, the loop and parallel containers derived from them, and variables. This is the pollable read — it records no audit event, and `HEAD` mirrors `GET`. The payload is **unsanitized**: it carries workspace-scoped `credentialId`, `knowledgeBaseId`, and `tableId` values verbatim, so it is not portable to another workspace. Use `GET /workflows/{workflowId}/export` for a portable, sanitized copy — and note that export is not a read-modify-write source, because sanitizing it drops every credential binding. Unknown members are stripped, so what this returns is exactly the set of keys `PUT /workflows/{workflowId}/state` accepts.',
+        'Get the editable draft graph: blocks, edges, derived loop and parallel containers, and variables. This pollable read records no audit event, and `HEAD` mirrors `GET`. The unsanitized payload includes workspace-scoped credential, knowledge-base, and table ids, so it is not portable. Use `export` for a sanitized copy, but not for read-modify-write because credential bindings are removed. Returned keys exactly match what `PUT /workflows/{workflowId}/state` accepts.',
       /**
        * No `413`: unlike the workflow reads beside it this one resolves no
        * folder path, so it never materializes the workspace's folder tree, and
@@ -327,7 +327,8 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
-      description: `Replace a workflow\u2019s editable draft graph wholesale. \`loops\` and \`parallels\` are accepted but ignored — both are recomputed from \`blocks\`. Omitting \`variables\` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with \`409\` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that \`needsRedeployment\` becomes true; \`POST /workflows/{workflowId}/deploy\` publishes the draft.\n\n\`lint\` is advisory and never blocks the write. \`lint.fieldIssues\` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and \`lint.unresolvedReferences\` names credential, resource, tool, and skill values that do not resolve. ${WORKSPACE_API_KEY_DENIED}\n\nSet \`?dryRun=true\` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and \`lint\` findings the committed write would, with \`dryRun: true\` — including the warnings the write\u2019s own preparation step raises, and the same \`409\` when an id is already owned by another workflow. Only \`needsRedeployment\` differs: it describes the state before the write.`,
+      description:
+        'Atomically replace the editable draft graph. Concurrent writes are row-locked and last-write-wins; no partial state is stored. `loops` and `parallels` are recomputed from `blocks`; omitted `variables` remain unchanged. Foreign ids return `409`. This leaves deployment unchanged and marks the draft for redeployment; lint is advisory. `dryRun=true` runs the same validation, lint, and conflict checks without persistence, audit, or notification; `needsRedeployment` reflects pre-write state. Workspace keys are rejected; use personal keys or OAuth.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -364,7 +365,8 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'applyWorkflowOperations',
       summary: 'Apply Workflow Operations',
-      description: `Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in \`skipped\`, each with a machine-readable \`type\`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. \`deferred\` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet \`atomic\` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers \`409\` with \`error.details.code: "OPERATIONS_NOT_APPLIED"\`, the same \`skipped\` array, and a \`droppedInputs\` array, having persisted nothing.\n\nA \`block_id\` you supply on an \`add\` or \`insert_into_subflow\` is only a label unless it is already a UUID: the engine mints one and returns the pairing in \`mintedBlockIds\`. References between operations in the same batch are remapped for you, so \`triage\` can be wired up in the same call it is created in — but a later request must use the minted id. Send your own UUIDs when you want an id you chose to survive across requests.\n\nOperation \`params\` is an open object because the accepted inputs come from the block registry, not from this contract — see the per-operation schemas for the envelope: \`inputs\` keyed by sub-block id, with \`retry\`, \`triggerMode\` and \`advancedMode\` beside it rather than inside it, and \`connections\` keyed by source handle. \`GET /blocks/{blockId}\` publishes the inputs a given block type accepts. The Agent block’s \`inputs.tools\` value is the important exception to that open catalog shape: it is published here as the named \`AgentToolInput\` union, covering catalog integrations, workspace custom tools, and MCP tools.\n\n\`lint\` is advisory and never blocks the write. \`lint.fieldIssues\` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and \`lint.unresolvedReferences\` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only \`inputValidationErrors\` lists inputs that were actually dropped.\n\nAs with \`PUT /workflows/{workflowId}/state\`, this changes only the draft; deploy to publish it. ${WORKSPACE_API_KEY_DENIED}\n\nSet \`?dryRun=true\` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and \`lint\` findings the committed write would, with \`dryRun: true\` — including the warnings the write\u2019s own preparation step raises, and the same \`409\` when an id is already owned by another workflow. Only \`needsRedeployment\` differs: it describes the state before the write.`,
+      description:
+        'Apply graph edits and optional block enablement in one atomic write. Failed operations appear in `skipped`; `deferred` edges resolve when targets exist and must not be retried. With `atomic`, any skip or dropped input returns `409` with `OPERATIONS_NOT_APPLIED` and persists nothing. Non-UUID labels are minted and same-batch references remapped in `mintedBlockIds`. Lint is advisory. `dryRun=true` runs the same checks without persistence, audit, or notification. This changes only the draft. Workspace keys are rejected; use personal keys or OAuth.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),
@@ -717,7 +719,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'revertWorkflowVersion',
       summary: 'Revert Workflow To Version',
-      description: `Overwrite the editable draft with the graph pinned by a deployment version, discarding every unsaved edit. This is the most destructive operation in the deployment family and it does **not** change what is live — to move production, use \`activate\` or \`rollback\`, both of which leave the draft alone. Pass \`active\` as the version to discard draft edits and return to the live graph. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Overwrite the editable draft with a deployment version, irreversibly discarding unsaved edits. This does not change the live version; use \`activate\` or \`rollback\` for production, both of which leave the draft unchanged. Pass \`active\` to reset the draft to the live graph. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The draft after it was overwritten.'),
     }),
@@ -739,7 +741,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
-      description: `Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes \`needsRedeployment\` and \`isPublicApi\`.\n\n\`isPublicApi\` is the security-relevant one: while it is \`true\` the deployed workflow executes without an API key, so anyone holding the execution URL can run it — and consume the workspace’s billed usage — anonymously. It is set through \`PATCH /workflows/{workflowId}/deployment\`, and this read is the only way to audit whether it is on.\n\n${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
+      description: `Read the live version, latest deployment attempt and readiness, draft drift (\`needsRedeployment\`), and \`isPublicApi\`. When \`isPublicApi\` is true, anyone with the execution URL can run and consume billed usage without an API key; change it with \`PATCH /workflows/{workflowId}/deployment\`. ${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
@@ -932,7 +934,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow; workspace-scoped bindings must be selected again after import. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
@@ -1002,7 +1004,7 @@ const declaredRoutes = [
       operationId: 'listChatDeployments',
       summary: 'List Chat Deployments',
       description:
-        'List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment.\n\nThis is the only chat path not addressed under a workflow, and deliberately so: every chat is a singleton of the workflow it publishes, but "what does this workspace serve" is a question no per-workflow path can answer. Filter by `workflowId` to resolve one workflow\'s chat without holding its id.\n\nEntries are deliberately narrower than the singleton read: `allowedEmails`, `hasPassword`, and `customizations` are available only from `GET /api/v2/workflows/{workflowId}/deployments/chat`, which requires workspace `admin`. That is what keeps this list callable at workspace `read` and by a workspace API key. A stored password is never returned by either.',
+        'List hosted chats in a workspace with opaque cursor pagination. Filter by `workflowId` to resolve one workflow’s singleton chat. Each item includes its public URL, whose identifier is a path segment, but omits `allowedEmails`, `hasPassword`, and `customizations`; read those through the admin-only singleton endpoint. This list requires workspace read access and accepts workspace API keys. Stored passwords are never returned.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of chat deployments.'),
     }),
@@ -1022,7 +1024,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'getWorkflowChatDeployment',
       summary: 'Get Workflow Chat Deployment',
-      description: `Read the hosted chat a workflow is published as. Answers \`404\` when the workflow publishes no chat. ${CHAT_VS_WORKFLOW_DEPLOYMENT} The stored password is never returned — \`hasPassword\` reports only whether one is set. This carries the visitor gate — \`authType\`, \`hasPassword\`, and the \`allowedEmails\` allow-list — so it requires workspace \`admin\`, unlike the workspace-wide list. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Read a workflow’s singleton hosted chat, or return \`404\` when none exists. ${CHAT_VS_WORKFLOW_DEPLOYMENT} The password is never returned; \`hasPassword\` reports its presence. Visitor-gate fields (\`authType\`, \`hasPassword\`, and \`allowedEmails\`) require workspace admin access. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess("The workflow's chat deployment."),
     }),
@@ -1043,7 +1045,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'replaceWorkflowChatDeployment',
       summary: 'Create or Replace Workflow Chat Deployment',
-      description: `Publish a workflow as a hosted chat, or replace the chat it already publishes. ${CHAT_VS_WORKFLOW_DEPLOYMENT}\n\n**Replace, not merge.** The chat ends up as exactly what the body describes: an omitted optional field takes its platform default rather than whatever the previous chat carried, so sending the same body twice leaves the same result. \`password\` is therefore required whenever \`authType\` is \`"password"\` and rejected otherwise — it is write-only and never readable back, so carrying one over implicitly is the one place a replace would quietly stop meaning replace. \`allowedEmails\` follows the same rule: required and non-empty for \`"email"\` and \`"sso"\`, rejected for the modes that admit no allow-list. \`customizations\` is the one documented exception: it merges per field, so an omitted \`imageUrl\` keeps the stored one rather than clearing it, and customization keys this surface does not declare do not survive the write. That behaviour is shared with the in-app editor and the Copilot deploy tool, which both send partial objects.\n\nThis also deploys the workflow, because a chat serves the live version: a draft that has drifted is republished as part of the call. Two conditions answer \`409\` — an \`identifier\` another live chat already holds, and a workflow deployment attempt still preparing, which the caller can retry once it becomes active. \`authType: "public"\` leaves the chat open to anyone holding the URL. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or replace hosted chat. Omitted fields reset to defaults except per-field \`customizations\`. \`password\` is write-only and required for password auth; \`allowedEmails\` is required and non-empty for email or SSO. This also deploys the draft. A duplicate identifier or pending deployment returns \`409\`; public auth exposes the URL. ${CHAT_VS_WORKFLOW_DEPLOYMENT} Workspace keys are rejected; use personal keys or OAuth.`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The published chat deployment.'),
     }),
@@ -1086,7 +1088,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'executeWorkflowV2',
       summary: 'Execute Workflow',
-      description: `Execute the active deployment by default, or select manual execution of the current saved workflow state with \`run.source: "manual"\`. Manual runs require a personal API key with current write access and support synchronous or Server-Sent Event execution only; workspace keys, anonymous public access, and async manual runs are rejected. A manual run can enter through one runnable trigger (including external integration/webhook triggers) or resume at a named block from the exact same-workflow run identified by \`sourceRunId\`; the server loads that run's persisted snapshot, which is never accepted from the request. Omit a trigger block id only when the saved workflow has exactly one runnable trigger. Public deployed workflows permit anonymous synchronous and streaming execution, while asynchronous deployed execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
+      description: `Execute the deployment, or use \`run.source: "manual"\` for draft state. Manual runs require a personal key or OAuth write access; workspace keys, anonymous callers, and async mode are rejected. Start at a runnable trigger, or resume from \`sourceRunId\` using the same-workflow snapshot. Public deployments allow anonymous sync or streaming; async requires credentials. Sync timeouts return \`200\` with failed status and \`TIMEOUT\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1100,7 +1102,7 @@ const declaredRoutes = [
         'InternalError',
         'ServiceUnavailable',
       ],
-      security: [...V2_API_KEY_SECURITY, {}],
+      security: [...V2_AUTH_SECURITY, {}],
       success: {
         byStatus: {
           200: {
@@ -1166,7 +1168,7 @@ const declaredRoutes = [
     workflowRunOperation({
       operationId: 'getWorkflowRunV2',
       summary: 'Get Workflow Run',
-      description: `Get current workflow run state, optionally including final and block outputs. With \`includeOutput\`, \`files\` lists the files the run produced, each with a \`downloadPath\`; add \`includeFileBase64\` to inline their bytes, which answers \`413\` naming the download path when a single file, or the run's inlined total, exceeds the 16 MiB ceiling. Because inlining reads object storage, this \`GET\` is not a safe read. ${HEAD_MIRRORS_GET}`,
+      description: `Get current run state with optional final and block outputs. With \`includeOutput\`, \`files\` includes download paths; \`includeFileBase64\` reads object storage to inline bytes and returns \`413\` with the download path when one file or the total exceeds 16 MiB. ${HEAD_MIRRORS_GET}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow run status.'),
     }),
@@ -1214,7 +1216,7 @@ const declaredRoutes = [
     workflowRunOperation({
       operationId: 'downloadWorkflowRunFileV2',
       summary: 'Download Workflow Run File',
-      description: `Download one file a run produced. The run resource reports the files a run emitted; address one of them by its \`id\` here. Run output carries \`/api/files/serve/...\` URLs that reject API keys, so this is the byte path out of a run for an API-key caller. Execution objects are not retained indefinitely, so a \`404\` for a file an older run produced is expected rather than a fault. ${RUN_RETENTION} Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      description: `Download one run-produced file by id. Downloads record an audit event. ${RUN_RETENTION} ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: [...RESOURCE_CONFLICT_ERRORS],
       success: {
         description: 'The run file bytes.',
@@ -1442,8 +1444,8 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
       description: 'Inspect, resume, and cancel workflow runs.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,

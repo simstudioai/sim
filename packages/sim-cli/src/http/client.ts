@@ -1,7 +1,7 @@
 import chalk from 'chalk'
-import type { ResolvedProfile } from '../config/index'
+import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
 import { USER_AGENT } from '../version'
-import { warnIfKeyOverCleartext, warnIfProxyIgnored } from './environment'
+import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed
@@ -424,18 +424,77 @@ export function formatApiErrorDetails(details: unknown): string[] {
   return lines
 }
 
-export class SimClient {
-  constructor(private readonly profile: ResolvedProfile) {}
+/**
+ * Renews an OAuth login and returns the new pair; injected so the HTTP client
+ * does not import the OAuth flow, which imports the client.
+ */
+export type OAuthRefresher = (
+  profile: ResolvedProfile,
+  current: StoredOAuthCredential
+) => Promise<StoredOAuthCredential>
 
-  private resolveApiKey(auth: AuthRequirement = 'required'): string | undefined {
-    if (!this.profile.apiKey) {
-      if (auth === 'optional') return undefined
+export interface SimClientOptions {
+  refreshOAuth?: OAuthRefresher
+}
+
+/**
+ * Renew this long before the access token lapses. A request that starts with
+ * a few seconds left can still land after expiry; five minutes is the margin
+ * the AWS CLI and WorkOS's guidance settle on, and well inside the hour a Sim
+ * access token lives.
+ */
+const REFRESH_AHEAD_MS = 5 * 60 * 1000
+
+/** Reads the OAuth error parameter from Sim's Bearer challenge. */
+function bearerChallengeError(header: string | null): string | null {
+  if (!header?.trimStart().toLowerCase().startsWith('bearer')) return null
+  const match = /(?:^|,)\s*error\s*=\s*(?:"([^"]*)"|([^,\s]+))/i.exec(
+    header.replace(/^\s*Bearer\s*/i, '')
+  )
+  return match?.[1] ?? match?.[2] ?? null
+}
+
+export class SimClient {
+  private oauth: StoredOAuthCredential | null
+  private refreshing: Promise<StoredOAuthCredential> | null = null
+
+  constructor(
+    private readonly profile: ResolvedProfile,
+    private readonly options: SimClientOptions = {}
+  ) {
+    this.oauth = profile.oauth ?? null
+  }
+
+  private resolveCredential(auth: AuthRequirement = 'required'): StoredCredential | undefined {
+    if (this.profile.apiKey) return { kind: 'api_key', apiKey: this.profile.apiKey }
+    if (this.oauth) return { kind: 'oauth', oauth: this.oauth }
+    if (auth === 'optional') return undefined
+    throw new SimApiError(
+      `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.authProfile}`,
+      0
+    )
+  }
+
+  /**
+   * One refresh at a time per process, shared by every request that finds the
+   * token expiring; the cross-process half lives behind the refresher.
+   */
+  private async refreshOAuth(current: StoredOAuthCredential): Promise<StoredOAuthCredential> {
+    const refresh = this.options.refreshOAuth
+    if (!refresh) {
       throw new SimApiError(
-        `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.name}`,
-        0
+        `Your Sim login has expired. Run sim logout --profile ${this.profile.name}, then sim login --profile ${this.profile.name}.`,
+        401
       )
     }
-    return this.profile.apiKey
+    if (!this.refreshing) {
+      this.refreshing = refresh(this.profile, current).finally(() => {
+        this.refreshing = null
+      })
+    }
+    const next = await this.refreshing
+    this.oauth = next
+    return next
   }
 
   /**
@@ -447,7 +506,7 @@ export class SimClient {
    * is logging in. Auth-disabled self-hosted protocols opt out explicitly.
    */
   requireWorkspace(explicit?: string, options: WorkspaceOptions = {}): string {
-    this.resolveApiKey(options.auth)
+    this.resolveCredential(options.auth)
     const workspaceId = explicit ?? this.profile.workspaceId
     if (!workspaceId) {
       throw new SimApiError(
@@ -484,16 +543,23 @@ export class SimClient {
 
   private async send(
     path: string,
-    options: RequestOptions
+    options: RequestOptions,
+    retriedAfterRefresh = false
   ): Promise<{ response: Response; url: string }> {
-    const apiKey = this.resolveApiKey(options.auth)
+    let credential = this.resolveCredential(options.auth)
+    if (
+      credential?.kind === 'oauth' &&
+      credential.oauth.expiresAt - Date.now() < REFRESH_AHEAD_MS
+    ) {
+      credential = { kind: 'oauth', oauth: await this.refreshOAuth(credential.oauth) }
+    }
 
     const url = buildUrl(this.profile.endpoint, path, options.query)
     const hasBody = options.body !== undefined
     const method = options.method ?? 'GET'
 
     warnIfProxyIgnored()
-    warnIfKeyOverCleartext(this.profile.endpoint, Boolean(apiKey))
+    warnIfCredentialOverCleartext(this.profile.endpoint, Boolean(credential))
 
     // The caller's signal still cancels; the timeout only adds a second reason
     // to abort, so neither can mask the other.
@@ -509,7 +575,10 @@ export class SimClient {
       response = await fetch(url, {
         method,
         headers: {
-          ...(apiKey ? { 'x-api-key': apiKey } : {}),
+          ...(credential?.kind === 'api_key' ? { 'x-api-key': credential.apiKey } : {}),
+          ...(credential?.kind === 'oauth'
+            ? { authorization: `Bearer ${credential.oauth.accessToken}` }
+            : {}),
           accept: 'application/json',
           'user-agent': USER_AGENT,
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
@@ -540,14 +609,31 @@ export class SimClient {
 
     if (REDIRECT_STATUSES.has(response.status)) throw this.toRedirectError(url, path, response)
 
+    /**
+     * A token the server no longer accepts — revoked, or expired on a clock
+     * this process disagrees with — is renewed once and the request repeated.
+     * Only for `invalid_token` (RFC 6750 §3.1): any other 401 means the
+     * refresh would not change the answer.
+     */
+    if (
+      response.status === 401 &&
+      credential?.kind === 'oauth' &&
+      !retriedAfterRefresh &&
+      bearerChallengeError(response.headers.get('www-authenticate')) === 'invalid_token'
+    ) {
+      await response.body?.cancel()
+      await this.refreshOAuth(credential.oauth)
+      return this.send(path, options, true)
+    }
+
     if (!response.ok) {
       const raw = await response.text()
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
       if (response.status === 401) {
-        error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }
       if (namesKeyScopeRefusal(error)) {
-        error.message = `${error.message} — this operation needs a personal API key: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
       }
       throw error
     }

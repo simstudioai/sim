@@ -12,6 +12,9 @@ export const AuditAction = {
   PERSONAL_API_KEY_CREATED: 'personal_api_key.created',
   PERSONAL_API_KEY_REVOKED: 'personal_api_key.revoked',
 
+  // OAuth apps (Sim as the authorization server)
+  OAUTH_APP_REVOKED: 'oauth_app.revoked',
+
   // BYOK Keys
   BYOK_KEY_CREATED: 'byok_key.created',
   BYOK_KEY_UPDATED: 'byok_key.updated',
@@ -262,6 +265,7 @@ export const AuditResourceType = {
   KNOWLEDGE_BASE: 'knowledge_base',
   MCP_SERVER: 'mcp_server',
   OAUTH: 'oauth',
+  OAUTH_CLIENT: 'oauth_client',
   ORGANIZATION: 'organization',
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',

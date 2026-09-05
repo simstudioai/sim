@@ -1,22 +1,34 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
 const ALL_WORKFLOW_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 
 const WORKFLOW_READ_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot', 'executor'],
 } as const
 
 const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
 
 const WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot', 'executor'],
 } as const
 
@@ -335,7 +347,7 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
   }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',
@@ -414,7 +426,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['personal_api_key'],
+    principalKinds: ['personal_api_key', 'oauth_access_token'],
   }),
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   executeManualFromBlock: defineWorkspaceOperation({
@@ -422,7 +434,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['personal_api_key'],
+    principalKinds: ['personal_api_key', 'oauth_access_token'],
   }),
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
   listRuns: defineWorkspaceOperation({

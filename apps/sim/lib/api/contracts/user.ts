@@ -14,6 +14,44 @@ export const userProfileSchema = z.object({
 
 export type UserProfileApiUser = z.output<typeof userProfileSchema>
 
+/** An OAuth client the account has authorized, as the "Authorized apps" settings list shows it. */
+export const authorizedAppSchema = z.object({
+  clientId: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  scopes: z.array(z.string().min(1).max(100)).max(50),
+  /**
+   * When the user granted this app access, which is what decides whether to
+   * revoke it. ISO-checked because the row is rendered through `new Date(...)`
+   * — anything else reaches the settings list as "Invalid Date".
+   */
+  authorizedAt: z.iso.datetime(),
+})
+
+export type AuthorizedApp = z.output<typeof authorizedAppSchema>
+
+export const listAuthorizedAppsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/authorized-apps',
+  response: {
+    mode: 'json',
+    schema: z.object({ apps: z.array(authorizedAppSchema) }),
+  },
+})
+
+export const authorizedAppParamsSchema = z.object({
+  clientId: z.string().min(1, 'Client ID is required').max(200),
+})
+
+export const revokeAuthorizedAppContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/users/me/authorized-apps/[clientId]',
+  params: authorizedAppParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
+  },
+})
+
 export const getUserProfileContract = defineRouteContract({
   method: 'GET',
   path: '/api/users/me/profile',

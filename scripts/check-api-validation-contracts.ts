@@ -61,6 +61,11 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/tools/docusign/route.ts',
   // Better Auth handles its own validation for the catch-all route below.
   'apps/sim/app/api/auth/[...all]/route.ts',
+  /** OAuth protocol routes use bounded form or bearer parsing instead of JSON contracts. */
+  'apps/sim/app/api/auth/oauth2/revoke/route.ts',
+  'apps/sim/app/api/auth/oauth2/token/route.ts',
+  /** Input-less RFC 8414 aliases return Better Auth metadata with Sim's supported surface. */
+  'apps/sim/app/api/auth/.well-known/oauth-authorization-server/route.ts',
   // Better Auth handles validation for the Stripe webhook handler.
   'apps/sim/app/api/auth/webhook/stripe/route.ts',
   // Routes with no client-supplied input that previously had no-op
@@ -89,6 +94,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-table-row-ttl/route.ts',
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
   'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
+  'apps/sim/app/api/cron/cleanup-oauth-tokens/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/billing-cycle-close/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',

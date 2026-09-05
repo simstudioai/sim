@@ -1,6 +1,6 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
-const HUMAN_API_PRINCIPAL_KINDS = ['session', 'personal_api_key'] as const
+const HUMAN_API_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'oauth_access_token'] as const
 
 export const secretOperations = {
   list: defineWorkspaceOperation({

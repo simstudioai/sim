@@ -28,7 +28,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
   // permission-group-exempt: one entry of the same catalog listBlocks returns, so it cannot be governed differently
   readBlock: defineWorkspaceOperation({
@@ -36,7 +36,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
   // permission-group-exempt: describes which tools exist; whether a member may call one is decided on that tool's own operation
   listTools: defineWorkspaceOperation({
@@ -44,7 +44,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
   // permission-group-exempt: one entry of the same catalog listTools returns, so it cannot be governed differently
   readTool: defineWorkspaceOperation({
@@ -52,7 +52,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
   /**
    * The only catalog with a capability: it enumerates knowledge-base connector
@@ -64,6 +64,6 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
 } as const

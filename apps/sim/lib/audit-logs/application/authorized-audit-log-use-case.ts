@@ -1,10 +1,17 @@
-import type { Principal } from '@sim/auth/principal'
+import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import type { AuditLogOperation, AuditLogPrincipal } from '@/lib/audit-logs/application/operations'
 import {
   resolveDefaultAuditOrganization,
   resolveEnterpriseAuditAccess,
 } from '@/lib/audit-logs/authorization'
-import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
+import {
+  ForbiddenOperationError,
+  type OperationUseCase,
+  PersonalApiKeysDisabledError,
+} from '@/lib/core/application'
+import { refuseCapability } from '@/lib/permission-groups/capabilities'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 
 export interface AuthorizedAuditLogContext {
   organizationId: string
@@ -72,6 +79,25 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
     async execute({ principal, input }) {
       requireAuditLogPrincipal(principal, definition.operation)
       const actorUserId = auditActorUserId(principal)
+      if (
+        isUserCredentialPrincipal(principal) &&
+        (await isCapabilityWithheldForUser(actorUserId, 'personal_api_key.use'))
+      ) {
+        throw new PersonalApiKeysDisabledError()
+      }
+      /**
+       * permission-group-enforced: personal_api_key.use, cli.use — this path
+       * authorizes against an organization rather than a workspace, so the
+       * workspace-keyed funnel never runs. The user-global form is the policy
+       * that applies when there is no workspace key.
+       */
+      if (
+        principal.kind === 'oauth_access_token' &&
+        principal.clientId === SIM_CLI_CLIENT_ID &&
+        (await isCapabilityWithheldForUser(actorUserId, 'cli.use'))
+      ) {
+        refuseCapability('cli.use')
+      }
       const organizationId = await resolveOperationOrganizationId(
         actorUserId,
         definition.organizationId(input)

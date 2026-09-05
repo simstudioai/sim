@@ -15,13 +15,27 @@ import {
   authenticateV2ApiKey,
   type V2ApiKeyAuthContext,
   V2ApiKeyUnauthenticatedError,
+  type V2CredentialType,
 } from '@/lib/api/server/routes/v2-api-key-auth'
+import {
+  hasV2Credential,
+  readV2CredentialHeaders,
+} from '@/lib/api/server/routes/v2-credential-headers'
 import {
   type ParsedRequest,
   type ParseRequestOptions,
   parseRequest,
 } from '@/lib/api/server/validation'
-import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
+import {
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+  oauthScopeSatisfies,
+} from '@/lib/auth/oauth-provider'
+import {
+  type ApplicationOperation,
+  InsufficientScopeError,
+  type OperationUseCase,
+} from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -30,6 +44,7 @@ import {
   v2Error,
   v2HeadNoEffect,
   v2HttpError,
+  v2InsufficientScope,
   v2RateLimitError,
   v2ValidationError,
 } from '@/app/api/v2/lib/response'
@@ -48,9 +63,13 @@ export class V2RouteInfrastructureError extends Error {
   }
 }
 
+/**
+ * The v2 credential policy: an API key in `x-api-key`, or a Sim OAuth access
+ * token as `Authorization: Bearer`.
+ */
 export const v2ApiKeyAuth = {
   authenticate(request: NextRequest) {
-    return authenticateV2ApiKey(request.headers.get('x-api-key'))
+    return authenticateV2ApiKey(readV2CredentialHeaders(request.headers))
   },
 } as const
 
@@ -232,6 +251,34 @@ export function requireHeadAuthorizableUseCase(
 }
 
 /**
+ * The safe methods (RFC 9110 §9.2.1) this runtime serves — TRACE is the fourth
+ * and Next routes none. Every other method is treated as state-changing, which
+ * is the whole point: a request that may write is one by construction,
+ * whatever the handler beneath it turns out to do.
+ */
+const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+/**
+ * Refuses a `readOnly` declaration on a route whose method is already safe.
+ *
+ * `readOnly` exists only to say "this unsafe method does not write", so on a
+ * GET it changes nothing and its presence means the author read it as
+ * something else. Failing at definition time keeps the flag meaning one thing.
+ * Nothing here can tell whether an unsafe route that claims it is telling the
+ * truth — that stays a review question.
+ */
+export function requireUnsafeMethodForReadOnly(
+  contract: { method: string; path: string },
+  readOnly: boolean | undefined
+): void {
+  if (!readOnly) return
+  if (!SAFE_HTTP_METHODS.has(contract.method.toUpperCase())) return
+  throw new Error(
+    `V2 route ${contract.method} ${contract.path} declares readOnly, which only applies to a method that is not already safe. Remove it.`
+  )
+}
+
+/**
  * The bodiless answer a `HEAD` gets on a route whose `GET` is not safe.
  *
  * Authorization runs first and its failures render through the route's own error
@@ -300,11 +347,59 @@ async function enforceV2PreAuthIpLimit(request: NextRequest): Promise<NextRespon
     : v2RateLimitError({ ...abuseLimit, limit: V2_PREAUTH_IP_LIMIT.maxTokens })
 }
 
+export interface V2ScopePolicy {
+  /**
+   * Whether this route only reads, despite a method that is not safe.
+   *
+   * Four v2 routes qualify: a search or a query whose filter is too large for a
+   * query string and therefore travels as a `POST` body. Setting it on a route
+   * that writes hands every read-only OAuth token that write, so it is set from
+   * the route definition rather than inferred, and the reason belongs beside it.
+   */
+  readOnly?: boolean
+  /** Whether a safe-method route still performs externally visible work or persistence. */
+  write?: boolean
+}
+
+/**
+ * Refuses an OAuth token that was not granted the scope this request needs.
+ *
+ * `api:read` is the floor for reaching the API at all: a token granted only the
+ * identity scopes may sign a person in but may not read their workspaces. It is
+ * enforced here rather than only in the authorization funnel because three
+ * operation families — audit logs, billing reads, and `/api/v2/meta` — run
+ * their own funnel and never reach it, and every one of them is a read of real
+ * account data.
+ *
+ * The write half is derived from the HTTP method, not from the operation's
+ * `minimumRole`: a role is a floor on workspace membership, and several
+ * operations that change state declare `read` because their real gate is a
+ * resource ACL — setting a secret, granting a skill editor, running a workflow.
+ * A method cannot lie about whether the request is allowed to have effects.
+ *
+ * API keys are unaffected: a key carries the full authority of its owner and
+ * has no scopes to narrow it.
+ */
+function refuseOutOfScopeRequest(
+  request: NextRequest,
+  auth: V2ApiKeyAuthContext,
+  scopePolicy: V2ScopePolicy | undefined
+): NextResponse | null {
+  if (auth.principal.kind !== 'oauth_access_token') return null
+  const writes =
+    scopePolicy?.write === true ||
+    (!scopePolicy?.readOnly && !SAFE_HTTP_METHODS.has(request.method))
+  const required = writes ? OAUTH_API_WRITE_SCOPE : OAUTH_API_READ_SCOPE
+  if (oauthScopeSatisfies(auth.principal.scopes, required)) return null
+  return v2InsufficientScope(new InsufficientScopeError(required))
+}
+
 async function admitAuthenticatedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  scopePolicy?: V2ScopePolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
@@ -313,10 +408,18 @@ async function admitAuthenticatedV2Request(
     auth = await authPolicy.authenticate(request)
   } catch (error) {
     if (error instanceof V2ApiKeyUnauthenticatedError) {
-      return { success: false, response: v2Error('UNAUTHORIZED', error.message) }
+      return {
+        success: false,
+        response: v2Error('UNAUTHORIZED', error.message, {
+          authChallenge: error.challenge,
+        }),
+      }
     }
     throw new V2RouteInfrastructureError('authentication', error)
   }
+
+  const outOfScope = refuseOutOfScopeRequest(request, auth, scopePolicy)
+  if (outOfScope) return { success: false, response: outOfScope }
 
   const limited = await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
@@ -326,13 +429,14 @@ async function admitRateLimitedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  scopePolicy?: V2ScopePolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
-  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy, scopePolicy)
 }
 
 /** Admission for a v2 route the builders do not cover, such as the resume leg. */
@@ -340,25 +444,27 @@ export async function admitV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  scopePolicy?: V2ScopePolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
-  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy)
+  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy, scopePolicy)
 }
 
 export async function admitOptionalV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
+  rateLimitPolicy: V2RateLimitPolicy,
+  scopePolicy?: V2ScopePolicy
 ): Promise<
   { success: true; auth?: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
-  if (!request.headers.has('x-api-key')) return { success: true }
-  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+  if (!hasV2Credential(request.headers)) return { success: true }
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy, scopePolicy)
 }
 
 /**
@@ -372,12 +478,13 @@ export async function admitOptionalV2Request(
  * One route reads it: `GET /api/v2/meta`, whose resource *is* the calling key.
  */
 export interface V2CredentialFacts {
-  readonly keyType: 'personal' | 'workspace'
+  readonly keyType: V2CredentialType
   readonly keyExpiresAt: Date | null
 }
 
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>
-  extends Omit<JsonRouteDefinition<C, O, I, R>, 'mapInput'> {
+  extends Omit<JsonRouteDefinition<C, O, I, R>, 'mapInput'>,
+    V2ScopePolicy {
   mapInput(input: ParsedRequest<C>, credential: V2CredentialFacts): I
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
@@ -425,6 +532,12 @@ export function defineV2JsonRoute<
     options.useCase.operation
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
+  requireUnsafeMethodForReadOnly(options.contract, options.readOnly)
+  if (options.readOnly && options.write) {
+    throw new Error(
+      `V2 route ${options.contract.method} ${options.contract.path} cannot declare both readOnly and write.`
+    )
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
@@ -438,7 +551,8 @@ export function defineV2JsonRoute<
         request,
         options.operation,
         options.auth,
-        options.rateLimit
+        options.rateLimit,
+        { readOnly: options.readOnly, write: options.write }
       )
       if (!admission.success) return admission.response
       const { auth } = admission
@@ -446,7 +560,11 @@ export function defineV2JsonRoute<
       if (options.beforeParse) {
         const rawParams = context?.params ? await context.params : {}
         try {
-          await options.beforeParse({ request, principal: auth.principal, params: rawParams })
+          await options.beforeParse({
+            request,
+            principal: auth.principal,
+            params: rawParams,
+          })
         } catch (error) {
           const response = options.errorPolicy.render(error)
           if (response) return response

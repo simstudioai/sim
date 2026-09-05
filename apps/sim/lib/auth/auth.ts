@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { oauthProvider } from '@better-auth/oauth-provider'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
@@ -6,8 +7,13 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
+import {
+  APIError,
+  createAuthMiddleware,
+  getOAuthState,
+  getSessionFromCtx,
+  setShouldSkipSessionRefresh,
+} from 'better-auth/api'
 import { deleteSessionCookie, setSessionCookie } from 'better-auth/cookies'
 import { nextCookies } from 'better-auth/next-js'
 import {
@@ -37,12 +43,23 @@ import {
   getRequestedSignInProviderId,
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
+import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
+import {
+  consentRequestNamesClient,
+  OAUTH_ACCESS_TOKEN_PREFIX,
+  OAUTH_ACCESS_TOKEN_TTL_SECONDS,
+  OAUTH_CODE_TTL_SECONDS,
+  OAUTH_REFRESH_TOKEN_PREFIX,
+  OAUTH_REFRESH_TOKEN_TTL_SECONDS,
+  OAUTH_SCOPES,
+  SIM_CLI_CLIENT_ID,
+} from '@/lib/auth/oauth-provider'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
-import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
@@ -91,6 +108,7 @@ import {
   isGoogleAuthDisabled,
   isHosted,
   isMicrosoftAuthDisabled,
+  isOAuthProviderEnabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupMxValidationEnabled,
@@ -130,6 +148,8 @@ import {
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -227,13 +247,7 @@ export const auth = betterAuth({
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
     ...additionalTrustedOrigins,
   ].filter(Boolean),
-  database: (options: BetterAuthOptions) =>
-    guardSubscriptionPlanWrites(
-      drizzleAdapter(db, {
-        provider: 'pg',
-        schema,
-      })(options)
-    ),
+  database: (options: BetterAuthOptions) => createSimAuthAdapter(options),
   session: {
     cookieCache: {
       enabled: true,
@@ -936,6 +950,14 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       /**
+       * Better Auth 1.6.27 re-enters OAuth authorization when its own session
+       * refresh sets a cookie, issuing a second code that is never returned.
+       * Suppressing sliding renewal only for this request prevents the orphan;
+       * the next ordinary session request can still renew the same session.
+       */
+      if (ctx.path === '/oauth2/authorize') await setShouldSkipSessionRefresh(true)
+
+      /**
        * Restrict the unauthenticated sign-in endpoints to first-party login
        * providers. Better Auth registers every generic-OAuth integration
        * connector as a social provider, so without this guard `microsoft-ad`,
@@ -951,6 +973,32 @@ export const auth = betterAuth({
             message:
               'This provider can only be connected from a signed-in account and cannot be used to sign in.',
           })
+        }
+      }
+
+      /**
+       * A user consenting to the Sim CLI is the one moment a human is present
+       * in a CLI login, so `cli.use` is checked here to refuse the grant
+       * outright. `requireCliAccessAllowed` checks it again on every bearer
+       * request, because a consent already on file lets later authorizations
+       * skip this endpoint entirely — neither check makes the other redundant.
+       *
+       * The client id is read from the signed authorize query the consent page
+       * forwards. The gate fires if `sim-cli` appears anywhere in it, which is
+       * strictly more conservative than the plugin's own first-value read.
+       *
+       * permission-group-enforced: cli.use — gates OAuth consent for the
+       * first-party CLI client, which owns no workspace resource for the
+       * authorization funnel to authorize.
+       */
+      if (ctx.path === '/oauth2/consent') {
+        if (consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)) {
+          const session = await getSessionFromCtx(ctx)
+          const userId = session?.user?.id
+          if (userId && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
+            logger.warn('CLI OAuth consent blocked by permission group', { userId })
+            throw new APIError('FORBIDDEN', { message: capabilityRefusal('cli.use') })
+          }
         }
       }
 
@@ -1257,6 +1305,71 @@ export const auth = betterAuth({
     genericOAuth({
       config: buildConnectorProviders(),
     }),
+    /**
+     * Sim as an OAuth 2.0 authorization server (auth-code + PKCE, refresh
+     * rotation). Tokens are opaque and stored hashed, so revoking an app in
+     * settings takes effect on the next request. `sim logout` deletes the
+     * stable family for that login, including access tokens issued before an
+     * earlier rotation. This is an OAuth API-authorization surface, not an
+     * OpenID Connect identity provider; `disableJwtPlugin` keeps JWT/JWKS and
+     * ID-token semantics out of the advertised protocol. Clients are DB rows
+     * only (the CLI is seeded by migration, the rest are admin-created), so
+     * both registration paths stay closed.
+     */
+    ...(isOAuthProviderEnabled
+      ? [
+          oauthProvider({
+            loginPage: '/oauth/sign-in',
+            consentPage: '/oauth/consent',
+            scopes: [...OAUTH_SCOPES],
+            grantTypes: ['authorization_code', 'refresh_token'],
+            /**
+             * Lets the consent page resolve the display-safe client metadata
+             * through the plugin's signed-query endpoint. The endpoint remains
+             * unusable for handwritten or expired authorization URLs because
+             * Better Auth verifies `oauth_query` before reading the client.
+             */
+            allowPublicClientPrelogin: true,
+            allowDynamicClientRegistration: false,
+            allowUnauthenticatedClientRegistration: false,
+            /**
+             * No endpoint may read or change a client row. Clients are created
+             * by an operator running `create-oauth-client.ts`, so every one of
+             * the plugin's client CRUD endpoints — create, read, list, update,
+             * delete, rotate — is refused at the source. The route-level POST
+             * blocklist stays as defence in depth, but this is what closes the
+             * `GET` readers it cannot see, and what keeps a future plugin
+             * version from mounting a seventh endpoint into an open door.
+             *
+             * The consent page's client lookup is unaffected:
+             * `public-client-prelogin` does not consult this hook and instead
+             * requires the signed authorization query.
+             */
+            clientPrivileges: () => false,
+            /**
+             * Opaque access tokens let Settings revoke every token for an app
+             * on the next request and let `sim logout` revoke one independent
+             * login family, including access tokens from earlier rotations. A
+             * JWT would remain valid until it lapsed regardless of the delete.
+             *
+             * Better Auth requires reversibly encrypted client secrets in its
+             * disabled-JWT mode; selecting `hashed` is refused at provider
+             * construction. `storeClientSecret` therefore stays at the
+             * plugin's `encrypted` default, under `BETTER_AUTH_SECRET`, and
+             * `create-oauth-client.ts` writes secrets the same way.
+             */
+            disableJwtPlugin: true,
+            storeTokens: { hash: hashOAuthToken },
+            prefix: {
+              opaqueAccessToken: OAUTH_ACCESS_TOKEN_PREFIX,
+              refreshToken: OAUTH_REFRESH_TOKEN_PREFIX,
+            },
+            accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_TTL_SECONDS,
+            refreshTokenExpiresIn: OAUTH_REFRESH_TOKEN_TTL_SECONDS,
+            codeExpiresIn: OAUTH_CODE_TTL_SECONDS,
+          }),
+        ]
+      : []),
     /**
      * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
      * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers

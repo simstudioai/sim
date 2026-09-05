@@ -81,7 +81,7 @@ describe('GET /api/v2/meta', () => {
 
   it('requires authentication', async () => {
     v2RouteMocks.authenticate.mockRejectedValue(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
+      new MockV2ApiKeyUnauthenticatedError('API key or OAuth access token required')
     )
 
     const response = await GET(new NextRequest('http://localhost:3000/api/v2/meta'))

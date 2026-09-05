@@ -14,6 +14,6 @@ export const v2MetaOperations = {
   read: defineOperation({
     id: 'meta.capabilities.read',
     capability: 'none',
-    principalKinds: ['personal_api_key', 'workspace_api_key'],
+    principalKinds: ['personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
 } as const

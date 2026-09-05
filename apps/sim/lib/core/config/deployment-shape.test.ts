@@ -35,6 +35,7 @@ describe('resolveDeploymentShape', () => {
         dataDrains: false,
         dataRetention: false,
         inbox: true,
+        oauthProvider: true,
         sandboxes: true,
         sessionPolicies: true,
         sso: true,

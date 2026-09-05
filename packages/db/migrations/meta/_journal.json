@@ -2248,6 +2248,13 @@
       "when": 1788482043862,
       "tag": "0321_multi_width_embeddings",
       "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1788562996397,
+      "tag": "0322_oauth_provider",
+      "breakpoints": true
     }
   ]
 }

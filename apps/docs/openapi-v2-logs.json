@@ -29,6 +29,9 @@
   "security": [
     {
       "apiKey": []
+    },
+    {
+      "oauthBearer": []
     }
   ],
   "paths": {
@@ -36,7 +39,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List workflow execution logs for a workspace with filters, selectable detail, sorting by start time, duration, cost, or status, and opaque cursor pagination. Chat and Sim-agent job runs join the sequence with `includeJobRuns=true`, which is accepted only under `sortBy=startedAt` — their cost is stored as a document and their status is not comparable, so they cannot participate in the other orderings. Each item's `files` lists only the files the run itself produced, addressed by `downloadPath`; input attachments a caller supplied are read through the files API instead. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "List logs with filters, selectable detail, sorting, and cursor pagination. `includeJobRuns=true` includes chat and Sim-agent jobs only with `sortBy=startedAt`, because other orderings are unsupported. `files` contains only run-produced files; use the files API for input attachments. Expired runs are hard-deleted and simply absent. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -65,10 +68,10 @@
             "name": "triggers",
             "in": "query",
             "required": false,
-            "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries.",
+            "description": "Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values. At most 100 entries.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries."
+              "description": "Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values. At most 100 entries."
             }
           },
           {
@@ -244,9 +247,9 @@
             "name": "includeJobRuns",
             "in": "query",
             "required": false,
-            "description": "Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: \"job\"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.",
+            "description": "Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: \"job\"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`.",
             "schema": {
-              "description": "Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: \"job\"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.",
+              "description": "Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: \"job\"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`.",
               "type": "boolean"
             }
           },
@@ -351,7 +354,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none. A workspace folder tree over 10,000 folders is a `413`. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
+        "description": "Retrieve a run's workflow snapshot, trace spans, final output, and cost. Trace spans have separate retention, so an empty `traceSpans` array does not prove none were recorded. Expired runs are hard-deleted and simply absent. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -421,7 +424,7 @@
       "get": {
         "operationId": "getLogStats",
         "summary": "Get Log Statistics",
-        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans `startDate` through `endDate` when both are supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding `endDate` when only `endDate` was supplied. A supplied `startDate` is still used verbatim, so a `startDate` without an `endDate` yields `[startDate, now]`, which can be any width. The window is divided into exactly `segmentCount` equal buckets whose width is `max(60000, floor(windowMs / segmentCount))` milliseconds. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past `timeBounds.end` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Return workspace/workflow counts, success, errors, and latency. Defaults span runs, or 24 hours if empty; supplied bounds stay exact. Buckets are one-minute minimum and may pass the end. Folders include descendants; `workflowsTruncated` marks capped series, totals include all. Expired runs are hard-deleted and simply absent. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -572,6 +575,12 @@
         "in": "header",
         "name": "X-API-Key",
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+      },
+      "oauthBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "OAuth 2.0 access token",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. The token must carry the scope required by the operation."
       }
     },
     "headers": {
@@ -643,7 +652,7 @@
         }
       },
       "Unauthorized": {
-        "description": "The API key is missing or invalid.",
+        "description": "The API credential is missing or invalid.",
         "content": {
           "application/json": {
             "schema": {
@@ -652,7 +661,7 @@
             "example": {
               "error": {
                 "code": "UNAUTHORIZED",
-                "message": "API key required"
+                "message": "Authentication required"
               }
             }
           }
@@ -772,6 +781,48 @@
       }
     },
     "schemas": {
+      "V2ActionableForbiddenDetails": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/V2ForbiddenDetailCode"
+          }
+        },
+        "required": ["code"],
+        "additionalProperties": {
+          "description": "Additional context for this refusal."
+        },
+        "title": "Actionable forbidden details",
+        "description": "Machine-readable cause and optional context for an actionable `403` response."
+      },
+      "V2ForbiddenDetailCode": {
+        "type": "string",
+        "enum": [
+          "INSUFFICIENT_WORKSPACE_ROLE",
+          "PERSONAL_API_KEYS_DISABLED",
+          "WORKSPACE_KEY_OPERATION_NOT_PERMITTED",
+          "PRINCIPAL_KIND_NOT_PERMITTED",
+          "ORGANIZATION_MEMBERSHIP_REQUIRED",
+          "ORGANIZATION_ADMIN_REQUIRED",
+          "ENTERPRISE_PLAN_REQUIRED",
+          "ORGANIZATION_PLAN_REQUIRED",
+          "AUDIT_LOGS_DISABLED",
+          "SKILL_EDITOR_ACCESS_REQUIRED",
+          "SECRET_ADMIN_ACCESS_REQUIRED",
+          "WORKSPACE_RESOURCE_LIMIT_REACHED",
+          "PUBLIC_SHARING_NOT_ALLOWED",
+          "CREDENTIAL_ADMIN_ACCESS_REQUIRED",
+          "MCP_SERVER_URL_NOT_ALLOWED",
+          "WORKSPACE_PLAN_CAPABILITY_REQUIRED",
+          "CHAT_AUTH_MODE_NOT_PERMITTED",
+          "CONNECTOR_MANAGED_RESOURCE_READ_ONLY",
+          "PERMISSION_GROUP_CAPABILITY_BLOCKED",
+          "INTEGRATION_NOT_ALLOWED",
+          "INSUFFICIENT_SCOPE"
+        ],
+        "title": "Forbidden detail code",
+        "description": "Stable cause code for an actionable `403` response."
+      },
       "V2Error": {
         "type": "object",
         "properties": {
@@ -787,7 +838,15 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.\n- `PERMISSION_GROUP_CAPABILITY_BLOCKED` — The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.\n- `INTEGRATION_NOT_ALLOWED` — The integration this request names is outside the workspace's allowed set. An organization admin controls the permission group's integration allowlist, and a self-hosted deployment can narrow it further with ALLOWED_INTEGRATIONS."
+                "description": "Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.",
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/V2ActionableForbiddenDetails"
+                  },
+                  {
+                    "description": "Other structured context defined by the specific error."
+                  }
+                ]
               }
             },
             "required": ["code", "message"],
@@ -1795,7 +1854,7 @@
             },
             "required": ["start", "end"],
             "additionalProperties": false,
-            "description": "The window the buckets span. `startDate` and `endDate` are used verbatim when supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding `endDate` when only `endDate` was supplied. A supplied `startDate` is still used verbatim, so a `startDate` without an `endDate` yields `[startDate, now]`, which can be any width."
+            "description": "Actual bucket window. Supplied bounds are exact. Without `startDate`, the left edge is the oldest match, or 24 hours before the right edge when no run matches. Without `endDate`, the right edge is at least now. `startDate` alone spans through now."
           },
           "segmentMs": {
             "type": "number",

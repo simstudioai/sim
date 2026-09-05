@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import { omit } from '@sim/utils/object'
 import {
   parseV2KnowledgeTagFiltersParam,
@@ -243,7 +244,7 @@ export const POST = defineV2BodyLifecycleRoute({
       mimeType: result.document.mimeType,
       fileSize: result.document.fileSize,
     })
-    if (principal.kind === 'personal_api_key') {
+    if (isUserCredentialPrincipal(principal)) {
       captureServerEvent(
         principal.userId,
         'knowledge_base_document_uploaded',

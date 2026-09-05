@@ -1,3 +1,8 @@
+import {
+  isUserCredentialPrincipal,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -37,9 +42,10 @@ import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explic
 import type { OrchestratorResult, StreamEvent } from '@/lib/copilot/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import {
+  ForbiddenOperationError,
   forbiddenErrorDetails,
   PersonalApiKeysDisabledError,
-  requirePersonalApiKeysAllowed,
+  requireUserCredentialCapabilities,
   type WorkspaceAuthorizationContext,
 } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
@@ -87,8 +93,9 @@ function deriveConversationTitle(message: string): string | undefined {
 }
 
 /**
- * The two personal-API-key checks `authorizeWorkspaceOperation` applies, for the
- * one route that never reaches it, or `null` when the key may proceed.
+ * The two user-credential checks `authorizeWorkspaceOperation` applies, for
+ * the one route that never reaches it, or `null` when the credential may
+ * proceed.
  *
  * The group half runs through the same {@link requirePersonalApiKeysAllowed} the
  * funnel and the billing reads call, so a third wording of the same refusal
@@ -96,19 +103,19 @@ function deriveConversationTitle(message: string): string | undefined {
  * renders its own v2 envelope, and the detail code is read off the error so the
  * column refusal and the group refusal answer with one code.
  */
-async function personalApiKeyPolicyRefusal(
-  userId: string,
+async function userCredentialPolicyRefusal(
+  principal: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
   context: WorkspaceAuthorizationContext
 ): Promise<NextResponse | null> {
-  const refuse = (error: PersonalApiKeysDisabledError) =>
+  const refuse = (error: ForbiddenOperationError) =>
     v2Error('FORBIDDEN', error.message, { details: forbiddenErrorDetails(error) })
 
   if (!context.allowPersonalApiKeys) return refuse(new PersonalApiKeysDisabledError())
 
   try {
-    await requirePersonalApiKeysAllowed(userId, context)
+    await requireUserCredentialCapabilities(principal, context)
   } catch (error) {
-    if (error instanceof PersonalApiKeysDisabledError) return refuse(error)
+    if (error instanceof ForbiddenOperationError) return refuse(error)
     throw error
   }
   return null
@@ -164,8 +171,8 @@ function buildChatResultPayload(
  * POST /api/v2/chat
  *
  * One conversational turn against the same headless execution path as the Sim
- * Chat block (`/api/mothership/execute`), authenticated with a personal API key
- * instead of the executor's internal JWT. JSON callers get one final response;
+ * Chat block (`/api/mothership/execute`), authenticated with an OAuth access
+ * token or personal API key instead of the executor's internal JWT. JSON callers get one final response;
  * NDJSON callers (`Accept: application/x-ndjson`) get heartbeats and incremental
  * `chunk` events followed by a `final` event, so long-running turns do not look
  * idle to intermediaries.
@@ -185,8 +192,8 @@ export const POST = withRouteHandler(
     if (!admission.success) return admission.response
     const { principal } = admission.auth
 
-    if (principal.kind !== 'personal_api_key') {
-      return v2Error('FORBIDDEN', 'Chat requires a personal API key', {
+    if (!isUserCredentialPrincipal(principal)) {
+      return v2Error('FORBIDDEN', 'Chat requires a personal API key or an OAuth access token', {
         details: { code: 'PRINCIPAL_KIND_NOT_PERMITTED' },
       })
     }
@@ -205,16 +212,17 @@ export const POST = withRouteHandler(
       const userPermission = workspaceAccess.permission
 
       /**
-       * permission-group-enforced: personal_api_key.use — this route only ever
-       * runs for a personal API key, and `admitV2Request` authenticates one
-       * without authorizing it, so the funnel's personal-key policy has to be
-       * repeated here or the same key `authorizeWorkspaceOperation` refuses
-       * still starts a chat turn.
+       * permission-group-enforced: personal_api_key.use — this route runs for a
+       * user-held credential, and `admitV2Request` authenticates one without
+       * authorizing it, so the funnel's user-credential policy has to be repeated
+       * here or the same principal `authorizeWorkspaceOperation` refuses still
+       * starts a chat turn.
        *
        * Both halves, because they combine with AND: the workspace column is the
        * coarse switch every workspace has, and the group key narrows it further
        * for one cohort inside an enterprise organization. Either one saying no
-       * is a no, and checking only `copilot.use` applied neither.
+       * is a no, and checking only `copilot.use` applied neither. A CLI token
+       * passes `cli.use` in the same call, for the same reason.
        *
        * Both run after workspace access rather than before it, unlike the
        * funnel, which can afford to check the column first because its caller
@@ -222,12 +230,12 @@ export const POST = withRouteHandler(
        * it, and answering later only ever conceals more: a caller with no reach
        * into the workspace is refused without learning how it is configured.
        */
-      const personalKeyRefusal = await personalApiKeyPolicyRefusal(userId, {
+      const credentialRefusal = await userCredentialPolicyRefusal(principal, {
         workspaceId,
         workspaceOrganizationId: workspaceAccess.workspace?.organizationId ?? null,
         allowPersonalApiKeys: workspaceAccess.workspace?.allowPersonalApiKeys ?? false,
       })
-      if (personalKeyRefusal) return personalKeyRefusal
+      if (credentialRefusal) return credentialRefusal
 
       /**
        * permission-group-enforced: copilot.use — read off the operation so this

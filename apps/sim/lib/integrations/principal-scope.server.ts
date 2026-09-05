@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { intersectAccessControlAllowlists } from '@/lib/permission-groups/integration-allowlist'
@@ -27,7 +27,7 @@ import { intersectAccessControlAllowlists } from '@/lib/permission-groups/integr
  * one would apply a bystander's permission groups to every caller of that key.
  */
 export function principalUserId(principal: Principal): string | undefined {
-  if (principal.kind === 'session' || principal.kind === 'personal_api_key') {
+  if (principal.kind === 'session' || isUserCredentialPrincipal(principal)) {
     return principal.userId
   }
   if (principal.kind === 'delegated') return principal.subjectUserId

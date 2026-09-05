@@ -26,7 +26,7 @@ These apply to every command, and may be written before or after it.
 
 ## sim login
 
-Authorize this terminal and store an API key for the profile
+Sign in through the browser and store the login for the profile
 
 ```bash
 sim login [options]
@@ -38,15 +38,18 @@ sim login [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <scope>` | No | Key space to mint from: platform or copilot. Defaults to `platform`. |
+| `--scope <scope>` | No | Key space for the pairing-code handoff; only "copilot" changes anything, and it forces that flow. Defaults to `platform`. |
 | `--no-browser` | No | Print the URL instead of opening a browser. |
-| `-y, --yes` | No | Overwrite an existing profile without prompting. |
+| `--browserless` | No | Use the pairing-code handoff for a terminal whose browser cannot reach it (SSH, containers). |
+| `--read-only` | No | Ask only for permission to read, never to change anything. |
+| `--callback-port <port>` | No | Pin the local port the browser returns to. |
+| `-y, --yes` | No | Overwrite an existing API-key profile without prompting. |
 
 </CommandTable>
 
 ## sim logout
 
-Remove the profile's stored API key
+Sign out and remove the profile's stored login
 
 ```bash
 sim logout [options]
@@ -175,7 +178,7 @@ Also spelled `sim audit-log`.
 
 ### sim audit-logs get
 
-Get Audit Log (personal API key required)
+Get Audit Log (OAuth login or personal API key required)
 
 ```bash
 sim audit-logs get <auditLogId> [options]
@@ -197,13 +200,13 @@ sim audit-logs get <auditLogId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required). |
 
 </CommandTable>
 
 ### sim audit-logs list
 
-List Audit Logs (personal API key required)
+List Audit Logs (OAuth login or personal API key required)
 
 ```bash
 sim audit-logs list [options]
@@ -223,9 +226,9 @@ sim audit-logs list [options]
 | `--include-departed` | No | Include actions by users who have left the organization. |
 | `--no-include-departed` | No | Send --include-departed as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required). |
 | `--actor-email <value>` | No | Filter by actor email address. |
-| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>
 
@@ -233,7 +236,7 @@ sim audit-logs list [options]
 
 ### sim billing status
 
-Show billing status and current-period credit usage (credits and storage require a personal API key)
+Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)
 
 ```bash
 sim billing status [options]
@@ -245,13 +248,13 @@ sim billing status [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>
 
 ### sim billing logs
 
-List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)
+List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)
 
 ```bash
 sim billing logs [options]
@@ -268,7 +271,7 @@ sim billing logs [options]
 | `--start-date <value>` | No | Custom period start (ISO 8601). |
 | `--end-date <value>` | No | Custom period end (ISO 8601). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
 
 </CommandTable>
 
@@ -367,7 +370,7 @@ Also spelled `sim credential`.
 
 ### sim credentials delete
 
-Disconnect Credential (personal API key required)
+Disconnect Credential (OAuth login or personal API key required)
 
 ```bash
 sim credentials delete <credentialId> [options]
@@ -436,7 +439,7 @@ sim credentials list [options]
 
 ### sim credentials update
 
-Update Credential (personal API key required)
+Update Credential (OAuth login or personal API key required)
 
 ```bash
 sim credentials update <credentialId> [options]
@@ -479,7 +482,7 @@ sim credentials update <credentialId> [options]
 
 ### sim credentials create
 
-Create a service-account credential using its discovered provider schema (personal API key required)
+Create a service-account credential using its discovered provider schema (OAuth login or personal API key required)
 
 ```bash
 sim credentials create <providerId> [options]
@@ -510,7 +513,7 @@ sim credentials create <providerId> [options]
 
 ### sim credentials connect
 
-Create a short-lived link for connecting an OAuth provider (personal API key required)
+Create a short-lived link for connecting an OAuth provider (OAuth login or personal API key required)
 
 ```bash
 sim credentials connect <providerId> [options]
@@ -538,7 +541,7 @@ sim credentials connect <providerId> [options]
 
 ### sim credentials reconnect
 
-Create a short-lived link for reconnecting an OAuth credential (personal API key required)
+Create a short-lived link for reconnecting an OAuth credential (OAuth login or personal API key required)
 
 ```bash
 sim credentials reconnect <credentialId>
@@ -936,7 +939,7 @@ sim files share get <fileId>
 
 ### sim files share set
 
-Enable or disable sharing for a file (personal API key required)
+Enable or disable sharing for a file (OAuth login or personal API key required)
 
 ```bash
 sim files share set <fileId> [options]
@@ -1278,7 +1281,7 @@ Also spelled `sim kb`.
 
 ### sim knowledge from-workspace-files create
 
-Index files the workspace already stores (personal API key required)
+Index files the workspace already stores (OAuth login or personal API key required)
 
 ```bash
 sim knowledge from-workspace-files create <knowledgeBaseId> [options]
@@ -1306,7 +1309,7 @@ sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 
 ### sim knowledge tags save
 
-Declare the tag definitions a knowledge base needs (personal API key required)
+Declare the tag definitions a knowledge base needs (OAuth login or personal API key required)
 
 ```bash
 sim knowledge tags save <knowledgeBaseId> [options]
@@ -1334,7 +1337,7 @@ sim knowledge tags save <knowledgeBaseId> [options]
 
 ### sim knowledge tags create
 
-Create Tag (personal API key required)
+Create Tag (OAuth login or personal API key required)
 
 ```bash
 sim knowledge tags create <knowledgeBaseId> [options]
@@ -1364,7 +1367,7 @@ sim knowledge tags create <knowledgeBaseId> [options]
 
 ### sim knowledge tags delete
 
-Delete Tag (personal API key required)
+Delete Tag (OAuth login or personal API key required)
 
 ```bash
 sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
@@ -1393,7 +1396,7 @@ sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
 
 ### sim knowledge tags cleanup
 
-Remove tag definitions no document still uses (personal API key required)
+Remove tag definitions no document still uses (OAuth login or personal API key required)
 
 ```bash
 sim knowledge tags cleanup <knowledgeBaseId> [options]
@@ -1423,7 +1426,7 @@ sim knowledge tags cleanup <knowledgeBaseId> [options]
 
 ### sim knowledge tags next-slot
 
-Show which tag slot a create would take for a field type (personal API key required)
+Show which tag slot a create would take for a field type (OAuth login or personal API key required)
 
 ```bash
 sim knowledge tags next-slot <knowledgeBaseId> [options]
@@ -1469,7 +1472,7 @@ sim knowledge tags list <knowledgeBaseId>
 
 ### sim knowledge tags usage
 
-Show how many documents and chunks carry each tag (personal API key required)
+Show how many documents and chunks carry each tag (OAuth login or personal API key required)
 
 ```bash
 sim knowledge tags usage <knowledgeBaseId>
@@ -1487,7 +1490,7 @@ sim knowledge tags usage <knowledgeBaseId>
 
 ### sim knowledge tags update
 
-Update Tag (personal API key required)
+Update Tag (OAuth login or personal API key required)
 
 ```bash
 sim knowledge tags update <knowledgeBaseId> <tagId> [options]
@@ -1517,7 +1520,7 @@ sim knowledge tags update <knowledgeBaseId> <tagId> [options]
 
 ### sim knowledge chunks batch-update
 
-Enable, disable, or delete many chunks at once (personal API key required)
+Enable, disable, or delete many chunks at once (OAuth login or personal API key required)
 
 ```bash
 sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
@@ -1548,7 +1551,7 @@ sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 
 ### sim knowledge chunks create
 
-Create Chunk (personal API key required)
+Create Chunk (OAuth login or personal API key required)
 
 ```bash
 sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
@@ -1579,7 +1582,7 @@ sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
 
 ### sim knowledge chunks delete
 
-Delete Chunk (personal API key required)
+Delete Chunk (OAuth login or personal API key required)
 
 ```bash
 sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
@@ -1609,7 +1612,7 @@ sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
 
 ### sim knowledge chunks get
 
-Get Chunk (personal API key required)
+Get Chunk (OAuth login or personal API key required)
 
 ```bash
 sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
@@ -1629,7 +1632,7 @@ sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
 
 ### sim knowledge chunks list
 
-List Chunks (personal API key required)
+List Chunks (OAuth login or personal API key required)
 
 ```bash
 sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
@@ -1662,7 +1665,7 @@ sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
 
 ### sim knowledge chunks update
 
-Update Chunk (personal API key required)
+Update Chunk (OAuth login or personal API key required)
 
 ```bash
 sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
@@ -1694,7 +1697,7 @@ sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
 
 ### sim knowledge documents batch-update
 
-Enable or disable every matching document (personal API key required)
+Enable or disable every matching document (OAuth login or personal API key required)
 
 ```bash
 sim knowledge documents batch-update <knowledgeBaseId> [options]
@@ -1806,7 +1809,7 @@ sim knowledge documents list <knowledgeBaseId> [options]
 
 ### sim knowledge documents update
 
-Update Document (personal API key required)
+Update Document (OAuth login or personal API key required)
 
 ```bash
 sim knowledge documents update <knowledgeBaseId> <documentId> [options]
@@ -1911,7 +1914,7 @@ sim knowledge create [options]
 
 ### sim knowledge connectors create
 
-Create Knowledge Connector (personal API key required)
+Create Knowledge Connector (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors create <knowledgeBaseId> [options]
@@ -1943,7 +1946,7 @@ sim knowledge connectors create <knowledgeBaseId> [options]
 
 ### sim knowledge connectors delete
 
-Delete Knowledge Connector (personal API key required)
+Delete Knowledge Connector (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
@@ -1974,7 +1977,7 @@ sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 
 ### sim knowledge connectors get
 
-Get Knowledge Connector (personal API key required)
+Get Knowledge Connector (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors get <knowledgeBaseId> <connectorId>
@@ -1993,7 +1996,7 @@ sim knowledge connectors get <knowledgeBaseId> <connectorId>
 
 ### sim knowledge connectors documents list
 
-List Knowledge Connector Documents (personal API key required)
+List Knowledge Connector Documents (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options]
@@ -2024,7 +2027,7 @@ sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options
 
 ### sim knowledge connectors documents update
 
-Update Knowledge Connector Documents (personal API key required)
+Update Knowledge Connector Documents (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
@@ -2054,7 +2057,7 @@ sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [optio
 
 ### sim knowledge connectors list
 
-List Knowledge Connectors (personal API key required)
+List Knowledge Connectors (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors list <knowledgeBaseId> [options]
@@ -2084,7 +2087,7 @@ sim knowledge connectors list <knowledgeBaseId> [options]
 
 ### sim knowledge connectors sync
 
-Queue a knowledge connector synchronization (personal API key required)
+Queue a knowledge connector synchronization (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
@@ -2114,7 +2117,7 @@ sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
 
 ### sim knowledge connectors update
 
-Update Knowledge Connector (personal API key required)
+Update Knowledge Connector (OAuth login or personal API key required)
 
 ```bash
 sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
@@ -2515,7 +2518,7 @@ sim logs list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--trigger <value...>` | No | Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values. At most 100 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
@@ -2530,7 +2533,7 @@ sim logs list [options]
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
 | `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
-| `--include-job-runs` | No | Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings. |
+| `--include-job-runs` | No | Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`. |
 | `--no-include-job-runs` | No | Send --include-job-runs as false. |
 | `--run-id <value>` | No | Exact run identifier to match. |
 | `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included. Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
@@ -2665,7 +2668,7 @@ sim mcp-servers list [options]
 
 ### sim mcp-servers tools list
 
-List MCP Server Tools (personal API key required)
+List MCP Server Tools (OAuth login or personal API key required)
 
 ```bash
 sim mcp-servers tools list <mcpServerId> [options]
@@ -2747,7 +2750,7 @@ Also spelled `sim sandbox`.
 
 ### sim sandboxes create
 
-Create Sandbox (personal API key required)
+Create Sandbox (OAuth login or personal API key required)
 
 ```bash
 sim sandboxes create [options]
@@ -2769,7 +2772,7 @@ sim sandboxes create [options]
 
 ### sim sandboxes delete
 
-Delete Sandbox (personal API key required)
+Delete Sandbox (OAuth login or personal API key required)
 
 ```bash
 sim sandboxes delete <sandboxId> [options]
@@ -2836,7 +2839,7 @@ sim sandboxes list [options]
 
 ### sim sandboxes update
 
-Update Sandbox (personal API key required)
+Update Sandbox (OAuth login or personal API key required)
 
 ```bash
 sim sandboxes update <sandboxId> [options]
@@ -2872,7 +2875,7 @@ Also spelled `sim secret`.
 
 ### sim secrets delete
 
-Delete Secret (personal API key required)
+Delete Secret (OAuth login or personal API key required)
 
 ```bash
 sim secrets delete <name> [options]
@@ -2901,7 +2904,7 @@ sim secrets delete <name> [options]
 
 ### sim secrets list
 
-List Secrets (personal API key required)
+List Secrets (OAuth login or personal API key required)
 
 ```bash
 sim secrets list [options]
@@ -2923,7 +2926,7 @@ sim secrets list [options]
 
 ### sim secrets set
 
-Create or replace a named secret (personal API key required)
+Create or replace a named secret (OAuth login or personal API key required)
 
 ```bash
 sim secrets set <name> [options]
@@ -2959,7 +2962,7 @@ Also spelled `sim skill`.
 
 ### sim skills create
 
-Create Skill (personal API key required)
+Create Skill (OAuth login or personal API key required)
 
 ```bash
 sim skills create [options]
@@ -2979,7 +2982,7 @@ sim skills create [options]
 
 ### sim skills delete
 
-Delete Skill (personal API key required)
+Delete Skill (OAuth login or personal API key required)
 
 ```bash
 sim skills delete <skillId> [options]
@@ -3025,7 +3028,7 @@ sim skills get <skillId>
 
 ### sim skills editors create
 
-Grant Skill Editor (personal API key required)
+Grant Skill Editor (OAuth login or personal API key required)
 
 ```bash
 sim skills editors create <skillId> [options]
@@ -3083,7 +3086,7 @@ sim skills editors list <skillId> [options]
 
 ### sim skills editors delete
 
-Revoke Skill Editor (personal API key required)
+Revoke Skill Editor (OAuth login or personal API key required)
 
 ```bash
 sim skills editors delete <skillId> [options]
@@ -3133,7 +3136,7 @@ sim skills list [options]
 
 ### sim skills update
 
-Update Skill (personal API key required)
+Update Skill (OAuth login or personal API key required)
 
 ```bash
 sim skills update <skillId> [options]
@@ -4548,7 +4551,7 @@ sim tables mkdir <path>
 
 ### sim tools execute
 
-Run one built-in tool and print what it produced (personal API key required)
+Run one built-in tool and print what it produced (OAuth login or personal API key required)
 
 ```bash
 sim tools execute <toolId> [options]
@@ -4621,7 +4624,7 @@ sim tools list [options]
 
 ### sim workflow-mcp-servers create
 
-Create Workflow MCP Server (personal API key required)
+Create Workflow MCP Server (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers create [options]
@@ -4643,7 +4646,7 @@ sim workflow-mcp-servers create [options]
 
 ### sim workflow-mcp-servers delete
 
-Delete Workflow MCP Server (personal API key required)
+Delete Workflow MCP Server (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers delete <serverId> [options]
@@ -4671,7 +4674,7 @@ sim workflow-mcp-servers delete <serverId> [options]
 
 ### sim workflow-mcp-servers tools create
 
-Publish Workflow As MCP Tool (personal API key required)
+Publish Workflow As MCP Tool (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers tools create <serverId> [options]
@@ -4702,7 +4705,7 @@ sim workflow-mcp-servers tools create <serverId> [options]
 
 ### sim workflow-mcp-servers tools list
 
-List Workflow MCP Tools (personal API key required)
+List Workflow MCP Tools (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers tools list <serverId>
@@ -4720,7 +4723,7 @@ sim workflow-mcp-servers tools list <serverId>
 
 ### sim workflow-mcp-servers tools delete
 
-Unpublish Workflow MCP Tool (personal API key required)
+Unpublish Workflow MCP Tool (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
@@ -4749,7 +4752,7 @@ sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
 
 ### sim workflow-mcp-servers get
 
-Get Workflow MCP Server (personal API key required)
+Get Workflow MCP Server (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers get <serverId>
@@ -4767,7 +4770,7 @@ sim workflow-mcp-servers get <serverId>
 
 ### sim workflow-mcp-servers list
 
-List Workflow MCP Servers (personal API key required)
+List Workflow MCP Servers (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers list [options]
@@ -4787,7 +4790,7 @@ sim workflow-mcp-servers list [options]
 
 ### sim workflow-mcp-servers update
 
-Update Workflow MCP Server (personal API key required)
+Update Workflow MCP Server (OAuth login or personal API key required)
 
 ```bash
 sim workflow-mcp-servers update <serverId> [options]
@@ -4822,7 +4825,7 @@ Also spelled `sim workflow`.
 
 ### sim workflows activate create
 
-Activate Workflow Version (personal API key required)
+Activate Workflow Version (OAuth login or personal API key required)
 
 ```bash
 sim workflows activate create <workflowId> <version> [options]
@@ -4851,7 +4854,7 @@ sim workflows activate create <workflowId> <version> [options]
 
 ### sim workflows operations apply
 
-Apply Workflow Operations (personal API key required)
+Apply Workflow Operations
 
 ```bash
 sim workflows operations apply <workflowId> [options]
@@ -5198,7 +5201,7 @@ sim workflows delete <workflowId> [options]
 
 ### sim workflows chat unpublish
 
-Take a workflow’s chat deployment offline (personal API key required)
+Take a workflow’s chat deployment offline (OAuth login or personal API key required)
 
 ```bash
 sim workflows chat unpublish <workflowId> [options]
@@ -5226,7 +5229,7 @@ sim workflows chat unpublish <workflowId> [options]
 
 ### sim workflows chat status
 
-Show a workflow’s chat deployment (personal API key required)
+Show a workflow’s chat deployment (OAuth login or personal API key required)
 
 ```bash
 sim workflows chat status <workflowId>
@@ -5244,7 +5247,7 @@ sim workflows chat status <workflowId>
 
 ### sim workflows chat publish
 
-Publish or replace a workflow’s chat deployment (personal API key required)
+Publish or replace a workflow’s chat deployment
 
 ```bash
 sim workflows chat publish <workflowId> [options]
@@ -5284,7 +5287,7 @@ sim workflows chat publish <workflowId> [options]
 
 ### sim workflows deploy
 
-Deploy Workflow (personal API key required)
+Deploy Workflow (OAuth login or personal API key required)
 
 ```bash
 sim workflows deploy <workflowId> [options]
@@ -5439,7 +5442,7 @@ sim workflows deployment status <workflowId>
 
 ### sim workflows deployment update
 
-Update Workflow Public API Access (personal API key required)
+Update Workflow Public API Access (OAuth login or personal API key required)
 
 ```bash
 sim workflows deployment update <workflowId> [options]
@@ -5485,7 +5488,7 @@ sim workflows state get <workflowId>
 
 ### sim workflows state replace
 
-Replace Workflow State (personal API key required)
+Replace Workflow State
 
 ```bash
 sim workflows state replace <workflowId> [options]
@@ -5680,7 +5683,7 @@ sim workflows restore <workflowId>
 
 ### sim workflows revert create
 
-Revert Workflow To Version (personal API key required)
+Revert Workflow To Version (OAuth login or personal API key required)
 
 ```bash
 sim workflows revert create <workflowId> <version> [options]
@@ -5709,7 +5712,7 @@ sim workflows revert create <workflowId> <version> [options]
 
 ### sim workflows rollback
 
-Rollback Workflow (personal API key required)
+Rollback Workflow (OAuth login or personal API key required)
 
 ```bash
 sim workflows rollback <workflowId> [options]
@@ -5738,7 +5741,7 @@ sim workflows rollback <workflowId> [options]
 
 ### sim workflows undeploy
 
-Take a workflow out of deployment (personal API key required)
+Take a workflow out of deployment (OAuth login or personal API key required)
 
 ```bash
 sim workflows undeploy <workflowId> [options]

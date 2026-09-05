@@ -12,6 +12,6 @@ export const chatOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
-    principalKinds: ['personal_api_key'],
+    principalKinds: ['personal_api_key', 'oauth_access_token'],
   }),
 } as const

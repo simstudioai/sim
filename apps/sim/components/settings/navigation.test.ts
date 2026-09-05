@@ -129,6 +129,7 @@ describe('settings navigation boundaries', () => {
       'general',
       'billing',
       'api-keys',
+      'authorized-apps',
       'admin',
       'mothership',
     ])

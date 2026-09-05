@@ -2,13 +2,16 @@ import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application'
 import { assertOperationCapability } from '@/lib/core/application'
 
-export type AuditLogPrincipal = Extract<Principal, { kind: 'session' | 'personal_api_key' }>
+export type AuditLogPrincipal = Extract<
+  Principal,
+  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }
+>
 
 export interface AuditLogOperation<Id extends string = string> extends ApplicationOperation<Id> {
   readonly authority: 'organization_admin'
   readonly organizationRoles: readonly ['admin', 'owner']
   readonly workspaceApiKey: 'deny'
-  readonly principalKinds: readonly ['session', 'personal_api_key']
+  readonly principalKinds: readonly ['session', 'personal_api_key', 'oauth_access_token']
 }
 
 function defineAuditLogOperation<const Id extends string>(
@@ -31,7 +34,7 @@ export const auditLogOperations = {
     authority: 'organization_admin',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
   }),
   // permission-group-exempt: same organization-admin authority as the list it expands; no group key names the audit trail
   readDetail: defineAuditLogOperation({
@@ -40,6 +43,6 @@ export const auditLogOperations = {
     authority: 'organization_admin',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
   }),
 } as const

@@ -9,7 +9,6 @@ export {
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application/authorized-workspace-use-case'
 export {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
   FORBIDDEN_DETAIL_CODES,
   type ForbiddenDetailCode,
   ForbiddenOperationError,
@@ -37,13 +36,16 @@ export {
   capabilityGovernedPrincipalUserId,
   DelegatedServiceAuthorizationError,
   DelegatedWorkspaceAuthorizationError,
+  InsufficientScopeError,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
+  OAuthAccessTokenExpiredError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,
   requireCurrentHumanRole,
   requirePersonalApiKeysAllowed,
+  requireUserCredentialCapabilities,
   WorkspaceApiKeyAuthorizationError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application/workspace-authorization'

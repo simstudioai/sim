@@ -26,7 +26,7 @@ export function defineCredentialOperation<
 }
 
 const HUMAN_AND_COPILOT_PRINCIPALS = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
 
@@ -43,14 +43,14 @@ export const credentialOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
   listConnections: defineWorkspaceOperation({
     id: 'credentials.connections.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
   }),
   /**
    * `integrations.manage`, like every other credential operation — these three
@@ -68,7 +68,7 @@ export const credentialOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
   }),
   prepareConnection: defineWorkspaceOperation({
     id: 'credentials.connections.prepare',
@@ -83,7 +83,7 @@ export const credentialOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
   }),
   read: defineCredentialOperation(
     defineWorkspaceOperation({

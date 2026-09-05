@@ -380,17 +380,17 @@ describe('records show what the API actually returns', () => {
     expect(paths).toContain('storage.percentUsed')
     // Credits and storage are both null for a workspace API key, so the record
     // has to say why it is showing em-dashes.
-    expect(spec?.describe).toContain('personal API key')
+    expect(spec?.describe).toContain('OAuth login or personal API key')
   })
 
   it('says which ledger a billing-logs page answers', () => {
     // The same workspace, window and flags return a strict subset of rows on a
-    // personal key, which reads as a bug beside `billing status`. Read off the
+    // user credential, which reads as a bug beside `billing status`. Read off the
     // help the terminal prints, since a describe that never reached a command
     // would answer nobody.
     const help = flatHelp('billing', 'logs')
 
-    expect(help).toContain('personal API key reports only your own events')
+    expect(help).toContain('OAuth login or personal API key reports only your events')
     expect(help).toMatch(/workspace API key reports every member/)
   })
 
@@ -612,7 +612,7 @@ describe('help and gates state what is actually true', () => {
 
       expect(help).toContain('--organization')
       expect(help).toContain('defaults to your only organization')
-      expect(help).toContain('personal API key required')
+      expect(help).toContain('OAuth login or personal API key required')
     }
   })
 
