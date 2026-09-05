@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,141 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_planning",
+      "slug": "oracle-epm-planning-freeform",
+      "name": "Oracle EPM Planning & FreeForm",
+      "description": "Manage Planning and FreeForm metadata, variables, rules, jobs, grids, forms and files",
+      "longDescription": "Connect an Oracle EPM service-account credential to Planning and FreeForm. Discover applications, cubes and dimensions; manage dynamic members and substitution variables; run rules and configured jobs; transfer data slices, forms and repository files; and perform explicit cube refresh and login-access changes. Job submission and waiting are separate. Inline results are limited to 16 MiB and downloaded Sim files to 100 MiB. Discovery permissions may be broader than execution permissions: manual names remain available.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_planning",
+      "operations": [
+        {
+          "name": "List Applications",
+          "description": "List applications available to the service administrator."
+        },
+        {
+          "name": "List Cubes",
+          "description": "List the application’s plan types (cubes)."
+        },
+        {
+          "name": "List Dimensions",
+          "description": "List one bounded page of dimensions for a cube."
+        },
+        {
+          "name": "Get Dimension",
+          "description": "Read a dimension hierarchy, subject to the 16 MiB response limit."
+        },
+        {
+          "name": "Get Member",
+          "description": "Read a member by its exact name. Requires Service Administrator."
+        },
+        {
+          "name": "Add Member",
+          "description": "Add a dynamic member. The parent must allow dynamic children and the cube must already have been refreshed. Requires Service Administrator; no implicit refresh."
+        },
+        {
+          "name": "List Substitution Variables",
+          "description": "List application or cube substitution variables. Derived values include inherited application values when a cube is specified."
+        },
+        {
+          "name": "Get Substitution Variable",
+          "description": "Read one application or cube substitution variable."
+        },
+        {
+          "name": "Set Substitution Variables",
+          "description": "Create or update the supplied substitution variables; other variables are unchanged. Use planType ALL for application scope."
+        },
+        {
+          "name": "Delete Substitution Variable",
+          "description": "Delete one substitution variable at application or cube scope. Requires Service Administrator."
+        },
+        {
+          "name": "List Job Definitions",
+          "description": "List configured jobs, optionally filtered by job type. Discovery requires Service Administrator; manual job names remain usable."
+        },
+        {
+          "name": "Run Job",
+          "description": "Submit a configured Planning job once and return its status snapshot. Use Wait for Job to await completion."
+        },
+        {
+          "name": "Run Rule",
+          "description": "Run a deployed business rule with runtime prompts. Requires administrator or the appropriate rule launch permissions."
+        },
+        {
+          "name": "Run Ruleset",
+          "description": "Run a deployed ruleset with runtime prompts. Hidden prompt defaults take precedence over supplied values."
+        },
+        {
+          "name": "Get Job",
+          "description": "Read a Planning job status snapshot. Requires Service Administrator."
+        },
+        {
+          "name": "Wait For Job",
+          "description": "Wait within a bounded deadline for a Planning job. Report terminal failures; never resubmit the job."
+        },
+        {
+          "name": "Get Job Details",
+          "description": "Read one page of data or metadata import/export diagnostics, including processed and rejected record counts."
+        },
+        {
+          "name": "Export Data Slice",
+          "description": "Export a bounded cell grid. Missing-cell suppression is configured in gridDefinition. Maximum inline response: 16 MiB."
+        },
+        {
+          "name": "Import Data Slice",
+          "description": "Write a cell grid and return accepted, updated, and rejected counts plus rejection details. #missing clears a cell."
+        },
+        {
+          "name": "Clear Data Slice",
+          "description": "Destructively clear the selected Essbase cells and/or Planning details. Returns rejected cells; requires Service Administrator."
+        },
+        {
+          "name": "Export Form Data",
+          "description": "Export a form’s numeric data and dimension layout using the form-specific response contract. Form ID or name is entered manually; page filtering is not exposed."
+        },
+        {
+          "name": "Export Application Data",
+          "description": "Submit an application data export to an Oracle repository ZIP. Use a configured job or provide cube and rowMembers, columnMembers, povMembers. Larger exports remain in Oracle."
+        },
+        {
+          "name": "Import Application Data",
+          "description": "Submit a repository data import using a configured job or explicit sourceType and file. Configure errorFile to retain up to 1,000 rejected records; inspect job details after completion."
+        },
+        {
+          "name": "List Files",
+          "description": "List Oracle repository files and snapshots. Snapshot sizes may be unavailable. Requires administrator or Migration Administer permissions."
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload one authorized Sim file in sequential chunks of at most 50 MiB. Existing files are never overwritten. Sim inputs are limited to 5 GiB; Oracle may impose additional limits."
+        },
+        {
+          "name": "Download File",
+          "description": "Download an Oracle repository file as a Sim UserFile, up to 100 MiB. Larger files must stay in Oracle. Temporary download resources are cleaned up."
+        },
+        {
+          "name": "Delete File",
+          "description": "Permanently delete the named Oracle repository file or snapshot. This cannot be undone by the integration."
+        },
+        {
+          "name": "Refresh Cube",
+          "description": "Run an existing Cube Refresh job. Optional parameters can log off users or terminate active requests; no administration changes are added implicitly."
+        },
+        {
+          "name": "Set Administration Mode",
+          "description": "Change application login access. Administrators mode logs off Interactive Users and Planners when the job completes. Requires Service Administrator."
+        }
+      ],
+      "operationCount": 29,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["automation", "data-analytics", "finance"]
     },
     {
       "type": "netsuite",
