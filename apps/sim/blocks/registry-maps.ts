@@ -42,6 +42,7 @@ import { ClickHouseBlock, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse
 import { ClickUpBlock, ClickUpBlockMeta } from '@/blocks/blocks/clickup'
 import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
+import { CloudTrailBlock, CloudTrailBlockMeta } from '@/blocks/blocks/cloudtrail'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
 import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
 import { ConditionBlock } from '@/blocks/blocks/condition'
@@ -318,6 +319,7 @@ import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
 import { SquareBlock, SquareBlockMeta } from '@/blocks/blocks/square'
 import { SSHBlock, SSHBlockMeta } from '@/blocks/blocks/ssh'
+import { SSMBlock, SSMBlockMeta } from '@/blocks/blocks/ssm'
 import { StagehandBlock, StagehandBlockMeta } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
@@ -420,6 +422,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   clickup: ClickUpBlock,
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
+  cloudtrail: CloudTrailBlock,
   cloudwatch: CloudWatchBlock,
   codepipeline: CodePipelineBlock,
   condition: ConditionBlock,
@@ -667,6 +670,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   sqs: SQSBlock,
   square: SquareBlock,
   ssh: SSHBlock,
+  ssm: SSMBlock,
   stagehand: StagehandBlock,
   start_trigger: StartTriggerBlock,
   starter: StarterBlock,
@@ -776,6 +780,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   clickup: ClickUpBlockMeta,
   cloudflare: CloudflareBlockMeta,
   cloudformation: CloudFormationBlockMeta,
+  cloudtrail: CloudTrailBlockMeta,
   cloudwatch: CloudWatchBlockMeta,
   codepipeline: CodePipelineBlockMeta,
   confluence: ConfluenceBlockMeta,
@@ -980,6 +985,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   sqs: SQSBlockMeta,
   square: SquareBlockMeta,
   ssh: SSHBlockMeta,
+  ssm: SSMBlockMeta,
   stagehand: StagehandBlockMeta,
   stripe: StripeBlockMeta,
   sts: STSBlockMeta,

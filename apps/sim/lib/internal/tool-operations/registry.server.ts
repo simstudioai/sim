@@ -52,8 +52,10 @@ const IAM_TOOL_IDS = [
   'iam_delete_user',
   'iam_detach_role_policy',
   'iam_detach_user_policy',
+  'iam_get_policy',
   'iam_get_role',
   'iam_get_user',
+  'iam_list_access_keys',
   'iam_list_attached_role_policies',
   'iam_list_attached_user_policies',
   'iam_list_groups',
@@ -62,6 +64,7 @@ const IAM_TOOL_IDS = [
   'iam_list_users',
   'iam_remove_user_from_group',
   'iam_simulate_principal_policy',
+  'iam_update_access_key',
 ] as const
 
 const IDENTITY_CENTER_TOOL_IDS = [
@@ -77,6 +80,10 @@ const IDENTITY_CENTER_TOOL_IDS = [
   'identity_center_check_assignment_status',
   'identity_center_check_assignment_deletion_status',
   'identity_center_list_account_assignments',
+  'identity_center_list_assignments_for_account',
+  'identity_center_describe_user',
+  'identity_center_describe_group',
+  'identity_center_list_group_memberships',
 ] as const
 
 const SECRETS_MANAGER_TOOL_IDS = [
@@ -90,6 +97,31 @@ const SECRETS_MANAGER_TOOL_IDS = [
   'secrets_manager_untag_resource',
   'secrets_manager_restore_secret',
   'secrets_manager_rotate_secret',
+] as const
+
+const SSM_TOOL_IDS = [
+  'ssm_send_command',
+  'ssm_list_commands',
+  'ssm_list_command_invocations',
+  'ssm_get_command_invocation',
+  'ssm_cancel_command',
+  'ssm_get_parameter',
+  'ssm_get_parameters',
+  'ssm_get_parameters_by_path',
+  'ssm_put_parameter',
+  'ssm_delete_parameter',
+  'ssm_describe_parameters',
+  'ssm_describe_instance_information',
+  'ssm_describe_instance_patches',
+  'ssm_describe_instance_patch_states',
+  'ssm_list_compliance_items',
+  'ssm_list_compliance_summaries',
+  'ssm_start_automation_execution',
+  'ssm_describe_automation_executions',
+  'ssm_get_automation_execution',
+  'ssm_stop_automation_execution',
+  'ssm_list_documents',
+  'ssm_get_document',
 ] as const
 
 const DYNAMODB_TOOL_IDS = [
@@ -124,7 +156,29 @@ const SES_TOOL_IDS = [
   'ses_update_template',
 ] as const
 
-const SQS_TOOL_IDS = ['sqs_send'] as const
+const SQS_TOOL_IDS = [
+  'sqs_send',
+  'sqs_send_message_batch',
+  'sqs_receive_message',
+  'sqs_delete_message',
+  'sqs_delete_message_batch',
+  'sqs_change_message_visibility',
+  'sqs_change_message_visibility_batch',
+  'sqs_list_queues',
+  'sqs_get_queue_url',
+  'sqs_get_queue_attributes',
+  'sqs_set_queue_attributes',
+  'sqs_create_queue',
+  'sqs_delete_queue',
+  'sqs_purge_queue',
+  'sqs_list_dead_letter_source_queues',
+  'sqs_list_queue_tags',
+  'sqs_tag_queue',
+  'sqs_untag_queue',
+  'sqs_start_message_move_task',
+  'sqs_list_message_move_tasks',
+  'sqs_cancel_message_move_task',
+] as const
 
 const RDS_TOOL_IDS = [
   'rds_query',
@@ -140,6 +194,23 @@ const TEXTRACT_TOOL_IDS = [
   'textract_parser_v2',
   'textract_analyze_expense',
   'textract_analyze_id',
+] as const
+
+const CLOUDTRAIL_TOOL_IDS = [
+  'cloudtrail_cancel_query',
+  'cloudtrail_describe_query',
+  'cloudtrail_describe_trails',
+  'cloudtrail_get_event_data_store',
+  'cloudtrail_get_event_selectors',
+  'cloudtrail_get_insight_selectors',
+  'cloudtrail_get_query_results',
+  'cloudtrail_get_trail',
+  'cloudtrail_get_trail_status',
+  'cloudtrail_list_event_data_stores',
+  'cloudtrail_list_tags',
+  'cloudtrail_list_trails',
+  'cloudtrail_lookup_events',
+  'cloudtrail_start_query',
 ] as const
 
 const CLOUDWATCH_TOOL_IDS = [
@@ -1321,6 +1392,9 @@ registerFamily(handlerLoaders, IDENTITY_CENTER_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, SECRETS_MANAGER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/secrets-manager/execute-tool')).executeSecretsManagerTool
 })
+registerFamily(handlerLoaders, SSM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/ssm/execute-tool')).executeSsmTool
+})
 registerFamily(handlerLoaders, DYNAMODB_TOOL_IDS, async () => {
   return (await import('@/lib/internal/dynamodb/execute-tool')).executeDynamodbTool
 })
@@ -1338,6 +1412,9 @@ registerFamily(handlerLoaders, TEXTRACT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, CLOUDWATCH_TOOL_IDS, async () => {
   return (await import('@/lib/internal/cloudwatch/execute-tool')).executeCloudwatchTool
+})
+registerFamily(handlerLoaders, CLOUDTRAIL_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/cloudtrail/execute-tool')).executeCloudtrailTool
 })
 registerFamily(handlerLoaders, POSTGRESQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/postgresql/execute-tool')).executePostgresqlTool
