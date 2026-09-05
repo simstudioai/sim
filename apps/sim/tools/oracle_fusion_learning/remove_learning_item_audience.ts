@@ -17,8 +17,7 @@ export const oracleFusionLearningRemoveLearningItemAudienceTool: InternalToolCon
 > = {
   id: 'oracle_fusion_learning_remove_learning_item_audience',
   name: 'Remove Learning Item Audience',
-  description:
-    'Remove an audience relationship from its learning item.',
+  description: 'Remove an audience relationship from its learning item.',
   ...internalExecution,
   params: {
     ...credentials,

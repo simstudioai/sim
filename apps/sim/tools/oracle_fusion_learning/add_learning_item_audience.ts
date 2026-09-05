@@ -5,9 +5,9 @@ import {
   learningItemId,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_ADD_LEARNING_ITEM_AUDIENCE_OUTPUTS,
   type AddLearningItemAudienceParams,
   type AddLearningItemAudienceResponse,
+  ORACLE_FUSION_LEARNING_ADD_LEARNING_ITEM_AUDIENCE_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,8 +17,7 @@ export const oracleFusionLearningAddLearningItemAudienceTool: InternalToolConfig
 > = {
   id: 'oracle_fusion_learning_add_learning_item_audience',
   name: 'Add Learning Item Audience',
-  description:
-    'Add a person or learning organization audience relationship to a learning item.',
+  description: 'Add a person or learning organization audience relationship to a learning item.',
   ...internalExecution,
   params: {
     ...credentials,

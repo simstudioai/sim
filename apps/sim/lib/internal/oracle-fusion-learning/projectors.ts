@@ -21,11 +21,13 @@ function text(value: unknown): string | null {
 }
 function number(value: unknown): number | null {
   if (value == null) return null
-  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Invalid Learning number field')
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    throw new Error('Invalid Learning number field')
   return value
 }
 
-export const selfFields = 'learningItemId,learningItemNumber,learningItemTitle,learningItemType,learningItemStatus,learningItemVisibility,learningItemDescription,learningItemCatalogProfileId,learningItemCatalogProfileNumber,learningItemExpectedEffortInSeconds,learningItemPublishStartDate,learningItemPublishEndDate,learningItemEnrollmentStartDate,learningItemEnrollmentEndDate,learningItemLastModifiedDate,learningItemActiveDate,learningItemInactiveDate,learningItemProvider,learningItemProviderType,learningItemDraftExists,learningItemPublishedExists'
+export const selfFields =
+  'learningItemId,learningItemNumber,learningItemTitle,learningItemType,learningItemStatus,learningItemVisibility,learningItemDescription,learningItemCatalogProfileId,learningItemCatalogProfileNumber,learningItemExpectedEffortInSeconds,learningItemPublishStartDate,learningItemPublishEndDate,learningItemEnrollmentStartDate,learningItemEnrollmentEndDate,learningItemLastModifiedDate,learningItemActiveDate,learningItemInactiveDate,learningItemProvider,learningItemProviderType,learningItemDraftExists,learningItemPublishedExists'
 
 export function projectSelfPacedItem(value: unknown): Types.SelfPacedItem {
   const item = record(value)
@@ -54,7 +56,8 @@ export function projectSelfPacedItem(value: unknown): Types.SelfPacedItem {
   }
 }
 
-export const eventFields = 'learningItemId,learningItemNumber,learningItemTitle,learningItemType,learningItemStatus,learningItemVisibility,learningItemDescription,learningItemCatalogProfileId,learningItemCatalogProfileNumber,learningItemExpectedEffortInSeconds,learningItemPublishStartDate,learningItemPublishEndDate,learningItemEnrollmentStartDate,learningItemEnrollmentEndDate,learningItemLastModifiedDate,eventStartDate,eventEndDate,eventTimezone,eventCapacityEnabled,eventCapacityMaximum,eventCapacityMinimum,eventWaitlistEnabled,eventWaitlistMaximum,eventClosedDate,eventCancelDate'
+export const eventFields =
+  'learningItemId,learningItemNumber,learningItemTitle,learningItemType,learningItemStatus,learningItemVisibility,learningItemDescription,learningItemCatalogProfileId,learningItemCatalogProfileNumber,learningItemExpectedEffortInSeconds,learningItemPublishStartDate,learningItemPublishEndDate,learningItemEnrollmentStartDate,learningItemEnrollmentEndDate,learningItemLastModifiedDate,eventStartDate,eventEndDate,eventTimezone,eventCapacityEnabled,eventCapacityMaximum,eventCapacityMinimum,eventWaitlistEnabled,eventWaitlistMaximum,eventClosedDate,eventCancelDate'
 
 export function projectLearningEvent(value: unknown): Types.LearningEvent {
   const item = record(value)
@@ -87,7 +90,8 @@ export function projectLearningEvent(value: unknown): Types.LearningEvent {
   }
 }
 
-export const activityFields = 'activityId,activityNumber,activityType,title,description,status,startDate,endDate,timezone,expectedEffortInSeconds,completionRule,completionType,enableAttendanceProcessing,minimumAttendance,minimumAttendanceUOM,instructors,classrooms,virtualClassroomURL'
+export const activityFields =
+  'activityId,activityNumber,activityType,title,description,status,startDate,endDate,timezone,expectedEffortInSeconds,completionRule,completionType,enableAttendanceProcessing,minimumAttendance,minimumAttendanceUOM,instructors,classrooms,virtualClassroomURL'
 
 export function projectEventActivity(value: unknown): Types.EventActivity {
   const item = record(value)
@@ -113,7 +117,8 @@ export function projectEventActivity(value: unknown): Types.EventActivity {
   }
 }
 
-export const recordFields = 'assignmentRecordId,assignmentRecordNumber,assignedToId,assignedToNumber,assignedToDisplayName,learningItemId,learningItemNumber,learningItemTitle,learningItemType,assignmentType,assignmentStatus,assignmentSubStatus,assignmentDueDate,assignedDate,completedDate,actualScore,actualEffortInHours,actualCpeUnits,assignmentLastModifiedDate'
+export const recordFields =
+  'assignmentRecordId,assignmentRecordNumber,assignedToId,assignedToNumber,assignedToDisplayName,learningItemId,learningItemNumber,learningItemTitle,learningItemType,assignmentType,assignmentStatus,assignmentSubStatus,assignmentDueDate,assignedDate,completedDate,actualScore,actualEffortInHours,actualCpeUnits,assignmentLastModifiedDate'
 
 export function projectLearningRecord(value: unknown): Types.LearningRecord {
   const item = record(value)
@@ -140,7 +145,8 @@ export function projectLearningRecord(value: unknown): Types.LearningRecord {
   }
 }
 
-export const offeringFields = 'assignmentRecordId,assignmentRecordNumber,learningItemId,learningItemNumber,learningItemTitle,assignmentStatus,assignmentSubStatus,assignmentDueDate,completedDate,isPrimaryOffering,offeringStartDate,offeringEndDate,offeringTimeZone,offeringDeliveryMode,maximumCapacity,offeringAvailableCapacity,currentWaitlistPosition'
+export const offeringFields =
+  'assignmentRecordId,assignmentRecordNumber,learningItemId,learningItemNumber,learningItemTitle,assignmentStatus,assignmentSubStatus,assignmentDueDate,completedDate,isPrimaryOffering,offeringStartDate,offeringEndDate,offeringTimeZone,offeringDeliveryMode,maximumCapacity,offeringAvailableCapacity,currentWaitlistPosition'
 
 export function projectSelectedCourseOffering(value: unknown): Types.SelectedCourseOffering {
   const item = record(value)
@@ -165,7 +171,8 @@ export function projectSelectedCourseOffering(value: unknown): Types.SelectedCou
   }
 }
 
-export const completionFields = 'activityAssignmentRecordId,activityAttemptId,activityId,activityNumber,activityTitle,activityType,activityAttemptStatus,activityAttemptActualScore,activityAttemptActualEffort,activityPassingScore,activityAttemptLocked,activityLearnerMarkCompl,activityLearnerRecordAttendance,activityStartDatetimeUTC,activityEndDatetimeUTC,activityTimeZone,activityAttemptComplDate'
+export const completionFields =
+  'activityAssignmentRecordId,activityAttemptId,activityId,activityNumber,activityTitle,activityType,activityAttemptStatus,activityAttemptActualScore,activityAttemptActualEffort,activityPassingScore,activityAttemptLocked,activityLearnerMarkCompl,activityLearnerRecordAttendance,activityStartDatetimeUTC,activityEndDatetimeUTC,activityTimeZone,activityAttemptComplDate'
 
 export function projectCompletionDetail(value: unknown): Types.CompletionDetail {
   const item = record(value)
@@ -190,7 +197,12 @@ export function projectCompletionDetail(value: unknown): Types.CompletionDetail 
   }
 }
 
-export const summaryFields = 'activitySectionsCount,activitySectionsTotalActivitiesCount,actualEffort,actualScore,completionProgress,completionRequirement,completionRequirementUnits,completionRequirementUnitsMeaning,effortUnits,effortUnitsMeaning,expectedEffort,expectedEffortInSeconds,passingScore'
+export const summaryFields =
+  'activitySectionsCount,activitySectionsTotalActivitiesCount,actualEffort,actualScore,completionProgress,completionRequirement,completionRequirementUnits,completionRequirementUnitsMeaning,effortUnits,effortUnitsMeaning,expectedEffort,expectedEffortInSeconds,passingScore'
+
+/** Selected-offering summaries do not expose the assignment's activity-section counts. */
+export const offeringSummaryFields =
+  'actualEffort,actualScore,completionProgress,completionRequirement,completionRequirementUnits,completionRequirementUnitsMeaning,effortUnits,effortUnitsMeaning,expectedEffort,expectedEffortInSeconds,passingScore'
 
 export function projectCompletionSummary(value: unknown): Types.CompletionSummary {
   const item = record(value)
@@ -211,7 +223,8 @@ export function projectCompletionSummary(value: unknown): Types.CompletionSummar
   }
 }
 
-export const hintsFields = 'activityLearnerMarkCompl,allowRetry,canEditAssignmentHint,canManageLearningItem,canRecommendLearningItem,canRetakeLearningItem,dataSecurityPrivilege,isWithdrawApprovalEnabled,nextRetryDate'
+export const hintsFields =
+  'activityLearnerMarkCompl,allowRetry,canEditAssignmentHint,canManageLearningItem,canRecommendLearningItem,canRetakeLearningItem,dataSecurityPrivilege,isWithdrawApprovalEnabled,nextRetryDate'
 
 export function projectActionHints(value: unknown): Types.ActionHints {
   const item = record(value)
@@ -238,7 +251,8 @@ export function projectEnrollmentHistory(value: unknown): Types.EnrollmentHistor
   }
 }
 
-export const profileFields = 'assignmentProfileId,assignmentProfileNumber,assignmentProfileTitle,assignmentProfileDescription,assignmentProfileStatus,assignmentProfileStartDate,assignmentProfileEndDate,learningItemId,learningItemNumber,learningItemTitle,learningItemType,assignmentType,assignmentSubType,targetAssignmentStatus,assignmentRecordStatus,assignmentDueDate,assignmentDueDateType,processingRule,processingFrequency,processId,lastProcessedDate,lastModifiedDate'
+export const profileFields =
+  'assignmentProfileId,assignmentProfileNumber,assignmentProfileTitle,assignmentProfileDescription,assignmentProfileStatus,assignmentProfileStartDate,assignmentProfileEndDate,learningItemId,learningItemNumber,learningItemTitle,learningItemType,assignmentType,assignmentSubType,targetAssignmentStatus,assignmentRecordStatus,assignmentDueDate,assignmentDueDateType,processingRule,processingFrequency,processId,lastProcessedDate,lastModifiedDate'
 
 export function projectAssignmentProfile(value: unknown): Types.AssignmentProfile {
   const item = record(value)
@@ -268,7 +282,8 @@ export function projectAssignmentProfile(value: unknown): Types.AssignmentProfil
   }
 }
 
-export const profileRecordFields = 'assignmentRecordId,assignmentRecordNumber,assignmentProfileId,assignmentProfileNumber,assignedToId,assignedToDisplayName,assignedOnDate,assignmentDueDate,assignmentStatus,assignmentStatusMeaning,assignmentType,assignmentProcessingStatus,assignmentProcessingStatusMeaning,learningItemId,reasonCodeMeaning'
+export const profileRecordFields =
+  'assignmentRecordId,assignmentRecordNumber,assignmentProfileId,assignmentProfileNumber,assignedToId,assignedToDisplayName,assignedOnDate,assignmentDueDate,assignmentStatus,assignmentStatusMeaning,assignmentType,assignmentProcessingStatus,assignmentProcessingStatusMeaning,learningItemId,reasonCodeMeaning'
 
 export function projectAssignmentProfileRecord(value: unknown): Types.AssignmentProfileRecord {
   const item = record(value)
@@ -291,9 +306,12 @@ export function projectAssignmentProfileRecord(value: unknown): Types.Assignment
   }
 }
 
-export const criterionFields = 'assignmentProfileCriteriaId,assignmentProfileCriteriaType,assignmentProfileCriteriaTypeMeaning,assignmentProfileCriteriaTypeId,assignmentProfileCriteriaTypeNumber,assignmentProfileCriteriaSourceName,assignmentProfileCriteriaCount,assignmentProfileId,reportName'
+export const criterionFields =
+  'assignmentProfileCriteriaId,assignmentProfileCriteriaType,assignmentProfileCriteriaTypeMeaning,assignmentProfileCriteriaTypeId,assignmentProfileCriteriaTypeNumber,assignmentProfileCriteriaSourceName,assignmentProfileCriteriaCount,assignmentProfileId,reportName'
 
-export function projectAssignmentProfileCriterion(value: unknown): Types.AssignmentProfileCriterion {
+export function projectAssignmentProfileCriterion(
+  value: unknown
+): Types.AssignmentProfileCriterion {
   const item = record(value)
   return {
     assignmentProfileCriteriaId: id(item.assignmentProfileCriteriaId),
@@ -308,7 +326,8 @@ export function projectAssignmentProfileCriterion(value: unknown): Types.Assignm
   }
 }
 
-export const audienceFields = 'learnRelationId,learnRelationNumber,learningItemId,learningItemNumber,learningItemType,sourceType,sourceTypeId,sourceTypeNumber,sourceTypeDisplayName,creationDate'
+export const audienceFields =
+  'learnRelationId,learnRelationNumber,learningItemId,learningItemNumber,learningItemType,sourceType,sourceTypeId,sourceTypeNumber,sourceTypeDisplayName,creationDate'
 
 export function projectLearningItemAudience(value: unknown): Types.LearningItemAudience {
   const item = record(value)
@@ -326,7 +345,8 @@ export function projectLearningItemAudience(value: unknown): Types.LearningItemA
   }
 }
 
-export const contentFields = 'ContentId,Title,Description,ItemNumber,TrackingType,URL,Status,IngestionStatus,ReplaceStatus,StartDate,EndDate'
+export const contentFields =
+  'ContentId,Title,Description,ItemNumber,TrackingType,URL,Status,IngestionStatus,ReplaceStatus,StartDate,EndDate'
 
 export function projectContentItem(value: unknown): Types.ContentItem {
   const item = record(value)

@@ -378,22 +378,28 @@ export const selectorManifest = {
     unknownDetail: true,
     staleTime: 0,
   }),
-  'oracle_fusion_learning.selectedCourseOfferings': providerSelector(['personId', 'recordId', 'effectiveDate'], {
-    readiness: { all: ['oauthCredential', 'personId', 'recordId'] },
-    listMode: 'paginated',
-    search: true,
-    detail: true,
-    unknownDetail: true,
-    staleTime: 0,
-  }),
-  'oracle_fusion_learning.completionDetails': providerSelector(['personId', 'recordId', 'effectiveDate'], {
-    readiness: { all: ['oauthCredential', 'personId', 'recordId'] },
-    listMode: 'paginated',
-    search: false,
-    detail: true,
-    unknownDetail: true,
-    staleTime: 0,
-  }),
+  'oracle_fusion_learning.selectedCourseOfferings': providerSelector(
+    ['personId', 'recordId', 'effectiveDate'],
+    {
+      readiness: { all: ['oauthCredential', 'personId', 'recordId'] },
+      listMode: 'paginated',
+      search: true,
+      detail: true,
+      unknownDetail: true,
+      staleTime: 0,
+    }
+  ),
+  'oracle_fusion_learning.completionDetails': providerSelector(
+    ['personId', 'recordId', 'effectiveDate'],
+    {
+      readiness: { all: ['oauthCredential', 'personId', 'recordId'] },
+      listMode: 'paginated',
+      search: false,
+      detail: true,
+      unknownDetail: true,
+      staleTime: 0,
+    }
+  ),
   'oracle_fusion_learning.assignmentProfiles': providerSelector(['effectiveDate'], {
     readiness: { all: ['oauthCredential'] },
     listMode: 'paginated',

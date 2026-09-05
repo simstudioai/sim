@@ -7,9 +7,9 @@ import {
   search,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILES_OUTPUTS,
   type ListAssignmentProfilesParams,
   type ListAssignmentProfilesResponse,
+  ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILES_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

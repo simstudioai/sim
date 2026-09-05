@@ -17,8 +17,7 @@ export const oracleFusionLearningUpdateAssignmentProfileTool: InternalToolConfig
 > = {
   id: 'oracle_fusion_learning_update_assignment_profile',
   name: 'Update Assignment Profile',
-  description:
-    'Update assignment profile scheduling, completion, renewal, or processing rules.',
+  description: 'Update assignment profile scheduling, completion, renewal, or processing rules.',
   ...internalExecution,
   params: {
     ...credentials,

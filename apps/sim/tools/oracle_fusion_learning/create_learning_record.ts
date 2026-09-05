@@ -5,9 +5,9 @@ import {
   personId,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_CREATE_LEARNING_RECORD_OUTPUTS,
   type CreateLearningRecordParams,
   type CreateLearningRecordResponse,
+  ORACLE_FUSION_LEARNING_CREATE_LEARNING_RECORD_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

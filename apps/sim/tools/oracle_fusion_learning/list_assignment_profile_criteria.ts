@@ -7,9 +7,9 @@ import {
   profileId,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILE_CRITERIA_OUTPUTS,
   type ListAssignmentProfileCriteriaParams,
   type ListAssignmentProfileCriteriaResponse,
+  ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILE_CRITERIA_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -19,8 +19,7 @@ export const oracleFusionLearningListAssignmentProfileCriteriaTool: InternalTool
 > = {
   id: 'oracle_fusion_learning_list_assignment_profile_criteria',
   name: 'List Assignment Profile Criteria',
-  description:
-    'List selection criteria belonging to an assignment profile.',
+  description: 'List selection criteria belonging to an assignment profile.',
   ...internalExecution,
   params: {
     ...credentials,

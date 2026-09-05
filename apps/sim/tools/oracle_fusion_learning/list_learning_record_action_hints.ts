@@ -9,9 +9,9 @@ import {
   recordId,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_LIST_LEARNING_RECORD_ACTION_HINTS_OUTPUTS,
   type ListLearningRecordActionHintsParams,
   type ListLearningRecordActionHintsResponse,
+  ORACLE_FUSION_LEARNING_LIST_LEARNING_RECORD_ACTION_HINTS_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

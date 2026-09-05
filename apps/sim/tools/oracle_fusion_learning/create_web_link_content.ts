@@ -4,9 +4,9 @@ import {
   internalExecution,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_CREATE_WEB_LINK_CONTENT_OUTPUTS,
   type CreateWebLinkContentParams,
   type CreateWebLinkContentResponse,
+  ORACLE_FUSION_LEARNING_CREATE_WEB_LINK_CONTENT_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

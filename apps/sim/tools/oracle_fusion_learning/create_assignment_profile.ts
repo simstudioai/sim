@@ -4,9 +4,9 @@ import {
   internalExecution,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_CREATE_ASSIGNMENT_PROFILE_OUTPUTS,
   type CreateAssignmentProfileParams,
   type CreateAssignmentProfileResponse,
+  ORACLE_FUSION_LEARNING_CREATE_ASSIGNMENT_PROFILE_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

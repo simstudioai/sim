@@ -5,9 +5,9 @@ import {
   internalExecution,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_CREATE_EVENT_ACTIVITY_OUTPUTS,
   type CreateEventActivityParams,
   type CreateEventActivityResponse,
+  ORACLE_FUSION_LEARNING_CREATE_EVENT_ACTIVITY_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,8 +17,7 @@ export const oracleFusionLearningCreateEventActivityTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_learning_create_event_activity',
   name: 'Create Event Activity',
-  description:
-    'Create a scheduled activity within a Learning event.',
+  description: 'Create a scheduled activity within a Learning event.',
   ...internalExecution,
   params: {
     ...credentials,

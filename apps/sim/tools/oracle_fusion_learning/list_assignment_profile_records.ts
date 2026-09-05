@@ -7,9 +7,9 @@ import {
   profileId,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILE_RECORDS_OUTPUTS,
   type ListAssignmentProfileRecordsParams,
   type ListAssignmentProfileRecordsResponse,
+  ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILE_RECORDS_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

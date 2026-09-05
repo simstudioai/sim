@@ -18,8 +18,7 @@ export const oracleFusionLearningUpdateEventActivityTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_learning_update_event_activity',
   name: 'Update Event Activity',
-  description:
-    'Update an event activity schedule, attendance rules, or classroom metadata.',
+  description: 'Update an event activity schedule, attendance rules, or classroom metadata.',
   ...internalExecution,
   params: {
     ...credentials,

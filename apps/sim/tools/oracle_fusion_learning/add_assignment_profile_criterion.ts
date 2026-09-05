@@ -5,9 +5,9 @@ import {
   profileId,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_ADD_ASSIGNMENT_PROFILE_CRITERION_OUTPUTS,
   type AddAssignmentProfileCriterionParams,
   type AddAssignmentProfileCriterionResponse,
+  ORACLE_FUSION_LEARNING_ADD_ASSIGNMENT_PROFILE_CRITERION_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

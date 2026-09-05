@@ -4,9 +4,9 @@ import {
   internalExecution,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_CREATE_LEARNING_EVENT_OUTPUTS,
   type CreateLearningEventParams,
   type CreateLearningEventResponse,
+  ORACLE_FUSION_LEARNING_CREATE_LEARNING_EVENT_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -16,8 +16,7 @@ export const oracleFusionLearningCreateLearningEventTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_learning_create_learning_event',
   name: 'Create Learning Event',
-  description:
-    'Create a Learning event draft with catalog visibility and scheduling metadata.',
+  description: 'Create a Learning event draft with catalog visibility and scheduling metadata.',
   ...internalExecution,
   params: {
     ...credentials,

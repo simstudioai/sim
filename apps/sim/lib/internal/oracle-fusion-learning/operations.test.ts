@@ -10,8 +10,11 @@ vi.mock('@/lib/internal/oracle-fusion/client', () => ({
   requestOracleFusionEmpty: mocks.empty,
 }))
 
-const auth = { instanceUrl: 'https://acme.fa.ocs.oraclecloud.com', accessToken: 'test-access-token' }
-const root = auth.instanceUrl + '/hcmRestApi/resources/11.13.18.05/'
+const auth = {
+  instanceUrl: 'https://acme.fa.ocs.oraclecloud.com',
+  accessToken: 'test-access-token',
+}
+const root = `${auth.instanceUrl}/hcmRestApi/resources/11.13.18.05/`
 function linked(path: string, fields: Record<string, unknown>) {
   return { ...fields, links: [{ rel: 'self', href: root + path }] }
 }
@@ -19,17 +22,40 @@ function page(items: unknown[], extra = {}) {
   return { items, count: items.length, hasMore: false, limit: 20, offset: 0, ...extra }
 }
 function recordLookup() {
-  mocks.json.mockResolvedValueOnce(page([linked('learnerLearningRecords/record-key', { assignmentRecordId: '2', assignedToId: '1' })]))
+  mocks.json.mockResolvedValueOnce(
+    page([
+      linked('learnerLearningRecords/record-key', { assignmentRecordId: '2', assignedToId: '1' }),
+    ])
+  )
 }
 
 describe('Learning operations through the Fusion client', () => {
   beforeEach(() => vi.resetAllMocks())
 
   it('requests one projected page and advances by actual count on short pages', async () => {
-    mocks.json.mockResolvedValue(page([{ learningItemId: '9007199254740993', learningItemDraftExists: 'Y', learningItemTitle: null }], { offset: 7, limit: 20, hasMore: true }))
-    const result = await operations.executeListSelfPacedItems({ ...auth, offset: 7, search: "50% O'Brien_*?" })
+    mocks.json.mockResolvedValue(
+      page(
+        [
+          {
+            learningItemId: '9007199254740993',
+            learningItemDraftExists: 'Y',
+            learningItemTitle: null,
+          },
+        ],
+        { offset: 7, limit: 20, hasMore: true }
+      )
+    )
+    const result = await operations.executeListSelfPacedItems({
+      ...auth,
+      offset: 7,
+      search: "50% O'Brien_*?",
+    })
     expect(result.output).toMatchObject({ count: 1, hasMore: true, offset: 7, nextOffset: 8 })
-    expect(result.output.items[0]).toMatchObject({ learningItemId: '9007199254740993', learningItemDraftExists: 'Y', learningItemTitle: null })
+    expect(result.output.items[0]).toMatchObject({
+      learningItemId: '9007199254740993',
+      learningItemDraftExists: 'Y',
+      learningItemTitle: null,
+    })
     expect(mocks.json).toHaveBeenCalledTimes(1)
     const query = mocks.json.mock.calls[0][1].query
     expect(query).toMatchObject({ limit: 20, offset: 7, onlyData: true })
@@ -42,15 +68,29 @@ describe('Learning operations through the Fusion client', () => {
     mocks.json.mockResolvedValueOnce({ items: [], count: 0, hasMore: true, offset: 0, limit: 20 })
     await expect(operations.executeListLearningEvents(auth)).rejects.toMatchObject({ status: 502 })
     mocks.json.mockResolvedValueOnce(page([]))
-    expect((await operations.executeListLearningEvents(auth)).output).not.toHaveProperty('nextOffset')
+    expect((await operations.executeListLearningEvents(auth)).output).not.toHaveProperty(
+      'nextOffset'
+    )
   })
 
   it('resolves exact IDs with bounded lookups and validated opaque self-links', async () => {
     const item = linked('learningSelfPacedItems/opaque-key', { learningItemId: '9007199254740993' })
     mocks.json.mockResolvedValueOnce(page([item])).mockResolvedValueOnce(item)
-    await operations.executeGetSelfPacedItem({ ...auth, learningItemId: '9007199254740993', effectiveDate: '2026-09-05' })
-    expect(mocks.json.mock.calls[0][1].query).toMatchObject({ q: 'learningItemId=9007199254740993', limit: 2, offset: 0, effectiveDate: '2026-09-05', links: 'self' })
-    expect(mocks.json.mock.calls[1][1].address.relativePath).toBe('learningSelfPacedItems/opaque-key')
+    await operations.executeGetSelfPacedItem({
+      ...auth,
+      learningItemId: '9007199254740993',
+      effectiveDate: '2026-09-05',
+    })
+    expect(mocks.json.mock.calls[0][1].query).toMatchObject({
+      q: 'learningItemId=9007199254740993',
+      limit: 2,
+      offset: 0,
+      effectiveDate: '2026-09-05',
+      links: 'self',
+    })
+    expect(mocks.json.mock.calls[1][1].address.relativePath).toBe(
+      'learningSelfPacedItems/opaque-key'
+    )
   })
 
   it.each([
@@ -58,30 +98,57 @@ describe('Learning operations through the Fusion client', () => {
     [page([{ learningItemId: '3' }, { learningItemId: '3' }]), 502],
     [page([linked('learningEvents/wrong-parent', { learningItemId: '3' })]), 502],
     [page([linked('learningSelfPacedItems/key', { learningItemId: '4' })]), 502],
-  ])('rejects missing, ambiguous, and mismatched resources before mutation', async (response, status) => {
-    mocks.json.mockResolvedValue(response)
-    await expect(operations.executeDeleteSelfPacedItem({ ...auth, learningItemId: '3' })).rejects.toMatchObject({ status })
-    expect(mocks.empty).not.toHaveBeenCalled()
-  })
+  ])(
+    'rejects missing, ambiguous, and mismatched resources before mutation',
+    async (response, status) => {
+      mocks.json.mockResolvedValue(response)
+      await expect(
+        operations.executeDeleteSelfPacedItem({ ...auth, learningItemId: '3' })
+      ).rejects.toMatchObject({ status })
+      expect(mocks.empty).not.toHaveBeenCalled()
+    }
+  )
 
   it('binds learner lookups to the supplied person and rejects wrong-person records', async () => {
-    mocks.json.mockResolvedValue(page([linked('learnerLearningRecords/key', { assignmentRecordId: '2', assignedToId: '99' })]))
-    await expect(operations.executeGetLearningRecord({ ...auth, personId: '1', recordId: '2' })).rejects.toMatchObject({ status: 502 })
+    mocks.json.mockResolvedValue(
+      page([linked('learnerLearningRecords/key', { assignmentRecordId: '2', assignedToId: '99' })])
+    )
+    await expect(
+      operations.executeGetLearningRecord({ ...auth, personId: '1', recordId: '2' })
+    ).rejects.toMatchObject({ status: 502 })
     expect(mocks.json.mock.calls[0][1].query.q).toBe('assignedToId=1;assignmentRecordId=2')
   })
 
   it('creates enrollments with exact numeric wire IDs and reports the returned pending state', async () => {
-    mocks.json.mockResolvedValue({ assignmentRecordId: '3', assignedToId: '9007199254740993', assignmentStatus: 'ORA_ASSN_REC_PENDING' })
-    const result = await operations.executeCreateLearningRecord({ ...auth, personId: '9007199254740993', body: { learningItemId: '9007199254740995' } })
+    mocks.json.mockResolvedValue({
+      assignmentRecordId: '3',
+      assignedToId: '9007199254740993',
+      assignmentStatus: 'ORA_ASSN_REC_PENDING',
+    })
+    const result = await operations.executeCreateLearningRecord({
+      ...auth,
+      personId: '9007199254740993',
+      body: { learningItemId: '9007199254740995' },
+    })
     const request = mocks.json.mock.calls[0][1]
-    expect(request).toMatchObject({ method: 'POST', address: { family: 'hcm', relativePath: 'learnerLearningRecords' }, mediaType: 'application/vnd.oracle.adf.resourceitem+json' })
-    expect(serializeOracleFusionJsonBody(request.body)).toBe('{"learningItemId":9007199254740995,"assignedToId":9007199254740993}')
+    expect(request).toMatchObject({
+      method: 'POST',
+      address: { family: 'hcm', relativePath: 'learnerLearningRecords' },
+      mediaType: 'application/vnd.oracle.adf.resourceitem+json',
+    })
+    expect(serializeOracleFusionJsonBody(request.body)).toBe(
+      '{"learningItemId":9007199254740995,"assignedToId":9007199254740993}'
+    )
     expect(result.output.item.assignmentStatus).toBe('ORA_ASSN_REC_PENDING')
   })
 
   it('PATCHes assignment completion without injecting unrelated defaults', async () => {
     recordLookup()
-    mocks.json.mockResolvedValueOnce({ assignmentRecordId: '2', assignedToId: '1', assignmentStatus: 'ORA_ASSN_REC_COMPLETE' })
+    mocks.json.mockResolvedValueOnce({
+      assignmentRecordId: '2',
+      assignedToId: '1',
+      assignmentStatus: 'ORA_ASSN_REC_COMPLETE',
+    })
     const body = { assignmentStatus: 'ORA_ASSN_REC_COMPLETE', completedDate: null }
     await operations.executeUpdateLearningRecord({ ...auth, personId: '1', recordId: '2', body })
     expect(mocks.json.mock.calls[1][1]).toEqual({
@@ -102,11 +169,37 @@ describe('Learning operations through the Fusion client', () => {
   it('reads completion evidence nested under the selected offering without claiming a catalog', async () => {
     recordLookup()
     mocks.json.mockResolvedValueOnce(page([linked('learnerLearningRecords/record-key/child/selectedCourseOfferings/offering-key', { assignmentRecordId: '4' })]))
-    mocks.json.mockResolvedValueOnce(page([{ completionProgress: 2, completionRequirement: 4 }]))
-    const result = await operations.executeListCompletionSummaries({ ...auth, personId: '1', recordId: '2', offeringRecordId: '4', effectiveDate: '2026-09-05' })
-    expect(mocks.json.mock.calls[2][1].address.relativePath).toBe('learnerLearningRecords/record-key/child/selectedCourseOfferings/offering-key/child/completionSummary')
-    expect(mocks.json.mock.calls[2][1].query).not.toHaveProperty('effectiveDate')
-    expect(result.output.items[0].completionProgress).toBe(2)
+    mocks.json.mockResolvedValueOnce(
+      page([
+        {
+          completionProgress: 2,
+          completionRequirement: 4,
+          expectedEffort: '0.5',
+          expectedEffortInSeconds: '1800',
+        },
+      ])
+    )
+    const result = await operations.executeListCompletionSummaries({
+      ...auth,
+      personId: '1',
+      recordId: '2',
+      offeringRecordId: '4',
+      effectiveDate: '2026-09-05',
+    })
+    const request = mocks.json.mock.calls[2][1]
+    expect(request.address.relativePath).toBe(
+      'learnerLearningRecords/record-key/child/selectedCourseOfferings/offering-key/child/completionSummary'
+    )
+    expect(request.query).not.toHaveProperty('effectiveDate')
+    expect(request.query.fields.split(',')).not.toContain('activitySectionsCount')
+    expect(request.query.fields.split(',')).not.toContain('activitySectionsTotalActivitiesCount')
+    expect(result.output.items[0]).toMatchObject({
+      completionProgress: 2,
+      expectedEffort: '0.5',
+      expectedEffortInSeconds: '1800',
+      activitySectionsCount: null,
+      activitySectionsTotalActivitiesCount: null,
+    })
   })
 
   it('processes profiles using the ADF action contract and preserves the numeric result', async () => {

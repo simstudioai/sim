@@ -17,8 +17,7 @@ export const oracleFusionLearningRemoveAssignmentProfileCriterionTool: InternalT
 > = {
   id: 'oracle_fusion_learning_remove_assignment_profile_criterion',
   name: 'Remove Assignment Profile Criterion',
-  description:
-    'Remove a selection criterion from its assignment profile.',
+  description: 'Remove a selection criterion from its assignment profile.',
   ...internalExecution,
   params: {
     ...credentials,

@@ -10,9 +10,9 @@ import {
   search,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_LIST_LEARNING_RECORDS_OUTPUTS,
   type ListLearningRecordsParams,
   type ListLearningRecordsResponse,
+  ORACLE_FUSION_LEARNING_LIST_LEARNING_RECORDS_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 

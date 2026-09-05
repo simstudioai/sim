@@ -1327,7 +1327,8 @@ const ORACLE_FUSION_LEARNING_TOOL_IDS = [
 const handlerLoaders = new Map<string, InternalToolOperationHandlerLoader>()
 
 registerFamily(handlerLoaders, ORACLE_FUSION_LEARNING_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/oracle-fusion-learning/execute-tool')).executeOracleFusionLearningTool
+  return (await import('@/lib/internal/oracle-fusion-learning/execute-tool'))
+    .executeOracleFusionLearningTool
 })
 
 registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {

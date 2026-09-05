@@ -33,9 +33,15 @@ function parseOffset(cursor?: string): number {
 }
 
 function publicError(error: unknown): never {
-  if (error instanceof SelectorConnectionUnavailableError || error instanceof SelectorContextUnavailableError || error instanceof SelectorOptionsUnavailableError) throw error
+  if (
+    error instanceof SelectorConnectionUnavailableError ||
+    error instanceof SelectorContextUnavailableError ||
+    error instanceof SelectorOptionsUnavailableError
+  )
+    throw error
   if (error instanceof OracleFusionProviderError) {
-    if (error.status === 401 || error.status === 403) throw new SelectorConnectionUnavailableError(error.status)
+    if (error.status === 401 || error.status === 403)
+      throw new SelectorConnectionUnavailableError(error.status)
     if (error.status === 400 || error.status === 404) throw new SelectorContextUnavailableError()
     throw new SelectorOptionsUnavailableError(error.status === 429 ? 429 : 502)
   }
@@ -46,7 +52,8 @@ async function prepare(args: ExecuteServerSelectorArgs) {
   args.signal?.throwIfAborted()
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   const effectiveDate = args.context.effectiveDate
-  if (effectiveDate && !dateSchema.safeParse(effectiveDate).success) throw new SelectorContextUnavailableError()
+  if (effectiveDate && !dateSchema.safeParse(effectiveDate).success)
+    throw new SelectorContextUnavailableError()
   const bundle = await resolveSelectorCredentialBundle({
     credential: args.credential,
     protectedValues: args.protectedValues,
@@ -54,7 +61,9 @@ async function prepare(args: ExecuteServerSelectorArgs) {
     providerId: ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   })
   args.signal?.throwIfAborted()
-  const instanceUrl = bundle.instanceUrl ? normalizeOracleFusionApplicationOrigin(bundle.instanceUrl) : null
+  const instanceUrl = bundle.instanceUrl
+    ? normalizeOracleFusionApplicationOrigin(bundle.instanceUrl)
+    : null
   if (!instanceUrl) throw new SelectorConnectionUnavailableError()
   return { instanceUrl, accessToken: bundle.accessToken, effectiveDate }
 }
@@ -77,20 +86,45 @@ export const oracleFusionLearningSelectorAttachments = {
         const input = { ...prepared }
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id)
-          const result = await operations.executeGetSelfPacedItem({ ...input, learningItemId: id }, args.signal)
+          const result = await operations.executeGetSelfPacedItem(
+            { ...input, learningItemId: id },
+            args.signal
+          )
           const item = result.output.item
           if (item.learningItemId !== id) throw new SelectorOptionsUnavailableError()
-          return detailSelectorResult({ id, label: item.learningItemTitle || item.learningItemNumber || id, meta: { number: item.learningItemNumber } })
+          return detailSelectorResult({
+            id,
+            label: item.learningItemTitle || item.learningItemNumber || id,
+            meta: { number: item.learningItemNumber },
+          })
         }
-        const result = await operations.executeListSelfPacedItems({ ...input, limit: 50, offset: parseOffset(args.request.cursor), search: args.request.search?.trim().slice(0, 200) || undefined }, args.signal)
+        const result = await operations.executeListSelfPacedItems(
+          {
+            ...input,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search?.trim().slice(0, 200) || undefined,
+          },
+          args.signal
+        )
         const page = result.output
         if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(page.items.map((item) => ({
-          id: item.learningItemId, label: item.learningItemTitle || item.learningItemNumber || item.learningItemId, meta: { number: item.learningItemNumber },
-        })), page.hasMore ? String(page.nextOffset) : undefined)
+        return listSelectorResult(
+          page.items.map((item) => ({
+            id: item.learningItemId,
+            label: item.learningItemTitle || item.learningItemNumber || item.learningItemId,
+            meta: { number: item.learningItemNumber },
+          })),
+          page.hasMore ? String(page.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
@@ -104,20 +138,45 @@ export const oracleFusionLearningSelectorAttachments = {
         const input = { ...prepared }
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id)
-          const result = await operations.executeGetLearningEvent({ ...input, eventId: id }, args.signal)
+          const result = await operations.executeGetLearningEvent(
+            { ...input, eventId: id },
+            args.signal
+          )
           const item = result.output.item
           if (item.learningItemId !== id) throw new SelectorOptionsUnavailableError()
-          return detailSelectorResult({ id, label: item.learningItemTitle || item.learningItemNumber || id, meta: { number: item.learningItemNumber } })
+          return detailSelectorResult({
+            id,
+            label: item.learningItemTitle || item.learningItemNumber || id,
+            meta: { number: item.learningItemNumber },
+          })
         }
-        const result = await operations.executeListLearningEvents({ ...input, limit: 50, offset: parseOffset(args.request.cursor), search: args.request.search?.trim().slice(0, 200) || undefined }, args.signal)
+        const result = await operations.executeListLearningEvents(
+          {
+            ...input,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search?.trim().slice(0, 200) || undefined,
+          },
+          args.signal
+        )
         const page = result.output
         if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(page.items.map((item) => ({
-          id: item.learningItemId, label: item.learningItemTitle || item.learningItemNumber || item.learningItemId, meta: { number: item.learningItemNumber },
-        })), page.hasMore ? String(page.nextOffset) : undefined)
+        return listSelectorResult(
+          page.items.map((item) => ({
+            id: item.learningItemId,
+            label: item.learningItemTitle || item.learningItemNumber || item.learningItemId,
+            meta: { number: item.learningItemNumber },
+          })),
+          page.hasMore ? String(page.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
@@ -132,20 +191,45 @@ export const oracleFusionLearningSelectorAttachments = {
         const input = { ...prepared, eventId }
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id)
-          const result = await operations.getEventActivityForSelector({ ...input, activityId: id }, args.signal)
+          const result = await operations.getEventActivityForSelector(
+            { ...input, activityId: id },
+            args.signal
+          )
           const item = result.output.item
           if (item.activityId !== id) throw new SelectorOptionsUnavailableError()
-          return detailSelectorResult({ id, label: item.title || item.activityNumber || id, meta: { number: item.activityNumber } })
+          return detailSelectorResult({
+            id,
+            label: item.title || item.activityNumber || id,
+            meta: { number: item.activityNumber },
+          })
         }
-        const result = await operations.executeListEventActivities({ ...input, limit: 50, offset: parseOffset(args.request.cursor), search: args.request.search?.trim().slice(0, 200) || undefined }, args.signal)
+        const result = await operations.executeListEventActivities(
+          {
+            ...input,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search?.trim().slice(0, 200) || undefined,
+          },
+          args.signal
+        )
         const page = result.output
         if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(page.items.map((item) => ({
-          id: item.activityId, label: item.title || item.activityNumber || item.activityId, meta: { number: item.activityNumber },
-        })), page.hasMore ? String(page.nextOffset) : undefined)
+        return listSelectorResult(
+          page.items.map((item) => ({
+            id: item.activityId,
+            label: item.title || item.activityNumber || item.activityId,
+            meta: { number: item.activityNumber },
+          })),
+          page.hasMore ? String(page.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
@@ -160,20 +244,45 @@ export const oracleFusionLearningSelectorAttachments = {
         const input = { ...prepared, personId }
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id)
-          const result = await operations.executeGetLearningRecord({ ...input, recordId: id }, args.signal)
+          const result = await operations.executeGetLearningRecord(
+            { ...input, recordId: id },
+            args.signal
+          )
           const item = result.output.item
           if (item.assignmentRecordId !== id) throw new SelectorOptionsUnavailableError()
-          return detailSelectorResult({ id, label: item.learningItemTitle || item.assignmentRecordNumber || id, meta: { number: item.assignmentRecordNumber } })
+          return detailSelectorResult({
+            id,
+            label: item.learningItemTitle || item.assignmentRecordNumber || id,
+            meta: { number: item.assignmentRecordNumber },
+          })
         }
-        const result = await operations.executeListLearningRecords({ ...input, limit: 50, offset: parseOffset(args.request.cursor), search: args.request.search?.trim().slice(0, 200) || undefined }, args.signal)
+        const result = await operations.executeListLearningRecords(
+          {
+            ...input,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search?.trim().slice(0, 200) || undefined,
+          },
+          args.signal
+        )
         const page = result.output
         if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(page.items.map((item) => ({
-          id: item.assignmentRecordId, label: item.learningItemTitle || item.assignmentRecordNumber || item.assignmentRecordId, meta: { number: item.assignmentRecordNumber },
-        })), page.hasMore ? String(page.nextOffset) : undefined)
+        return listSelectorResult(
+          page.items.map((item) => ({
+            id: item.assignmentRecordId,
+            label: item.learningItemTitle || item.assignmentRecordNumber || item.assignmentRecordId,
+            meta: { number: item.assignmentRecordNumber },
+          })),
+          page.hasMore ? String(page.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
@@ -189,20 +298,45 @@ export const oracleFusionLearningSelectorAttachments = {
         const input = { ...prepared, personId, recordId }
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id)
-          const result = await operations.getSelectedCourseOfferingForSelector({ ...input, offeringRecordId: id }, args.signal)
+          const result = await operations.getSelectedCourseOfferingForSelector(
+            { ...input, offeringRecordId: id },
+            args.signal
+          )
           const item = result.output.item
           if (item.assignmentRecordId !== id) throw new SelectorOptionsUnavailableError()
-          return detailSelectorResult({ id, label: item.learningItemTitle || item.assignmentRecordNumber || id, meta: { number: item.assignmentRecordNumber } })
+          return detailSelectorResult({
+            id,
+            label: item.learningItemTitle || item.assignmentRecordNumber || id,
+            meta: { number: item.assignmentRecordNumber },
+          })
         }
-        const result = await operations.executeListSelectedCourseOfferings({ ...input, limit: 50, offset: parseOffset(args.request.cursor), search: args.request.search?.trim().slice(0, 200) || undefined }, args.signal)
+        const result = await operations.executeListSelectedCourseOfferings(
+          {
+            ...input,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search?.trim().slice(0, 200) || undefined,
+          },
+          args.signal
+        )
         const page = result.output
         if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(page.items.map((item) => ({
-          id: item.assignmentRecordId, label: item.learningItemTitle || item.assignmentRecordNumber || item.assignmentRecordId, meta: { number: item.assignmentRecordNumber },
-        })), page.hasMore ? String(page.nextOffset) : undefined)
+        return listSelectorResult(
+          page.items.map((item) => ({
+            id: item.assignmentRecordId,
+            label: item.learningItemTitle || item.assignmentRecordNumber || item.assignmentRecordId,
+            meta: { number: item.assignmentRecordNumber },
+          })),
+          page.hasMore ? String(page.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
@@ -218,20 +352,44 @@ export const oracleFusionLearningSelectorAttachments = {
         const input = { ...prepared, personId, recordId }
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id)
-          const result = await operations.getCompletionDetailForSelector({ ...input, completionDetailId: id }, args.signal)
+          const result = await operations.getCompletionDetailForSelector(
+            { ...input, completionDetailId: id },
+            args.signal
+          )
           const item = result.output.item
           if (item.activityAssignmentRecordId !== id) throw new SelectorOptionsUnavailableError()
-          return detailSelectorResult({ id, label: item.activityTitle || item.activityNumber || id, meta: { number: item.activityNumber } })
+          return detailSelectorResult({
+            id,
+            label: item.activityTitle || item.activityNumber || id,
+            meta: { number: item.activityNumber },
+          })
         }
-        const result = await operations.executeListCompletionDetails({ ...input, limit: 50, offset: parseOffset(args.request.cursor) }, args.signal)
+        const result = await operations.executeListCompletionDetails(
+          {
+            ...input,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+          },
+          args.signal
+        )
         const page = result.output
         if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(page.items.map((item) => ({
-          id: item.activityAssignmentRecordId, label: item.activityTitle || item.activityNumber || item.activityAssignmentRecordId, meta: { number: item.activityNumber },
-        })), page.hasMore ? String(page.nextOffset) : undefined)
+        return listSelectorResult(
+          page.items.map((item) => ({
+            id: item.activityAssignmentRecordId,
+            label: item.activityTitle || item.activityNumber || item.activityAssignmentRecordId,
+            meta: { number: item.activityNumber },
+          })),
+          page.hasMore ? String(page.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
@@ -245,20 +403,45 @@ export const oracleFusionLearningSelectorAttachments = {
         const input = { ...prepared }
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id)
-          const result = await operations.executeGetAssignmentProfile({ ...input, profileId: id }, args.signal)
+          const result = await operations.executeGetAssignmentProfile(
+            { ...input, profileId: id },
+            args.signal
+          )
           const item = result.output.item
           if (item.assignmentProfileId !== id) throw new SelectorOptionsUnavailableError()
-          return detailSelectorResult({ id, label: item.assignmentProfileTitle || item.assignmentProfileNumber || id, meta: { number: item.assignmentProfileNumber } })
+          return detailSelectorResult({
+            id,
+            label: item.assignmentProfileTitle || item.assignmentProfileNumber || id,
+            meta: { number: item.assignmentProfileNumber },
+          })
         }
-        const result = await operations.executeListAssignmentProfiles({ ...input, limit: 50, offset: parseOffset(args.request.cursor), search: args.request.search?.trim().slice(0, 200) || undefined }, args.signal)
+        const result = await operations.executeListAssignmentProfiles(
+          {
+            ...input,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search?.trim().slice(0, 200) || undefined,
+          },
+          args.signal
+        )
         const page = result.output
         if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(page.items.map((item) => ({
-          id: item.assignmentProfileId, label: item.assignmentProfileTitle || item.assignmentProfileNumber || item.assignmentProfileId, meta: { number: item.assignmentProfileNumber },
-        })), page.hasMore ? String(page.nextOffset) : undefined)
+        return listSelectorResult(
+          page.items.map((item) => ({
+            id: item.assignmentProfileId,
+            label: item.assignmentProfileTitle || item.assignmentProfileNumber || item.assignmentProfileId,
+            meta: { number: item.assignmentProfileNumber },
+          })),
+          page.hasMore ? String(page.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },

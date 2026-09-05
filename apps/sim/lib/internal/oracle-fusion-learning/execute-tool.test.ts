@@ -47,11 +47,17 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/internal/oracle-fusion-learning/operations', () => mocks)
 
-const auth = { instanceUrl: 'https://acme.fa.ocs.oraclecloud.com', accessToken: 'test-access-token' }
+const auth = {
+  instanceUrl: 'https://acme.fa.ocs.oraclecloud.com',
+  accessToken: 'test-access-token',
+}
 function invoke(overrides: Partial<InternalToolOperationCall> = {}) {
   return executeOracleFusionLearningTool({
-    toolId: 'oracle_fusion_learning_list_self_paced_items', input: auth,
-    headers: new Headers(), context: { workflowId: 'workflow', workspaceId: 'workspace', userId: 'user' }, requestId: 'request',
+    toolId: 'oracle_fusion_learning_list_self_paced_items',
+    input: auth,
+    headers: new Headers(),
+    context: { workflowId: 'workflow', workspaceId: 'workspace', userId: 'user' },
+    requestId: 'request',
     ...overrides,
   })
 }
@@ -64,30 +70,91 @@ describe('Learning operation dispatch', () => {
 
   it.each([
     ['list_self_paced_items', 'executeListSelfPacedItems', {}],
-    ['get_self_paced_item', 'executeGetSelfPacedItem', {"learningItemId":"1"}],
-    ['create_self_paced_item', 'executeCreateSelfPacedItem', {"body":{"learningItemNumber":"DRAFT-1","learningItemVisibility":"TEST_VISIBILITY"}}],
-    ['update_self_paced_item', 'executeUpdateSelfPacedItem', {"learningItemId":"1","body":{"learningItemDescription":null}}],
-    ['delete_self_paced_item', 'executeDeleteSelfPacedItem', {"learningItemId":"1"}],
+    ['get_self_paced_item', 'executeGetSelfPacedItem', { learningItemId: '1' }],
+    [
+      'create_self_paced_item',
+      'executeCreateSelfPacedItem',
+      { body: { learningItemNumber: 'DRAFT-1', learningItemVisibility: 'TEST_VISIBILITY' } },
+    ],
+    [
+      'update_self_paced_item',
+      'executeUpdateSelfPacedItem',
+      { learningItemId: '1', body: { learningItemDescription: null } },
+    ],
+    ['delete_self_paced_item', 'executeDeleteSelfPacedItem', { learningItemId: '1' }],
     ['list_learning_events', 'executeListLearningEvents', {}],
-    ['get_learning_event', 'executeGetLearningEvent', {"eventId":"1"}],
-    ['create_learning_event', 'executeCreateLearningEvent', {"body":{"learningItemNumber":"EVENT-1","learningItemVisibility":"TEST_VISIBILITY"}}],
-    ['update_learning_event', 'executeUpdateLearningEvent', {"eventId":"1","body":{"learningItemDescription":null}}],
-    ['list_event_activities', 'executeListEventActivities', {"eventId":"1"}],
-    ['create_event_activity', 'executeCreateEventActivity', {"eventId":"1","body":{"activityNumber":"ACT-1","status":"TEST_STATUS"}}],
-    ['update_event_activity', 'executeUpdateEventActivity', {"eventId":"1","activityId":"1","body":{"description":null}}],
-    ['delete_event_activity', 'executeDeleteEventActivity', {"eventId":"1","activityId":"1"}],
-    ['list_learning_records', 'executeListLearningRecords', {"personId":"1"}],
-    ['get_learning_record', 'executeGetLearningRecord', {"personId":"1","recordId":"1"}],
-    ['create_learning_record', 'executeCreateLearningRecord', {"personId":"1","body":{"learningItemId":"3"}}],
-    ['update_learning_record', 'executeUpdateLearningRecord', {"personId":"1","recordId":"1","body":{"completedDate":null}}],
-    ['list_selected_course_offerings', 'executeListSelectedCourseOfferings', {"personId":"1","recordId":"1"}],
-    ['select_course_offering', 'executeSelectCourseOffering', {"personId":"1","recordId":"1","body":{"learningItemId":"4"}}],
-    ['update_selected_course_offering', 'executeUpdateSelectedCourseOffering', {"personId":"1","recordId":"1","offeringRecordId":"1","body":{"assignmentDueDate":null}}],
-    ['list_completion_details', 'executeListCompletionDetails', {"personId":"1","recordId":"1"}],
-    ['update_completion_detail', 'executeUpdateCompletionDetail', {"personId":"1","recordId":"1","completionDetailId":"1","body":{"activityAttemptStatus":"ORA_ASSN_TASK_COMPLETED"}}],
-    ['list_completion_summaries', 'executeListCompletionSummaries', {"personId":"1","recordId":"1"}],
-    ['list_learning_record_action_hints', 'executeListLearningRecordActionHints', {"personId":"1","recordId":"1"}],
-    ['list_enrollment_history', 'executeListEnrollmentHistory', {"personId":"1","recordId":"1"}],
+    ['get_learning_event', 'executeGetLearningEvent', { eventId: '1' }],
+    [
+      'create_learning_event',
+      'executeCreateLearningEvent',
+      { body: { learningItemNumber: 'EVENT-1', learningItemVisibility: 'TEST_VISIBILITY' } },
+    ],
+    [
+      'update_learning_event',
+      'executeUpdateLearningEvent',
+      { eventId: '1', body: { learningItemDescription: null } },
+    ],
+    ['list_event_activities', 'executeListEventActivities', { eventId: '1' }],
+    [
+      'create_event_activity',
+      'executeCreateEventActivity',
+      { eventId: '1', body: { activityNumber: 'ACT-1', status: 'TEST_STATUS' } },
+    ],
+    [
+      'update_event_activity',
+      'executeUpdateEventActivity',
+      { eventId: '1', activityId: '1', body: { description: null } },
+    ],
+    ['delete_event_activity', 'executeDeleteEventActivity', { eventId: '1', activityId: '1' }],
+    ['list_learning_records', 'executeListLearningRecords', { personId: '1' }],
+    ['get_learning_record', 'executeGetLearningRecord', { personId: '1', recordId: '1' }],
+    [
+      'create_learning_record',
+      'executeCreateLearningRecord',
+      { personId: '1', body: { learningItemId: '3' } },
+    ],
+    [
+      'update_learning_record',
+      'executeUpdateLearningRecord',
+      { personId: '1', recordId: '1', body: { completedDate: null } },
+    ],
+    [
+      'list_selected_course_offerings',
+      'executeListSelectedCourseOfferings',
+      { personId: '1', recordId: '1' },
+    ],
+    [
+      'select_course_offering',
+      'executeSelectCourseOffering',
+      { personId: '1', recordId: '1', body: { learningItemId: '4' } },
+    ],
+    [
+      'update_selected_course_offering',
+      'executeUpdateSelectedCourseOffering',
+      { personId: '1', recordId: '1', offeringRecordId: '1', body: { assignmentDueDate: null } },
+    ],
+    ['list_completion_details', 'executeListCompletionDetails', { personId: '1', recordId: '1' }],
+    [
+      'update_completion_detail',
+      'executeUpdateCompletionDetail',
+      {
+        personId: '1',
+        recordId: '1',
+        completionDetailId: '1',
+        body: { activityAttemptStatus: 'ORA_ASSN_TASK_COMPLETED' },
+      },
+    ],
+    [
+      'list_completion_summaries',
+      'executeListCompletionSummaries',
+      { personId: '1', recordId: '1' },
+    ],
+    [
+      'list_learning_record_action_hints',
+      'executeListLearningRecordActionHints',
+      { personId: '1', recordId: '1' },
+    ],
+    ['list_enrollment_history', 'executeListEnrollmentHistory', { personId: '1', recordId: '1' }],
     ['list_assignment_profiles', 'executeListAssignmentProfiles', {}],
     ['get_assignment_profile', 'executeGetAssignmentProfile', {"profileId":"1"}],
     ['create_assignment_profile', 'executeCreateAssignmentProfile', {"body":{"assignmentProfileStatus":"TEST_STATUS","assignmentType":"ORA_REQUIRE_ASSIGNMENT","learningItemId":"3"}}],

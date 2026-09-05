@@ -4,9 +4,9 @@ import {
   internalExecution,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_CREATE_SELF_PACED_ITEM_OUTPUTS,
   type CreateSelfPacedItemParams,
   type CreateSelfPacedItemResponse,
+  ORACLE_FUSION_LEARNING_CREATE_SELF_PACED_ITEM_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -16,8 +16,7 @@ export const oracleFusionLearningCreateSelfPacedItemTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_learning_create_self_paced_item',
   name: 'Create Self Paced Item',
-  description:
-    'Author a self-paced catalog draft. Creation does not publish the item.',
+  description: 'Author a self-paced catalog draft. Creation does not publish the item.',
   ...internalExecution,
   params: {
     ...credentials,

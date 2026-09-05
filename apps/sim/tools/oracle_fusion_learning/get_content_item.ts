@@ -4,9 +4,9 @@ import {
   internalExecution,
 } from '@/tools/oracle_fusion_learning/common'
 import {
-  ORACLE_FUSION_LEARNING_GET_CONTENT_ITEM_OUTPUTS,
   type GetContentItemParams,
   type GetContentItemResponse,
+  ORACLE_FUSION_LEARNING_GET_CONTENT_ITEM_OUTPUTS,
 } from '@/tools/oracle_fusion_learning/types'
 import type { InternalToolConfig } from '@/tools/types'
 
