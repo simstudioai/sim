@@ -1,2 +1,0 @@
-$ tsc --noEmit
-EXIT:0
