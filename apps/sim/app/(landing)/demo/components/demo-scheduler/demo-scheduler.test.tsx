@@ -5,21 +5,30 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCal, mockCalComponent, mockConsent, mockGetCalApi, mockTrackGoogleEvent } = vi.hoisted(
-  () => ({
-    mockCal: vi.fn(),
-    mockCalComponent: vi.fn(() => null),
-    mockConsent: { marketing: true, measurement: true },
-    mockGetCalApi: vi.fn(),
-    mockTrackGoogleEvent: vi.fn(),
-  })
-)
+const {
+  mockCal,
+  mockCalComponent,
+  mockConsent,
+  mockGetCalApi,
+  mockTrackGoogleAdsConversion,
+  mockTrackGoogleEvent,
+} = vi.hoisted(() => ({
+  mockCal: vi.fn(),
+  mockCalComponent: vi.fn(() => null),
+  mockConsent: { marketing: true, measurement: true },
+  mockGetCalApi: vi.fn(),
+  mockTrackGoogleAdsConversion: vi.fn(),
+  mockTrackGoogleEvent: vi.fn(),
+}))
 
 vi.mock('@calcom/embed-react', () => ({
   default: mockCalComponent,
   getCalApi: mockGetCalApi,
 }))
-vi.mock('@/lib/analytics/google', () => ({ trackGoogleEvent: mockTrackGoogleEvent }))
+vi.mock('@/lib/analytics/google', () => ({
+  trackGoogleAdsConversion: mockTrackGoogleAdsConversion,
+  trackGoogleEvent: mockTrackGoogleEvent,
+}))
 vi.mock('@/lib/consent/scripts', () => ({ X_DEMO_BOOKED_EVENT_ID: 'demo-booked' }))
 vi.mock('@/lib/consent/tracking-consent', () => ({
   useTrackingConsent: () => mockConsent,
@@ -35,6 +44,18 @@ const LEAD = {
   name: 'Ada Lovelace',
   email: 'ada@example.com',
   notes: 'Company: Analytical Engines\nTopic: Demo',
+}
+
+interface BookingRegistration {
+  action: string
+  callback: () => void
+}
+
+/** The listener the scheduler registered with the Cal.com embed, if any. */
+function bookingRegistration(): BookingRegistration | undefined {
+  return mockCal.mock.calls.find(([method]) => method === 'on')?.[1] as
+    | BookingRegistration
+    | undefined
 }
 
 describe('DemoScheduler', () => {
@@ -101,9 +122,7 @@ describe('DemoScheduler', () => {
       await Promise.resolve()
     })
 
-    const registration = mockCal.mock.calls.find(([method]) => method === 'on')?.[1] as
-      | { action: string; callback: () => void }
-      | undefined
+    const registration = bookingRegistration()
     expect(registration?.action).toBe('bookingSuccessfulV2')
 
     registration?.callback()
@@ -112,6 +131,7 @@ describe('DemoScheduler', () => {
       form_name: 'sim_demo',
       booking_status: 'scheduled',
     })
+    expect(mockTrackGoogleAdsConversion).toHaveBeenCalledWith('demo_booked')
     expect(trackXEvent).toHaveBeenCalledWith('event', 'demo-booked', {})
 
     await act(async () => {
@@ -123,6 +143,23 @@ describe('DemoScheduler', () => {
       callback: registration?.callback,
     })
     root = createRoot(container)
+  })
+
+  it('sends measurement analytics but no ad conversion without marketing consent', async () => {
+    mockConsent.marketing = false
+    const trackXEvent = vi.fn()
+    window.twq = trackXEvent
+
+    await act(async () => {
+      root.render(<DemoScheduler lead={LEAD} />)
+      await Promise.resolve()
+    })
+
+    bookingRegistration()?.callback()
+
+    expect(mockTrackGoogleEvent).toHaveBeenCalledOnce()
+    expect(mockTrackGoogleAdsConversion).not.toHaveBeenCalled()
+    expect(trackXEvent).not.toHaveBeenCalled()
   })
 
   it('does not register booking analytics without measurement or marketing consent', async () => {
@@ -138,7 +175,7 @@ describe('DemoScheduler', () => {
       hideEventTypeDetails: true,
       styles: { branding: { brandColor: '#6f3dfa' } },
     })
-    expect(mockCal.mock.calls.some(([method]) => method === 'on')).toBe(false)
+    expect(bookingRegistration()).toBeUndefined()
   })
 
   it('preloads the configured booker only once', async () => {

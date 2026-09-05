@@ -35,6 +35,8 @@ function createSocket(connected = true) {
     },
   }
   const fire = (event: string, ...args: unknown[]) => {
+    if (event === 'connect') socket.connected = true
+    if (event === 'disconnect') socket.connected = false
     for (const cb of listeners.get(event) ?? []) cb(...args)
   }
   return { socket: socket as unknown as Socket, emit, fire }
@@ -46,6 +48,14 @@ function createProvider(connected = true) {
   const awareness = new awarenessProtocol.Awareness(doc)
   const provider = new FileDocProvider(socket, 'file-1', doc, awareness)
   return { provider, doc, awareness, emit, fire }
+}
+
+function acceptJoin(
+  fire: (event: string, ...args: unknown[]) => void,
+  clientId: number,
+  docId?: string
+) {
+  fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1', clientId, docId })
 }
 
 /** Messages emitted to the server, decoded to their `{ type, bytes }`. */
@@ -77,10 +87,11 @@ describe('FileDocProvider', () => {
   })
 
   it('exchanges sync only after JOIN_SUCCESS', () => {
-    const { emit, fire } = createProvider(true)
+    const { doc, emit, fire } = createProvider(true)
     emit.mockClear()
+    expect(emittedMessages(emit)).toHaveLength(0)
 
-    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+    acceptJoin(fire, doc.clientID)
 
     // A sync step 1 (type tag 0) is sent to exchange state with the server.
     const messages = emittedMessages(emit)
@@ -88,14 +99,90 @@ describe('FileDocProvider', () => {
     expect(messages[0][0]).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
   })
 
-  it('ignores a join ack for a different file', () => {
-    const { emit, fire } = createProvider(true)
+  it('ignores inbound sync until the current join is accepted', () => {
+    const { provider, doc, fire } = createProvider(true)
+    const serverDoc = new Y.Doc()
+    serverDoc.getText('default').insert(0, 'server content')
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+    syncProtocol.writeSyncStep2(encoder, serverDoc)
+    const frame = encoding.toUint8Array(encoder)
+
+    fire(FILE_DOC_EVENTS.MESSAGE, frame)
+
+    expect(provider.synced).toBe(false)
+    expect(doc.getText('default').toString()).toBe('')
+
+    acceptJoin(fire, doc.clientID)
+    fire(FILE_DOC_EVENTS.MESSAGE, frame)
+
+    expect(provider.synced).toBe(true)
+    expect(doc.getText('default').toString()).toBe('server content')
+  })
+
+  it('does not send local updates before the current join is accepted', () => {
+    const { doc, emit } = createProvider(true)
     emit.mockClear()
 
-    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'other-file' })
+    doc.getText('default').insert(0, 'retained locally')
+
+    expect(emittedMessages(emit)).toHaveLength(0)
+    expect(doc.getText('default').toString()).toBe('retained locally')
+  })
+
+  it('does not send local awareness before the current join is accepted', () => {
+    const { awareness, emit } = createProvider(true)
+    emit.mockClear()
+
+    awareness.setLocalStateField('user', { name: 'Ada' })
+
+    expect(emittedMessages(emit)).toHaveLength(0)
+  })
+
+  it('ignores a join ack for a different file', () => {
+    const { doc, emit, fire } = createProvider(true)
+    emit.mockClear()
+
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'other-file', clientId: doc.clientID })
 
     // No sync/awareness exchange starts for a file this provider does not own.
     expect(emittedMessages(emit)).toHaveLength(0)
+  })
+
+  it('scopes join acknowledgements to the matching provider on a shared socket', () => {
+    const { socket, fire } = createSocket(true)
+    const firstDoc = new Y.Doc()
+    const secondDoc = new Y.Doc()
+    const first = new FileDocProvider(
+      socket,
+      'file-1',
+      firstDoc,
+      new awarenessProtocol.Awareness(firstDoc)
+    )
+    const second = new FileDocProvider(
+      socket,
+      'file-1',
+      secondDoc,
+      new awarenessProtocol.Awareness(secondDoc)
+    )
+    const serverDoc = new Y.Doc()
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+    syncProtocol.writeSyncStep2(encoder, serverDoc)
+    const frame = encoding.toUint8Array(encoder)
+
+    acceptJoin(fire, firstDoc.clientID)
+    fire(FILE_DOC_EVENTS.MESSAGE, frame)
+
+    expect(first.synced).toBe(true)
+    expect(second.synced).toBe(false)
+
+    acceptJoin(fire, secondDoc.clientID)
+    fire(FILE_DOC_EVENTS.MESSAGE, frame)
+
+    expect(second.synced).toBe(true)
+    first.destroy()
+    second.destroy()
   })
 
   /**
@@ -111,7 +198,7 @@ describe('FileDocProvider', () => {
     provider.on('join-error', joinError)
     emit.mockClear()
 
-    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1', docId: 'doc-rebuilt' })
+    acceptJoin(fire, doc.clientID, 'doc-rebuilt')
 
     expect(emittedMessages(emit)).toHaveLength(0)
     expect(provider.synced).toBe(false)
@@ -124,7 +211,7 @@ describe('FileDocProvider', () => {
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
     emit.mockClear()
 
-    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1', docId: 'doc-original' })
+    acceptJoin(fire, doc.clientID, 'doc-original')
 
     expect(emittedMessages(emit).length).toBeGreaterThan(0)
   })
@@ -132,13 +219,13 @@ describe('FileDocProvider', () => {
   it('syncs when either side carries no identity (a fresh doc, or a room seeded before identities)', () => {
     const fresh = createProvider(true)
     fresh.emit.mockClear()
-    fresh.fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1', docId: 'doc-rebuilt' })
+    acceptJoin(fresh.fire, fresh.doc.clientID, 'doc-rebuilt')
     expect(emittedMessages(fresh.emit).length).toBeGreaterThan(0)
 
     const unnamedRoom = createProvider(true)
     unnamedRoom.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
     unnamedRoom.emit.mockClear()
-    unnamedRoom.fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+    acceptJoin(unnamedRoom.fire, unnamedRoom.doc.clientID)
     expect(emittedMessages(unnamedRoom.emit).length).toBeGreaterThan(0)
   })
 
@@ -146,6 +233,7 @@ describe('FileDocProvider', () => {
     const { provider, doc, fire } = createProvider(true)
     const synced = vi.fn()
     provider.on('synced', synced)
+    acceptJoin(fire, doc.clientID)
 
     const serverDoc = new Y.Doc()
     serverDoc.getText('default').insert(0, 'hello world')
@@ -160,7 +248,8 @@ describe('FileDocProvider', () => {
   })
 
   it('sends local document edits to the server as sync updates', () => {
-    const { doc, emit } = createProvider(true)
+    const { doc, emit, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
     emit.mockClear()
 
     doc.getText('default').insert(0, 'x')
@@ -171,7 +260,8 @@ describe('FileDocProvider', () => {
   })
 
   it('tags agent-streamed edits as SYNC_NO_PERSIST so the relay skips the durable persist', () => {
-    const { doc, emit } = createProvider(true)
+    const { doc, emit, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
     emit.mockClear()
 
     // An agent-streamed frame is applied under AGENT_STREAM_ORIGIN; it must still reach the server (peers
@@ -184,8 +274,8 @@ describe('FileDocProvider', () => {
   })
 
   it('does not echo updates it applied from the server', () => {
-    const { provider, emit, fire } = createProvider(true)
-    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+    const { provider, doc, emit, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
     emit.mockClear()
 
     const serverDoc = new Y.Doc()
@@ -201,7 +291,8 @@ describe('FileDocProvider', () => {
   })
 
   it('sends local awareness (cursor/selection) changes', () => {
-    const { awareness, emit } = createProvider(true)
+    const { awareness, doc, emit, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
     emit.mockClear()
 
     awareness.setLocalStateField('user', { name: 'Ada', color: '#f783ac' })
@@ -211,7 +302,7 @@ describe('FileDocProvider', () => {
   })
 
   it('reseeds a cleared awareness so a reused instance can publish again', () => {
-    const { socket, emit } = createSocket(true)
+    const { socket, emit, fire } = createSocket(true)
     const doc = new Y.Doc()
     const awareness = new awarenessProtocol.Awareness(doc)
     // Simulate a prior provider teardown having cleared the local state — after
@@ -224,6 +315,7 @@ describe('FileDocProvider', () => {
     new FileDocProvider(socket, 'file-1', doc, awareness)
     expect(awareness.getLocalState()).not.toBeNull()
 
+    acceptJoin(fire, doc.clientID)
     emit.mockClear()
     // The caret extension setting the user field must now actually publish.
     awareness.setLocalStateField('user', { name: 'Ada', color: '#f783ac' })
@@ -231,7 +323,8 @@ describe('FileDocProvider', () => {
   })
 
   it('does not forward awareness it applied from the server', () => {
-    const { emit, fire } = createProvider(true)
+    const { doc, emit, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
     emit.mockClear()
 
     const remoteDoc = new Y.Doc()
@@ -266,26 +359,87 @@ describe('FileDocProvider', () => {
     expect(provider.joinError).toEqual(error)
   })
 
-  it('still rejoins on reconnect after a retryable error', () => {
-    const { emit, fire } = createProvider(true)
-    fire(FILE_DOC_EVENTS.JOIN_ERROR, {
-      fileId: 'file-1',
-      error: 'Realtime unavailable',
-      code: 'ROOM_MANAGER_UNAVAILABLE',
-      retryable: true,
-    })
-    emit.mockClear()
-
-    fire('connect')
-
-    expect(emit).toHaveBeenCalledWith(
-      FILE_DOC_EVENTS.JOIN,
-      expect.objectContaining({ fileId: 'file-1' })
+  it('scopes join errors to the matching provider on a shared socket', () => {
+    const { socket, fire } = createSocket(true)
+    const firstDoc = new Y.Doc()
+    const secondDoc = new Y.Doc()
+    const first = new FileDocProvider(
+      socket,
+      'file-1',
+      firstDoc,
+      new awarenessProtocol.Awareness(firstDoc)
     )
+    const second = new FileDocProvider(
+      socket,
+      'file-1',
+      secondDoc,
+      new awarenessProtocol.Awareness(secondDoc)
+    )
+    const error = {
+      fileId: 'file-1',
+      clientId: firstDoc.clientID,
+      error: 'Access denied',
+      code: 'ACCESS_DENIED',
+      retryable: false,
+    }
+
+    fire(FILE_DOC_EVENTS.JOIN_ERROR, error)
+
+    expect(first.joinError).toEqual(error)
+    expect(second.joinError).toBeNull()
+    first.destroy()
+    second.destroy()
+  })
+
+  it('retries a retryable join error without waiting for another socket reconnect', () => {
+    vi.useFakeTimers()
+    try {
+      const { emit, fire } = createProvider(true)
+      emit.mockClear()
+
+      fire(FILE_DOC_EVENTS.JOIN_ERROR, {
+        fileId: 'file-1',
+        error: 'Realtime unavailable',
+        code: 'ROOM_MANAGER_UNAVAILABLE',
+        retryable: true,
+      })
+
+      expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+      vi.advanceTimersByTime(1_000)
+      expect(emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN,
+        expect.objectContaining({ fileId: 'file-1' })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a scheduled join retry after a successful join', () => {
+    vi.useFakeTimers()
+    try {
+      const { doc, emit, fire } = createProvider(true)
+      fire(FILE_DOC_EVENTS.JOIN_ERROR, {
+        fileId: 'file-1',
+        error: 'Realtime unavailable',
+        code: 'ROOM_MANAGER_UNAVAILABLE',
+        retryable: true,
+      })
+      vi.advanceTimersByTime(1_000)
+      acceptJoin(fire, doc.clientID)
+      emit.mockClear()
+
+      vi.advanceTimersByTime(10_000)
+
+      expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('resets synced and rejoins on a reconnect', () => {
-    const { provider, emit, fire } = createProvider(true)
+    const { provider, doc, emit, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
     // Become synced.
     const serverDoc = new Y.Doc()
     serverDoc.getText('default').insert(0, 'hi')
@@ -306,6 +460,101 @@ describe('FileDocProvider', () => {
     )
   })
 
+  it('resets synced immediately when the socket disconnects', () => {
+    const { provider, doc, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
+    const synced = vi.fn()
+    provider.on('synced', synced)
+    const serverDoc = new Y.Doc()
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+    syncProtocol.writeSyncStep2(encoder, serverDoc)
+    fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+    expect(provider.synced).toBe(true)
+
+    const remoteDoc = new Y.Doc()
+    remoteDoc.clientID = 8888
+    const remoteAwareness = new awarenessProtocol.Awareness(remoteDoc)
+    remoteAwareness.setLocalStateField('user', { name: 'Remote' })
+    const awarenessEncoder = encoding.createEncoder()
+    encoding.writeVarUint(awarenessEncoder, FILE_DOC_MESSAGE_TYPE.AWARENESS)
+    encoding.writeVarUint8Array(
+      awarenessEncoder,
+      awarenessProtocol.encodeAwarenessUpdate(remoteAwareness, [remoteDoc.clientID])
+    )
+    fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(awarenessEncoder))
+    expect(provider.awareness.getStates().has(remoteDoc.clientID)).toBe(true)
+    synced.mockClear()
+
+    fire('disconnect', 'transport close')
+
+    expect(provider.synced).toBe(false)
+    expect(synced).toHaveBeenCalledWith(false)
+    expect(provider.awareness.getStates().has(remoteDoc.clientID)).toBe(false)
+  })
+
+  it('drops offline awareness emissions and republishes the latest state after rejoining', () => {
+    const { awareness, doc, emit, fire } = createProvider(true)
+    acceptJoin(fire, doc.clientID)
+    fire('disconnect', 'transport close')
+    emit.mockClear()
+
+    awareness.setLocalStateField('user', { name: 'Ada' })
+    awareness.setLocalStateField('selection', { anchor: 4, head: 4 })
+
+    expect(emittedMessages(emit)).toHaveLength(0)
+
+    fire('connect')
+    expect(emittedMessages(emit)).toHaveLength(0)
+    acceptJoin(fire, doc.clientID)
+
+    expect(
+      emittedMessages(emit).some((message) => message[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS)
+    ).toBe(true)
+  })
+
+  it('cancels a scheduled join retry on disconnect', () => {
+    vi.useFakeTimers()
+    try {
+      const { emit, fire } = createProvider(true)
+      fire(FILE_DOC_EVENTS.JOIN_ERROR, {
+        fileId: 'file-1',
+        error: 'Realtime unavailable',
+        code: 'ROOM_MANAGER_UNAVAILABLE',
+        retryable: true,
+      })
+      fire('disconnect', 'transport close')
+      emit.mockClear()
+
+      vi.advanceTimersByTime(10_000)
+
+      expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a scheduled join retry when destroyed', () => {
+    vi.useFakeTimers()
+    try {
+      const { provider, emit, fire } = createProvider(true)
+      fire(FILE_DOC_EVENTS.JOIN_ERROR, {
+        fileId: 'file-1',
+        error: 'Realtime unavailable',
+        code: 'ROOM_MANAGER_UNAVAILABLE',
+        retryable: true,
+      })
+      provider.destroy()
+      emit.mockClear()
+
+      vi.advanceTimersByTime(10_000)
+
+      expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('leaves the room and detaches on destroy', () => {
     const { provider, doc, emit } = createProvider(true)
     emit.mockClear()
@@ -323,7 +572,7 @@ describe('FileDocProvider', () => {
     // Two surfaces in one tab (Files editor + embedded chat panel) share one socket and both open the
     // same file. Tearing the first down must NOT strand the second — the server drops the socket from
     // the room on any LEAVE, so LEAVE may fire only when the last provider goes away.
-    const { socket, emit } = createSocket(true)
+    const { socket, emit, fire } = createSocket(true)
     const docA = new Y.Doc()
     const docB = new Y.Doc()
     const first = new FileDocProvider(
@@ -338,9 +587,20 @@ describe('FileDocProvider', () => {
       docB,
       new awarenessProtocol.Awareness(docB)
     )
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      fileId: 'shared-file',
+      clientId: docA.clientID,
+    })
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      fileId: 'shared-file',
+      clientId: docB.clientID,
+    })
     emit.mockClear()
 
     first.destroy()
+    expect(
+      emittedMessages(emit).some((message) => message[0] === FILE_DOC_MESSAGE_TYPE.AWARENESS)
+    ).toBe(true)
     expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, expect.anything())
 
     second.destroy()
@@ -394,12 +654,12 @@ describe('FileDocProvider', () => {
   it('does not fire the fallback once the doc is synced AND seeded', () => {
     vi.useFakeTimers()
     try {
-      const { provider, fire } = createProvider(true)
+      const { provider, doc, fire } = createProvider(true)
       const onError = vi.fn()
       provider.on('join-error', onError)
 
       // The initial sync brings BOTH content and the server seed flag before the deadline.
-      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+      acceptJoin(fire, doc.clientID)
       const remote = new Y.Doc()
       remote.getText('default').insert(0, 'hi')
       remote.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
@@ -419,13 +679,13 @@ describe('FileDocProvider', () => {
   it('fires the fallback when the doc synced but the server seed never landed', () => {
     vi.useFakeTimers()
     try {
-      const { provider, fire } = createProvider(true)
+      const { provider, doc, fire } = createProvider(true)
       const onError = vi.fn()
       provider.on('join-error', onError)
 
       // The socket syncs an empty doc, but the server-side seed never arrives (its build persistently
       // failed) — `synced` is true yet `initialContentLoaded` is never set.
-      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+      acceptJoin(fire, doc.clientID)
       const remote = new Y.Doc()
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
@@ -450,7 +710,7 @@ describe('FileDocProvider', () => {
     vi.useFakeTimers()
     try {
       const { provider, doc, fire } = createProvider(true)
-      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+      acceptJoin(fire, doc.clientID)
 
       // Deadline lapses with no first sync → fatal fallback (editor falls back to a read-only seed).
       vi.advanceTimersByTime(12_000)

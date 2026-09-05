@@ -25,13 +25,16 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_open_url',
   'browser_go_back',
   'browser_go_forward',
+  'browser_reload',
   'browser_open_tab',
   'browser_switch_tab',
   'browser_close_tab',
   'browser_list_tabs',
   'browser_list_sessions',
+  'browser_list_downloads',
   'browser_wait_for',
   'browser_snapshot',
+  'browser_find',
   'browser_read_text',
   'browser_screenshot',
   'browser_extract',
@@ -42,8 +45,10 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
+  'browser_set_checked',
   'browser_hover',
   'browser_drag',
+  'browser_zoom',
 ] as const
 
 export type CurrentBrowserToolName = (typeof CURRENT_BROWSER_TOOL_NAMES)[number]
@@ -83,6 +88,31 @@ export function normalizeBrowserWaitForTimeoutMs(value: unknown): number {
         : Number.NaN
   if (!Number.isFinite(parsed) || parsed <= 0) return BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS
   return Math.min(parsed, BROWSER_WAIT_FOR_MAX_TIMEOUT_MS)
+}
+
+/** Client execution budget, including authorization, native queueing, and result delivery. */
+export function browserToolRendererTimeoutMs(
+  tool: CurrentBrowserToolName,
+  params: Record<string, unknown> = {}
+): number {
+  switch (tool) {
+    case 'browser_navigate':
+    case 'browser_open_url':
+    case 'browser_go_back':
+    case 'browser_go_forward':
+    case 'browser_reload':
+    case 'browser_open_tab':
+    case 'browser_switch_tab':
+      return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
+    case 'browser_wait_for':
+      return (
+        BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
+        normalizeBrowserWaitForTimeoutMs(params.timeoutMs) +
+        BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+      )
+    default:
+      return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
+  }
 }
 
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const

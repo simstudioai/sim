@@ -139,6 +139,8 @@ export interface JoinFileDocPayload {
 /** Server → client acceptance of a {@link FILE_DOC_EVENTS.JOIN}. */
 export interface JoinFileDocSuccess {
   fileId: string
+  /** The provider whose join was accepted. Optional while older relays are still deployed. */
+  clientId?: number
   /**
    * The identity of the document this room holds ({@link FILE_DOC_SEED.docIdKey}), so a client can tell
    * "the room I left" from "a document built in its place" BEFORE it syncs. Absent for a room whose doc
@@ -151,6 +153,8 @@ export interface JoinFileDocSuccess {
 /** Server → client rejection of a {@link FILE_DOC_EVENTS.JOIN}. */
 export interface JoinFileDocError {
   fileId: string
+  /** The provider whose join failed. Optional when the payload did not contain a valid client id. */
+  clientId?: number
   error: string
   code: string
   retryable?: boolean

@@ -43,6 +43,7 @@ interface TinyFishAutomationParams extends TinyFishApiKeyParams {
   credentialItemIds?: string | string[]
   useProfile?: boolean
   profileId?: string
+  maxDurationSeconds?: number
 }
 
 export interface TinyFishRunParams extends TinyFishAutomationParams {}
@@ -111,6 +112,16 @@ export interface TinyFishRunError {
   helpMessage: string | null
 }
 
+/**
+ * Nudge TinyFish attaches to a failed run it believes a Browser Context Profile
+ * would fix, such as one that stopped at a login wall.
+ */
+export interface TinyFishProfileHint {
+  message: string
+  setupUrl: string
+  reason: 'auth_wall' | 'bot_challenge'
+}
+
 /** Proxy settings the run actually executed with. */
 export interface TinyFishBrowserConfig {
   proxyEnabled: boolean | null
@@ -131,6 +142,9 @@ export interface TinyFishRunSummary {
   error: TinyFishRunError | null
   streamingUrl: string | null
   browserConfig: TinyFishBrowserConfig | null
+  profileAttached: boolean | null
+  profileId: string | null
+  profileHint: TinyFishProfileHint | null
 }
 
 export interface TinyFishRunResponse extends ToolResponse {
@@ -143,6 +157,7 @@ export interface TinyFishRunResponse extends ToolResponse {
     result: Record<string, unknown> | null
     schemaValidation: TinyFishSchemaValidation | null
     error: TinyFishRunError | null
+    profileHint: TinyFishProfileHint | null
   }
 }
 
@@ -216,7 +231,9 @@ interface TinyFishProfile {
   name: string
   proxyCountryCode: string | null
   fingerprintSeed: string | null
+  domainCount: number | null
   createdAt: string | null
+  updatedAt: string | null
   isDefault: boolean | null
 }
 
@@ -299,6 +316,12 @@ interface TinyFishRawRunError {
   help_message?: string | null
 }
 
+export interface TinyFishRawProfileHint {
+  message?: string | null
+  setup_url?: string | null
+  reason?: 'auth_wall' | 'bot_challenge' | null
+}
+
 interface TinyFishRawBrowserConfig {
   proxy_enabled?: boolean | null
   proxy_country_code?: string | null
@@ -317,6 +340,9 @@ export interface TinyFishRawRunSummary {
   error?: TinyFishRawRunError | null
   streaming_url?: string | null
   browser_config?: TinyFishRawBrowserConfig | null
+  profile_attached?: boolean | null
+  profile_id?: string | null
+  profile_hint?: TinyFishRawProfileHint | null
 }
 
 export interface TinyFishRawRunDetail extends TinyFishRawRunSummary {
@@ -339,6 +365,7 @@ export interface TinyFishRawRun {
   result?: Record<string, unknown> | null
   schema_validation?: TinyFishRawSchemaValidation | null
   error?: TinyFishRawRunError | null
+  profile_hint?: TinyFishRawProfileHint | null
 }
 
 export interface TinyFishRawRunAsync {
@@ -395,18 +422,19 @@ export interface TinyFishRawFetch {
 /**
  * Raw list-profiles payload.
  *
- * TinyFish documents the profile object only through the create-profile
- * response (`id`, `name`, `proxy_country_code`, `fingerprint_seed`,
- * `created_at`) and publishes no example for the list envelope, so both the
- * envelope and the default marker are read tolerantly rather than assumed.
+ * The OpenAPI spec documents the `{ profiles: [...] }` envelope and marks only
+ * `id`, `name`, and `created_at` as required, so every other field is read as
+ * optional. The bare-array and `data` envelopes stay accepted because the
+ * prose docs show neither shape and cost nothing to tolerate.
  */
 export interface TinyFishRawProfile {
   id?: string | null
   name?: string | null
   proxy_country_code?: string | null
   fingerprint_seed?: string | null
+  domain_count?: number | null
   created_at?: string | null
-  set_as_default?: boolean | null
+  updated_at?: string | null
   is_default?: boolean | null
 }
 
@@ -473,6 +501,19 @@ export const SCHEMA_VALIDATION_OUTPUT_PROPERTIES = {
   },
 } as const
 
+/** Output property descriptions for the profile-hint object, shared by run-returning tools. */
+export const PROFILE_HINT_OUTPUT_PROPERTIES = {
+  message: { type: 'string', description: 'Why a Browser Context Profile would help this run' },
+  setupUrl: {
+    type: 'string',
+    description: 'Path on the TinyFish dashboard that sets up a profile for the blocked domain',
+  },
+  reason: {
+    type: 'string',
+    description: 'auth_wall (the run hit a login) or bot_challenge (the site blocked automation)',
+  },
+} as const
+
 /** Output property descriptions for a run summary, shared by get-run and list-runs. */
 export const RUN_SUMMARY_OUTPUT_PROPERTIES = {
   runId: { type: 'string', description: 'Run identifier' },
@@ -527,5 +568,27 @@ export const RUN_SUMMARY_OUTPUT_PROPERTIES = {
       proxyEnabled: { type: 'boolean', description: 'Whether a proxy was used', optional: true },
       proxyCountryCode: { type: 'string', description: 'Proxy country code', optional: true },
     },
+  },
+  profileAttached: {
+    type: 'boolean',
+    description:
+      'Whether the run actually started from a Browser Context Profile, null when the API omits it — treat null as unknown rather than as false',
+    optional: true,
+    nullable: true,
+  },
+  profileId: {
+    type: 'string',
+    description:
+      'Browser Context Profile the run attached. Null covers both no profile and a payload that omitted the field, so read profileAttached alongside it rather than reading null as proof',
+    optional: true,
+    nullable: true,
+  },
+  profileHint: {
+    type: 'object',
+    description:
+      'Present when TinyFish believes a Browser Context Profile would fix this failed run',
+    optional: true,
+    nullable: true,
+    properties: PROFILE_HINT_OUTPUT_PROPERTIES,
   },
 } as const

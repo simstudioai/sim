@@ -620,11 +620,14 @@ const TOOL_TITLES: Record<string, string> = {
   // Browser agent tools without an argument-aware title.
   browser_go_back: 'Going back',
   browser_go_forward: 'Going forward',
+  browser_reload: 'Reloading page',
   browser_switch_tab: 'Switching tab',
   browser_close_tab: 'Closing tab',
   browser_list_tabs: 'Listing tabs',
   browser_list_sessions: 'Checking signed-in sites',
+  browser_list_downloads: 'Checking downloads',
   browser_snapshot: 'Scanning page',
+  browser_find: 'Finding page element',
   browser_read_text: 'Reading page',
   browser_screenshot: 'Taking screenshot',
   browser_click: 'Clicking element',
@@ -632,7 +635,9 @@ const TOOL_TITLES: Record<string, string> = {
 
   browser_drag: 'Dragging element',
   browser_select_option: 'Selecting option',
+  browser_set_checked: 'Updating control',
   browser_hover: 'Hovering element',
+  browser_zoom: 'Changing page zoom',
   // Subagent trigger tools, when surfaced as a tool call.
   workflow: 'Workflow Agent',
   run: 'Run Agent',
@@ -1033,7 +1038,24 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'browser_wait_for': {
       const text = stringArg(args, 'text')
-      return text ? `Waiting for "${text}"` : 'Waiting for page'
+      const state = stringArg(args, 'state')
+      const url = stringArg(args, 'urlContains')
+      if (text) return `Waiting for "${text}"`
+      if (state) return `Waiting for element to be ${state}`
+      return url ? `Waiting for ${displayUrl(url)}` : 'Waiting for page'
+    }
+    case 'browser_find': {
+      const query = stringArg(args, 'query')
+      return query ? `Finding "${truncateMiddle(query, 32)}"` : 'Finding page element'
+    }
+    case 'browser_set_checked': {
+      return args?.checked === false ? 'Unchecking control' : 'Checking control'
+    }
+    case 'browser_zoom': {
+      const action = stringArg(args, 'action')
+      if (action === 'in') return 'Zooming in'
+      if (action === 'out') return 'Zooming out'
+      return action === 'reset' ? 'Resetting page zoom' : 'Changing page zoom'
     }
     case 'generate_image':
     case 'generate_video':
@@ -1284,6 +1306,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Cancelling: 'Cancelled',
   Calling: 'Called',
   Checking: 'Checked',
+  Changing: 'Changed',
   Clicking: 'Clicked',
   Closing: 'Closed',
   Combining: 'Combined',
@@ -1335,9 +1358,11 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Querying: 'Queried',
   Reading: 'Read',
   Redeploying: 'Redeployed',
+  Reloading: 'Reloaded',
   Removing: 'Removed',
   Renaming: 'Renamed',
   Requesting: 'Requested',
+  Resetting: 'Reset',
   Resizing: 'Resized',
   Restoring: 'Restored',
   Running: 'Ran',
@@ -1358,6 +1383,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Toggling: 'Toggled',
   Trimming: 'Trimmed',
   Typing: 'Typed',
+  Unchecking: 'Unchecked',
   Undeploying: 'Undeployed',
   Unsharing: 'Unshared',
   Updating: 'Updated',
@@ -1366,6 +1392,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Viewing: 'Viewed',
   Waiting: 'Waited',
   Writing: 'Wrote',
+  Zooming: 'Zoomed',
 }
 
 /**
