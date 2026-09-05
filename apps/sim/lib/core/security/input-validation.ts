@@ -630,8 +630,13 @@ export function validateAwsRegion(
     }
   }
 
+  /**
+   * Partition prefixes are matched longest-first: `us-isob` and `us-isof` must precede
+   * `us-iso`, or the shorter alternative wins and the trailing partition letter fails to
+   * match the following `-`.
+   */
   const awsRegionPattern =
-    /^(eu-isoe|eusc-[a-z]{2}|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+    /^(eu-isoe|eusc-[a-z]{2}|us-isob|us-isof|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
