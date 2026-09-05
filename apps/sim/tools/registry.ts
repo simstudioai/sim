@@ -2237,8 +2237,10 @@ import {
   iamDeleteUserTool,
   iamDetachRolePolicyTool,
   iamDetachUserPolicyTool,
+  iamGetPolicyTool,
   iamGetRoleTool,
   iamGetUserTool,
+  iamListAccessKeysTool,
   iamListAttachedRolePoliciesTool,
   iamListAttachedUserPoliciesTool,
   iamListGroupsTool,
@@ -2247,6 +2249,7 @@ import {
   iamListUsersTool,
   iamRemoveUserFromGroupTool,
   iamSimulatePrincipalPolicyTool,
+  iamUpdateAccessKeyTool,
 } from '@/tools/iam'
 import { icypeasFindEmailTool, icypeasVerifyEmailTool } from '@/tools/icypeas'
 import {
@@ -10419,8 +10422,11 @@ export const tools: Record<string, ExecutableToolConfig> = {
   iam_attach_role_policy: iamAttachRolePolicyTool,
   iam_detach_role_policy: iamDetachRolePolicyTool,
   iam_list_policies: iamListPoliciesTool,
+  iam_get_policy: iamGetPolicyTool,
   iam_create_access_key: iamCreateAccessKeyTool,
   iam_delete_access_key: iamDeleteAccessKeyTool,
+  iam_list_access_keys: iamListAccessKeysTool,
+  iam_update_access_key: iamUpdateAccessKeyTool,
   iam_list_groups: iamListGroupsTool,
   iam_add_user_to_group: iamAddUserToGroupTool,
   iam_remove_user_from_group: iamRemoveUserFromGroupTool,

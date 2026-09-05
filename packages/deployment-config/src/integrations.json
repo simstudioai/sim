@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-04",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -2228,12 +2228,24 @@
           "description": "List managed IAM policies"
         },
         {
+          "name": "Get Policy",
+          "description": "Get details about a managed IAM policy, including its description — the field ListPolicies never returns"
+        },
+        {
           "name": "Create Access Key",
           "description": "Create a new access key pair for an IAM user"
         },
         {
           "name": "Delete Access Key",
           "description": "Delete an access key pair for an IAM user"
+        },
+        {
+          "name": "List Access Keys",
+          "description": "List an IAM user's access key IDs with their status and age — use to find stale keys and to confirm which keys remain after a rotation"
+        },
+        {
+          "name": "Update Access Key",
+          "description": "Activate or deactivate an IAM access key — deactivate an old key and verify nothing breaks before deleting it"
         },
         {
           "name": "List Groups",
@@ -2260,7 +2272,7 @@
           "description": "Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks"
         }
       ],
-      "operationCount": 21,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

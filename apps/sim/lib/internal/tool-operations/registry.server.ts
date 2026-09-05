@@ -52,8 +52,10 @@ const IAM_TOOL_IDS = [
   'iam_delete_user',
   'iam_detach_role_policy',
   'iam_detach_user_policy',
+  'iam_get_policy',
   'iam_get_role',
   'iam_get_user',
+  'iam_list_access_keys',
   'iam_list_attached_role_policies',
   'iam_list_attached_user_policies',
   'iam_list_groups',
@@ -62,6 +64,7 @@ const IAM_TOOL_IDS = [
   'iam_list_users',
   'iam_remove_user_from_group',
   'iam_simulate_principal_policy',
+  'iam_update_access_key',
 ] as const
 
 const IDENTITY_CENTER_TOOL_IDS = [
