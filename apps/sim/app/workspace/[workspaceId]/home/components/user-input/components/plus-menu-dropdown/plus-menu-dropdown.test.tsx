@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, createRef } from 'react'
+import type { DesktopPreferences } from '@sim/desktop-bridge'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,6 +52,7 @@ import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
+import { setDesktopPreferencesSnapshot } from '@/lib/desktop'
 import {
   mapResourceToContext,
   type PlusMenuHandle,
@@ -59,6 +61,16 @@ import { PlusMenuDropdown } from '@/app/workspace/[workspaceId]/home/components/
 
 let root: Root
 let container: HTMLDivElement
+
+const PREFERENCES: DesktopPreferences = {
+  notificationsEnabled: true,
+  notificationSounds: true,
+  notificationsOnlyWhenUnfocused: true,
+  launchAtLogin: false,
+  autoDownloadUpdates: true,
+  browserEnabled: true,
+  terminalEnabled: true,
+}
 
 function openMenu(mention = false) {
   const ref = createRef<PlusMenuHandle>()
@@ -110,6 +122,7 @@ describe('PlusMenuDropdown desktop resources', () => {
     vi.clearAllMocks()
     fixtures.browserAvailable.mockReturnValue(true)
     fixtures.terminalAvailable.mockReturnValue(true)
+    setDesktopPreferencesSnapshot(PREFERENCES)
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       configurable: true,
       value: vi.fn(),
@@ -164,6 +177,19 @@ describe('PlusMenuDropdown desktop resources', () => {
       label: 'Browser',
     })
   })
+
+  it.each([false, true])(
+    'updates mounted desktop rows when preferences change in mention=%s mode',
+    (mention) => {
+      openMenu(mention)
+      expect(menuItems().map((item) => item.textContent)).toContain('Browser')
+
+      fixtures.browserAvailable.mockReturnValue(false)
+      act(() => setDesktopPreferencesSnapshot({ ...PREFERENCES, browserEnabled: false }))
+      expect(menuItems().map((item) => item.textContent)).not.toContain('Browser')
+      expect(menuItems().map((item) => item.textContent)).toContain('Terminal')
+    }
+  )
 
   it('finds Browser through plus-menu search and selects it with Enter', () => {
     const { onResourceSelect } = openMenu()
