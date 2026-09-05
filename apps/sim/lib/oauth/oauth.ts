@@ -1028,6 +1028,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  'oracle-epm-enterprise-data-management': {
+    name: 'Oracle EPM Enterprise Data Management',
+    icon: NetSuiteIcon,
+    services: {
+      'oracle-epm-enterprise-data-management': {
+        name: 'Oracle EPM Enterprise Data Management',
+        description:
+          'Manage enterprise dimensions, viewpoints, nodes, requests, validation, and data transfers.',
+        providerId: 'oracle-epm-enterprise-data-management',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm-enterprise-data-management',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,

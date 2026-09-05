@@ -783,6 +783,39 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+
+const ORACLE_EPM_EDM_TOOL_IDS = [
+  'oracle_epm_edm_list_applications',
+  'oracle_epm_edm_list_dimensions',
+  'oracle_epm_edm_list_views',
+  'oracle_epm_edm_list_viewpoints',
+  'oracle_epm_edm_list_node_types',
+  'oracle_epm_edm_get_node_type',
+  'oracle_epm_edm_list_nodes',
+  'oracle_epm_edm_get_node',
+  'oracle_epm_edm_get_node_at_location',
+  'oracle_epm_edm_browse_hierarchy',
+  'oracle_epm_edm_create_request',
+  'oracle_epm_edm_get_request',
+  'oracle_epm_edm_query_requests',
+  'oracle_epm_edm_get_request_lineage',
+  'oracle_epm_edm_assign_request',
+  'oracle_epm_edm_delete_request',
+  'oracle_epm_edm_upload_request_attachment',
+  'oracle_epm_edm_generate_request_attachment',
+  'oracle_epm_edm_import_request_attachment',
+  'oracle_epm_edm_transition_request',
+  'oracle_epm_edm_get_job_status',
+  'oracle_epm_edm_get_job_result',
+  'oracle_epm_edm_validate_viewpoint',
+  'oracle_epm_edm_get_mapping_keys',
+  'oracle_epm_edm_export_mappings',
+  'oracle_epm_edm_import_dimension',
+  'oracle_epm_edm_load_viewpoint',
+  'oracle_epm_edm_export_dimension',
+  'oracle_epm_edm_incremental_export_dimension',
+  'oracle_epm_edm_extract_dimension_viewpoint',
+] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1430,6 +1463,10 @@ registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, ORACLE_EPM_EDM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-enterprise-data-management/execute-tool'))
+    .executeOracleEpmEdmTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool
