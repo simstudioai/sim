@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, cn } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { signOut } from '@/lib/auth/auth-client'
@@ -19,7 +19,6 @@ import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { OAuthConsentLoading } from '@/app/(auth)/oauth/consent/loading'
 import { useOAuthConsent, useOAuthPublicClient } from '@/hooks/queries/oauth-provider'
 
-/** Why the page refuses to render a grant, when it does. */
 export type OAuthConsentRefusal = 'expired' | 'missing' | 'tampered' | 'unsigned'
 
 const REFUSAL_MESSAGES: Record<OAuthConsentRefusal, string> = {
@@ -81,15 +80,7 @@ export function OAuthConsentView({
   const client = useOAuthPublicClient(clientId ?? undefined, authorizationRequestKey ?? undefined)
   const consent = useOAuthConsent()
 
-  /**
-   * No grant card without a client the server itself named.
-   *
-   * A failed lookup used to fall through to the fallback name and leave Allow
-   * enabled, so an unknown or deleted client still rendered a complete,
-   * clickable authorization — with everything on it read from the URL rather
-   * than from Sim. Naming the app is this page's whole job, so not being able
-   * to name it is a refusal, not a degraded heading.
-   */
+  /** Refuses clients Sim cannot name because URL metadata alone is untrusted. */
   const reason: OAuthConsentRefusal | null = refusal ?? (clientId ? null : 'missing')
   if (reason || client.isError) {
     return (
@@ -110,11 +101,7 @@ export function OAuthConsentView({
   if (client.isPending) return <OAuthConsentLoading />
 
   const isCli = clientId === SIM_CLI_CLIENT_ID
-  /**
-   * The registered name the lookup returned, never the raw client id and never
-   * a name asserted by the URL: the id is what an impostor controls, so a
-   * client the server declines to name is one this card must not vouch for.
-   */
+  /** Uses only the server-registered name; the client ID comes from the URL. */
   const appName = client.data?.name?.trim()
   if (!appName) {
     return (
@@ -183,9 +170,10 @@ export function OAuthConsentView({
         </AuthSubmitButton>
         <Chip
           type='button'
+          variant='border'
           fullWidth
           disabled={consent.isPending}
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border)]')}
+          className={AUTH_BUTTON_CLASS}
           onClick={() => decide(false)}
         >
           Deny

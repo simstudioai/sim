@@ -22,7 +22,6 @@ async function fetchAuthorizedApps(signal?: AbortSignal): Promise<AuthorizedApp[
   return data.apps
 }
 
-/** The apps the signed-in account has authorized, for the settings list. */
 export function useAuthorizedApps() {
   return useQuery({
     queryKey: oauthProviderKeys.authorizedApps(),

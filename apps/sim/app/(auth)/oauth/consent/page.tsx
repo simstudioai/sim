@@ -42,20 +42,8 @@ export default async function OAuthConsentPage({
   }
 
   /**
-   * Two ways a request can reach this page without Sim having authorized it,
-   * both of which must refuse before anything is rendered.
-   *
-   * A repeated parameter is tampering, not a client quirk: the card names the
-   * app and lists what it may do, and it reads those from the URL, where
-   * `URLSearchParams.get` answers with the FIRST occurrence — so a link that
-   * prepends its own `client_id` and `scope` would show a trustworthy app and
-   * one harmless permission over somebody else's request.
-   *
-   * A missing `sig` means the query was never signed by the authorize
-   * endpoint, so the whole thing is hand-written. Consent still fails at Allow
-   * (the plugin refuses an unsigned `oauth_query`), but it fails with a
-   * generic error, after the person has already read an authorization request
-   * that Sim never issued. Both are caught here so the lie is never rendered.
+   * Repeated fields can make displayed consent diverge from the signed request;
+   * unsigned requests never passed through the authorization endpoint.
    */
   const tampered = Object.entries(raw).some(
     ([key, value]) => key !== 'ba_param' && Array.isArray(value)

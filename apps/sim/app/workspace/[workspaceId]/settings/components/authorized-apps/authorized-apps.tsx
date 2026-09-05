@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
@@ -27,23 +27,21 @@ export function AuthorizedApps() {
   const apps = useAuthorizedApps()
   const revoke = useRevokeAuthorizedApp()
   const [searchTerm, setSearchTerm] = useSettingsSearch()
-  const [pendingRevoke, setPendingRevoke] = useState<AuthorizedApp | null>(null)
+  const [pendingRevokeClientId, setPendingRevokeClientId] = useState<string | null>(null)
 
   const list = apps.data ?? EMPTY_APPS
-  const filtered = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
-    if (!term) return list
-    return list.filter((app) => app.name.toLowerCase().includes(term))
-  }, [list, searchTerm])
+  const pendingRevoke = list.find((app) => app.clientId === pendingRevokeClientId) ?? null
+  const term = searchTerm.trim().toLowerCase()
+  const filtered = term ? list.filter((app) => app.name.toLowerCase().includes(term)) : list
 
   const confirmRevoke = () => {
-    const app = pendingRevoke
-    if (!app) return
-    revoke.mutate(app.clientId, {
-      onSuccess: () => toast.success(`Revoked ${app.name}`),
+    if (!pendingRevokeClientId) return
+    const appName = pendingRevoke?.name ?? 'app'
+    revoke.mutate(pendingRevokeClientId, {
+      onSuccess: () => toast.success(`Revoked ${appName}`),
       onError: (error) => toast.error(getErrorMessage(error, 'Failed to revoke access')),
       /** Keep the modal open so its pending state remains visible through the mutation. */
-      onSettled: () => setPendingRevoke(null),
+      onSettled: () => setPendingRevokeClientId(null),
     })
   }
 
@@ -82,7 +80,11 @@ export function AuthorizedApps() {
                   <RowActionsMenu
                     label='Authorized app actions'
                     actions={[
-                      { label: 'Revoke', destructive: true, onSelect: () => setPendingRevoke(app) },
+                      {
+                        label: 'Revoke',
+                        destructive: true,
+                        onSelect: () => setPendingRevokeClientId(app.clientId),
+                      },
                     ]}
                   />
                 }
@@ -93,9 +95,9 @@ export function AuthorizedApps() {
       </SettingsPanel>
 
       <ChipConfirmModal
-        open={pendingRevoke !== null}
+        open={pendingRevokeClientId !== null}
         onOpenChange={(open) => {
-          if (!open) setPendingRevoke(null)
+          if (!open) setPendingRevokeClientId(null)
         }}
         srTitle='Revoke access'
         title='Revoke access'
