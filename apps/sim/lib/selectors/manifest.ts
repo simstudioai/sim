@@ -245,6 +245,16 @@ export const selectorManifest = {
     listMode: 'paginated',
     detail: true,
   }),
+  'oci_queue.queues': providerSelector(['compartmentId', 'region'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_queue.channels': providerSelector(['queueId', 'region', 'consumerGroupId'], {
+    readiness: { all: ['oauthCredential', 'queueId'] },
+    listMode: 'paginated',
+  }),
   'outlook.folders': providerSelector([], { listMode: 'paginated', detail: true }),
   'outlook.calendars': providerSelector([], { listMode: 'paginated', detail: true }),
   'microsoft.teams': providerSelector([], { listMode: 'paginated', detail: true }),
