@@ -8,7 +8,7 @@ import { deployedChatPostContract } from '@/lib/api/contracts/chats'
 import { parseRequest } from '@/lib/api/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
-import { env, envNumber } from '@/lib/core/config/env'
+import { env } from '@/lib/core/config/env'
 import {
   enforceIpRateLimitWithIndependentBackstop,
   enforceResourceRateLimit,
@@ -54,10 +54,9 @@ export const runtime = 'nodejs'
 
 const CHAT_MAX_REQUEST_BYTES = Number.parseInt(env.CHAT_MAX_REQUEST_BYTES, 10) || 220 * 1024 * 1024
 
-/** A per-minute ceiling, as a bucket that refills its whole allowance each minute. */
-function executionsPerMinute(value: string | undefined, fallback: number): TokenBucketConfig {
-  const perMinute = envNumber(value, fallback, { min: 1, integer: true })
-  return { maxTokens: perMinute, refillRate: perMinute, refillIntervalMs: 60_000 }
+/** A sustained per-minute rate, with the 2x burst allowance the plan buckets use. */
+function executionsPerMinute(perMinute: number): TokenBucketConfig {
+  return { maxTokens: perMinute * 2, refillRate: perMinute, refillIntervalMs: 60_000 }
 }
 
 /**
@@ -66,16 +65,26 @@ function executionsPerMinute(value: string | undefined, fallback: number): Token
  * A deployed chat runs the owner's workflow on the owner's plan bucket, credit
  * balance and concurrency reservation for whoever holds the link, so every
  * ceiling on that path belongs to the payer and none of them bound the caller.
- * Sized well above a human conversation and above shared-NAT aggregation, so it
- * costs a flooder a botnet rather than costing a real audience its session.
+ * Half the per-deployment rate, so one host cannot monopolize the deployment's
+ * whole allowance, and still far above human chat cadence — a burst of 60 then
+ * one message every two seconds — so shared NAT does not cost a real audience
+ * its session.
  */
-const CHAT_EXECUTION_IP_LIMIT = executionsPerMinute(env.DEPLOYMENT_IP_EXECUTIONS_PER_MINUTE, 60)
+const CHAT_EXECUTION_IP_LIMIT = executionsPerMinute(30)
 
 /**
- * What bounds the owner's exposure when attempts are spread across addresses,
- * and the only bound left when the proxy chain resolves to no client IP.
+ * What one deployed chat may spend of its owner's workspace allowance.
+ *
+ * This has to sit *below* the owner's plan bucket to do its job. A chat
+ * execution debits the workspace `sync` counter — 50/min on free, 150 on pro,
+ * 300 on team, 600 on enterprise — which is the same counter the owner's API,
+ * webhook and scheduled runs draw from. A ceiling above it would let a flood
+ * empty that shared counter before this bucket ever refused, which is how a
+ * billing attack becomes an availability attack on unrelated production
+ * workloads. At 60/min a public chat can spend at most a fraction of even the
+ * cheapest paid plan and the owner's other triggers keep their headroom.
  */
-const CHAT_EXECUTION_LIMIT = executionsPerMinute(env.DEPLOYMENT_EXECUTIONS_PER_MINUTE, 300)
+const CHAT_EXECUTION_LIMIT = executionsPerMinute(60)
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {

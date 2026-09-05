@@ -131,6 +131,7 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   enforceResourceRateLimit: mockEnforceResourceRateLimit,
 }))
 
+import { RATE_LIMITS } from '@/lib/core/rate-limiter/types'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
@@ -377,12 +378,12 @@ describe('Chat Identifier API Route', () => {
         expect(mockEnforceIpRateLimit).toHaveBeenCalledWith(
           'chat-execute:chat-id',
           req,
-          expect.objectContaining({ refillIntervalMs: 60_000 })
+          expect.objectContaining({ refillRate: 30, refillIntervalMs: 60_000 })
         )
         expect(mockEnforceResourceRateLimit).toHaveBeenCalledWith(
           'chat-execute',
           'chat-id',
-          expect.objectContaining({ refillIntervalMs: 60_000 })
+          expect.objectContaining({ refillRate: 60, refillIntervalMs: 60_000 })
         )
       })
 
@@ -393,6 +394,23 @@ describe('Chat Identifier API Route', () => {
         await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
 
         expect(mockEnforceResourceRateLimit).not.toHaveBeenCalled()
+      })
+
+      /**
+       * A chat execution debits the workspace `sync` counter that the owner's
+       * API, webhook and scheduled runs share. A per-deployment ceiling at or
+       * above the plan's own rate would never refuse before that shared counter
+       * was drained, which is the availability half of the attack.
+       */
+      it('stays below the cheapest paid plan sync rate', async () => {
+        const req = createMockNextRequest('POST', { input: 'hello' })
+
+        await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+
+        const [, , config] = mockEnforceResourceRateLimit.mock.calls[0]
+        expect(config.refillRate).toBeLessThan(RATE_LIMITS.pro.sync.refillRate)
+        expect(config.refillRate).toBeLessThan(RATE_LIMITS.team.sync.refillRate)
+        expect(config.refillRate).toBeLessThan(RATE_LIMITS.enterprise.sync.refillRate)
       })
 
       it('leaves the gate-configuration fetch unmetered', async () => {
