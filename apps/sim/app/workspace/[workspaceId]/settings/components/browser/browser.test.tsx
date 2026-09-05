@@ -185,33 +185,6 @@ vi.mock(
   })
 )
 
-// The modal's own picker logic is covered by import-modal.test.tsx; here it is
-// reduced to "open?" plus a way to confirm the chosen profile.
-vi.mock(
-  '@/app/workspace/[workspaceId]/settings/components/browser/components/import-modal/import-modal',
-  () => ({
-    ImportModal: ({
-      open,
-      profiles,
-      pending,
-      onImport,
-    }: {
-      open: boolean
-      profiles: BrowserImportProfile[]
-      pending: boolean
-      onImport: (profile: BrowserImportProfile) => void
-    }) =>
-      open ? (
-        <div role='dialog' aria-label='Import from your browser'>
-          <span>{`${profiles.length} profiles`}</span>
-          <button type='button' disabled={pending} onClick={() => onImport(profiles[1])}>
-            Confirm import
-          </button>
-        </div>
-      ) : null,
-  })
-)
-
 import { Browser } from '@/app/workspace/[workspaceId]/settings/components/browser/browser'
 
 const PROFILES: BrowserImportProfile[] = [

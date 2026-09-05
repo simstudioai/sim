@@ -4661,12 +4661,14 @@ describe('reopening a closed tab', () => {
 })
 
 describe('importAgentCookies', () => {
-  /** Points the mocked partition at a cookie jar and returns its `set` spy. */
-  function withCookieJar(set: ReturnType<typeof vi.fn>): SessionModule {
+  function withCookieJar(
+    set: ReturnType<typeof vi.fn>,
+    flushStore = vi.fn(async () => {})
+  ): SessionModule {
     // The partition is resolved per call, not captured at module load, so
     // re-mocking it here is enough — no module reload required.
     vi.mocked(electronSession.fromPartition).mockReturnValue({
-      cookies: { set },
+      cookies: { set, flushStore },
     } as unknown as ReturnType<typeof electronSession.fromPartition>)
     return sessionModule
   }
@@ -4683,7 +4685,8 @@ describe('importAgentCookies', () => {
 
   it('writes every cookie into the dedicated browser profile', async () => {
     const set = vi.fn(async () => {})
-    const session = withCookieJar(set)
+    const flushStore = vi.fn(async () => {})
+    const session = withCookieJar(set, flushStore)
 
     const result = await session.importAgentCookies([cookie('a'), cookie('b')])
 
@@ -4691,6 +4694,8 @@ describe('importAgentCookies', () => {
     expect(electronSession.fromPartition).toHaveBeenCalledWith('persist:sim-browser-agent')
     expect(set).toHaveBeenCalledTimes(2)
     expect(set).toHaveBeenNthCalledWith(1, cookie('a'))
+    expect(flushStore).toHaveBeenCalledOnce()
+    expect(flushStore.mock.invocationCallOrder[0]).toBeGreaterThan(set.mock.invocationCallOrder[1])
   })
 
   it('counts a rejected cookie without losing the rest', async () => {
@@ -4709,9 +4714,22 @@ describe('importAgentCookies', () => {
 
   it('does nothing when there is nothing to import', async () => {
     const set = vi.fn(async () => {})
-    const session = withCookieJar(set)
+    const flushStore = vi.fn(async () => {})
+    const session = withCookieJar(set, flushStore)
 
     await expect(session.importAgentCookies([])).resolves.toEqual({ imported: 0, failed: 0 })
     expect(set).not.toHaveBeenCalled()
+    expect(flushStore).not.toHaveBeenCalled()
+  })
+
+  it('does not report a durable import when flushing to disk fails', async () => {
+    const session = withCookieJar(
+      vi.fn(async () => {}),
+      vi.fn(async () => {
+        throw new Error('Disk unavailable')
+      })
+    )
+
+    await expect(session.importAgentCookies([cookie('a')])).rejects.toThrow('Disk unavailable')
   })
 })
