@@ -82,6 +82,12 @@ describe('Oracle EPCM direct tool handler', () => {
   it.each([
     [new OracleEpcmOperationError('Invalid application', 400), 400, 'Invalid application'],
     [oracleEpmLocalError('invalid_response'), 502, 'Oracle EPM returned an invalid response'],
+    [oracleEpmLocalError('timeout'), 408, 'The Oracle EPM request timed out'],
+    [
+      oracleEpmLocalError('payload_too_large'),
+      413,
+      'The Oracle EPM payload exceeded the allowed size',
+    ],
     [new Error('credential-secret-canary'), 500, 'Oracle EPCM operation failed'],
   ])(
     'returns safe failures and disallows automatic resubmission',

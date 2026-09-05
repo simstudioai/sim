@@ -48,7 +48,7 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
         oracle_epm_enterprise_profitability_list_job_definitions: [
           {
             text: 'List saved jobs of type',
-            field: 'exchangeJobType',
+            field: 'jobType',
             core: true,
           },
           {
@@ -491,7 +491,7 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
       placeholder: 'Enter application or a reference',
     },
     {
-      id: 'exchangeJobType',
+      id: 'jobType',
       title: 'Exchange Job Type',
       type: 'dropdown',
       options: [
@@ -530,7 +530,7 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
       serviceId: 'oracle-epm-enterprise-profitability',
       selectorKey: 'oracleEpm.jobDefinitions',
       mode: 'basic',
-      dependsOn: ['oauthCredential', 'applicationName', 'operation', 'exchangeJobType'],
+      dependsOn: ['oauthCredential', 'applicationName', 'operation', 'jobType'],
       condition: {
         field: 'operation',
         value: [
@@ -1796,7 +1796,7 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
           jobLabel,
           repositoryFileName,
           outputFileName,
-          exchangeJobType,
+          jobType,
           diagnosticJobType,
           ...rest
         } = params
@@ -1819,7 +1819,7 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
             : outputFileName,
           jobType:
             operation === 'oracle_epm_enterprise_profitability_list_job_definitions'
-              ? exchangeJobType
+              ? jobType
               : diagnosticJobType,
         }
       },
@@ -1832,7 +1832,6 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
       description: 'Selected or manually specified ordinary repository file',
     },
     outputFileName: { type: 'string', description: 'Output report, export, or uploaded filename' },
-    exchangeJobType: { type: 'string', description: 'Saved exchange-job discovery filter' },
     diagnosticJobType: { type: 'string', description: 'Supported diagnostic job family' },
     operation: {
       type: 'string',

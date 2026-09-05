@@ -24,7 +24,7 @@ function blockParam(operation: string, param: string): string {
   if (param === 'fileName')
     return repository.includes(action) ? 'repositoryFileName' : 'outputFileName'
   if (param === 'jobType')
-    return action === 'list_job_definitions' ? 'exchangeJobType' : 'diagnosticJobType'
+    return action === 'list_job_definitions' ? 'jobType' : 'diagnosticJobType'
   return param
 }
 
@@ -125,6 +125,12 @@ describe('Oracle EPCM integration surface', () => {
   })
 
   it('preserves dynamic references during selection and maps canonical fields only', () => {
+    expect(
+      OracleEpcmBlock.tools.config.params?.({
+        operation: `${prefix}list_job_definitions`,
+        jobType: '<trigger.jobType>',
+      })
+    ).toMatchObject({ jobType: '<trigger.jobType>' })
     const params = {
       operation: `${prefix}calculate_model`,
       jobLabel: '<trigger.jobName>',

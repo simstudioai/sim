@@ -192,7 +192,7 @@ export const selectorManifest = {
   'oracleEpm.applications': providerSelector([], { detail: true }),
   'oracleEpm.jobDefinitions': providerSelector(['applicationName', 'jobType'], {
     readiness: { all: ['oauthCredential', 'applicationName', 'jobType'] },
-    sourceFields: { jobType: ['exchangeJobType', 'operation'] },
+    sourceFields: { jobType: ['jobType', 'operation'] },
     detail: true,
   }),
   'oracleEpm.repositoryFiles': providerSelector([], { detail: true }),

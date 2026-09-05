@@ -44,7 +44,12 @@ export const executeOracleEpcmTool: InternalToolOperationHandler = async (reques
       : error instanceof OracleEpcmOperationError
         ? error.status
         : error instanceof OracleEpmError
-          ? (error.status ?? 502)
+          ? (error.status ??
+            (error.category === 'timeout'
+              ? 408
+              : error.category === 'payload_too_large'
+                ? 413
+                : 502))
           : timeout
             ? 408
             : 500
