@@ -1,5 +1,8 @@
 import type { OAuthConfig, ToolConfig } from '@/tools/types'
 
+/** Raw Oracle upload directories; never normalize caller-supplied dot segments. */
+export const TAX_UPLOAD_DIRECTORY_PATTERN = /^(inbox|outbox)(\/(?!\.{1,2}(?:\/|$))[^/\\]+)*$/
+
 export const taxOAuth = {
   required: true,
   provider: 'oracle_epm_tax_reporting',

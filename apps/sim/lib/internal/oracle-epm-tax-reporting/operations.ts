@@ -191,7 +191,9 @@ function getReportLink(
 ) {
   const candidates = job.links?.filter((link) => link.rel === 'Job Status') ?? []
   if (candidates.length !== 1)
-    throw new TaxReportingContractError('Tax Reporting did not return exactly one Job Status link')
+    throw new TaxReportingContractError(
+      'Tax Reporting accepted a pending report without exactly one Job Status link; do not resubmit automatically'
+    )
   const link = candidates[0]
   return client.validateReturnedLink(policy, {
     rel: 'Job Status',

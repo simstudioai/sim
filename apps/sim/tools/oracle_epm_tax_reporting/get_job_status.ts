@@ -20,7 +20,12 @@ export const oracleEpmTaxReportingGetJobStatusTool: InternalToolConfig<
   oauth: taxOAuth,
   params: {
     ...taxAuthParams,
-    application: { ...taxFields.application, required: false },
+    application: {
+      ...taxFields.application,
+      required: false,
+      description:
+        'Exact Tax Reporting application name. Required for planning (default) and supplemental_collection jobs; omit only for supplemental_dimension.',
+    },
     jobId: taxFields.jobId,
     jobFamily: taxFields.jobFamily,
     waitForCompletion: taxFields.waitForCompletion,

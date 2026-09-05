@@ -21,7 +21,12 @@ export const oracleEpmTaxReportingGetReportStatusTool: InternalToolConfig<
   params: {
     ...taxAuthParams,
     jobId: taxFields.jobId,
-    module: { ...taxFields.module, required: false },
+    module: {
+      ...taxFields.module,
+      required: false,
+      description:
+        'FCCS (Task Manager) or SDM. Required for standalone (default) and generated_report status routes; omit only for user_details.',
+    },
     reportStatusRoute: taxFields.reportStatusRoute,
     waitForCompletion: taxFields.waitForCompletion,
     downloadReport: taxFields.downloadReport,

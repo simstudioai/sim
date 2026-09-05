@@ -364,7 +364,7 @@ Inspect a submitted planning or supplemental job using its correct route family.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
-| `application` | string | No | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `application` | string | No | Exact Tax Reporting application name. Required for planning \(default\) and supplemental_collection jobs; omit only for supplemental_dimension. |
 | `jobId` | string | Yes | Submitted Oracle job instance ID, not a job definition name. |
 | `jobFamily` | string | No | planning \(default\), supplemental_collection \(fcmjobs\), or supplemental_dimension \(sdm/jobs\). Use the family that submitted the job. |
 | `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
@@ -672,7 +672,7 @@ Inspect a report job using the documented standalone route or the distinct route
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
 | `jobId` | string | Yes | Submitted Oracle job instance ID, not a job definition name. |
-| `module` | string | No | Report generation: FCM \(Task Manager\) or SDM. Report status: FCCS \(Task Manager\) or SDM. |
+| `module` | string | No | FCCS \(Task Manager\) or SDM. Required for standalone \(default\) and generated_report status routes; omit only for user_details. |
 | `reportStatusRoute` | string | No | standalone \(default\): documented /arm job endpoint; generated_report: route used by Generate Report Job Status links; user_details: route used by User Details Job Status links. They are not interchangeable. |
 | `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
 | `downloadReport` | boolean | No | Store the completed report as a Sim file using its validated report-content link \(default false\). Requires a workflow execution context. |

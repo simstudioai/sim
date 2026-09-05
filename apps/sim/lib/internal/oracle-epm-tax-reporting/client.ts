@@ -9,6 +9,7 @@ import type {
   OracleEpmPathPart,
   OracleEpmRouteSpace,
 } from '@/lib/internal/oracle-epm/types'
+import { TAX_UPLOAD_DIRECTORY_PATTERN } from '@/tools/oracle_epm_tax_reporting/utils'
 
 /** Product-owned limits; requests never retry a potentially accepted mutation. */
 export const TAX_JSON_BYTES = 2 * 1024 * 1024
@@ -125,7 +126,7 @@ export const taxEndpoints = {
     body: 'stream',
     maxRequestBytes: TAX_UPLOAD_BYTES,
     query: {
-      extDirPath: { kind: 'string', maxBytes: 255, pattern: /^(inbox|outbox)(\/[^/\\]+)*$/ },
+      extDirPath: { kind: 'string', maxBytes: 255, pattern: TAX_UPLOAD_DIRECTORY_PATTERN },
     },
   }),
   download_file: endpoint(files, repositoryFile, {

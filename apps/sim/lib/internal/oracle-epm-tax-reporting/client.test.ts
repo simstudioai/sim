@@ -114,4 +114,15 @@ describe('Tax Reporting route contracts', () => {
     ).rejects.toThrow()
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
   })
+
+  it('rejects upload directory traversal at the declared endpoint boundary', async () => {
+    await expect(
+      createTaxReportingClient(auth).request(taxEndpoints.upload_file, {
+        pathParams: { fileName: 'tax.csv' },
+        query: { extDirPath: 'inbox/../outbox' },
+        stream: Buffer.from('tax'),
+      })
+    ).rejects.toThrow()
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
 })

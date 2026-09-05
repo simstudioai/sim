@@ -435,22 +435,50 @@ describe('Tax Reporting provider behavior', () => {
     }
   )
 
-  it('rejects an unsafe report status link before a second authenticated request', async () => {
-    mocks.fetch.mockResolvedValueOnce(
-      Response.json({
-        status: -1,
-        links: [
-          {
-            rel: 'Job Status',
-            href: 'https://other.example.com/HyperionPlanning/rest/fcmapi/v1/fcm/job/224',
-            action: 'GET',
-          },
-        ],
-      })
-    )
+  it.each([false, true])(
+    'rejects an unsafe report status link without another request when waiting is %s',
+    async (waitForCompletion) => {
+      mocks.fetch.mockResolvedValueOnce(
+        Response.json({
+          status: -1,
+          links: [
+            {
+              rel: 'Job Status',
+              href: 'https://other.example.com/HyperionPlanning/rest/fcmapi/v1/fcm/job/224',
+              action: 'GET',
+            },
+          ],
+        })
+      )
+      await expect(
+        execute('generate_user_details_report', { fileName: 'users.csv', waitForCompletion })
+      ).rejects.toThrow()
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('returns a trackable no-wait report snapshot without polling or resubmitting', async () => {
+    const report = {
+      status: -1,
+      details: 'In Process',
+      links: [
+        {
+          rel: 'Job Status',
+          href: auth.instanceUrl + '/HyperionPlanning/rest/fcmapi/v1/fcm/job/224',
+          action: 'GET',
+        },
+      ],
+    }
+    mocks.fetch.mockResolvedValueOnce(Response.json(report))
+    expect(await execute('generate_user_details_report', { fileName: 'users.csv' })).toEqual(report)
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports an untrackable pending submission without retrying even when not waiting', async () => {
+    mocks.fetch.mockResolvedValueOnce(Response.json({ status: -1 }))
     await expect(
-      execute('generate_user_details_report', { fileName: 'users.csv', waitForCompletion: true })
-    ).rejects.toThrow()
+      execute('generate_user_details_report', { fileName: 'users.csv' })
+    ).rejects.toThrow('do not resubmit automatically')
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
   })
 
@@ -460,15 +488,30 @@ describe('Tax Reporting provider behavior', () => {
       'not found'
     )
     expect(mocks.fetch).not.toHaveBeenCalled()
-    await execute('upload_file', { file: sourceFile, fileName: 'tax.csv', directory: 'inbox' })
+    await execute('upload_file', {
+      file: sourceFile,
+      fileName: 'tax.csv',
+      directory: 'inbox/Tax data/v1.2',
+    })
     expect(mocks.open).toHaveBeenLastCalledWith(
       expect.objectContaining({ userId: 'trusted-user', maxBytes: 10 * 1024 * 1024 })
     )
     expect(mocks.fetch.mock.calls[0][2].body).toEqual(Buffer.from('tax'))
     expect(mocks.fetch.mock.calls[0][0]).toContain(
-      'applicationsnapshots/tax.csv/contents?extDirPath=inbox'
+      'applicationsnapshots/tax.csv/contents?extDirPath=inbox%2FTax+data%2Fv1.2'
     )
   })
+
+  it.each(['inbox/../outbox', 'outbox/.', 'inbox/nested/..', 'inbox/./nested'])(
+    'rejects upload directory %s before reading the source or submitting a mutation',
+    (directory) => {
+      expect(() =>
+        execute('upload_file', { file: sourceFile, fileName: 'tax.csv', directory })
+      ).toThrow()
+      expect(mocks.open).not.toHaveBeenCalled()
+      expect(mocks.fetch).not.toHaveBeenCalled()
+    }
+  )
 
   it('stores downloads as canonical files and rejects Oracle JSON error bodies', async () => {
     mocks.fetch.mockResolvedValueOnce(

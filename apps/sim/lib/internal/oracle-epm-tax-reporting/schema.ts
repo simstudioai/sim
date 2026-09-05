@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { userFileSchema } from '@/lib/api/contracts/primitives'
-import { assertTaxInputBudget } from '@/tools/oracle_epm_tax_reporting/utils'
+import {
+  assertTaxInputBudget,
+  TAX_UPLOAD_DIRECTORY_PATTERN,
+} from '@/tools/oracle_epm_tax_reporting/utils'
 
 const name = z.string().min(1).max(255)
 const text = z.string().max(16384)
@@ -181,7 +184,7 @@ const operationShapes = {
   upload_file: {
     file: userFileSchema,
     fileName: name,
-    directory: name.regex(/^(inbox|outbox)(\/[^/\\]+)*$/).optional(),
+    directory: name.regex(TAX_UPLOAD_DIRECTORY_PATTERN).optional(),
   },
   download_file: { fileName: name },
 } as const
