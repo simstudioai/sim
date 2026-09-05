@@ -5166,6 +5166,81 @@
       "tags": ["cloud"]
     },
     {
+      "type": "cloudtrail",
+      "slug": "cloudtrail",
+      "name": "CloudTrail",
+      "description": "Audit who did what in AWS with CloudTrail event history and Lake queries",
+      "longDescription": "Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan. Requires AWS access key and secret access key.",
+      "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+      "iconName": "CloudTrailIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/cloudtrail",
+      "operations": [
+        {
+          "name": "Look Up Events",
+          "description": "Look up AWS CloudTrail management or Insights events from the last 90 days in a Region"
+        },
+        {
+          "name": "Describe Trails",
+          "description": "Retrieve the full configuration of one or more CloudTrail trails in the current Region"
+        },
+        {
+          "name": "Get Trail",
+          "description": "Retrieve the settings of a single CloudTrail trail by name or ARN"
+        },
+        {
+          "name": "Get Trail Status",
+          "description": "Check whether a CloudTrail trail is logging and surface its most recent delivery errors"
+        },
+        {
+          "name": "List Trails",
+          "description": "List the ARN, name, and home Region of every CloudTrail trail visible to the account"
+        },
+        {
+          "name": "Get Event Selectors",
+          "description": "Read which management, data, and network activity events a CloudTrail trail is configured to log"
+        },
+        {
+          "name": "Get Insight Selectors",
+          "description": "Read which CloudTrail Insights types are enabled on a trail or event data store"
+        },
+        {
+          "name": "Start Lake Query",
+          "description": "Start a CloudTrail Lake SQL query over an event data store"
+        },
+        {
+          "name": "Describe Lake Query",
+          "description": "Check the status, run time, and scan statistics of a CloudTrail Lake query"
+        },
+        {
+          "name": "Get Lake Query Results",
+          "description": "Fetch a page of result rows from a finished CloudTrail Lake query"
+        },
+        {
+          "name": "Cancel Lake Query",
+          "description": "Cancel a running CloudTrail Lake query"
+        },
+        {
+          "name": "List Event Data Stores",
+          "description": "List the CloudTrail Lake event data stores in the account for the current Region"
+        },
+        {
+          "name": "Get Event Data Store",
+          "description": "Retrieve the configuration of a single CloudTrail Lake event data store"
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags on CloudTrail trails, event data stores, dashboards, or channels"
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["cloud", "monitoring", "identity"]
+    },
+    {
       "type": "cloudwatch",
       "slug": "cloudwatch",
       "name": "CloudWatch",

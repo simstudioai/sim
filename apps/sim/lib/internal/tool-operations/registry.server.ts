@@ -167,6 +167,23 @@ const TEXTRACT_TOOL_IDS = [
   'textract_analyze_id',
 ] as const
 
+const CLOUDTRAIL_TOOL_IDS = [
+  'cloudtrail_cancel_query',
+  'cloudtrail_describe_query',
+  'cloudtrail_describe_trails',
+  'cloudtrail_get_event_data_store',
+  'cloudtrail_get_event_selectors',
+  'cloudtrail_get_insight_selectors',
+  'cloudtrail_get_query_results',
+  'cloudtrail_get_trail',
+  'cloudtrail_get_trail_status',
+  'cloudtrail_list_event_data_stores',
+  'cloudtrail_list_tags',
+  'cloudtrail_list_trails',
+  'cloudtrail_lookup_events',
+  'cloudtrail_start_query',
+] as const
+
 const CLOUDWATCH_TOOL_IDS = [
   'cloudwatch_describe_alarm_history',
   'cloudwatch_describe_alarms',
@@ -1345,6 +1362,9 @@ registerFamily(handlerLoaders, TEXTRACT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, CLOUDWATCH_TOOL_IDS, async () => {
   return (await import('@/lib/internal/cloudwatch/execute-tool')).executeCloudwatchTool
+})
+registerFamily(handlerLoaders, CLOUDTRAIL_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/cloudtrail/execute-tool')).executeCloudtrailTool
 })
 registerFamily(handlerLoaders, POSTGRESQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/postgresql/execute-tool')).executePostgresqlTool
