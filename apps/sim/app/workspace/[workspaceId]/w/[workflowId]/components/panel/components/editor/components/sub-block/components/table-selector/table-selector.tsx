@@ -65,6 +65,12 @@ export function TableSelector({
    * Falling back to this control's own id keeps the hook call unconditional for
    * a picker with no folder scope; its own value is a table id, never a folder
    * path, so the scope reads as absent.
+   *
+   * A plain read of the field id is correct only because the scope has no
+   * advanced twin (pinned in table-folders.test.ts). If one is ever added, this
+   * must become `useActiveCanonicalSubBlockValue` — with both halves of a pair
+   * filled, the serializer resolves the basic member, and a hand-rolled read can
+   * disagree with the value the run actually uses.
    */
   const [folderScopeValue] = useSubBlockValue<unknown>(
     blockId,
