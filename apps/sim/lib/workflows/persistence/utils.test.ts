@@ -23,6 +23,7 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createHistoricalSlackV2Block } from '@/lib/workflows/compatibility/slack-v2-auth.fixtures'
 import type {
   BlockState as AppBlockState,
   WorkflowState as AppWorkflowState,
@@ -344,6 +345,26 @@ describe('Database Helpers', () => {
         },
       })
       expect(snapshot.lastSaved).toEqual(expect.any(Number))
+    })
+  })
+
+  describe('materializeDeploymentState', () => {
+    it('projects historical Slack v2 auth without changing the frozen snapshot', async () => {
+      const historicalSlack = createHistoricalSlackV2Block('slack')
+      const frozenState = createWorkflowState({
+        blocks: { slack: historicalSlack },
+      })
+
+      const materialized = await dbHelpers.materializeDeploymentState(
+        mockWorkflowId,
+        { id: 'legacy-slack-version', state: frozenState },
+        'test-workspace-id'
+      )
+
+      expect(materialized.blocks.slack.subBlocks.credential.value).toBe('credential-custom-bot')
+      expect(materialized.blocks.slack.subBlocks).not.toHaveProperty('authMethod')
+      expect(historicalSlack.subBlocks.authMethod.value).toBe('bot_token')
+      expect(historicalSlack.subBlocks.credential.value).toBe('dormant-oauth')
     })
   })
 

@@ -26,6 +26,7 @@ import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
+import { projectLegacySlackV2Auth } from '@/lib/workflows/compatibility/slack-v2-auth'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
@@ -207,6 +208,7 @@ export async function materializeDeploymentState(
     workspaceId,
     executor
   )
+  const compatibleBlocks = projectLegacySlackV2Auth(migratedBlocks)
   /*
    * Read straight out of the version's jsonb blob, so unlike every path that
    * goes through `loadWorkflowFromNormalizedTables` these handles were never
@@ -229,7 +231,7 @@ export async function materializeDeploymentState(
    */
   const errorSourceBlockIds = collectErrorSourceBlockIds(edges)
   const blocks: DeployedWorkflowData['blocks'] = {}
-  for (const [blockId, block] of Object.entries(migratedBlocks)) {
+  for (const [blockId, block] of Object.entries(compatibleBlocks)) {
     blocks[blockId] =
       block.errorEnabled || !errorSourceBlockIds.has(blockId)
         ? block
@@ -562,11 +564,12 @@ export async function loadWorkflowFromNormalizedTables(
   const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
 
-  const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
+  const { blocks: migratedBlocks, migrated } = await applyBlockMigrations(
     raw.blocks,
     raw.workspaceId,
     externalTx ?? db
   )
+  const finalBlocks = projectLegacySlackV2Auth(migratedBlocks)
 
   if (migrated) {
     // Deliberate fire-and-forget persistence on the global pool: it must not
@@ -574,7 +577,7 @@ export async function loadWorkflowFromNormalizedTables(
     // it escapes the transaction context instead of tripping the wire.
     runOutsideTransactionContext(() => {
       Promise.resolve().then(() =>
-        persistMigratedBlocks(workflowId, raw.blocks, finalBlocks, raw.blockUpdatedAtById)
+        persistMigratedBlocks(workflowId, raw.blocks, migratedBlocks, raw.blockUpdatedAtById)
       )
     })
   }
