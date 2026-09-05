@@ -566,14 +566,21 @@ describe('FileDocProvider', () => {
         pendingUpdate: firstPendingUpdate!,
         status: 'saved',
       })
-      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      expect(save).toHaveBeenCalledTimes(2)
+      const recovered = new Y.Doc()
+      Y.applyUpdate(recovered, save.mock.calls[1][2])
+      expect(recovered.getText('default').toString()).toBe('first second')
+      recovered.destroy()
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(save).toHaveBeenCalledTimes(2)
       const firstUpdate = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
       const firstPayload = firstUpdate?.[1] as { updateId: string }
       const acknowledge = firstUpdate?.[2] as (error: Error | null, ack: FileDocUpdateAck) => void
       acknowledge(null, { status: 'accepted', updateId: firstPayload.updateId })
       await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
 
-      expect(save).toHaveBeenCalledTimes(2)
+      expect(save).toHaveBeenCalledTimes(3)
       expect(emit.mock.calls.filter(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toHaveLength(2)
       provider.destroy()
     } finally {

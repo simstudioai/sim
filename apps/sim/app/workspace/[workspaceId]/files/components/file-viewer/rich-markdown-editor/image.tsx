@@ -13,6 +13,7 @@ const MIN_WIDTH = 64
 
 /** A bare pixel count (`"640"`) that needs a `px` suffix, vs. an already-unit'd size (`"50%"`). */
 const BARE_PIXEL_SIZE = /^\d+$/
+const PIXEL_SIZE = /^\d+(?:\.\d+)?px$/
 
 /**
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
@@ -134,21 +135,37 @@ export function ResizableImageView({
   // stored value is stale (e.g. left over after the file's content was replaced) — so it wins once
   // available; stored metadata only reserves the box pre-load. Equal in the common case, so no shift.
   const intrinsicDimensions = measuredDimensions ?? storedDimensions
+  const authoredDimensions =
+    committedWidth &&
+    committedHeight &&
+    PIXEL_SIZE.test(committedWidth) &&
+    PIXEL_SIZE.test(committedHeight) &&
+    Number.parseFloat(committedWidth) > 0 &&
+    Number.parseFloat(committedHeight) > 0
+      ? { width: Number.parseFloat(committedWidth), height: Number.parseFloat(committedHeight) }
+      : null
+  const displayDimensions =
+    dragWidth === null ? (authoredDimensions ?? intrinsicDimensions) : intrinsicDimensions
   const displayWidth =
     dragWidth !== null
       ? `${dragWidth}px`
       : (committedWidth ??
-        (!committedHeight && intrinsicDimensions ? `${intrinsicDimensions.width}px` : undefined))
+        (intrinsicDimensions
+          ? committedHeight
+            ? `calc(${committedHeight} * ${intrinsicDimensions.width / intrinsicDimensions.height})`
+            : `${intrinsicDimensions.width}px`
+          : undefined))
   // width + aspect-ratio (with `max-w-full`/`h-auto` from the class list) reserves a responsive box the
   // image can't reflow into, per the CLS-avoidance pattern for known-ratio responsive images. React drops
   // the undefined keys, so an unmeasured image simply gets no reservation (its prior behavior).
   const imageStyle: CSSProperties = {
     width: displayWidth,
-    height: dragWidth === null ? committedHeight : undefined,
-    aspectRatio:
-      intrinsicDimensions && !committedHeight
-        ? `${intrinsicDimensions.width} / ${intrinsicDimensions.height}`
-        : undefined,
+    height:
+      dragWidth === null && committedWidth && !authoredDimensions ? committedHeight : undefined,
+    maxHeight: dragWidth === null && !committedWidth ? committedHeight : undefined,
+    aspectRatio: displayDimensions
+      ? `${displayDimensions.width} / ${displayDimensions.height}`
+      : undefined,
   }
 
   // Sanitize the linked-image target before rendering the anchor — a parsed markdown href is

@@ -199,13 +199,14 @@ describe('setupWorkspaceFileDocHandlers', () => {
     mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 1 })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     // The room store is module-global; drop every room the test's sockets opened.
     const { io } = createIo()
     // Simulate a full disconnect between tests (`endOfLife`) so the module-global join-generation
     // map is cleared and never bleeds a counter into the next test.
     for (const id of createdSocketIds) cleanupFileDocForSocket(id, io, true)
     createdSocketIds.clear()
+    await getFileDocStore().shutdown()
   })
 
   it('rejects join when the socket is not authenticated', async () => {

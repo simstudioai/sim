@@ -138,6 +138,7 @@ function makeClient(): any {
     },
     eval: async (script: string, opts: { keys: string[]; arguments: string[] }) => {
       const [key] = opts.keys
+      if (script.startsWith('for _, key in ipairs(KEYS)')) return 1
       if (script.includes("redis.call('exists', KEYS[1])") && !b().streams.has(key)) {
         return script.includes('zscore') ? -1 : false
       }
@@ -149,13 +150,16 @@ function makeClient(): any {
         return opts.arguments[0]
       }
       if (script.includes("redis.call('del', KEYS[1], KEYS[4], KEYS[5])")) {
-        const [, generationKey, versionKey, dedupeKey, agentKey] = opts.keys
+        const [, generationKey, versionKey, dedupeKey, agentKey, invalidationKey] = opts.keys
         const [version, , marker] = opts.arguments
         const current = b().kv.get(versionKey)
+        const invalidated = b().kv.get(invalidationKey)
+        if (invalidated && Number(invalidated) >= Number(version)) return 0
         if (current && Number(current) > Number(version)) return 0
         if (current === version && b().kv.get(generationKey) === marker) return 0
         b().kv.set(generationKey, marker)
         b().kv.set(versionKey, version)
+        b().kv.set(invalidationKey, version)
         b().streams.delete(key)
         b().dedupe.delete(dedupeKey)
         b().kv.delete(agentKey)
@@ -258,7 +262,7 @@ const REDIS_URL = 'redis://fake'
 const NAME = 'workspace-file-doc:file-1'
 
 interface StoreTestAccess {
-  localInvalidations: Map<string, number>
+  localInvalidations: Map<string, { version: number; expiresAt: number }>
   rooms: Map<
     string,
     {
@@ -509,6 +513,41 @@ describe('FileDocStore', () => {
     await expect(store.getStreamState(NAME)).resolves.toBeNull()
   })
 
+  it('does not repeat an invalidation after the same durable version is reseeded', async () => {
+    const store = await newStore()
+    await store.seedIfEmpty(NAME, updateFor('old'), 10)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(true)
+    await expect(store.seedIfEmpty(NAME, updateFor('replacement'), 20)).resolves.toBe(true)
+    const generation = await store.getDocumentGeneration(NAME)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await store.getStreamState(NAME))!)
+    const before = Y.encodeStateVector(doc)
+    doc.getText('body').insert(11, ' accepted')
+    await store.publishClientUpdateAndWait(
+      NAME,
+      'accepted-edit',
+      Y.encodeStateAsUpdate(doc, before),
+      generation
+    )
+
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    expect(await store.getDocumentGeneration(NAME)).toBe(generation)
+    const recovered = new Y.Doc()
+    Y.applyUpdate(recovered, (await store.getStreamState(NAME))!)
+    expect(recovered.getText('body').toString()).toBe('replacement accepted')
+    expect(state.backing!.dedupe.get(`filedoc:updates:${NAME}`)).toHaveLength(1)
+    doc.destroy()
+    recovered.destroy()
+  })
+
+  it('applies the first invalidation even when its durable version was already seeded', async () => {
+    const store = await newStore()
+    await store.seedIfEmpty(NAME, updateFor('same content, changed eligibility'), 20)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(true)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    await expect(store.getStreamState(NAME)).resolves.toBeNull()
+  })
+
   it('does not resurrect a tracked stream with a dependency-only update after Redis loses it', async () => {
     const store = await newStore()
     await store.seedIfEmpty(NAME, updateFor('base'), 10)
@@ -575,6 +614,51 @@ describe('FileDocStore', () => {
     }
     await expect(store.getStreamState(NAME)).rejects.toThrow('replaced')
   })
+
+  it.each([true, false])(
+    'validates a modern snapshot following a legacy seed (same identity: %s)',
+    async (sameIdentity) => {
+      const store = await newStore()
+      const seed = new Y.Doc()
+      seed.getMap('config').set('initialContentLoaded', true)
+      seed.getMap('config').set('docId', 'legacy-document')
+      seed.getText('body').insert(0, 'legacy')
+      seedLegacyStream(Y.encodeStateAsUpdate(seed))
+      const backing = state.backing!
+      backing.kv.set(
+        `filedoc:generation:${NAME}`,
+        sameIdentity ? 'legacy-document' : 'different-document'
+      )
+      backing.streams.get(`filedoc:stream:${NAME}`)!.push({
+        id: `${++backing.seq}-0`,
+        message: {
+          u: Buffer.from(Y.encodeStateAsUpdate(seed)).toString('base64'),
+          s: '1',
+          g: sameIdentity ? 'legacy-document' : 'different-document',
+        },
+      })
+      const attached = new Y.Doc()
+      if (sameIdentity) {
+        await store.attachRoom(NAME, attached)
+        const before = Y.encodeStateVector(seed)
+        seed.getText('body').insert(6, ' peer')
+        await store.publishClientUpdateAndWait(
+          NAME,
+          'peer-edit',
+          Y.encodeStateAsUpdate(seed, before),
+          'legacy-document'
+        )
+        await store.catchUp(NAME)
+        expect(attached.getText('body').toString()).toBe('legacy peer')
+        store.detachRoom(NAME)
+      } else {
+        await expect(store.attachRoom(NAME, attached)).rejects.toThrow('replaced')
+        expect(storeInternals(store).rooms.has(NAME)).toBe(false)
+      }
+      seed.destroy()
+      attached.destroy()
+    }
+  )
 
   it('replays stream history in bounded pages', async () => {
     const streamKey = `filedoc:stream:${NAME}`
@@ -1083,26 +1167,43 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
-  it('bounds single-replica invalidation markers to the lifetime of active rooms', async () => {
+  it('expires idle single-replica invalidation watermarks', async () => {
+    vi.useFakeTimers()
     const store = new FileDocStore(undefined)
-    for (let index = 0; index < 100; index++) {
-      await store.invalidateDocument(`closed-${index}`, 10)
+    try {
+      for (let index = 0; index < 100; index++) {
+        await store.invalidateDocument(`closed-${index}`, 10)
+      }
+      expect(storeInternals(store).localInvalidations.size).toBe(100)
+      await vi.advanceTimersByTimeAsync(660_000)
+      expect(storeInternals(store).localInvalidations.size).toBe(0)
+    } finally {
+      await store.shutdown()
+      vi.useRealTimers()
     }
-    expect(storeInternals(store).localInvalidations.size).toBe(0)
+  })
+
+  it('deduplicates single-replica invalidations across same-version seeds and room reopen', async () => {
+    const store = new FileDocStore(undefined)
     const staleDoc = new Y.Doc()
     await store.attachRoom(NAME, staleDoc)
     await store.invalidateDocument(NAME, 20)
     await expect(store.seedIfEmpty(NAME, updateFor('stale fetched seed'), 10)).resolves.toBe(false)
     await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(false)
     expect(storeInternals(store).localInvalidations.size).toBe(1)
+    await expect(store.seedIfEmpty(NAME, updateFor('same-version seed'), 20)).resolves.toBe(true)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(true)
 
     store.detachRoom(NAME)
-    expect(storeInternals(store).localInvalidations.size).toBe(0)
+    expect(storeInternals(store).localInvalidations.size).toBe(1)
     const freshDoc = new Y.Doc()
     await store.attachRoom(NAME, freshDoc)
-    await expect(store.seedIfEmpty(NAME, updateFor('fresh authoritative seed'), 30)).resolves.toBe(
+    await expect(store.seedIfEmpty(NAME, updateFor('fresh authoritative seed'), 20)).resolves.toBe(
       true
     )
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(true)
     await store.invalidateDocument(NAME, 40)
     await store.shutdown()
     expect(storeInternals(store).localInvalidations.size).toBe(0)

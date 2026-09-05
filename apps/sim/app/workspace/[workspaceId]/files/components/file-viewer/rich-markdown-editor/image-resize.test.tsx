@@ -62,7 +62,10 @@ function pointerEvent(
   return event
 }
 
-function renderImage(updateAttributes: ReturnType<typeof vi.fn>): HTMLButtonElement {
+function renderImage(
+  updateAttributes: ReturnType<typeof vi.fn>,
+  dimensions: { width?: string | null; height?: string | null } = {}
+): HTMLButtonElement {
   const props = {
     node: {
       attrs: {
@@ -71,6 +74,7 @@ function renderImage(updateAttributes: ReturnType<typeof vi.fn>): HTMLButtonElem
         title: null,
         width: null,
         height: '100',
+        ...dimensions,
         href: null,
       },
     },
@@ -123,7 +127,7 @@ describe('ResizableImageView', () => {
     ])
   })
 
-  it('keeps the width automatic when only an explicit height is stored', () => {
+  it('renders a height-only image proportionally without fixing its responsive height', () => {
     renderImage(vi.fn())
     const image = host.querySelector<HTMLImageElement>('img')
     if (!image) throw new Error('Missing image')
@@ -133,8 +137,28 @@ describe('ResizableImageView', () => {
     })
     act(() => image.dispatchEvent(new Event('load')))
 
+    expect(image.style.height).toBe('')
+    expect(image.style.width).toBe('calc(200px)')
+    expect(image.style.aspectRatio).toBe('400 / 200')
+  })
+
+  it.each([
+    { width: '600', height: '400' },
+    { width: '600px', height: '400px' },
+    { width: '600', height: '400px' },
+  ])('uses the authored ratio for responsive pixel dimensions: %j', (dimensions) => {
+    renderImage(vi.fn(), dimensions)
+    const image = host.querySelector<HTMLImageElement>('img')!
+    expect(image.style.width).toBe('600px')
+    expect(image.style.height).toBe('')
+    expect(image.style.aspectRatio).toBe('600 / 400')
+  })
+
+  it('preserves relative dimensions instead of assuming they are pixel ratios', () => {
+    renderImage(vi.fn(), { width: '50%', height: '100px' })
+    const image = host.querySelector<HTMLImageElement>('img')!
+    expect(image.style.width).toBe('50%')
     expect(image.style.height).toBe('100px')
-    expect(image.style.width).toBe('')
   })
 
   it('commits one proportional width change and clears a stale explicit height', () => {
