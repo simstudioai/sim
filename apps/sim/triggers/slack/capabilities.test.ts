@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import {
+  SLACK_MANAGED_USER_SCOPES,
+  SLACK_SEARCH_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
 import {
   buildSlackManifest,
   getSlackManagedUserAuthorizationManifestConfig,
@@ -189,5 +192,18 @@ describe('buildSlackManifest - managed users', () => {
   it('omits managed user OAuth configuration when disabled', () => {
     const manifest = buildSlackManifest(new Set(), opts)
     expect(manifest.oauth_config).toEqual({ scopes: { bot: REQUIRED_AGENT_SCOPES } })
+  })
+
+  it('generates exactly the search user scope policy when selected', () => {
+    const manifest = buildSlackManifest(new Set(), {
+      ...opts,
+      managedUserAuthorization: getSlackManagedUserAuthorizationManifestConfig(
+        'https://sim.ai',
+        SLACK_SEARCH_USER_SCOPES
+      ),
+    })
+    expect(manifest).toMatchObject({
+      oauth_config: { scopes: { user: [...SLACK_SEARCH_USER_SCOPES].sort() } },
+    })
   })
 })

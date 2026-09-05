@@ -8287,6 +8287,7 @@ export type UpdateCredentialBody = {
   serviceAccountJson?: string
   apiToken?: string
   domain?: string
+  atlassianProduct?: 'jira' | 'confluence'
   signingSecret?: string
   botToken?: string
   clientId?: string
@@ -14331,6 +14332,12 @@ export const V2_OPERATIONS = {
       },
       apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
       domain: { kind: 'string', describe: 'Provider account domain.' },
+      atlassianProduct: {
+        kind: 'enum',
+        values: ['jira', 'confluence'] as const,
+        describe:
+          'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.',
+      },
       signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
       botToken: { kind: 'string', describe: 'Write-only bot token.' },
       clientId: { kind: 'string', describe: 'OAuth client identifier.' },

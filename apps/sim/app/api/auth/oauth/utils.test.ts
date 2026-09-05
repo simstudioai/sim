@@ -177,7 +177,7 @@ describe('OAuth Utils', () => {
       ).rejects.toThrow('Failed to refresh token')
     })
 
-    it('should not attempt refresh if no refresh token', async () => {
+    it('requires reconnection for an expired token without attempting an unavailable refresh', async () => {
       const mockCredential = {
         id: 'credential-id',
         accessToken: 'token',
@@ -186,10 +186,11 @@ describe('OAuth Utils', () => {
         providerId: 'google',
       }
 
-      const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+      await expect(
+        refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+      ).rejects.toThrow('OAuth access token expired and cannot be refreshed; reconnect the account')
 
       expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'token', refreshed: false })
     })
 
     it('keeps a legacy non-expiring Monday credential usable without refreshing it', async () => {

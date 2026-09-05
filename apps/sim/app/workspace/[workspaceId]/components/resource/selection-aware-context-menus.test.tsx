@@ -6,13 +6,20 @@ vi.mock('@sim/emcn', () => ({
   DropdownMenu: ({ children, open }: { children: ReactNode; open: boolean }) =>
     open ? <>{children}</> : null,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <>{children}</>,
-  DropdownMenuItem: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  DropdownMenuItem: ({ children, disabled }: { children: ReactNode; disabled?: boolean }) => (
+    <span aria-disabled={disabled}>{children}</span>
+  ),
   DropdownMenuSeparator: () => <hr />,
   DropdownMenuSub: ({ children }: { children: ReactNode }) => <>{children}</>,
   DropdownMenuSubContent: ({ children }: { children: ReactNode }) => <>{children}</>,
   DropdownMenuSubTrigger: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   Upload: () => null,
+  Tooltip: {
+    Root: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Trigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Content: ({ children }: { children: ReactNode }) => <>{children}</>,
+  },
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
@@ -47,6 +54,48 @@ const POSITION = { x: 0, y: 0 }
 const MOVE_OPTIONS = [{ value: '__root__', label: 'Root', children: [] }]
 
 describe('selection-aware resource context menus', () => {
+  it('hides a protected mixed-folder delete while retaining movement', () => {
+    const menu = renderToStaticMarkup(
+      <FolderContextMenu
+        isOpen
+        position={POSITION}
+        onClose={() => {}}
+        onOpen={() => {}}
+        onRename={() => {}}
+        onDelete={() => {}}
+        onMove={() => {}}
+        onTogglePin={() => {}}
+        pinned={false}
+        canEdit
+        canDelete={false}
+        moveOptions={MOVE_OPTIONS}
+        selectedCount={2}
+      />
+    )
+    expect(menu).toContain('Move 2 items')
+    expect(menu).not.toContain('Delete')
+  })
+
+  it('explains a blocked folder cascade while retaining ordinary folder actions', () => {
+    const menu = renderToStaticMarkup(
+      <FolderContextMenu
+        isOpen
+        position={POSITION}
+        onClose={() => {}}
+        onOpen={() => {}}
+        onRename={() => {}}
+        onDelete={() => {}}
+        onTogglePin={() => {}}
+        pinned={false}
+        canEdit
+        deleteDisabledReason='Delete the search knowledge base first'
+        selectedCount={1}
+      />
+    )
+    expect(menu).toContain('Rename')
+    expect(menu).toContain('Delete the search knowledge base first')
+    expect(menu).toContain('aria-disabled="true"')
+  })
   it('limits a multi-table menu to actions that can target the selection', () => {
     const menu = renderToStaticMarkup(
       <TableContextMenu

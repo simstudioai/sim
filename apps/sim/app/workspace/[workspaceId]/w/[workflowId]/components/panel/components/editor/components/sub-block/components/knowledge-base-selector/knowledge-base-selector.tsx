@@ -184,7 +184,9 @@ export function KnowledgeBaseSelector({
   const label =
     subBlock.placeholder || (isMultiSelect ? 'Select knowledge bases' : 'Select knowledge base')
 
-  const hasMemberScopedSelection = selectedKnowledgeBases.some((kb) => kb.hasMemberScopedConnector)
+  const hasMemberScopedSelection = selectedKnowledgeBases.some(
+    (kb) => kb.hasPermissionScopedConnector
+  )
 
   return (
     <div className='w-full'>

@@ -4,6 +4,7 @@ import {
   credentialGroup,
   credentialGroupEnrollment,
   credentialMember,
+  foldedEmail,
   permissions,
   user,
   workspace,
@@ -872,7 +873,7 @@ export async function getEnrolledManagedOAuthCredentials(
       eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
     )
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
-    .innerJoin(user, eq(sql<string>`lower(btrim(${user.email}))`, credentialGroupEnrollment.email))
+    .innerJoin(user, eq(foldedEmail(user.email), credentialGroupEnrollment.email))
     .where(
       and(
         eq(credential.workspaceId, workspaceId),

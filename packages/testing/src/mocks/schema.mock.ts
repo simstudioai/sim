@@ -140,6 +140,12 @@ const workspaceFileSearchSegmentMock = {
 }
 
 export const schemaMock = {
+  /**
+   * The schema's folded-address expression. Returns the column it wraps so a
+   * predicate built on it still names the column, and assertions on condition
+   * shape keep working.
+   */
+  foldedEmail: (column: unknown) => column,
   user: {
     id: 'user.id',
     name: 'user.name',
@@ -626,6 +632,7 @@ export const schemaMock = {
     tokens: 'rateLimitBucket.tokens',
     lastRefillAt: 'rateLimitBucket.lastRefillAt',
     updatedAt: 'rateLimitBucket.updatedAt',
+    blockedUntil: 'rateLimitBucket.blockedUntil',
   },
   chat: {
     id: 'chat.id',
@@ -816,6 +823,7 @@ export const schemaMock = {
     userId: 'knowledgeBase.userId',
     workspaceId: 'knowledgeBase.workspaceId',
     name: 'knowledgeBase.name',
+    isSearchIndex: 'knowledgeBase.isSearchIndex',
     description: 'knowledgeBase.description',
     tokenCount: 'knowledgeBase.tokenCount',
     embeddingModel: 'knowledgeBase.embeddingModel',
@@ -848,6 +856,9 @@ export const schemaMock = {
     deletedAt: 'document.deletedAt',
     acl: 'document.acl',
     sourceModifiedAt: 'document.sourceModifiedAt',
+    sourceSeenAt: 'document.sourceSeenAt',
+    aclRequirements: 'document.aclRequirements',
+    aclVerifiedAt: 'document.aclVerifiedAt',
     userExcluded: 'document.userExcluded',
     tag1: 'document.tag1',
     tag2: 'document.tag2',
@@ -1392,6 +1403,8 @@ export const schemaMock = {
     lastSyncAt: 'knowledgeConnector.lastSyncAt',
     lastSyncError: 'knowledgeConnector.lastSyncError',
     lastSyncDocCount: 'knowledgeConnector.lastSyncDocCount',
+    listingCheckpoint: 'knowledgeConnector.listingCheckpoint',
+    directoryCheckpoint: 'knowledgeConnector.directoryCheckpoint',
     nextSyncAt: 'knowledgeConnector.nextSyncAt',
     consecutiveFailures: 'knowledgeConnector.consecutiveFailures',
     syncLockToken: 'knowledgeConnector.syncLockToken',
@@ -1413,6 +1426,7 @@ export const schemaMock = {
     deletedAt: 'knowledgeConnector.deletedAt',
   },
   knowledgeConnectorSyncLog: {
+    listedCount: 'knowledgeConnectorSyncLog.listedCount',
     id: 'knowledgeConnectorSyncLog.id',
     connectorId: 'knowledgeConnectorSyncLog.connectorId',
     status: 'knowledgeConnectorSyncLog.status',
@@ -1424,6 +1438,30 @@ export const schemaMock = {
     docsUnchanged: 'knowledgeConnectorSyncLog.docsUnchanged',
     docsFailed: 'knowledgeConnectorSyncLog.docsFailed',
     errorMessage: 'knowledgeConnectorSyncLog.errorMessage',
+  },
+  knowledgeExternalDirectory: {
+    workspaceId: 'knowledgeExternalDirectory.workspaceId',
+    providerId: 'knowledgeExternalDirectory.providerId',
+    tenantId: 'knowledgeExternalDirectory.tenantId',
+    syncLockToken: 'knowledgeExternalDirectory.syncLockToken',
+    syncLockLeaseAt: 'knowledgeExternalDirectory.syncLockLeaseAt',
+    lastStartedAt: 'knowledgeExternalDirectory.lastStartedAt',
+    lastCompleteSyncAt: 'knowledgeExternalDirectory.lastCompleteSyncAt',
+  },
+  knowledgeExternalGroup: {
+    id: 'knowledgeExternalGroup.id',
+    workspaceId: 'knowledgeExternalGroup.workspaceId',
+    providerId: 'knowledgeExternalGroup.providerId',
+    tenantId: 'knowledgeExternalGroup.tenantId',
+    externalGroupId: 'knowledgeExternalGroup.externalGroupId',
+    lastSyncedAt: 'knowledgeExternalGroup.lastSyncedAt',
+    createdAt: 'knowledgeExternalGroup.createdAt',
+    updatedAt: 'knowledgeExternalGroup.updatedAt',
+  },
+  knowledgeExternalGroupMember: {
+    groupId: 'knowledgeExternalGroupMember.groupId',
+    subjectToken: 'knowledgeExternalGroupMember.subjectToken',
+    createdAt: 'knowledgeExternalGroupMember.createdAt',
   },
   knowledgeConnectorMember: {
     id: 'knowledgeConnectorMember.id',
@@ -1439,6 +1477,7 @@ export const schemaMock = {
     lastListedCount: 'knowledgeConnectorMember.lastListedCount',
     lastError: 'knowledgeConnectorMember.lastError',
     memberSyncedThrough: 'knowledgeConnectorMember.memberSyncedThrough',
+    listingCheckpoint: 'knowledgeConnectorMember.listingCheckpoint',
     changeCursor: 'knowledgeConnectorMember.changeCursor',
     suspendedAt: 'knowledgeConnectorMember.suspendedAt',
     createdAt: 'knowledgeConnectorMember.createdAt',

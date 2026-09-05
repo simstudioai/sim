@@ -1,7 +1,13 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { getServiceAccountRequiredFields } from '@/lib/credentials/service-account-fields'
+import {
+  ATLASSIAN_PRODUCTS,
+  getServiceAccountRequiredFields,
+} from '@/lib/credentials/service-account-fields'
 import type { OAuthProvider } from '@/lib/oauth/types'
+
+export const atlassianProductSchema = z.enum(ATLASSIAN_PRODUCTS)
+export type AtlassianProduct = z.output<typeof atlassianProductSchema>
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -136,6 +142,7 @@ export const createCredentialBodySchema = z
     serviceAccountJson: z.string().optional(),
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    atlassianProduct: atlassianProductSchema.optional(),
     /**
      * Client-supplied credential id, honored only for `slack-custom-bot` creates:
      * the setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}`
@@ -233,6 +240,7 @@ export const updateCredentialByIdBodySchema = z
     /** Atlassian service-account secret rotation (reconnect). */
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    atlassianProduct: atlassianProductSchema.optional(),
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
@@ -254,6 +262,7 @@ export const updateCredentialByIdBodySchema = z
       data.botToken !== undefined ||
       data.apiToken !== undefined ||
       data.domain !== undefined ||
+      data.atlassianProduct !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||
       data.certificateId !== undefined ||

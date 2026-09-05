@@ -62,8 +62,19 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/user-input/components', a
   return {
     usePromptEditor,
     ModeSwitcher,
-    PromptEditor: ({ editor }: { editor: PromptEditorInstance }) => (
-      <textarea ref={editor.textareaRef} value={editor.value} onChange={editor.handleInputChange} />
+    PromptEditor: ({
+      editor,
+      placeholder,
+    }: {
+      editor: PromptEditorInstance
+      placeholder: string
+    }) => (
+      <textarea
+        ref={editor.textareaRef}
+        value={editor.value}
+        placeholder={placeholder}
+        onChange={editor.handleInputChange}
+      />
     ),
     SendButton: ({ onSubmit }: { onSubmit: () => void }) => (
       <button type='button' onClick={onSubmit}>
@@ -200,10 +211,12 @@ describe('search composer transitions', () => {
   it.each(['Build', 'Assistant'])('clears the query when the menu selects %s', async (mode) => {
     mount()
     expect(textarea().value).toBe('budget')
+    expect(textarea().placeholder).toBe('Search your documents…')
 
     await selectMode(mode)
 
     expect(textarea().value).toBe('')
+    expect(textarea().placeholder).toBe('Ask Sim to ')
     expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.has('q')).toBe(false)
     expect(mockSubmit).not.toHaveBeenCalled()
   })

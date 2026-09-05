@@ -18,6 +18,7 @@ export interface KnowledgeBaseWithCounts {
   id: string
   userId: string
   name: string
+  isSearchIndex?: boolean
   description: string | null
   tokenCount: number
   embeddingModel: string
@@ -32,11 +33,12 @@ export interface KnowledgeBaseWithCounts {
   docCount: number
   connectorTypes: string[]
   /** True when a live connector syncs per member, so what a run retrieves depends on who triggers it. */
-  hasMemberScopedConnector: boolean
+  hasPermissionScopedConnector: boolean
 }
 
 export interface CreateKnowledgeBaseData {
   name: string
+  isSearchIndex?: boolean
   description?: string
   workspaceId: string
   folderId?: string | null
@@ -111,6 +113,7 @@ export interface KnowledgeBaseData {
   id: string
   userId: string
   name: string
+  isSearchIndex?: boolean
   description: string | null
   tokenCount: number
   embeddingModel: string
@@ -124,7 +127,7 @@ export interface KnowledgeBaseData {
   folderId: string | null
   docCount?: number
   connectorTypes?: string[]
-  hasMemberScopedConnector?: boolean
+  hasPermissionScopedConnector?: boolean
 }
 
 export interface DocumentData {

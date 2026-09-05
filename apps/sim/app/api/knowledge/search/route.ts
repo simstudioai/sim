@@ -17,11 +17,13 @@ export const POST = defineInternalJsonRoute({
     reason: 'A person typing queries; the embedding call is metered against their workspace',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.search,
-  mapInput: ({ body }) => ({
+  mapInput: ({ body }, { request }) => ({
     workspaceId: body.workspaceId,
     knowledgeBaseIds: body.knowledgeBaseIds,
     query: body.query,
     topK: body.topK,
+    surface: 'dashboard' as const,
+    signal: request.signal,
   }),
   useCase: searchKnowledge,
   present: ({ results, knowledgeBases }, { input }) => {

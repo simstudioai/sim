@@ -52,18 +52,12 @@ const EVENT = {
   },
 }
 
-function subscription(params: {
-  workflowId: string
-  workspaceId?: string
-  eventType?: string
-  credentialGroupId?: string
-}) {
+function subscription(params: { workflowId: string; workspaceId?: string; eventType?: string }) {
   return {
     webhook: {
       id: `webhook-${params.workflowId}`,
       providerConfig: {
         triggerId: 'credential_group_event',
-        credentialGroupId: params.credentialGroupId ?? 'group-1',
         eventType: params.eventType ?? 'credential_added',
       },
     },
@@ -82,13 +76,12 @@ describe('Credential Group trigger delivery', () => {
     mocks.processEvent.mockResolvedValue({ success: true })
   })
 
-  it('delivers only to an allowed workflow watching the exact group and event', async () => {
+  it('delivers only to an allowed workflow in the source workspace watching the event', async () => {
     const allowed = subscription({ workflowId: 'workflow-allowed' })
     mocks.fetchSubscriptions.mockResolvedValue([
       allowed,
       subscription({ workflowId: 'workflow-denied' }),
       subscription({ workflowId: 'workflow-allowed', eventType: 'form_submitted' }),
-      subscription({ workflowId: 'workflow-allowed', credentialGroupId: 'group-2' }),
       subscription({ workflowId: 'workflow-allowed', workspaceId: 'workspace-2' }),
     ])
 

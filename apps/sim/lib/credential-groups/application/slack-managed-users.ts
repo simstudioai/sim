@@ -7,6 +7,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
   consumeSlackManagedUsersAttempt,
   createSlackManagedUsersAttempt,
@@ -47,6 +48,7 @@ export interface StartSlackCredentialGroupConfigurationInput {
   slackBotCredentialId: string
   clientId: string
   clientSecret: string
+  requiredScopes?: string[]
 }
 
 export const startSlackCredentialGroupConfiguration = defineAuthorizedWorkspaceUseCase({
@@ -63,6 +65,7 @@ export const startSlackCredentialGroupConfiguration = defineAuthorizedWorkspaceU
       slackBotCredentialId: input.slackBotCredentialId,
       clientId: input.clientId,
       clientSecret: input.clientSecret,
+      requiredScopes: input.requiredScopes,
     })
   },
 })
@@ -111,6 +114,8 @@ export const completeSlackCredentialGroupConfiguration = defineAuthorizedWorkspa
       attempt.credentialGroupId !== context.attempt.credentialGroupId ||
       attempt.slackBotCredentialId !== context.attempt.slackBotCredentialId ||
       attempt.clientId !== context.attempt.clientId ||
+      credentialGroupScopePolicyVersion(attempt.requiredScopes) !==
+        credentialGroupScopePolicyVersion(context.attempt.requiredScopes) ||
       attempt.createdAt !== context.attempt.createdAt
     ) {
       throw new OrchestrationError('validation', 'Authorization state is invalid or expired')
@@ -132,6 +137,7 @@ export const completeSlackCredentialGroupConfiguration = defineAuthorizedWorkspa
             slackBotCredentialId: result.result.slackBotCredentialId,
             slackAppId: result.result.appId,
             slackTeamId: result.result.teamId,
+            requiredScopes: result.result.requiredScopes,
           },
         }
       : [],

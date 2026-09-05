@@ -45,10 +45,14 @@ export interface CredentialGroupProviderAdapter {
   provider: CredentialGroupProvider
   requiresRefreshToken: boolean
   getPolicy(
-    option: Pick<CredentialGroupOptionConfig, 'provider' | 'slackBotCredentialId'> | undefined,
+    option:
+      | (Pick<CredentialGroupOptionConfig, 'provider' | 'slackBotCredentialId'> &
+          Partial<Pick<CredentialGroupOptionConfig, 'requiredScopes'>>)
+      | undefined,
     context: {
       workspaceId: string
       credentialGroupId?: string
+      credentialGroupOptionId?: string
       authorizationAppId?: string
       executor?: DbOrTx
     }

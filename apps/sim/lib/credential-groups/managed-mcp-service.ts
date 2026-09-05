@@ -142,34 +142,6 @@ async function retireManagedMcpCredentials(
   return retired.map((row) => row.id)
 }
 
-export async function retireManagedMcpServersForGroup(
-  workspaceId: string,
-  credentialGroupId: string,
-  executor: DbOrTx
-): Promise<{ serverIds: string[]; connectionIds: string[] }> {
-  const servers = await executor
-    .select({ id: mcpServers.id })
-    .from(mcpServers)
-    .where(
-      and(
-        eq(mcpServers.workspaceId, workspaceId),
-        eq(mcpServers.credentialGroupId, credentialGroupId),
-        isNull(mcpServers.deletedAt)
-      )
-    )
-    .for('update')
-  const serverIds = servers.map((server) => server.id)
-  if (serverIds.length === 0) return { serverIds: [], connectionIds: [] }
-  const connectionIds = await retireManagedMcpCredentials(credentialGroupId, serverIds, executor)
-  const now = new Date()
-  await executor
-    .update(mcpServers)
-    .set({ enabled: false, deletedAt: now, updatedAt: now })
-    .where(inArray(mcpServers.id, serverIds))
-  await executor.delete(mcpServerOauth).where(inArray(mcpServerOauth.mcpServerId, serverIds))
-  return { serverIds, connectionIds }
-}
-
 export async function createManagedMcpConnector(params: {
   workspaceId: string
   credentialGroupId: string

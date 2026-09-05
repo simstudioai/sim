@@ -707,6 +707,27 @@ describe('retryWithExponentialBackoff retry budget', () => {
     expect(operation).toHaveBeenCalledTimes(2)
   })
 
+  it('aborts provider work at one deadline across attempts', async () => {
+    vi.useFakeTimers()
+    let attempts = 0
+    const operation = vi.fn(async (signal?: AbortSignal) => {
+      attempts++
+      if (attempts === 1)
+        throw Object.assign(new Error('rate limited'), { status: 429, retryAfterMs: 60 })
+      return new Promise<never>((_resolve, reject) =>
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      )
+    })
+    const result = retryWithExponentialBackoff(operation, { maxRetries: 3, retryBudgetMs: 100 })
+    const rejected = expect(result).rejects.toMatchObject({ name: 'TimeoutError' })
+    await vi.advanceTimersByTimeAsync(99)
+    expect(operation).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    await rejected
+    expect(operation).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('does not retry when the server delay exceeds the operation budget', async () => {
     const retryable = Object.assign(new Error('rate limited'), {
       status: 429,

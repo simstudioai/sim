@@ -15,7 +15,7 @@ vi.mock('@/lib/users/application/read-current-user', () => ({
 }))
 
 vi.mock('@/lib/credential-groups/application/manage-groups', () => ({
-  listCredentialGroupSettings: { execute: mockExecute },
+  getWorkspaceAccountsSettings: { execute: mockExecute },
 }))
 
 vi.mock('@/lib/api/server/routes/internal-json-route', () => ({
@@ -84,7 +84,7 @@ describe('credential-groups prefetch', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
     }
     mockExecute.mockResolvedValue({
-      credentialGroups: [{ ...credentialGroup, internal: true }],
+      credentialGroup: { ...credentialGroup, internal: true },
       availableProviders: ['gmail'],
     })
     const queryClient = new QueryClient()
@@ -97,13 +97,8 @@ describe('credential-groups prefetch', () => {
       principal: { kind: 'session', userId: 'u1', sessionId: 's1' },
       input: { workspaceId: 'w1' },
     })
-    /**
-     * The whole response envelope, not just the groups array: this key is shared with
-     * `fetchCredentialGroupSettings`, and seeding it with a narrower shape would leave every
-     * consumer reading an empty list for as long as the hydrated value stayed fresh.
-     */
-    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toEqual({
-      credentialGroups: [credentialGroup],
+    expect(queryClient.getQueryData(credentialGroupKeys.workspace('w1'))).toEqual({
+      credentialGroup,
       availableProviders: ['gmail'],
     })
   })
@@ -116,7 +111,7 @@ describe('credential-groups prefetch', () => {
       workspaceId: 'w1',
     })
 
-    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toBeUndefined()
+    expect(queryClient.getQueryData(credentialGroupKeys.workspace('w1'))).toBeUndefined()
   })
 
   it('leaves the cache empty when session authentication fails', async () => {
@@ -128,6 +123,6 @@ describe('credential-groups prefetch', () => {
     })
 
     expect(mockExecute).not.toHaveBeenCalled()
-    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toBeUndefined()
+    expect(queryClient.getQueryData(credentialGroupKeys.workspace('w1'))).toBeUndefined()
   })
 })

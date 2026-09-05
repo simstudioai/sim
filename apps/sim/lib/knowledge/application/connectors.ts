@@ -3,6 +3,7 @@ import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  credentialGroup,
   document,
   knowledgeBase,
   knowledgeConnector,
@@ -10,8 +11,8 @@ import {
   knowledgeConnectorMemberSyncLog,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
+import { truncate } from '@sim/utils/string'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -21,6 +22,7 @@ import {
   getCredentialActorContext,
   resolveCredentialTokenIdentity,
 } from '@/lib/credentials/access'
+import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
@@ -37,9 +39,20 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
+  type ConnectorAccessMode,
+  mirrorsSourceAcls,
+} from '@/lib/knowledge/connectors/access-modes'
+import {
+  type ConnectorAccessToken,
+  resolveConnectorAccessToken,
+  syncContextForToken,
+} from '@/lib/knowledge/connectors/access-token'
+import {
+  provisionKnowledgeConnectorMembersBinding,
   resolveViewerConnectorMemberships,
   type ViewerConnectorMembership,
 } from '@/lib/knowledge/connectors/member-provisioning'
+import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
@@ -65,10 +78,11 @@ import type {
 } from '@/lib/knowledge/orchestration/shared'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
-import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { getConnectorMeta } from '@/connectors/registry'
+import { describeSearchSource } from '@/lib/sim-search/source-identity'
+import { CONNECTOR_META_REGISTRY, getConnectorMeta } from '@/connectors/registry'
+import type { ConnectorAuthConfig } from '@/connectors/types'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -95,10 +109,13 @@ export interface CreateKnowledgeConnectorInput extends KnowledgeConnectorApplica
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes: number
-  /** `members` crawls per Credential Group member; admin only. Defaults to `workspace`. */
-  accessMode?: 'workspace' | 'members'
-  credentialGroupId?: string
-  credentialGroupOptionId?: string
+  /**
+   * How the connector derives document access; admin only for anything but
+   * `workspace`. Defaults to `workspace`.
+   */
+  accessMode?: ConnectorAccessMode
+  /** Trusted Search setup requests reuse an identical source within the locked insert transaction. */
+  reuseSearchSource?: boolean
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
 
@@ -240,17 +257,23 @@ export async function resolveConnectorCredentialAccessToken(input: {
   actingUserId: string
   requestId: string
   service?: ServiceProviderIdentity
-}): Promise<string | null> {
+  /** The connector the credential is being resolved for, so it mints exactly as a sync would. */
+  auth: ConnectorAuthConfig
+  sourceConfig: Record<string, unknown>
+}): Promise<ConnectorAccessToken | null> {
   const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
   if (!identity) return null
-  return refreshAccessTokenIfNeeded(
-    input.credentialId,
-    identity.kind === 'oauth' ? identity.userId : input.actingUserId,
-    input.requestId
-  )
+  const resolved = await resolveConnectorAccessToken({
+    auth: input.auth,
+    connector: { credentialId: input.credentialId, encryptedApiKey: null },
+    userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
+    requestId: input.requestId,
+    sourceConfig: input.sourceConfig,
+  })
+  return resolved
 }
 
-async function validateConnectorSourceConfig(input: {
+export async function validateConnectorSourceConfig(input: {
   connector: KnowledgeConnectorRow
   sourceConfig: Record<string, unknown>
   workspaceId: string
@@ -265,19 +288,34 @@ async function validateConnectorSourceConfig(input: {
       errorCode: 'validation',
     }
   }
-
-  let accessToken: string | null = null
-  if (connectorConfig.auth.mode === 'apiKey') {
-    if (!input.connector.encryptedApiKey) {
-      if (!connectorConfig.auth.optional) {
-        return {
-          message: 'API key not found. Please reconfigure the connector.',
-          errorCode: 'validation',
-        }
+  /**
+   * A mirroring connector must keep naming whose eyes it crawls through: a
+   * config edit that blanked the administrator would mint a token with no
+   * subject and silently stop mirroring on the next run.
+   */
+  if (mirrorsSourceAcls(input.connector.accessMode)) {
+    try {
+      await assertConnectorMirrorsSourceAcls(connectorConfig, input.sourceConfig, input.workspaceId)
+    } catch (error) {
+      if (error instanceof OrchestrationError) {
+        return { message: error.message, errorCode: error.code }
       }
-      accessToken = ''
-    } else {
-      accessToken = (await decryptApiKey(input.connector.encryptedApiKey)).decrypted
+      throw error
+    }
+  }
+
+  /**
+   * The user the token resolves under: whoever owns the OAuth account behind
+   * the credential, since token reads are scoped to `account.userId`. An API
+   * key and a service account both ignore it.
+   */
+  let tokenUserId = input.actingUserId
+  if (connectorConfig.auth.mode === 'apiKey') {
+    if (!input.connector.encryptedApiKey && !connectorConfig.auth.optional) {
+      return {
+        message: 'API key not found. Please reconfigure the connector.',
+        errorCode: 'validation',
+      }
     }
   } else {
     if (!input.connector.credentialId) {
@@ -297,20 +335,31 @@ async function validateConnectorSourceConfig(input: {
         errorCode: 'validation',
       }
     }
-    accessToken = await refreshAccessTokenIfNeeded(
-      input.connector.credentialId,
-      identity.kind === 'oauth' ? identity.userId : input.actingUserId,
-      input.requestId
-    )
-    if (!accessToken) {
-      return {
-        message: 'Failed to refresh access token. Please reconnect your account.',
-        errorCode: 'unauthorized',
-      }
+    if (identity.kind === 'oauth') tokenUserId = identity.userId
+  }
+
+  const resolved = await resolveConnectorAccessToken({
+    auth: connectorConfig.auth,
+    connector: input.connector,
+    userId: tokenUserId,
+    requestId: input.requestId,
+    sourceConfig: input.sourceConfig,
+  })
+  if (!resolved) {
+    return {
+      message: 'Failed to refresh access token. Please reconnect your account.',
+      errorCode: 'unauthorized',
     }
   }
 
-  const validation = await connectorConfig.validateConfig(accessToken, input.sourceConfig)
+  const validation = await connectorConfig.validateConfig(
+    resolved.accessToken,
+    input.sourceConfig,
+    {
+      ...syncContextForToken(resolved),
+      mirrorsSourceAcls: mirrorsSourceAcls(input.connector.accessMode),
+    }
+  )
   return validation.valid
     ? null
     : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }
@@ -376,12 +425,6 @@ export interface ListWorkspaceMemberConnectorsInput {
   workspaceId: string
 }
 
-/**
- * Every per-member connector in the workspace and where the viewer stands
- * with each, so a surface outside the knowledge base — Sim Search — can ask
- * them to connect. Only connectors the viewer could actually read documents
- * from are listed: the knowledge base must be live and in the workspace.
- */
 /** Live documents per connector that the viewer's tokens match, for the Search tab's counts. */
 async function countViewerDocuments(
   connectorIds: readonly string[],
@@ -404,6 +447,7 @@ async function countViewerDocuments(
   return new Map(rows.flatMap((row) => (row.connectorId ? [[row.connectorId, row.count]] : [])))
 }
 
+/** Live workspace sources that let the viewer connect a crawl account or a mirrored-ACL identity. */
 export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listWorkspaceMemberConnectors,
   resolveContext: ({ input }: { input: ListWorkspaceMemberConnectorsInput }) =>
@@ -415,20 +459,35 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
       .select({
         knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
         knowledgeBaseName: knowledgeBase.name,
+        knowledgeBaseIsSearchIndex: knowledgeBase.isSearchIndex,
         id: knowledgeConnector.id,
         connectorType: knowledgeConnector.connectorType,
         accessMode: knowledgeConnector.accessMode,
+        sourceConfig: knowledgeConnector.sourceConfig,
+        credentialGroupName: credentialGroup.name,
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
         credentialGroupId: knowledgeConnector.credentialGroupId,
         credentialGroupOptionId: knowledgeConnector.credentialGroupOptionId,
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+      .leftJoin(credentialGroup, eq(credentialGroup.id, knowledgeConnector.credentialGroupId))
       .where(
         and(
           eq(knowledgeBase.workspaceId, context.workspaceId),
           isNull(knowledgeBase.deletedAt),
-          eq(knowledgeConnector.accessMode, 'members'),
+          or(
+            eq(knowledgeConnector.accessMode, 'members'),
+            and(
+              eq(knowledgeConnector.accessMode, 'admin'),
+              inArray(
+                knowledgeConnector.connectorType,
+                Object.values(CONNECTOR_META_REGISTRY)
+                  .filter((meta) => meta.mirrorsSourceAcls && meta.requiresMemberIdentity)
+                  .map((meta) => meta.id)
+              )
+            )
+          ),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt)
         )
@@ -459,9 +518,14 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
               {
                 knowledgeBaseId: row.knowledgeBaseId,
                 knowledgeBaseName: row.knowledgeBaseName,
+                knowledgeBaseIsSearchIndex: row.knowledgeBaseIsSearchIndex,
                 connectorId: row.id,
                 connectorType: row.connectorType,
-                memberSyncStatus: row.memberSyncStatus,
+                sourceDescription:
+                  (getConnectorMeta(row.connectorType)
+                    ? describeSearchSource(getConnectorMeta(row.connectorType)!, row.sourceConfig)
+                    : '') || truncate(row.credentialGroupName ?? '', 237),
+                memberSyncStatus: row.accessMode === 'members' ? row.memberSyncStatus : 'idle',
                 viewerMembership,
                 viewerDocumentCount: documentCounts.get(row.id) ?? 0,
               },
@@ -570,43 +634,60 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       workspaceId,
       input.connectorType
     )
+    const connectorMeta = getConnectorMeta(input.connectorType)
+    if (!connectorMeta) {
+      throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
+    }
+    if (
+      context.knowledgeBase.isSearchIndex &&
+      (!connectorMeta.search || !input.accessMode || input.accessMode === 'workspace')
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        'Search sources must support per-person access or source permissions'
+      )
+    }
     let membersBinding: ResolvedMembersBinding | undefined
-    if (input.accessMode === 'members') {
+    if (input.accessMode && input.accessMode !== 'workspace') {
       /**
-       * Members mode grants the connector every enrolled member's credential,
-       * which is an admin decision even though creating a connector is not.
+       * Every mode but `workspace` decides whose data the workspace indexes —
+       * members mode grants the connector every enrolled member's credential,
+       * admin mode indexes a whole source through an administrator's eyes — so
+       * both take the admin role, even though creating a connector does not.
        */
       const subjectUserId = resolvePrincipalSubjectUserId(principal)
       if (context.workspaceId === undefined) {
         throw new OrchestrationError(
           'validation',
-          'Per-member access needs a workspace knowledge base'
+          'Permission-scoped access needs a workspace knowledge base'
         )
       }
       if (!subjectUserId) {
         throw new OrchestrationError(
           'forbidden',
-          'A members-mode connector needs a signed-in admin'
+          'Permission-scoped access needs a signed-in admin'
         )
       }
       await requireCurrentHumanRole(subjectUserId, context, 'admin')
-      const connectorMeta = getConnectorMeta(input.connectorType)
-      if (!connectorMeta) {
-        throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
+
+      if (input.accessMode === 'admin') {
+        await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, workspaceId)
+        if (connectorMeta.requiresMemberIdentity) {
+          await requireKnowledgeMemberAccessAvailable({ workspaceId })
+          await provisionKnowledgeConnectorMembersBinding({
+            workspaceId,
+            connectorMeta,
+            userId: subjectUserId,
+          })
+        }
+      } else {
+        membersBinding = await resolveKnowledgeConnectorMembersBinding({
+          workspaceId,
+          connectorMeta,
+          actingUserId: subjectUserId,
+          sourceConfig: input.sourceConfig,
+        })
       }
-      membersBinding = await resolveKnowledgeConnectorMembersBinding({
-        workspaceId,
-        connectorMeta,
-        binding:
-          input.credentialGroupId && input.credentialGroupOptionId
-            ? {
-                credentialGroupId: input.credentialGroupId,
-                credentialGroupOptionId: input.credentialGroupOptionId,
-              }
-            : null,
-        actingUserId: subjectUserId,
-        sourceConfig: input.sourceConfig,
-      })
     }
     const outcome = await performCreateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
@@ -617,6 +698,8 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
       syncIntervalMinutes: input.syncIntervalMinutes,
       membersBinding,
+      accessMode: input.accessMode,
+      reuseSearchSource: input.reuseSearchSource,
       resolveBillingAttribution: () =>
         input.resolveBillingAttribution?.(workspaceId) ??
         resolveKnowledgeBillingAttribution(principal, context),
@@ -626,6 +709,8 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
           workspaceId,
           actingUserId,
           requestId,
+          auth: connectorMeta.auth,
+          sourceConfig: input.sourceConfig,
         }),
       userId: actingUserId,
       source: input.source ?? 'agent',
@@ -635,24 +720,31 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       recordProductAnalytics: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector creation failed')
-    return { connector: outcome.connector, workspaceId }
+    return {
+      connector: outcome.connector,
+      workspaceId,
+      ...(outcome.reused ? { reused: true } : {}),
+    }
   },
-  projectAudit: ({ input, context, result }) => ({
-    action: AuditAction.CONNECTOR_CREATED,
-    resourceType: AuditResourceType.CONNECTOR,
-    resourceId: result.connector.id,
-    resourceName: result.connector.connectorType,
-    description: `Created ${result.connector.connectorType} connector for knowledge base "${context.knowledgeBase.name}"`,
-    metadata: {
-      source: input.source,
-      knowledgeBaseId: context.knowledgeBaseId,
-      knowledgeBaseName: context.knowledgeBase.name,
-      connectorType: result.connector.connectorType,
-      syncIntervalMinutes: result.connector.syncIntervalMinutes,
-      authMode: result.connector.credentialId ? 'oauth' : 'apiKey',
-      accessMode: result.connector.accessMode,
-    },
-  }),
+  projectAudit: ({ input, context, result }) =>
+    result.reused
+      ? []
+      : {
+          action: AuditAction.CONNECTOR_CREATED,
+          resourceType: AuditResourceType.CONNECTOR,
+          resourceId: result.connector.id,
+          resourceName: result.connector.connectorType,
+          description: `Created ${result.connector.connectorType} connector for knowledge base "${context.knowledgeBase.name}"`,
+          metadata: {
+            source: input.source,
+            knowledgeBaseId: context.knowledgeBaseId,
+            knowledgeBaseName: context.knowledgeBase.name,
+            connectorType: result.connector.connectorType,
+            syncIntervalMinutes: result.connector.syncIntervalMinutes,
+            authMode: result.connector.credentialId ? 'oauth' : 'apiKey',
+            accessMode: result.connector.accessMode,
+          },
+        },
 })
 
 /**

@@ -9,7 +9,7 @@ import {
 } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
-  resolveCredentialGroupContext,
+  resolveWorkspaceAccountsContext,
 } from '@/lib/credential-groups/application/context'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import {
@@ -19,14 +19,14 @@ import {
 } from '@/lib/credential-groups/enrollments'
 
 export interface SendCredentialGroupInviteInput {
-  credentialGroupId: string
+  workspaceId: string
   email: string
 }
 
 export const sendCredentialGroupInvite = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.sendInvite,
   resolveContext: ({ input }: { input: SendCredentialGroupInviteInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveWorkspaceAccountsContext(input.workspaceId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
   authorizeResource({ principal }) {
     requireCredentialGroupWorkflowActor(principal)

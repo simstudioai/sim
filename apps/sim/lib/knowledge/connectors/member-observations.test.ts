@@ -12,6 +12,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 import { db } from '@sim/db'
 import {
   applyMemberDocumentLifecycle,
+  removeUnseenMemberObservations,
   rewriteConnectorAcls,
   staleMemberWindowMs,
   sweepStaleMemberObservations,
@@ -25,6 +26,31 @@ import {
 
 const NOW = new Date('2026-09-01T12:00:00Z')
 const STALE_MEMBER = { id: 'm-1', connectorId: 'c-1', syncIntervalMinutes: 60 }
+
+describe('removeUnseenMemberObservations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  it('rematerializes bounded batches before reading more absent observations', async () => {
+    dbChainMockFns.returning
+      .mockResolvedValueOnce(Array.from({ length: 500 }, (_, i) => ({ documentId: `d-${i}` })))
+      .mockResolvedValueOnce([{ documentId: 'last' }])
+      .mockResolvedValueOnce([])
+    const onRemoved = vi.fn(async (_ids: string[]) => undefined)
+    await expect(
+      removeUnseenMemberObservations(db, 'member', 'generation', onRemoved)
+    ).resolves.toEqual({ removed: 500, finished: false })
+    await expect(
+      removeUnseenMemberObservations(db, 'member', 'generation', onRemoved)
+    ).resolves.toEqual({ removed: 1, finished: true })
+    expect(onRemoved.mock.calls.map(([ids]) => (ids as string[]).length)).toEqual([500, 1])
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(500)
+    expect(onRemoved.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.delete.mock.invocationCallOrder[1]
+    )
+  })
+})
 
 describe('staleMemberWindowMs', () => {
   it('is the larger of a day and two intervals', () => {
@@ -134,9 +160,43 @@ describe('applyMemberDocumentLifecycle', () => {
     vi.mocked(hardDeleteDocuments).mockReset()
   })
 
+  it('tombstones in bounded transactions and leaves remaining work for the next run', async () => {
+    const batch = Array.from({ length: 500 }, (_, i) => ({ id: `document-${i}` }))
+    dbChainMockFns.returning.mockResolvedValueOnce(batch)
+    const input: Parameters<typeof applyMemberDocumentLifecycle>[0] = {
+      connectorId: 'c-1',
+      knowledgeBaseId: 'kb-1',
+      runId: 'run-1',
+      deadlineAt: Date.now() + 60_000,
+      allowRemoval: true,
+      lease: { beatIfDue: async () => {} },
+      withLease: async (fn) => {
+        const value = await fn(db)
+        input.deadlineAt = Date.now() - 1
+        return value
+      },
+    }
+    expect(await applyMemberDocumentLifecycle(input)).toEqual({
+      tombstoned: 500,
+      resurrected: 0,
+      purged: 0,
+      finished: false,
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(500)
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'remaining' }]).mockResolvedValueOnce([])
+    queueTableRows(schemaMock.document, [])
+    expect(
+      await applyMemberDocumentLifecycle({ ...input, deadlineAt: Date.now() + 60_000 })
+    ).toEqual({
+      tombstoned: 1,
+      resurrected: 0,
+      purged: 0,
+      finished: true,
+    })
+  })
+
   it('reports a reclaimed lease during a purge batch as the run being superseded', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
-    queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [{ id: 'd-1' }])
     vi.mocked(hardDeleteDocuments).mockRejectedValueOnce(
       new ConnectorSyncDeletionGuardError('lease reclaimed')
@@ -148,7 +208,7 @@ describe('applyMemberDocumentLifecycle', () => {
         knowledgeBaseId: 'kb-1',
         runId: 'run-1',
         withLease: (fn) => fn(db as never),
-        failedExternalIds: new Set(),
+        deadlineAt: Date.now() + 60_000,
         allowRemoval: true,
         lease: { beatIfDue: async () => {} } as never,
       })

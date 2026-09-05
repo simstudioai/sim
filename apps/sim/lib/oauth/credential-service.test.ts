@@ -69,7 +69,11 @@ vi.mock('@/lib/oauth/terminal-errors', () => ({
   markCredentialDead: vi.fn(),
 }))
 
-import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
+import {
+  getOAuthToken,
+  refreshTokenIfNeeded,
+  resolveCredentialTokenBundle,
+} from '@/lib/oauth/credential-service'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'
@@ -277,4 +281,51 @@ describe('resolveCredentialTokenBundle selector privacy', () => {
       })
     )
   })
+})
+
+describe('non-refreshable OAuth token expiry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it.each([
+    { label: 'expired', expiresAt: new Date(0), usable: false },
+    { label: 'unexpired', expiresAt: new Date('2100-01-01'), usable: true },
+    { label: 'non-expiring', expiresAt: null, usable: true },
+  ])(
+    'handles a $label token consistently across credential entry points',
+    async ({ expiresAt, usable }) => {
+      const row = {
+        id: RAW_ACCOUNT_ID,
+        accountId: 'google-subject',
+        providerId: 'google',
+        userId: RAW_USER_ID,
+        accessToken: 'fixture-token',
+        refreshToken: null,
+        accessTokenExpiresAt: expiresAt,
+        refreshTokenExpiresAt: null,
+        updatedAt: new Date(0),
+      }
+      queueTableRows(credential, [
+        { id: RAW_CREDENTIAL_ID, type: 'oauth', accountId: RAW_ACCOUNT_ID },
+      ])
+      queueTableRows(account, [row])
+      await expect(
+        resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'fixture')
+      ).resolves.toEqual(usable ? { accessToken: 'fixture-token' } : null)
+
+      queueTableRows(account, [row])
+      await expect(getOAuthToken(RAW_USER_ID, 'google')).resolves.toBe(
+        usable ? 'fixture-token' : null
+      )
+
+      const refresh = refreshTokenIfNeeded('fixture', row, RAW_ACCOUNT_ID)
+      if (usable)
+        await expect(refresh).resolves.toEqual({ accessToken: 'fixture-token', refreshed: false })
+      else await expect(refresh).rejects.toThrow('reconnect the account')
+      expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+      expect(mocks.coalesceLocally).not.toHaveBeenCalled()
+    }
+  )
 })

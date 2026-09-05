@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  ChipLink,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -15,6 +16,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { SlackIcon } from '@/components/icons'
 import type { WorkspaceCredential } from '@/lib/api/contracts'
+import {
+  resolveSlackManagedUserScopes,
+  SLACK_MANAGED_USER_SCOPES,
+  SLACK_SEARCH_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
@@ -26,6 +32,7 @@ interface SlackManagedUsersModalProps {
   credentialGroupId: string
   error: Error | null
   initialCredentialId?: string
+  initialRequiredScopes?: readonly string[]
   isLoading: boolean
   onOpenChange: (open: boolean) => void
   open: boolean
@@ -68,6 +75,7 @@ export function SlackManagedUsersModal({
   credentialGroupId,
   error,
   initialCredentialId,
+  initialRequiredScopes,
   isLoading,
   onOpenChange,
   open,
@@ -79,6 +87,7 @@ export function SlackManagedUsersModal({
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [pending, setPending] = useState(false)
+  const [access, setAccess] = useState<'search' | 'workflow' | null>(null)
   const expectedState = useRef<string | null>(null)
   const expectedCredentialId = useRef<string | null>(null)
   const popup = useRef<Window | null>(null)
@@ -93,6 +102,20 @@ export function SlackManagedUsersModal({
       : ''
   const effectiveCredentialId = selectedCredentialId ?? defaultCredentialId
   const selectedBot = bots.find((bot) => bot.id === effectiveCredentialId)
+  const currentScopes = resolveSlackManagedUserScopes(
+    initialRequiredScopes ?? SLACK_SEARCH_USER_SCOPES
+  )
+  const effectiveAccess =
+    access ??
+    (currentScopes.some(
+      (scope) => !SLACK_SEARCH_USER_SCOPES.some((searchScope) => searchScope === scope)
+    )
+      ? 'workflow'
+      : 'search')
+  const requiredScopes =
+    access === null
+      ? currentScopes
+      : [...(access === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES)]
 
   const reset = () => {
     popup.current?.close()
@@ -105,6 +128,7 @@ export function SlackManagedUsersModal({
     setClientId('')
     setClientSecret('')
     setPending(false)
+    setAccess(null)
     startAuthorization.reset()
   }
 
@@ -137,7 +161,7 @@ export function SlackManagedUsersModal({
       return
     }
     void queryClient.invalidateQueries({
-      queryKey: credentialGroupKeys.list(workspaceId),
+      queryKey: credentialGroupKeys.workspace(workspaceId),
     })
     void queryClient.invalidateQueries({
       queryKey: credentialGroupKeys.detail(workspaceId, credentialGroupId),
@@ -208,6 +232,7 @@ export function SlackManagedUsersModal({
           slackBotCredentialId: selectedBot.id,
           clientId: clientId.trim(),
           clientSecret: clientSecret.trim(),
+          requiredScopes,
         },
       })
       expectedState.current = result.state
@@ -236,11 +261,9 @@ export function SlackManagedUsersModal({
   const noBots = !isLoading && bots.length === 0
   const primaryLabel = isLoading
     ? 'Loading...'
-    : noBots
-      ? 'Add Slack'
-      : pending
-        ? 'Waiting for Slack...'
-        : 'Verify and add'
+    : pending
+      ? 'Waiting for Slack...'
+      : 'Verify and add'
   const primaryDisabled =
     isLoading || noBots || !selectedBot || pending || !clientId.trim() || !clientSecret.trim()
 
@@ -266,14 +289,20 @@ export function SlackManagedUsersModal({
             <Skeleton className='h-[30px] w-full rounded-lg' />
           </div>
         ) : noBots ? (
-          <p className='px-2 text-[var(--text-muted)] text-small'>
-            Add a custom Slack app from Integrations before adding Slack to this group.
-          </p>
+          <ChipModalField
+            type='custom'
+            title='Slack app'
+            hint='Set up a Slack app so members can connect their accounts.'
+          >
+            <ChipLink href={`/workspace/${workspaceId}/integrations/slack`}>
+              Set up Slack app
+            </ChipLink>
+          </ChipModalField>
         ) : (
           <>
             <ChipModalField
               type='dropdown'
-              title='Custom bot'
+              title='Slack app'
               value={effectiveCredentialId || undefined}
               onChange={handleSelectBot}
               options={bots.map((bot) => ({
@@ -281,12 +310,30 @@ export function SlackManagedUsersModal({
                 label: bot.displayName,
                 icon: SlackIcon,
               }))}
-              placeholder='Select a custom bot'
+              placeholder='Select a Slack app'
               disabled={pending}
               required
             />
             {selectedBot ? (
               <>
+                <ChipModalField
+                  type='dropdown'
+                  title='Access'
+                  value={effectiveAccess}
+                  onChange={(value) => {
+                    if (value === 'search' || value === 'workflow') setAccess(value)
+                  }}
+                  options={[
+                    { value: 'search', label: 'Search documents' },
+                    { value: 'workflow', label: 'Workflow tools' },
+                  ]}
+                  hint={
+                    effectiveAccess === 'search'
+                      ? 'Read messages members can access. Changing access requires members to reconnect.'
+                      : 'Read and write Slack content for workflows. Changing access requires members to reconnect.'
+                  }
+                  disabled={pending}
+                />
                 <ChipModalField
                   type='input'
                   title='Client ID'
@@ -317,11 +364,15 @@ export function SlackManagedUsersModal({
       <ChipModalFooter
         onCancel={() => handleOpenChange(false)}
         cancelDisabled={pending}
-        primaryAction={{
-          label: primaryLabel,
-          onClick: () => void handleSubmit(),
-          disabled: primaryDisabled,
-        }}
+        {...(noBots
+          ? { defaultAction: 'dismiss' as const }
+          : {
+              primaryAction: {
+                label: primaryLabel,
+                onClick: () => void handleSubmit(),
+                disabled: primaryDisabled,
+              },
+            })}
       />
     </ChipModal>
   )

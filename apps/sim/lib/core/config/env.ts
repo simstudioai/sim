@@ -457,6 +457,11 @@ export const env = createEnv({
     KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
     KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Concurrent document-processing task runs (Trigger.dev queue depth)
     KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
+    /** Deployment operating budgets shared by every caller using the same provider credential. */
+    KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),
+    KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE:   z.number().positive().optional().default(600000),
+    KB_CONFIG_OCR_REQUESTS_PER_MINUTE:       z.number().positive().optional().default(60),
+    KB_CONFIG_RERANK_REQUESTS_PER_MINUTE:    z.number().positive().optional().default(60),
     KB_CONFIG_DOCUMENT_CONCURRENCY:        z.number().optional().default(4),       // Concurrent documents in the in-process (non-Trigger) path
     KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(2000),    // Chunks to process per embedding batch
     KB_CONFIG_DOCUMENT_BATCH_SIZE:         z.number().optional().default(10),      // Documents per batch in the in-process (non-Trigger) path

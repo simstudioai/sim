@@ -32,6 +32,10 @@ vi.mock('@/lib/credentials/managed-oauth', () => ({
   encryptManagedOAuthTokenSet: vi.fn().mockResolvedValue('encrypted-token-set'),
 }))
 
+vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
+  dispatchMemberSyncsForCredentialOption: vi.fn().mockResolvedValue(undefined),
+}))
+
 import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 

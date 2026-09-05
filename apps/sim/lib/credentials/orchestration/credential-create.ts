@@ -14,6 +14,7 @@ import { getCredentialActorContext, requireOrdinaryCredentialType } from '@/lib/
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { getCredentialCreationWorkspaceContext } from '@/lib/credentials/environment'
 import type { CredentialOrchestrationErrorCode } from '@/lib/credentials/orchestration'
+import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
@@ -68,6 +69,7 @@ export interface PerformCreateCredentialParams {
   serviceAccountJson?: string
   apiToken?: string
   domain?: string
+  atlassianProduct?: AtlassianProduct
   signingSecret?: string
   botToken?: string
   clientId?: string
@@ -267,6 +269,7 @@ export async function createCredentialRecord(
           botToken: params.botToken,
           apiToken: params.apiToken,
           domain: params.domain,
+          atlassianProduct: params.atlassianProduct,
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,

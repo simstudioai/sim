@@ -4,7 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
-  resolveCredentialGroupContext,
+  resolveWorkspaceAccountsContext,
 } from '@/lib/credential-groups/application/context'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import {
@@ -15,7 +15,7 @@ import {
 } from '@/lib/credential-groups/mcp-connections'
 
 export interface ListCredentialGroupMcpConnectionsInput {
-  credentialGroupId: string
+  workspaceId: string
   limit: number
   cursor?: string
   email?: string
@@ -32,7 +32,7 @@ export interface ListCredentialGroupMcpConnectionsResult {
 export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listMcpConnections,
   resolveContext: ({ input }: { input: ListCredentialGroupMcpConnectionsInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveWorkspaceAccountsContext(input.workspaceId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
   execute: async ({ input, context }): Promise<ListCredentialGroupMcpConnectionsResult> => {
     if (

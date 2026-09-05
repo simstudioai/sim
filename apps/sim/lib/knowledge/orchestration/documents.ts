@@ -560,6 +560,8 @@ export interface PerformRetryKnowledgeDocumentParams {
     fileSize: number
     mimeType: string
     processingStatus: string
+    connectorId?: string | null
+    contentHash?: string | null
   }
   billingAttribution?: BillingAttributionSnapshot
   requestId?: string
@@ -571,6 +573,13 @@ export async function performRetryKnowledgeDocumentProcessing(
 ): Promise<PerformKnowledgeDocumentProcessingResult> {
   const { knowledgeBaseId, document, billingAttribution } = params
   const requestId = params.requestId ?? generateRequestId()
+
+  if (document.connectorId && document.contentHash === null) {
+    return fail(
+      'Source content could not be downloaded. Sync the connector to retry.',
+      'validation'
+    )
+  }
 
   /**
    * `pending` is admitted alongside `failed`, and the decision is left to the

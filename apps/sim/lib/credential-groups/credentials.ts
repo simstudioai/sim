@@ -5,6 +5,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  foldedEmail,
   user,
 } from '@sim/db/schema'
 import { and, asc, eq, gt, inArray, or, type SQL, sql } from 'drizzle-orm'
@@ -125,7 +126,7 @@ export async function loadCredentialGroupEnrollmentAccess(
       email: credentialGroupEnrollment.email,
     })
     .from(credentialGroupEnrollment)
-    .innerJoin(user, eq(sql<string>`lower(btrim(${user.email}))`, credentialGroupEnrollment.email))
+    .innerJoin(user, eq(foldedEmail(user.email), credentialGroupEnrollment.email))
     .where(
       and(
         eq(user.id, userId),
@@ -178,6 +179,19 @@ export async function loadCredentialGroupEnrollmentAccessForSubject(
 export async function loadCredentialGroupCredentialListContext(
   credentialGroupId: string
 ): Promise<CredentialGroupCredentialListContext | null> {
+  return loadCredentialGroupContext(eq(credentialGroup.id, credentialGroupId))
+}
+
+/** Loads the workspace's single accounts container without decrypting provider settings. */
+export async function loadWorkspaceAccountsCredentialListContext(
+  workspaceId: string
+): Promise<CredentialGroupCredentialListContext | null> {
+  return loadCredentialGroupContext(eq(credentialGroup.workspaceId, workspaceId))
+}
+
+async function loadCredentialGroupContext(
+  scope: SQL
+): Promise<CredentialGroupCredentialListContext | null> {
   const [row] = await db
     .select({
       credentialGroupId: credentialGroup.id,
@@ -187,7 +201,7 @@ export async function loadCredentialGroupCredentialListContext(
       options: credentialGroup.options,
     })
     .from(credentialGroup)
-    .where(eq(credentialGroup.id, credentialGroupId))
+    .where(scope)
     .limit(1)
   return row ?? null
 }
@@ -261,10 +275,10 @@ async function pageCredentialReferences(
   limit: number,
   cursor: string | undefined
 ): Promise<{ rows: CredentialReferencePageRow[]; nextCursor: string | null }> {
-  let cursorPosition: { id: string; createdAt: Date } | undefined
+  let cursorPosition: { id: string } | undefined
   if (cursor) {
     const [cursorRow] = await db
-      .select({ id: credential.id, createdAt: credential.createdAt })
+      .select({ id: credential.id })
       .from(credential)
       .innerJoin(
         credentialGroupEnrollment,
@@ -276,6 +290,7 @@ async function pageCredentialReferences(
     cursorPosition = cursorRow
   }
 
+  /** Compare timestamps inside PostgreSQL so JavaScript Date rounding cannot repeat a page. */
   const rows = await db
     .select({
       id: credential.id,
@@ -298,9 +313,15 @@ async function pageCredentialReferences(
         ...conditions,
         cursorPosition
           ? or(
-              gt(credential.createdAt, cursorPosition.createdAt),
+              gt(
+                credential.createdAt,
+                sql`(SELECT created_at FROM credential WHERE id = ${cursorPosition.id})`
+              ),
               and(
-                eq(credential.createdAt, cursorPosition.createdAt),
+                eq(
+                  credential.createdAt,
+                  sql`(SELECT created_at FROM credential WHERE id = ${cursorPosition.id})`
+                ),
                 gt(credential.id, cursorPosition.id)
               )
             )

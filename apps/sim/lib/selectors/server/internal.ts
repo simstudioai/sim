@@ -1,4 +1,4 @@
-import { listCredentialGroupSettings } from '@/lib/credential-groups/application/manage-groups'
+import { getWorkspaceAccountsSettings } from '@/lib/credential-groups/application/manage-groups'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { listInternalCredentials } from '@/lib/credentials/application/credential-crud'
 import { fetchOllamaEmbeddingModelCatalog } from '@/lib/embeddings/ollama-model-catalog.server'
@@ -66,14 +66,6 @@ async function loadWorkflows(
   }
   if (cursorKeys) throw new SelectorOptionsUnavailableError()
   return workflows
-}
-
-async function loadCredentialGroups(
-  principal: Parameters<(typeof listCredentialGroupSettings)['execute']>[0]['principal'],
-  workspaceId: string
-) {
-  return (await listCredentialGroupSettings.execute({ principal, input: { workspaceId } }))
-    .credentialGroups
 }
 
 export const internalSelectorAttachments = {
@@ -210,26 +202,13 @@ export const internalSelectorAttachments = {
       return listSelectorResult(options)
     },
   },
-  'workspace.credentialGroups': {
-    destination: 'fixed',
-    async execute(args: ExecuteServerSelectorArgs) {
-      const options = (await loadCredentialGroups(args.principal, args.workspaceId))
-        .filter((group) => group.status === 'active')
-        .map((group) => ({ id: group.id, label: group.name }))
-        .sort((left, right) => left.label.localeCompare(right.label))
-      if (args.request.kind === 'detail') {
-        const detailId = args.request.id
-        return detailSelectorResult(options.find((option) => option.id === detailId) ?? null)
-      }
-      return listSelectorResult(options)
-    },
-  },
   'workspace.credentialGroupProviders': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
-      const group = (await loadCredentialGroups(args.principal, args.workspaceId)).find(
-        (candidate) => candidate.id === args.context.credentialGroupId
-      )
+      const { credentialGroup: group } = await getWorkspaceAccountsSettings.execute({
+        principal: args.principal,
+        input: { workspaceId: args.workspaceId },
+      })
       const options = (group?.options ?? [])
         .filter((option) => option.status === 'active')
         .map((option) => {
