@@ -1,0 +1,172 @@
+name: Sticky Disk GC
+
+# node_modules sticky disks are keyed on hashFiles('bun.lock') by design — see the
+# "Mount node_modules" comment in test-build.yml. A sticky disk is a mutable volume
+# and `bun install --frozen-lockfile` adds what the lockfile needs without pruning
+# what it dropped, so branches on different lockfiles must not share one. That
+# design is correct and is preserved here.
+#
+# Its cost is a fresh ~13.7 GB disk per lockfile hash per event class, created at
+# ~6.3/day. Blacksmith evicts a sticky disk after 7 days of inactivity, so this is
+# not a leak — it is a retention window far too generous for a key that churns
+# this fast. Steady state is (new disks/day x GB/disk x retention days), which at
+# 7 days predicts 606 GB against 601 GB actually observed.
+#
+# Age-based on purpose. The key contains NO PR identifier, so every open PR whose
+# checkout has the same bun.lock mounts the SAME disk — there are far more open
+# PRs than distinct lockfile hashes, so sharing is the common case, not an edge
+# case. Deleting on PR close would destroy a disk many other open PRs are using.
+# Never add a pull_request or pull_request_target trigger here.
+
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: Delete node_modules disks unused for more than this many days.
+        required: false
+        default: '3'
+      dry_run:
+        description: List what would be deleted without deleting it.
+        type: boolean
+        required: false
+        default: false
+
+# Nothing in this job reads the repository.
+permissions: {}
+
+concurrency:
+  group: stickydisk-gc
+  cancel-in-progress: false
+
+jobs:
+  gc:
+    name: Reclaim idle node_modules sticky disks
+    # GitHub-hosted on purpose, not a Blacksmith runner: the CLI is a pure API
+    # client, and collection has to keep working during a Blacksmith outage or a
+    # CI_PROVIDER break-glass switch — exactly when disks sit idle and still bill.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Pinned binary + checksum rather than `curl https://get.blacksmith.sh | sh`:
+      # this job holds an org-wide token, so it must not execute unpinned remote
+      # shell. The vendor publishes a .sha256 sidecar next to each binary; check a
+      # new version against it and bump both values together.
+      BLACKSMITH_CLI_VERSION: v0.4.58
+      BLACKSMITH_CLI_SHA256: 0b54a4398e9b35344d8fb32891703d8a393343f5001914d7482f93d068c76822
+      # The CLI self-updates in the background on every invocation, which would
+      # silently defeat the pin above.
+      BLACKSMITH_DISABLE_AUTO_UPDATE: '1'
+      BLACKSMITH_ORG: simstudioai
+      TARGET_REPO: ${{ github.repository }}
+      RETENTION_DAYS: ${{ inputs.retention_days || '3' }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+    steps:
+      - name: Install Blacksmith CLI
+        run: |
+          set -euo pipefail
+          url="https://clireleases.blacksmith.sh/cli/${BLACKSMITH_CLI_VERSION}/linux/amd64/blacksmith"
+          curl -fsSL "$url" -o /usr/local/bin/blacksmith
+          echo "${BLACKSMITH_CLI_SHA256}  /usr/local/bin/blacksmith" | sha256sum -c -
+          chmod +x /usr/local/bin/blacksmith
+
+      - name: Authenticate
+        env:
+          BLACKSMITH_CLI_TOKEN: ${{ secrets.BLACKSMITH_CLI_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BLACKSMITH_CLI_TOKEN:-}" ]; then
+            echo "::error::BLACKSMITH_CLI_TOKEN is not set. Mint one with 'blacksmith org-token create' and add it as a repository secret."
+            exit 1
+          fi
+          printf '%s' "$BLACKSMITH_CLI_TOKEN" \
+            | blacksmith auth login --api-token - --non-interactive --organization "$BLACKSMITH_ORG"
+
+      - name: Delete node_modules disks idle beyond the retention window
+        run: |
+          set -euo pipefail
+
+          case "$RETENTION_DAYS" in
+            ''|*[!0-9]*)
+              echo "::error::retention_days must be a whole number of days, got '${RETENTION_DAYS}'"
+              exit 1
+              ;;
+          esac
+          if [ "$RETENTION_DAYS" -lt 1 ]; then
+            echo "::error::retention_days must be at least 1; 0 would delete disks a running job is using"
+            exit 1
+          fi
+
+          blacksmith stickydisk list \
+            --repo "$TARGET_REPO" \
+            --search '-node-modules-' \
+            --per-page 100 \
+            --format json > disks.json
+
+          # Two independent guards, because the blast radius of a wrong key is a
+          # cache every CI job depends on:
+          #   1. --search narrows server-side to the node_modules family.
+          #   2. The regex re-proves each key's full shape locally.
+          # The event segment is [a-z_]+ rather than an enumerated push|pull_request
+          # because the key interpolates ${{ github.event_name }}: a
+          # workflow_dispatch disk already exists that an enumerated list would
+          # have skipped forever. Verified against the live account — this matches
+          # every node_modules disk and none of the bun/turbo/Docker disks, which
+          # are mounted every run, never go idle, and must survive.
+          #
+          # Grouped by key before the staleness test because `delete` without
+          # --arch removes every architecture variant, so a key may only go when
+          # its NEWEST variant is stale.
+          jq -r --arg repo "$TARGET_REPO" --argjson days "$RETENTION_DAYS" '
+            (now - ($days * 86400)) as $cutoff
+            | .entries
+            | map(select(.type == "stickydisk"))
+            | map(select(.key | test("^" + ($repo | gsub("/"; "\\/")) + "-node-modules-[a-z_]+-[0-9a-f]{64}$")))
+            | group_by(.key)
+            | map({
+                key: .[0].key,
+                gb: (map(.size_bytes) | add / 1000000000 * 100 | round / 100),
+                last_used: (map(.last_used_at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) | max)
+              })
+            | map(select(.last_used < $cutoff))
+            | .[] | "\(.key)\t\(.gb)"
+          ' disks.json > stale.tsv
+
+          total=$(jq '[.entries[] | select(.type == "stickydisk")] | length' disks.json)
+          count=$(wc -l < stale.tsv | tr -d ' ')
+          reclaimed=$(awk -F'\t' '{s+=$2} END {printf "%.1f", s+0}' stale.tsv)
+          {
+            echo "### Sticky disk GC"
+            echo ""
+            echo "Retention **${RETENTION_DAYS}d** · dry run **${DRY_RUN}** · **${count}** of ${total} node_modules disks idle (**${reclaimed} GB**)"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # A run that would delete everything means the listing or the clock is
+          # wrong, not that every disk went idle at once. Refuse rather than wipe
+          # the caches every CI job depends on.
+          if [ "$count" -gt 0 ] && [ "$count" -eq "$total" ]; then
+            echo "::error::Refusing to delete all ${total} node_modules disks — that indicates a listing or clock fault, not genuine idleness."
+            exit 1
+          fi
+
+          failed=0
+          while IFS=$'\t' read -r key gb; do
+            [ -n "$key" ] || continue
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "- would delete \`${key}\` (${gb} GB)" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            if blacksmith stickydisk delete --repo "$TARGET_REPO" --key "$key" --yes; then
+              echo "- deleted \`${key}\` (${gb} GB)" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- FAILED \`${key}\`" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+            fi
+          done < stale.tsv
+
+          # Fail loudly rather than continue-on-error: a revoked token or a changed
+          # CLI JSON shape would otherwise silently revert us to 7-day billing.
+          exit "$failed"
