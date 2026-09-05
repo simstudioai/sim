@@ -92,6 +92,7 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'oracle_fusion_subscription_management'
   | 'google'
   | 'google-email'
   | 'google-drive'

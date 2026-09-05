@@ -752,6 +752,70 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const ORACLE_FUSION_SUBSCRIPTION_MANAGEMENT_TOOL_IDS = [
+  'oracle_fusion_subscription_management_activate_subscription',
+  'oracle_fusion_subscription_management_amend_product',
+  'oracle_fusion_subscription_management_calculate_product_credit',
+  'oracle_fusion_subscription_management_calculate_product_termination_fee',
+  'oracle_fusion_subscription_management_cancel_product',
+  'oracle_fusion_subscription_management_cancel_subscription',
+  'oracle_fusion_subscription_management_close_product',
+  'oracle_fusion_subscription_management_close_subscription',
+  'oracle_fusion_subscription_management_create_associated_asset',
+  'oracle_fusion_subscription_management_create_charge',
+  'oracle_fusion_subscription_management_create_charge_adjustment',
+  'oracle_fusion_subscription_management_create_covered_level',
+  'oracle_fusion_subscription_management_create_product',
+  'oracle_fusion_subscription_management_create_subscription',
+  'oracle_fusion_subscription_management_delete_associated_asset',
+  'oracle_fusion_subscription_management_delete_charge',
+  'oracle_fusion_subscription_management_delete_charge_adjustment',
+  'oracle_fusion_subscription_management_delete_covered_level',
+  'oracle_fusion_subscription_management_delete_product',
+  'oracle_fusion_subscription_management_delete_subscription',
+  'oracle_fusion_subscription_management_get_associated_asset',
+  'oracle_fusion_subscription_management_get_bill_adjustment',
+  'oracle_fusion_subscription_management_get_bill_line',
+  'oracle_fusion_subscription_management_get_charge',
+  'oracle_fusion_subscription_management_get_charge_adjustment',
+  'oracle_fusion_subscription_management_get_child_covered_level',
+  'oracle_fusion_subscription_management_get_covered_level',
+  'oracle_fusion_subscription_management_get_product',
+  'oracle_fusion_subscription_management_get_subscription',
+  'oracle_fusion_subscription_management_get_subscription_asset',
+  'oracle_fusion_subscription_management_get_subscription_item',
+  'oracle_fusion_subscription_management_get_subscription_profile',
+  'oracle_fusion_subscription_management_get_validation_result',
+  'oracle_fusion_subscription_management_hold_product',
+  'oracle_fusion_subscription_management_hold_subscription',
+  'oracle_fusion_subscription_management_list_associated_assets',
+  'oracle_fusion_subscription_management_list_bill_adjustments',
+  'oracle_fusion_subscription_management_list_bill_lines',
+  'oracle_fusion_subscription_management_list_charge_adjustments',
+  'oracle_fusion_subscription_management_list_charges',
+  'oracle_fusion_subscription_management_list_child_covered_levels',
+  'oracle_fusion_subscription_management_list_covered_levels',
+  'oracle_fusion_subscription_management_list_products',
+  'oracle_fusion_subscription_management_list_subscription_assets',
+  'oracle_fusion_subscription_management_list_subscription_items',
+  'oracle_fusion_subscription_management_list_subscription_profiles',
+  'oracle_fusion_subscription_management_list_subscriptions',
+  'oracle_fusion_subscription_management_list_validation_results',
+  'oracle_fusion_subscription_management_remove_product_hold',
+  'oracle_fusion_subscription_management_remove_subscription_hold',
+  'oracle_fusion_subscription_management_renew_subscription',
+  'oracle_fusion_subscription_management_resume_product',
+  'oracle_fusion_subscription_management_suspend_product',
+  'oracle_fusion_subscription_management_update_associated_asset',
+  'oracle_fusion_subscription_management_update_charge',
+  'oracle_fusion_subscription_management_update_charge_adjustment',
+  'oracle_fusion_subscription_management_update_covered_level',
+  'oracle_fusion_subscription_management_update_product',
+  'oracle_fusion_subscription_management_update_subscription',
+  'oracle_fusion_subscription_management_validate_subscription',
+  'oracle_fusion_subscription_management_withdraw_subscription',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1424,6 +1488,10 @@ registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_SUBSCRIPTION_MANAGEMENT_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-subscription-management/execute-tool'))
+    .executeOracleFusionSubscriptionTool
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool

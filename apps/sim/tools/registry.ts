@@ -3373,6 +3373,69 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleFusionSubscriptionActivateSubscriptionTool,
+  oracleFusionSubscriptionAmendProductTool,
+  oracleFusionSubscriptionCalculateProductCreditTool,
+  oracleFusionSubscriptionCalculateProductTerminationFeeTool,
+  oracleFusionSubscriptionCancelProductTool,
+  oracleFusionSubscriptionCancelSubscriptionTool,
+  oracleFusionSubscriptionCloseProductTool,
+  oracleFusionSubscriptionCloseSubscriptionTool,
+  oracleFusionSubscriptionCreateAssociatedAssetTool,
+  oracleFusionSubscriptionCreateChargeAdjustmentTool,
+  oracleFusionSubscriptionCreateChargeTool,
+  oracleFusionSubscriptionCreateCoveredLevelTool,
+  oracleFusionSubscriptionCreateProductTool,
+  oracleFusionSubscriptionCreateSubscriptionTool,
+  oracleFusionSubscriptionDeleteAssociatedAssetTool,
+  oracleFusionSubscriptionDeleteChargeAdjustmentTool,
+  oracleFusionSubscriptionDeleteChargeTool,
+  oracleFusionSubscriptionDeleteCoveredLevelTool,
+  oracleFusionSubscriptionDeleteProductTool,
+  oracleFusionSubscriptionDeleteSubscriptionTool,
+  oracleFusionSubscriptionGetAssociatedAssetTool,
+  oracleFusionSubscriptionGetBillAdjustmentTool,
+  oracleFusionSubscriptionGetBillLineTool,
+  oracleFusionSubscriptionGetChargeAdjustmentTool,
+  oracleFusionSubscriptionGetChargeTool,
+  oracleFusionSubscriptionGetChildCoveredLevelTool,
+  oracleFusionSubscriptionGetCoveredLevelTool,
+  oracleFusionSubscriptionGetProductTool,
+  oracleFusionSubscriptionGetSubscriptionAssetTool,
+  oracleFusionSubscriptionGetSubscriptionItemTool,
+  oracleFusionSubscriptionGetSubscriptionProfileTool,
+  oracleFusionSubscriptionGetSubscriptionTool,
+  oracleFusionSubscriptionGetValidationResultTool,
+  oracleFusionSubscriptionHoldProductTool,
+  oracleFusionSubscriptionHoldSubscriptionTool,
+  oracleFusionSubscriptionListAssociatedAssetsTool,
+  oracleFusionSubscriptionListBillAdjustmentsTool,
+  oracleFusionSubscriptionListBillLinesTool,
+  oracleFusionSubscriptionListChargeAdjustmentsTool,
+  oracleFusionSubscriptionListChargesTool,
+  oracleFusionSubscriptionListChildCoveredLevelsTool,
+  oracleFusionSubscriptionListCoveredLevelsTool,
+  oracleFusionSubscriptionListProductsTool,
+  oracleFusionSubscriptionListSubscriptionAssetsTool,
+  oracleFusionSubscriptionListSubscriptionItemsTool,
+  oracleFusionSubscriptionListSubscriptionProfilesTool,
+  oracleFusionSubscriptionListSubscriptionsTool,
+  oracleFusionSubscriptionListValidationResultsTool,
+  oracleFusionSubscriptionRemoveProductHoldTool,
+  oracleFusionSubscriptionRemoveSubscriptionHoldTool,
+  oracleFusionSubscriptionRenewSubscriptionTool,
+  oracleFusionSubscriptionResumeProductTool,
+  oracleFusionSubscriptionSuspendProductTool,
+  oracleFusionSubscriptionUpdateAssociatedAssetTool,
+  oracleFusionSubscriptionUpdateChargeAdjustmentTool,
+  oracleFusionSubscriptionUpdateChargeTool,
+  oracleFusionSubscriptionUpdateCoveredLevelTool,
+  oracleFusionSubscriptionUpdateProductTool,
+  oracleFusionSubscriptionUpdateSubscriptionTool,
+  oracleFusionSubscriptionValidateSubscriptionTool,
+  oracleFusionSubscriptionWithdrawSubscriptionTool,
+} from '@/tools/oracle_fusion_subscription_management'
+import {
   outlookCalendarCreateEventTool,
   outlookCalendarDeleteEventTool,
   outlookCalendarGetEventTool,
@@ -7955,6 +8018,110 @@ export const tools: Record<string, ExecutableToolConfig> = {
   netsuite_transform_record: netsuiteTransformRecordTool,
   netsuite_update_record: netsuiteUpdateRecordTool,
   netsuite_upsert_record: netsuiteUpsertRecordTool,
+  oracle_fusion_subscription_management_activate_subscription:
+    oracleFusionSubscriptionActivateSubscriptionTool,
+  oracle_fusion_subscription_management_amend_product: oracleFusionSubscriptionAmendProductTool,
+  oracle_fusion_subscription_management_calculate_product_credit:
+    oracleFusionSubscriptionCalculateProductCreditTool,
+  oracle_fusion_subscription_management_calculate_product_termination_fee:
+    oracleFusionSubscriptionCalculateProductTerminationFeeTool,
+  oracle_fusion_subscription_management_cancel_product: oracleFusionSubscriptionCancelProductTool,
+  oracle_fusion_subscription_management_cancel_subscription:
+    oracleFusionSubscriptionCancelSubscriptionTool,
+  oracle_fusion_subscription_management_close_product: oracleFusionSubscriptionCloseProductTool,
+  oracle_fusion_subscription_management_close_subscription:
+    oracleFusionSubscriptionCloseSubscriptionTool,
+  oracle_fusion_subscription_management_create_associated_asset:
+    oracleFusionSubscriptionCreateAssociatedAssetTool,
+  oracle_fusion_subscription_management_create_charge: oracleFusionSubscriptionCreateChargeTool,
+  oracle_fusion_subscription_management_create_charge_adjustment:
+    oracleFusionSubscriptionCreateChargeAdjustmentTool,
+  oracle_fusion_subscription_management_create_covered_level:
+    oracleFusionSubscriptionCreateCoveredLevelTool,
+  oracle_fusion_subscription_management_create_product: oracleFusionSubscriptionCreateProductTool,
+  oracle_fusion_subscription_management_create_subscription:
+    oracleFusionSubscriptionCreateSubscriptionTool,
+  oracle_fusion_subscription_management_delete_associated_asset:
+    oracleFusionSubscriptionDeleteAssociatedAssetTool,
+  oracle_fusion_subscription_management_delete_charge: oracleFusionSubscriptionDeleteChargeTool,
+  oracle_fusion_subscription_management_delete_charge_adjustment:
+    oracleFusionSubscriptionDeleteChargeAdjustmentTool,
+  oracle_fusion_subscription_management_delete_covered_level:
+    oracleFusionSubscriptionDeleteCoveredLevelTool,
+  oracle_fusion_subscription_management_delete_product: oracleFusionSubscriptionDeleteProductTool,
+  oracle_fusion_subscription_management_delete_subscription:
+    oracleFusionSubscriptionDeleteSubscriptionTool,
+  oracle_fusion_subscription_management_get_associated_asset:
+    oracleFusionSubscriptionGetAssociatedAssetTool,
+  oracle_fusion_subscription_management_get_bill_adjustment:
+    oracleFusionSubscriptionGetBillAdjustmentTool,
+  oracle_fusion_subscription_management_get_bill_line: oracleFusionSubscriptionGetBillLineTool,
+  oracle_fusion_subscription_management_get_charge: oracleFusionSubscriptionGetChargeTool,
+  oracle_fusion_subscription_management_get_charge_adjustment:
+    oracleFusionSubscriptionGetChargeAdjustmentTool,
+  oracle_fusion_subscription_management_get_child_covered_level:
+    oracleFusionSubscriptionGetChildCoveredLevelTool,
+  oracle_fusion_subscription_management_get_covered_level:
+    oracleFusionSubscriptionGetCoveredLevelTool,
+  oracle_fusion_subscription_management_get_product: oracleFusionSubscriptionGetProductTool,
+  oracle_fusion_subscription_management_get_subscription:
+    oracleFusionSubscriptionGetSubscriptionTool,
+  oracle_fusion_subscription_management_get_subscription_asset:
+    oracleFusionSubscriptionGetSubscriptionAssetTool,
+  oracle_fusion_subscription_management_get_subscription_item:
+    oracleFusionSubscriptionGetSubscriptionItemTool,
+  oracle_fusion_subscription_management_get_subscription_profile:
+    oracleFusionSubscriptionGetSubscriptionProfileTool,
+  oracle_fusion_subscription_management_get_validation_result:
+    oracleFusionSubscriptionGetValidationResultTool,
+  oracle_fusion_subscription_management_hold_product: oracleFusionSubscriptionHoldProductTool,
+  oracle_fusion_subscription_management_hold_subscription:
+    oracleFusionSubscriptionHoldSubscriptionTool,
+  oracle_fusion_subscription_management_list_associated_assets:
+    oracleFusionSubscriptionListAssociatedAssetsTool,
+  oracle_fusion_subscription_management_list_bill_adjustments:
+    oracleFusionSubscriptionListBillAdjustmentsTool,
+  oracle_fusion_subscription_management_list_bill_lines: oracleFusionSubscriptionListBillLinesTool,
+  oracle_fusion_subscription_management_list_charge_adjustments:
+    oracleFusionSubscriptionListChargeAdjustmentsTool,
+  oracle_fusion_subscription_management_list_charges: oracleFusionSubscriptionListChargesTool,
+  oracle_fusion_subscription_management_list_child_covered_levels:
+    oracleFusionSubscriptionListChildCoveredLevelsTool,
+  oracle_fusion_subscription_management_list_covered_levels:
+    oracleFusionSubscriptionListCoveredLevelsTool,
+  oracle_fusion_subscription_management_list_products: oracleFusionSubscriptionListProductsTool,
+  oracle_fusion_subscription_management_list_subscription_assets:
+    oracleFusionSubscriptionListSubscriptionAssetsTool,
+  oracle_fusion_subscription_management_list_subscription_items:
+    oracleFusionSubscriptionListSubscriptionItemsTool,
+  oracle_fusion_subscription_management_list_subscription_profiles:
+    oracleFusionSubscriptionListSubscriptionProfilesTool,
+  oracle_fusion_subscription_management_list_subscriptions:
+    oracleFusionSubscriptionListSubscriptionsTool,
+  oracle_fusion_subscription_management_list_validation_results:
+    oracleFusionSubscriptionListValidationResultsTool,
+  oracle_fusion_subscription_management_remove_product_hold:
+    oracleFusionSubscriptionRemoveProductHoldTool,
+  oracle_fusion_subscription_management_remove_subscription_hold:
+    oracleFusionSubscriptionRemoveSubscriptionHoldTool,
+  oracle_fusion_subscription_management_renew_subscription:
+    oracleFusionSubscriptionRenewSubscriptionTool,
+  oracle_fusion_subscription_management_resume_product: oracleFusionSubscriptionResumeProductTool,
+  oracle_fusion_subscription_management_suspend_product: oracleFusionSubscriptionSuspendProductTool,
+  oracle_fusion_subscription_management_update_associated_asset:
+    oracleFusionSubscriptionUpdateAssociatedAssetTool,
+  oracle_fusion_subscription_management_update_charge: oracleFusionSubscriptionUpdateChargeTool,
+  oracle_fusion_subscription_management_update_charge_adjustment:
+    oracleFusionSubscriptionUpdateChargeAdjustmentTool,
+  oracle_fusion_subscription_management_update_covered_level:
+    oracleFusionSubscriptionUpdateCoveredLevelTool,
+  oracle_fusion_subscription_management_update_product: oracleFusionSubscriptionUpdateProductTool,
+  oracle_fusion_subscription_management_update_subscription:
+    oracleFusionSubscriptionUpdateSubscriptionTool,
+  oracle_fusion_subscription_management_validate_subscription:
+    oracleFusionSubscriptionValidateSubscriptionTool,
+  oracle_fusion_subscription_management_withdraw_subscription:
+    oracleFusionSubscriptionWithdrawSubscriptionTool,
   new_relic_create_deployment_event: newRelicCreateDeploymentEventTool,
   new_relic_get_entity: newRelicGetEntityTool,
   new_relic_nrql_query: newRelicNrqlQueryTool,

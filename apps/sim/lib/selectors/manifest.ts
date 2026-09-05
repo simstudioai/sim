@@ -188,6 +188,68 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracleFusionSubscriptionManagement.subscriptions': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSubscriptionManagement.products': providerSelector(['subscriptionNumber'], {
+    readiness: { all: ['oauthCredential', 'subscriptionNumber'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSubscriptionManagement.coveredLevels': providerSelector(
+    ['subscriptionNumber', 'subscriptionProductPuid'],
+    {
+      readiness: { all: ['oauthCredential', 'subscriptionNumber', 'subscriptionProductPuid'] },
+      listMode: 'paginated',
+      search: true,
+      detail: true,
+      unknownDetail: true,
+    }
+  ),
+  'oracleFusionSubscriptionManagement.subscriptionProfiles': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSubscriptionManagement.subscriptionItems': providerSelector(['orgId'], {
+    readiness: { all: ['oauthCredential', 'orgId'] },
+    sourceFields: { orgId: ['definitionOrganizationId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSubscriptionManagement.subscriptionAssets': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSubscriptionManagement.organizationCodes': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSubscriptionManagement.billToAccounts': providerSelector(['primaryPartyId'], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSubscriptionManagement.billToSites': providerSelector(['billToAccountId'], {
+    readiness: { all: ['oauthCredential', 'billToAccountId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
