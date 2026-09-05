@@ -8,12 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-/** ChipSelect stands in as a native select so options are inspectable. */
 vi.mock('@sim/emcn', () => ({
   ChipModal: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div role='dialog'>{children}</div> : null,
   ChipModalHeader: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   ChipModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ChipModalError: ({ children }: { children?: ReactNode }) =>
+    children ? <p role='alert'>{children}</p> : null,
   ChipModalFooter: ({
     onCancel,
     primaryAction,
@@ -58,7 +59,7 @@ vi.mock('@sim/emcn', () => ({
   ),
 }))
 
-import { ImportModal } from '@/app/workspace/[workspaceId]/settings/components/browser/components/import-modal/import-modal'
+import { ImportModal } from '@/components/browser-import/import-modal'
 
 function profile(
   id: string,

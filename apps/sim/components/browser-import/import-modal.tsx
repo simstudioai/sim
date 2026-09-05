@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { BrowserImportProfile } from '@sim/desktop-bridge'
 import {
   ChipModal,
   ChipModalBody,
+  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
@@ -15,6 +16,8 @@ interface ImportModalProps {
   onOpenChange: (open: boolean) => void
   /** Every importable profile across every detected browser. */
   profiles: BrowserImportProfile[]
+  loading?: boolean
+  error?: string
   pending: boolean
   onImport: (profile: BrowserImportProfile) => void
 }
@@ -37,8 +40,16 @@ function browserOptions(profiles: BrowserImportProfile[]) {
  * single identity it takes on, and there is no coherent "all of them" (two
  * profiles' cookies for the same site would just overwrite each other).
  */
-export function ImportModal({ open, onOpenChange, profiles, pending, onImport }: ImportModalProps) {
-  const browsers = useMemo(() => browserOptions(profiles), [profiles])
+export function ImportModal({
+  open,
+  onOpenChange,
+  profiles,
+  loading = false,
+  error,
+  pending,
+  onImport,
+}: ImportModalProps) {
+  const browsers = browserOptions(profiles)
   const [pickedBrowserId, setPickedBrowserId] = useState(browsers[0]?.value ?? '')
 
   /**
@@ -51,10 +62,7 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
     ? pickedBrowserId
     : (browsers[0]?.value ?? '')
 
-  const profilesForBrowser = useMemo(
-    () => profiles.filter((profile) => profile.browserId === browserId),
-    [browserId, profiles]
-  )
+  const profilesForBrowser = profiles.filter((profile) => profile.browserId === browserId)
   const [pickedProfileId, setPickedProfileId] = useState(profilesForBrowser[0]?.id ?? '')
 
   const profileId = profilesForBrowser.some((profile) => profile.id === pickedProfileId)
@@ -64,16 +72,31 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
   const selected = profilesForBrowser.find((profile) => profile.id === profileId) ?? null
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Import from your browser'>
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle='Import from your browser'
+      dismissDisabled={pending}
+    >
       <ChipModalHeader onClose={() => onOpenChange(false)}>
         Import from your browser
       </ChipModalHeader>
       <ChipModalBody>
-        <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          Copies cookies and saved passwords into Sim’s browser, and reads which sites you use there
-          so the address bar can suggest them. The other browser is only read, never changed, and
-          nothing is uploaded.
+        <p className='text-pretty px-2 text-[var(--text-body)] text-sm'>
+          Copy cookies, saved passwords, and address-bar suggestions into Sim. Your other browser
+          stays unchanged and nothing is uploaded. Future changes are not synced.
         </p>
+        <p className='text-pretty px-2 text-[var(--text-muted)] text-caption'>
+          Passwords stay encrypted on this device until you delete them or sign out of Sim. Website
+          sessions may still expire.
+        </p>
+        {(loading || (!error && profiles.length === 0)) && (
+          <p className='px-2 text-[var(--text-muted)] text-small' role='status'>
+            {loading
+              ? 'Looking for browser profiles…'
+              : 'No supported browser profiles were found on this device.'}
+          </p>
+        )}
         <ChipModalField
           type='dropdown'
           title='Browser'
@@ -82,7 +105,7 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
           onChange={setPickedBrowserId}
           placeholder='Select a browser'
           align='start'
-          disabled={pending || browsers.length === 0}
+          disabled={loading || pending || browsers.length === 0}
         />
         <ChipModalField
           type='dropdown'
@@ -95,15 +118,16 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
           onChange={setPickedProfileId}
           placeholder='Select a profile'
           align='start'
-          disabled={pending || profilesForBrowser.length === 0}
+          disabled={loading || pending || profilesForBrowser.length === 0}
         />
+        <ChipModalError>{!loading && error}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
         cancelDisabled={pending}
         primaryAction={{
           label: pending ? 'Importing...' : 'Import',
-          disabled: pending || selected === null,
+          disabled: loading || pending || selected === null,
           onClick: () => {
             if (selected) onImport(selected)
           },
