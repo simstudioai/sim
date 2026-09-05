@@ -296,7 +296,7 @@ describe('executeAnthropicProviderRequest forced tool use', () => {
     expect(payload.tool_choice).toEqual({ type: 'tool', name: 'publish' })
   })
 
-  it('drops forced tool_choice on Claude Fable 5.1 because the API rejects it', async () => {
+  it('drops forced tool_choice when the catalog model disables Force', async () => {
     const { payload, warn } = await runWithForcedTool('claude-fable-5-1')
     expect(payload.tools?.map((tool) => tool.name)).toEqual(['publish'])
     expect(payload).not.toHaveProperty('tool_choice')

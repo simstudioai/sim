@@ -127,6 +127,37 @@ describe('Serializer', () => {
       }
     )
 
+    it.concurrent.each([
+      { blockType: 'condition', configKey: 'conditions' },
+      { blockType: 'router_v2', configKey: 'routes' },
+    ] as const)(
+      'should ignore disabled $blockType configuration when inferring legacy route handles',
+      ({ blockType, configKey }) => {
+        const { blocks, edges } = createMinimalWorkflowState()
+        blocks.disabled = createBlock({
+          id: 'disabled',
+          type: blockType,
+          enabled: false,
+          subBlocks: {
+            [configKey]: {
+              id: configKey,
+              type: blockType === 'condition' ? 'condition-input' : 'router-input',
+              value: '[null]',
+            },
+          },
+        })
+        edges.push({ id: 'disabled-edge', source: 'disabled', target: 'agent1' })
+
+        const serialized = new Serializer().serializeWorkflow(blocks, edges)
+        const dag = new DAGBuilder().build(serialized, { triggerBlockId: 'starter' })
+
+        expect(serialized.blocks.find((block) => block.id === 'disabled')?.enabled).toBe(false)
+        expect(serialized.connections).toHaveLength(2)
+        expect(dag.nodes.has('disabled')).toBe(false)
+        expect(dag.nodes.get('agent1')!.incomingEdges).toEqual(new Set(['starter']))
+      }
+    )
+
     it.concurrent('should preserve connections that reference a block that does not exist', () => {
       const { blocks, edges, loops } = createConditionalWorkflowState()
       const serializer = new Serializer()

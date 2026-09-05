@@ -80,6 +80,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { supportsForcedToolUse } from '@/providers/models'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -561,10 +562,11 @@ export const ToolInput = memo(function ToolInput({
     })
   }, [mcpTools, mcpServers])
 
-  const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
+  const modelValue = useSubBlockStore((state) => state.getValue(blockId, 'model'))
   const model = typeof modelValue === 'string' ? modelValue : ''
   const provider = model ? getProviderFromModel(model) : ''
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
+  const supportsForce = supportsForcedToolUse(model)
 
   const {
     filterBlocks,
@@ -1710,12 +1712,16 @@ export const ToolInput = memo(function ToolInput({
                         </PopoverItem>
                         <PopoverItem
                           active={tool.usageControl === 'force'}
+                          disabled={!supportsForce}
                           onClick={() => {
                             handleUsageControlChange(toolIndex, 'force')
                             setUsageControlPopoverIndex(null)
                           }}
                         >
-                          Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
+                          Force{' '}
+                          <span className='text-[var(--text-tertiary)]'>
+                            {supportsForce ? '(always use)' : '(not supported by model)'}
+                          </span>
                         </PopoverItem>
                         <PopoverItem
                           active={tool.usageControl === 'none'}
