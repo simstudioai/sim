@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'http'
-import { WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { FILE_DOC_EVENTS, type FileDocInvalidated } from '@sim/realtime-protocol/file-doc'
+import { ROOM_TYPES, WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
-import { applyMarkdownToLiveFileDoc } from '@/handlers/file-doc'
+import { applyMarkdownToLiveFileDoc, invalidateLiveFileDocument } from '@/handlers/file-doc'
 import { type IRoomManager, WorkflowRoomService } from '@/rooms'
 
 interface Logger {
@@ -207,10 +208,34 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
           version: typeof version === 'number' ? version : undefined,
         })
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ applied: result === 'applied' }))
+        res.end(JSON.stringify({ applied: result === 'applied', status: result }))
       } catch (error) {
         logger.error('Error applying copilot edit to live file-doc:', error)
         sendError(res, 'Failed to apply edit to live document')
+      }
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/api/file-doc/invalidate') {
+      try {
+        const body = await readRequestBody(req)
+        const { fileId, version } = JSON.parse(body)
+        if (!isNonEmptyString(fileId)) return sendError(res, 'Invalid fileId', 400)
+        if (!Number.isSafeInteger(version) || version <= 0) {
+          return sendError(res, 'Invalid version', 400)
+        }
+        const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: fileId } as const
+        const status = await invalidateLiveFileDocument(fileId, version)
+        const payload: FileDocInvalidated = {
+          fileId,
+          message: 'This file changed outside the editor. Reload to continue editing.',
+        }
+        if (status === 'applied') roomManager.emitToRoom(room, FILE_DOC_EVENTS.INVALIDATED, payload)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status }))
+      } catch (error) {
+        logger.error('Error invalidating live file-doc:', error)
+        sendError(res, 'Failed to invalidate live document')
       }
       return
     }

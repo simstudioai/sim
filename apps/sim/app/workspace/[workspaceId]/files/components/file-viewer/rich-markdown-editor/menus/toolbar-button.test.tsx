@@ -44,4 +44,18 @@ describe('ToolbarButton', () => {
     expect(button?.className).toContain('size-[28px]')
     expect(button?.querySelector('svg')?.className.baseVal).toContain('size-[12px]')
   })
+
+  it('preserves the editor selection for mouse, pen, and touch activation', () => {
+    const host = renderButton(<ToolbarButton icon={Bold} label='Bold' onClick={vi.fn()} />)
+    const button = host.querySelector<HTMLButtonElement>('button[aria-label="Bold"]')
+    expect(button).not.toBeNull()
+    if (!button) return
+
+    for (const pointerType of ['mouse', 'pen', 'touch']) {
+      const event = new Event('pointerdown', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'pointerType', { value: pointerType })
+      act(() => button.dispatchEvent(event))
+      expect(event.defaultPrevented).toBe(true)
+    }
+  })
 })

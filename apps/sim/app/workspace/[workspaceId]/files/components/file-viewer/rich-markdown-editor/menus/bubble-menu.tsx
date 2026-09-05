@@ -16,6 +16,7 @@ import {
   TextQuote,
   Unlink,
 } from '@sim/emcn/icons'
+import { getMarkRange } from '@tiptap/core'
 import {
   PluginKey,
   type SelectionBookmark,
@@ -56,6 +57,16 @@ function hasFormattableSelection(editor: Editor, from: number, to: number): bool
 function revealBubbleMenu(editor: Editor, key: PluginKey): void {
   editor.commands.setMeta(key, 'show')
   editor.commands.setMeta(key, 'updatePosition')
+}
+
+/** Captures selected text, or the complete link mark when the caret sits inside one. */
+function linkSelectionBookmark(editor: Editor): SelectionBookmark | null {
+  const { doc, selection, schema } = editor.state
+  if (!selection.empty) return selection.getBookmark()
+  const linkType = schema.marks.link
+  if (!linkType) return null
+  const range = getMarkRange(selection.$from, linkType)
+  return range ? TextSelection.create(doc, range.from, range.to).getBookmark() : null
 }
 
 interface EditorBubbleMenuProps {
@@ -145,8 +156,8 @@ export function EditorBubbleMenu({
 
   /**
    * Linear-style reveal: the toolbar stays hidden while the pointer is down (the drag gate in
-   * `shouldShow`) and surfaces on release. `mouseup`/`blur` listen on `window` so a release outside
-   * the editor — or off-screen, where no `mouseup` fires — still clears the drag flag; otherwise it
+   * `shouldShow`) and surfaces on release. `pointerup`/`pointercancel`/`blur` listen on `window` so a
+   * release outside the editor — or a cancelled touch gesture — still clears the drag flag; otherwise it
    * could wedge `true` and suppress the toolbar for later keyboard selections.
    */
   useEffect(() => {
@@ -163,19 +174,23 @@ export function EditorBubbleMenu({
     const onWindowBlur = () => {
       isPointerDownRef.current = false
     }
-    dom.addEventListener('mousedown', onPointerDown)
-    window.addEventListener('mouseup', onPointerUp)
+    dom.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onWindowBlur)
     window.addEventListener('blur', onWindowBlur)
     return () => {
-      dom.removeEventListener('mousedown', onPointerDown)
-      window.removeEventListener('mouseup', onPointerUp)
+      dom.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onWindowBlur)
       window.removeEventListener('blur', onWindowBlur)
     }
   }, [editor, bubbleMenuKey])
 
   const openLinkEditor = () => {
     if (!editor.isEditable || editor.isActive('codeBlock') || editor.isActive('code')) return
-    linkRangeRef.current = editor.state.selection.getBookmark()
+    const bookmark = linkSelectionBookmark(editor)
+    if (!bookmark) return
+    linkRangeRef.current = bookmark
     setLinkValue(editor.getAttributes('link').href ?? '')
   }
 
@@ -192,10 +207,11 @@ export function EditorBubbleMenu({
       )
         return
       if (event.key?.toLowerCase() !== 'k') return
-      const { from, to } = editor.state.selection
-      if (from === to || editor.isActive('codeBlock') || editor.isActive('code')) return
+      if (editor.isActive('codeBlock') || editor.isActive('code')) return
+      const bookmark = linkSelectionBookmark(editor)
+      if (!bookmark) return
       event.preventDefault()
-      linkRangeRef.current = editor.state.selection.getBookmark()
+      linkRangeRef.current = bookmark
       setLinkValue(editor.getAttributes('link').href ?? '')
     }
     dom.addEventListener('keydown', openLinkOnShortcut)

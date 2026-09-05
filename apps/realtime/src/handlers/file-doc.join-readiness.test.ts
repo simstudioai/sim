@@ -63,12 +63,19 @@ vi.mock('redis', () => {
         for (let i = 0; i < backing.readDelayTicks; i++) await Promise.resolve()
         return (backing.streams.get(key) ?? []).map((e) => ({ ...e }))
       },
+      xRevRange: async (key: string) =>
+        [...(backing.streams.get(key) ?? [])]
+          .reverse()
+          .slice(0, 1)
+          .map((entry) => ({ ...entry })),
       xLen: async (key: string) => (backing.streams.get(key) ?? []).length,
-      xRead: async (streams: { key: string; id: string }[]) => {
+      xRead: async (streams: { key: string; id: string }[], options?: { COUNT?: number }) => {
         const res: { name: string; messages: { id: string; message: Record<string, string> }[] }[] =
           []
         for (const { key, id } of streams) {
-          const after = (backing.streams.get(key) ?? []).filter((e) => seqOf(e.id) > seqOf(id))
+          const after = (backing.streams.get(key) ?? [])
+            .filter((e) => seqOf(e.id) > seqOf(id))
+            .slice(0, options?.COUNT)
           if (after.length) res.push({ name: key, messages: after.map((e) => ({ ...e })) })
         }
         if (res.length) return res

@@ -255,15 +255,28 @@ describe('processOutboxEvents — empty / no handler', () => {
     })
   })
 
-  it('dead-letters events with no registered handler', async () => {
+  it('retries events with no registered handler during rolling deployments', async () => {
     queueTableRows(outboxEvent, [makePendingRow({ eventType: 'unknown.event' })])
+    holdLease()
+
+    const result = await processOutboxEvents({})
+
+    expect(result.retried).toBe(1)
+    const retry = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
+    expect(retry).toBeDefined()
+    expect(retry?.attempts).toBe(1)
+  })
+
+  it('dead-letters a missing handler after the configured retry budget', async () => {
+    queueTableRows(outboxEvent, [
+      makePendingRow({ eventType: 'unknown.event', attempts: 2, maxAttempts: 3 }),
+    ])
     holdLease()
 
     const result = await processOutboxEvents({})
 
     expect(result.deadLettered).toBe(1)
     const terminal = updateSets().find((set) => set.status === 'dead_letter')
-    expect(terminal).toBeDefined()
     expect(terminal?.lastError).toMatch(/No handler registered/)
   })
 })

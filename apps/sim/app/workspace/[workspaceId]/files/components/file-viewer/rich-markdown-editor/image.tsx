@@ -1,23 +1,29 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { ImageInspector } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-inspector'
+import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { useEditorEditable } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/use-editor-editable'
 import { type ImageDimensions, useFileContentSource } from '@/hooks/use-file-content-source'
-import { MarkdownImage } from './image-schema'
-import { normalizeLinkHref } from './markdown-fidelity'
-import { useEditorEditable } from './use-editor-editable'
 
 const MIN_WIDTH = 64
 
-/** A bare pixel count (`"640"`) that needs a `px` suffix, vs. an already-unit'd width (`"50%"`). */
-const BARE_PIXEL_WIDTH = /^\d+$/
+/** A bare pixel count (`"640"`) that needs a `px` suffix, vs. an already-unit'd size (`"50%"`). */
+const BARE_PIXEL_SIZE = /^\d+$/
 
 /**
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
  */
-function ResizableImageView({ node, updateAttributes, selected, editor }: ReactNodeViewProps) {
+export function ResizableImageView({
+  node,
+  updateAttributes,
+  selected,
+  editor,
+}: ReactNodeViewProps) {
   const source = useFileContentSource()
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
@@ -37,6 +43,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
     alt?: string
     title?: string
     width?: string | null
+    height?: string | null
     href?: string | null
   }
 
@@ -54,8 +61,12 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
 
   const startResize = (event: React.PointerEvent) => {
     event.preventDefault()
+    if (event.button !== 0 || dragging) return
     const image = imageRef.current
     if (!image) return
+    const handle = event.currentTarget
+    const pointerId = event.pointerId
+    handle.setPointerCapture(pointerId)
     const startX = event.clientX
     const startWidth = image.offsetWidth
     setDragging(true)
@@ -67,28 +78,50 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
     window.addEventListener(
       'pointermove',
       (move) => {
+        if (move.pointerId !== pointerId) return
         const next = Math.max(MIN_WIDTH, Math.round(startWidth + (move.clientX - startX)))
         dragWidthRef.current = next
         setDragWidth(next)
       },
       { signal }
     )
-    const finish = () => {
+    const finish = (commit: boolean) => {
       const finalWidth = dragWidthRef.current
       setDragging(false)
       setDragWidth(null)
       dragWidthRef.current = null
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
       controller.abort()
-      if (finalWidth !== null) updateAttributes({ width: String(finalWidth) })
+      if (commit && finalWidth !== null && editor.isEditable && !editor.isDestroyed) {
+        updateAttributes({ width: String(finalWidth), height: null })
+      }
     }
-    window.addEventListener('pointerup', finish, { signal })
-    window.addEventListener('pointercancel', finish, { signal })
+    window.addEventListener(
+      'pointerup',
+      (up) => {
+        if (up.pointerId === pointerId) finish(true)
+      },
+      { signal }
+    )
+    window.addEventListener(
+      'pointercancel',
+      (cancel) => {
+        if (cancel.pointerId === pointerId) finish(false)
+      },
+      { signal }
+    )
+    window.addEventListener('blur', () => finish(false), { signal })
   }
 
   const committedWidth = attrs.width
-    ? BARE_PIXEL_WIDTH.test(attrs.width)
+    ? BARE_PIXEL_SIZE.test(attrs.width)
       ? `${attrs.width}px`
       : attrs.width
+    : undefined
+  const committedHeight = attrs.height
+    ? BARE_PIXEL_SIZE.test(attrs.height)
+      ? `${attrs.height}px`
+      : attrs.height
     : undefined
   // Stored intrinsic dimensions reserve the box on the very first render. Memoized on the src (not the
   // live drag width) so a resize drag never re-scans the file list. Falls back to what we measured on
@@ -104,15 +137,18 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   const displayWidth =
     dragWidth !== null
       ? `${dragWidth}px`
-      : (committedWidth ?? (intrinsicDimensions ? `${intrinsicDimensions.width}px` : undefined))
+      : (committedWidth ??
+        (!committedHeight && intrinsicDimensions ? `${intrinsicDimensions.width}px` : undefined))
   // width + aspect-ratio (with `max-w-full`/`h-auto` from the class list) reserves a responsive box the
   // image can't reflow into, per the CLS-avoidance pattern for known-ratio responsive images. React drops
   // the undefined keys, so an unmeasured image simply gets no reservation (its prior behavior).
   const imageStyle: CSSProperties = {
     width: displayWidth,
-    aspectRatio: intrinsicDimensions
-      ? `${intrinsicDimensions.width} / ${intrinsicDimensions.height}`
-      : undefined,
+    height: dragWidth === null ? committedHeight : undefined,
+    aspectRatio:
+      intrinsicDimensions && !committedHeight
+        ? `${intrinsicDimensions.width} / ${intrinsicDimensions.height}`
+        : undefined,
   }
 
   // Sanitize the linked-image target before rendering the anchor — a parsed markdown href is
@@ -182,11 +218,25 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
         image
       )}
       {editable && (selected || dragging) && (
-        <button
+        <Button
           type='button'
+          variant='ghost'
+          size='icon'
           aria-label='Resize image'
           onPointerDown={startResize}
-          className='absolute right-1 bottom-1 size-3 cursor-nwse-resize rounded-[3px] border border-[var(--bg)] bg-[var(--brand-secondary)]'
+          className='absolute right-0 bottom-0 flex size-10 cursor-nwse-resize touch-none items-end justify-end p-1 sm:size-8'
+        >
+          <span className='size-3 rounded-[3px] border border-[var(--bg)] bg-[var(--brand-secondary)]' />
+        </Button>
+      )}
+      {editable && selected && !dragging && (
+        <ImageInspector
+          alt={attrs.alt ?? ''}
+          href={typeof attrs.href === 'string' ? attrs.href : ''}
+          hasCustomSize={Boolean(attrs.width || attrs.height)}
+          onApply={({ alt, href }) => updateAttributes({ alt, href: href || null })}
+          onResetSize={() => updateAttributes({ width: null, height: null })}
+          onReturnFocus={() => editor.commands.focus()}
         />
       )}
     </NodeViewWrapper>

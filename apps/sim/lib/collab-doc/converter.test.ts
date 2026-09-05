@@ -40,6 +40,7 @@ const SAMPLES = [
   'A footnote reference[^1].\n\n[^1]: the footnote body.',
   'Before.\n\n<div class="raw">untouched raw html</div>\n\nAfter.',
   '- [ ] todo\n- [x] done',
+  '[<img src="https://e.com/i.png" alt="" width="320" height="180">](https://e.com)',
 ]
 
 beforeAll(() => {

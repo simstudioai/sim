@@ -24,6 +24,11 @@ describe('isRoundTripSafe', () => {
       isRoundTripSafe('[![build](https://img.shields.io/badge/x-green)](https://ci.example.com)')
     ).toBe(true)
     expect(isRoundTripSafe('[![alt](https://e.com/i.png "t")](https://e.com "h")')).toBe(true)
+    expect(
+      isRoundTripSafe(
+        '[<img src="https://e.com/i.png" alt="" width="320" height="180">](https://e.com)'
+      )
+    ).toBe(true)
   })
 
   it('passes inline code without an interior backtick', () => {
@@ -144,6 +149,15 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('<img src="/image?a=1&amp;b=2">')).toBe(true)
     expect(isRoundTripSafe("<img src='/image' width='40'>")).toBe(true)
     expect(isRoundTripSafe('<img src=/image>')).toBe(true)
+  })
+
+  it('keeps HTML images with unsupported attributes in source mode', () => {
+    expect(isRoundTripSafe('<img src="/image" class="hero">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" height="20" data-x="y">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" style="width: 20px">')).toBe(false)
+    expect(isRoundTripSafe('<img src="/image" alt="a" title="t" width="40" height="20">')).toBe(
+      true
+    )
   })
 
   it.each([

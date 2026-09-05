@@ -17,17 +17,22 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor'
 
-const { collaborationRef, uploadFile } = vi.hoisted(() => ({
+const { collaborationRef, uploadFile, saveBlob } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
   uploadFile: vi.fn(),
+  saveBlob: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/workspace/workspace-1/files',
+  useRouter: () => ({ push: vi.fn() }),
+}))
 vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => ({ data: null, isPending: false }) }))
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
 }))
 vi.mock('@/hooks/use-add-to-chat', () => ({ useAddToChat: () => vi.fn() }))
+vi.mock('@/lib/uploads/client/download', () => ({ saveBlob }))
 vi.mock('@/hooks/use-file-content-source', () => ({
   useFileContentSource: () => ({ resolveImageSrc: (src: string) => src }),
 }))
@@ -98,6 +103,7 @@ const onChange = vi.fn()
 const onEditSource = vi.fn()
 const onClientAutosaveChange = vi.fn()
 const onSaveShortcut = vi.fn()
+const onDownloadDraft = vi.fn()
 const onSuspendedRender = vi.fn()
 const pendingRender = new Promise<void>(() => {})
 
@@ -116,6 +122,7 @@ function SuspendAfterEditor({ active }: SuspendAfterEditorProps) {
 class FakeFileDocProvider {
   synced = false
   joinError: JoinFileDocError | null = null
+  discardPendingChanges = vi.fn(() => Promise.resolve())
   private readonly listeners = new Map<string, Set<(value: unknown) => void>>()
 
   on(event: string, listener: (value: unknown) => void) {
@@ -175,6 +182,7 @@ async function render(
             onEditSource={onEditSource}
             onClientAutosaveChange={onClientAutosaveChange}
             onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
+            onDownloadDraft={onDownloadDraft}
           />
           <SuspendAfterEditor active={options.suspend ?? false} />
         </Suspense>
@@ -255,7 +263,7 @@ describe('loaded rich editor lifecycle', () => {
     expect(container.textContent).not.toContain('Reconnecting…')
   })
 
-  it('keeps the live document visible and read-only after a fatal collaboration error', async () => {
+  it('keeps a revoked unacknowledged draft visible, read-only, and downloadable', async () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
@@ -275,7 +283,7 @@ describe('loaded rich editor lifecycle', () => {
       provider.fail({
         fileId: 'file-1',
         error: 'Access denied',
-        code: 'ACCESS_DENIED',
+        code: 'ACCESS_REVOKED',
         retryable: false,
       })
     )
@@ -286,6 +294,7 @@ describe('loaded rich editor lifecycle', () => {
     expect(editor.view.dom.closest('.hidden')).toBeNull()
     expect(container.textContent).not.toContain('stale opening snapshot')
     expect(container.textContent).not.toContain('Reconnecting…')
+    expect(container.textContent).toContain('Download local draft')
   })
 
   it('shows stored content read-only when collaboration fails before the first sync', async () => {
@@ -315,6 +324,50 @@ describe('loaded rich editor lifecycle', () => {
     expect(editor.view.dom.closest('.hidden')).toBeNull()
     expect(container.textContent).not.toContain('Reconnecting…')
   })
+
+  it.each(['DOCUMENT_REPLACED', 'PENDING_UPDATE_LIMIT', 'INVALID_UPDATE'])(
+    'keeps a local draft downloadable before offering a destructive reload for %s',
+    async (code) => {
+      const provider = new FakeFileDocProvider()
+      const doc = new Y.Doc()
+      doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+      collaborationRef.current = {
+        doc,
+        awareness: new Awareness(doc),
+        provider,
+        user: { name: 'User', color: '#000000', clientId: doc.clientID },
+      }
+      await render('stored body', 'stored body', true, { collaborative: true })
+
+      await act(async () => provider.setSynced(true))
+      await act(async () => getEditor().commands.insertContent('preserved local change'))
+      await act(async () =>
+        provider.fail({
+          fileId: 'file-1',
+          error: 'Local recovery required',
+          code,
+          retryable: false,
+        })
+      )
+
+      const buttons = [...container.querySelectorAll('button')]
+      const download = buttons.find((button) => button.textContent === 'Download local draft')
+      expect(download).toBeDefined()
+      expect(buttons.some((button) => button.textContent === 'Discard draft')).toBe(true)
+      await act(async () => download?.click())
+      expect(onDownloadDraft).not.toHaveBeenCalled()
+      expect(saveBlob).toHaveBeenCalledOnce()
+      const downloaded = saveBlob.mock.calls[0][0] as Blob
+      const downloadedText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(reader.error)
+        reader.readAsText(downloaded)
+      })
+      expect(downloadedText).toContain('preserved local change')
+      expect(getEditor().getText()).toContain('preserved local change')
+    }
+  )
 
   it('explains a picker selection whose insertion anchor was invalidated', async () => {
     await render('before TARGET after')

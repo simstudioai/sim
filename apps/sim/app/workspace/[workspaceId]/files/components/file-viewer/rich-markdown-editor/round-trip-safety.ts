@@ -42,6 +42,23 @@ function stripCode(content: string): string {
 }
 
 const fidelityLexer = new Marked({ gfm: true })
+const SUPPORTED_IMAGE_ATTRIBUTES = new Set(['src', 'alt', 'title', 'width', 'height'])
+
+/**
+ * The image node deliberately models only the attributes it can render and serialize. An HTML image
+ * carrying anything else must stay in source mode; comparing only its `src` would declare a stable but
+ * lossy conversion safe after the unsupported attribute had already disappeared.
+ */
+function hasUnsupportedHtmlImageAttribute(content: string): boolean {
+  for (const image of content.matchAll(/<img\b([^>]*)>/gi)) {
+    const attributes = image[1]
+    const pattern = /(?:^|\s)([^\s=/>]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
+    for (const attribute of attributes.matchAll(pattern)) {
+      if (!SUPPORTED_IMAGE_ATTRIBUTES.has(attribute[1].toLowerCase())) return true
+    }
+  }
+  return false
+}
 
 function imageSources(token: Token): string[] {
   if (token.type === 'image') return [token.href]
@@ -60,11 +77,13 @@ function imageSources(token: Token): string[] {
 function inspectMarkdownFidelity(content: string) {
   const targets = new Map<string, number>()
   let hasTaskReference = false
+  let hasTableHtmlImage = false
   const add = (kind: 'image' | 'linkedImage', ...destinations: string[]) => {
     const target = JSON.stringify([kind, ...destinations.map(decodeHtmlEntities)])
     targets.set(target, (targets.get(target) ?? 0) + 1)
   }
   fidelityLexer.walkTokens(fidelityLexer.lexer(splitFrontmatter(content).body), (token) => {
+    if (token.type === 'table' && /<img\b/i.test(stripCode(token.raw))) hasTableHtmlImage = true
     for (const src of imageSources(token)) add('image', src)
     if (token.type === 'link') {
       fidelityLexer.walkTokens(token.tokens ?? [], (child) => {
@@ -83,7 +102,7 @@ function inspectMarkdownFidelity(content: string) {
       }
     }
   })
-  return { targets, hasTaskReference }
+  return { targets, hasTaskReference, hasTableHtmlImage }
 }
 
 /**
@@ -141,9 +160,10 @@ export function isRoundTripSafe(content: string): boolean {
   const stripped = stripCode(content)
   if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripped))) return false
   if (hasOrphanReferenceDefinition(stripped)) return false
+  if (hasUnsupportedHtmlImageAttribute(stripped)) return false
   try {
     const source = inspectMarkdownFidelity(content)
-    if (source.hasTaskReference) return false
+    if (source.hasTaskReference || source.hasTableHtmlImage) return false
     const once = serializeMarkdownDocument(content)
     const serialized = inspectMarkdownFidelity(once)
     for (const [target, count] of source.targets) {

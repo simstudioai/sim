@@ -269,6 +269,26 @@ describe('real editor BubbleMenu keyboard integration', () => {
     expect(key(remove, 'Tab').defaultPrevented).toBe(false)
   })
 
+  it('edits the complete existing link from a collapsed caret with Cmd/Ctrl+K', async () => {
+    select('format')
+    act(() => editor.commands.setLink({ href: 'https://example.com/original' }))
+    select('format', true)
+
+    expect(key(editor.view.dom, 'k', { ctrlKey: true }).defaultPrevented).toBe(true)
+    await frame()
+    const input = linkGroup().querySelector<HTMLInputElement>('input[aria-label="Link URL"]')
+    expect(input).not.toBeNull()
+    if (!input) return
+
+    changeUrl(input, 'https://example.com/replacement')
+    key(input, 'Enter')
+    await frame()
+
+    const link = editor.view.dom.querySelector('a')
+    expect(link?.textContent).toBe('format')
+    expect(link?.getAttribute('href')).toBe('https://example.com/replacement')
+  })
+
   it('maps the captured link target through a prefix edit and an appended transaction', async () => {
     const input = await openLinkEditor()
     changeUrl(input, 'https://example.com/mapped')
