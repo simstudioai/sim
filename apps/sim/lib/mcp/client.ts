@@ -13,6 +13,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
+import {
+  createCoordinatedMcpOauthFetch,
+  createMcpEndpointFetch,
+} from '@/lib/mcp/oauth/coordinated-fetch'
 import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
@@ -21,6 +25,7 @@ import {
   type McpConsentRequest,
   type McpConsentResponse,
   McpError,
+  McpOauthAuthorizationRequiredError,
   type McpSecurityPolicy,
   type McpServerConfig,
   type McpTool,
@@ -47,7 +52,10 @@ function classifyConnectionOutcome(
   error: unknown,
   authType: McpServerConfig['authType']
 ): ConnectionOutcome {
-  if (error instanceof McpOauthRedirectRequired) {
+  if (
+    error instanceof McpOauthRedirectRequired ||
+    error instanceof McpOauthAuthorizationRequiredError
+  ) {
     return 'authorization_required'
   }
   if (error instanceof UnauthorizedError) {
@@ -100,8 +108,15 @@ export class McpClient {
       throw new McpError('URL required for Streamable HTTP transport')
     }
 
-    if (this.config.authType === 'oauth' && this.authProvider == null) {
-      throw new McpError('OAuth MCP server requires an authProvider')
+    if (
+      this.config.authType === 'oauth' &&
+      this.authProvider == null &&
+      !options.oauthCredentials
+    ) {
+      throw new McpError('OAuth MCP server requires OAuth credentials')
+    }
+    if (options.oauthCredentials && this.authProvider) {
+      throw new McpError('OAuth MCP server must use one authentication strategy')
     }
     const useOauth = this.config.authType === 'oauth'
     // `resolvedIP` is null only when the hostname still carries an unresolved env-var
@@ -115,10 +130,23 @@ export class McpClient {
         : createGuardedMcpFetch(this.config.url)
       : undefined
     this.closeGuardedTransport = guarded?.close
+    const oauthFetch = useOauth
+      ? createMcpEndpointFetch(guarded?.fetch ?? fetch, {
+          serverUrl: this.config.url,
+          headers: this.config.headers,
+        })
+      : undefined
+    const transportFetch =
+      options.oauthCredentials && oauthFetch
+        ? createCoordinatedMcpOauthFetch(options.oauthCredentials, {
+            serverUrl: this.config.url,
+            fetch: oauthFetch,
+          })
+        : (oauthFetch ?? guarded?.fetch)
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
-      requestInit: { headers: this.config.headers },
-      ...(guarded ? { fetch: guarded.fetch } : {}),
+      ...(useOauth ? {} : { requestInit: { headers: this.config.headers } }),
+      ...(transportFetch ? { fetch: transportFetch } : {}),
     })
 
     this.client = new Client(

@@ -93,6 +93,8 @@ interface ModelDefinition {
   contextWindow?: number
   /** ISO date string (YYYY-MM-DD) when the model was first publicly released */
   releaseDate?: string
+  /** Promotes this model on public catalog surfaces, independently of workflow recommendations. */
+  featured?: boolean
   recommended?: boolean
   speedOptimized?: boolean
   /**
@@ -326,6 +328,33 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'gpt-6-astra',
+        pricing: {
+          input: 10.0,
+          cachedInput: 1.0,
+          output: 50.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 20.0,
+              cachedInput: 2.0,
+              output: 75.0,
+            },
+          ],
+          updatedAt: '2026-09-04',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-09-03',
+        featured: true,
+        recommended: true,
+      },
       // GPT-4.1 family
       {
         id: 'gpt-4.1',
@@ -333,7 +362,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.5,
           output: 8.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -348,7 +377,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.4,
           cachedInput: 0.1,
           output: 1.6,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -363,7 +392,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.1,
           cachedInput: 0.025,
           output: 0.4,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -377,10 +406,18 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5.6-sol',
         pricing: {
-          input: 5.0,
-          cachedInput: 0.5,
-          output: 30.0,
-          updatedAt: '2026-07-09',
+          input: 4.0,
+          cachedInput: 0.4,
+          output: 20.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 8.0,
+              cachedInput: 0.8,
+              output: 30.0,
+            },
+          ],
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -393,19 +430,26 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1050000,
         releaseDate: '2026-07-09',
-        recommended: true,
       },
       {
         id: 'gpt-5.6-terra',
         pricing: {
-          input: 2.5,
-          cachedInput: 0.25,
-          output: 15.0,
-          updatedAt: '2026-07-09',
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 12.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4.0,
+              cachedInput: 0.4,
+              output: 18.0,
+            },
+          ],
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -418,14 +462,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5.6-luna',
         pricing: {
-          input: 1.0,
-          cachedInput: 0.1,
-          output: 6.0,
-          updatedAt: '2026-07-09',
+          input: 0.2,
+          cachedInput: 0.02,
+          output: 1.2,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 0.4,
+              cachedInput: 0.04,
+              output: 1.8,
+            },
+          ],
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -442,10 +494,16 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 30.0,
           output: 180.0,
-          updatedAt: '2026-06-11',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 60.0,
+              output: 270.0,
+            },
+          ],
+          updatedAt: '2026-09-04',
         },
         capabilities: {
-          nativeStructuredOutputs: true,
           reasoningEffort: {
             values: ['medium', 'high', 'xhigh'],
           },
@@ -460,10 +518,17 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 30.0,
-          updatedAt: '2026-06-11',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 10.0,
+              cachedInput: 1.0,
+              output: 45.0,
+            },
+          ],
+          updatedAt: '2026-09-04',
         },
         capabilities: {
-          nativeStructuredOutputs: true,
           reasoningEffort: {
             values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
@@ -481,7 +546,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 30.0,
           output: 180.0,
-          updatedAt: '2026-06-11',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 60.0,
+              output: 270.0,
+            },
+          ],
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -498,7 +570,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.5,
           cachedInput: 0.25,
           output: 15.0,
-          updatedAt: '2026-06-11',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 5.0,
+              cachedInput: 0.5,
+              output: 22.5,
+            },
+          ],
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -518,7 +598,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.75,
           cachedInput: 0.075,
           output: 4.5,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -538,7 +618,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.2,
           cachedInput: 0.02,
           output: 1.25,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -559,7 +639,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 21.0,
           output: 168.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -576,7 +656,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.75,
           cachedInput: 0.175,
           output: 14.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -597,7 +677,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -617,7 +697,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 15.0,
           output: 120.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -634,7 +714,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -654,7 +734,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.25,
           cachedInput: 0.025,
           output: 2.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -674,7 +754,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.05,
           cachedInput: 0.005,
           output: 0.4,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -694,7 +774,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -702,7 +782,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2025-08-07',
-        sunset: { status: 'legacy' },
+        sunset: { status: 'deprecated' },
       },
       // o-series reasoning models
       {
@@ -711,7 +791,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.1,
           cachedInput: 0.275,
           output: 4.4,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -728,7 +808,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 20.0,
           output: 80.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           maxOutputTokens: 100000,
@@ -742,7 +822,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2,
           cachedInput: 0.5,
           output: 8,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -760,7 +840,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.1,
           cachedInput: 0.55,
           output: 4.4,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -778,7 +858,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 7.5,
           output: 60,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           reasoningEffort: {
@@ -797,7 +877,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.5,
           cachedInput: 1.25,
           output: 10.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -831,7 +911,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 10.0,
           cachedInput: 0.25,
           output: 50.0,
-          updatedAt: '2026-09-01',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -845,6 +925,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-09-01',
+        featured: true,
       },
       {
         id: 'claude-fable-5',
@@ -852,7 +933,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 10.0,
           cachedInput: 1.0,
           output: 50.0,
-          updatedAt: '2026-07-01',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -866,6 +947,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-09',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-sonnet-5',
@@ -873,7 +955,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.2,
           output: 10.0,
-          updatedAt: '2026-06-30',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -894,7 +976,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-07-24',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -916,7 +998,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-05-28',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -929,6 +1011,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-05-28',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-7',
@@ -936,7 +1019,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-04-16',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           nativeStructuredOutputs: true,
@@ -950,6 +1033,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-16',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-6',
@@ -957,7 +1041,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -972,6 +1056,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-05',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-sonnet-4-6',
@@ -979,7 +1064,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -993,6 +1078,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-5',
@@ -1000,7 +1086,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1015,6 +1101,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-11-24',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-opus-4-1',
@@ -1022,7 +1109,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1035,7 +1122,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-08-05',
-        sunset: { status: 'legacy' },
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'claude-opus-4-0',
@@ -1043,7 +1130,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1064,7 +1151,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1078,6 +1165,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-09-29',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-sonnet-4-0',
@@ -1085,7 +1173,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1106,7 +1194,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.0,
           cachedInput: 0.1,
           output: 5.0,
-          updatedAt: '2026-06-11',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1129,11 +1217,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.25,
           cachedInput: 0.03,
           output: 1.25,
-          updatedAt: '2026-04-01',
+          updatedAt: '2026-09-04',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           maxOutputTokens: 4096,
+          promptCaching: { minimumCacheableTokens: 2048 },
         },
         contextWindow: 200000,
         releaseDate: '2024-03-13',
@@ -1612,6 +1701,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-09-02',
+        featured: true,
         recommended: true,
       },
       {

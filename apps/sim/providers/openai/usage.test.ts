@@ -13,7 +13,7 @@ import { calculateCost } from '@/providers/utils'
 
 /** input $2.50/M, cachedInput $1.25/M, output $10.00/M. */
 const MODEL = 'gpt-4o'
-/** input $2.50/M, cachedInput $0.25/M, output $15.00/M — bills cache writes. */
+/** Short context: $2/M input, $0.20/M cached, $12/M output; long context: $4/$0.40/$18. */
 const CACHE_WRITE_MODEL = 'gpt-5.6-terra'
 
 /**
@@ -97,11 +97,10 @@ describe('OpenAI usage aggregation', () => {
       })
     )
 
-    /** 1M written at $2.50/M x 1.25. */
     expect(buildOpenAIUsageCost(CACHE_WRITE_MODEL, usage)).toMatchObject({
-      input: 3.125,
+      input: 5,
       output: 0,
-      total: 3.125,
+      total: 5,
     })
   })
 
@@ -124,11 +123,10 @@ describe('OpenAI usage aggregation', () => {
       cacheRead: 600_000,
       cacheWrite: 200_000,
     })
-    /** 0.5 uncached + 0.15 cached + 0.625 written input, 1.5 output. */
     expect(buildOpenAIUsageCost(CACHE_WRITE_MODEL, usage)).toMatchObject({
-      input: 1.275,
-      output: 1.5,
-      total: 2.775,
+      input: 2.04,
+      output: 1.8,
+      total: 3.84,
     })
   })
 
@@ -151,6 +149,18 @@ describe('OpenAI usage aggregation', () => {
       input: 0.005625,
       output: 0.003,
       total: 0.008625,
+    })
+  })
+
+  it('resolves input-size pricing independently for each tool-loop turn', () => {
+    const usage = createOpenAIUsageAccumulator()
+    addOpenAIUsage(usage, responsesUsage({ promptTokens: 200_000, completionTokens: 10_000 }))
+    addOpenAIUsage(usage, responsesUsage({ promptTokens: 200_000, completionTokens: 10_000 }))
+
+    expect(buildOpenAIUsageCost(CACHE_WRITE_MODEL, usage)).toMatchObject({
+      input: 0.8,
+      output: 0.24,
+      total: 1.04,
     })
   })
 

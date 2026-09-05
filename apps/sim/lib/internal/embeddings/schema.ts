@@ -9,6 +9,7 @@ export const embeddingProviders = [
   'gemini',
   'cohere',
   'mistral',
+  'ollama',
 ] as const satisfies readonly EmbeddingToolProvider[]
 
 export const embeddingTaskTypes = [
@@ -64,6 +65,18 @@ export const embeddingsInputSchema = z.discriminatedUnion('provider', [
     ...commonShape,
     provider: z.literal('openrouter'),
     apiKey: z.string({ error: 'apiKey is required' }).min(1, 'apiKey cannot be empty'),
+  }),
+  /**
+   * Ollama is reached at `OLLAMA_URL` and authenticates with nothing, so this
+   * variant carries no `apiKey` at all rather than an optional one — there is no
+   * credential a caller could meaningfully supply. `model` is required because
+   * the server's catalog is whatever the operator pulled, so there is no default
+   * Sim could name.
+   */
+  z.object({
+    ...commonShape,
+    provider: z.literal('ollama'),
+    model: z.string().min(1, 'model cannot be empty'),
   }),
 ])
 

@@ -192,15 +192,19 @@ const fileDocRooms = new Map<string, FileDocRoom>()
 /** socketId → its current file-doc room name (a socket edits at most one doc). */
 const socketToRoomName = new Map<string, string>()
 /**
- * socketId → a monotonic join generation. A JOIN bumps it on arrival and, after
- * the async authorization, proceeds only if the generation is still its own — so
- * a newer JOIN (a fast document switch) or a disconnect (which drops the entry in
- * cleanup) that occurred during authorization aborts the now-stale JOIN. Without
- * this, an out-of-order authorize completion could bind the socket to the wrong
- * document, or a disconnect-during-authorize could register a dead socket and
- * leak its room.
+ * socketId → a monotonic file-intent generation. Switching files or leaving the
+ * intended file advances it; co-mounted providers joining the same file share it.
+ * After async authorization, a join proceeds only while its generation is current,
+ * preventing an out-of-order completion from binding the socket to the wrong file.
  */
 const joinGeneration = new Map<string, number>()
+const MAX_YJS_CLIENT_ID = 0xffff_ffff
+
+function isYjsClientId(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_YJS_CLIENT_ID
+  )
+}
 
 interface AwarenessChange {
   added: number[]
@@ -227,10 +231,8 @@ function originSocketId(origin: unknown): string | null {
  * The transaction origin stamped on an agent-streamed frame (a {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}
  * apply). A non-string sentinel, so `originSocketId` returns `null` for it and the update never triggers
  * `edited`/`schedulePersist` (the copilot's final `edit_content` write is the durable persist). Unlike a
- * client edit, an agent frame is broadcast to the WHOLE room (its originating socket is NOT excluded), so a
- * second {@link FileDocProvider} on the same socket — e.g. the chat preview alongside the Files editor —
- * also receives the mid-stream ops. The emitting provider no-ops on its own echo (the ops are already
- * applied locally), so broadcasting back to the sender is harmless.
+ * client edit, it is marked so peers do not treat it as a durable user edit. The emitting provider no-ops
+ * on its own echo because the operations are already applied locally.
  */
 const AGENT_SYNC_ORIGIN = Symbol('file-doc-agent-sync')
 
@@ -783,7 +785,7 @@ async function mergeMarkdownIntoRoom(
 /**
  * Get (or lazily create) the authoritative document for a room, wiring the two
  * relay handlers exactly once: document updates and awareness changes are
- * broadcast to the room, excluding the origin socket (it already applied them).
+ * broadcast to the room.
  */
 function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
   const name = roomName(ref)
@@ -821,18 +823,12 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
     syncProtocol.writeUpdate(encoder, update)
-    // Fan out to THIS task's clients only (excluding the origin socket if local — a user edit OR an
-    // agent-streamed frame). Cross-task delivery rides the shared stream — every task's tailer applies +
-    // runs its own local fan-out.
-    // A client edit excludes its own sender socket (echo suppression). An agent frame broadcasts to the
-    // WHOLE room — no socket excluded — so a same-socket sibling provider (chat preview + Files editor)
-    // stays live mid-stream; the emitting provider no-ops on its own echo.
-    broadcastLocal(
-      io,
-      name,
-      encoding.toUint8Array(encoder),
-      origin === AGENT_SYNC_ORIGIN ? null : originSocketId(origin)
-    )
+    // Fan out to every client on THIS task, including the origin socket. One shared Socket.IO connection
+    // can host multiple providers for this file; excluding the whole socket would strand the sibling
+    // provider's distinct Y.Doc. Yjs updates are idempotent, and the originating provider applies its
+    // echo with the provider as transaction origin, so it does not send the update again. Cross-task
+    // delivery rides the shared stream, where every task's tailer runs its own local fan-out.
+    broadcastLocal(io, name, encoding.toUint8Array(encoder), null)
     // Share every locally-originated update to the stream so peers converge. Skip updates that already
     // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN / REDIS_AGENT_ORIGIN) and SEED_ORIGIN —
     // the seed is published EXPLICITLY and AWAITED under the seed lock (so it lands before the lock
@@ -898,12 +894,15 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
 function emitJoinError(
   socket: AuthenticatedSocket,
   fileId: unknown,
+  clientId: unknown,
   error: string,
   code: string,
   retryable: boolean
 ) {
+  const normalizedClientId = isYjsClientId(clientId) ? clientId : undefined
   socket.emit(FILE_DOC_EVENTS.JOIN_ERROR, {
     fileId: typeof fileId === 'string' ? fileId : '',
+    clientId: normalizedClientId,
     error,
     code,
     retryable,
@@ -1113,30 +1112,47 @@ export function setupWorkspaceFileDocHandlers(
       const userName = socket.userName
 
       if (!userId || !userName) {
-        emitJoinError(socket, fileId, 'Authentication required', 'AUTHENTICATION_REQUIRED', false)
+        emitJoinError(
+          socket,
+          fileId,
+          clientId,
+          'Authentication required',
+          'AUTHENTICATION_REQUIRED',
+          false
+        )
         return
       }
       if (!roomManager.isReady()) {
-        emitJoinError(socket, fileId, 'Realtime unavailable', 'ROOM_MANAGER_UNAVAILABLE', true)
+        emitJoinError(
+          socket,
+          fileId,
+          clientId,
+          'Realtime unavailable',
+          'ROOM_MANAGER_UNAVAILABLE',
+          true
+        )
         return
       }
       if (
         typeof fileId !== 'string' ||
         fileId.length === 0 ||
-        // A Yjs clientID is a uint32; reject NaN/Infinity/negative/non-integer so a malformed id
-        // can't become a bogus ownership key.
-        !Number.isInteger(clientId) ||
-        clientId < 0
+        // A Yjs clientID is a uint32; reject malformed values before they can become ownership keys.
+        !isYjsClientId(clientId)
       ) {
-        emitJoinError(socket, fileId, 'Invalid join payload', 'INVALID_PAYLOAD', false)
+        emitJoinError(socket, fileId, clientId, 'Invalid join payload', 'INVALID_PAYLOAD', false)
         return
       }
 
-      // Claim this JOIN's generation before the async authorize below, and record the file the
-      // socket now intends to edit so a leave for it can cancel this join if it's still in-flight.
-      generation = (joinGeneration.get(socket.id) ?? 0) + 1
-      joinGeneration.set(socket.id, generation)
-      currentFileId = fileId
+      // A generation represents the socket's intended FILE, not an individual provider. Co-mounted
+      // providers for the same file must be allowed to join concurrently; switching files advances the
+      // generation so every in-flight join for the old file is cancelled together.
+      if (currentFileId !== fileId) {
+        generation = (joinGeneration.get(socket.id) ?? 0) + 1
+        joinGeneration.set(socket.id, generation)
+        currentFileId = fileId
+      } else {
+        generation = joinGeneration.get(socket.id) ?? 0
+      }
 
       const room = fileDocRoom(fileId)
       const name = roomName(room)
@@ -1153,7 +1169,7 @@ export function setupWorkspaceFileDocHandlers(
           accessDenied: 'Access denied to file',
         },
         emitError: ({ error, code, retryable }) =>
-          emitJoinError(socket, fileId, error, code, retryable),
+          emitJoinError(socket, fileId, clientId, error, code, retryable),
       })
       if (!authorized) return
 
@@ -1190,7 +1206,7 @@ export function setupWorkspaceFileDocHandlers(
           logger.warn(
             `User ${userId} lost write access to file ${fileId} before the join completed`
           )
-          emitJoinError(socket, fileId, 'Access denied to file', 'ACCESS_DENIED', false)
+          emitJoinError(socket, fileId, clientId, 'Access denied to file', 'ACCESS_DENIED', false)
           return
         }
 
@@ -1219,7 +1235,14 @@ export function setupWorkspaceFileDocHandlers(
           const owner = clientMap.get(clientId)
           if (owner === undefined) continue
           if (owner.userId !== userId) {
-            emitJoinError(socket, fileId, 'Client id already in use', 'CLIENT_ID_IN_USE', false)
+            emitJoinError(
+              socket,
+              fileId,
+              clientId,
+              'Client id already in use',
+              'CLIENT_ID_IN_USE',
+              false
+            )
             return
           }
           // Same user reclaiming its client id on a stale prior socket: evict just THAT clientID's
@@ -1268,7 +1291,11 @@ export function setupWorkspaceFileDocHandlers(
         // Name the document this room holds, so a client that still carries a DIFFERENT one (its room
         // outlived by a document rebuilt in its place) can refuse to merge instead of unioning two
         // documents into the file twice over. Read after readiness — before it, the room has no doc yet.
-        socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId, docId: docIdOf(entry.doc) })
+        socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+          fileId,
+          clientId,
+          docId: docIdOf(entry.doc),
+        })
         // Server-authenticated roster → everyone in the room, including this joiner.
         broadcastFileDocPresence(io, name, entry)
 
@@ -1321,7 +1348,7 @@ export function setupWorkspaceFileDocHandlers(
         (generation !== undefined && joinGeneration.get(socket.id) !== generation)
       )
         return
-      emitJoinError(socket, fileId, 'Failed to join file document', 'JOIN_FAILED', true)
+      emitJoinError(socket, fileId, clientId, 'Failed to join file document', 'JOIN_FAILED', true)
     }
   })
 

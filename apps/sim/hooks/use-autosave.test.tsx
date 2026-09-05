@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, Suspense, startTransition } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,6 +28,7 @@ interface ProbeProps {
   onSave: (overrideContent?: string) => Promise<void>
   delay?: number
   enabled?: boolean
+  pauseSaving?: boolean
   draftKey?: string
   onRestoreDraft?: (content: string) => void
   onDiscardCorrectionFailed?: () => void
@@ -92,8 +93,47 @@ async function flush() {
   })
 }
 
+/** Holds the committed UI while a transition renders a suspended draft. */
+function renderSuspendingAutosave(initial: ProbeProps) {
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  const pending = new Promise<void>(() => {})
+  let latest: ReturnType<typeof useAutosave> | null = null
+
+  function Probe({ suspend, ...options }: ProbeProps & { suspend: boolean }) {
+    const autosave = useAutosave(options)
+    if (suspend) throw pending
+    latest = autosave
+    return <div>{options.content}</div>
+  }
+
+  const render = async (options: ProbeProps, suspend = false) => {
+    const view = (
+      <Suspense fallback={<div>Loading</div>}>
+        <Probe {...options} suspend={suspend} />
+      </Suspense>
+    )
+    await act(async () => {
+      if (suspend) startTransition(() => root.render(view))
+      else root.render(view)
+    })
+  }
+
+  return {
+    container,
+    render,
+    mount: () => render(initial),
+    current: () => {
+      if (!latest) throw new Error('Autosave probe has not committed')
+      return latest
+    },
+    unmount: () => act(async () => root.unmount()),
+  }
+}
+
 describe('useAutosave', () => {
   beforeEach(() => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     vi.useFakeTimers()
     fakeDraftStore.clear()
   })
@@ -101,6 +141,85 @@ describe('useAutosave', () => {
     vi.runOnlyPendingTimers()
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it('keeps saving and local recovery tied to the committed draft after a suspended render', async () => {
+    const committedSave = vi.fn(async () => {})
+    const abandonedSave = vi.fn(async () => {})
+    const options: ProbeProps = {
+      content: 'committed draft',
+      savedContent: 'baseline',
+      onSave: committedSave,
+      delay: 60_000,
+      draftKey: 'committed-file',
+    }
+    const view = renderSuspendingAutosave(options)
+    try {
+      await view.mount()
+      const committed = view.current()
+      await view.render({ ...options, content: 'abandoned draft', onSave: abandonedSave }, true)
+      expect(view.container.textContent).toBe('committed draft')
+
+      await act(async () => vi.advanceTimersByTime(400))
+      expect(fakeDraftStore.get('autosave-draft:committed-file')).toEqual({
+        content: 'committed draft',
+        savedContent: 'baseline',
+      })
+
+      await act(async () => committed.saveImmediately())
+      expect(committedSave).toHaveBeenCalledOnce()
+      expect(abandonedSave).not.toHaveBeenCalled()
+    } finally {
+      await view.unmount()
+    }
+  })
+
+  it('retains a failed discard correction when an abandoned render changes draft and file identity', async () => {
+    let resolveSave: (() => void) | undefined
+    const onSave = vi
+      .fn<(overrideContent?: string) => Promise<void>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSave = resolve
+          })
+      )
+      .mockRejectedValueOnce(new Error('correction failed'))
+      .mockResolvedValue(undefined)
+    const options: ProbeProps = {
+      content: 'baseline',
+      savedContent: 'baseline',
+      onSave,
+      delay: 60_000,
+      draftKey: 'committed-file',
+    }
+    const view = renderSuspendingAutosave(options)
+    try {
+      await view.mount()
+      await view.render({ ...options, content: 'local draft' })
+      let pendingSave: Promise<void> | undefined
+      await act(async () => {
+        pendingSave = view.current().saveImmediately()
+      })
+      act(() => view.current().discard())
+      await view.render(options)
+      await act(async () => {
+        resolveSave?.()
+        await pendingSave
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+      expect(view.current().saveStatus).toBe('error')
+
+      const committed = view.current()
+      await view.render({ ...options, content: 'abandoned edit', draftKey: 'abandoned-file' }, true)
+      expect(view.container.textContent).toBe('baseline')
+      await act(async () => committed.saveImmediately())
+      expect(onSave).toHaveBeenCalledTimes(3)
+      expect(onSave).toHaveBeenLastCalledWith('baseline')
+    } finally {
+      await view.unmount()
+    }
   })
 
   it('debounces edits into a single save after the delay', async () => {
@@ -1026,6 +1145,45 @@ describe('useAutosave', () => {
       expect(onSave).toHaveBeenCalledTimes(3)
       expect(onSave).toHaveBeenLastCalledWith()
     })
+
+    it.each([false, true])(
+      'retains and reports a paused discard correction (unmounted=%s)',
+      async (unmounted) => {
+        const pending = Promise.withResolvers<void>()
+        const onSave = vi
+          .fn<(content?: string) => Promise<void>>()
+          .mockReturnValueOnce(pending.promise)
+          .mockResolvedValue(undefined)
+        const onDiscardCorrectionFailed = vi.fn()
+        const { handle } = renderAutosave({
+          content: 'baseline',
+          savedContent: 'baseline',
+          onSave,
+          draftKey: 'paused-correction',
+          onDiscardCorrectionFailed,
+        })
+        handle.rerender({ content: 'discarded draft' })
+        await act(async () => vi.advanceTimersByTime(1500))
+        expect(onSave).toHaveBeenCalledOnce()
+        act(() => handle.discard())
+        handle.rerender({ content: 'baseline', pauseSaving: true })
+        if (unmounted) handle.unmount()
+        await act(async () => pending.resolve())
+        await flush()
+        expect(onSave).toHaveBeenCalledOnce()
+        expect(onDiscardCorrectionFailed).toHaveBeenCalledOnce()
+        if (!unmounted) {
+          expect(handle.status()).toBe('error')
+          handle.rerender({ pauseSaving: false })
+          expect(onSave).toHaveBeenCalledOnce()
+          await act(async () => handle.saveImmediately())
+          expect(onSave).toHaveBeenLastCalledWith('baseline')
+          expect(onSave).toHaveBeenCalledTimes(2)
+          expect(handle.status()).toBe('idle')
+          handle.unmount()
+        }
+      }
+    )
 
     it('does not lift discard suppression when only `enabled` toggles for the same document', async () => {
       const resolvers: Array<() => void> = []

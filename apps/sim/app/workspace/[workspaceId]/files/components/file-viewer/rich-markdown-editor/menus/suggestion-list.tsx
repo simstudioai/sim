@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, useEffect } from 'react'
+import { type ReactNode, type RefObject, useEffect, useId } from 'react'
 import { cn } from '@sim/emcn'
 import type { Editor } from '@tiptap/core'
 import {
@@ -6,7 +6,7 @@ import {
   SUGGESTION_ITEM_CLASS,
   SUGGESTION_SCROLL_CLASS,
   SUGGESTION_SURFACE_CLASS,
-} from './suggestion-menu-chrome'
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/suggestion-menu-chrome'
 
 /** A labeled run of items; `index` is each item's flat position, used for keyboard nav + scroll. */
 export interface SuggestionGroup<T> {
@@ -25,7 +25,7 @@ interface SuggestionListProps<T> {
   /** Inserts the chosen item (the suggestion plugin's `command`). */
   command: (item: T) => void
   ariaLabel: string
-  /** Prefix for each row's element id (`${idPrefix}-${index}`) and the listbox id. */
+  /** Human-readable prefix; an instance identifier keeps IDs unique across editors. */
   idPrefix: string
   /** Shown in place of the list when there are no groups (e.g. "No results" / "Loading…"). */
   emptyLabel: string
@@ -36,7 +36,7 @@ interface SuggestionListProps<T> {
 /**
  * The shared grouped-list shell for the `/` and `@` suggestion menus: the bordered surface, the empty
  * state, the `role="listbox"` → `role="group"` → option-button structure, and the active-row / hover /
- * mousedown-select wiring. Each menu computes its own `groups` and supplies `itemKey`/`renderItem`;
+ * click-selection wiring. Each menu computes its own `groups` and supplies `itemKey`/`renderItem`;
  * everything else (chrome, a11y, navigation hooks) lives here so the two menus stay identical.
  *
  * Accessibility: focus stays in the editor's contenteditable while the user arrows the menu, so the
@@ -57,9 +57,11 @@ export function SuggestionList<T>({
   itemKey,
   renderItem,
 }: SuggestionListProps<T>) {
-  const listboxId = `${idPrefix}-listbox`
+  const instanceId = useId()
+  const optionIdPrefix = `${idPrefix}-${instanceId}`
+  const listboxId = `${optionIdPrefix}-listbox`
   const hasOptions = groups.length > 0
-  const activeOptionId = hasOptions ? `${idPrefix}-${activeIndex}` : null
+  const activeOptionId = hasOptions ? `${optionIdPrefix}-${activeIndex}` : null
 
   useEffect(() => {
     const dom = editor.view.dom
@@ -112,7 +114,8 @@ export function SuggestionList<T>({
               key={itemKey(item)}
               type='button'
               role='option'
-              id={`${idPrefix}-${index}`}
+              id={`${optionIdPrefix}-${index}`}
+              tabIndex={-1}
               aria-selected={index === activeIndex}
               data-index={index}
               className={cn(
@@ -120,10 +123,8 @@ export function SuggestionList<T>({
                 index === activeIndex && 'bg-[var(--surface-active)]'
               )}
               onMouseEnter={() => setActiveIndex(index)}
-              onMouseDown={(event) => {
-                event.preventDefault()
-                command(item)
-              }}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => command(item)}
             >
               {renderItem(item)}
             </button>

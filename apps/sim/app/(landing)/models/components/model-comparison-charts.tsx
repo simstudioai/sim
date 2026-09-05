@@ -13,6 +13,9 @@ const FEATURED_COMPARISON_PROVIDER_IDS = ['anthropic', 'openai', 'google']
 
 /** Max latest models pulled from each featured provider. */
 const MAX_MODELS_PER_PROVIDER = 4
+const CHART_BAR_HEIGHT = 1
+const CHART_BAR_END_RADIUS_X = 1
+const CHART_BAR_END_RADIUS_Y = 3 / 28
 
 const PROVIDER_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = (() => {
   const map: Record<string, ComponentType<{ className?: string }>> = {}
@@ -23,6 +26,14 @@ const PROVIDER_ICON_MAP: Record<string, ComponentType<{ className?: string }>> =
   }
   return map
 })()
+
+function getRoundedRightBarPath(x: number, width: number): string {
+  const right = x + width
+  const radiusX = Math.min(CHART_BAR_END_RADIUS_X, width / 2)
+  const radiusY = CHART_BAR_END_RADIUS_Y
+
+  return `M ${x} 0 H ${right - radiusX} Q ${right} 0 ${right} ${radiusY} V ${CHART_BAR_HEIGHT - radiusY} Q ${right} ${CHART_BAR_HEIGHT} ${right - radiusX} ${CHART_BAR_HEIGHT} H ${x} Z`
+}
 
 function selectComparisonModels(models: CatalogModel[]): CatalogModel[] {
   const seen = new Set<string>()
@@ -96,7 +107,7 @@ function StackedCostChart({ models }: ChartProps) {
           Cost
         </h3>
         <span className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
-          Per 1M tokens
+          Standard short-context rates per 1M tokens
         </span>
       </div>
 
@@ -104,6 +115,9 @@ function StackedCostChart({ models }: ChartProps) {
         {data.entries.map(({ model, input, output, total }) => {
           const totalPct = data.maxTotal > 0 ? (total / data.maxTotal) * 100 : 0
           const inputPct = total > 0 ? (input / total) * 100 : 0
+          const plottedTotalPct = Math.max(totalPct, 3)
+          const plottedInputPct = (plottedTotalPct * inputPct) / 100
+          const plottedOutputPct = plottedTotalPct - plottedInputPct
           const color = getProviderColor(model.providerId)
 
           return (
@@ -113,29 +127,34 @@ function StackedCostChart({ models }: ChartProps) {
               className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
             >
               <ModelLabel model={model} />
-              <div className='relative flex h-7 min-w-0 flex-1 items-center'>
-                <div
-                  className='hidden h-full overflow-hidden rounded-r-[3px] sm:flex'
-                  style={{ width: `${Math.max(totalPct, 3)}%` }}
-                >
-                  <div
-                    className='h-full'
-                    style={{
-                      width: `${inputPct}%`,
-                      backgroundColor: color,
-                      opacity: 0.8,
-                    }}
-                  />
-                  <div
-                    className='h-full'
-                    style={{
-                      width: `${100 - inputPct}%`,
-                      backgroundColor: color,
-                      opacity: 0.35,
-                    }}
-                  />
+              <div className='flex h-7 min-w-0 flex-1 items-center gap-2.5'>
+                <div className='hidden h-full min-w-0 flex-1 sm:block'>
+                  <svg
+                    aria-hidden='true'
+                    className='size-full'
+                    preserveAspectRatio='none'
+                    viewBox='0 0 100 1'
+                  >
+                    {plottedInputPct > 0 &&
+                      (plottedOutputPct > 0 ? (
+                        <rect fill={color} fillOpacity={0.8} height='1' width={plottedInputPct} />
+                      ) : (
+                        <path
+                          d={getRoundedRightBarPath(0, plottedInputPct)}
+                          fill={color}
+                          fillOpacity={0.8}
+                        />
+                      ))}
+                    {plottedOutputPct > 0 && (
+                      <path
+                        d={getRoundedRightBarPath(plottedInputPct, plottedOutputPct)}
+                        fill={color}
+                        fillOpacity={0.35}
+                      />
+                    )}
+                  </svg>
                 </div>
-                <span className='shrink-0 text-[11px] text-[var(--text-muted)] sm:ml-2.5 sm:text-xs'>
+                <span className='shrink-0 text-[11px] text-[var(--text-muted)] sm:w-[148px] sm:text-xs'>
                   {formatPrice(input)} input / {formatPrice(output)} output
                 </span>
               </div>
@@ -184,16 +203,22 @@ function ContextWindowChart({ models }: ChartProps) {
               className='-mx-2 flex items-center gap-3 rounded-md px-2 transition-colors hover:bg-[var(--surface-hover)]'
             >
               <ModelLabel model={model} />
-              <div className='relative flex h-7 min-w-0 flex-1 items-center'>
-                <div
-                  className='h-full rounded-r-[3px]'
-                  style={{
-                    width: `${Math.max(pct, 3)}%`,
-                    backgroundColor: color,
-                    opacity: 0.8,
-                  }}
-                />
-                <span className='ml-2.5 shrink-0 text-[11px] text-[var(--text-muted)] sm:text-xs'>
+              <div className='flex h-7 min-w-0 flex-1 items-center gap-2.5'>
+                <div className='h-full min-w-0 flex-1'>
+                  <svg
+                    aria-hidden='true'
+                    className='size-full'
+                    preserveAspectRatio='none'
+                    viewBox='0 0 100 1'
+                  >
+                    <path
+                      d={getRoundedRightBarPath(0, Math.max(pct, 3))}
+                      fill={color}
+                      fillOpacity={0.8}
+                    />
+                  </svg>
+                </div>
+                <span className='w-10 shrink-0 text-right text-[11px] text-[var(--text-muted)] tabular-nums sm:text-xs'>
                   {formatTokenCount(value)}
                 </span>
               </div>
@@ -228,11 +253,11 @@ export function ModelComparisonCharts({ models }: ModelComparisonChartsProps) {
 
       <div className='h-px w-full bg-[var(--border)]' />
 
-      <div className='flex flex-col sm:flex-row'>
+      <div className='flex flex-col lg:flex-row'>
         <div className='flex-1 p-6'>
           <StackedCostChart models={comparisonModels} />
         </div>
-        <div className='h-px w-full bg-[var(--border)] sm:h-auto sm:w-px' />
+        <div className='h-px w-full bg-[var(--border)] lg:h-auto lg:w-px' />
         <div className='flex-1 p-6'>
           <ContextWindowChart models={comparisonModels} />
         </div>

@@ -11,6 +11,7 @@ export type EmbeddingProviderKind =
   | 'gemini'
   | 'cohere'
   | 'mistral'
+  | 'ollama'
 
 /**
  * Providers a catalog model can belong to. Azure OpenAI and OpenRouter are
@@ -18,8 +19,15 @@ export type EmbeddingProviderKind =
  */
 export type EmbeddingCatalogProvider = Exclude<EmbeddingProviderKind, 'azure-openai' | 'openrouter'>
 
+/**
+ * Catalog providers reached with an API key. Ollama is a self-hosted server
+ * addressed by URL and takes no credential, so every key-resolution table is
+ * keyed by this narrower type rather than carrying a meaningless Ollama entry.
+ */
+export type KeyedEmbeddingProvider = Exclude<EmbeddingCatalogProvider, 'ollama'>
+
 /** Provider id for `estimateTokenCount` so token counts match the embedding provider's tokenization. */
-export type TokenizerProviderId = 'openai' | 'google' | 'cohere' | 'mistral'
+export type TokenizerProviderId = 'openai' | 'google' | 'cohere' | 'mistral' | 'ollama'
 
 /**
  * What the embedding will be used for. Providers that support task-conditioned
@@ -55,12 +63,27 @@ export interface EmbeddingProviderAdapter {
   maxItemsPerRequest?: number
 }
 
-export interface EmbeddingAdapterContext {
+/** What every adapter needs regardless of how its provider is reached. */
+export interface EmbeddingAdapterIdentity {
   /** Model name as the provider expects it on the wire (an Azure deployment name for Azure). */
   modelName: string
-  apiKey: string
   /** Model's un-reduced dimensionality, so adapters can detect a Matryoshka reduction. */
   nativeDimensions: number
+}
+
+export interface EmbeddingAdapterContext extends EmbeddingAdapterIdentity {
+  apiKey: string
+}
+
+/**
+ * Ollama is addressed by server URL and authenticates with nothing, so it needs
+ * routing fields no other provider takes and holds no credential at all.
+ * Declared as its own context rather than as an optional `baseUrl` on the shared
+ * one, so the adapter cannot be constructed without a server to talk to.
+ */
+export interface OllamaEmbeddingAdapterContext extends EmbeddingAdapterIdentity {
+  /** Origin of the Ollama server, without a trailing slash. */
+  baseUrl: string
 }
 
 /**
@@ -74,8 +97,9 @@ export interface AzureEmbeddingAdapterContext extends EmbeddingAdapterContext {
   apiVersion: string
 }
 
-export type EmbeddingAdapterFactory<Ctx extends EmbeddingAdapterContext = EmbeddingAdapterContext> =
-  (context: Ctx) => EmbeddingProviderAdapter
+export type EmbeddingAdapterFactory<
+  Ctx extends EmbeddingAdapterIdentity = EmbeddingAdapterContext,
+> = (context: Ctx) => EmbeddingProviderAdapter
 
 export interface EmbedOptions {
   /** Cancels provider requests, retry waits, and remaining batches. */

@@ -96,6 +96,7 @@ const knowledgeBase = {
   name: 'Docs',
   workspaceId: 'workspace-1',
   embeddingModel: 'text-embedding-3-small',
+  embeddingDimension: 1536,
 }
 
 describe('knowledge search application use case', () => {

@@ -133,7 +133,14 @@ function createEmbeddingFetchMock() {
 vi.stubGlobal('fetch', createEmbeddingFetchMock())
 
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
-import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
+
+/** The platform default model and vector width, as a knowledge base records them. */
+const DEFAULT_EMBEDDING_TARGET: KbEmbeddingTarget = {
+  model: 'text-embedding-3-small',
+  dimensions: 1536,
+}
+
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 
 describe('Knowledge Utils', () => {
@@ -167,6 +174,7 @@ describe('Knowledge Utils', () => {
           knowledgeBaseUserId: 'user1',
           chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
           embeddingModel: 'text-embedding-3-small',
+          embeddingDimension: 1536,
           billedAccountUserId: 'billing-user-1',
           uploadedBy: null,
           filename: 'file.txt',
@@ -248,7 +256,7 @@ describe('Knowledge Utils', () => {
 
   describe('generateEmbeddings', () => {
     it('should return same length as input', async () => {
-      const result = await generateEmbeddings(['a', 'b'])
+      const result = await generateEmbeddings(['a', 'b'], DEFAULT_EMBEDDING_TARGET)
 
       expect(result.embeddings.length).toBe(2)
     })
@@ -267,7 +275,7 @@ describe('Knowledge Utils', () => {
       const fetchSpy = vi.mocked(fetch)
       fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
 
-      await generateEmbeddings(['test text'])
+      await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
 
       expect(fetchSpy).toHaveBeenCalledWith(
         'https://test.openai.azure.com/openai/deployments/text-embedding-ada-002/embeddings?api-version=2024-12-01-preview',
@@ -291,7 +299,7 @@ describe('Knowledge Utils', () => {
       const fetchSpy = vi.mocked(fetch)
       fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
 
-      await generateEmbeddings(['test text'])
+      await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
 
       expect(fetchSpy).toHaveBeenCalledWith(
         'https://api.openai.com/v1/embeddings',
@@ -318,7 +326,7 @@ describe('Knowledge Utils', () => {
       })
 
       try {
-        await expect(generateEmbeddings(['test text'])).rejects.toThrow(
+        await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
           'OPENAI_API_KEY is not configured'
         )
       } finally {

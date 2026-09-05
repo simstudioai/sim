@@ -1,5 +1,5 @@
 {
-  "id": "dc200fd3-9292-44da-971d-a357896f27ee",
+  "id": "db628744-c7d5-4412-b5d0-44cb6ed4368f",
   "prevId": "5a6e3414-7fa3-4206-8e48-73d5f0ded1ce",
   "version": "7",
   "dialect": "postgresql",
@@ -5655,6 +5655,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "embedding_384": {
+          "name": "embedding_384",
+          "type": "vector(384)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embedding_768": {
+          "name": "embedding_768",
+          "type": "vector(768)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embedding_1024": {
+          "name": "embedding_1024",
+          "type": "vector(1024)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embedding_3072": {
+          "name": "embedding_3072",
+          "type": "vector(3072)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "embedding_model": {
           "name": "embedding_model",
           "type": "text",
@@ -5932,6 +5956,81 @@
               "asc": true,
               "nulls": "last",
               "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_384_vector_hnsw_idx": {
+          "name": "embedding_384_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding_384",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_768_vector_hnsw_idx": {
+          "name": "embedding_768_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding_768",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_1024_vector_hnsw_idx": {
+          "name": "embedding_1024_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding_1024",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {
+            "m": 16,
+            "ef_construction": 64
+          }
+        },
+        "embedding_3072_vector_hnsw_idx": {
+          "name": "embedding_3072_vector_hnsw_idx",
+          "columns": [
+            {
+              "expression": "(\"embedding_3072\"::halfvec(3072)) halfvec_cosine_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -6237,9 +6336,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "embedding_not_null_check": {
-          "name": "embedding_not_null_check",
-          "value": "\"embedding\" IS NOT NULL"
+        "embedding_width_check": {
+          "name": "embedding_width_check",
+          "value": "num_nonnulls(\"embedding\", \"embedding_384\", \"embedding_768\", \"embedding_1024\", \"embedding_3072\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -8878,197 +8977,6 @@
         "knowledge_document_observation_document_id_member_id_pk": {
           "name": "knowledge_document_observation_document_id_member_id_pk",
           "columns": ["document_id", "member_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.knowledge_external_group": {
-      "name": "knowledge_external_group",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider_id": {
-          "name": "provider_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "external_group_id": {
-          "name": "external_group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_synced_at": {
-          "name": "last_synced_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "keg_identity_unique": {
-          "name": "keg_identity_unique",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "provider_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "external_group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "keg_workspace_synced_idx": {
-          "name": "keg_workspace_synced_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "last_synced_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "first"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "keg_workspace_fk": {
-          "name": "keg_workspace_fk",
-          "tableFrom": "knowledge_external_group",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.knowledge_external_group_member": {
-      "name": "knowledge_external_group_member",
-      "schema": "",
-      "columns": {
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "kegm_email_idx": {
-          "name": "kegm_email_idx",
-          "columns": [
-            {
-              "expression": "email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "kegm_group_fk": {
-          "name": "kegm_group_fk",
-          "tableFrom": "knowledge_external_group_member",
-          "tableTo": "knowledge_external_group",
-          "columnsFrom": ["group_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "knowledge_external_group_member_group_id_email_pk": {
-          "name": "knowledge_external_group_member_group_id_email_pk",
-          "columns": ["group_id", "email"]
         }
       },
       "uniqueConstraints": {},
@@ -15162,23 +15070,7 @@
           "notNull": false
         }
       },
-      "indexes": {
-        "user_email_lower_idx": {
-          "name": "user_email_lower_idx",
-          "columns": [
-            {
-              "expression": "lower(btrim(\"email\"))",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {

@@ -2245,8 +2245,15 @@
     {
       "idx": 321,
       "version": "7",
-      "when": 1788497185932,
-      "tag": "0321_permission_mirrored_knowledge",
+      "when": 1788482043862,
+      "tag": "0321_multi_width_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1788571796026,
+      "tag": "0322_permission_mirrored_knowledge",
       "breakpoints": true
     }
   ]

@@ -9,7 +9,7 @@
  */
 import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createMarkdownContentExtensions } from '../extensions'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 
 let editor: Editor | null = null
 afterEach(() => {
@@ -49,11 +49,11 @@ describe('table toolbar commands', () => {
     expect(md).toContain('| --- | --- |')
   })
 
-  it('inserts a row before the current row', () => {
+  it('keeps the required Markdown header first when inserting rows', () => {
     editor = mount('| a | b |\n| --- | --- |\n| 1 | 2 |')
     editor.commands.setTextSelection(firstCellPos(editor))
-    expect(editor.commands.addRowBefore()).toBe(true)
-    expect(editor.state.doc.firstChild?.childCount).toBe(3)
+    expect(editor.commands.addRowBefore()).toBe(false)
+    expect(editor.state.doc.firstChild?.childCount).toBe(2)
   })
 
   it('deletes the current row', () => {
@@ -94,12 +94,11 @@ describe('table toolbar commands', () => {
     expect(cols).toBe(2)
   })
 
-  it('toggles the header row', () => {
+  it('does not expose an unpersistable header-row toggle', () => {
     editor = mount('| a | b |\n| --- | --- |\n| 1 | 2 |')
     editor.commands.setTextSelection(firstCellPos(editor))
-    const before = editor.isActive('tableHeader')
-    expect(editor.commands.toggleHeaderRow()).toBe(true)
-    expect(editor.isActive('tableHeader')).toBe(!before)
+    expect(editor.commands.toggleHeaderRow()).toBe(false)
+    expect(editor.isActive('tableHeader')).toBe(true)
   })
 
   it('deletes the whole table', () => {

@@ -2,10 +2,12 @@ import fs from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@sim/logger'
 import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
+import { DOCS_EMBEDDING_DIMENSIONS } from '@/lib/chunkers/constants'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import type { DocChunk, DocsChunkerOptions } from '@/lib/chunkers/types'
 import { estimateTokens } from '@/lib/chunkers/utils'
-import { generateEmbeddings, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
+import { DEFAULT_EMBEDDING_MODEL } from '@/lib/knowledge/embedding-models'
+import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 
 interface HeaderInfo {
   level: number
@@ -116,9 +118,22 @@ export class DocsChunker {
     const headers = this.extractHeaders(cleanedContent)
 
     logger.info(`Generating embeddings for ${textChunks.length} chunks in ${relativePath}`)
-    const embeddingModel = getConfiguredEmbeddingModel()
+    /**
+     * Pinned to the platform default rather than the deployment's configured
+     * knowledge-base model: `docs_embeddings` is one fixed-width column that
+     * every Sim install queries, so a deployment-specific model or width would
+     * write vectors it cannot store.
+     */
+    const embeddingModel = DEFAULT_EMBEDDING_MODEL
     const embeddings: number[][] =
-      textChunks.length > 0 ? (await generateEmbeddings(textChunks, embeddingModel)).embeddings : []
+      textChunks.length > 0
+        ? (
+            await generateEmbeddings(textChunks, {
+              model: embeddingModel,
+              dimensions: DOCS_EMBEDDING_DIMENSIONS,
+            })
+          ).embeddings
+        : []
 
     const chunks: DocChunk[] = []
     let currentPosition = 0

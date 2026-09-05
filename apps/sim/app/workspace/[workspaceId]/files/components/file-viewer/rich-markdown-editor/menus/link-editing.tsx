@@ -1,6 +1,6 @@
 import type { Ref } from 'react'
 import type { ChainedCommands } from '@tiptap/core'
-import { normalizeLinkHref } from '../markdown-fidelity'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 /**
  * Applies a link to the chain's current selection: normalizes `rawHref`, expands to the full link
@@ -27,6 +27,7 @@ interface LinkUrlInputProps {
   onCommit: () => void
   onCancel: () => void
   inputRef: Ref<HTMLInputElement>
+  readOnly?: boolean
 }
 
 /**
@@ -34,7 +35,14 @@ interface LinkUrlInputProps {
  * cancels. Styled to sit flush in the 28px floating micro-toolbar (a `ChipInput` would impose its own
  * field chrome and break the bar), so this is a deliberate raw `<input>`.
  */
-export function LinkUrlInput({ value, onChange, onCommit, onCancel, inputRef }: LinkUrlInputProps) {
+export function LinkUrlInput({
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+  inputRef,
+  readOnly = false,
+}: LinkUrlInputProps) {
   return (
     <input
       ref={inputRef}
@@ -42,9 +50,11 @@ export function LinkUrlInput({ value, onChange, onCommit, onCancel, inputRef }: 
       type='text'
       inputMode='url'
       value={value}
+      readOnly={readOnly}
       onChange={(event) => onChange(event.target.value)}
       onKeyDown={(event) => {
-        if (event.key === 'Enter') {
+        if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
+        if (event.key === 'Enter' && !readOnly) {
           event.preventDefault()
           onCommit()
         } else if (event.key === 'Escape') {

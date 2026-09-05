@@ -9,9 +9,9 @@ describe('selector manifest', () => {
     const count = (classification: (typeof classifications)[number]) =>
       classifications.filter((value) => value === classification).length
 
-    expect(Object.keys(selectorManifest)).toHaveLength(94)
+    expect(Object.keys(selectorManifest)).toHaveLength(95)
     expect(count('provider-server')).toBe(82)
-    expect(count('internal-server')).toBe(11)
+    expect(count('internal-server')).toBe(12)
     expect(count('local')).toBe(1)
     expect(classifications).not.toContain('provider-legacy')
   })

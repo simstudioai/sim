@@ -16,12 +16,13 @@ import { isTest } from '@/lib/core/config/env-flags'
 import { McpClient } from '@/lib/mcp/client'
 import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
-import type {
-  ManagedConnectionState,
-  McpClientOptions,
-  McpServerConfig,
-  McpToolsChangedCallback,
-  ToolsChangedEvent,
+import {
+  type ManagedConnectionState,
+  type McpClientOptions,
+  McpOauthAuthorizationRequiredError,
+  type McpServerConfig,
+  type McpToolsChangedCallback,
+  type ToolsChangedEvent,
 } from '@/lib/mcp/types'
 
 const logger = createLogger('McpConnectionManager')
@@ -137,7 +138,7 @@ export class McpConnectionManager {
         this.handleToolsChanged(key)
       }
 
-      let authProvider: McpClientOptions['authProvider']
+      let oauthCredentials: McpClientOptions['oauthCredentials']
       if (config.authType === 'oauth') {
         const row = await getOrCreateOauthRow({
           mcpServerId: config.id,
@@ -150,8 +151,25 @@ export class McpConnectionManager {
           )
           return { supportsListChanged: false }
         }
-        const preregistered = await loadPreregisteredClient(config.id)
-        authProvider = new SimMcpOauthProvider({ row, preregistered })
+        oauthCredentials = {
+          credentialId: config.id,
+          initialProvider: new SimMcpOauthProvider({
+            row,
+            preregistered: await loadPreregisteredClient(config.id),
+          }),
+          loadProvider: async () => {
+            const current = await getOrCreateOauthRow({
+              mcpServerId: config.id,
+              userId,
+              workspaceId,
+            })
+            if (!current.tokens) {
+              throw new McpOauthAuthorizationRequiredError(config.id, config.name)
+            }
+            const preregistered = await loadPreregisteredClient(config.id)
+            return new SimMcpOauthProvider({ row: current, preregistered })
+          },
+        }
       }
 
       const client = new McpClient({
@@ -163,7 +181,7 @@ export class McpConnectionManager {
         },
         onToolsChanged,
         resolvedIP: resolvedIP ?? undefined,
-        authProvider,
+        oauthCredentials,
       })
 
       try {

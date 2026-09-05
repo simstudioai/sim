@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { type WorkspaceMode, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
@@ -157,6 +158,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workspaceMode: creationPolicy.workspaceMode,
       billedAccountUserId: creationPolicy.billedAccountUserId,
       observedOrganizationId: creationPolicy.observedOrganizationId,
+      governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
     })
 
     captureServerEvent(
@@ -207,6 +209,20 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         { status: 409 }
       )
     }
+    /**
+     * A lock timeout is contention, not a fault: creation serializes on the
+     * organization's mutation locks and now also on `permission_group:<org>`,
+     * so a concurrent create or a permission-group admin write can exhaust the
+     * `lock_timeout` and abort this transaction. Answer 503 like the
+     * permission-group routes do, rather than letting it reach the generic 500
+     * below — the caller should retry, and a 500 tells them the opposite.
+     */
+    if (getPostgresErrorCode(error) === '55P03') {
+      return NextResponse.json(
+        { error: 'This organization is being updated by another request. Please try again.' },
+        { status: 503 }
+      )
+    }
     logger.error('Error creating workspace:', error)
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
@@ -220,6 +236,7 @@ async function createDefaultWorkspace(
     workspaceMode: WorkspaceMode
     billedAccountUserId: string
     observedOrganizationId: string | null
+    governingPermissionGroupOrganizationId: string | null
   }
 ) {
   const firstName = userName?.split(' ')[0] || null
@@ -231,6 +248,7 @@ async function createDefaultWorkspace(
     workspaceMode: creationPolicy.workspaceMode,
     billedAccountUserId: creationPolicy.billedAccountUserId,
     observedOrganizationId: creationPolicy.observedOrganizationId,
+    governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
   })
 }
 

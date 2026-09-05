@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { del, get, set } from 'idb-keyval'
 
@@ -41,6 +41,8 @@ interface UseAutosaveOptions {
   onSave: (overrideContent?: string) => Promise<void>
   delay?: number
   enabled?: boolean
+  /** Suspends network writes without disabling local draft persistence or recovery. */
+  pauseSaving?: boolean
   /**
    * Uniquely identifies the document being edited (e.g. a file id). When set, the draft is
    * mirrored into IndexedDB on a short debounce, independent of the network save, and recovered
@@ -48,6 +50,8 @@ interface UseAutosaveOptions {
    */
   draftKey?: string
   onRestoreDraft?: (content: string) => void
+  /** Retains a recovered draft when its original server baseline is no longer current. */
+  onRestoreConflictingDraft?: (content: string) => void
   /** Called if `discard()`'s corrective save fails — the only way that failure can surface, since it happens after the component may already have unmounted. */
   onDiscardCorrectionFailed?: () => void
 }
@@ -57,7 +61,7 @@ interface UseAutosaveReturn {
   saveImmediately: () => Promise<void>
   isDirty: boolean
   /** Abandons the current draft: blocks any save/local-draft write not yet started, clears the local draft immediately, and corrects the server if a save already in flight lands afterward. */
-  discard: () => void
+  discard: (options?: { correctInFlightSave?: boolean }) => void
 }
 
 /**
@@ -71,8 +75,10 @@ export function useAutosave({
   onSave,
   delay = 1500,
   enabled = true,
+  pauseSaving = false,
   draftKey,
   onRestoreDraft,
+  onRestoreConflictingDraft,
   onDiscardCorrectionFailed,
 }: UseAutosaveOptions): UseAutosaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -82,25 +88,20 @@ export function useAutosave({
   const displayTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const savingRef = useRef(false)
   const savingStartRef = useRef(0)
+  const saveGenerationRef = useRef(0)
   const inFlightRef = useRef<Promise<void> | null>(null)
   const unmountedRef = useRef(false)
   const onSaveRef = useRef(onSave)
-  onSaveRef.current = onSave
   const enabledRef = useRef(enabled)
-  enabledRef.current = enabled
-
+  const pauseSavingRef = useRef(pauseSaving)
   const savedContentRef = useRef(savedContent)
-  savedContentRef.current = savedContent
   const contentRef = useRef(content)
-  contentRef.current = content
 
   const effectiveDraftKey = enabled ? draftKey : undefined
   const draftKeyRef = useRef(effectiveDraftKey)
-  draftKeyRef.current = effectiveDraftKey
   const onRestoreDraftRef = useRef(onRestoreDraft)
-  onRestoreDraftRef.current = onRestoreDraft
+  const onRestoreConflictingDraftRef = useRef(onRestoreConflictingDraft)
   const onDiscardCorrectionFailedRef = useRef(onDiscardCorrectionFailed)
-  onDiscardCorrectionFailedRef.current = onDiscardCorrectionFailed
 
   const localDraftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const lastPersistedContentRef = useRef<string | null>(null)
@@ -108,22 +109,31 @@ export function useAutosave({
   const discardedRef = useRef(false)
   const discardTargetRef = useRef<string | null>(null)
   const failedCorrectionTargetRef = useRef<string | null>(null)
-  // Keyed off the raw `draftKey`, not `effectiveDraftKey` — the latter also flips with `enabled`
-  // (e.g. a streaming lock toggling for the SAME document), which must not be mistaken for a
-  // hook instance being reused across documents (today's callers all remount per file instead).
+  /** Disabling autosave during a stream must not count as switching documents. */
   const documentKeyRef = useRef(draftKey)
-  const documentChanged = documentKeyRef.current !== draftKey
-  documentKeyRef.current = draftKey
-  if (documentChanged) {
-    discardedRef.current = false
-    failedCorrectionTargetRef.current = null
-  }
+
+  /** Timers, recovery, and explicit saves must never observe a suspended or abandoned render. */
+  useLayoutEffect(() => {
+    if (
+      documentKeyRef.current !== draftKey ||
+      (discardedRef.current && content !== discardTargetRef.current)
+    ) {
+      discardedRef.current = false
+      failedCorrectionTargetRef.current = null
+    }
+    documentKeyRef.current = draftKey
+    onSaveRef.current = onSave
+    enabledRef.current = enabled
+    pauseSavingRef.current = pauseSaving
+    savedContentRef.current = savedContent
+    contentRef.current = content
+    draftKeyRef.current = effectiveDraftKey
+    onRestoreDraftRef.current = onRestoreDraft
+    onRestoreConflictingDraftRef.current = onRestoreConflictingDraft
+    onDiscardCorrectionFailedRef.current = onDiscardCorrectionFailed
+  })
 
   const isDirty = content !== savedContent
-  if (discardedRef.current && content !== discardTargetRef.current) {
-    discardedRef.current = false
-    failedCorrectionTargetRef.current = null
-  }
 
   const persistLocalDraft = useCallback(() => {
     const key = draftKeyRef.current
@@ -158,12 +168,14 @@ export function useAutosave({
     if (
       discardedRef.current ||
       !enabledRef.current ||
+      pauseSavingRef.current ||
       savingRef.current ||
       contentRef.current === savedContentRef.current
     ) {
       return
     }
     savingRef.current = true
+    const generation = saveGenerationRef.current
     savingStartRef.current = Date.now()
     if (!unmountedRef.current) setSaveStatus('saving')
     const run = (async () => {
@@ -174,7 +186,10 @@ export function useAutosave({
         nextStatus = 'error'
       } finally {
         inFlightRef.current = null
-        if (unmountedRef.current) {
+        if (generation !== saveGenerationRef.current) {
+          savingRef.current = false
+          if (!unmountedRef.current && contentRef.current !== savedContentRef.current) save()
+        } else if (unmountedRef.current) {
           savingRef.current = false
         } else {
           const elapsed = Date.now() - savingStartRef.current
@@ -202,11 +217,11 @@ export function useAutosave({
   }, [])
 
   useEffect(() => {
-    if (!enabled || !isDirty || savingRef.current) return
+    if (!enabled || pauseSaving || !isDirty || savingRef.current) return
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(save, delay)
     return () => clearTimeout(timerRef.current)
-  }, [content, enabled, isDirty, delay, save])
+  }, [content, enabled, pauseSaving, isDirty, delay, save])
 
   useEffect(() => {
     // Reset on every (re)mount, not only set on unmount: React strict mode runs effects
@@ -223,6 +238,7 @@ export function useAutosave({
       if (
         discardedRef.current ||
         !enabledRef.current ||
+        pauseSavingRef.current ||
         contentRef.current === savedContentRef.current
       ) {
         return
@@ -232,7 +248,7 @@ export function useAutosave({
       // latest sequentially (last) prevents an out-of-order completion from clobbering it.
       void (async () => {
         await inFlightRef.current
-        if (!discardedRef.current) {
+        if (!discardedRef.current && !pauseSavingRef.current) {
           await onSaveRef.current().then(clearLocalDraft, () => {})
         }
       })()
@@ -270,14 +286,20 @@ export function useAutosave({
 
   useEffect(() => {
     if (!effectiveDraftKey || recoveredForKeyRef.current === effectiveDraftKey) return
-    recoveredForKeyRef.current = effectiveDraftKey
     let cancelled = false
     void enqueueDraftOp(effectiveDraftKey, () =>
       get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
     )
       .then((draft) => {
-        if (cancelled || !draft) return
+        if (cancelled) return
+        recoveredForKeyRef.current = effectiveDraftKey
+        if (!draft) return
         if (draft.savedContent !== savedContentRef.current) {
+          if (onRestoreConflictingDraftRef.current) {
+            if (contentRef.current === savedContentRef.current)
+              onRestoreConflictingDraftRef.current(draft.content)
+            return
+          }
           clearLocalDraft()
           return
         }
@@ -297,8 +319,10 @@ export function useAutosave({
   const runCorrection = useCallback(
     (target: string) => {
       savingRef.current = true
-      const correctionRun = onSaveRef
-        .current(target)
+      const correction = pauseSavingRef.current
+        ? Promise.reject(new Error('Saving is paused; the discarded edit could not be reverted'))
+        : onSaveRef.current(target)
+      const correctionRun = correction
         .then(
           () => {
             failedCorrectionTargetRef.current = null
@@ -340,23 +364,35 @@ export function useAutosave({
     await save()
   }, [save, runCorrection])
 
-  const discard = useCallback(() => {
-    discardedRef.current = true
-    discardTargetRef.current = savedContentRef.current
-    failedCorrectionTargetRef.current = null
-    clearTimeout(timerRef.current)
-    clearTimeout(localDraftTimerRef.current)
-    clearLocalDraft()
-    const pendingSave = inFlightRef.current
-    if (!pendingSave) return
-    const target = discardTargetRef.current
-    const contentAtDiscard = contentRef.current
-    void pendingSave.then(() => {
-      const current = contentRef.current
-      if (inFlightRef.current || (current !== target && current !== contentAtDiscard)) return
-      runCorrection(target)
-    })
-  }, [clearLocalDraft, runCorrection])
+  const discard = useCallback(
+    (options?: { correctInFlightSave?: boolean }) => {
+      discardedRef.current = true
+      discardTargetRef.current = savedContentRef.current
+      failedCorrectionTargetRef.current = null
+      clearTimeout(timerRef.current)
+      clearTimeout(localDraftTimerRef.current)
+      clearLocalDraft()
+      const pendingSave = inFlightRef.current
+      if (options?.correctInFlightSave === false) {
+        saveGenerationRef.current += 1
+        clearTimeout(displayTimerRef.current)
+        clearTimeout(idleTimerRef.current)
+        if (!pendingSave) savingRef.current = false
+      }
+      if (!pendingSave || options?.correctInFlightSave === false) {
+        if (!unmountedRef.current) setSaveStatus('idle')
+        return
+      }
+      const target = discardTargetRef.current
+      const contentAtDiscard = contentRef.current
+      void pendingSave.then(() => {
+        const current = contentRef.current
+        if (inFlightRef.current || (current !== target && current !== contentAtDiscard)) return
+        runCorrection(target)
+      })
+    },
+    [clearLocalDraft, runCorrection]
+  )
 
   return { saveStatus, saveImmediately, isDirty, discard }
 }

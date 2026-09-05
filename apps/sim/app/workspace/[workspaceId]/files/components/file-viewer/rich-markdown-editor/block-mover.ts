@@ -1,54 +1,58 @@
 import { Extension } from '@tiptap/core'
+import { Slice } from '@tiptap/pm/model'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection } from '@tiptap/pm/state'
+import { ReplaceAroundStep, StepMap } from '@tiptap/pm/transform'
 
-/** The position range of the depth-1 block containing the cursor, or null at the document root. */
-function currentTopLevelBlock(state: EditorState): { from: number; to: number } | null {
-  const { $from } = state.selection
-  if ($from.depth === 0) return null
-  return { from: $from.before(1), to: $from.after(1) }
+/** The contiguous top-level blocks touched by a text range or node selection. */
+function currentTopLevelBlocks(state: EditorState): { from: number; to: number } | null {
+  const { selection } = state
+  const { $from, $to } = selection
+  if ($from.depth === 0 && !(selection instanceof NodeSelection)) return null
+  return {
+    from: $from.depth > 0 ? $from.before(1) : $from.pos,
+    to: $to.depth > 0 ? $to.after(1) : $to.pos,
+  }
 }
 
 /**
- * Swaps the current top-level block with its neighbour in `direction`, keeping the caret on the moved
- * block. Adjacent top-level blocks share a boundary position (no separator token between them), so the
- * move is a single `replaceWith` of the two-block span with the pair reordered. No-ops (returns false)
- * at the matching document edge or when the neighbour isn't a top-level block. `newBefore` is the moved
- * block's new `before(1)` position; adding the caret's original offset (`selection.from - from`, also
- * measured from `before(1)`) re-anchors the caret at the same spot within the block.
+ * Swaps the selected block range with its immediate sibling, including one-position leaf nodes.
+ * The replace-around step maps positions inside the moved content. A translated selection bookmark
+ * preserves selection kind, both endpoints, and direction instead of collapsing a range to a caret.
  */
 function moveBlock(
   state: EditorState,
   dispatch: ((tr: Transaction) => void) | undefined,
   direction: 'up' | 'down'
 ): boolean {
-  const block = currentTopLevelBlock(state)
+  const block = currentTopLevelBlocks(state)
   if (!block) return false
   const { from, to } = block
   const up = direction === 'up'
 
   if (up ? from === 0 : to >= state.doc.content.size) return false
-  const $neighbour = state.doc.resolve(up ? from - 1 : to + 1)
-  if ($neighbour.depth === 0) return false
+  const boundary = state.doc.resolve(up ? from : to)
+  const sibling = up ? boundary.nodeBefore : boundary.nodeAfter
+  if (!sibling) return false
   if (!dispatch) return true
 
-  const spanFrom = up ? $neighbour.before(1) : from
-  const spanTo = up ? to : $neighbour.after(1)
-  const moving = state.doc.slice(from, to).content
+  const spanFrom = up ? from - sibling.nodeSize : from
+  const spanTo = up ? to : to + sibling.nodeSize
   const neighbour = up
     ? state.doc.slice(spanFrom, from).content
     : state.doc.slice(to, spanTo).content
-  const tr = state.tr.replaceWith(
-    spanFrom,
-    spanTo,
-    up ? moving.append(neighbour) : neighbour.append(moving)
+  const tr = state.tr.step(
+    new ReplaceAroundStep(
+      spanFrom,
+      spanTo,
+      from,
+      to,
+      new Slice(neighbour, 0, 0),
+      up ? 0 : neighbour.size
+    )
   )
-
-  const newBefore = up ? spanFrom : spanFrom + neighbour.size
-  const offset = state.selection.from - from
-  tr.setSelection(
-    TextSelection.near(tr.doc.resolve(Math.min(newBefore + offset, newBefore + moving.size)))
-  )
+  const offset = up ? -sibling.nodeSize : sibling.nodeSize
+  tr.setSelection(state.selection.getBookmark().map(StepMap.offset(offset)).resolve(tr.doc))
   dispatch(tr.scrollIntoView())
   return true
 }
@@ -56,18 +60,17 @@ function moveBlock(
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     blockMover: {
-      /** Move the current top-level block up one position, carrying the caret. */
+      /** Move the selected top-level block range up one position, preserving the selection. */
       moveBlockUp: () => ReturnType
-      /** Move the current top-level block down one position, carrying the caret. */
+      /** Move the selected top-level block range down one position, preserving the selection. */
       moveBlockDown: () => ReturnType
     }
   }
 }
 
 /**
- * Reorders the current top-level block with `Mod-Shift-ArrowUp`/`ArrowDown` — the standard
- * keyboard block-move affordance (Notion/Obsidian). Pure UI interaction: no schema change, and the
- * caret rides along with the block. A no-op (returns false, falling through) at the document edges.
+ * Reorders the selected top-level blocks with `Mod-Shift-ArrowUp`/`ArrowDown`, keeping their order
+ * and selection. Returns false at document edges and for root gap cursors with no selected block.
  */
 export const BlockMover = Extension.create({
   name: 'blockMover',

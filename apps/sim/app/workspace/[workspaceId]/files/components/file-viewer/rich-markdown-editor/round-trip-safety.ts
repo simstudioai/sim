@@ -1,27 +1,20 @@
-import { serializeMarkdownDocument } from './markdown-parse'
-
-/**
- * Above this size the file opens read-only. Parsing is chunked and linear now (see
- * {@link serializeMarkdownBody}), so this is no longer about parse cost — it guards ProseMirror's
- * whole-document-in-DOM rendering, which has no virtualization and gets sluggish to edit for very
- * large documents. 256KB sits past the p99 of real markdown files while keeping a giant outlier from
- * mounting thousands of editable DOM nodes.
- */
-const PROBE_SIZE_LIMIT = 256 * 1024
+import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
+import { decodeHtmlEntities } from '@tiptap/core'
+import { Marked, type Token } from 'marked'
+import { extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
+import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { serializeMarkdownDocument } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
 /**
  * Constructs the editor drops or mangles in a way that survives a second serialization
  * unchanged — so the idempotency probe below can't see the loss. Each must be matched directly.
- * (Linked images `[![alt](img)](href)` are handled by the image node and verified separately by
- * the link-count check in {@link isRoundTripSafe}, not here.)
+ * Image sources and their wrapping links are verified separately against the first serialization.
  *
  * Footnotes, HTML comments, and raw HTML tags (`<div>`, `<details>`, `<kbd>`, …) used to be listed
  * here — the schema had no node for any of them, so they were dropped or stripped (content kept,
  * structure lost). `./raw-markdown-snippet.ts` now holds each construct's exact source text and
  * re-emits it byte-for-byte, so none of them lose data on round-trip and none need a pattern below.
  *
- * - **`<br>` inside a table cell** — a GFM cell can't hold a real line break, so the serializer
- *   flattens `one<br>two` to `one two`. Matched on a table-shaped line (≥2 pipes) containing a `<br>`.
  * - **Hard break inside a heading** (trailing two spaces or a backslash) — the serializer splits
  *   the heading, ejecting the second line into a separate paragraph.
  * - **HTML entity** other than the lowercase canonical `&amp;`/`&lt;`/`&gt;` (e.g. `&copy;`, `&#39;`,
@@ -31,7 +24,6 @@ const PROBE_SIZE_LIMIT = 256 * 1024
  *   be treated as safe. A bare `&` with no matching `;`-terminated name is left alone (harmless churn).
  */
 const STABLE_LOSS_PATTERNS: ReadonlyArray<RegExp> = [
-  /^(?=(?:[^\n]*\|){2})[^\n]*<br\s*\/?>/im,
   /^#{1,6}\s.*(?: {2,}|\\)$/m,
   /&(?!(?:amp|lt|gt);)(?:#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/,
 ]
@@ -49,17 +41,49 @@ function stripCode(content: string): string {
     .replace(/`+[^`\n]*`+/g, '')
 }
 
-/**
- * Linked images `[![alt](src)](href)`. The image node round-trips the common forms (clean URLs,
- * optional titles) via its `href` attribute, but an exotic one it can't tokenize falls back to the
- * stock parser, which drops the wrapping link — an invisible, stable loss. So instead of matching a
- * fixed pattern, {@link isRoundTripSafe} counts these before and after one serialization and rejects
- * if any disappeared.
- */
-const LINKED_IMAGE_PATTERN = /\[\s*!\[[^\]]*]\([^)]*\)\s*]\([^)]*\)/g
+const fidelityLexer = new Marked({ gfm: true })
 
-function linkedImageCount(content: string): number {
-  return content.match(LINKED_IMAGE_PATTERN)?.length ?? 0
+function imageSources(token: Token): string[] {
+  if (token.type === 'image') return [token.href]
+  return token.type === 'html' ? extractImgSrcs(token.raw) : []
+}
+
+/**
+ * Resolve reference syntax before comparing images and their wrapping links: a stable second
+ * serialization cannot reveal first-pass loss. Plain-text link counts are deliberately excluded:
+ * adjacent equal link marks can merge losslessly. Task references are conservatively source-only:
+ * their parser resolves definitions before a task but loses definitions appearing after it, so
+ * rearranging otherwise valid Markdown can silently remove a destination.
+ * Count HTML image sources too, allowing lossless HTML-to-Markdown conversion while catching images
+ * dropped from inline-only table cells. Frontmatter is stored separately, not interpreted as Markdown.
+ */
+function inspectMarkdownFidelity(content: string) {
+  const targets = new Map<string, number>()
+  let hasTaskReference = false
+  const add = (kind: 'image' | 'linkedImage', ...destinations: string[]) => {
+    const target = JSON.stringify([kind, ...destinations.map(decodeHtmlEntities)])
+    targets.set(target, (targets.get(target) ?? 0) + 1)
+  }
+  fidelityLexer.walkTokens(fidelityLexer.lexer(splitFrontmatter(content).body), (token) => {
+    for (const src of imageSources(token)) add('image', src)
+    if (token.type === 'link') {
+      fidelityLexer.walkTokens(token.tokens ?? [], (child) => {
+        for (const src of imageSources(child)) add('linkedImage', token.href, src)
+      })
+    }
+    if (token.type === 'list_item' && token.task) {
+      for (const child of token.tokens ?? []) {
+        if ((child.type === 'text' || child.type === 'paragraph') && child.tokens) {
+          fidelityLexer.walkTokens(child.tokens, (inline) => {
+            if ((inline.type === 'link' || inline.type === 'image') && inline.raw.endsWith(']')) {
+              hasTaskReference = true
+            }
+          })
+        }
+      }
+    }
+  })
+  return { targets, hasTaskReference }
 }
 
 /**
@@ -102,9 +126,9 @@ function hasOrphanReferenceDefinition(content: string): boolean {
 }
 
 /**
- * Whether `content` survives the editor's markdown round-trip without data loss or autosave
- * churn. The editor opens the content read-only when this is false, so the probe is deliberately
- * conservative: it rejects on any doubt rather than risk an edit silently corrupting a file.
+ * Whether `content` fits the rich editor's rendering budget and survives its Markdown round-trip
+ * without known data loss or autosave churn. A refusal keeps rich preview read-only and offers
+ * source editing; the character cap is a performance boundary, separate from fidelity checks.
  *
  * Two complementary checks: known stable-loss constructs are matched directly (the idempotency
  * probe is blind to them), and everything else must reach a fixpoint — `serializeMarkdownDocument(x)`
@@ -113,13 +137,18 @@ function hasOrphanReferenceDefinition(content: string): boolean {
  * pass and are allowed through; genuine churn (a blockquote wrapping a code fence keeps growing) is not.
  */
 export function isRoundTripSafe(content: string): boolean {
-  if (content.length > PROBE_SIZE_LIMIT) return false
+  if (content.length > PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS) return false
   const stripped = stripCode(content)
   if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripped))) return false
   if (hasOrphanReferenceDefinition(stripped)) return false
   try {
+    const source = inspectMarkdownFidelity(content)
+    if (source.hasTaskReference) return false
     const once = serializeMarkdownDocument(content)
-    if (linkedImageCount(stripped) !== linkedImageCount(stripCode(once))) return false
+    const serialized = inspectMarkdownFidelity(once)
+    for (const [target, count] of source.targets) {
+      if ((serialized.targets.get(target) ?? 0) < count) return false
+    }
     return serializeMarkdownDocument(once) === once
   } catch {
     return false
