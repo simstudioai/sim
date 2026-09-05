@@ -134,7 +134,7 @@ describe('Planning selectors (NetSuite binding and Snowflake bounded discovery p
     { items: [], totalResults: 1, hasMore: true },
     { items: [{ name: 'Account' }], totalResults: 2, hasMore: false },
     {
-      items: Array.from({ length: 1001 }, (_, i) => ({ name: 'D' + i })),
+      items: Array.from({ length: 1001 }, (_, i) => ({ name: `D${i}` })),
       totalResults: 1001,
       hasMore: false,
     },

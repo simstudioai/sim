@@ -20,8 +20,8 @@ import { managedAgentSelectorAttachments } from '@/lib/selectors/server/provider
 import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/microsoft'
 import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/monday'
 import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/netsuite'
-import { oracleEpmPlanningSelectorAttachments } from '@/lib/selectors/server/providers/oracle-epm-planning'
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
+import { oracleEpmPlanningSelectorAttachments } from '@/lib/selectors/server/providers/oracle-epm-planning'
 import { pipedriveSelectorAttachments } from '@/lib/selectors/server/providers/pipedrive'
 import { sharepointSelectorAttachments } from '@/lib/selectors/server/providers/sharepoint'
 import { slackSelectorAttachments } from '@/lib/selectors/server/providers/slack'
@@ -55,8 +55,8 @@ export const serverSelectorRegistry = {
   ...microsoftSelectorAttachments,
   ...mondaySelectorAttachments,
   ...netsuiteSelectorAttachments,
-  ...oracleEpmPlanningSelectorAttachments,
   ...notionSelectorAttachments,
+  ...oracleEpmPlanningSelectorAttachments,
   ...pipedriveSelectorAttachments,
   ...sharepointSelectorAttachments,
   ...slackSelectorAttachments,

@@ -1698,7 +1698,7 @@ export const OracleEpmPlanningBlock: BlockConfig<OracleEpmPlanningResponse> = {
   },
 }
 export const OracleEpmPlanningBlockMeta = {
-  tags: ['automation', 'data-analytics', 'finance'],
+  tags: ['automation', 'data-analytics'],
   url: 'https://www.oracle.com/performance-management/planning/',
   templates: [
     {

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { pollOracleEpmJob } from '@/lib/internal/oracle-epm/jobs'
+import { type OracleEpmPollClassification, pollOracleEpmJob } from '@/lib/internal/oracle-epm/jobs'
 import { planningEndpoints } from '@/lib/internal/oracle-epm-planning/route-space'
 import {
   jobSchema,
@@ -14,7 +14,9 @@ import type {
 } from '@/tools/oracle_epm_planning/types'
 
 /** https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/retrieve_job_status.html */
-export function classifyPlanningJob(job: PlanningJob) {
+export function classifyPlanningJob(
+  job: PlanningJob
+): OracleEpmPollClassification<PlanningJob, PlanningJob> {
   if (job.status === -1 || job.status === 2) return { state: 'pending' } as const
   if (job.status === 0) return { state: 'success', result: job } as const
   return { state: 'failure', error: job } as const

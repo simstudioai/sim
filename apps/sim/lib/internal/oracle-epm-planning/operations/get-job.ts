@@ -1,5 +1,5 @@
 import { readPlanningJob } from '@/lib/internal/oracle-epm-planning/jobs'
-import { type PlanningOperationContext } from '@/lib/internal/oracle-epm-planning/schema'
+import type { PlanningOperationContext } from '@/lib/internal/oracle-epm-planning/schema'
 import type {
   OracleEpmPlanningGetJobParams,
   OracleEpmPlanningResponse,

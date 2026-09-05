@@ -282,6 +282,28 @@ describe('Planning file orchestration over foundation primitives', () => {
       expect(request.mock.calls.at(-1)?.[0]).toBe(planningEndpoints.cleanupDownload)
     }
   )
+  it.each([false, true])(
+    'reports cleanup failure without replacing a prior storage failure (%s)',
+    async (storageFailed) => {
+      startDownload()
+      const originalRequest = request.getMockImplementation()!
+      request.mockImplementation(async (endpoint, input) => {
+        if (endpoint === planningEndpoints.cleanupDownload) throw new Error('Cleanup unavailable')
+        return originalRequest(endpoint, input)
+      })
+      const storageError = new Error('Storage unavailable')
+      if (storageFailed) mocks.store.mockRejectedValue(storageError)
+      const download = downloadPlanningFile({ ...auth, fileName: 'data.csv' }, context)
+      if (storageFailed) {
+        await expect(download).rejects.toBe(storageError)
+      } else {
+        await expect(download).rejects.toThrow(
+          'File was stored, but Oracle temporary download cleanup failed'
+        )
+      }
+      expect(request.mock.calls.at(-1)?.[0]).toBe(planningEndpoints.cleanupDownload)
+    }
+  )
   it('attempts cleanup after polling cancellation with a fresh bounded signal', async () => {
     startDownload()
     const controller = new AbortController()

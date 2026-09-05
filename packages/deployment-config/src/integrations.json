@@ -16285,7 +16285,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["automation", "data-analytics", "finance"]
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",

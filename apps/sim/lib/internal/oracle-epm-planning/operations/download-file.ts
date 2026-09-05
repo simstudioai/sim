@@ -1,5 +1,5 @@
 import { downloadPlanningFile } from '@/lib/internal/oracle-epm-planning/files.server'
-import { type PlanningOperationContext } from '@/lib/internal/oracle-epm-planning/schema'
+import type { PlanningOperationContext } from '@/lib/internal/oracle-epm-planning/schema'
 import type {
   OracleEpmPlanningDownloadFileParams,
   OracleEpmPlanningResponse,

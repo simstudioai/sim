@@ -6,7 +6,7 @@ import {
   openOracleEpmSourceFile,
   storeOracleEpmDownload,
 } from '@/lib/internal/oracle-epm/files.server'
-import { pollOracleEpmJob } from '@/lib/internal/oracle-epm/jobs'
+import { type OracleEpmPollClassification, pollOracleEpmJob } from '@/lib/internal/oracle-epm/jobs'
 import {
   PLANNING_DOWNLOAD_BYTES,
   PLANNING_INPUT_FILE_BYTES,
@@ -39,7 +39,9 @@ function findLink(status: InteropStatus, rel: string) {
   return links[0]
 }
 
-function interopClassification(status: InteropStatus) {
+function interopClassification(
+  status: InteropStatus
+): OracleEpmPollClassification<InteropStatus, InteropStatus> {
   if (status.status === -1) return { state: 'pending' } as const
   if (status.status === 0) return { state: 'success', result: status } as const
   return { state: 'failure', error: status } as const
@@ -185,11 +187,15 @@ export async function downloadPlanningFile(
   }
   const maxWaitMs = (input.maxWaitSeconds ?? 300) * 1000
   const deadlineAt = new Date(
-    Math.min(Date.now() + maxWaitMs, getExecutionDeadlineAt(context.signal)?.getTime() ?? Infinity)
+    Math.min(
+      Date.now() + maxWaitMs,
+      getExecutionDeadlineAt(context.signal)?.getTime() ?? Number.POSITIVE_INFINITY
+    )
   )
   let temporaryJobId: string | undefined
   let body: ReadableStream<Uint8Array> | undefined
-  let operationFailed = true
+  let file: UserFile
+  let cleanupFailed = false
   try {
     const initiation = parsePlanningResponse(
       interopStatusSchema,
@@ -236,7 +242,7 @@ export async function downloadPlanningFile(
     if (response.contentType?.split(';')[0].trim().toLowerCase() === 'application/json') {
       throw new PlanningInputError('Oracle returned an error instead of downloadable file content')
     }
-    const file = await storeOracleEpmDownload({
+    file = await storeOracleEpmDownload({
       body,
       fileName: input.fileName,
       contentType: response.contentType,
@@ -245,8 +251,6 @@ export async function downloadPlanningFile(
       maxBytes: PLANNING_DOWNLOAD_BYTES,
       signal: context.signal,
     })
-    operationFailed = false
-    return file
   } catch (error) {
     if (error instanceof PayloadSizeLimitError) {
       throw new PlanningInputError(
@@ -269,11 +273,12 @@ export async function downloadPlanningFile(
       } catch {
         /** Preserve an earlier failure, and never include tenant identifiers or response bodies in logs. */
         logger.warn('Oracle temporary download cleanup failed')
-        if (!operationFailed)
-          throw new PlanningInputError(
-            'File was stored, but Oracle temporary download cleanup failed'
-          )
+        cleanupFailed = true
       }
     }
   }
+  if (cleanupFailed) {
+    throw new PlanningInputError('File was stored, but Oracle temporary download cleanup failed')
+  }
+  return file
 }

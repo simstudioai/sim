@@ -720,7 +720,7 @@ const CASES: {
 
 async function invoke(operation: string, input: Record<string, unknown>, signal?: AbortSignal) {
   const response = await executeOracleEpmPlanningTool({
-    toolId: 'oracle_epm_planning_' + operation,
+    toolId: `oracle_epm_planning_${operation}`,
     input: { ...AUTH, ...input },
     headers: new Headers(),
     context: { userId: 'user-1', workflowId: 'workflow-1' },
@@ -817,7 +817,7 @@ describe('Planning operation contracts through the real foundation', () => {
     expect(result.success, JSON.stringify(result)).toBe(true)
     expect(result.output).toHaveProperty(entry.output)
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
-    const [url, options] = mocks.fetch.mock.calls[0]
+    const [url, , options] = mocks.fetch.mock.calls[0]
     expect(new URL(url).pathname).toBe(entry.path)
     expect(Object.fromEntries(new URL(url).searchParams)).toEqual(entry.query ?? {})
     expect(options.method).toBe(entry.method)

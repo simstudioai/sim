@@ -217,8 +217,8 @@ describe('Planning integration surface (NetSuite whole-integration precedent)', 
       expect(block.tools.config.tool({ operation: id })).toBe(id)
       expect(hasToolId(id)).toBe(true)
       expect(toolMetadata[id]?.id).toBe(id)
-      expect(registry).toContain(id + ':')
-      expect(internalRegistry).toContain("'" + id + "'")
+      expect(registry).toContain(`${id}:`)
+      expect(internalRegistry).toContain(`'${id}'`)
     }
   })
   it('aligns required visible inputs and exact output facets for every action', () => {
@@ -226,7 +226,7 @@ describe('Planning integration surface (NetSuite whole-integration precedent)', 
       for (const [name, parameter] of Object.entries(tool.params)) {
         if (parameter.visibility === 'hidden') continue
         const blockField = FIELD_MAPPING[tool.id][name] ?? name
-        expect(block.inputs[blockField]?.type, tool.id + '.' + name).toBe(parameter.type)
+        expect(block.inputs[blockField]?.type, `${tool.id}.${name}`).toBe(parameter.type)
         const visible = block.subBlocks.filter(
           (field) =>
             (field.canonicalParamId ?? field.id) === blockField &&
