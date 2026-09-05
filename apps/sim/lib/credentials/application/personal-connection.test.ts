@@ -183,7 +183,7 @@ describe('personal connection launch', () => {
   it('reconnects an owned account only for the matching provider', async () => {
     mocks.personal.mockResolvedValue([{ id: 'mine', providerId: 'confluence' }])
     await execute({ credentialId: 'mine' })
-    expect(mocks.personal).toHaveBeenCalledWith('workspace', 'viewer')
+    expect(mocks.personal).toHaveBeenCalledWith('workspace', 'viewer', 'mine')
     mocks.personal.mockResolvedValue([{ id: 'mine', providerId: 'gmail' }])
     await expect(execute({ credentialId: 'mine' })).rejects.toThrow('your own account')
   })

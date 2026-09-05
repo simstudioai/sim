@@ -852,9 +852,10 @@ export interface AccessibleOAuthCredential {
  */
 export async function getEnrolledManagedOAuthCredentials(
   workspaceId: string,
-  userId: string
+  userId: string,
+  credentialId?: string
 ): Promise<(AccessibleOAuthCredential & { connectedAt: Date })[]> {
-  const rows = await db
+  const query = db
     .select({
       id: credential.id,
       providerId: credential.providerId,
@@ -881,10 +882,12 @@ export async function getEnrolledManagedOAuthCredentials(
         eq(credential.workspaceId, workspaceId),
         eq(credentialGroup.workspaceId, workspaceId),
         eq(credential.type, 'managed_oauth'),
+        credentialId === undefined ? undefined : eq(credential.id, credentialId),
         eq(user.id, userId),
         eq(user.emailVerified, true)
       )
     )
+  const rows = await (credentialId === undefined ? query : query.limit(1))
 
   return rows
     .filter(

@@ -87,6 +87,14 @@ describe('personal GitLab tokens in Connected accounts', () => {
     mocks.verify.mockResolvedValue(verified)
     mocks.encrypt.mockResolvedValue('ciphertext')
   })
+  it('bounds a reconnect lookup by credential ID without weakening enrollment checks', async () => {
+    await getPersonalTokenCredentials('workspace', 'owner', 'token')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credential.id, 'token')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credential.createdBy, 'owner')
+    expect(eq).toHaveBeenCalledWith(schemaMock.credential.workspaceId, 'workspace')
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
+    expectLiveBinding()
+  })
   it('automatically saves a verified token into the canonical group enrollment', async () => {
     binding()
     dbChainMockFns.returning.mockResolvedValueOnce([current])

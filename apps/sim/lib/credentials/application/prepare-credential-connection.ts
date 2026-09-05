@@ -106,7 +106,11 @@ export const prepareCredentialConnection = defineAuthorizedWorkspaceUseCase({
         throw new OrchestrationError('conflict', 'GitLab is not available in this workspace')
       }
       if (input.credentialId) {
-        const personalCredentials = await getPersonalTokenCredentials(context.workspaceId, userId)
+        const personalCredentials = await getPersonalTokenCredentials(
+          context.workspaceId,
+          userId,
+          input.credentialId
+        )
         if (
           !personalCredentials.some(
             (entry) => entry.id === input.credentialId && entry.providerId === 'gitlab'
@@ -138,7 +142,8 @@ export const prepareCredentialConnection = defineAuthorizedWorkspaceUseCase({
         ? (
             await getPersonalOAuthCredentials(
               context.workspaceId,
-              requirePrincipalSubjectUserId(principal)
+              requirePrincipalSubjectUserId(principal),
+              input.credentialId
             )
           ).find((entry) => entry.id === input.credentialId)
         : undefined

@@ -97,7 +97,12 @@ describe('personal credential application access', () => {
 
     expect(mocks.listPersonal).toHaveBeenCalledTimes(2)
     expect(mocks.listPersonal).toHaveBeenNthCalledWith(1, 'workspace-1', 'user-1')
-    expect(mocks.listPersonal).toHaveBeenNthCalledWith(2, 'workspace-1', 'user-1')
+    expect(mocks.listPersonal).toHaveBeenNthCalledWith(
+      2,
+      'workspace-1',
+      'user-1',
+      personalCredential.id
+    )
   })
 
   it('includes only owner-scoped personal token metadata in account discovery', async () => {

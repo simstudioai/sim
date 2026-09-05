@@ -15,30 +15,33 @@ export interface PersonalOAuthCredential {
 /** Accounts whose provider identity belongs to the person, independently of workspace sharing. */
 export async function getPersonalOAuthCredentials(
   workspaceId: string,
-  userId: string
+  userId: string,
+  credentialId?: string
 ): Promise<PersonalOAuthCredential[]> {
+  const ownedQuery = db
+    .select({
+      id: credential.id,
+      providerId: credential.providerId,
+      displayName: credential.displayName,
+      updatedAt: credential.updatedAt,
+      connectedAt: credential.createdAt,
+    })
+    .from(credential)
+    .innerJoin(account, eq(account.id, credential.accountId))
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        credentialId === undefined ? undefined : eq(credential.id, credentialId),
+        eq(credential.type, 'oauth'),
+        eq(account.userId, userId),
+        eq(account.providerId, credential.providerId),
+        /** Ordinary Slack OAuth stores an installation's bot token, not its installer's token. */
+        ne(credential.providerId, 'slack')
+      )
+    )
   const [owned, enrolled] = await Promise.all([
-    db
-      .select({
-        id: credential.id,
-        providerId: credential.providerId,
-        displayName: credential.displayName,
-        updatedAt: credential.updatedAt,
-        connectedAt: credential.createdAt,
-      })
-      .from(credential)
-      .innerJoin(account, eq(account.id, credential.accountId))
-      .where(
-        and(
-          eq(credential.workspaceId, workspaceId),
-          eq(credential.type, 'oauth'),
-          eq(account.userId, userId),
-          eq(account.providerId, credential.providerId),
-          /** Ordinary Slack OAuth stores an installation's bot token, not its installer's token. */
-          ne(credential.providerId, 'slack')
-        )
-      ),
-    getEnrolledManagedOAuthCredentials(workspaceId, userId),
+    credentialId === undefined ? ownedQuery : ownedQuery.limit(1),
+    getEnrolledManagedOAuthCredentials(workspaceId, userId, credentialId),
   ])
   return [
     ...owned.flatMap((row) =>

@@ -131,7 +131,7 @@ describe('prepareCredentialConnection', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.personalTokens).toHaveBeenCalledWith('workspace-1', 'user-1')
+    expect(mocks.personalTokens).toHaveBeenCalledWith('workspace-1', 'user-1', 'other-person')
     expect(mocks.resolveTarget).not.toHaveBeenCalled()
   })
 
@@ -218,7 +218,11 @@ describe('prepareCredentialConnection', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.personalCredentials).toHaveBeenCalledWith('workspace-1', 'user-1')
+    expect(mocks.personalCredentials).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      'shared-account'
+    )
     expect(mocks.resolveTarget).not.toHaveBeenCalled()
   })
 

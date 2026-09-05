@@ -25,6 +25,7 @@ const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 const getEffectiveEnvironmentSnapshot = environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 const {
+  computeWorkspaceEntitlements,
   listPersonal,
   generateWorkspaceSnapshot,
   processContextsServer,
@@ -44,6 +45,7 @@ const {
   storeChatSendResult,
   releaseChatSendClaim,
 } = vi.hoisted(() => ({
+  computeWorkspaceEntitlements: vi.fn(async () => []),
   listPersonal: vi.fn(),
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
@@ -126,6 +128,8 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/credentials/application/personal-credentials', () => ({
   listPersonalCredentials: { execute: listPersonal },
 }))
+
+vi.mock('@/lib/copilot/entitlements', () => ({ computeWorkspaceEntitlements }))
 
 vi.mock('@/lib/copilot/chat/workspace-context', () => ({
   generateWorkspaceSnapshot,
@@ -287,6 +291,7 @@ describe('handleUnifiedChatPost', () => {
     expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
     expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
     expect(processContextsServer).not.toHaveBeenCalled()
+    expect(computeWorkspaceEntitlements).not.toHaveBeenCalled()
     expect(listPersonal).toHaveBeenCalledWith({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: { workspaceId: 'ws-1' },
@@ -327,6 +332,27 @@ describe('handleUnifiedChatPost', () => {
       expect.anything(),
       expect.anything()
     )
+  })
+
+  it('loads personal accounts while the execution context is being prepared', async () => {
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    const billing = Promise.withResolvers<typeof billingAttribution>()
+    const accountsStarted = Promise.withResolvers<void>()
+    resolveBillingAttribution.mockReturnValueOnce(billing.promise)
+    listPersonal.mockImplementationOnce(async () => {
+      accountsStarted.resolve()
+      return { credentials: [] }
+    })
+    const pending = handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'Continue', workspaceId: 'ws-1', mode: 'assistant' }),
+      })
+    )
+    await accountsStarted.promise
+    expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
+    billing.resolve(billingAttribution)
+    expect((await pending).status).toBe(200)
   })
 
   it.each([

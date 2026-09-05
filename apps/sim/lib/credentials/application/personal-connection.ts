@@ -43,7 +43,11 @@ export const startPersonalCredentialConnection = defineAuthorizedWorkspaceUseCas
       throw new OrchestrationError('validation', 'This integration cannot be connected here')
     }
     if (input.credentialId) {
-      const credentials = await getPersonalOAuthCredentials(context.workspaceId, userId)
+      const credentials = await getPersonalOAuthCredentials(
+        context.workspaceId,
+        userId,
+        input.credentialId
+      )
       if (
         !credentials.some(
           (entry) => entry.id === input.credentialId && entry.providerId === input.providerId

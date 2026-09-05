@@ -189,18 +189,6 @@ describe('buildIntegrationToolSchemas', () => {
     expect(gmailTool?.description).toBe('Send emails using Gmail')
   })
 
-  it('still builds integration tools when subscription lookup fails', async () => {
-    mockGetHighestPrioritySubscription.mockRejectedValue(new Error('db unavailable'))
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-error')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-    const brandfetchTool = toolSchemas.find((tool) => tool.name === 'brandfetch_search')
-
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-error')
-    expect(gmailTool?.description).toBe('Send emails using Gmail')
-    expect(brandfetchTool?.description).toBe('Search for brands by company name')
-  })
-
   it('emits executeLocally for dynamic client tools only', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
 
@@ -264,7 +252,6 @@ describe('buildIntegrationToolSchemas', () => {
 
     const toolSchemas = await buildIntegrationToolSchemas(
       'user-intersection',
-      undefined,
       { schemaSurface: 'copilot' },
       'workspace-1'
     )
@@ -292,7 +279,6 @@ describe('buildIntegrationToolSchemas', () => {
     await expect(
       buildIntegrationToolSchemas(
         'user-permission-error',
-        undefined,
         { schemaSurface: 'copilot' },
         'workspace-1'
       )
@@ -314,13 +300,72 @@ describe('buildIntegrationToolSchemas', () => {
     expect(second[0].outputs).not.toHaveProperty('mutated')
   })
 
+  it('isolates nested schemas and required fields between requests', async () => {
+    mockCreateUserToolSchema.mockReturnValueOnce({
+      type: 'object',
+      properties: { recipients: { type: 'array', items: { type: 'string' } } },
+      required: ['recipients'],
+    })
+    const first = await buildIntegrationToolSchemas('user-nested-schema')
+    const properties = first[0].input_schema.properties as Record<string, unknown>
+    properties.recipients = { type: 'number' }
+    ;(first[0].input_schema.required as string[]).push('forged')
+
+    const second = await buildIntegrationToolSchemas('user-nested-schema')
+    expect(second[0].input_schema.properties).toEqual({
+      recipients: { type: 'array', items: { type: 'string' } },
+    })
+    expect(second[0].input_schema.required).toEqual(['recipients'])
+  })
+
+  it('coalesces simultaneous catalog builds', async () => {
+    const catalogs = await Promise.all(
+      Array.from({ length: 20 }, () => buildIntegrationToolSchemas('concurrent-user'))
+    )
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
+    expect(mockCreateUserToolSchema).toHaveBeenCalledTimes(3)
+    expect(catalogs.every((catalog) => catalog.length === 3)).toBe(true)
+  })
+
+  it('propagates schema failures without caching a partial catalog', async () => {
+    mockCreateUserToolSchema.mockImplementationOnce(() => {
+      throw new Error('invalid tool schema')
+    })
+    await expect(buildIntegrationToolSchemas('schema-failure')).rejects.toThrow(
+      'invalid tool schema'
+    )
+    const recovered = await buildIntegrationToolSchemas('schema-failure')
+    expect(recovered).toHaveLength(3)
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(2)
+  })
+
+  it('propagates subscription failures without caching a guessed catalog', async () => {
+    mockGetHighestPrioritySubscription.mockRejectedValueOnce(new Error('billing unavailable'))
+    await expect(buildIntegrationToolSchemas('subscription-failure')).rejects.toThrow(
+      'billing unavailable'
+    )
+    expect(mockCreateUserToolSchema).not.toHaveBeenCalled()
+    expect(await buildIntegrationToolSchemas('subscription-failure')).toHaveLength(3)
+  })
+
+  it('evicts catalogs by their byte size before reaching the entry cap', async () => {
+    mockCreateUserToolSchema.mockImplementation(() => ({
+      type: 'object',
+      properties: { large: { type: 'string', description: 'x'.repeat(1024 * 1024) } },
+    }))
+    for (let i = 0; i < 12; i++) await buildIntegrationToolSchemas(`sized-user-${i}`)
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(12)
+    await buildIntegrationToolSchemas('sized-user-0')
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(13)
+    mockCreateUserToolSchema.mockImplementation(() => ({ type: 'object', properties: {} }))
+  })
+
   it('rebuilds instead of serving a cache entry from the previous policy', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
     mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: null, deniedTools: [] })
 
     const before = await buildIntegrationToolSchemas(
       'user-policy',
-      undefined,
       { schemaSurface: 'copilot' },
       'workspace-policy'
     )
@@ -335,7 +380,6 @@ describe('buildIntegrationToolSchemas', () => {
 
     const after = await buildIntegrationToolSchemas(
       'user-policy',
-      undefined,
       { schemaSurface: 'copilot' },
       'workspace-policy'
     )

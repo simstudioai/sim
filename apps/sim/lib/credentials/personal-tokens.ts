@@ -33,9 +33,10 @@ export interface PersonalTokenCredential {
 /** Lists only the acting person's live tokens, without loading secret material or shared grants. */
 export async function getPersonalTokenCredentials(
   workspaceId: string,
-  userId: string
+  userId: string,
+  credentialId?: string
 ): Promise<PersonalTokenCredential[]> {
-  const rows = await db
+  const query = db
     .select({
       id: credential.id,
       providerId: credential.providerId,
@@ -63,12 +64,14 @@ export async function getPersonalTokenCredentials(
       and(
         eq(credential.workspaceId, workspaceId),
         eq(credential.type, 'personal_token'),
+        credentialId === undefined ? undefined : eq(credential.id, credentialId),
         eq(credential.createdBy, userId),
         ...liveEnrollmentConditions(workspaceId, userId),
         isNull(credential.revokedAt),
         or(isNull(credential.accessTokenExpiresAt), gt(credential.accessTokenExpiresAt, new Date()))
       )
     )
+  const rows = await (credentialId === undefined ? query : query.limit(1))
   return rows.flatMap((row) =>
     row.providerId && row.instanceUrl
       ? [

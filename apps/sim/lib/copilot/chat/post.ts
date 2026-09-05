@@ -1334,9 +1334,21 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 }
               )
             : Promise.resolve(null)
-      const entitlementsPromise = workspaceId
-        ? computeWorkspaceEntitlements(workspaceId, authenticatedUserId)
-        : Promise.resolve([])
+      const entitlementsPromise =
+        workspaceId && body.mode !== 'assistant'
+          ? computeWorkspaceEntitlements(workspaceId, authenticatedUserId)
+          : Promise.resolve([])
+      const personalCredentialsPromise =
+        workspaceId && body.mode === 'assistant'
+          ? listPersonalCredentials.execute({
+              principal: {
+                kind: 'session',
+                userId: authenticatedUserId,
+                sessionId: session.session.id,
+              },
+              input: { workspaceId },
+            })
+          : Promise.resolve(undefined)
       // Wrap the pre-LLM prep work in spans so the trace waterfall shows
       // where time is going between "request received" and "llm.stream
       // opens". Previously these ran bare under the root and inflated the
@@ -1396,30 +1408,30 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
         parentOtelContext: activeOtelRoot.context,
       })
-      const [agentContexts, userPermission, entitlements, workspaceSnapshot, , executionContext] =
-        await Promise.all([
-          agentContextsPromise,
-          userPermissionPromise,
-          entitlementsPromise,
-          workspaceContextPromise,
-          persistUserMessagePromise,
-          executionContextPromise,
-        ])
+      const [
+        agentContexts,
+        userPermission,
+        entitlements,
+        workspaceSnapshot,
+        ,
+        executionContext,
+        personalCredentials,
+      ] = await Promise.all([
+        agentContextsPromise,
+        userPermissionPromise,
+        entitlementsPromise,
+        workspaceContextPromise,
+        persistUserMessagePromise,
+        executionContextPromise,
+        personalCredentialsPromise,
+      ])
       // Both halves come from one primary-db fetch (workspace-context.ts):
       // `workspaceContext` is the markdown transition fallback, `vfs` is the
       // typed snapshot Go diffs into baseline+delta messages.
       let workspaceContext = workspaceSnapshot?.markdown
-      if (body.mode === 'assistant' && workspaceId) {
-        const { credentials } = await listPersonalCredentials.execute({
-          principal: {
-            kind: 'session',
-            userId: authenticatedUserId,
-            sessionId: session.session.id,
-          },
-          input: { workspaceId },
-        })
+      if (personalCredentials) {
         workspaceContext = JSON.stringify({
-          credentials: credentials.map((credential) => ({
+          credentials: personalCredentials.credentials.map((credential) => ({
             id: credential.id,
             providerId: credential.providerId,
             displayName: credential.displayName,
@@ -1435,11 +1447,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
       executionContext.userPermission = userPermission ?? undefined
 
-      // buildPayload is the last synchronous step before the outbound
-      // Sim → Go HTTP call. It runs per-tool schema generation (subscription
-      // lookup + registry iteration, cached 30s) and file upload tracking
-      // per attachment. Wrapping it so we can see how much of the
-      // "before llm.stream" gap lives here vs elsewhere.
+      /** Trace catalog preparation and attachment tracking before the Sim → Go request. */
       const requestPayload = await withCopilotSpan(
         TraceSpan.CopilotChatBuildPayload,
         {
