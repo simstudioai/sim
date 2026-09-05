@@ -7,6 +7,7 @@ import {
   narrativeExportInputSchema,
   narrativeImportInputSchema,
   narrativeListInputSchema,
+  narrativePdfDownloadInputSchema,
   narrativeRefreshInputSchema,
   narrativeResourceInputSchema,
   narrativeSnapshotInputSchema,
@@ -79,7 +80,7 @@ const cases = [
   },
   {
     tool: tools.oracleEpmNarrativeReportingDownloadReportOutputTool,
-    schema: narrativeDownloadInputSchema,
+    schema: narrativePdfDownloadInputSchema,
   },
   { tool: tools.oracleEpmNarrativeReportingListBooksTool, schema: narrativeListInputSchema },
   { tool: tools.oracleEpmNarrativeReportingGetBookTool, schema: narrativeResourceInputSchema },
@@ -105,7 +106,7 @@ const cases = [
   },
   {
     tool: tools.oracleEpmNarrativeReportingDownloadReportSnapshotOutputTool,
-    schema: narrativeDownloadInputSchema,
+    schema: narrativePdfDownloadInputSchema,
   },
   {
     tool: tools.oracleEpmNarrativeReportingGetReportPackageTool,
@@ -127,6 +128,21 @@ const cases = [
   },
 ]
 describe('Narrative tool and canvas execution contracts', () => {
+  it.each([
+    ['list_reports', 'limit', '0'],
+    ['list_reports', 'limit', '101'],
+    ['list_reports', 'limit', '1.5'],
+    ['list_reports', 'offset', '-1'],
+    ['list_reports', 'offset', '1000001'],
+    ['list_reports', 'offset', '0.5'],
+    ['wait_for_job', 'maxWaitSeconds', '9'],
+    ['wait_for_job', 'maxWaitSeconds', '241'],
+    ['wait_for_job', 'maxWaitSeconds', '10.5'],
+  ])('rejects out-of-bounds canvas input for %s %s=%s', (operation, field, value) => {
+    const map = block.tools.config?.params
+    if (!map) throw new Error('Missing block operation adapter')
+    expect(() => map({ ...sample, operation, [field]: value })).toThrow()
+  })
   it.each(cases)(
     '$tool.id maps the operation and inputs without losing required values',
     ({ tool, schema }) => {

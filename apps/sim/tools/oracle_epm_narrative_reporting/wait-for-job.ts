@@ -23,7 +23,8 @@ export const oracleEpmNarrativeReportingWaitForJobTool: InternalToolConfig<
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Native resource ID returned by its matching discovery operation.',
+        description:
+          'Oracle job ID returned by snapshot creation, package refresh, export, or import submission.',
       },
       maxWaitSeconds: {
         type: 'number',

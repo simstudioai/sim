@@ -9,6 +9,7 @@ import {
   narrativeListInputSchema,
   narrativePageSchema,
   narrativeRefreshInputSchema,
+  narrativeReportSchema,
   narrativeSnapshotInputSchema,
 } from '@/lib/internal/oracle-epm-narrative-reporting/schemas'
 
@@ -19,6 +20,43 @@ const auth = {
 }
 
 describe('Narrative Reporting contracts', () => {
+  it('does not advertise unselected validation or metadata as successful empty values', () => {
+    const report = narrativeReportSchema.parse({
+      reportId: 'report',
+      name: 'Report',
+      validationMessages: ['Invalid member'],
+      invalidFields: ['grid'],
+    })
+    expect(report).not.toHaveProperty('validationMessages')
+    expect(report).not.toHaveProperty('invalidFields')
+    const artifact = narrativeArtifactSchema.parse({
+      artifactId: 'artifact',
+      name: 'Artifact',
+      typeLabel: 'Report',
+      systemPath: '/Library',
+      mimeType: 'application/pdf',
+    })
+    for (const field of ['typeLabel', 'systemPath', 'mimeType']) {
+      expect(artifact).not.toHaveProperty(field)
+    }
+    expect(
+      narrativeBookSchema.parse({ bookId: 'book', name: 'Book', primaryDatasource: 'Source' })
+    ).not.toHaveProperty('primaryDatasource')
+  })
+  it('distinguishes unknown book validation from returned empty or failing validation', () => {
+    const book = { bookId: 'book', name: 'Book' }
+    expect(narrativeBookSchema.parse(book).validationMessages).toBeNull()
+    expect(
+      narrativeBookSchema.parse({ ...book, validationMessages: null }).validationMessages
+    ).toBeNull()
+    expect(
+      narrativeBookSchema.parse({ ...book, validationMessages: [] }).validationMessages
+    ).toEqual([])
+    expect(
+      narrativeBookSchema.parse({ ...book, validationMessages: ['Invalid member'] })
+        .validationMessages
+    ).toEqual(['Invalid member'])
+  })
   it('requires documented collection envelopes instead of guessing missing items', () => {
     const schema = narrativePageSchema(narrativeBookSchema)
     expect(schema.safeParse({ bookId: 'b', name: 'Book' }).success).toBe(false)

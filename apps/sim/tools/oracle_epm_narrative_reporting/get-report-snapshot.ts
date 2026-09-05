@@ -57,20 +57,6 @@ export const oracleEpmNarrativeReportingGetReportSnapshotTool: InternalToolConfi
             type: 'string',
           },
         },
-        validationMessages: {
-          type: 'array',
-          description: 'Validation messages',
-          items: {
-            type: 'string',
-          },
-        },
-        invalidFields: {
-          type: 'array',
-          description: 'Invalid fields',
-          items: {
-            type: 'string',
-          },
-        },
         createdBy: {
           type: 'string',
           description: 'createdBy',

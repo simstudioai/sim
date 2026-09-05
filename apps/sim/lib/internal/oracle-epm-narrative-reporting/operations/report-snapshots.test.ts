@@ -34,6 +34,9 @@ describe('Narrative report-snapshots', () => {
       description: null,
     })
     expect(result.output.snapshots[0]).not.toHaveProperty('links')
+    expect(request.mock.calls[0][1].query.fields.split(',').sort()).toEqual(
+      Object.keys(result.output.snapshots[0]).sort()
+    )
     expect(result.output).not.toHaveProperty('hasMore')
     expect(request).toHaveBeenCalledTimes(1)
   })
@@ -47,6 +50,9 @@ describe('Narrative report-snapshots', () => {
     request.mockResolvedValue({ status: 200, data: { reportId: 'native-id', name: 'Budget' } })
     const result = await getReportSnapshot({ ...auth, resourceId: 'native-id' }, context)
     expect(result.output.snapshot).toMatchObject({ reportId: 'native-id', name: 'Budget' })
+    expect(request.mock.calls[0][1].query.fields.split(',').sort()).toEqual(
+      Object.keys(result.output.snapshot).sort()
+    )
     expect(request).toHaveBeenCalledExactlyOnceWith(
       narrativeEndpoints.getSnapshot,
       expect.objectContaining({ pathParams: { id: 'native-id' }, signal: context.signal })

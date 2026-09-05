@@ -53,6 +53,9 @@ describe('Narrative library operations', () => {
       offset: 50,
     })
     expect(result.output.artifacts[0]).not.toHaveProperty('links')
+    expect(request.mock.calls[0][1].query.fields.split(',').sort()).toEqual(
+      Object.keys(result.output.artifacts[0]).sort()
+    )
   })
   it('keeps repository identities and explicitly projects artifact metadata', async () => {
     request.mockResolvedValue({
@@ -61,6 +64,9 @@ describe('Narrative library operations', () => {
     })
     const result = await getLibraryArtifact({ ...auth, resourceId: 'a' }, context)
     expect(result.output.artifact).not.toHaveProperty('reportId')
+    expect(request.mock.calls[0][1].query.fields.split(',').sort()).toEqual(
+      Object.keys(result.output.artifact).sort()
+    )
     expect(request).toHaveBeenCalledWith(
       narrativeEndpoints.getArtifact,
       expect.objectContaining({ pathParams: { id: 'a' } })

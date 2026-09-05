@@ -49,6 +49,9 @@ export const narrativeDownloadInputSchema = narrativeResourceInputSchema.extend(
   globalPov: optionalInput,
   prompts: optionalInput,
 })
+export const narrativePdfDownloadInputSchema = narrativeDownloadInputSchema.extend({
+  format: z.literal('pdf').default('pdf'),
+})
 export const narrativeCreateFolderInputSchema = narrativeAuthSchema.extend({
   name: z.string().trim().min(1, 'Folder name is required').max(255),
   description: optionalInput,
@@ -149,16 +152,14 @@ const timestamps = {
   modifiedDate: optionalText,
   lastAccessed: optionalText,
 }
+/** Only individually selectable metadata; do not expand repository children with fields=all. */
 export const narrativeArtifactSchema = z.object({
   artifactId: identifier,
   name: z.string().max(16_384),
   description: optionalText,
   type: optionalText,
   typeID: optionalText,
-  typeLabel: optionalText,
   pathName: optionalText,
-  systemPath: optionalText,
-  mimeType: optionalText,
   modifiedBy: optionalText,
   favorite: optionalBoolean,
   ordinal: optionalNumber,
@@ -198,6 +199,7 @@ export const narrativePromptSchema = z.object({
     .nullish()
     .transform((v) => v ?? []),
 })
+/** Oracle does not individually expose report validation fields in its fields query enum. */
 export const narrativeReportSchema = z.object({
   reportId: identifier,
   name: z.string().max(16_384),
@@ -207,8 +209,6 @@ export const narrativeReportSchema = z.object({
     .nullish()
     .transform((v) => v ?? null),
   datasourceNames: strings,
-  validationMessages: strings,
-  invalidFields: strings,
   ...timestamps,
 })
 export const narrativeBookSchema = z.object({
@@ -217,9 +217,13 @@ export const narrativeBookSchema = z.object({
   description: optionalText,
   pathName: optionalText,
   systemPath: optionalText,
-  primaryDatasource: optionalText,
   datasourceNames: strings,
-  validationMessages: strings,
+  /** Missing validation information is unknown, not a successful empty validation result. */
+  validationMessages: z
+    .array(z.string().max(16_384))
+    .max(1_000)
+    .nullish()
+    .transform((value) => value ?? null),
   ...timestamps,
 })
 export const narrativeReportPackageSchema = z.object({

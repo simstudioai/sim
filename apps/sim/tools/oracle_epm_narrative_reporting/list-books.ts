@@ -76,11 +76,6 @@ export const oracleEpmNarrativeReportingListBooksTool: InternalToolConfig<
             description: 'systemPath',
             nullable: true,
           },
-          primaryDatasource: {
-            type: 'string',
-            description: 'primaryDatasource',
-            nullable: true,
-          },
           datasourceNames: {
             type: 'array',
             description: 'Data source names',
@@ -90,7 +85,9 @@ export const oracleEpmNarrativeReportingListBooksTool: InternalToolConfig<
           },
           validationMessages: {
             type: 'array',
-            description: 'Validation messages',
+            nullable: true,
+            description:
+              'Validation messages; null when Oracle does not return validation information',
             items: {
               type: 'string',
             },

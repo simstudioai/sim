@@ -43,10 +43,7 @@ List one bounded page of repository artifacts or a folder’s children.
 |   ↳ `description` | string | description |
 |   ↳ `type` | string | type |
 |   ↳ `typeID` | string | typeID |
-|   ↳ `typeLabel` | string | typeLabel |
 |   ↳ `pathName` | string | pathName |
-|   ↳ `systemPath` | string | systemPath |
-|   ↳ `mimeType` | string | mimeType |
 |   ↳ `modifiedBy` | string | modifiedBy |
 |   ↳ `favorite` | boolean | Favorite flag |
 |   ↳ `ordinal` | number | Ordinal |
@@ -81,10 +78,7 @@ Read repository artifact metadata by its repository ID.
 |   ↳ `description` | string | description |
 |   ↳ `type` | string | type |
 |   ↳ `typeID` | string | typeID |
-|   ↳ `typeLabel` | string | typeLabel |
 |   ↳ `pathName` | string | pathName |
-|   ↳ `systemPath` | string | systemPath |
-|   ↳ `mimeType` | string | mimeType |
 |   ↳ `modifiedBy` | string | modifiedBy |
 |   ↳ `favorite` | boolean | Favorite flag |
 |   ↳ `ordinal` | number | Ordinal |
@@ -116,10 +110,7 @@ Create a folder in the Oracle Narrative Reporting library.
 |   ↳ `description` | string | description |
 |   ↳ `type` | string | type |
 |   ↳ `typeID` | string | typeID |
-|   ↳ `typeLabel` | string | typeLabel |
 |   ↳ `pathName` | string | pathName |
-|   ↳ `systemPath` | string | systemPath |
-|   ↳ `mimeType` | string | mimeType |
 |   ↳ `modifiedBy` | string | modifiedBy |
 |   ↳ `favorite` | boolean | Favorite flag |
 |   ↳ `ordinal` | number | Ordinal |
@@ -154,10 +145,7 @@ Create a library file referencing an already uploaded Oracle file. This does not
 |   ↳ `description` | string | description |
 |   ↳ `type` | string | type |
 |   ↳ `typeID` | string | typeID |
-|   ↳ `typeLabel` | string | typeLabel |
 |   ↳ `pathName` | string | pathName |
-|   ↳ `systemPath` | string | systemPath |
-|   ↳ `mimeType` | string | mimeType |
 |   ↳ `modifiedBy` | string | modifiedBy |
 |   ↳ `favorite` | boolean | Favorite flag |
 |   ↳ `ordinal` | number | Ordinal |
@@ -208,8 +196,6 @@ List one bounded page of native Narrative Reporting reports.
 |   ↳ `description` | string | Report description |
 |   ↳ `instanceType` | string | editor, result, or snapshot when returned |
 |   ↳ `datasourceNames` | array | Data source names |
-|   ↳ `validationMessages` | array | Validation messages |
-|   ↳ `invalidFields` | array | Invalid fields |
 |   ↳ `createdBy` | string | createdBy |
 |   ↳ `creationDate` | string | creationDate |
 |   ↳ `modifiedDate` | string | modifiedDate |
@@ -241,8 +227,6 @@ Read native report metadata.
 |   ↳ `description` | string | Report description |
 |   ↳ `instanceType` | string | editor, result, or snapshot when returned |
 |   ↳ `datasourceNames` | array | Data source names |
-|   ↳ `validationMessages` | array | Validation messages |
-|   ↳ `invalidFields` | array | Invalid fields |
 |   ↳ `createdBy` | string | createdBy |
 |   ↳ `creationDate` | string | creationDate |
 |   ↳ `modifiedDate` | string | modifiedDate |
@@ -348,9 +332,8 @@ List one bounded page of native Narrative Reporting books.
 |   ↳ `description` | string | description |
 |   ↳ `pathName` | string | pathName |
 |   ↳ `systemPath` | string | systemPath |
-|   ↳ `primaryDatasource` | string | primaryDatasource |
 |   ↳ `datasourceNames` | array | Data source names |
-|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `validationMessages` | array | Validation messages; null when Oracle does not return validation information |
 |   ↳ `createdBy` | string | createdBy |
 |   ↳ `creationDate` | string | creationDate |
 |   ↳ `modifiedDate` | string | modifiedDate |
@@ -382,9 +365,8 @@ Read native book metadata.
 |   ↳ `description` | string | description |
 |   ↳ `pathName` | string | pathName |
 |   ↳ `systemPath` | string | systemPath |
-|   ↳ `primaryDatasource` | string | primaryDatasource |
 |   ↳ `datasourceNames` | array | Data source names |
-|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `validationMessages` | array | Validation messages; null when Oracle does not return validation information |
 |   ↳ `createdBy` | string | createdBy |
 |   ↳ `creationDate` | string | creationDate |
 |   ↳ `modifiedDate` | string | modifiedDate |
@@ -459,8 +441,6 @@ List one bounded page of report snapshots, not database backups.
 |   ↳ `description` | string | Report description |
 |   ↳ `instanceType` | string | editor, result, or snapshot when returned |
 |   ↳ `datasourceNames` | array | Data source names |
-|   ↳ `validationMessages` | array | Validation messages |
-|   ↳ `invalidFields` | array | Invalid fields |
 |   ↳ `createdBy` | string | createdBy |
 |   ↳ `creationDate` | string | creationDate |
 |   ↳ `modifiedDate` | string | modifiedDate |
@@ -492,8 +472,6 @@ Read report snapshot metadata by its native report snapshot ID.
 |   ↳ `description` | string | Report description |
 |   ↳ `instanceType` | string | editor, result, or snapshot when returned |
 |   ↳ `datasourceNames` | array | Data source names |
-|   ↳ `validationMessages` | array | Validation messages |
-|   ↳ `invalidFields` | array | Invalid fields |
 |   ↳ `createdBy` | string | createdBy |
 |   ↳ `creationDate` | string | creationDate |
 |   ↳ `modifiedDate` | string | modifiedDate |
@@ -555,7 +533,7 @@ Read metadata for an existing report package by its native package ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
-| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+| `resourceId` | string | Yes | Native report package ID obtained from Oracle; package discovery is not yet supported by this integration. |
 
 #### Output
 
@@ -605,7 +583,7 @@ Read job status without waiting or following artifact result links.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
-| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+| `resourceId` | string | Yes | Oracle job ID returned by snapshot creation, package refresh, export, or import submission. |
 
 #### Output
 
@@ -628,7 +606,7 @@ Poll an existing job within a bounded wait. Preserve its ID on timeout; never re
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
-| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+| `resourceId` | string | Yes | Oracle job ID returned by snapshot creation, package refresh, export, or import submission. |
 | `maxWaitSeconds` | number | No | Maximum wait in seconds \(10–240, default 120\). A local timeout does not cancel the Oracle job. |
 
 #### Output

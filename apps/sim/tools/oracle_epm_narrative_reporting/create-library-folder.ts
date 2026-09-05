@@ -67,24 +67,9 @@ export const oracleEpmNarrativeReportingCreateLibraryFolderTool: InternalToolCon
           description: 'typeID',
           nullable: true,
         },
-        typeLabel: {
-          type: 'string',
-          description: 'typeLabel',
-          nullable: true,
-        },
         pathName: {
           type: 'string',
           description: 'pathName',
-          nullable: true,
-        },
-        systemPath: {
-          type: 'string',
-          description: 'systemPath',
-          nullable: true,
-        },
-        mimeType: {
-          type: 'string',
-          description: 'mimeType',
           nullable: true,
         },
         modifiedBy: {

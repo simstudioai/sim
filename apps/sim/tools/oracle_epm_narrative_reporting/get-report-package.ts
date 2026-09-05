@@ -22,7 +22,8 @@ export const oracleEpmNarrativeReportingGetReportPackageTool: InternalToolConfig
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Native resource ID returned by its matching discovery operation.',
+        description:
+          'Native report package ID obtained from Oracle; package discovery is not yet supported by this integration.',
       },
     },
   },

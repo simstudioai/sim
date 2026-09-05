@@ -39,6 +39,7 @@ import {
   narrativeExportInputSchema,
   narrativeImportInputSchema,
   narrativeListInputSchema,
+  narrativePdfDownloadInputSchema,
   narrativeRefreshInputSchema,
   narrativeResourceInputSchema,
   narrativeSnapshotInputSchema,
@@ -161,7 +162,7 @@ const handlers: Readonly<Record<string, InternalToolOperationHandler>> = {
     getReportPrompts
   ),
   oracle_epm_narrative_reporting_download_report_output: operation(
-    narrativeDownloadInputSchema,
+    narrativePdfDownloadInputSchema,
     downloadReportOutput
   ),
   oracle_epm_narrative_reporting_list_books: operation(narrativeListInputSchema, listBooks),
@@ -187,7 +188,7 @@ const handlers: Readonly<Record<string, InternalToolOperationHandler>> = {
     createReportSnapshot
   ),
   oracle_epm_narrative_reporting_download_report_snapshot_output: operation(
-    narrativeDownloadInputSchema,
+    narrativePdfDownloadInputSchema,
     downloadReportSnapshotOutput
   ),
   oracle_epm_narrative_reporting_get_report_package: operation(

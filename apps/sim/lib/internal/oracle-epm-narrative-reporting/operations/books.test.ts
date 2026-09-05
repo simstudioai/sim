@@ -31,6 +31,9 @@ describe('Narrative books', () => {
       description: null,
     })
     expect(result.output.books[0]).not.toHaveProperty('links')
+    expect(request.mock.calls[0][1].query.fields.split(',').sort()).toEqual(
+      Object.keys(result.output.books[0]).sort()
+    )
     expect(result.output).not.toHaveProperty('hasMore')
     expect(request).toHaveBeenCalledTimes(1)
   })
@@ -44,6 +47,9 @@ describe('Narrative books', () => {
     request.mockResolvedValue({ status: 200, data: { bookId: 'native-id', name: 'Budget' } })
     const result = await getBook({ ...auth, resourceId: 'native-id' }, context)
     expect(result.output.book).toMatchObject({ bookId: 'native-id', name: 'Budget' })
+    expect(request.mock.calls[0][1].query.fields.split(',').sort()).toEqual(
+      Object.keys(result.output.book).sort()
+    )
     expect(request).toHaveBeenCalledExactlyOnceWith(
       narrativeEndpoints.getBook,
       expect.objectContaining({ pathParams: { id: 'native-id' }, signal: context.signal })

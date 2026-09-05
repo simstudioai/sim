@@ -884,7 +884,7 @@ export const OracleEpmNarrativeReportingBlock: BlockConfig<NarrativeResponse> = 
       id: 'packageId',
       title: 'Package ID',
       type: 'short-input',
-      placeholder: 'Native resource ID returned by its matching discovery operation.',
+      placeholder: 'Native report package ID obtained from Oracle',
       condition: {
         field: 'operation',
         value: ['get_report_package'],
@@ -930,7 +930,7 @@ export const OracleEpmNarrativeReportingBlock: BlockConfig<NarrativeResponse> = 
       id: 'jobId',
       title: 'Job ID',
       type: 'short-input',
-      placeholder: 'Native resource ID returned by its matching discovery operation.',
+      placeholder: 'Job ID returned by a submission operation',
       condition: {
         field: 'operation',
         value: ['get_job', 'wait_for_job'],
@@ -1222,7 +1222,15 @@ export const OracleEpmNarrativeReportingBlock: BlockConfig<NarrativeResponse> = 
                 : key
           const value = params[blockKey]
           if (['limit', 'offset', 'maxWaitSeconds'].includes(key))
-            result[key] = parseOptionalNumberInput(value, key)
+            result[key] = parseOptionalNumberInput(
+              value,
+              key,
+              key === 'limit'
+                ? { integer: true, min: 1, max: 100 }
+                : key === 'offset'
+                  ? { integer: true, min: 0, max: 1_000_000 }
+                  : { integer: true, min: 10, max: 240 }
+            )
           else if (
             ['overwrite', 'deleteAfterImport', 'importPermissions'].includes(key) &&
             blockKey !== 'snapshotOverwrite'
@@ -1348,7 +1356,8 @@ export const OracleEpmNarrativeReportingBlock: BlockConfig<NarrativeResponse> = 
     },
     packageId: {
       type: 'string',
-      description: 'Native resource ID returned by its matching discovery operation.',
+      description:
+        'Native report package ID obtained from Oracle; package discovery is not yet supported by this integration.',
     },
     reportPackageName: {
       type: 'string',
@@ -1360,7 +1369,8 @@ export const OracleEpmNarrativeReportingBlock: BlockConfig<NarrativeResponse> = 
     },
     jobId: {
       type: 'string',
-      description: 'Native resource ID returned by its matching discovery operation.',
+      description:
+        'Oracle job ID returned by snapshot creation, package refresh, export, or import submission.',
     },
     maxWaitSeconds: {
       type: 'number',

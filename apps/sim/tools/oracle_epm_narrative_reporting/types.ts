@@ -8,10 +8,7 @@ export interface NarrativeArtifact {
   description: string | null
   type: string | null
   typeID: string | null
-  typeLabel: string | null
   pathName: string | null
-  systemPath: string | null
-  mimeType: string | null
   modifiedBy: string | null
   favorite: boolean | null
   ordinal: number | null
@@ -52,8 +49,6 @@ export interface NarrativeReport {
   description: string | null
   instanceType: string | null
   datasourceNames: Array<string>
-  validationMessages: Array<string>
-  invalidFields: Array<string>
   createdBy: string | null
   creationDate: string | null
   modifiedDate: string | null
@@ -66,9 +61,8 @@ export interface NarrativeBook {
   description: string | null
   pathName: string | null
   systemPath: string | null
-  primaryDatasource: string | null
   datasourceNames: Array<string>
-  validationMessages: Array<string>
+  validationMessages: Array<string> | null
   createdBy: string | null
   creationDate: string | null
   modifiedDate: string | null

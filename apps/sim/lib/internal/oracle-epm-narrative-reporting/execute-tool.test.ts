@@ -92,6 +92,35 @@ beforeEach(() => {
     mocks[name].mockResolvedValue({ success: true, output: { handled: true } })
 })
 describe('Narrative Reporting dispatcher', () => {
+  it.each([
+    'oracle_epm_narrative_reporting_download_report_output',
+    'oracle_epm_narrative_reporting_download_report_snapshot_output',
+  ])('rejects non-PDF input before credentials or I/O for %s', async (toolId) => {
+    const response = await executeOracleEpmNarrativeReportingTool(
+      call({ toolId, input: { ...auth, resourceId: 'report', format: 'xlsx' } })
+    )
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      details: [expect.objectContaining({ path: ['format'] })],
+    })
+    expect(mocks.resolveCredential).not.toHaveBeenCalled()
+    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.downloadReportOutput).not.toHaveBeenCalled()
+    expect(mocks.downloadReportSnapshotOutput).not.toHaveBeenCalled()
+  })
+  it('keeps documented XLSX output available for books', async () => {
+    const response = await executeOracleEpmNarrativeReportingTool(
+      call({
+        toolId: 'oracle_epm_narrative_reporting_download_book_output',
+        input: { ...auth, resourceId: 'book', format: 'xlsx' },
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.downloadBookOutput).toHaveBeenCalledWith(
+      expect.objectContaining({ format: 'xlsx' }),
+      expect.any(Object)
+    )
+  })
   it('uses trusted context and strips undeclared ownership, headers and endpoint inputs', async () => {
     const request = call({
       input: {
