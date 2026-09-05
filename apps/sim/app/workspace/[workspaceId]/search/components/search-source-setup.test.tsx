@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, cloneElement, type ReactNode } from 'react'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   basesPending: false,
   basesError: null as Error | null,
   connectorsError: null as Error | null,
+  connectorsPending: false,
   refetchBases: vi.fn(),
   refetchConnectors: vi.fn(),
   preparePending: false,
@@ -32,7 +33,7 @@ const mocks = vi.hoisted(() => ({
     name: string
     isSearchIndex?: boolean
   }[],
-  connectors: [] as { connectorType: string; accessMode: string; status: string }[],
+  connectors: [] as { id: string; connectorType: string; accessMode: string; status: string }[],
   credentials: [{ id: 'cred-source', name: 'Indexing account', provider: 'slack' }],
   credentialGroup: null as {
     id: string
@@ -90,8 +91,9 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
       data: mocks.connectors,
       isError: Boolean(mocks.connectorsError),
       error: mocks.connectorsError,
-      isPending: false,
-      isFetching: false,
+      isPending: mocks.connectorsPending,
+      isSuccess: !mocks.connectorsPending && !mocks.connectorsError,
+      isFetching: mocks.connectorsPending,
       refetch: mocks.refetchConnectors,
     }
   },
@@ -123,6 +125,11 @@ vi.mock('@/hooks/queries/credential-groups', () => ({
   useWorkspaceAccounts: () => ({
     data: { credentialGroup: mocks.credentialGroup },
     isLoading: false,
+    isPending: false,
+    isSuccess: true,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
     error: null,
   }),
 }))
@@ -136,10 +143,9 @@ vi.mock('@/hooks/use-credential-refresh-triggers', () => ({
 }))
 
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
-import { MANAGED_SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal'
-import { ManagedSearchSources } from '@/app/workspace/[workspaceId]/search/components/managed-search-sources'
+import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 let root: Root | null = null
@@ -236,13 +242,27 @@ beforeEach(() => {
   mocks.basesPending = false
   mocks.basesError = null
   mocks.connectorsError = null
+  mocks.connectorsPending = false
   mocks.preparePending = false
   mocks.prepareError = null
   mocks.prepareData = undefined
   mocks.bases = [{ id: 'kb-search', name: 'Sim Search', isSearchIndex: true }]
   mocks.connectors = []
   mocks.credentials = [{ id: 'cred-source', name: 'Indexing account', provider: 'slack' }]
-  mocks.credentialGroup = null
+  mocks.credentialGroup = {
+    id: 'group-1',
+    name: 'Workspace accounts',
+    status: 'active',
+    options: [
+      {
+        id: 'option-1',
+        label: 'Slack',
+        provider: 'slack',
+        status: 'active',
+        configurationStatus: 'ready',
+      },
+    ],
+  }
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   vi.stubGlobal(
     'ResizeObserver',
@@ -262,96 +282,172 @@ afterEach(async () => {
   container = null
 })
 
-describe('managed search setup with real connector dialogs', () => {
-  it('prepares a canonical index when only an ordinary base has the Search name', async () => {
-    mocks.bases = [{ id: 'ordinary-base', name: 'Sim Search', isSearchIndex: false }]
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-    )
-    expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
-    await click(button('Set up'))
-    expect(mocks.prepare).toHaveBeenCalledWith(
-      { workspaceId: 'workspace-1', connectorType: 'gitlab' },
-      expect.any(Object)
-    )
-  })
+function setup() {
+  return (
+    <SearchSourceSetup
+      workspaceId='workspace-1'
+      canAdmin={mocks.canAdmin}
+      memberAccessAvailable={mocks.features.knowledgeMemberAccess}
+      mirroredAccessAvailable={mocks.features.knowledgeSourceMirroredAccess}
+    />
+  )
+}
 
-  it('does not reuse a prepared index after the current base list removes it', async () => {
-    mocks.prepareData = { knowledgeBaseId: 'kb-search' }
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-    )
-    mocks.bases = []
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-    )
-    expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
-    await click(button('Set up'))
-    expect(mocks.prepare).toHaveBeenCalled()
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
-  })
-
-  it.each(['bases', 'connectors'] as const)(
-    'shows retry feedback for a failed %s query',
-    async (query) => {
-      if (query === 'bases') mocks.basesError = new Error('Base discovery failed')
-      else mocks.connectorsError = new Error('Connector discovery failed')
-      await render(
-        <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-      )
-      expect(document.body.textContent).toContain('discovery failed')
-      expect(document.body.textContent).not.toContain('Set up')
-      await click(button('Try again'))
-      expect(query === 'bases' ? mocks.refetchBases : mocks.refetchConnectors).toHaveBeenCalled()
+describe('Search source setup with real connector dialogs', () => {
+  it.each([false, true])(
+    'does not fetch admin data while closed for canAdmin=%s',
+    async (canAdmin) => {
+      mocks.canAdmin = canAdmin
+      await render(setup())
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(mocks.basesQuery).toHaveBeenLastCalledWith('workspace-1', { enabled: false })
+      expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
     }
   )
 
-  it('keeps using the renamed workspace search index over an ordinary base with its former name', async () => {
-    mocks.bases = [
-      { id: 'ordinary-base', name: 'Sim Search', isSearchIndex: false },
-      { id: 'renamed-index', name: 'Company knowledge', isSearchIndex: true },
-    ]
-    mocks.connectors = [{ connectorType: 'gitlab', accessMode: 'admin', status: 'active' }]
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-    )
-    expect(mocks.connectorsQuery).toHaveBeenLastCalledWith('renamed-index')
-    await click(button('Manage'))
-    expect(mocks.sourceStatus).toHaveBeenLastCalledWith(
-      expect.objectContaining({ knowledgeBaseId: 'renamed-index', connectorType: 'gitlab' })
-    )
-    expect(mocks.prepare).not.toHaveBeenCalled()
-  })
-  it('lists each supported source once, hides nonmatches, and limits management to admins', async () => {
-    await render(<ManagedSearchSources workspaceId='workspace-1' canAdmin available search='' />)
-    expect(document.querySelectorAll('button')).toHaveLength(MANAGED_SEARCH_CONNECTORS.length)
-    for (const { meta } of MANAGED_SEARCH_CONNECTORS)
-      expect(document.body.textContent).toContain(meta.name)
-    expect(document.body.textContent).not.toContain('Slack')
-    await render(
-      <ManagedSearchSources
-        workspaceId='workspace-1'
-        canAdmin
-        available
-        search='no-such-provider'
-      />
-    )
-    expect(container?.textContent).toBe('')
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin={false} available search='gitlab' />
-    )
-    expect(document.body.textContent).toContain('Ask a workspace admin')
-    expect(document.querySelector('button')).toBeNull()
+  it('does not expose the catalog or admin queries to a reader opening a setup URL', async () => {
+    mocks.canAdmin = false
+    await render(setup(), '?addConnector=gitlab')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.basesQuery).toHaveBeenLastCalledWith('workspace-1', { enabled: false })
     expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
   })
 
-  it('opens GitLab with mirrored access and submits the custom host and PAT, never member mode', async () => {
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
+  it('lists each eligible provider once and filters the add-source catalog', async () => {
+    await render(setup(), '?addConnector=')
+    expect(
+      Array.from(document.querySelectorAll('button')).filter(
+        (node) => node.textContent === 'Set up'
+      )
+    ).toHaveLength(4)
+    for (const name of ['Confluence', 'GitLab', 'Google Drive', 'Slack']) {
+      expect(document.body.textContent).toContain(name)
+    }
+    await fill('Find a source…', 'no-such-source')
+    expect(document.body.textContent).toContain('No matching sources.')
+    expect(document.body.textContent).not.toContain('Google Drive')
+    expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it('prepares a canonical index instead of an ordinary base with the Search name', async () => {
+    mocks.bases = [{ id: 'ordinary-base', name: 'Sim Search', isSearchIndex: false }]
+    await render(setup(), '?addConnector=gitlab')
+    await click(button('Continue setup'))
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      { workspaceId: 'workspace-1', connectorType: 'gitlab', accessMode: 'admin' },
+      expect.any(Object)
     )
-    await click(button('Set up'))
-    expect(button('Source permissions')).toHaveAttribute('aria-checked', 'true')
+    expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it('does not reuse mutation data after the current index has been removed', async () => {
+    mocks.prepareData = { knowledgeBaseId: 'kb-search' }
+    mocks.bases = []
+    await render(setup(), '?addConnector=gitlab')
+    await click(button('Continue setup'))
+    expect(mocks.prepare).toHaveBeenCalled()
+    expect(document.querySelector('input[placeholder="Enter your GitLab PAT"]')).toBeNull()
+  })
+
+  it.each(['bases', 'connectors'] as const)(
+    'retries a failed %s discovery query',
+    async (query) => {
+      if (query === 'bases') mocks.basesError = new Error('Base discovery failed')
+      else mocks.connectorsError = new Error('Connector discovery failed')
+      await render(setup(), query === 'bases' ? '?addConnector=' : '?manage-source=gitlab-1')
+      expect(document.body.textContent).toContain('discovery failed')
+      await click(button('Try again'))
+      expect(
+        query === 'bases' ? mocks.refetchBases : mocks.refetchConnectors
+      ).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('manages the exact source ID in a renamed canonical index', async () => {
+    mocks.bases = [
+      { id: 'ordinary-base', name: 'Sim Search', isSearchIndex: false },
+      { id: 'renamed-index', name: 'Company knowledge', isSearchIndex: true },
+    ]
+    mocks.connectors = [
+      { id: 'site-one', connectorType: 'confluence', accessMode: 'members', status: 'active' },
+      { id: 'site-two', connectorType: 'confluence', accessMode: 'admin', status: 'active' },
+    ]
+    await render(setup(), '?manage-source=site-two')
+    expect(mocks.connectorsQuery).toHaveBeenLastCalledWith('renamed-index')
+    expect(mocks.sourceStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        knowledgeBaseId: 'renamed-index',
+        connectorType: 'confluence',
+        connectors: [mocks.connectors[1]],
+      })
+    )
+    expect(mocks.prepare).not.toHaveBeenCalled()
+  })
+
+  it.each(['unknown-source', 'deleted-source'])(
+    'shows unavailable for a missing connector ID: %s',
+    async (id) => {
+      mocks.connectors = [
+        {
+          id: 'existing-source',
+          connectorType: 'confluence',
+          accessMode: 'members',
+          status: 'active',
+        },
+      ]
+      await render(setup(), `?manage-source=${id}`)
+      expect(document.body.textContent).toContain('This source is no longer available.')
+      expect(document.body.textContent).not.toContain('Source sync status')
+      expect(mocks.sourceStatus).not.toHaveBeenCalled()
+    }
+  )
+
+  it('waits for connector discovery before declaring a management link unavailable', async () => {
+    mocks.connectorsPending = true
+    await render(setup(), '?manage-source=site-one')
+    expect(mocks.sourceStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isLoading: true, connectors: [] })
+    )
+    expect(document.body.textContent).not.toContain('This source is no longer available.')
+    mocks.connectorsPending = false
+    mocks.connectors = [
+      { id: 'site-one', connectorType: 'confluence', accessMode: 'members', status: 'active' },
+    ]
+    await render(setup(), '?manage-source=site-one')
+    expect(document.body.textContent).toContain('Source sync status')
+    expect(document.body.textContent).not.toContain('This source is no longer available.')
+    expect(mocks.sourceStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({ connectorType: 'confluence', connectors: mocks.connectors })
+    )
+  })
+
+  it('keeps a failed connector lookup retryable instead of treating it as deletion', async () => {
+    mocks.connectorsError = new Error('Source lookup failed')
+    await render(setup(), '?manage-source=site-one')
+    expect(document.body.textContent).toContain('Source lookup failed')
+    expect(document.body.textContent).not.toContain('This source is no longer available.')
+    expect(mocks.sourceStatus).not.toHaveBeenCalled()
+    await click(button('Try again'))
+    expect(mocks.refetchConnectors).toHaveBeenCalledOnce()
+    mocks.connectorsError = null
+    await render(setup(), '?manage-source=site-one')
+    expect(document.body.textContent).toContain('This source is no longer available.')
+  })
+
+  it('preserves existing provider-based management URLs', async () => {
+    mocks.connectors = [
+      { id: 'site-one', connectorType: 'confluence', accessMode: 'members', status: 'active' },
+      { id: 'site-two', connectorType: 'confluence', accessMode: 'admin', status: 'active' },
+    ]
+    await render(setup(), '?manage-source=confluence')
+    expect(mocks.sourceStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({ connectors: mocks.connectors })
+    )
+  })
+
+  it('opens GitLab with its single central method and submits the custom host and PAT', async () => {
+    await render(setup(), '?addConnector=gitlab')
+    expect(document.body.textContent).toContain('Admin or service account')
     expect(document.body.textContent).not.toContain('Member accounts')
     expect(button('Connect & Sync')).toBeDisabled()
     await fill('Enter your GitLab PAT', 'test-pat')
@@ -375,51 +471,33 @@ describe('managed search setup with real connector dialogs', () => {
     expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('credentialId')
   })
 
-  it('shows configured mirrored sources only and blocks duplicate setup while preparation runs', async () => {
-    mocks.connectors = [
-      { connectorType: 'gitlab', accessMode: 'workspace', status: 'active' },
-      { connectorType: 'gitlab', accessMode: 'admin', status: 'error' },
-      { connectorType: 'gitlab', accessMode: 'admin', status: 'error' },
-    ]
-    mocks.preparePending = true
-    mocks.prepareError = new Error('Source preparation failed')
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-    )
-    expect(document.body.textContent).toContain('2 sources connected · error')
-    expect(document.body.textContent).not.toContain('error, error')
-    expect(button('Manage')).toBeDefined()
-    expect(button('Add source')).toBeDisabled()
-    expect(document.body.textContent).toContain('Source preparation failed')
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available={false} search='gitlab' />
-    )
-    expect(document.querySelector('button')).toBeNull()
-    expect(document.body.textContent).not.toContain('source connected')
-    expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin={false} available search='gitlab' />
-    )
-    expect(document.body.textContent).not.toContain('source connected')
-    expect(document.querySelector('a')).toBeNull()
-  })
-
-  it('creates the search knowledge base before opening its first source and relays setup errors', async () => {
+  it('prepares Slack in members mode when mirrored access is disabled', async () => {
+    mocks.features.knowledgeSourceMirroredAccess = false
     mocks.bases = []
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-    )
-    await click(button('Set up'))
+    await render(setup(), '?addConnector=slack')
+    await click(button('Continue setup'))
     expect(mocks.prepare).toHaveBeenCalledWith(
-      { workspaceId: 'workspace-1', connectorType: 'gitlab' },
+      { workspaceId: 'workspace-1', connectorType: 'slack', accessMode: 'members' },
       expect.any(Object)
     )
-    expect(document.querySelector('[role="dialog"]')).toBeNull()
-    mocks.prepareError = new Error('Cannot prepare this source')
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
-    )
-    expect(document.body.textContent).toContain('Cannot prepare this source')
+  })
+
+  it('blocks unavailable catalog providers and duplicate preparation while preserving retry feedback', async () => {
+    mocks.features.knowledgeMemberAccess = false
+    mocks.features.knowledgeSourceMirroredAccess = false
+    await render(setup(), '?addConnector=')
+    expect(document.body.textContent).toContain('Not available in this workspace')
+    expect(
+      Array.from(document.querySelectorAll('button')).some((node) => node.textContent === 'Set up')
+    ).toBe(false)
+    mocks.features.knowledgeSourceMirroredAccess = true
+    mocks.bases = []
+    mocks.preparePending = true
+    mocks.prepareError = new Error('Source preparation failed')
+    await render(setup(), '?addConnector=')
+    await fill('Find a source…', 'gitlab')
+    expect(button('Set up')).toBeDisabled()
+    expect(document.body.textContent).toContain('Source preparation failed')
   })
 })
 
@@ -448,7 +526,7 @@ describe('member content credentials in real add and edit dialogs', () => {
         initialAccessMode='members'
       />
     )
-    expect(document.body.textContent).toContain('each member connects their own Slack account')
+    expect(document.body.textContent).toContain('Each teammate connects their Slack account.')
     expect(
       Array.from(document.querySelectorAll('a')).map((node) => node.getAttribute('href'))
     ).toEqual(['/workspace/workspace-1/settings/credential-groups'])
@@ -674,7 +752,14 @@ describe('member content credentials in real add and edit dialogs', () => {
       node.textContent?.includes('Indexing account')
     )
     expect(combo).toHaveAttribute('aria-disabled', 'true')
-    expect(button('Member accounts')).toBeDisabled()
+    expect(document.body.textContent).toContain('Member accounts')
+    expect(
+      Array.from(document.querySelectorAll('[role="radio"]')).filter((node) =>
+        ['Workspace', 'Member accounts', 'Admin or service account'].includes(
+          node.textContent ?? ''
+        )
+      )
+    ).toHaveLength(0)
     expect(document.body.textContent).not.toContain('Change indexing account')
   })
 })
@@ -725,7 +810,8 @@ describe('canonical Search connector safety', () => {
     )
     expect(gitlab).toBeDefined()
     await click(gitlab!)
-    expect(button('Source permissions')).toHaveAttribute('aria-checked', 'true')
+    expect(document.body.textContent).toContain('Admin or service account')
+    expect(document.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
     expect(
       Array.from(document.querySelectorAll('button')).some(
         (node) => node.textContent === 'Workspace'
@@ -751,7 +837,14 @@ describe('canonical Search connector safety', () => {
         connector={connector()}
       />
     )
-    expect(button('Member accounts')).toHaveAttribute('aria-checked', 'true')
+    expect(document.body.textContent).toContain('Member accounts')
+    expect(
+      Array.from(document.querySelectorAll('[role="radio"]')).filter((node) =>
+        ['Workspace', 'Member accounts', 'Admin or service account'].includes(
+          node.textContent ?? ''
+        )
+      )
+    ).toHaveLength(0)
     expect(
       Array.from(document.querySelectorAll('button')).some(
         (node) => node.textContent === 'Workspace'
@@ -765,16 +858,9 @@ describe('resuming Search source setup', () => {
   const key = 'user-1:workspace-1:kb-search:slack'
 
   it('reopens the source from the URL even when the source filter hides its row', async () => {
-    await render(
-      <ManagedSearchSources
-        workspaceId='workspace-1'
-        canAdmin
-        available
-        search='nothing-matches'
-      />,
-      '?addConnector=gitlab'
-    )
-    expect(button('Source permissions')).toHaveAttribute('aria-checked', 'true')
+    await render(setup(), '?search=nothing-matches&addConnector=gitlab&credentialDraftId=draft-1')
+    expect(document.body.textContent).toContain('Admin or service account')
+    expect(document.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
     expect(document.body.textContent).toContain('Configure GitLab')
     expect(document.body.textContent).not.toContain('Sync Frequency')
     expect(document.body.textContent).not.toContain('Sync automatically')
@@ -782,17 +868,12 @@ describe('resuming Search source setup', () => {
   })
 
   it('keeps the picker open when changing sources and updates the configuration selection', async () => {
-    await render(
-      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='' />,
-      '?addConnector=google_drive'
-    )
+    await render(setup(), '?addConnector=google_drive')
     await click(button('Choose another source'))
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
-    expect(document.body.textContent).toContain('Connect Source')
-    const confluence = Array.from(document.querySelectorAll('button')).find(
-      (node) => node.getAttribute('aria-label') === 'Confluence'
-    )
-    await click(confluence!)
+    expect(document.body.textContent).toContain('Add source')
+    await fill('Find a source…', 'confluence')
+    await click(button('Set up'))
     expect(document.body.textContent).toContain('Configure Confluence')
   })
 
@@ -813,6 +894,8 @@ describe('resuming Search source setup', () => {
     await render(form)
     await chooseCombo('Connected members', 'Indexing account')
     await fill('e.g. hr, legal, C01ABC23DEF', 'legal')
+    mocks.credentialGroup = null
+    await render(cloneElement(form))
     const setup = Array.from(document.querySelectorAll('a')).find(
       (link) => link.textContent === 'Set up Slack'
     )
@@ -828,6 +911,20 @@ describe('resuming Search source setup', () => {
     root = null
     container?.remove()
     await useConnectorSetupStore.persist.rehydrate()
+    mocks.credentialGroup = {
+      id: 'group-1',
+      name: 'Workspace accounts',
+      status: 'active',
+      options: [
+        {
+          id: 'option-1',
+          label: 'Slack',
+          provider: 'slack',
+          status: 'active',
+          configurationStatus: 'ready',
+        },
+      ],
+    }
     await render(form)
     expect(
       document.querySelector<HTMLInputElement>('input[placeholder="e.g. hr, legal, C01ABC23DEF"]')

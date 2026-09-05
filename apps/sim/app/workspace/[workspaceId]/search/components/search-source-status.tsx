@@ -43,11 +43,7 @@ export function SearchSourceStatus({
     >
       <ChipModalHeader onClose={onClose}>{title}</ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='custom'
-          title='Sync status'
-          hint='Documents appear in Search as they finish indexing. Open a source below for sync history and recovery actions.'
-        >
+        <ChipModalField type='custom' title='Sync status'>
           <ConnectorsSection
             workspaceId={workspaceId}
             knowledgeBaseId={knowledgeBaseId}

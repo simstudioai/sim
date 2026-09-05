@@ -49,10 +49,12 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
+import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
@@ -150,6 +152,21 @@ export function AddConnectorModal({
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
+  const memberIdentityAvailable = !connectorConfig?.requiresMemberIdentity || memberAccessAvailable
+  const allowAdmin = mirroredAccessAvailable && memberIdentityAvailable
+  const needsSlackSetup = selectedType === 'slack' && isMembersMode
+  const { data: workspaceAccounts } = useWorkspaceAccounts(
+    canAdmin && needsSlackSetup ? workspaceId : undefined
+  )
+  const slackConfigured =
+    workspaceAccounts?.credentialGroup?.status === 'active' &&
+    workspaceAccounts.credentialGroup.options.some(
+      (option) =>
+        option.provider === 'slack' &&
+        option.status === 'active' &&
+        option.configurationStatus === 'ready'
+    )
+  const slackSetupRequired = needsSlackSetup && !slackConfigured
   const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
   /** True when the connector declares its key optional (public sources need none). */
   const isApiKeyOptional =
@@ -266,12 +283,14 @@ export function AddConnectorModal({
       connectorConfig?.search &&
         access.accessMode !== 'workspace' &&
         (!isMembersMode || memberAccessAvailable) &&
-        (access.accessMode !== 'admin' || mirroredAccessAvailable)
+        (access.accessMode !== 'admin' || allowAdmin)
     )
   const canSubmit = Boolean(
     connectorConfig &&
       hasRequiredCredential &&
       hasSearchAccess &&
+      (access.accessMode !== 'admin' || memberIdentityAvailable) &&
+      !slackSetupRequired &&
       connectorConfig.configFields.every(
         (field) =>
           !field.required ||
@@ -376,7 +395,13 @@ export function AddConnectorModal({
         </ChipModalHeader>
 
         <ChipModalBody
-          className={step === 'select-type' ? 'max-h-[520px] pb-0' : 'h-[80vh] max-h-[560px]'}
+          className={
+            step === 'select-type'
+              ? 'max-h-[520px] pb-0'
+              : slackSetupRequired
+                ? undefined
+                : 'h-[80vh] max-h-[560px]'
+          }
         >
           {step === 'select-type' ? (
             <div className='flex min-h-0 flex-col px-2'>
@@ -397,18 +422,18 @@ export function AddConnectorModal({
                     />
                   ))}
                   {filteredEntries.length === 0 && (
-                    <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
+                    <SettingsEmptyState variant='inline'>
                       {CONNECTOR_ENTRIES.length === 0
                         ? 'No connectors available.'
                         : `No sources found matching "${searchTerm}"`}
-                    </div>
+                    </SettingsEmptyState>
                   )}
                 </div>
               </div>
             </div>
           ) : connectorConfig ? (
             <>
-              {(memberAccessAvailable || mirroredAccessAvailable) && (
+              {(memberAccessAvailable || mirroredAccessAvailable || slackSetupRequired) && (
                 <ConnectorAccessField
                   workspaceId={workspaceId}
                   connectorConfig={connectorConfig}
@@ -416,7 +441,7 @@ export function AddConnectorModal({
                   onChange={setAccess}
                   canAdmin={canAdmin}
                   allowMembers={memberAccessAvailable}
-                  allowAdmin={mirroredAccessAvailable}
+                  allowAdmin={allowAdmin}
                   allowWorkspace={!isSearchIndex}
                   disabled={isCreating}
                   searchSetupSource={
@@ -426,209 +451,216 @@ export function AddConnectorModal({
                 />
               )}
 
-              {isApiKeyMode ? (
-                <ChipModalField
-                  type='custom'
-                  title={
-                    connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
-                      ? connectorConfig.auth.label
-                      : 'API Key'
-                  }
-                >
-                  <ChipInput
-                    type={apiKeyFocused ? 'text' : 'password'}
-                    autoComplete='new-password'
-                    value={apiKeyValue}
-                    onChange={(e) => setApiKeyValue(e.target.value)}
-                    onFocus={() => setApiKeyFocused(true)}
-                    onBlur={() => setApiKeyFocused(false)}
-                    placeholder={
-                      connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
-                        ? connectorConfig.auth.placeholder
-                        : 'Enter API key'
-                    }
-                  />
-                </ChipModalField>
-              ) : (
-                <ChipModalField
-                  type='custom'
-                  title={isMembersMode ? 'Browse with' : 'Account'}
-                  hint={isMembersMode ? BROWSE_WITH_HINT : undefined}
-                >
-                  <ChipCombobox
-                    options={[
-                      ...credentials.map(
-                        (cred): ComboboxOption => ({
-                          label: cred.name || cred.provider,
-                          value: cred.id,
-                          icon: withBrandIcon(connectorConfig.icon),
-                        })
-                      ),
-                      {
-                        label:
-                          credentials.length > 0
-                            ? `Connect another ${connectorConfig.name} account`
-                            : `Connect ${connectorConfig.name} account`,
-                        value: '__connect_new__',
-                        icon: Plus,
-                        onSelect: () => {
-                          saveSetup()
-                          setShowOAuthModal(true)
-                        },
-                      },
-                      ...(canConnectServiceAccount
-                        ? [
-                            {
-                              label: serviceAccountTarget.label,
-                              value: '__service_account__',
-                              icon: Plus,
-                              onSelect: () => setShowServiceAccountModal(true),
-                            },
-                          ]
-                        : []),
-                    ]}
-                    value={effectiveCredentialId ?? undefined}
-                    onChange={(value) => setSelectedCredentialId(value)}
-                    onOpenChange={(isOpen) => {
-                      if (isOpen) void refetchCredentials()
-                    }}
-                    placeholder={`Select ${connectorConfig.name} account`}
-                    isLoading={credentialsLoading}
-                  />
-                </ChipModalField>
-              )}
-
-              {isMembersMode && connectorConfig.supportsSeparateContentCredential && (
-                <ConnectorContentCredentialField
-                  credentialId={contentCredentialId}
-                  onChange={setContentCredentialId}
-                  options={credentials.map((credential) => ({
-                    value: credential.id,
-                    label: credential.name || credential.provider,
-                  }))}
-                  isLoading={credentialsLoading}
-                  disabled={isCreating}
-                />
-              )}
-
-              <ConnectorConfigFields
-                connectorConfig={connectorConfig}
-                sourceConfig={sourceConfig}
-                credentialId={effectiveCredentialId}
-                canonicalGroups={canonicalGroups}
-                canonicalModes={canonicalModes}
-                isFieldVisible={(field) =>
-                  isFieldVisible(field) && !hiddenCapFieldIds.has(field.id)
-                }
-                onFieldChange={handleFieldChange}
-                onToggleCanonicalMode={toggleCanonicalMode}
-                disabled={isCreating}
-              />
-
-              {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
+              {!slackSetupRequired && (
                 <>
-                  <div className='px-2'>
-                    <Chip
-                      type='button'
-                      leftIcon={showMetadata ? ChevronDown : ChevronRight}
-                      aria-expanded={showMetadata}
-                      onClick={() => setShowMetadata((visible) => !visible)}
-                    >
-                      Document details (optional)
-                    </Chip>
-                  </div>
-                  {showMetadata && (
+                  {isApiKeyMode ? (
                     <ChipModalField
                       type='custom'
-                      title='Metadata tags'
-                      hint='All document details below are included by default. Deselect any you do not need.'
+                      title={
+                        connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
+                          ? connectorConfig.auth.label
+                          : 'API Key'
+                      }
                     >
-                      <div className='flex flex-col gap-2'>
-                        {connectorConfig.tagDefinitions.map((tagDef) => (
-                          <label
-                            key={tagDef.id}
-                            htmlFor={`${metadataId}-${tagDef.id}`}
-                            className='flex cursor-pointer items-center gap-2 text-small'
-                          >
-                            <Checkbox
-                              id={`${metadataId}-${tagDef.id}`}
-                              checked={!disabledTagIds.has(tagDef.id)}
-                              onCheckedChange={(checked) => {
-                                setDisabledTagIds((prev) => {
-                                  const next = new Set(prev)
-                                  if (checked) {
-                                    next.delete(tagDef.id)
-                                  } else {
-                                    next.add(tagDef.id)
-                                  }
-                                  return next
-                                })
-                              }}
-                            />
-                            <OverflowText
-                              label={tagDef.displayName}
-                              className='flex-1 text-[var(--text-body)]'
-                            />
-                            <span className='shrink-0 text-[var(--text-muted)] text-xs'>
-                              ({tagDef.fieldType})
-                            </span>
-                          </label>
-                        ))}
-                      </div>
+                      <ChipInput
+                        type={apiKeyFocused ? 'text' : 'password'}
+                        autoComplete='new-password'
+                        value={apiKeyValue}
+                        onChange={(e) => setApiKeyValue(e.target.value)}
+                        onFocus={() => setApiKeyFocused(true)}
+                        onBlur={() => setApiKeyFocused(false)}
+                        placeholder={
+                          connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
+                            ? connectorConfig.auth.placeholder
+                            : 'Enter API key'
+                        }
+                      />
+                    </ChipModalField>
+                  ) : (
+                    <ChipModalField
+                      type='custom'
+                      title={isMembersMode ? 'Browse with' : 'Account'}
+                      hint={isMembersMode ? BROWSE_WITH_HINT : undefined}
+                    >
+                      <ChipCombobox
+                        options={[
+                          ...credentials.map(
+                            (cred): ComboboxOption => ({
+                              label: cred.name || cred.provider,
+                              value: cred.id,
+                              icon: withBrandIcon(connectorConfig.icon),
+                            })
+                          ),
+                          {
+                            label:
+                              credentials.length > 0
+                                ? `Connect another ${connectorConfig.name} account`
+                                : `Connect ${connectorConfig.name} account`,
+                            value: '__connect_new__',
+                            icon: Plus,
+                            onSelect: () => {
+                              saveSetup()
+                              setShowOAuthModal(true)
+                            },
+                          },
+                          ...(canConnectServiceAccount
+                            ? [
+                                {
+                                  label: serviceAccountTarget.label,
+                                  value: '__service_account__',
+                                  icon: Plus,
+                                  onSelect: () => setShowServiceAccountModal(true),
+                                },
+                              ]
+                            : []),
+                        ]}
+                        value={effectiveCredentialId ?? undefined}
+                        onChange={(value) => setSelectedCredentialId(value)}
+                        onOpenChange={(isOpen) => {
+                          if (isOpen) void refetchCredentials()
+                        }}
+                        placeholder={`Select ${connectorConfig.name} account`}
+                        isLoading={credentialsLoading}
+                      />
                     </ChipModalField>
                   )}
+
+                  {isMembersMode && connectorConfig.supportsSeparateContentCredential && (
+                    <ConnectorContentCredentialField
+                      credentialId={contentCredentialId}
+                      onChange={setContentCredentialId}
+                      options={credentials.map((credential) => ({
+                        value: credential.id,
+                        label: credential.name || credential.provider,
+                      }))}
+                      isLoading={credentialsLoading}
+                      disabled={isCreating}
+                    />
+                  )}
+
+                  <ConnectorConfigFields
+                    connectorConfig={connectorConfig}
+                    sourceConfig={sourceConfig}
+                    credentialId={effectiveCredentialId}
+                    canonicalGroups={canonicalGroups}
+                    canonicalModes={canonicalModes}
+                    isFieldVisible={(field) =>
+                      isFieldVisible(field) && !hiddenCapFieldIds.has(field.id)
+                    }
+                    onFieldChange={handleFieldChange}
+                    onToggleCanonicalMode={toggleCanonicalMode}
+                    disabled={isCreating}
+                  />
+
+                  {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
+                    <>
+                      <div className='px-2'>
+                        <Chip
+                          type='button'
+                          leftIcon={showMetadata ? ChevronDown : ChevronRight}
+                          aria-expanded={showMetadata}
+                          onClick={() => setShowMetadata((visible) => !visible)}
+                        >
+                          Document details (optional)
+                        </Chip>
+                      </div>
+                      {showMetadata && (
+                        <ChipModalField
+                          type='custom'
+                          title='Metadata tags'
+                          hint='All document details below are included by default. Deselect any you do not need.'
+                        >
+                          <div className='flex flex-col gap-2'>
+                            {connectorConfig.tagDefinitions.map((tagDef) => (
+                              <label
+                                key={tagDef.id}
+                                htmlFor={`${metadataId}-${tagDef.id}`}
+                                className='flex cursor-pointer items-center gap-2 text-small'
+                              >
+                                <Checkbox
+                                  id={`${metadataId}-${tagDef.id}`}
+                                  checked={!disabledTagIds.has(tagDef.id)}
+                                  onCheckedChange={(checked) => {
+                                    setDisabledTagIds((prev) => {
+                                      const next = new Set(prev)
+                                      if (checked) {
+                                        next.delete(tagDef.id)
+                                      } else {
+                                        next.add(tagDef.id)
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                />
+                                <OverflowText
+                                  label={tagDef.displayName}
+                                  className='flex-1 text-[var(--text-body)]'
+                                />
+                                <span className='shrink-0 text-[var(--text-muted)] text-xs'>
+                                  ({tagDef.fieldType})
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </ChipModalField>
+                      )}
+                    </>
+                  )}
+
+                  {!isSearchIndex && (
+                    <ChipModalField
+                      type='custom'
+                      title='Sync Frequency'
+                      hint={connectorSyncFrequencyHint(
+                        access.accessMode,
+                        syncInterval,
+                        Boolean(contentCredentialId)
+                      )}
+                    >
+                      <ButtonGroup
+                        value={String(syncInterval)}
+                        onValueChange={(val) => setSyncInterval(Number(val))}
+                      >
+                        {SYNC_INTERVALS.map((interval) => (
+                          <ButtonGroupItem
+                            key={interval.value}
+                            value={String(interval.value)}
+                            disabled={interval.requiresMax && !hasMaxAccess}
+                          >
+                            {interval.label}
+                            {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
+                          </ButtonGroupItem>
+                        ))}
+                      </ButtonGroup>
+                    </ChipModalField>
+                  )}
+
+                  <ChipModalError>{error}</ChipModalError>
                 </>
               )}
-
-              {!isSearchIndex && (
-                <ChipModalField
-                  type='custom'
-                  title='Sync Frequency'
-                  hint={connectorSyncFrequencyHint(
-                    access.accessMode,
-                    syncInterval,
-                    Boolean(contentCredentialId)
-                  )}
-                >
-                  <ButtonGroup
-                    value={String(syncInterval)}
-                    onValueChange={(val) => setSyncInterval(Number(val))}
-                  >
-                    {SYNC_INTERVALS.map((interval) => (
-                      <ButtonGroupItem
-                        key={interval.value}
-                        value={String(interval.value)}
-                        disabled={interval.requiresMax && !hasMaxAccess}
-                      >
-                        {interval.label}
-                        {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
-                      </ButtonGroupItem>
-                    ))}
-                  </ButtonGroup>
-                </ChipModalField>
-              )}
-
-              <ChipModalError>{error}</ChipModalError>
             </>
           ) : null}
         </ChipModalBody>
 
-        {step === 'configure' && (
-          <ChipModalFooter
-            onCancel={() => closeSetup(false)}
-            primaryAction={{
-              label: isCreating
-                ? isMembersMode
-                  ? 'Creating…'
-                  : 'Connecting…'
-                : isMembersMode
-                  ? 'Create & Invite'
-                  : 'Connect & Sync',
-              onClick: handleSubmit,
-              disabled: !canSubmit || isCreating,
-            }}
-          />
-        )}
+        {step === 'configure' &&
+          (slackSetupRequired ? (
+            <ChipModalFooter onCancel={() => closeSetup(false)} defaultAction='none' />
+          ) : (
+            <ChipModalFooter
+              onCancel={() => closeSetup(false)}
+              primaryAction={{
+                label: isCreating
+                  ? isMembersMode
+                    ? 'Creating…'
+                    : 'Connecting…'
+                  : isMembersMode
+                    ? 'Create & Invite'
+                    : 'Connect & Sync',
+                onClick: handleSubmit,
+                disabled: !canSubmit || isCreating,
+              }}
+            />
+          ))}
       </ChipModal>
       {showServiceAccountModal && canConnectServiceAccount && (
         <ConnectServiceAccountModal

@@ -9,7 +9,7 @@ export const searchSetupParam = {
 /** Null closes the source management panel. */
 export const managedSourceParam = {
   key: 'manage-source',
-  parser: parseAsStringLiteral(['google_drive', 'confluence', 'gitlab', 'slack']),
+  parser: parseAsString,
 } as const
 
 /** A setup detour carries intent, never an arbitrary redirect URL. */

@@ -10,9 +10,12 @@ import {
   type ComboboxOption,
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
-import { isConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
 
@@ -66,7 +69,7 @@ interface ConnectorAccessFieldProps {
   /** Only an admin may move a connector out of workspace mode. */
   canAdmin: boolean
   disabled?: boolean
-  /** Whether per-member access may be chosen; false leaves only the way back to workspace access. */
+  /** Whether member accounts may be chosen; an existing selection remains visible for recovery. */
   allowMembers?: boolean
   /** Whether administrator access may be chosen; it needs a connector that mirrors source permissions. */
   allowAdmin?: boolean
@@ -77,23 +80,21 @@ interface ConnectorAccessFieldProps {
   onSetupNavigate?: () => void
 }
 
-/**
- * Each mode decides who can read the indexed documents, which the three labels
- * cannot say on their own.
- */
-function accessHint(mode: ConnectorAccessMode, sourceName: string): string {
+function accessHint(mode: ConnectorAccessMode, connectorConfig: ConnectorMeta): string {
+  const sourceName = connectorConfig.name
   if (mode === 'members') {
-    return `Members connect their ${sourceName} accounts and see only documents they can open there.`
+    return `Each teammate connects their ${sourceName} account. They see only documents they can open there.`
   }
   if (mode === 'admin') {
-    return `An administrator or service account syncs documents and permissions. Each person sees only documents they can open in ${sourceName}.`
+    const identityHint = connectorConfig.requiresMemberIdentity
+      ? ` Teammates still connect their ${sourceName} accounts to confirm their identity.`
+      : ''
+    return `An admin or service account syncs documents and permissions.${identityHint} Each person sees only documents they can open in ${sourceName}.`
   }
   return 'Everyone in this workspace can search these documents.'
 }
 
-/**
- * Chooses workspace access, member accounts, or source-managed permissions.
- */
+/** Chooses how a source connects while preserving its document permissions. */
 export function ConnectorAccessField({
   workspaceId,
   connectorConfig,
@@ -114,10 +115,12 @@ export function ConnectorAccessField({
    */
   const provider = connectorMemberProvider(connectorConfig)
   const membersSupported = provider !== null
-  const { data, isLoading, error } = useWorkspaceAccounts(
+  const accountsQuery = useWorkspaceAccounts(
     canAdmin && provider && value.accessMode === 'members' ? workspaceId : undefined
   )
-  const accounts = data?.credentialGroup
+  const accounts = accountsQuery.data?.credentialGroup
+  const showSlackSetup =
+    canAdmin && value.accessMode === 'members' && connectorConfig.id === 'slack'
   const configured =
     accounts?.status === 'active' &&
     accounts.options.some(
@@ -126,72 +129,74 @@ export function ConnectorAccessField({
         option.status === 'active' &&
         option.configurationStatus === 'ready'
     )
-  const showAdmin =
-    Boolean(connectorConfig.mirrorsSourceAcls) && (allowAdmin || value.accessMode === 'admin')
-  if (!membersSupported && !showAdmin) return null
+  const adminSupported = Boolean(connectorConfig.mirrorsSourceAcls)
+  if (!membersSupported && !adminSupported && value.accessMode === 'workspace') return null
 
-  /** One ordered list, rendered by both the read-only and the editable branch. */
-  const modes: { mode: ConnectorAccessMode; label: string; shown: boolean }[] = [
-    { mode: 'workspace', label: 'Workspace', shown: allowWorkspace },
-    { mode: 'members', label: 'Member accounts', shown: membersSupported },
-    { mode: 'admin', label: 'Source permissions', shown: showAdmin },
+  const modes: { mode: ConnectorAccessMode; label: string; allowed: boolean }[] = [
+    { mode: 'workspace', label: 'Workspace', allowed: allowWorkspace },
+    { mode: 'members', label: 'Member accounts', allowed: membersSupported && allowMembers },
+    {
+      mode: 'admin',
+      label: 'Admin or service account',
+      allowed: adminSupported && allowAdmin,
+    },
   ]
-  const modeItems = (isDisabled: (mode: ConnectorAccessMode) => boolean) =>
-    modes
-      .filter((entry) => entry.shown)
-      .map((entry) => (
-        <ButtonGroupItem key={entry.mode} value={entry.mode} disabled={isDisabled(entry.mode)}>
-          {entry.label}
-        </ButtonGroupItem>
-      ))
+  /** Keep a retired current method visible so an admin can select an available replacement. */
+  const visibleModes = modes.filter((entry) => entry.allowed || entry.mode === value.accessMode)
+  const showModeSelector =
+    canAdmin && visibleModes.some((entry) => entry.allowed && entry.mode !== value.accessMode)
 
-  if (!canAdmin) {
-    if (value.accessMode === 'workspace') return null
-    return (
-      <ChipModalField
-        type='custom'
-        title='Document access'
-        hint={accessHint(value.accessMode, connectorConfig.name)}
-      >
-        <ButtonGroup value={value.accessMode}>{modeItems(() => true)}</ButtonGroup>
-      </ChipModalField>
-    )
-  }
+  if (!canAdmin && value.accessMode === 'workspace') return null
 
   return (
     <ChipModalField
       type='custom'
-      title='Document access'
-      error={error?.message}
-      hint={accessHint(value.accessMode, connectorConfig.name)}
+      title='Connection method'
+      error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
+      hint={accessHint(value.accessMode, connectorConfig)}
     >
       <div className='flex flex-col gap-2'>
-        <ButtonGroup
-          value={value.accessMode}
-          onValueChange={(mode) => {
-            if (isConnectorAccessMode(mode) && (mode !== 'workspace' || allowWorkspace)) {
-              onChange({ accessMode: mode })
-            }
-          }}
-        >
-          {modeItems(
-            (mode) =>
-              disabled || (mode === 'members' && !allowMembers) || (mode === 'admin' && !allowAdmin)
-          )}
-        </ButtonGroup>
+        {showModeSelector ? (
+          <ButtonGroup
+            value={value.accessMode}
+            disabled={disabled}
+            onValueChange={(mode) => {
+              const selection = modes.find((entry) => entry.mode === mode && entry.allowed)
+              if (!disabled && selection) onChange({ accessMode: selection.mode })
+            }}
+          >
+            {visibleModes.map((entry) => (
+              <ButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
+                {entry.label}
+              </ButtonGroupItem>
+            ))}
+          </ButtonGroup>
+        ) : (
+          <p className='text-[var(--text-body)] text-small'>
+            {modes.find((entry) => entry.mode === value.accessMode)?.label}
+          </p>
+        )}
 
-        {value.accessMode === 'members' &&
-          connectorConfig.id === 'slack' &&
-          !isLoading &&
-          !configured && (
+        {showSlackSetup &&
+          (accountsQuery.isError ? (
+            <SettingsQueryErrorState
+              error={accountsQuery.error}
+              fallback='Could not check Slack setup'
+              isRetrying={accountsQuery.isFetching}
+              onRetry={() => void accountsQuery.refetch()}
+              variant='inline'
+            />
+          ) : accountsQuery.isPending ? (
+            <SettingsEmptyState variant='inline'>Checking Slack setup…</SettingsEmptyState>
+          ) : accountsQuery.isSuccess && !configured ? (
             <SlackMemberSetup
               workspaceId={workspaceId}
               searchSetupSource={searchSetupSource}
               onNavigate={onSetupNavigate}
             />
-          )}
+          ) : null)}
 
-        {footer}
+        {canAdmin && footer}
       </div>
     </ChipModalField>
   )
@@ -215,8 +220,7 @@ export function SlackMemberSetup({
   return (
     <div className='flex flex-col items-start gap-2'>
       <p className='text-[var(--text-muted)] text-caption leading-snug'>
-        An admin sets up Slack once for the workspace. Then each member connects their own Slack
-        account.
+        Set up your workspace’s Slack app to continue.
       </p>
       <div className='flex flex-wrap items-center gap-2'>
         <ChipLink href={href} onClick={onNavigate}>

@@ -12,12 +12,6 @@ import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 /** The workspace knowledge base Sim Search indexes into, one per workspace, created on first connect. */
 export const SIM_SEARCH_KNOWLEDGE_BASE_NAME = 'Sim Search'
 
-/** Administrative setup is offered only for connectors that explicitly implement source ACLs. */
-export const MANAGED_SEARCH_CONNECTORS = Object.entries(CONNECTOR_META_REGISTRY)
-  .filter(([, meta]) => meta.search && meta.mirrorsSourceAcls)
-  .map(([type, meta]) => ({ type, meta }))
-  .sort((a, b) => a.meta.name.localeCompare(b.meta.name))
-
 /**
  * A knowledge-base connector offered on the Sim Search surface: the connector's
  * client-safe meta paired with the OAuth service a user connects it through.

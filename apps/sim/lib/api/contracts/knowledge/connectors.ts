@@ -305,6 +305,45 @@ export const workspaceMemberConnectorSchema = z.object({
 })
 export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorSchema>
 
+const searchSourceSummaryFields = {
+  knowledgeBaseId: knowledgeBaseParamsSchema.shape.id,
+  connectorId: knowledgeConnectorParamsSchema.shape.connectorId,
+  connectorType: z.string().min(1).max(100),
+  sourceDescription: z.string().max(240),
+  accessMode: z.enum(['admin', 'members']),
+  availability: z.enum(['available', 'unavailable']),
+  enabled: z.boolean(),
+  isSyncing: z.boolean(),
+  lastSyncAt: z.string().datetime().nullable(),
+  hasSyncError: z.boolean(),
+  viewerDocumentCount: z.number().int().nonnegative(),
+  viewerEmailVerified: z.boolean(),
+}
+
+export const searchSourceSummarySchema = z.discriminatedUnion('connectionRequired', [
+  z.object({
+    ...searchSourceSummaryFields,
+    connectionRequired: z.literal(true),
+    viewerMembership: viewerConnectorMembershipSchema.nullable(),
+  }),
+  z.object({
+    ...searchSourceSummaryFields,
+    connectionRequired: z.literal(false),
+    viewerMembership: z.null(),
+  }),
+])
+export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
+
+export const listSearchSourcesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/sim-search/sources',
+  query: z.object({ workspaceId: workspaceIdSchema }),
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.array(searchSourceSummarySchema)),
+  },
+})
+
 export const connectSimSearchConnectorBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),

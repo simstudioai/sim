@@ -12,12 +12,15 @@ const mocks = vi.hoisted(() => ({ requestJson: vi.fn() }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
 
 import {
+  searchSourceKeys,
   useConnectSimSearchConnector,
   useCreateConnector,
   useDeleteConnector,
   useExcludeConnectorDocument,
+  usePrepareSearchSource,
   useRestoreConnectorDocument,
   useStartConnectorMemberEnrollment,
+  useUpdateConnector,
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
@@ -29,7 +32,8 @@ const CONNECTOR_ID = 'connector-1'
 const DOCUMENT_ID = 'document-1'
 const ACCOUNT_SUMMARY_KEY = credentialGroupKeys.workspace(WORKSPACE_ID)
 const ACCOUNT_DETAIL_KEY = credentialGroupKeys.detail(WORKSPACE_ID, 'group-1')
-const SEARCH_KEY = knowledgeKeys.search(WORKSPACE_ID, [KNOWLEDGE_BASE_ID], 'handbook')
+const SEARCH_KEY = knowledgeKeys.search(WORKSPACE_ID, 'handbook')
+const SOURCE_LIST_KEY = searchSourceKeys.list(WORKSPACE_ID)
 const UNRELATED_KEY = ['unrelated-resource', 'sentinel'] as const
 const SEARCH_STALE_TIME = 60_000
 
@@ -61,6 +65,7 @@ function createQueryClient() {
   queryClient.setQueryDefaults(SEARCH_KEY, { staleTime: SEARCH_STALE_TIME })
   queryClient.setQueryData(ACCOUNT_SUMMARY_KEY, cachedData.accountSummary)
   queryClient.setQueryData(ACCOUNT_DETAIL_KEY, cachedData.accountDetail)
+  queryClient.setQueryData(SOURCE_LIST_KEY, [{ connectorId: CONNECTOR_ID, isSyncing: false }])
   queryClient.setQueryData(SEARCH_KEY, cachedData.search)
   queryClient.setQueryData(UNRELATED_KEY, cachedData.unrelated)
   return queryClient
@@ -99,6 +104,7 @@ function expectInvalidated(queryClient: QueryClient, queryKey: QueryKey, invalid
 }
 
 function expectUnrelatedCacheUnchanged(queryClient: QueryClient) {
+  expectInvalidated(queryClient, SOURCE_LIST_KEY, true)
   expectInvalidated(queryClient, UNRELATED_KEY, false)
   expect(queryClient.getQueryData(UNRELATED_KEY)).toEqual(cachedData.unrelated)
   expect(mocks.requestJson).toHaveBeenCalledOnce()
@@ -257,4 +263,31 @@ describe('connector Search result cache reconciliation', () => {
       expectUnrelatedCacheUnchanged(queryClient)
     }
   )
+})
+
+describe('Search source list reconciliation', () => {
+  it('refreshes summaries after editing source configuration or pausing sync', async () => {
+    const queryClient = createQueryClient()
+    const mutation = renderMutation(queryClient, useUpdateConnector)
+    await act(async () => {
+      await mutation().mutateAsync({
+        knowledgeBaseId: KNOWLEDGE_BASE_ID,
+        connectorId: CONNECTOR_ID,
+        updates: { status: 'paused' },
+      })
+    })
+    expectUnrelatedCacheUnchanged(queryClient)
+  })
+
+  it('refreshes prepared-source summaries in the affected workspace only', async () => {
+    const queryClient = createQueryClient()
+    const otherWorkspaceKey = searchSourceKeys.list('other-workspace')
+    queryClient.setQueryData(otherWorkspaceKey, [])
+    const mutation = renderMutation(queryClient, usePrepareSearchSource)
+    await act(async () => {
+      await mutation().mutateAsync({ workspaceId: WORKSPACE_ID, connectorType: 'google_drive' })
+    })
+    expectInvalidated(queryClient, otherWorkspaceKey, false)
+    expectUnrelatedCacheUnchanged(queryClient)
+  })
 })

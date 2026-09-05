@@ -398,6 +398,13 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     principalKinds: ['session'],
   }),
+  listSearchSources: defineWorkspaceOperation({
+    id: 'knowledge.search.sources.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
   /** Sources with a personal connection, including identities used by mirrored ACLs. */
   listWorkspaceMemberConnectors: defineWorkspaceOperation({
     id: 'knowledge.connectors.members.list',

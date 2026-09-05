@@ -1,399 +1,334 @@
-/**
- * @vitest-environment jsdom
- */
+/** @vitest-environment jsdom */
 import { act } from 'react'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  SearchSourceSummary,
+  WorkspaceMemberConnector,
+} from '@/lib/api/contracts/knowledge/connectors'
 
-const {
-  mockConnect,
-  mockConnectSource,
-  mockFeatures,
-  mockExtraSources,
-  mockSearchTerm,
-  mockPrepareSource,
-  mockNavigate,
-  mockSlackAvailable,
-  mockAccounts,
-} = vi.hoisted(() => ({
-  mockConnect: vi.fn(),
-  mockConnectSource: vi.fn(),
-  mockFeatures: vi.fn(),
-  mockExtraSources: vi.fn(),
-  mockSearchTerm: vi.fn(),
-  mockPrepareSource: vi.fn(),
-  mockNavigate: vi.fn(),
-  mockSlackAvailable: vi.fn(),
-  mockAccounts: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  canAdmin: false,
+  features: { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true },
+  sources: [] as SearchSourceSummary[],
+  shared: [] as WorkspaceMemberConnector[],
+  sourcePending: false,
+  sourceError: null as Error | null,
+  sharedError: null as Error | null,
+  sourceRefetch: vi.fn(),
+  sharedRefetch: vi.fn(),
+  sourceQuery: vi.fn(),
+  sharedQuery: vi.fn(),
+  connect: vi.fn(),
+  setup: vi.fn(),
+  sharedRows: vi.fn(),
+  urlUpdate: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
-  usePathname: () => '/workspace/workspace-1/search',
-  useRouter: () => ({ push: mockNavigate }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useOptionalWorkspaceHostContext: () => ({ features: mockFeatures() }),
-  useWorkspaceHostContext: () => ({ features: mockFeatures() }),
+  useWorkspaceHostContext: () => ({ features: mocks.features }),
 }))
-vi.mock('nuqs', () => ({
-  useQueryState: (key: string) => [key === 'search' ? (mockSearchTerm() ?? '') : false, vi.fn()],
-}))
-vi.mock('@/hooks/use-debounced-search-setter', () => ({
-  useDebouncedSearchSetter: (write: (value: string) => void) => write,
-}))
-vi.mock('@/hooks/queries/credential-groups', () => ({
-  useWorkspaceAccounts: () => ({
-    data: mockAccounts() ?? { credentialGroup: null },
-    isLoading: false,
-  }),
+vi.mock('@/hooks/use-member-access', () => ({
+  useMemberAccessAvailable: () => mocks.features.knowledgeMemberAccess,
 }))
 vi.mock('@/hooks/queries/workspace', () => ({
-  useWorkspacePermissionsQuery: () => ({ data: { viewer: { isAdmin: true } } }),
+  useWorkspacePermissionsQuery: () => ({ data: { viewer: { isAdmin: mocks.canAdmin } } }),
 }))
-vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({
-    integrationAvailability: new Map([
-      ['slack', { oauthAvailable: mockSlackAvailable() ?? false }],
-      ['jira', { state: 'available', oauthAvailable: true }],
-    ]),
-  }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration', () => ({
-  useScrollRestoration: () => undefined,
-}))
-vi.mock('@/app/workspace/[workspaceId]/components', () => ({
-  IntegrationTabsHeader: () => null,
-}))
-vi.mock('@/blocks', () => ({ getBlock: () => undefined }))
-vi.mock('@/app/workspace/[workspaceId]/search/components/managed-search-sources', () => ({
-  ManagedSearchSources: () => null,
-}))
-vi.mock('@/lib/integrations', () => ({
-  blockTypeToIconMap: {},
-  resolveCredentialDisplay: () => ({ icon: () => null, blockType: 'confluence', subtitle: 'Sub' }),
-}))
-
-vi.mock('@/lib/sim-search/connectors', () => {
-  const icon = () => null
-  const connector = (type: string, name: string, description: string, personal: boolean) => ({
-    type,
-    meta: {
-      id: type,
-      name,
-      description,
-      icon,
-      auth: { mode: 'oauth', provider: type },
-      permissionScopedListing: personal ? { capFieldIds: [] } : undefined,
-      configFields: personal ? [] : [{ id: 'domain', required: true }],
-    },
-    providerId: type,
-    providerIds: [type],
-    requiredScopes: [],
-    serviceName: name,
-    serviceIcon: icon,
-    blockType: type,
-    setupFields: [],
-  })
-  const isSearchConnectorAvailable = (
-    candidate: { blockType: string },
-    availability: ReadonlyMap<string, { oauthAvailable: boolean }>
-  ) => availability.get(candidate.blockType)?.oauthAvailable ?? true
-  return {
-    SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
-    MANAGED_SEARCH_CONNECTORS: [],
-    canConnectPersonally: (meta: { permissionScopedListing?: unknown }) =>
-      Boolean(meta.permissionScopedListing),
-    connectorDisplayName: (connectorType: string) => connectorType,
-    isSearchConnectorAvailable,
-    searchConnectorUnavailableReason: (
-      candidate: { blockType: string; meta: { name: string } },
-      availability: ReadonlyMap<string, { oauthAvailable: boolean }>,
-      context: { memberAccessAvailable: boolean; hasConnection: boolean; canCreate: boolean }
-    ) =>
-      !isSearchConnectorAvailable(candidate, availability)
-        ? `${candidate.meta.name} is unavailable in this deployment`
-        : !context.memberAccessAvailable
-          ? 'Per-member access is not available in this workspace'
-          : !context.hasConnection && !context.canCreate
-            ? `Ask a workspace admin to connect ${candidate.meta.name} first`
-            : null,
-    SEARCH_CONNECTORS: [
-      connector('google_drive', 'Google Drive', 'Sync Drive files', true),
-      connector('confluence', 'Confluence', 'Sync Confluence pages', false),
-      connector('slack', 'Slack', 'Sync Slack messages', true),
-    ],
-  }
-})
-
 vi.mock('@/hooks/queries/kb/connectors', () => ({
-  usePrepareSearchSource: () => ({ mutate: mockPrepareSource, isPending: false, error: null }),
-  memberConnectorKeys: { list: (workspaceId?: string) => ['member-connectors', workspaceId] },
-  useWorkspaceMemberConnectors: () => ({
-    isPending: false,
-    data: [
-      ...(mockExtraSources() ?? []),
-      {
-        knowledgeBaseId: 'kb-search',
-        knowledgeBaseName: 'Sim Search',
-        knowledgeBaseIsSearchIndex: true,
-        connectorId: 'conn-drive',
-        connectorType: 'google_drive',
-        memberSyncStatus: 'idle',
-        viewerMembership: 'connected',
-        viewerDocumentCount: 12,
-      },
-      {
-        knowledgeBaseId: 'kb-sales',
-        knowledgeBaseName: 'Sales',
-        connectorId: 'conn-sales-drive',
-        connectorType: 'google_drive',
-        memberSyncStatus: 'idle',
-        viewerMembership: 'invited',
-        viewerDocumentCount: 0,
-      },
-    ],
-  }),
+  searchSourceKeys: { list: (id: string) => ['search-sources', id] },
+  useSearchSources: (id: string) => {
+    mocks.sourceQuery(id)
+    return {
+      data: mocks.sources,
+      isPending: mocks.sourcePending,
+      isError: Boolean(mocks.sourceError),
+      error: mocks.sourceError,
+      isFetching: false,
+      refetch: mocks.sourceRefetch,
+    }
+  },
+  useWorkspaceMemberConnectors: (id: string, options: { enabled: boolean }) => {
+    mocks.sharedQuery(id, options)
+    return {
+      data: mocks.shared,
+      isError: Boolean(mocks.sharedError),
+      error: mocks.sharedError,
+      isFetching: false,
+      refetch: mocks.sharedRefetch,
+    }
+  },
 }))
 vi.mock('@/hooks/use-member-enrollment', () => ({
   CONNECTABLE_MEMBERSHIPS: new Set(['needs_reauth', 'invited', 'not_enrolled']),
-  describeMembership: ({ membership }: { membership: string }) =>
-    membership === 'connected' ? null : 'Connect your account to search its documents.',
-  enrollmentActionLabel: () => 'Connect',
   useMemberEnrollment: () => ({
-    connect: mockConnect,
-    connectSource: mockConnectSource,
-    connectSearchSource: (
-      workspaceId: string,
-      connector: { type: string },
-      connection: { knowledgeBaseId: string; connectorId: string } | undefined
-    ) =>
-      connection
-        ? mockConnect(connection.knowledgeBaseId, connection.connectorId)
-        : mockConnectSource(workspaceId, connector.type),
-    setupConnector: null,
-    closeSetup: () => {},
+    connect: mocks.connect,
     isAwaiting: () => false,
-    isAwaitingSource: () => false,
     isPending: false,
     error: null,
   }),
 }))
-vi.mock('@/connectors/registry', () => ({
-  CONNECTOR_META_REGISTRY: { google_drive: { name: 'Google Drive', icon: () => null } },
+vi.mock('@/hooks/use-debounced-search-setter', () => ({
+  useDebouncedSearchSetter: (write: (value: string) => void) => write,
 }))
+vi.mock('@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration', () => ({
+  useScrollRestoration: () => undefined,
+}))
+vi.mock('@/app/workspace/[workspaceId]/components', () => ({ IntegrationTabsHeader: () => null }))
+vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-showcase', () => ({
+  IntegrationTile: () => null,
+}))
+vi.mock('@/app/workspace/[workspaceId]/search/components/search-mcp-setup', () => ({
+  SearchMcpSetup: () => <div data-testid='mcp-setup'>MCP setup</div>,
+}))
+vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-setup', () => ({
+  SearchSourceSetup: (props: { canAdmin: boolean }) => {
+    mocks.setup(props)
+    return <div data-testid='source-setup' />
+  },
+}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section',
+  () => ({
+    MemberConnectorsSection: (props: { connectors: WorkspaceMemberConnector[] }) => {
+      mocks.sharedRows(props.connectors)
+      return props.connectors.length ? <div>Shared with you</div> : null
+    },
+  })
+)
 
 import { Search } from '@/app/workspace/[workspaceId]/search/search'
 
-let root: Root | null = null
-let container: HTMLDivElement | null = null
-
-function mount(features: { knowledgeMemberAccess?: boolean } = { knowledgeMemberAccess: true }) {
-  mockFeatures.mockReturnValue({ credentialGroups: true, ...features })
-  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  container = document.createElement('div')
-  document.body.appendChild(container)
-  root = createRoot(container)
-  act(() => root?.render(<Search />))
+function source(overrides: Partial<SearchSourceSummary> = {}): SearchSourceSummary {
+  return {
+    knowledgeBaseId: 'kb-search',
+    connectorId: 'drive-1',
+    connectorType: 'google_drive',
+    sourceDescription: 'Company files',
+    accessMode: 'admin',
+    availability: 'available',
+    enabled: true,
+    isSyncing: false,
+    lastSyncAt: '2026-09-05T12:00:00Z',
+    hasSyncError: false,
+    viewerDocumentCount: 12,
+    viewerEmailVerified: true,
+    connectionRequired: false,
+    viewerMembership: null,
+    ...overrides,
+  } as SearchSourceSummary
 }
 
-function sectionLabels(): string[] {
-  return Array.from(container?.querySelectorAll('section > div > span') ?? []).map(
-    (node) => node.textContent ?? ''
+function button(label: string) {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+    (node) => node.textContent?.trim() === label || node.getAttribute('aria-label') === label
   )
 }
 
-function buttons(): HTMLButtonElement[] {
-  return Array.from(container?.querySelectorAll('button') ?? [])
+let root: Root
+let container: HTMLDivElement
+async function render(searchParams = '') {
+  await act(async () =>
+    root.render(
+      <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mocks.urlUpdate}>
+        <Search />
+      </NuqsTestingAdapter>
+    )
+  )
 }
 
-afterEach(() => {
-  if (root) act(() => root?.unmount())
-  container?.remove()
-  root = null
-  container = null
-  mockConnect.mockReset()
-  mockConnectSource.mockReset()
-  mockExtraSources.mockReset()
-  mockSearchTerm.mockReset()
-  mockPrepareSource.mockReset()
-  mockNavigate.mockReset()
-  mockSlackAvailable.mockReset()
-  mockAccounts.mockReset()
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  mocks.canAdmin = false
+  mocks.features = { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true }
+  mocks.sources = [source(), source({ connectorId: 'gitlab-1', connectorType: 'gitlab' })]
+  mocks.shared = []
+  mocks.sourcePending = false
+  mocks.sourceError = null
+  mocks.sharedError = null
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
 })
 
-describe('Search', () => {
-  it('links Slack member sign-in directly to Connected accounts', () => {
-    mockSlackAvailable.mockReturnValue(true)
-    mount()
-    const link = Array.from(container?.querySelectorAll('a') ?? []).find((node) =>
-      node.textContent?.includes('Set up Slack')
+afterEach(async () => {
+  await act(async () => root.unmount())
+  container.remove()
+  vi.unstubAllGlobals()
+})
+
+describe('unified Search sources', () => {
+  it('shows configured central Drive and GitLab sources to readers without setup controls', async () => {
+    await render()
+    expect(document.body.textContent).toContain('Google Drive')
+    expect(document.body.textContent).toContain('GitLab')
+    expect(document.body.textContent).not.toContain('Slack')
+    expect(document.body.textContent).not.toContain('Confluence')
+    expect(button('Add source')).toBeUndefined()
+    expect(button('Manage')).toBeUndefined()
+    expect(button('Connect account')).toBeUndefined()
+    expect(mocks.sourceQuery).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.setup).toHaveBeenLastCalledWith(expect.objectContaining({ canAdmin: false }))
+  })
+
+  it('connects each configured Confluence site using its exact connector ID', async () => {
+    mocks.sources = ['engineering', 'sales'].map((site) =>
+      source({
+        connectorId: `confluence-${site}`,
+        connectorType: 'confluence',
+        sourceDescription: `${site}.atlassian.net`,
+        accessMode: 'members',
+        connectionRequired: true,
+        viewerMembership: 'invited',
+      })
     )
-    expect(link?.getAttribute('href')).toBe(
-      '/workspace/workspace-1/settings/credential-groups?search-setup=search&credential-group-provider=slack'
+    await render()
+    const buttons = Array.from(document.querySelectorAll('button')).filter(
+      (node) => node.textContent === 'Connect account'
     )
-    expect(container?.textContent).not.toContain('Set up Slack app')
-    expect(container?.textContent).not.toContain(
-      'Documents become searchable as indexing completes'
+    expect(buttons).toHaveLength(2)
+    expect(document.body.textContent).toContain('engineering.atlassian.net')
+    expect(document.body.textContent).toContain('sales.atlassian.net')
+    await act(async () => buttons[1]!.click())
+    expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('kb-search', 'confluence-sales')
+  })
+
+  it('allows admins to add member sources when mirrored access is off', async () => {
+    mocks.canAdmin = true
+    mocks.features.knowledgeSourceMirroredAccess = false
+    await render('?search=slack')
+    expect(button('Add source')).toBeDefined()
+    await act(async () => button('Add source')!.click())
+    await vi.waitFor(() =>
+      expect(mocks.urlUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ queryString: '?addConnector=' })
+      )
     )
-    expect(mockPrepareSource).not.toHaveBeenCalled()
-  })
-
-  it('offers personal Connect after Slack is configured and keeps MCP above the sources', () => {
-    mockSlackAvailable.mockReturnValue(true)
-    mockAccounts.mockReturnValue({
-      credentialGroup: {
-        status: 'active',
-        options: [{ provider: 'slack', status: 'active', configurationStatus: 'ready' }],
-      },
-    })
-    mount()
-    expect(container?.textContent).not.toContain('Set up Slack')
-    expect(container?.textContent?.indexOf('Use Search in other apps')).toBeLessThan(
-      container?.textContent?.indexOf('Your accounts') ?? -1
+    expect(mocks.setup).toHaveBeenLastCalledWith(
+      expect.objectContaining({ memberAccessAvailable: true, mirroredAccessAvailable: false })
     )
-    const connect = buttons()
-      .filter((button) => button.textContent === 'Connect')
-      .at(0)
-    act(() => connect?.click())
-    expect(mockConnectSource).toHaveBeenCalledWith('workspace-1', 'slack')
   })
 
-  it('filters configured sources by their displayed source address', () => {
-    mockExtraSources.mockReturnValue([
-      {
-        knowledgeBaseId: 'kb-search',
-        knowledgeBaseName: 'Sim Search',
-        knowledgeBaseIsSearchIndex: true,
-        connectorId: 'conn-finance',
-        connectorType: 'google_drive',
-        sourceDescription: 'Finance folder',
-        memberSyncStatus: 'idle',
-        viewerMembership: 'not_enrolled',
-        viewerDocumentCount: 0,
-      },
-    ])
-    mockSearchTerm.mockReturnValue('finance')
-    mount()
-    expect(container?.textContent).toContain('Finance folder')
-    expect(container?.textContent).not.toContain('Connected · 12 documents')
-    expect(container?.textContent).not.toContain('Sales')
+  it('keeps general-KB enrollments under Shared with you and excludes index duplicates', async () => {
+    const shared: WorkspaceMemberConnector = {
+      knowledgeBaseId: 'kb-sales',
+      knowledgeBaseName: 'Sales',
+      knowledgeBaseIsSearchIndex: false,
+      connectorId: 'sales-drive',
+      connectorType: 'google_drive',
+      sourceDescription: 'Sales folder',
+      memberSyncStatus: 'idle',
+      viewerMembership: 'invited',
+      viewerDocumentCount: 0,
+    }
+    mocks.shared = [shared, { ...shared, connectorId: 'drive-1', knowledgeBaseIsSearchIndex: true }]
+    await render()
+    expect(mocks.sharedRows).toHaveBeenLastCalledWith([shared])
+    expect(document.body.textContent).toContain('Shared with you')
   })
 
-  it('shows every configured source and connects the selected source by its exact ID', () => {
-    mockExtraSources.mockReturnValue([
-      {
-        knowledgeBaseId: 'kb-search',
-        knowledgeBaseName: 'Sim Search',
-        knowledgeBaseIsSearchIndex: true,
-        connectorId: 'conn-finance',
-        connectorType: 'google_drive',
-        sourceDescription: 'Finance folder',
-        memberSyncStatus: 'idle',
-        viewerMembership: 'not_enrolled',
-        viewerDocumentCount: 0,
-      },
-    ])
-    mount()
-    const section = Array.from(container?.querySelectorAll('section') ?? []).find((node) =>
-      node.textContent?.includes('Your accounts')
+  it('blocks cached member and identity actions after features turn off', async () => {
+    mocks.canAdmin = true
+    mocks.features = { knowledgeMemberAccess: false, knowledgeSourceMirroredAccess: false }
+    mocks.sources = [
+      source({ accessMode: 'members', connectionRequired: true, viewerMembership: 'invited' }),
+      source({
+        connectorId: 'confluence-1',
+        connectorType: 'confluence',
+        connectionRequired: true,
+        viewerMembership: 'needs_reauth',
+      }),
+    ]
+    await render()
+    expect(document.body.textContent).toContain('Not available in this workspace')
+    expect(button('Connect account')).toBeUndefined()
+    expect(button('Reconnect')).toBeUndefined()
+    expect(button('Add source')).toBeUndefined()
+    expect(mocks.sharedQuery).toHaveBeenLastCalledWith('workspace-1', { enabled: false })
+    expect(mocks.sharedRows).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('provides a useful empty state for canAdmin=%s', async (canAdmin) => {
+    mocks.canAdmin = canAdmin
+    mocks.sources = []
+    await render()
+    expect(document.body.textContent).toContain(
+      canAdmin ? 'Add a source to start indexing' : 'Ask a workspace admin to get started'
     )
-    expect(section?.textContent).toContain('Finance folder')
-    expect(section?.textContent).toContain('Connected · 12 documents')
-    const connect = Array.from(section?.querySelectorAll('button') ?? []).find(
-      (button) => button.textContent === 'Connect'
+  })
+
+  it('shows loading and then a retryable source error without stale rows', async () => {
+    mocks.sourcePending = true
+    await render()
+    expect(document.body.textContent).toContain('Loading sources…')
+    expect(document.body.textContent).not.toContain('Google Drive')
+    mocks.sourcePending = false
+    mocks.sourceError = new Error('Could not fetch sources')
+    await render()
+    expect(document.body.textContent).toContain('Could not fetch sources')
+    await act(async () => button('Try again')!.click())
+    expect(mocks.sourceRefetch).toHaveBeenCalledOnce()
+    expect(document.body.textContent).not.toContain('Google Drive')
+  })
+
+  it('retries shared-source failures without hiding the configured sources', async () => {
+    mocks.sharedError = new Error('Shared sources failed')
+    await render()
+    expect(document.body.textContent).toContain('Google Drive')
+    expect(document.body.textContent).toContain('Shared sources failed')
+    await act(async () => button('Try again')!.click())
+    expect(mocks.sharedRefetch).toHaveBeenCalledOnce()
+  })
+
+  it('filters by provider and source address while retaining the setup owner for a return URL', async () => {
+    mocks.canAdmin = true
+    await render('?search=missing&addConnector=gitlab&credentialDraftId=draft-1')
+    expect(document.body.textContent).toContain('No matching sources.')
+    expect(document.body.textContent).not.toContain('Google Drive')
+    expect(document.querySelector('[data-testid="source-setup"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="mcp-setup"]')).toBeNull()
+    expect(mocks.urlUpdate).not.toHaveBeenCalled()
+  })
+
+  it('pushes source management without replacing the filtered list URL used by Back', async () => {
+    mocks.canAdmin = true
+    await render('?search=gitlab')
+    expect(document.body.textContent).toContain('GitLab')
+    expect(document.body.textContent).not.toContain('Google Drive')
+    await act(async () => button('Manage')!.click())
+    await vi.waitFor(() =>
+      expect(mocks.urlUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryString: '?search=gitlab&manage-source=gitlab-1',
+          options: expect.objectContaining({ history: 'push' }),
+        })
+      )
     )
-    act(() => connect?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })))
-    expect(mockConnect).toHaveBeenCalledWith('kb-search', 'conn-finance')
+    await render('?search=gitlab&manage-source=gitlab-1')
+    await render('?search=gitlab')
+    expect(document.querySelector('input')?.value).toBe('gitlab')
+    expect(document.body.textContent).toContain('GitLab')
+    expect(document.body.textContent).not.toContain('Google Drive')
   })
 
-  it('shows each source with the viewer’s own connection state', () => {
-    mount()
-
-    expect(sectionLabels()).toEqual(['Your accounts', 'Shared with you'])
-    const text = container?.textContent ?? ''
-    expect(text).toContain('Connected · 12 documents')
-    expect(text).toContain('Set up by a workspace admin from a knowledge base.')
-    expect(text).not.toContain('Slack')
-    expect(text).toContain('Sales')
-  })
-
-  it('hides unavailable providers that have no configured source', () => {
-    mockSearchTerm.mockReturnValue('slack')
-    mount()
-    expect(container?.textContent).not.toContain('Slack')
-    expect(sectionLabels()).not.toContain('Your accounts')
-    expect(buttons().some((button) => button.textContent === 'Connect')).toBe(false)
-  })
-
-  it('keeps configured unavailable sources visible with their source identity', () => {
-    mockExtraSources.mockReturnValue([
-      {
-        knowledgeBaseId: 'kb-search',
-        knowledgeBaseName: 'Sim Search',
-        knowledgeBaseIsSearchIndex: true,
-        connectorId: 'conn-slack',
-        connectorType: 'slack',
-        sourceDescription: 'Support workspace',
-        memberSyncStatus: 'idle',
-        viewerMembership: 'connected',
-        viewerDocumentCount: 5,
-      },
-    ])
-    mockSearchTerm.mockReturnValue('support')
-    mount()
-    expect(container?.textContent).toContain('Slack')
-    expect(container?.textContent).toContain(
-      'Support workspace · Slack is unavailable in this deployment'
+  it('keeps search above MCP setup and opens admin management by connector ID', async () => {
+    mocks.canAdmin = true
+    await render()
+    const input = document.querySelector('input')!
+    const mcp = document.querySelector('[data-testid="mcp-setup"]')!
+    expect(input.compareDocumentPosition(mcp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await act(async () => button('Manage')!.click())
+    await vi.waitFor(() =>
+      expect(mocks.urlUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryString: '?manage-source=drive-1',
+          options: expect.objectContaining({ history: 'push' }),
+        })
+      )
     )
-    expect(buttons().some((button) => button.textContent === 'Connect')).toBe(false)
-  })
-
-  it('keeps a previously configured unsupported source reachable without new enrollment', () => {
-    mockExtraSources.mockReturnValue([
-      {
-        knowledgeBaseId: 'kb-search',
-        knowledgeBaseName: 'Sim Search',
-        knowledgeBaseIsSearchIndex: true,
-        connectorId: 'conn-legacy',
-        connectorType: 'airtable',
-        sourceDescription: 'Legacy finance source',
-        memberSyncStatus: 'idle',
-        viewerMembership: 'not_enrolled',
-        viewerDocumentCount: 0,
-      },
-    ])
-    mockSearchTerm.mockReturnValue('legacy finance')
-    mount()
-    expect(container?.textContent).toContain('Existing sources')
-    expect(container?.textContent).toContain('Legacy finance source')
-    expect(
-      container?.querySelector('a[href="/workspace/workspace-1/knowledge/kb-search"]')?.textContent
-    ).toBe('Manage')
-    expect(buttons().some((button) => button.textContent === 'Connect')).toBe(false)
-    expect(container?.textContent).not.toContain('No connectors found')
-  })
-
-  it('connects a source nobody has connected yet through its per-member connector', () => {
-    mount()
-
-    const connect = buttons().find((button) => button.textContent === 'Connect')
-    expect(connect).toBeDefined()
-    act(() => {
-      connect?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
-    })
-
-    expect(mockConnect).toHaveBeenCalledWith('kb-sales', 'conn-sales-drive')
-    expect(mockConnectSource).not.toHaveBeenCalled()
-  })
-
-  it('offers no connection while per-member access is unavailable in the workspace', () => {
-    mount({ knowledgeMemberAccess: false })
-
-    expect(sectionLabels()).toEqual(['Your accounts'])
-    const text = container?.textContent ?? ''
-    expect(text).toContain('Per-member access is not available in this workspace')
-    expect(text).not.toContain('Connected · 12 documents')
-    expect(buttons().find((button) => button.textContent === 'Connect')).toBeUndefined()
   })
 })

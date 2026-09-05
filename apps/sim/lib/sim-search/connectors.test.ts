@@ -96,7 +96,6 @@ vi.mock('@/lib/integrations/credential-display', () => ({
 import {
   canConnectPersonally,
   isSearchConnectorAvailable,
-  MANAGED_SEARCH_CONNECTORS,
   missingSetupFields,
   personalSetupFields,
   SEARCH_CONNECTORS,
@@ -127,7 +126,6 @@ describe('canConnectPersonally', () => {
   it('requires explicit Search opt-in independently of connector ACL capabilities', () => {
     expect(canConnectPersonally(CONNECTOR_META_REGISTRY.unreviewed)).toBe(false)
     expect(SEARCH_CONNECTORS.some((source) => source.type === 'unreviewed')).toBe(false)
-    expect(MANAGED_SEARCH_CONNECTORS.some((source) => source.type === 'unreviewed')).toBe(false)
   })
   it('offers personal connection to OAuth sources whose listing is permission-scoped', () => {
     const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')!
