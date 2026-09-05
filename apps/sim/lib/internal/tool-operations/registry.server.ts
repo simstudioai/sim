@@ -783,6 +783,32 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+const ORACLE_EPCM_TOOL_IDS = [
+  'oracle_epm_enterprise_profitability_list_applications',
+  'oracle_epm_enterprise_profitability_get_member',
+  'oracle_epm_enterprise_profitability_add_member',
+  'oracle_epm_enterprise_profitability_list_job_definitions',
+  'oracle_epm_enterprise_profitability_generate_model_documentation',
+  'oracle_epm_enterprise_profitability_validate_model',
+  'oracle_epm_enterprise_profitability_calculate_model',
+  'oracle_epm_enterprise_profitability_clear_pov',
+  'oracle_epm_enterprise_profitability_copy_pov',
+  'oracle_epm_enterprise_profitability_delete_pov',
+  'oracle_epm_enterprise_profitability_get_job_status',
+  'oracle_epm_enterprise_profitability_wait_for_job',
+  'oracle_epm_enterprise_profitability_get_job_details',
+  'oracle_epm_enterprise_profitability_get_child_job_details',
+  'oracle_epm_enterprise_profitability_export_data_slice',
+  'oracle_epm_enterprise_profitability_import_data_slice',
+  'oracle_epm_enterprise_profitability_import_data',
+  'oracle_epm_enterprise_profitability_export_data',
+  'oracle_epm_enterprise_profitability_import_metadata',
+  'oracle_epm_enterprise_profitability_export_metadata',
+  'oracle_epm_enterprise_profitability_list_files',
+  'oracle_epm_enterprise_profitability_upload_file',
+  'oracle_epm_enterprise_profitability_download_file',
+  'oracle_epm_enterprise_profitability_delete_file',
+] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1430,6 +1456,10 @@ registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, ORACLE_EPCM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-enterprise-profitability/execute-tool'))
+    .executeOracleEpcmTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool
