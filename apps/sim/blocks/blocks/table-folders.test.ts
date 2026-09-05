@@ -206,6 +206,18 @@ describe('table_v2 folder scope narrows the table picker', () => {
     expect(TableV2Block.inputs).not.toHaveProperty('folderSelection')
   })
 
+  it('stays single-select, because the picker reads its value as a path string', () => {
+    /*
+     * `workspace-folder-selector` stores a STRING when multiSelect is falsy and
+     * an ARRAY when it is true. TableSelector's narrowing reads the value as a
+     * string, so turning this multi-select would make the scope read as absent
+     * and the picker would silently stop filtering — failing open, which is the
+     * safe direction but not the intended one. The File block's equivalent IS
+     * multi-select; tables narrow to one folder.
+     */
+    expect(subBlock('folderSelection')?.multiSelect).toBeFalsy()
+  })
+
   it('has no advanced-mode twin, because a resolved reference would be discarded', () => {
     expect(subBlock('folderSelection')?.mode).toBe('basic')
     expect(subBlock('folderSelection')?.canonicalParamId).toBeUndefined()
