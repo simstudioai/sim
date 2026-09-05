@@ -7,13 +7,7 @@
  * browser and reports the outcome via the confirm endpoint, which wakes the
  * server-side waiter.
  */
-import {
-  BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS,
-  BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
-  BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
-  type BrowserToolName,
-  normalizeBrowserWaitForTimeoutMs,
-} from '@sim/browser-protocol'
+import { type BrowserToolName, browserToolRendererTimeoutMs } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -38,8 +32,6 @@ import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-sess
 
 const logger = createLogger('CopilotBrowserToolExecution')
 
-const DEFAULT_TOOL_TIMEOUT_MS = BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
-
 /**
  * Tools that do not require an existing live page. Most create a new page;
  * `browser_list_sessions` reads the desktop's profile-level session registry.
@@ -52,6 +44,7 @@ const LIVE_PAGE_OPTIONAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserTo
   'browser_open_tab',
   'browser_list_tabs',
   'browser_list_sessions',
+  'browser_list_downloads',
 ])
 
 /**
@@ -65,13 +58,16 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_open_url: false,
   browser_go_back: false,
   browser_go_forward: false,
+  browser_reload: false,
   browser_open_tab: false,
   browser_switch_tab: false,
   browser_close_tab: false,
   browser_list_tabs: true,
   browser_list_sessions: true,
+  browser_list_downloads: true,
   browser_wait_for: true,
   browser_snapshot: true,
+  browser_find: true,
   browser_read_text: true,
   browser_screenshot: true,
   browser_extract: true,
@@ -82,8 +78,10 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_press_key: false,
   browser_scroll: false,
   browser_select_option: false,
+  browser_set_checked: false,
   browser_hover: false,
   browser_drag: false,
+  browser_zoom: false,
   browser_request_takeover: false,
 } as const satisfies Readonly<Record<BrowserToolName, boolean>>
 
@@ -543,21 +541,7 @@ function isOutcomeUnknownError(error: unknown): boolean {
 
 function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknown>): number | null {
   if (toolName === 'browser_request_takeover') return null
-  if (
-    toolName === 'browser_navigate' ||
-    toolName === 'browser_open_url' ||
-    toolName === 'browser_go_back' ||
-    toolName === 'browser_go_forward' ||
-    toolName === 'browser_open_tab' ||
-    toolName === 'browser_switch_tab'
-  ) {
-    return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
-  }
-  if (toolName === 'browser_wait_for') {
-    const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
-    return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + requested + BROWSER_WAIT_FOR_RENDERER_GRACE_MS
-  }
-  return DEFAULT_TOOL_TIMEOUT_MS
+  return browserToolRendererTimeoutMs(toolName, params)
 }
 
 /** Splits a `data:<media type>;base64,<data>` URL into its parts. */
@@ -600,9 +584,10 @@ function sanitizeResultForModel(
           ? viewport.url
           : ''
     const location = screenshotUrl ? ` of ${screenshotUrl}` : ''
+    const isElementCapture = isRecordLike(rest.clip)
     return {
       ...rest,
-      content: `Screenshot${location}. This is the rendered viewport only — it carries no element ids, so use browser_snapshot before interacting.`,
+      content: `Screenshot${location}. This is the rendered ${isElementCapture ? 'element' : 'viewport'} only — it carries no element ids, so use browser_snapshot before interacting.${isElementCapture ? ' For coordinate actions: cssX = clip.x + imageX / scale; cssY = clip.y + imageY / scale.' : ''}`,
       attachment: {
         type: 'image',
         source: { type: 'base64', media_type: image.mediaType, data: image.data },

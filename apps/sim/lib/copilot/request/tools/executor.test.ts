@@ -139,15 +139,34 @@ describe('pendingToolWaitBudgetMs', () => {
   })
 
   it('matches the requested browser_wait_for renderer budget', () => {
-    expect(pendingToolWaitBudgetMs({ name: 'browser_wait_for', status: 'executing' })).toBe(25_000)
+    expect(pendingToolWaitBudgetMs({ name: 'browser_wait_for', status: 'executing' })).toBe(85_000)
     expect(
       pendingToolWaitBudgetMs({
         name: 'browser_wait_for',
         status: 'executing',
         params: { timeoutMs: 120_000 },
       })
-    ).toBe(135_000)
+    ).toBe(195_000)
   })
+
+  it.each([
+    'browser_navigate',
+    'browser_open_url',
+    'browser_go_back',
+    'browser_go_forward',
+    'browser_reload',
+    'browser_open_tab',
+    'browser_switch_tab',
+  ])('includes authorization, queueing, and navigation in the %s budget', (name) => {
+    expect(pendingToolWaitBudgetMs({ name, status: 'executing' })).toBe(130_000)
+  })
+
+  it.each(['browser_snapshot', 'browser_find', 'browser_set_checked', 'browser_click'])(
+    'allows the renderer queue budget for %s',
+    (name) => {
+      expect(pendingToolWaitBudgetMs({ name, status: 'executing' })).toBe(90_000)
+    }
+  )
 
   it('falls back to the tool\u2019s own watchdog once it is actually executing', () => {
     expect(pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'executing' })).toBe(

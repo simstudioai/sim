@@ -187,6 +187,53 @@ describe('executeTool', () => {
     expect(second.result).toMatchObject({ tabs: [] })
   })
 
+  it('lists safe download metadata without opening a page', async () => {
+    const result = await driver.executeTool('chat-test', 'browser_list_downloads', {})
+
+    expect(result).toEqual({
+      ok: true,
+      result: { scopeId: 'chat-test', downloads: [] },
+    })
+    expect(session.peekTabsState().tabs).toEqual([])
+  })
+
+  it('reloads the active tab and waits for its load boundary', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.useFakeTimers()
+    try {
+      const reload = driver.executeTool('chat-test', 'browser_reload', {})
+      await vi.advanceTimersByTimeAsync(500)
+
+      await expect(reload).resolves.toMatchObject({ ok: true })
+      expect(contents.reload).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('uses the shared failed-page recovery path when reloading', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const tab = session.requireTab()
+    tab.pageIssue = {
+      kind: 'load-error',
+      url: 'https://example.com/failed',
+      code: -102,
+      description: 'ERR_CONNECTION_REFUSED',
+    }
+    vi.useFakeTimers()
+    try {
+      const result = driver.executeTool('chat-test', 'browser_reload', {})
+      await vi.advanceTimersByTimeAsync(500)
+
+      await expect(result).resolves.toMatchObject({ ok: true })
+      expect(tab.view.webContents.loadURL).toHaveBeenCalledWith('https://example.com/failed')
+      expect(tab.view.webContents.reload).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a takeover pending when the clock advances beyond twelve hours', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     vi.useFakeTimers()
@@ -1598,62 +1645,48 @@ describe('executeTool', () => {
     )
   })
 
-  it('does not let a snapshot that resolves after timeout overwrite newer refs', async () => {
-    vi.useFakeTimers()
-    try {
-      await driver.executeTool('chat-test', 'browser_open_tab', {})
-      const contents = session.requireTab().view.webContents
-      vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
-      let resolveLate: ((value: unknown) => void) | undefined
-      let snapshotCalls = 0
-      vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-        if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
-        snapshotCalls++
-        if (snapshotCalls === 1) {
+  it.each(['browser_snapshot', 'browser_find'] as const)(
+    'does not let a timed-out %s restore refs',
+    async (tool) => {
+      vi.useFakeTimers()
+      try {
+        await driver.executeTool('chat-test', 'browser_open_tab', {})
+        const contents = session.requireTab().view.webContents
+        vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+        let resolveLate: ((value: unknown) => void) | undefined
+        vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+          if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
           return new Promise((resolve) => {
             resolveLate = resolve
           })
-        }
-        return Promise.resolve({
-          url: 'https://example.com/',
-          title: 'Fresh',
-          outline: '- button "Fresh" [ref=10]',
-          truncated: false,
-          refIds: [10],
-          refLineIndexes: { 10: 0 },
-          nextElementId: 11,
         })
-      })
 
-      const late = driver.executeTool('chat-test', 'browser_snapshot', {})
-      await vi.advanceTimersByTimeAsync(20_000)
-      await expect(late).resolves.toMatchObject({ ok: false })
-      await expect(driver.executeTool('chat-test', 'browser_snapshot', {})).resolves.toMatchObject({
-        ok: true,
-      })
+        const late = driver.executeTool('chat-test', tool, { query: 'Late' })
+        await vi.advanceTimersByTimeAsync(20_000)
+        await expect(late).resolves.toMatchObject({ ok: false })
+        resolveLate?.({
+          url: 'https://example.com/',
+          title: 'Late',
+          outline: '- button "Late" [ref=0]',
+          truncated: false,
+          refIds: [0],
+          refLineIndexes: { 0: 0 },
+          nextElementId: 1,
+        })
+        await Promise.resolve()
+        await Promise.resolve()
 
-      resolveLate?.({
-        url: 'https://example.com/',
-        title: 'Late',
-        outline: '- button "Late" [ref=0]',
-        truncated: false,
-        refIds: [0],
-        refLineIndexes: { 0: 0 },
-        nextElementId: 1,
-      })
-      await Promise.resolve()
-      await Promise.resolve()
-
-      await expect(
-        driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-      ).resolves.toMatchObject({
-        ok: false,
-        error: expect.stringContaining('not present in the current snapshot'),
-      })
-    } finally {
-      vi.useRealTimers()
+        await expect(
+          driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+        ).resolves.toMatchObject({
+          ok: false,
+          error: expect.stringContaining('Call browser_snapshot'),
+        })
+      } finally {
+        vi.useRealTimers()
+      }
     }
-  })
+  )
 
   it('merges cross-origin structure and routes its refs through production frame isolation', async () => {
     const win = new BrowserWindow()
@@ -1752,7 +1785,7 @@ describe('executeTool', () => {
         if (isPageCall(expression, 'collectSnapshot')) {
           return Promise.resolve({
             url: 'https://ogs.google.com/u/0/widget/app',
-            title: 'Google apps',
+            title: 'Google apps [ref=0]',
             outline: '- link "Drive" [ref=1]\n- textbox "Search apps" [ref=2]',
             truncated: false,
             refIds: [1, 2],
@@ -1838,7 +1871,7 @@ describe('executeTool', () => {
     expect(snapshot).toMatchObject({
       ok: true,
       result: {
-        outline: expect.stringContaining('cross-origin iframe "Google apps"'),
+        outline: expect.stringContaining('cross-origin iframe "Google apps [ref\u200b=0]"'),
         capturedCrossOriginFrames: 1,
         unreadableCrossOriginFrames: 1,
         hiddenCrossOriginFrames: 1,
@@ -3195,6 +3228,456 @@ describe('credential protection', () => {
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/same point/)
+  })
+
+  it('finds only fresh ref-bearing snapshot lines with literal text matching', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        outline:
+          '- button "Continue [ref\u200b=999]" [ref=4]\n- heading "Continue without a ref"\n- button "Other" [ref=5]',
+        truncated: false,
+        refIds: [4, 5],
+        refLineIndexes: { 4: 0, 5: 2 },
+        nextElementId: 6,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_find', { query: 'continue' })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        matches: [{ elementId: 4 }],
+        totalMatches: 1,
+        truncated: false,
+      },
+    })
+  })
+
+  it.each(['browser_snapshot', 'browser_find'] as const)(
+    'omits an absent scope from the serialized %s page call',
+    async (tool) => {
+      const contents = await openPage()
+      vi.mocked(contents.executeJavaScript).mockClear()
+      await driver.executeTool('chat-test', tool, { query: 'Continue' })
+      const expressions = vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.map(([expression]) => expression)
+        .filter((expression) => isPageCall(expression, 'collectSnapshot'))
+      expect(expressions).toHaveLength(1)
+      expect(expressions[0]).toContain('.apply(null, [1])')
+    }
+  )
+
+  it.each(['browser_snapshot', 'browser_find'] as const)(
+    'passes the current root ref to %s and invalidates previous refs',
+    async (tool) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        collectSnapshot: {
+          url: 'https://example.com/login',
+          title: 'Scoped',
+          scoped: true,
+          outline: '- button "Save" [ref=1]',
+          truncated: false,
+          refIds: [1],
+          refLineIndexes: { 1: 0 },
+          nextElementId: 2,
+        },
+      })
+      const result = await driver.executeTool('chat-test', tool, { elementId: 0, query: 'Save' })
+      expect(result).toMatchObject({ ok: true, result: { scoped: true } })
+      expect(
+        vi
+          .mocked(contents.executeJavaScript)
+          .mock.calls.some(
+            ([expression]) =>
+              isPageCall(expression, 'collectSnapshot') &&
+              expression.includes('.apply(null, [1,0])')
+          )
+      ).toBe(true)
+      const stale = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+      expect(stale).toMatchObject({ ok: false })
+    }
+  )
+
+  it.each([
+    [1, false, 1],
+    [100, false, 50],
+    [100, true, 50],
+  ])(
+    'bounds find results for maxResults=%s and snapshot truncation=%s',
+    async (maxResults, truncated, expectedCount) => {
+      const contents = await openPage()
+      const ids = Array.from({ length: 60 }, (_, index) => index + 1)
+      respondWith(contents, {
+        collectSnapshot: {
+          url: 'https://example.com/login',
+          title: 'Example',
+          outline: ids.map((id) => `- button "Continue ${id}" [ref=${id}]`).join('\n'),
+          truncated,
+          refIds: ids,
+          refLineIndexes: Object.fromEntries(ids.map((id, index) => [id, index])),
+          nextElementId: 61,
+        },
+      })
+      const response = await driver.executeTool('chat-test', 'browser_find', {
+        query: 'Continue',
+        maxResults,
+      })
+      expect(response).toMatchObject({ ok: true, result: { totalMatches: 60, truncated: true } })
+      expect((response.result as { matches: unknown[] }).matches).toHaveLength(expectedCount)
+    }
+  )
+
+  it('reports incomplete search coverage even when no ref matches', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        outline: '- button "Other" [ref=1]',
+        truncated: true,
+        refIds: [1],
+        refLineIndexes: { 1: 0 },
+        nextElementId: 2,
+      },
+    })
+    const response = await driver.executeTool('chat-test', 'browser_find', { query: 'Missing' })
+    expect(response).toMatchObject({
+      ok: true,
+      result: { matches: [], totalMatches: 0, truncated: true },
+    })
+  })
+
+  it('rejects oversized search text before taking a snapshot', async () => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockClear()
+    const response = await driver.executeTool('chat-test', 'browser_find', {
+      query: 'x'.repeat(4097),
+    })
+    expect(response).toMatchObject({ ok: false })
+    expect(contents.executeJavaScript).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { kind: 'input:checkbox', checked: true, disabled: false, readOnly: false },
+    { kind: 'input:radio', checked: false, disabled: false, readOnly: false },
+    { kind: 'role:radio', checked: false, disabled: false, readOnly: false },
+    { kind: 'role:menuitemradio', checked: false, disabled: false, readOnly: false },
+    { kind: 'input:checkbox', checked: true, disabled: true, readOnly: false },
+    { kind: 'input:checkbox', checked: true, disabled: false, readOnly: true },
+  ])('does not click a control already in the requested state: %j', async (before) => {
+    const contents = await openPage()
+    respondWith(contents, {
+      readCheckableElementState: before,
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+      elementId: 0,
+      checked: before.checked,
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { checked: before.checked, changed: false, dispatched: false },
+    })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it.each([
+    { checked: true, kind: 'input:radio', error: 'cannot be unchecked' },
+    { checked: true, kind: 'role:radio', error: 'cannot be unchecked' },
+    { checked: true, kind: 'role:menuitemradio', error: 'cannot be unchecked' },
+    { checked: false, kind: 'input:checkbox', disabled: true, error: 'disabled' },
+    { checked: false, kind: 'input:checkbox', readOnly: true, error: 'read-only' },
+  ])('rejects a prohibited state change: %j', async (before) => {
+    const contents = await openPage()
+    respondWith(contents, { readCheckableElementState: before })
+    const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+      elementId: 0,
+      checked: !before.checked,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain(before.error)
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it.each([false, 'mixed'])(
+    'uses the trusted click path from %s and verifies a changed checkable control',
+    async (initialState) => {
+      const contents = await openPage()
+      let stateReads = 0
+      vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+        if (isPageCall(expression, 'readCheckableElementState')) {
+          stateReads++
+          return Promise.resolve({
+            checked: stateReads > 1 ? true : initialState,
+            disabled: false,
+            readOnly: false,
+            kind: 'input:checkbox',
+          })
+        }
+        if (isPageCall(expression, 'clickElement')) {
+          return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Checkbox' })
+        }
+        if (isPageCall(expression, 'readPageActionState')) {
+          return Promise.resolve({
+            url: 'https://example.com/login',
+            title: 'Example',
+            focus: 'body',
+            mutationRevision: 0,
+            dialogs: [],
+            scroll: [0],
+          })
+        }
+        if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+        return Promise.resolve(undefined)
+      })
+
+      const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+        elementId: 0,
+        checked: true,
+      })
+
+      expect(result).toMatchObject({
+        ok: true,
+        result: { checked: true, changed: true, dispatched: true, trusted: true },
+      })
+      expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(3)
+    }
+  )
+
+  it('waits for URL and semantic element state together', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      readPageActionState: {
+        targetState: { present: true, rendered: true, disabled: false },
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_wait_for', {
+      urlContains: '/login',
+      elementId: 0,
+      state: 'enabled',
+      timeoutMs: 1_000,
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { found: true, matched: ['url', 'element'] },
+    })
+  })
+
+  it.each([true, false])(
+    'polls delayed checkable state without redispatching input (updates=%s)',
+    async (updates) => {
+      const contents = await openPage()
+      let reads = 0
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+        if (isPageCall(expression, 'readCheckableElementState')) {
+          reads++
+          return { checked: updates && reads >= 4, kind: 'input:checkbox' }
+        }
+        if (isPageCall(expression, 'clickElement'))
+          return { dispatched: false, x: 24, y: 48, element: 'Checkbox' }
+        if (isPageCall(expression, 'readPageActionState'))
+          return {
+            url: 'https://example.com/login',
+            title: 'Example',
+            focus: 'body',
+            mutationRevision: 0,
+            dialogs: [],
+            scroll: [0],
+          }
+        if (isPageCall(expression, 'readActiveElementState')) return {}
+      })
+      vi.useFakeTimers()
+      try {
+        const pending = driver.executeTool('chat-test', 'browser_set_checked', {
+          elementId: 0,
+          checked: true,
+        })
+        await vi.advanceTimersByTimeAsync(2000)
+        const result = await pending
+        expect(result.ok).toBe(updates)
+        expect(reads).toBeGreaterThanOrEqual(4)
+        expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(3)
+        if (!updates) expect(result.error).toContain('did not reach the requested checked state')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each(['hidden', 'detached'])(
+    'does not treat a failed probe as element state %s',
+    async (state) => {
+      const contents = await openPage()
+      vi.mocked(contents.executeJavaScript).mockRejectedValue(
+        new Error('Execution context destroyed')
+      )
+      const response = await driver.executeTool('chat-test', 'browser_wait_for', {
+        elementId: 0,
+        state,
+        timeoutMs: 1000,
+      })
+      expect(response).toMatchObject({ ok: false })
+      expect(response.error).toContain('Execution context destroyed')
+    }
+  )
+
+  it('rejects navigation while inspecting an element wait condition', async () => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockImplementation(async () => {
+      vi.mocked(contents.getURL).mockReturnValue('https://example.com/next')
+      return { targetState: { present: false, rendered: false } }
+    })
+    const response = await driver.executeTool('chat-test', 'browser_wait_for', {
+      elementId: 0,
+      state: 'detached',
+      timeoutMs: 1000,
+    })
+    expect(response).toMatchObject({ ok: false })
+    expect(response.error).toContain('page changed')
+  })
+
+  it.each([
+    ['detached', { present: true, rendered: false }],
+    ['collapsed', { present: true, rendered: true }],
+    ['expanded', { present: true, rendered: true }],
+    ['unchecked', { present: true, rendered: true, checked: 'mixed' }],
+    ['unchecked', { present: true, rendered: true }],
+  ])('does not satisfy %s from an incompatible element state', async (state, targetState) => {
+    const contents = await openPage()
+    respondWith(contents, { readPageActionState: { targetState } })
+    vi.useFakeTimers()
+    try {
+      const response = driver.executeTool('chat-test', 'browser_wait_for', {
+        elementId: 0,
+        state,
+        timeoutMs: 100,
+      })
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(response).resolves.toMatchObject({ ok: true, result: { found: false } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ['expanded', { open: true }],
+    ['collapsed', { open: false }],
+    ['expanded', { ariaExpanded: 'true' }],
+    ['collapsed', { ariaExpanded: 'false' }],
+  ])('waits for %s on native and ARIA disclosure controls', async (state, semanticState) => {
+    const contents = await openPage()
+    respondWith(contents, {
+      readPageActionState: { targetState: { present: true, rendered: true, ...semanticState } },
+    })
+    await expect(
+      driver.executeTool('chat-test', 'browser_wait_for', {
+        elementId: 0,
+        state,
+        timeoutMs: 100,
+      })
+    ).resolves.toMatchObject({ ok: true, result: { found: true } })
+  })
+
+  it.each(['x', 'y', 'width', 'height', 'detached'])(
+    'rejects an element screenshot when %s changes during capture',
+    async (change) => {
+      const contents = await openPage()
+      let captured = false
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+        if (!isPageCall(expression, 'getElementScreenshotRect')) return undefined
+        if (captured && change === 'detached') return { error: 'stale' }
+        return { x: 20, y: 30, width: 200, height: 100, ...(captured ? { [change]: 50 } : {}) }
+      })
+      const capture = vi.spyOn(cdp, 'captureScreenshot').mockImplementation(async () => {
+        captured = true
+        return {
+          dataUrl: 'data:image/jpeg;base64,c2lt',
+          scale: 1,
+          viewport: { width: 800, height: 600 },
+          imageSize: { width: 200, height: 100 },
+        }
+      })
+      try {
+        const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
+        expect(result.ok).toBe(false)
+        expect(result.error).toMatch(change === 'detached' ? /stale/ : /element moved/)
+        expect(capture).toHaveBeenCalledTimes(1)
+      } finally {
+        capture.mockRestore()
+      }
+    }
+  )
+
+  it('crops an element screenshot without changing the live viewport', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      getElementScreenshotRect: {
+        x: 20,
+        y: 30,
+        width: 200,
+        height: 100,
+        element: 'button',
+        refRecovered: false,
+      },
+    })
+    const capture = vi.spyOn(cdp, 'captureScreenshot').mockResolvedValue({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 1,
+      viewport: { width: 800, height: 600 },
+      imageSize: { width: 200, height: 100 },
+    })
+
+    try {
+      const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
+
+      expect(capture).toHaveBeenCalledWith(contents, { x: 20, y: 30, width: 200, height: 100 })
+      expect(result).toMatchObject({
+        ok: true,
+        result: { element: 'button', clip: { x: 20, y: 30, width: 200, height: 100 } },
+      })
+    } finally {
+      capture.mockRestore()
+    }
+  })
+
+  it('rejects navigation during an element screenshot measurement', async () => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+      if (isPageCall(expression, 'getElementScreenshotRect')) {
+        vi.mocked(contents.getURL).mockReturnValue('https://example.com/next')
+        return { x: 20, y: 30, width: 200, height: 100 }
+      }
+    })
+    const capture = vi.spyOn(cdp, 'captureScreenshot')
+    try {
+      const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
+      expect(result).toMatchObject({ ok: false })
+      expect(result.error).toMatch(/page changed/)
+      expect(capture).not.toHaveBeenCalled()
+    } finally {
+      capture.mockRestore()
+    }
+  })
+
+  it('zooms by a standard step and invalidates existing element refs', async () => {
+    const contents = await openPage()
+
+    const zoomed = await driver.executeTool('chat-test', 'browser_zoom', { action: 'in' })
+    const staleRef = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(zoomed).toMatchObject({ ok: true, result: { action: 'in' } })
+    expect(contents.setZoomFactor).toHaveBeenCalled()
+    expect(staleRef).toMatchObject({ ok: false })
+    expect(staleRef.error).toMatch(/Call browser_snapshot/)
   })
 
   it('returns the screenshot scale for coordinate mapping', async () => {
