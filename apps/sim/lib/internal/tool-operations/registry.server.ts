@@ -783,6 +783,41 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+const ORACLE_EPM_ACCOUNT_RECONCILIATION_TOOL_IDS = [
+  'oracle_epm_account_reconciliation_add_users_to_team',
+  'oracle_epm_account_reconciliation_archive_matched_transactions',
+  'oracle_epm_account_reconciliation_create_reconciliations',
+  'oracle_epm_account_reconciliation_delete_file',
+  'oracle_epm_account_reconciliation_delete_profile',
+  'oracle_epm_account_reconciliation_download_comment_attachment',
+  'oracle_epm_account_reconciliation_download_file',
+  'oracle_epm_account_reconciliation_export_user_details_report',
+  'oracle_epm_account_reconciliation_get_compliance_job_status',
+  'oracle_epm_account_reconciliation_get_matching_job_status',
+  'oracle_epm_account_reconciliation_import_balances',
+  'oracle_epm_account_reconciliation_import_compliance_transactions',
+  'oracle_epm_account_reconciliation_import_matching_transactions',
+  'oracle_epm_account_reconciliation_import_premapped_balances',
+  'oracle_epm_account_reconciliation_import_profiles',
+  'oracle_epm_account_reconciliation_import_rates',
+  'oracle_epm_account_reconciliation_import_recon_attributes',
+  'oracle_epm_account_reconciliation_list_files',
+  'oracle_epm_account_reconciliation_list_periods',
+  'oracle_epm_account_reconciliation_list_reconciliation_comments',
+  'oracle_epm_account_reconciliation_list_users',
+  'oracle_epm_account_reconciliation_monitor_reconciliations',
+  'oracle_epm_account_reconciliation_purge_archived_transactions',
+  'oracle_epm_account_reconciliation_purge_matched_transactions',
+  'oracle_epm_account_reconciliation_remove_users_from_team',
+  'oracle_epm_account_reconciliation_run_auto_alert',
+  'oracle_epm_account_reconciliation_run_auto_match',
+  'oracle_epm_account_reconciliation_run_profile_rules',
+  'oracle_epm_account_reconciliation_run_reconciliation_rules',
+  'oracle_epm_account_reconciliation_set_period_status',
+  'oracle_epm_account_reconciliation_unmatch_auto_match_job',
+  'oracle_epm_account_reconciliation_unmatch_transactions',
+  'oracle_epm_account_reconciliation_upload_file',
+] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1430,6 +1465,10 @@ registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, ORACLE_EPM_ACCOUNT_RECONCILIATION_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-account-reconciliation/execute-tool'))
+    .executeOracleEpmAccountReconciliationTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool

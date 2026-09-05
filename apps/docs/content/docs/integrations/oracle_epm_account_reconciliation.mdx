@@ -1,0 +1,829 @@
+---
+title: Oracle EPM Account Reconciliation
+description: Automate reconciliation, transaction matching, imports, and audit evidence
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_account_reconciliation"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an Oracle EPM service-account credential to automate Reconciliation Compliance and Transaction Matching. Stage files explicitly, import profiles, balances, rates and transactions, run rules and matching jobs, manage period status and team membership, and retrieve comments, attachments and user reports. Operations require their documented Oracle roles and enabled features. Jobs launch without waiting by default; a requested wait is bounded to 5–300 seconds. Files are limited to 100 MB. This integration does not provide general reconciliation or profile CRUD, generic report execution, or machine-learning operations.
+
+
+
+## Actions
+
+### Oracle EPM Account Reconciliation Add Users to Team
+
+Add Users to Team using a staged CSV file and an existing team.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact name of a file already uploaded to the Oracle EPM repository |
+| `teamName` | string | Yes | Name of an existing Account Reconciliation team |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Archive Matched Transactions
+
+Archive matched transactions older than the specified age, optionally filtered by account ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `matchTypeId` | string | Yes | Text ID of the Transaction Matching match type |
+| `age` | number | Yes | Age in days of matched transactions to archive |
+| `filterOperator` | string | No | Account ID filter operator; provide with filterValue |
+| `filterValue` | json | No | Account ID filter values as a JSON string array |
+| `logFileName` | string | No | Optional output log filename |
+| `fileName` | string | No | Optional output archive ZIP filename |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+| `logFileName` | string | Repository log filename extracted from a validated log-content link |
+| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
+
+### Oracle EPM Account Reconciliation Create Reconciliations
+
+Create reconciliations for a period, optionally limited by a public profile filter.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `filter` | string | No | Name of a public filter; omit to process all applicable objects |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Delete File
+
+Delete the specified file from the EPM repository.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact name of a file already uploaded to the Oracle EPM repository |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `fileName` | string | Deleted repository filename |
+
+### Oracle EPM Account Reconciliation Delete Profile
+
+Delete the profile identified by its account ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `accountId` | string | Yes | Account ID of the profile to delete |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Download Comment Attachment
+
+Download a FILE reference belonging to the specified reconciliation as a Sim file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `accountId` | string | Yes | Account ID of the reconciliation |
+| `referenceId` | string | Yes | FILE reference ID returned by List Reconciliation Comments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in this Sim execution |
+
+### Oracle EPM Account Reconciliation Download File
+
+Download a repository file as a Sim file (maximum 100 MB).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact name of a file already uploaded to the Oracle EPM repository |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in this Sim execution |
+
+### Oracle EPM Account Reconciliation Export User Details Report
+
+Generate, wait for, and download a user-details report as a Sim file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Repository filename for the generated report |
+| `format` | string | No | Report format |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+| `fileName` | string | Requested report filename |
+| `file` | file | Downloaded file stored in this Sim execution |
+
+### Oracle EPM Account Reconciliation Get Compliance Job Status
+
+Read the status of one Reconciliation Compliance job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `jobId` | string | Yes | Reconciliation Compliance job ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+
+### Oracle EPM Account Reconciliation Get Matching Job Status
+
+Read one Transaction Matching job status and validated artifact filenames.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `jobId` | string | Yes | Transaction Matching job ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `logFileName` | string | Repository log filename extracted from a validated log-content link |
+| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
+
+### Oracle EPM Account Reconciliation Import Balances
+
+Run an existing data-load definition to import balances for a period.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `dataLoadDefinition` | string | Yes | Name of the configured data-load definition |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Import Compliance Transactions
+
+Import pre-mapped Reconciliation Compliance transactions from a staged file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact staged transaction filename |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `transactionType` | string | Yes | BEX balance explanations, SRC/SUB adjustments, or VEX variance explanations |
+| `dateFormat` | string | Yes | Date format used in the import file, for example MMM d, yyyy |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Import Matching Transactions
+
+Import pre-mapped transactions into a Transaction Matching data source.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact staged transaction filename |
+| `matchTypeId` | string | Yes | Text ID of the Transaction Matching match type |
+| `dataSource` | string | Yes | Text ID of the Transaction Matching data source |
+| `dateFormat` | string | Yes | Date format used in the import file, for example MMM d, yyyy |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+| `logFileName` | string | Repository log filename extracted from a validated log-content link |
+
+### Oracle EPM Account Reconciliation Import Premapped Balances
+
+Import pre-mapped source-system or subsystem balances from a staged file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact staged balance filename |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `balanceType` | string | Yes | SRC for source system or SUB for subsystem |
+| `currencyBucket` | string | Yes | Configured currency bucket, for example Entered |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Import Profiles
+
+Import profile or child-profile definitions from a staged CSV file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact staged profile CSV filename |
+| `importType` | string | Yes | Profile import method |
+| `profileType` | string | Yes | Type of profile definitions |
+| `dateFormat` | string | Yes | Date format used in the import file, for example MMM d, yyyy |
+| `period` | string | No | Reconciliation period name, not its internal ID |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Import Rates
+
+Import currency rates from a staged file for a period and rate type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact staged currency-rate filename |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `rateType` | string | Yes | Currency rate type |
+| `importType` | string | Yes | Currency-rate import method |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Import Reconciliation Attributes
+
+Load attribute values from a staged file into existing reconciliations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact name of a file already uploaded to the Oracle EPM repository |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `rules` | string | No | Comma-separated ALL, SET_ATTR_VAL, CRT_ALT, AUTO_APP, or AUTO_SUB; omit to run no rules |
+| `reopen` | boolean | No | Reopen changed reconciliations after import |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation List Files
+
+List repository files and application snapshots.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `files` | array | Repository files and snapshots |
+|   ↳ `name` | string | Exact repository filename |
+|   ↳ `type` | string | EXTERNAL or LCM |
+|   ↳ `size` | string | File size in bytes |
+|   ↳ `lastmodifiedtime` | string | Last-modified timestamp as returned by Oracle |
+
+### Oracle EPM Account Reconciliation List Periods
+
+List Account Reconciliation periods with a selected status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `status` | string | No | Period status filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `periods` | array | Periods matching the status filter |
+|   ↳ `Id` | string | Internal period ID |
+|   ↳ `Name` | string | Period name used by reconciliation operations |
+|   ↳ `Status` | string | 51 pending, 52 open, 53 closed, or 54 locked |
+
+### Oracle EPM Account Reconciliation List Reconciliation Comments
+
+Read comments and attachment references for a reconciliation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `accountId` | string | Yes | Account ID of the reconciliation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Reconciliation comments and attachment references |
+|   ↳ `commentId` | number | Comment ID |
+|   ↳ `parentObjectId` | number | Parent reconciliation object ID |
+|   ↳ `commentText` | string | Comment text |
+|   ↳ `postedBy` | string | Posting user |
+|   ↳ `postedDate` | string | Posting date as returned by Oracle |
+|   ↳ `references` | array | File and URL references |
+|     ↳ `referenceId` | number | Reference ID used by Download Comment Attachment |
+|     ↳ `type` | string | FILE or URL |
+|     ↳ `name` | string | Reference name |
+|     ↳ `url` | string | URL reference target; null for FILE references |
+
+### Oracle EPM Account Reconciliation List Users
+
+List environment users and optionally their groups and roles.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `userlogin` | string | No | Filter by user login |
+| `userattribute` | string | No | Case-insensitive search across user login, first name, last name, or email |
+| `epmgroups` | boolean | No | Include EPM groups |
+| `idcsgroups` | boolean | No | Include IDCS groups |
+| `applicationroles` | boolean | No | Include application roles |
+| `granularroles` | boolean | No | Include granular roles |
+| `indirect` | boolean | No | Include both direct and indirect memberships |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `users` | array | Environment users with requested memberships |
+|   ↳ `userlogin` | string | User login |
+|   ↳ `firstname` | string | First name |
+|   ↳ `lastname` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `epmgroups` | array | Group memberships |
+|     ↳ `groupname` | string | Group name |
+|     ↳ `description` | string | Group description |
+|     ↳ `type` | string | Group type |
+|   ↳ `idcsgroups` | array | Group memberships |
+|     ↳ `groupname` | string | Group name |
+|     ↳ `description` | string | Group description |
+|     ↳ `type` | string | Group type |
+|   ↳ `applicationroles` | array | Role assignments |
+|     ↳ `rolename` | string | Role name |
+|     ↳ `id` | string | Role ID |
+|   ↳ `granularroles` | array | Role assignments |
+|     ↳ `rolename` | string | Role name |
+|     ↳ `id` | string | Role ID |
+
+### Oracle EPM Account Reconciliation Monitor Reconciliations
+
+Check whether all reconciliations selected by a public filter are closed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `periodName` | string | Yes | Reconciliation period name |
+| `filterName` | string | Yes | Name of a public reconciliation filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Monitor status: -1 some reconciliations remain open, 0 all closed, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `allClosed` | boolean | True only when all filtered reconciliations are closed; -1 means some remain open |
+
+### Oracle EPM Account Reconciliation Purge Archived Transactions
+
+Permanently purge transactions from a completed archive job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `jobId` | string | Yes | ID of the completed archive job whose transactions will be purged |
+| `logFileName` | string | No | Optional output log filename |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+| `logFileName` | string | Repository log filename extracted from a validated log-content link |
+
+### Oracle EPM Account Reconciliation Purge Matched Transactions
+
+Permanently purge matched transactions older than the specified age.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `matchTypeId` | string | Yes | Text ID of the Transaction Matching match type |
+| `age` | number | Yes | Age in days of matched transactions to purge |
+| `filterOperator` | string | No | Account ID filter operator; provide with filterValue |
+| `filterValue` | json | No | Account ID filter values as a JSON string array |
+| `logFileName` | string | No | Optional output log filename |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+| `logFileName` | string | Repository log filename extracted from a validated log-content link |
+
+### Oracle EPM Account Reconciliation Remove Users from Team
+
+Remove Users from Team using a staged CSV file and an existing team.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact name of a file already uploaded to the Oracle EPM repository |
+| `teamName` | string | Yes | Name of an existing Account Reconciliation team |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Run Auto Alert
+
+Run automatic alerts for a Transaction Matching match type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `matchTypeId` | string | Yes | Text ID of the Transaction Matching match type |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Run Auto Match
+
+Run automatic matching for a Transaction Matching match type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `matchTypeId` | string | Yes | Text ID of the Transaction Matching match type |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Run Profile Rules
+
+Run applicable profile rules, optionally limited by a public profile filter.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `filter` | string | No | Name of a public filter; omit to process all applicable objects |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Run Reconciliation Rules
+
+Run reconciliation rules for a period and optional public filter.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `filter` | string | No | Name of a public filter; omit to process all applicable objects |
+| `ruleTypes` | string | No | Case-insensitive comma-separated rule types; omit to run all applicable rules |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Set Period Status
+
+Change a period status and optionally wait for its reconciliation-opening job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `period` | string | Yes | Reconciliation period name, not its internal ID |
+| `status` | string | Yes | New period status |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+| `periodStatus` | string | Period status applied immediately, independently of the opening job |
+
+### Oracle EPM Account Reconciliation Unmatch Auto Match Job
+
+Unmatch all transactions matched by a specified auto-match job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `autoMatchJobId` | number | Yes | ID of the auto-match or import-and-auto-match job |
+| `createReverseAdjustment` | boolean | Yes | Create reverse adjustments for unmatched transactions |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+
+### Oracle EPM Account Reconciliation Unmatch Transactions
+
+Unmatch up to 10,000 specified matches in a match type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `matchTypeId` | string | Yes | Text ID of the Transaction Matching match type |
+| `matchIds` | json | Yes | JSON array of numeric match IDs \(maximum 10,000\) |
+| `forceReopen` | boolean | No | Reopen affected reconciliations when required |
+| `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `jobId` | string | Job ID extracted from a validated provider status link |
+| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
+| `logFileName` | string | Repository log filename extracted from a validated log-content link |
+
+### Oracle EPM Account Reconciliation Upload File
+
+Upload a Sim file to the EPM repository without overwriting an existing file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `file` | file | Yes | Sim file to upload |
+| `fileName` | string | No | Destination repository filename; defaults to the source filename |
+| `extDirPath` | string | No | Optional Data Management directory, such as inbox or inbox/data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `details` | string | Documented provider details; counts remain provider text |
+| `state` | string | Normalized job state: pending, succeeded, or failed |
+| `fileName` | string | Exact staged repository filename to pass to import tools |
+
+
