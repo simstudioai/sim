@@ -841,6 +841,25 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const OCI_LOGGING_TOOL_IDS = [
+  'oci_logging_create_log',
+  'oci_logging_create_log_group',
+  'oci_logging_delete_log',
+  'oci_logging_delete_log_group',
+  'oci_logging_get_log',
+  'oci_logging_get_log_group',
+  'oci_logging_get_saved_search',
+  'oci_logging_get_work_request',
+  'oci_logging_list_log_groups',
+  'oci_logging_list_logs',
+  'oci_logging_list_saved_searches',
+  'oci_logging_list_work_request_errors',
+  'oci_logging_put_logs',
+  'oci_logging_search_logs',
+  'oci_logging_update_log',
+  'oci_logging_update_log_group',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1526,6 +1545,9 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
+})
+registerFamily(handlerLoaders, OCI_LOGGING_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-logging/execute-tool')).executeOciLoggingTool
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool

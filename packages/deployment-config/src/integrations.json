@@ -16180,6 +16180,89 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_logging",
+      "slug": "oci-logging",
+      "name": "OCI Logging",
+      "description": "Manage, search, and ingest Oracle Cloud Infrastructure logs",
+      "longDescription": "Use native OCI Logging to manage log groups and logs, run bounded native queries, ingest custom log batches, inspect asynchronous work requests, and retrieve saved searches. Reuses stored OCI API signing-key service accounts. Management writes return work-request acceptance; ingestion returns acceptance without per-entry results. Put Logs, Update, and Delete make one provider attempt per execution; leave whole-block retries disabled to avoid replaying these writes. Logging Analytics, Audit API operations, and Monitoring are separate products.",
+      "bgColor": "#C74634",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_logging",
+      "operations": [
+        {
+          "name": "List Log Groups",
+          "description": "List one page of OCI Logging log groups. Filtered empty pages can still have continuation."
+        },
+        {
+          "name": "Get Log Group",
+          "description": "Get OCI Logging log group details and its ETag."
+        },
+        {
+          "name": "Create Log Group",
+          "description": "Create an OCI Logging log group and return asynchronous acceptance with a work request OCID."
+        },
+        {
+          "name": "Update Log Group",
+          "description": "Update an OCI Logging log group. Omitted fields are preserved; completion is tracked by work request."
+        },
+        {
+          "name": "Delete Log Group",
+          "description": "Delete an OCI Logging log group asynchronously. Track the returned work request."
+        },
+        {
+          "name": "List Logs",
+          "description": "List one page of logs in an OCI Logging log group, optionally filtered by CUSTOM or SERVICE."
+        },
+        {
+          "name": "Get Log",
+          "description": "Get an OCI log, its source configuration, retention, enablement, and ETag."
+        },
+        {
+          "name": "Create Log",
+          "description": "Create a CUSTOM or SERVICE log asynchronously. Service logs use the emitting service resource configuration."
+        },
+        {
+          "name": "Update Log",
+          "description": "Update a log asynchronously. Explicit false disables it; omission preserves settings. Source updates accept parameters only."
+        },
+        {
+          "name": "Delete Log",
+          "description": "Delete an OCI log asynchronously and return the tracking work request."
+        },
+        {
+          "name": "Search Logs",
+          "description": "Search OCI Logging using an unchanged native query and an explicit window of at most 14 days. Return one bounded page of dynamic projected records and continuation."
+        },
+        {
+          "name": "Put Logs",
+          "description": "Ingest custom log batches with one provider attempt per execution. Leave whole-block retries disabled to avoid replay. Returns acceptance only, without per-entry results or indexing guarantees. Cancellation after submission does not undo ingestion."
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Get status, progress and resources for an asynchronous Logging work request."
+        },
+        {
+          "name": "List Work Request Errors",
+          "description": "List one page of documented error entries for a Logging work request."
+        },
+        {
+          "name": "List Saved Searches",
+          "description": "List one page of Logging saved searches. Use Get Saved Search to retrieve a query for Search Logs."
+        },
+        {
+          "name": "Get Saved Search",
+          "description": "Get a Logging saved search and its stored query. Execute the query using Search Logs with explicit timestamps."
+        }
+      ],
+      "operationCount": 16,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "data-analytics"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",
