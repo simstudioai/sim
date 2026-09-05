@@ -1028,6 +1028,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  'oracle-epm-fccs': {
+    name: 'Oracle EPM FCCS',
+    icon: NetSuiteIcon,
+    services: {
+      'oracle-epm-fccs': {
+        name: 'Oracle EPM Financial Consolidation and Close',
+        description:
+          'Consolidation, translation, data, journals, metadata, jobs, and repository files.',
+        providerId: 'oracle-epm-fccs',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm-fccs',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,

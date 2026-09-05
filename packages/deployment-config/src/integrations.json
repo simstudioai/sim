@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,185 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_fccs",
+      "slug": "oracle-epm-fccs",
+      "name": "Oracle EPM FCCS",
+      "description": "Consolidate and translate financial data, manage journals, and monitor FCCS jobs",
+      "longDescription": "Connect Financial Consolidation and Close using an Oracle EPM service account. Discover applications and metadata, run consolidation and translation rules, transfer data and journals, generate intercompany matching reports, and retrieve bounded repository files. Uses Cloud EPM APIs; excludes Fusion Financials, Data Integration, Planning workflows, environment administration, and LCM snapshots.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_fccs",
+      "operations": [
+        {
+          "name": "List applications",
+          "description": "List applications visible to the Oracle EPM credential. Choose an FCCS application; application types are tenant-dependent."
+        },
+        {
+          "name": "List cubes",
+          "description": "List the cubes (plan types) in an FCCS application."
+        },
+        {
+          "name": "List dimensions",
+          "description": "List one bounded page of cube dimensions, with optional Oracle dimension filters."
+        },
+        {
+          "name": "Get dimension",
+          "description": "Retrieve a bounded dimension hierarchy with member names, aliases, and paths. Oversized hierarchies require manual member input."
+        },
+        {
+          "name": "Get member",
+          "description": "Read documented properties of one dimension member; does not invent the undocumented children structure."
+        },
+        {
+          "name": "Add member",
+          "description": "Create a member beneath a parent enabled for dynamic children."
+        },
+        {
+          "name": "Validate metadata",
+          "description": "Validate FCCS metadata and return warning/error counts and the CSV report filename."
+        },
+        {
+          "name": "List job definitions",
+          "description": "List configured job definitions within supported FCCS job families; does not list execution instances."
+        },
+        {
+          "name": "Execute job",
+          "description": "Submit a configured job within the approved FCCS families. Excludes environment administration and Data Integration."
+        },
+        {
+          "name": "Run rule",
+          "description": "Submit a deployed business rule with case-sensitive tenant runtime prompts. Wire jobId to Wait for Job."
+        },
+        {
+          "name": "Run ruleset",
+          "description": "Submit a deployed business ruleset with tenant-defined runtime prompts. Wire jobId to Wait for Job."
+        },
+        {
+          "name": "Run consolidation",
+          "description": "Submit the seeded Consolidate or ForceConsolidate rule for an entity, period, scenario, and year."
+        },
+        {
+          "name": "Run translation",
+          "description": "Submit the seeded Translate or ForceTranslate rule for an entity, period, scenario, and year."
+        },
+        {
+          "name": "Get job",
+          "description": "Read one execution job status, normalizing Oracle jobId/jobID to a string jobId."
+        },
+        {
+          "name": "Wait for job",
+          "description": "Wait for an execution job through bounded, cancellable polling. Terminal failures retain job diagnostics."
+        },
+        {
+          "name": "Get job details",
+          "description": "Read one page of diagnostics for a data or metadata import/export job; expose validated child-job IDs."
+        },
+        {
+          "name": "Get child job details",
+          "description": "Read one page of child-job messages for a metadata import/export execution."
+        },
+        {
+          "name": "Export job console",
+          "description": "Submit an export of the FCCS job console. Retrieve the resulting ZIP with repository file tools after completion."
+        },
+        {
+          "name": "Export data slice",
+          "description": "Export a numeric Essbase data grid for a cube and explicit point of view; excludes Planning cell notes."
+        },
+        {
+          "name": "Import data slice",
+          "description": "Import a numeric Essbase data grid and return accepted/rejected cell counts and documented rejection reasons."
+        },
+        {
+          "name": "Clear data slice",
+          "description": "Clear an Essbase grid slice and return cleared/rejected cell counts."
+        },
+        {
+          "name": "Clear data profile",
+          "description": "Submit an existing FCCS Clear Data profile by its exact tenant-defined name."
+        },
+        {
+          "name": "Copy data profile",
+          "description": "Submit an existing FCCS Copy Data profile by its exact tenant-defined name."
+        },
+        {
+          "name": "Export application data",
+          "description": "Submit a saved application-data export job with optional documented overrides."
+        },
+        {
+          "name": "Import application data",
+          "description": "Submit a saved application-data import job using files already in the Oracle repository."
+        },
+        {
+          "name": "Import exchange rates",
+          "description": "Submit a saved exchange-rate import job with optional file and metadata overrides."
+        },
+        {
+          "name": "Export metadata",
+          "description": "Submit a saved metadata export job; use job status and repository file tools to retrieve the ZIP."
+        },
+        {
+          "name": "Import metadata",
+          "description": "Submit a saved metadata import job with optional file, refresh, and error-report overrides."
+        },
+        {
+          "name": "List journals",
+          "description": "List one page of consolidation journal headers for a scenario, year, period, and status; journal lines are deferred."
+        },
+        {
+          "name": "Perform journal action",
+          "description": "Submit, approve, post, unpost, or reject an existing consolidation journal within the selected point of view."
+        },
+        {
+          "name": "Update journal period",
+          "description": "Open or close a consolidation journal period, accepting the two documented response alternatives."
+        },
+        {
+          "name": "Export journals",
+          "description": "Submit an Export Journal job for an existing export definition identified by its filename."
+        },
+        {
+          "name": "Import journals",
+          "description": "Submit a saved consolidation-journal import job with optional input and error filenames."
+        },
+        {
+          "name": "Generate intercompany report",
+          "description": "Submit an existing intercompany matching report with optional point-of-view and output overrides."
+        },
+        {
+          "name": "Export consolidation rulesets",
+          "description": "Submit configurable-consolidation ruleset export and return its text acknowledgment. Oracle returns no job ID."
+        },
+        {
+          "name": "Import consolidation rulesets",
+          "description": "Submit configurable-consolidation ruleset import from an Oracle repository XML file. Oracle returns no job ID."
+        },
+        {
+          "name": "List files",
+          "description": "List external Oracle repository files with documented sizes and timestamps; excludes LCM snapshots."
+        },
+        {
+          "name": "Upload file",
+          "description": "Upload an authorized Sim UserFile of up to 100 MiB to the Oracle repository. Existing files are not overwritten."
+        },
+        {
+          "name": "Download file",
+          "description": "Download an external repository file as a Sim UserFile (up to 100 MiB). Oversize errors do not imply the Oracle export failed."
+        },
+        {
+          "name": "Delete file",
+          "description": "Delete an external Oracle repository file by exact path; excludes LCM snapshots."
+        }
+      ],
+      "operationCount": 40,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",
