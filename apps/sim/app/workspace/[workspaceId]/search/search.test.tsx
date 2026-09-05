@@ -15,7 +15,7 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: () => ({ features: mockFeatures() }),
+  useOptionalWorkspaceHostContext: () => ({ features: mockFeatures() }),
 }))
 vi.mock('nuqs', () => ({
   useQueryState: () => ['', vi.fn()],

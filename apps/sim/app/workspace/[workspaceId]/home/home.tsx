@@ -68,6 +68,7 @@ import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -184,6 +185,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [setSearchQueryParam, setSearchFilters]
   )
+  const memberAccessAvailable = useMemberAccessAvailable()
   const [composerMode, setComposerMode] = useMothershipMode()
   /**
    * A link that carries a query but no mode opens in Search with the query in
@@ -803,7 +805,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                     defaultValue={initialPrompt || searchQuery}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
-                    canSearch
+                    canSearch={memberAccessAvailable}
                     clearOnSubmit={composerMode !== 'search'}
                     onCleared={clearSearch}
                     isSending={isSending}
@@ -835,7 +837,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
-            canSearch
+            canSearch={memberAccessAvailable}
             clearOnSubmit={composerMode !== 'search'}
             onCleared={clearSearch}
             onStopGeneration={handleStopGeneration}

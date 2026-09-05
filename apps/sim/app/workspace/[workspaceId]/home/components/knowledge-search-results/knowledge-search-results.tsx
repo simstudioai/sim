@@ -25,12 +25,12 @@ import {
   searchFilterParsers,
   UPDATED_WINDOWS,
 } from '@/app/workspace/[workspaceId]/home/search-params'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useWorkspaceMemberConnectors,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useKnowledgeBasesQuery, useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 
@@ -185,13 +185,12 @@ export function KnowledgeSearchResults({
     isPlaceholderData,
     error,
   } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
-  const { features } = useWorkspaceHostContext()
   /**
    * Judged by the workspace, as the server judges it: with per-member access
    * off, member-scoped documents are hidden, so no source is indexing anything
    * the viewer will see, and the list is not worth asking for.
    */
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const { data: memberConnectorRows } = useWorkspaceMemberConnectors(workspaceId, {
     enabled: memberAccessAvailable,
   })
