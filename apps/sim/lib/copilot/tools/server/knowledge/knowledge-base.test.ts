@@ -437,6 +437,18 @@ describe('manage_knowledge_base trusted application delegation', () => {
     expect(result.message).toBe('Found 0 result(s) for query "query".')
   })
 
+  it('answers without citations when the eligibility lookup fails, rather than failing the query', async () => {
+    mockIsKnowledgeMemberAccessAvailable.mockRejectedValueOnce(new Error('billing unavailable'))
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'query', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'query' } },
+      { ...CONTEXT, resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry() }
+    )
+
+    expect(result).toMatchObject({ success: true })
+    expect(result.message).toBe('Found 0 result(s) for query "query".')
+  })
+
   it('returns a safe model result for search infrastructure failures', async () => {
     mockSearchKnowledge.mockRejectedValueOnce(new Error('database unavailable'))
 

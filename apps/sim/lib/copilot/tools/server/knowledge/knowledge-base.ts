@@ -451,7 +451,20 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               topK,
               resultSecretRegistry: context.resolvedSecretTraceRegistry,
             }),
-            isKnowledgeMemberAccessAvailable({ workspaceId }),
+            /**
+             * Whether to ask for a citation is a presentation choice, and it is
+             * answered by a billing-backed lookup that can reject. A rejection
+             * must not discard a search that succeeded, so it settles to "do not
+             * cite" — the same answer the feature being off gives — rather than
+             * failing the query.
+             */
+            isKnowledgeMemberAccessAvailable({ workspaceId }).catch((error) => {
+              logger.warn('Citation eligibility unavailable; answering without citations', {
+                workspaceId,
+                error: getErrorMessage(error),
+              })
+              return false
+            }),
           ])
           const results = searchResult.results
           const knowledgeBase = searchResult.knowledgeBases[0]
