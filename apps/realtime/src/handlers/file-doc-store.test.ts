@@ -30,7 +30,7 @@ interface Backing {
   /** Largest stream range response requested, proving replay is paginated. */
   maxRangeCount: number
   /** Optional deterministic compaction hook invoked before each range page is read. */
-  onRange?: (call: number, key: string) => void
+  onRange?: (call: number, key: string, start: string) => void
   rangeCalls: number
   /** Largest multiplexed XREAD request and COUNT observed. */
   maxReadStreams: number
@@ -69,7 +69,7 @@ function makeClient(): any {
     },
     xRange: async (key: string, start: string, end: string, options?: { COUNT?: number }) => {
       b().rangeCalls++
-      b().onRange?.(b().rangeCalls, key)
+      b().onRange?.(b().rangeCalls, key, start)
       const startId = start.startsWith('(') ? start.slice(1) : start
       const entries = (b().streams.get(key) ?? []).filter(
         (entry) =>
@@ -138,6 +138,9 @@ function makeClient(): any {
     },
     eval: async (script: string, opts: { keys: string[]; arguments: string[] }) => {
       const [key] = opts.keys
+      if (script.includes("redis.call('exists', KEYS[1])") && !b().streams.has(key)) {
+        return script.includes('zscore') ? -1 : false
+      }
       if (script.includes('return ARGV[1]')) {
         const generation = b().kv.get(opts.keys[1])
         if (generation !== undefined) return generation
@@ -291,6 +294,15 @@ function updateFor(text: string): Uint8Array {
 }
 
 let stores: FileDocStore[] = []
+
+/** An existing stream from a relay predating generation markers; modern seeds use seedIfEmpty. */
+function seedLegacyStream(update = updateFor('')): void {
+  const backing = state.backing!
+  backing.streams.set(`filedoc:stream:${NAME}`, [
+    { id: `${++backing.seq}-0`, message: { u: Buffer.from(update).toString('base64') } },
+  ])
+}
+
 async function newStore(): Promise<FileDocStore> {
   const store = new FileDocStore(REDIS_URL)
   await store.init()
@@ -415,7 +427,7 @@ describe('FileDocStore', () => {
     const token = await a.shouldSeed(NAME)
     expect(token).toBeTruthy()
     // A seeds and releases its lock.
-    a.publish(NAME, updateFor('hello'))
+    await a.seedIfEmpty(NAME, updateFor('hello'))
     await vi.waitFor(async () => expect(await a.getStreamState(NAME)).not.toBeNull())
     await a.releaseSeedLock(NAME, token as string)
     // A different task must NOT seed again — the lock is free but the stream is non-empty.
@@ -426,7 +438,7 @@ describe('FileDocStore', () => {
   it('fences stale publishers after invalidation and lets the next authoritative seed start fresh', async () => {
     const store = await newStore()
     const original = updateFor('old generation')
-    await store.publishAndWait(NAME, original)
+    await store.seedIfEmpty(NAME, original)
     await store.invalidateDocument(NAME, 10)
 
     await expect(store.getStreamState(NAME)).resolves.toBeNull()
@@ -447,7 +459,7 @@ describe('FileDocStore', () => {
 
   it('getStreamState reconstructs the shared document from the stream', async () => {
     const a = await newStore()
-    a.publish(NAME, updateFor('shared content'))
+    await a.seedIfEmpty(NAME, updateFor('shared content'))
     let state: Uint8Array | null = null
     await vi.waitFor(async () => {
       state = await a.getStreamState(NAME)
@@ -512,13 +524,31 @@ describe('FileDocStore', () => {
     await expect(store.getStreamState(NAME)).resolves.toBeNull()
   })
 
+  it('rejects appends and duplicate acknowledgements when only the stream is lost', async () => {
+    const store = await newStore()
+    await store.seedIfEmpty(NAME, updateFor('base'), 10)
+    const generation = await store.getDocumentGeneration(NAME)
+    const delta = updateFor('edit')
+    await store.publishClientUpdateAndWait(NAME, 'accepted-update', delta, generation)
+    state.backing!.streams.delete(`filedoc:stream:${NAME}`)
+
+    await expect(store.publishAndWait(NAME, delta, generation)).rejects.toThrow('replaced')
+    await expect(
+      store.publishClientUpdateAndWait(NAME, 'new-update', delta, generation)
+    ).rejects.toThrow('replaced')
+    await expect(
+      store.publishClientUpdateAndWait(NAME, 'accepted-update', delta, generation)
+    ).rejects.toThrow('replaced')
+    expect(state.backing!.streams.has(`filedoc:stream:${NAME}`)).toBe(false)
+  })
+
   it('adopts the identity of a pre-upgrade stream before acknowledging its edits', async () => {
     const store = await newStore()
     const seed = new Y.Doc()
     seed.getMap('config').set('initialContentLoaded', true)
     seed.getMap('config').set('docId', 'legacy-document')
     seed.getText('body').insert(0, 'legacy')
-    await store.publishAndWait(NAME, Y.encodeStateAsUpdate(seed))
+    seedLegacyStream(Y.encodeStateAsUpdate(seed))
     const attached = new Y.Doc()
     await store.attachRoom(NAME, attached)
     expect(await store.getDocumentGeneration(NAME)).toBe('legacy-document')
@@ -631,9 +661,44 @@ describe('FileDocStore', () => {
     recovered.destroy()
   })
 
+  it('reads the replacement snapshot when peer deltas cross the old replay tail', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const source = new Y.Doc()
+    const entries: Array<{ id: string; message: Record<string, string> }> = []
+    source.on('update', (update: Uint8Array) => {
+      entries.push({
+        id: `${entries.length + 1}-0`,
+        message: { u: Buffer.from(update).toString('base64') },
+      })
+    })
+    for (let i = 1; i <= 8; i++)
+      source.getText('body').insert(source.getText('body').length, String(i))
+    const snapshot = Y.encodeStateAsUpdate(source)
+    state.backing!.streams.set(streamKey, entries.slice())
+    for (let i = 9; i <= 11; i++)
+      source.getText('body').insert(source.getText('body').length, String(i))
+    state.backing!.onRange = (_call, key, start) => {
+      if (key !== streamKey || start !== '(4-0') return
+      state.backing!.streams.set(streamKey, [
+        ...entries.slice(7),
+        { id: '12-0', message: { u: Buffer.from(snapshot).toString('base64'), s: '1' } },
+      ])
+      state.backing!.onRange = undefined
+    }
+    const store = await newStore()
+    const recovered = new Y.Doc()
+    try {
+      Y.applyUpdate(recovered, (await store.getStreamState(NAME))!)
+      expect(recovered.getText('body').toString()).toBe(source.getText('body').toString())
+    } finally {
+      source.destroy()
+      recovered.destroy()
+    }
+  })
+
   it('attachRoom catches a fresh task up to the current shared state', async () => {
     const a = await newStore()
-    a.publish(NAME, updateFor('already here'))
+    await a.seedIfEmpty(NAME, updateFor('already here'))
     await vi.waitFor(async () => expect(await a.getStreamState(NAME)).not.toBeNull())
 
     // A second task opens the same file: its doc must load the existing content, not start empty.
@@ -645,6 +710,7 @@ describe('FileDocStore', () => {
   })
 
   it('converges a peer task via the tailer after attach', async () => {
+    seedLegacyStream()
     const a = await newStore()
     const b = await newStore()
     const bDoc = new Y.Doc()
@@ -707,6 +773,7 @@ describe('FileDocStore', () => {
   })
 
   it('tags an agent-streamed frame so a peer tailer applies it as REDIS_AGENT_ORIGIN (never persisted)', async () => {
+    seedLegacyStream()
     const streamKey = `filedoc:stream:${NAME}`
     const a = await newStore()
     const b = await newStore()
@@ -732,6 +799,7 @@ describe('FileDocStore', () => {
   })
 
   it('latches realEdited synchronously so a concurrent compaction can never mislabel a real edit', async () => {
+    seedLegacyStream()
     // The data-loss race: a real edit sits in room.doc synchronously, but if realEdited were set only
     // AFTER appendUpdate's awaits, a concurrent agent-triggered compaction could snapshot that content and
     // stamp it an agent (no-persist) frame — losing the edit. The latch must be set in the same tick.
@@ -787,6 +855,7 @@ describe('FileDocStore', () => {
   })
 
   it('retries a transient append failure so the edit is not lost from the shared log', async () => {
+    seedLegacyStream()
     const a = await newStore()
     state.backing!.failXAdd = 2 // first two xAdd attempts throw; the third must succeed
     a.publish(NAME, updateFor('resilient'))
@@ -802,34 +871,38 @@ describe('FileDocStore', () => {
   })
 
   it('deduplicates acknowledged client retries by update id', async () => {
+    seedLegacyStream()
     const store = await newStore()
     const update = updateFor('retry-safe')
 
     await store.publishClientUpdateAndWait(NAME, 'update-1', update)
     await store.publishClientUpdateAndWait(NAME, 'update-1', update)
 
-    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(1)
+    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
   })
 
   it('does not drop different payloads that reuse an acknowledged update id', async () => {
+    seedLegacyStream()
     const store = await newStore()
 
     await store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('first'))
     await store.publishClientUpdateAndWait(NAME, 'update-1', updateFor('second'))
 
-    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
+    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
   })
 
   it('uses unambiguous acknowledged-update deduplication keys', async () => {
+    seedLegacyStream()
     const store = await newStore()
 
     await store.publishClientUpdateAndWait(NAME, 'a', new Uint8Array([0, 98]))
     await store.publishClientUpdateAndWait(NAME, 'a\0', new Uint8Array([98]))
 
-    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
+    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
   })
 
   it('bounds acknowledged-update deduplication independently of stream traffic', async () => {
+    seedLegacyStream()
     const store = await newStore()
     const update = updateFor('bounded')
 
@@ -923,6 +996,7 @@ describe('FileDocStore', () => {
   })
 
   it('preserves exactly the delta bytes observed after a compaction barrier', async () => {
+    seedLegacyStream()
     const store = await newStore()
     const doc = new Y.Doc()
     await store.attachRoom(NAME, doc)
@@ -984,7 +1058,7 @@ describe('FileDocStore', () => {
   it('streamHasContent fences a seed apply against an already-seeded stream', async () => {
     const a = await newStore()
     expect(await a.streamHasContent(NAME)).toBe(false)
-    a.publish(NAME, updateFor('seeded'))
+    await a.seedIfEmpty(NAME, updateFor('seeded'))
     await vi.waitFor(async () => expect(await a.streamHasContent(NAME)).toBe(true))
   })
 
@@ -1065,7 +1139,7 @@ describe('FileDocStore', () => {
     author.getText('body').insert(4, 'peer')
 
     const a = await newStore()
-    a.publish(NAME, updates[0]) // 'base'
+    seedLegacyStream(updates[0])
     await vi.waitFor(async () => expect(await a.getStreamState(NAME)).not.toBeNull())
 
     // Task B attaches; while its synchronous catch-up runs, task A publishes the second edit. The tailer

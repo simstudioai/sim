@@ -39,9 +39,23 @@ const UPDATE_BATCH_TEST_WINDOW_MS = 100
 function createSocket(connected = true) {
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
   const emit = vi.fn()
+  const timeout = vi.fn((delay: number) => ({
+    emit(
+      event: string,
+      payload: unknown,
+      acknowledge: (error: Error | null, ack?: FileDocUpdateAck) => void
+    ) {
+      const timer = setTimeout(() => acknowledge(new Error('operation has timed out')), delay)
+      emit(event, payload, (error: Error | null, ack?: FileDocUpdateAck) => {
+        clearTimeout(timer)
+        acknowledge(error, ack)
+      })
+    },
+  }))
   const socket = {
     connected,
     emit,
+    timeout,
     on(event: string, cb: (...args: unknown[]) => void) {
       let set = listeners.get(event)
       if (!set) {
@@ -59,15 +73,15 @@ function createSocket(connected = true) {
     if (event === 'disconnect') socket.connected = false
     for (const cb of listeners.get(event) ?? []) cb(...args)
   }
-  return { socket: socket as unknown as Socket, emit, fire }
+  return { socket: socket as unknown as Socket, emit, fire, timeout }
 }
 
 function createProvider(connected = true) {
-  const { socket, emit, fire } = createSocket(connected)
+  const { socket, emit, fire, timeout } = createSocket(connected)
   const doc = new Y.Doc()
   const awareness = new awarenessProtocol.Awareness(doc)
   const provider = new FileDocProvider(socket, 'file-1', doc, awareness)
-  return { provider, doc, awareness, emit, fire }
+  return { provider, doc, awareness, emit, fire, timeout }
 }
 
 function acceptJoin(
@@ -356,6 +370,48 @@ describe('FileDocProvider', () => {
     expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
   })
 
+  it('uses ordinary Yjs synchronization without stale unload protection on a no-ACK relay', () => {
+    const browserWindow = new EventTarget()
+    vi.stubGlobal('window', browserWindow)
+    const { provider, doc, awareness, emit, fire } = createProvider(true)
+    const serverDoc = new Y.Doc()
+    const unloadIsPrevented = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      Object.defineProperty(event, 'returnValue', { value: '', writable: true })
+      browserWindow.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    try {
+      doc.getText('default').insert(0, 'before join')
+      expect(unloadIsPrevented()).toBe(true)
+      acceptJoin(fire, doc.clientID, undefined, false)
+      expect(unloadIsPrevented()).toBe(false)
+
+      fire('disconnect')
+      doc.getText('default').insert(11, ' and offline')
+      expect(unloadIsPrevented()).toBe(false)
+      fire('connect')
+      acceptJoin(fire, doc.clientID, undefined, false)
+      emit.mockClear()
+      fire(FILE_DOC_EVENTS.MESSAGE, syncStep1Frame(serverDoc))
+
+      for (const message of emittedMessages(emit)) {
+        const decoder = decoding.createDecoder(message)
+        decoding.readVarUint(decoder)
+        syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), serverDoc, null)
+      }
+      expect(serverDoc.getText('default').toString()).toBe('before join and offline')
+      expect(unloadIsPrevented()).toBe(false)
+      expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
+    } finally {
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      serverDoc.destroy()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('recovers an unacknowledged edit after a tab restart and clears it only after acceptance', async () => {
     journalStorage.clear()
     const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
@@ -410,9 +466,9 @@ describe('FileDocProvider', () => {
       ([event]) => event === FILE_DOC_EVENTS.UPDATE
     )
     const payload = updateCall?.[1] as { updateId: string }
-    const acknowledge = updateCall?.[2] as (ack: FileDocUpdateAck) => void
+    const acknowledge = updateCall?.[2] as (error: Error | null, ack: FileDocUpdateAck) => void
     Y.applyUpdate(serverDoc, (updateCall?.[1] as { update: Uint8Array }).update)
-    acknowledge({ status: 'accepted', updateId: payload.updateId })
+    acknowledge(null, { status: 'accepted', updateId: payload.updateId })
 
     const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
     await vi.waitFor(async () => {
@@ -501,8 +557,8 @@ describe('FileDocProvider', () => {
       await vi.advanceTimersByTimeAsync(0)
       const firstUpdate = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
       const firstPayload = firstUpdate?.[1] as { updateId: string }
-      const acknowledge = firstUpdate?.[2] as (ack: FileDocUpdateAck) => void
-      acknowledge({ status: 'accepted', updateId: firstPayload.updateId })
+      const acknowledge = firstUpdate?.[2] as (error: Error | null, ack: FileDocUpdateAck) => void
+      acknowledge(null, { status: 'accepted', updateId: firstPayload.updateId })
       await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
 
       expect(save).toHaveBeenCalledTimes(2)
@@ -517,7 +573,7 @@ describe('FileDocProvider', () => {
   it('retries an unacknowledged update with the same idempotency key', async () => {
     vi.useFakeTimers()
     try {
-      const { provider, doc, emit, fire } = createProvider(true)
+      const { provider, doc, emit, fire, timeout } = createProvider(true)
       doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
       acceptJoin(fire, doc.clientID, 'doc-1')
       emit.mockClear()
@@ -526,6 +582,7 @@ describe('FileDocProvider', () => {
       await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
       const first = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
       expect(first).toBeDefined()
+      expect(timeout).toHaveBeenCalledWith(FILE_DOC_TIMEOUTS.updateAckMs)
 
       await vi.advanceTimersByTimeAsync(FILE_DOC_TIMEOUTS.updateAckMs + 2_000)
       const updates = emit.mock.calls.filter(([event]) => event === FILE_DOC_EVENTS.UPDATE)
@@ -550,9 +607,9 @@ describe('FileDocProvider', () => {
       await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
       const first = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
       const payload = first?.[1] as { updateId: string }
-      const acknowledge = first?.[2] as (ack: FileDocUpdateAck) => void
+      const acknowledge = first?.[2] as (error: Error | null, ack: FileDocUpdateAck) => void
 
-      acknowledge({
+      acknowledge(null, {
         status: 'rejected',
         updateId: payload.updateId,
         code: 'NOT_JOINED',
@@ -567,6 +624,138 @@ describe('FileDocProvider', () => {
       provider.destroy()
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it('ignores expired acknowledgements after the provider is destroyed', async () => {
+    vi.useFakeTimers()
+    const { provider, doc, awareness, emit, fire, timeout } = createProvider(true)
+    try {
+      doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+      acceptJoin(fire, doc.clientID, 'doc-1')
+      doc.getText('default').insert(0, 'pending')
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      expect(timeout).toHaveBeenCalledWith(FILE_DOC_TIMEOUTS.updateAckMs)
+
+      provider.destroy()
+      emit.mockClear()
+      await vi.advanceTimersByTimeAsync(FILE_DOC_TIMEOUTS.updateAckMs + 6_000)
+      expect(emit).not.toHaveBeenCalled()
+    } finally {
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves pending acknowledged edits across a downgrade without calling legacy sync an acceptance', async () => {
+    vi.useFakeTimers()
+    journalStorage.clear()
+    const browserWindow = new EventTarget()
+    vi.stubGlobal('window', browserWindow)
+    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
+    const clear = vi.spyOn(PendingFileDocUpdateJournal.prototype, 'clear')
+    const { socket, emit, fire } = createSocket(true)
+    const doc = new Y.Doc()
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    const awareness = new awarenessProtocol.Awareness(doc)
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+    const serverDoc = new Y.Doc()
+    Y.applyUpdate(serverDoc, Y.encodeStateAsUpdate(doc))
+    const unloadIsPrevented = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      Object.defineProperty(event, 'returnValue', { value: '', writable: true })
+      browserWindow.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    try {
+      acceptJoin(fire, doc.clientID, 'doc-1')
+      await vi.advanceTimersByTimeAsync(0)
+      doc.getText('default').insert(0, 'pending acknowledged edit')
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      const first = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
+      const firstPayload = first?.[1] as { updateId: string }
+      expect(first).toBeDefined()
+
+      fire('disconnect')
+      fire('connect')
+      acceptJoin(fire, doc.clientID, 'doc-1', false)
+      await vi.advanceTimersByTimeAsync(0)
+      emit.mockClear()
+      fire(FILE_DOC_EVENTS.MESSAGE, syncStep1Frame(serverDoc))
+      for (const message of emittedMessages(emit)) {
+        const decoder = decoding.createDecoder(message)
+        decoding.readVarUint(decoder)
+        syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), serverDoc, null)
+      }
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+      syncProtocol.writeSyncStep2(encoder, serverDoc)
+      fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+      await vi.advanceTimersByTimeAsync(FILE_DOC_TIMEOUTS.updateAckMs + 6_000)
+
+      expect(serverDoc.getText('default').toString()).toBe('pending acknowledged edit')
+      expect(provider.synced).toBe(true)
+      expect(unloadIsPrevented()).toBe(true)
+      expect(await journal.load('doc-1')).not.toBeNull()
+      expect(clear).not.toHaveBeenCalled()
+      expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
+
+      fire('disconnect')
+      fire('connect')
+      acceptJoin(fire, doc.clientID, 'doc-1')
+      await vi.advanceTimersByTimeAsync(0)
+      const retry = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
+      expect(retry?.[1]).toMatchObject({ updateId: firstPayload.updateId })
+      const acknowledge = retry?.[2] as (error: Error | null, ack: FileDocUpdateAck) => void
+      acknowledge(null, { status: 'accepted', updateId: firstPayload.updateId })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(unloadIsPrevented()).toBe(false)
+      expect(await journal.load('doc-1')).toBeNull()
+    } finally {
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      serverDoc.destroy()
+      clear.mockRestore()
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  it('protects a recovered pending journal even when the new relay has no acknowledged channel', async () => {
+    journalStorage.clear()
+    const browserWindow = new EventTarget()
+    vi.stubGlobal('window', browserWindow)
+    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
+    const recoveredDoc = new Y.Doc()
+    recoveredDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    recoveredDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    recoveredDoc.getText('default').insert(0, 'recover me')
+    const update = Y.encodeStateAsUpdate(recoveredDoc)
+    await journal.save('doc-1', update, update)
+    const { socket, fire } = createSocket(true)
+    const doc = new Y.Doc()
+    const awareness = new awarenessProtocol.Awareness(doc)
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+    try {
+      acceptJoin(fire, doc.clientID, 'doc-1', false)
+      await vi.waitFor(() => expect(doc.getText('default').toString()).toBe('recover me'))
+      const event = new Event('beforeunload', { cancelable: true })
+      Object.defineProperty(event, 'returnValue', { value: '', writable: true })
+      browserWindow.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(await journal.load('doc-1')).not.toBeNull()
+    } finally {
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      recoveredDoc.destroy()
+      vi.unstubAllGlobals()
     }
   })
 
@@ -919,9 +1108,9 @@ describe('FileDocProvider', () => {
         const update = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
         expect(update).toBeDefined()
         const payload = update?.[1] as { updateId: string }
-        const acknowledge = update?.[2] as (ack: FileDocUpdateAck) => void
+        const acknowledge = update?.[2] as (error: Error | null, ack: FileDocUpdateAck) => void
         expect(unloadIsPrevented()).toBe(true)
-        acknowledge({ status: 'accepted', updateId: payload.updateId })
+        acknowledge(null, { status: 'accepted', updateId: payload.updateId })
         expect(unloadIsPrevented()).toBe(false)
 
         doc.getText('default').insert(0, 'another ')

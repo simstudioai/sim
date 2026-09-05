@@ -9,6 +9,7 @@ import * as Y from 'yjs'
 const storage = vi.hoisted(() => new Map<string, unknown>())
 
 vi.mock('idb-keyval', () => ({
+  get: vi.fn(async (key: string) => storage.get(key)),
   update: vi.fn((key: string, updater: (value: unknown) => unknown) => {
     storage.set(key, updater(storage.get(key)))
   }),
@@ -33,6 +34,11 @@ function updateWith(text: string): Uint8Array {
 describe('PendingFileDocUpdateJournal', () => {
   beforeEach(() => {
     storage.clear()
+    vi.mocked(updateValue)
+      .mockReset()
+      .mockImplementation(async (key, updater) => {
+        storage.set(String(key), updater(storage.get(String(key))))
+      })
   })
 
   it('stores a full recovery snapshot separately from the pending wire update', async () => {
@@ -58,6 +64,17 @@ describe('PendingFileDocUpdateJournal', () => {
     )
 
     expect(result).toMatchObject({ status: 'limit-exceeded' })
+  })
+
+  it('loads an existing draft without requiring a writable transaction', async () => {
+    const subject = journal()
+    const pendingUpdate = updateWith('recoverable draft')
+    await subject.save('doc-1', pendingUpdate, pendingUpdate)
+    const writes = vi.mocked(updateValue).mock.calls.length
+    vi.mocked(updateValue).mockRejectedValueOnce(new Error('Read-only storage'))
+
+    await expect(subject.load('doc-1')).resolves.toMatchObject({ docId: 'doc-1', pendingUpdate })
+    expect(updateValue).toHaveBeenCalledTimes(writes)
   })
 
   it('distinguishes unavailable browser storage from a configured size limit', async () => {

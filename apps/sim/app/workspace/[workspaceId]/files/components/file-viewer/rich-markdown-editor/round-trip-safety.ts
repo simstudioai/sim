@@ -1,6 +1,6 @@
 import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { decodeHtmlEntities } from '@tiptap/core'
-import { Marked, type Token } from 'marked'
+import { Lexer, Marked, type Token, Tokenizer } from 'marked'
 import { extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { serializeMarkdownDocument } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
@@ -48,13 +48,23 @@ const SUPPORTED_IMAGE_ATTRIBUTES = new Set(['src', 'alt', 'title', 'width', 'hei
  * The image node deliberately models only the attributes it can render and serialize. An HTML image
  * carrying anything else must stay in source mode; comparing only its `src` would declare a stable but
  * lossy conversion safe after the unsupported attribute had already disappeared.
+ * Duplicate attributes also stay in source mode rather than choosing between conflicting values.
  */
 function hasUnsupportedHtmlImageAttribute(content: string): boolean {
-  for (const image of content.matchAll(/<img\b([^>]*)>/gi)) {
-    const attributes = image[1]
+  const tokenizer = new Tokenizer()
+  new Lexer({ gfm: true, tokenizer })
+  const imagePattern = /<img(?=[\s/>])/gi
+  for (let image = imagePattern.exec(content); image; image = imagePattern.exec(content)) {
+    const tag = tokenizer.tag(content.slice(image.index))
+    if (!tag) continue
+    imagePattern.lastIndex = image.index + tag.raw.length
+    const attributes = tag.raw.slice(4, -1)
+    const seen = new Set<string>()
     const pattern = /(?:^|\s)([^\s=/>]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
     for (const attribute of attributes.matchAll(pattern)) {
-      if (!SUPPORTED_IMAGE_ATTRIBUTES.has(attribute[1].toLowerCase())) return true
+      const name = attribute[1].toLowerCase()
+      if (!SUPPORTED_IMAGE_ATTRIBUTES.has(name) || seen.has(name)) return true
+      seen.add(name)
     }
   }
   return false

@@ -16,7 +16,6 @@ import {
   TextQuote,
   Unlink,
 } from '@sim/emcn/icons'
-import { getMarkRange } from '@tiptap/core'
 import {
   PluginKey,
   type SelectionBookmark,
@@ -59,14 +58,11 @@ function revealBubbleMenu(editor: Editor, key: PluginKey): void {
   editor.commands.setMeta(key, 'updatePosition')
 }
 
-/** Captures selected text, or the complete link mark when the caret sits inside one. */
+/** Selects a caret's complete link so the bookmark, URL, and active controls share one target. */
 function linkSelectionBookmark(editor: Editor): SelectionBookmark | null {
-  const { doc, selection, schema } = editor.state
-  if (!selection.empty) return selection.getBookmark()
-  const linkType = schema.marks.link
-  if (!linkType) return null
-  const range = getMarkRange(selection.$from, linkType)
-  return range ? TextSelection.create(doc, range.from, range.to).getBookmark() : null
+  if (editor.state.selection.empty) editor.commands.extendMarkRange('link')
+  const { selection } = editor.state
+  return selection.empty ? null : selection.getBookmark()
 }
 
 interface EditorBubbleMenuProps {
