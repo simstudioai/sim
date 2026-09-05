@@ -76,6 +76,7 @@ export function parseOracleFusionCollection<T>(
     throw new Error('Oracle collection cannot report hasMore for an empty page')
   }
 
+  /** Estimated metadata only; it does not constrain the returned page or hasMore. */
   const totalResults =
     envelope.totalResults === undefined
       ? undefined
@@ -83,15 +84,6 @@ export function parseOracleFusionCollection<T>(
   const pageEnd = offset + count
   if (!Number.isSafeInteger(pageEnd)) {
     throw new Error('Oracle collection next offset exceeds the safe integer range')
-  }
-  if (totalResults !== undefined && count > 0 && totalResults < pageEnd) {
-    throw new Error('Oracle collection totalResults is smaller than the returned page')
-  }
-  if (totalResults !== undefined && !envelope.hasMore && totalResults > pageEnd) {
-    throw new Error('Oracle collection hasMore contradicts totalResults')
-  }
-  if (totalResults !== undefined && envelope.hasMore && totalResults <= pageEnd) {
-    throw new Error('Oracle collection hasMore contradicts totalResults')
   }
   if (options.expectedOffset !== undefined) {
     const expectedOffset = nonNegativeInteger(

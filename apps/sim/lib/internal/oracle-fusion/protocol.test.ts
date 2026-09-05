@@ -63,10 +63,48 @@ describe('parseOracleFusionCollection', () => {
     { items: [], count: 0, hasMore: false, limit: 25, offset: 5, totalResults: 6 },
     { items: [{}], count: 1, hasMore: false, limit: 25, offset: 5, totalResults: 7 },
     { items: [{}], count: 1, hasMore: true, limit: 25, offset: 5, totalResults: 6 },
-  ])('rejects pagination metadata that contradicts total results %#', (value) => {
-    expect(() => parseOracleFusionCollection(value, (item) => item)).toThrow(
-      'hasMore contradicts totalResults'
-    )
+    { items: [{}], count: 1, hasMore: false, limit: 25, offset: 4, totalResults: 4 },
+    { items: [{}], count: 1, hasMore: true, limit: 25, offset: 5, totalResults: 4 },
+    { items: [{}], count: 1, hasMore: false, limit: 25, offset: 5, totalResults: 0 },
+    { items: [{}], count: 1, hasMore: true, limit: 25, offset: 5, totalResults: 0 },
+  ])('preserves estimated totals independently of pagination metadata %#', (value) => {
+    expect(parseOracleFusionCollection(value, (item) => item)).toEqual({
+      ...value,
+      nextOffset: value.offset + value.count,
+    })
+  })
+
+  it.each(
+    [
+      -1,
+      0.5,
+      '1',
+      null,
+      true,
+      {},
+      [],
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+    ].map((totalResults) => ({ totalResults }))
+  )('rejects malformed estimated total $totalResults', ({ totalResults }) => {
+    const parseItem = vi.fn((item) => item)
+    expect(() =>
+      parseOracleFusionCollection(
+        { items: [{}], count: 1, hasMore: false, limit: 25, offset: 0, totalResults },
+        parseItem
+      )
+    ).toThrow('Oracle collection totalResults must be a non-negative safe integer')
+    expect(parseItem).not.toHaveBeenCalled()
+  })
+
+  it('does not synthesize an omitted total for a nonempty page', () => {
+    const page = { items: [{}], count: 1, hasMore: true, limit: 25, offset: 5 }
+    const result = parseOracleFusionCollection(page, (item) => item)
+
+    expect(result).toEqual({ ...page, nextOffset: 6 })
+    expect(result).not.toHaveProperty('totalResults')
   })
 
   it('accepts omitted items only for an unambiguous empty terminal page', () => {
@@ -118,7 +156,6 @@ describe('parseOracleFusionCollection', () => {
     [{ items: [{}], count: 0, hasMore: false, limit: 25, offset: 0 }, 'match'],
     [{ items: [], count: 0, hasMore: true, limit: 25, offset: 0 }, 'empty page'],
     [{ items: [], count: 0, hasMore: false, limit: 0, offset: 0 }, 'positive'],
-    [{ items: [{}], count: 1, hasMore: false, limit: 25, offset: 4, totalResults: 4 }, 'smaller'],
     [
       { items: [{}], count: 1, hasMore: true, limit: 25, offset: Number.MAX_SAFE_INTEGER },
       'safe integer range',
