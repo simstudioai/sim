@@ -177,7 +177,12 @@ export const oracleEpmDataConnectionsSchema = oracleEpmDataStatusResponseSchema.
     .array(z.object({ connectionName: text, refUrl: text }))
     .max(ORACLE_EPM_DATA_MAX_ITEMS),
 })
-export const oracleEpmDataConnectionSchema = oracleEpmDataStatusResponseSchema.extend({
+export const oracleEpmDataConnectionStatusResponseSchema = oracleEpmDataStatusResponseSchema.extend(
+  {
+    response: z.object({ status: oracleEpmDataStatusSchema }),
+  }
+)
+export const oracleEpmDataConnectionSchema = oracleEpmDataConnectionStatusResponseSchema.extend({
   response: z.object({
     status: oracleEpmDataStatusSchema,
     sourceSystemId: id,

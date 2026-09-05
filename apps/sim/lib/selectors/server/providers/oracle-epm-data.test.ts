@@ -188,6 +188,16 @@ describe('Data Integration server selectors', () => {
     )
   })
 
+  it('preserves exact configured connection names in selector IDs', async () => {
+    mocks.connections.mockResolvedValue({
+      success: true,
+      output: { connections: [{ connectionName: ' Source ', refUrl: '/unused' }] },
+    })
+    expect(await attachments['oracle_epm_data.connections'].execute(args(), auth)).toMatchObject({
+      items: [{ id: ' Source ', label: ' Source ' }],
+    })
+  })
+
   it.each([
     [401, new SelectorConnectionUnavailableError(401)],
     [403, new SelectorConnectionUnavailableError(403)],

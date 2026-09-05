@@ -97,18 +97,25 @@ describe('Data Integration provider operations', () => {
     })
   })
 
-  it('does not turn a nested connection failure into success', async () => {
-    mocks.request.mockResolvedValue({
-      status: 200,
-      data: { ...status, response: { ...connection, status: 1 } },
-    })
-    expect(
-      await operations.executeOracleEpmDataGetConnectionOperation({
-        ...auth,
-        connectionName: 'Source',
+  it.each([{ ...connection, status: 1 }, { status: 1 }])(
+    'preserves nested connection errors without requiring success-only fields: %j',
+    async (response) => {
+      mocks.request.mockResolvedValue({
+        status: 200,
+        data: { ...status, response },
       })
-    ).toMatchObject({ success: false })
-  })
+      expect(
+        await operations.executeOracleEpmDataGetConnectionOperation({
+          ...auth,
+          connectionName: 'Source',
+        })
+      ).toMatchObject({
+        success: false,
+        output: { httpStatus: 200, connection: { status: 1 } },
+        error: 'Oracle EPM connection returned status 1',
+      })
+    }
+  )
 
   it('updates exactly the documented connection option array', async () => {
     mocks.request.mockResolvedValue({
@@ -127,6 +134,29 @@ describe('Data Integration provider operations', () => {
     expect(mocks.request).toHaveBeenCalledWith(endpoints.updateConnection, {
       json: input,
       signal: undefined,
+    })
+  })
+
+  it('round-trips raw connection and POV names to the declared request unchanged', async () => {
+    mocks.request.mockResolvedValueOnce({ status: 200, data: { ...status, response: connection } })
+    await operations.executeOracleEpmDataGetConnectionOperation({
+      ...auth,
+      connectionName: ' Source ',
+    })
+    expect(mocks.request.mock.calls[0][1].pathParams).toEqual({ connectionName: ' Source ' })
+    mocks.request.mockResolvedValueOnce({ status: 200, data: { ...status, response: [] } })
+    await operations.executeOracleEpmDataGetPovStatusOperation({
+      ...auth,
+      application: ' Plan ',
+      locationName: ' Source ',
+      period: ' Jan-26 ',
+      category: ' Actual ',
+    })
+    expect(mocks.request.mock.calls[1][1].query).toEqual({
+      application: ' Plan ',
+      location: ' Source ',
+      period: ' Jan-26 ',
+      category: ' Actual ',
     })
   })
 

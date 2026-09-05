@@ -39,6 +39,35 @@ describe('Data Integration inputs', () => {
     expect(input).not.toHaveProperty('waitForCompletion')
   })
 
+  it('preserves nonblank provider names while keeping credentials, IDs and control values normalized', () => {
+    expect(
+      schemas.get_connection.parse({
+        ...auth,
+        oauthCredential: ' credential ',
+        connectionName: ' Source ',
+      })
+    ).toMatchObject({ oauthCredential: 'credential', connectionName: ' Source ' })
+    expect(schemas.get_job_status.parse({ ...auth, jobId: ' 42 ' }).jobId).toBe('42')
+    expect(
+      schemas.run_integration.parse({
+        ...auth,
+        jobName: ' Load ',
+        periodName: ' {Jan-26} ',
+        importMode: ' Direct ',
+        exportMode: ' Merge ',
+      })
+    ).toMatchObject({
+      jobName: ' Load ',
+      periodName: ' {Jan-26} ',
+      importMode: 'Direct',
+      exportMode: 'Merge',
+    })
+    expect(schemas.get_connection.safeParse({ ...auth, connectionName: '  ' }).success).toBe(false)
+    expect(
+      schemas.get_pov_status.safeParse({ ...auth, period: '  ', category: 'Actual' }).success
+    ).toBe(false)
+  })
+
   it.each(['x', 'pipeline-code', 'a'.repeat(31)])(
     'rejects invalid pipeline code %s',
     (pipelineCode) => {

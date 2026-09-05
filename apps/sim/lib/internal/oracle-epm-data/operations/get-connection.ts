@@ -1,6 +1,7 @@
 import {
   executeOracleEpmDataOperation,
   oracleEpmDataConnectionSchema,
+  oracleEpmDataConnectionStatusResponseSchema,
   oracleEpmDataEndpoints,
   oracleEpmDataStatusResponseSchema,
   projectOracleEpmDataResult,
@@ -19,7 +20,7 @@ export const executeOracleEpmDataGetConnectionOperation: InternalToolOperationIm
     })
     const envelope = oracleEpmDataStatusResponseSchema.parse(response.data)
     if (envelope.status === 0) {
-      const connection = oracleEpmDataConnectionSchema.parse(response.data).response
+      const connection = oracleEpmDataConnectionStatusResponseSchema.parse(response.data).response
       if (connection.status !== 0) {
         return {
           success: false,
