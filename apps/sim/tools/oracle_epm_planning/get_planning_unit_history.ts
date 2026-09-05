@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleEpmPlanningResponse,
   OracleEpmPlanningGetPlanningUnitHistoryParams,
+  OracleEpmPlanningResponse,
 } from '@/tools/oracle_epm_planning/types'
 import {
   oracleEpmPlanningAuthParamFields,
@@ -16,7 +16,8 @@ export const oracleEpmPlanningGetPlanningUnitHistoryTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_get_planning_unit_history',
   name: 'Oracle EPM Planning Get Planning Unit History',
-  description: 'Read a bounded page of history and annotations for an owned planning unit. Any application user can read their own units; use sequence identifiers to request replies explicitly.',
+  description:
+    'Read a bounded page of history and annotations for an owned planning unit. Any application user can read their own units; use sequence identifiers to request replies explicitly.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,

@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleEpmPlanningResponse,
   OracleEpmPlanningGetPlanningUnitActionsParams,
+  OracleEpmPlanningResponse,
 } from '@/tools/oracle_epm_planning/types'
 import {
   oracleEpmPlanningAuthParamFields,
@@ -16,7 +16,8 @@ export const oracleEpmPlanningGetPlanningUnitActionsTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_get_planning_unit_actions',
   name: 'Oracle EPM Planning Get Planning Unit Actions',
-  description: 'List available approval actions for units owned by the requesting Service Administrator. Does not change ownership or status.',
+  description:
+    'List available approval actions for units owned by the requesting Service Administrator. Does not change ownership or status.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,

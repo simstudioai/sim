@@ -16,7 +16,8 @@ export const oracleEpmPlanningSetUserVariableValuesTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_set_user_variable_values',
   name: 'Oracle EPM Planning Set User Variable Values',
-  description: 'Set a batch of user-variable values, distinct from substitution variables. Administrators can update other users; non-administrators can update their own values. Oracle does not guarantee transactional batch behavior.',
+  description:
+    'Set a batch of user-variable values, distinct from substitution variables. Administrators can update other users; non-administrators can update their own values. Oracle does not guarantee transactional batch behavior.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,
@@ -27,7 +28,8 @@ export const oracleEpmPlanningSetUserVariableValuesTool: InternalToolConfig<
   outputs: {
     updated: {
       type: 'boolean',
-      description: 'Oracle returned HTTP 204 for the update request; no per-item results or atomicity guarantee',
+      description:
+        'Oracle returned HTTP 204 for the update request; no per-item results or atomicity guarantee',
     },
   },
 }

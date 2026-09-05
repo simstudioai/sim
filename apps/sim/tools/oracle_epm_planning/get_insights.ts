@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleEpmPlanningResponse,
   OracleEpmPlanningGetInsightsParams,
+  OracleEpmPlanningResponse,
 } from '@/tools/oracle_epm_planning/types'
 import {
   oracleEpmPlanningAuthParamFields,
@@ -16,7 +16,8 @@ export const oracleEpmPlanningGetInsightsTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_get_insights',
   name: 'Oracle EPM Planning Get Insights',
-  description: 'Retrieve IPM insights using the insight-specific slice. Defaults to existing insights. Recomputing requires a calendar and Administrator or IPM Manage role. Results may be incomplete; Oracle documents no pagination input.',
+  description:
+    'Retrieve IPM insights using the insight-specific slice. Defaults to existing insights. Recomputing requires a calendar and Administrator or IPM Manage role. Results may be incomplete; Oracle documents no pagination input.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,
@@ -30,7 +31,8 @@ export const oracleEpmPlanningGetInsightsTool: InternalToolConfig<
   outputs: {
     insights: {
       type: 'array',
-      description: 'IPM insights in this response; inspect hasMore before treating the results as complete',
+      description:
+        'IPM insights in this response; inspect hasMore before treating the results as complete',
       items: {
         type: 'object',
         properties: {
@@ -97,11 +99,6 @@ export const oracleEpmPlanningGetInsightsTool: InternalToolConfig<
             description: 'percentageDiff',
             optional: true,
           },
-          anomalyPeriod: {
-            type: 'string',
-            description: 'anomalyPeriod',
-            optional: true,
-          },
           percentageDiffFromAnomaly: {
             type: 'string',
             description: 'percentageDiffFromAnomaly',
@@ -126,7 +123,8 @@ export const oracleEpmPlanningGetInsightsTool: InternalToolConfig<
     },
     hasMore: {
       type: 'boolean',
-      description: 'Oracle reports incomplete results when true; no pagination request is documented',
+      description:
+        'Oracle reports incomplete results when true; no pagination request is documented',
     },
   },
 }

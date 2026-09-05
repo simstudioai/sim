@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleEpmPlanningResponse,
   OracleEpmPlanningChangePlanningUnitStatusParams,
+  OracleEpmPlanningResponse,
 } from '@/tools/oracle_epm_planning/types'
 import {
   oracleEpmPlanningAuthParamFields,
@@ -16,7 +16,8 @@ export const oracleEpmPlanningChangePlanningUnitStatusTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_change_planning_unit_status',
   name: 'Oracle EPM Planning Change Planning Unit Status',
-  description: 'Perform one explicitly chosen approval action. Service Administrator required; units must be owned by the caller and have compatible hierarchy levels and statuses. May change status or ownership; no automatic preflight or retry.',
+  description:
+    'Perform one explicitly chosen approval action. Service Administrator required; units must be owned by the caller and have compatible hierarchy levels and statuses. May change status or ownership; no automatic preflight or retry.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,

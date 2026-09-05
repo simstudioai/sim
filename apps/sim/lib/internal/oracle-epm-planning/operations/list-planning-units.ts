@@ -1,13 +1,21 @@
 import { planningEndpoints } from '@/lib/internal/oracle-epm-planning/route-space'
-import { type PlanningOperationContext, parsePlanningResponse, planningUnitsSchema } from '@/lib/internal/oracle-epm-planning/schema'
-import type { OracleEpmPlanningListPlanningUnitsParams, OracleEpmPlanningResponse } from '@/tools/oracle_epm_planning/types'
+import {
+  type PlanningOperationContext,
+  parsePlanningResponse,
+  planningUnitsSchema,
+} from '@/lib/internal/oracle-epm-planning/schema'
+import type {
+  OracleEpmPlanningListPlanningUnitsParams,
+  OracleEpmPlanningResponse,
+} from '@/tools/oracle_epm_planning/types'
 
 /** https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/list_all_planning_units.html */
 export async function executeOracleEpmPlanningListPlanningUnits(
   input: OracleEpmPlanningListPlanningUnitsParams,
   context: PlanningOperationContext
 ): Promise<OracleEpmPlanningResponse> {
-  const parsed = parsePlanningResponse(planningUnitsSchema,
+  const parsed = parsePlanningResponse(
+    planningUnitsSchema,
     await context.client.request(planningEndpoints.planningUnits, {
       pathParams: { application: input.application },
       query: {

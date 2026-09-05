@@ -1,13 +1,21 @@
 import { planningEndpoints } from '@/lib/internal/oracle-epm-planning/route-space'
-import { type PlanningOperationContext, parsePlanningResponse, insightSummarySchema } from '@/lib/internal/oracle-epm-planning/schema'
-import type { OracleEpmPlanningSummarizeInsightsParams, OracleEpmPlanningResponse } from '@/tools/oracle_epm_planning/types'
+import {
+  insightSummarySchema,
+  type PlanningOperationContext,
+  parsePlanningResponse,
+} from '@/lib/internal/oracle-epm-planning/schema'
+import type {
+  OracleEpmPlanningResponse,
+  OracleEpmPlanningSummarizeInsightsParams,
+} from '@/tools/oracle_epm_planning/types'
 
 /** https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/insigh_summ.html */
 export async function executeOracleEpmPlanningSummarizeInsights(
   input: OracleEpmPlanningSummarizeInsightsParams,
   context: PlanningOperationContext
 ): Promise<OracleEpmPlanningResponse> {
-  const parsed = parsePlanningResponse(insightSummarySchema,
+  const parsed = parsePlanningResponse(
+    insightSummarySchema,
     await context.client.request(planningEndpoints.insightSummary, {
       pathParams: { application: input.application },
       json: {

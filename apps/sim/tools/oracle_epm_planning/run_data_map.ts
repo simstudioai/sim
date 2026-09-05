@@ -16,7 +16,8 @@ export const oracleEpmPlanningRunDataMapTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_run_data_map',
   name: 'Oracle EPM Planning Run Data Map',
-  description: 'Submit a configured data map once. Service Administrator required. Clearing the target is destructive; clearData must be explicit (Oracle defaults to true). Use Wait for Job separately.',
+  description:
+    'Submit a configured data map once. Service Administrator required. Clearing the target is destructive; clearData must be explicit (Oracle defaults to true). Use Wait for Job separately.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,
@@ -38,7 +39,8 @@ export const oracleEpmPlanningRunDataMapTool: InternalToolConfig<
         },
         status: {
           type: 'number',
-          description: 'Planning status: -1 processing, 0 success, 2 cancel pending; other values are failures',
+          description:
+            'Planning status: -1 processing, 0 success, 2 cancel pending; other values are failures',
         },
         details: {
           type: 'string',

@@ -25,6 +25,12 @@ export const planningInteropRouteSpace = defineOracleEpmRouteSpace({
 const name = (key: string) => parameter(key, { maxBytes: 255 })
 const jobId = parameter('jobId', { maxBytes: 32, pattern: /^[0-9]+$/ })
 const application = [literal('applications'), name('application')]
+const planningUnitActionPath = [
+  ...application,
+  literal('planningunits'),
+  name('puhIdentifier'),
+  literal('actions'),
+]
 const cube = [...application, literal('plantypes'), name('cube')]
 const variables = [...application, literal('substitutionvariables')]
 const cubeVariables = [...cube, literal('substitutionvariables')]
@@ -111,14 +117,25 @@ export const planningEndpoints = {
     ...formPost,
     query: { ...page, q: { ...q, required: true } },
   }),
-  planningUnitActions: planning([...application, literal('planningunits'), name('puhIdentifier'), literal('availableactions')], {
-    ...formPost,
-    query: { q },
-  }),
-  planningUnitHistory: planning([...application, literal('planningunits'), name('puIdentifier'), literal('historyandannotations')], {
-    query: { ...page, q },
-  }),
-  changePlanningUnitStatus: planning([...application, literal('planningunits'), name('puhIdentifier'), literal('actions')], formPost),
+  planningUnitActions: planning(
+    [...application, literal('planningunits'), name('puhIdentifier'), literal('availableactions')],
+    {
+      ...formPost,
+      query: { q },
+    }
+  ),
+  planningUnitHistory: planning(
+    [
+      ...application,
+      literal('planningunits'),
+      name('puIdentifier'),
+      literal('historyandannotations'),
+    ],
+    {
+      query: { ...page, q },
+    }
+  ),
+  changePlanningUnitStatus: planning(planningUnitActionPath, formPost),
   insights: planning([...application, literal('insights')], jsonPost),
   insightSummary: planning([...application, literal('insights'), literal('summary')], jsonPost),
   applications: planning([literal('applications')]),
@@ -192,10 +209,15 @@ export const planningEndpoints = {
 }
 
 export const planningLinkPolicies = {
+  /** Validation only: form mutations cannot be replayed through a returned-link capability. */
   planningUnitStatus: planningRouteSpace.defineReturnedLinkPolicy({
     relation: 'self',
     method: 'POST',
-    endpoint: planningEndpoints.changePlanningUnitStatus,
+    version: 'v3',
+    path: planningUnitActionPath,
+    response: 'json',
+    timeoutMs: 60_000,
+    maxResponseBytes: PLANNING_INLINE_BYTES,
     preserveGatewayBasePath: true,
   }),
   uploadStatus: planningInteropRouteSpace.defineReturnedLinkPolicy({

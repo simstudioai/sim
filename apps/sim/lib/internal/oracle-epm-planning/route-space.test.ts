@@ -57,33 +57,58 @@ describe('Planning product route policies (foundation client precedent)', () => 
   })
   it('preserves gateway prefixes and form-encodes compound approval requests', async () => {
     const puhIdentifier = 'Forecast::"Working & Review"'
-    const stream = new TextEncoder().encode(new URLSearchParams({ pmMembers: '"Sales & Services: Retail"' }).toString())
+    const stream = new TextEncoder().encode(
+      new URLSearchParams({ pmMembers: '"Sales & Services: Retail"' }).toString()
+    )
     await createOracleEpmClient(auth).request(planningEndpoints.planningUnitActions, {
       pathParams: { application: 'Plan & Co', puhIdentifier },
       query: { q: '{"options":1}' },
-      headers: { contentType: 'application/x-www-form-urlencoded' }, stream,
+      headers: { contentType: 'application/x-www-form-urlencoded' },
+      stream,
     })
     const [url, , options] = mocks.fetch.mock.calls[0]
-    expect(new URL(url).pathname).toBe('/gateway/team/HyperionPlanning/rest/v3/applications/Plan%20%26%20Co/planningunits/Forecast%3A%3A%22Working%20%26%20Review%22/availableactions')
+    expect(new URL(url).pathname).toBe(
+      '/gateway/team/HyperionPlanning/rest/v3/applications/Plan%20%26%20Co/planningunits/Forecast%3A%3A%22Working%20%26%20Review%22/availableactions'
+    )
     expect(options.method).toBe('POST')
     expect(options.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
-    expect(new TextDecoder().decode(options.body)).toBe('pmMembers=%22Sales+%26+Services%3A+Retail%22')
+    expect(new TextDecoder().decode(options.body)).toBe(
+      'pmMembers=%22Sales+%26+Services%3A+Retail%22'
+    )
     expect(options.maxResponseBytes).toBe(PLANNING_INLINE_BYTES)
   })
   it('rejects oversized form bodies and undeclared headers before networking', async () => {
     const client = createOracleEpmClient(auth)
-    const input = { pathParams: { application: 'Vision', puhIdentifier: 'Forecast::Working' }, headers: { contentType: 'application/x-www-form-urlencoded' } }
-    await expect(client.request(planningEndpoints.changePlanningUnitStatus, { ...input, stream: new Uint8Array(PLANNING_INLINE_BYTES + 1) })).rejects.toThrow()
-    await expect(client.request(planningEndpoints.changePlanningUnitStatus, { ...input, stream: new Uint8Array(0), headers: { contentType: 'application/json' } })).rejects.toThrow()
+    const input = {
+      pathParams: { application: 'Vision', puhIdentifier: 'Forecast::Working' },
+      headers: { contentType: 'application/x-www-form-urlencoded' },
+    }
+    await expect(
+      client.request(planningEndpoints.changePlanningUnitStatus, {
+        ...input,
+        stream: new Uint8Array(PLANNING_INLINE_BYTES + 1),
+      })
+    ).rejects.toThrow()
+    await expect(
+      client.request(planningEndpoints.changePlanningUnitStatus, {
+        ...input,
+        stream: new Uint8Array(0),
+        headers: { contentType: 'application/json' },
+      })
+    ).rejects.toThrow()
     expect(mocks.fetch).not.toHaveBeenCalled()
   })
   it('propagates cancellation before an approval mutation starts', async () => {
     const controller = new AbortController()
     controller.abort(new DOMException('Stopped', 'AbortError'))
-    await expect(createOracleEpmClient(auth).request(planningEndpoints.changePlanningUnitStatus, {
-      pathParams: { application: 'Vision', puhIdentifier: 'Forecast::Working' },
-      headers: { contentType: 'application/x-www-form-urlencoded' }, stream: new Uint8Array(0), signal: controller.signal,
-    })).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(
+      createOracleEpmClient(auth).request(planningEndpoints.changePlanningUnitStatus, {
+        pathParams: { application: 'Vision', puhIdentifier: 'Forecast::Working' },
+        headers: { contentType: 'application/x-www-form-urlencoded' },
+        stream: new Uint8Array(0),
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
     expect(mocks.fetch).not.toHaveBeenCalled()
   })
   it('declares bounded bodies and no mutation replay', () => {
@@ -142,6 +167,33 @@ describe('Planning product route policies (foundation client precedent)', () => 
         method: 'POST',
       })
     ).toThrow()
+  })
+  it('validates the approval self link without following a form mutation', () => {
+    const client = createOracleEpmClient(auth)
+    const href =
+      'https://epm.example.com/gateway/team/HyperionPlanning/rest/v3/applications/Vision/planningunits/Forecast%3A%3A%22Working%22/actions'
+    expect(() =>
+      client.validateReturnedLink(planningLinkPolicies.planningUnitStatus, {
+        rel: 'self',
+        method: 'POST',
+        href,
+      })
+    ).not.toThrow()
+    expect(() =>
+      client.validateReturnedLink(planningLinkPolicies.planningUnitStatus, {
+        rel: 'self',
+        method: 'GET',
+        href,
+      })
+    ).toThrow()
+    expect(() =>
+      client.validateReturnedLink(planningLinkPolicies.planningUnitStatus, {
+        rel: 'self',
+        method: 'POST',
+        href: href.replace('/gateway/team', ''),
+      })
+    ).toThrow()
+    expect(mocks.fetch).not.toHaveBeenCalled()
   })
   it('rejects undeclared path/query inputs before networking', async () => {
     await expect(

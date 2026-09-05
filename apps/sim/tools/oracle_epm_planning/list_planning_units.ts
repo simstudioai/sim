@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleEpmPlanningResponse,
   OracleEpmPlanningListPlanningUnitsParams,
+  OracleEpmPlanningResponse,
 } from '@/tools/oracle_epm_planning/types'
 import {
   oracleEpmPlanningAuthParamFields,
@@ -16,7 +16,8 @@ export const oracleEpmPlanningListPlanningUnitsTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_list_planning_units',
   name: 'Oracle EPM Planning List Planning Units',
-  description: 'Read one page of planning units owned by the requesting Service Administrator for a scenario and version. This is not discovery of every user’s units; no completion flag is documented.',
+  description:
+    'Read one page of planning units owned by the requesting Service Administrator for a scenario and version. This is not discovery of every user’s units; no completion flag is documented.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,
@@ -30,7 +31,8 @@ export const oracleEpmPlanningListPlanningUnitsTool: InternalToolConfig<
   outputs: {
     planningUnits: {
       type: 'array',
-      description: 'One page of owned planning units; numeric puId is not a compound identifier',
+      description:
+        'One page of owned planning units; numeric puId is not a compound identifier',
       items: {
         type: 'object',
         properties: {

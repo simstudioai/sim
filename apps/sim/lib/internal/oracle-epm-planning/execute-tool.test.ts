@@ -843,9 +843,7 @@ const CASES: {
       ],
     },
     output: 'planningUnits',
-    form: {
-
-    },
+    form: {},
     query: {
       q: '{"scenario":"Forecast","version":"Working"}',
       offset: '5',
@@ -956,37 +954,16 @@ const CASES: {
       cube: 'Plan1',
       insightSlice: {
         pov: {
-          members: [
-            'Sales',
-          ],
-          dimensions: [
-            'Account',
-          ],
+          members: ['Sales'],
+          dimensions: ['Account'],
         },
         columnAxisDefinition: {
-          dimensions: [
-            'Period',
-          ],
-          segments: [
-            [
-              [
-                'Jan',
-                'Feb',
-              ],
-            ],
-          ],
+          dimensions: ['Period'],
+          segments: [[['Jan', 'Feb']]],
         },
         rowAxisDefinition: {
-          dimensions: [
-            'Scenario',
-          ],
-          segments: [
-            [
-              [
-                'Forecast',
-              ],
-            ],
-          ],
+          dimensions: ['Scenario'],
+          segments: [[['Forecast']]],
         },
       },
     },
@@ -1012,37 +989,16 @@ const CASES: {
       location: 'Plan1',
       slice: {
         pov: {
-          members: [
-            'Sales',
-          ],
-          dimensions: [
-            'Account',
-          ],
+          members: ['Sales'],
+          dimensions: ['Account'],
         },
         columnAxisDefinition: {
-          dimensions: [
-            'Period',
-          ],
-          segments: [
-            [
-              [
-                'Jan',
-                'Feb',
-              ],
-            ],
-          ],
+          dimensions: ['Period'],
+          segments: [[['Jan', 'Feb']]],
         },
         rowAxisDefinition: {
-          dimensions: [
-            'Scenario',
-          ],
-          segments: [
-            [
-              [
-                'Forecast',
-              ],
-            ],
-          ],
+          dimensions: ['Scenario'],
+          segments: [[['Forecast']]],
         },
       },
       retrievalMode: 'USE_EXISTING',
@@ -1054,9 +1010,7 @@ const CASES: {
     input: {
       application: 'Vision',
       summaryInputMode: 'ids',
-      insightIds: [
-        '426',
-      ],
+      insightIds: ['426'],
     },
     method: 'POST',
     path: '/HyperionPlanning/rest/v3/applications/Vision/insights/summary',
@@ -1067,9 +1021,7 @@ const CASES: {
     body: {
       format: 'text',
       size: 100,
-      ids: [
-        '426',
-      ],
+      ids: ['426'],
     },
     source: 'insigh_summ.html',
   },
@@ -1188,22 +1140,38 @@ describe('Planning operation contracts through the real foundation', () => {
   it('requires explicit data-map clearing without widening generic job parameters', async () => {
     for (const [operation, input] of [
       ['run_data_map', { application: 'Vision', jobName: 'Reporting' }],
-      ['run_data_map', { application: 'Vision', jobName: 'Reporting', clearData: false, overrideMembersMap: { Period: ['Jan'] } }],
-      ['run_job', { application: 'Vision', jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters: { overrideMembersMap: { Period: 'Jan' } } }],
+      [
+        'run_data_map',
+        {
+          application: 'Vision',
+          jobName: 'Reporting',
+          clearData: false,
+          overrideMembersMap: { Period: ['Jan'] },
+        },
+      ],
+      [
+        'run_job',
+        {
+          application: 'Vision',
+          jobType: 'PLAN_TYPE_MAP',
+          jobName: 'Reporting',
+          parameters: { overrideMembersMap: { Period: 'Jan' } },
+        },
+      ],
     ] as const) {
       expect((await invoke(operation, input)).status).toBe(400)
     }
     expect(mocks.fetch).not.toHaveBeenCalled()
   })
-  it.each([400, 403])('does not hide or replay a user-variable batch error (%i)', async (status) => {
-    respond({ items: [{ id: 'member', details: 'Invalid selection' }] }, status)
-    const entry = CASES.find((item) => item.operation === 'set_user_variable_values')!
-    const result = await invoke(entry.operation, entry.input)
-    expect(result.status).toBe(status)
-    expect(result.result.success).toBe(false)
-    expect(result.result.output.updated).toBeUndefined()
-    expect(mocks.fetch).toHaveBeenCalledTimes(1)
-  })
+  it.each([400, 403])(
+    'does not hide or replay a user-variable batch error (%i)',
+    async (status) => {
+      respond({ items: [{ id: 'member', details: 'Invalid selection' }] }, status)
+      const entry = CASES.find((item) => item.operation === 'set_user_variable_values')!
+      const result = await invoke(entry.operation, entry.input)
+      expect(result.status).toBe(status)
+      expect(result.result.success).toBe(false)
+      expect(result.result.output.updated).toBeUndefined()
   it('accepts only empty 204 as user-variable write confirmation', async () => {
     const entry = CASES.find((item) => item.operation === 'set_user_variable_values')!
     respond(null, 204)

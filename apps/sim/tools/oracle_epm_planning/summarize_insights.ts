@@ -16,7 +16,8 @@ export const oracleEpmPlanningSummarizeInsightsTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_summarize_insights',
   name: 'Oracle EPM Planning Summarize Insights',
-  description: 'Return an IPM text summary by insight IDs or by slice. Slice mode requires a cube and insight slice. Defaults to existing insights; recomputing requires a calendar and Administrator or IPM Manage role.',
+  description:
+    'Return an IPM text summary by insight IDs or by slice. Slice mode requires a cube and insight slice. Defaults to existing insights; recomputing requires a calendar and Administrator or IPM Manage role.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,

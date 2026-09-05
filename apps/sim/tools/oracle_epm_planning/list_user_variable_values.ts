@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleEpmPlanningResponse,
   OracleEpmPlanningListUserVariableValuesParams,
+  OracleEpmPlanningResponse,
 } from '@/tools/oracle_epm_planning/types'
 import {
   oracleEpmPlanningAuthParamFields,
@@ -16,7 +16,8 @@ export const oracleEpmPlanningListUserVariableValuesTool: InternalToolConfig<
 > = {
   id: 'oracle_epm_planning_list_user_variable_values',
   name: 'Oracle EPM Planning List User Variable Values',
-  description: 'Read one bounded page of user-variable values. Administrators can read all users; other users can read their own. No completion indicator is provided by Oracle.',
+  description:
+    'Read one bounded page of user-variable values. Administrators can read all users; other users can read their own. No completion indicator is provided by Oracle.',
   version: '1.0.0',
   params: {
     ...oracleEpmPlanningAuthParamFields,

@@ -1,6 +1,12 @@
 import { planningEndpoints } from '@/lib/internal/oracle-epm-planning/route-space'
-import { PlanningContractError, type PlanningOperationContext } from '@/lib/internal/oracle-epm-planning/schema'
-import type { OracleEpmPlanningSetUserVariableValuesParams, OracleEpmPlanningResponse } from '@/tools/oracle_epm_planning/types'
+import {
+  PlanningContractError,
+  type PlanningOperationContext,
+} from '@/lib/internal/oracle-epm-planning/schema'
+import type {
+  OracleEpmPlanningResponse,
+  OracleEpmPlanningSetUserVariableValuesParams,
+} from '@/tools/oracle_epm_planning/types'
 
 /** https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/planning_set_user_variables.html */
 export async function executeOracleEpmPlanningSetUserVariableValues(

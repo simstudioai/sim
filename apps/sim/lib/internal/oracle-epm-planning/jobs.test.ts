@@ -66,14 +66,30 @@ describe('Planning job behavior using the foundation scheduler', () => {
   })
   it('submits typed nested data-map overrides once without polling or replay', async () => {
     request.mockResolvedValue({ status: 200, data: { ...job, status: -1 } })
-    const parameters = { clearData: false, overrideMembersMap: { Period: 'Q1' }, overrideExclusionMembersMap: { Period: 'Jan' } }
-    await expect(submitPlanningJob({ application: 'Vision', jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters }, context)).resolves.toMatchObject({ status: -1 })
+    const parameters = {
+      clearData: false,
+      overrideMembersMap: { Period: 'Q1' },
+      overrideExclusionMembersMap: { Period: 'Jan' },
+    }
+    await expect(
+      submitPlanningJob(
+        { application: 'Vision', jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters },
+        context
+      )
+    ).resolves.toMatchObject({ status: -1 })
     expect(request).toHaveBeenCalledExactlyOnceWith(planningEndpoints.submitJob, {
-      pathParams: { application: 'Vision' }, json: { jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters }, signal: undefined,
+      pathParams: { application: 'Vision' },
+      json: { jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters },
+      signal: undefined,
     })
     request.mockClear()
     request.mockRejectedValue(new Error('Submission failed'))
-    await expect(submitPlanningJob({ application: 'Vision', jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters }, context)).rejects.toThrow('Submission failed')
+    await expect(
+      submitPlanningJob(
+        { application: 'Vision', jobType: 'PLAN_TYPE_MAP', jobName: 'Reporting', parameters },
+        context
+      )
+    ).rejects.toThrow('Submission failed')
     expect(request).toHaveBeenCalledTimes(1)
   })
   it('retains terminal failure diagnostics', async () => {

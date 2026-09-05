@@ -203,7 +203,6 @@ export interface PlanningInsight {
   priority?: string
   pov?: string
   percentageDiff?: string
-  anomalyPeriod?: string
   percentageDiffFromAnomaly?: string
 }
 
