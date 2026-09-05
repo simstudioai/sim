@@ -1236,8 +1236,7 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     },
     controlAssessmentResultId: {
       type: 'string',
-      description:
-        'Exact decimal identifier as a string',
+      description: 'Exact decimal identifier as a string',
     },
     controlId: { type: 'string', description: 'Exact decimal identifier as a string' },
     groupKey: {
@@ -1265,8 +1264,7 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     },
     processAssessmentResultId: {
       type: 'string',
-      description:
-        'Exact decimal identifier as a string',
+      description: 'Exact decimal identifier as a string',
     },
     processId: { type: 'string', description: 'Exact decimal identifier as a string' },
     provisioningInfo: {
@@ -1286,8 +1284,7 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     },
     riskAssessmentResultId: {
       type: 'string',
-      description:
-        'Exact decimal identifier as a string',
+      description: 'Exact decimal identifier as a string',
     },
     riskId: { type: 'string', description: 'Exact decimal identifier as a string' },
     roleTypeKey: {
@@ -1302,8 +1299,7 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     },
     securityAssignmentId: {
       type: 'string',
-      description:
-        'Exact decimal identifier as a string',
+      description: 'Exact decimal identifier as a string',
     },
     simulationResultKey: {
       type: 'string',
@@ -1334,8 +1330,7 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     offset: { type: 'number', description: 'Zero-based page offset' },
     totalResults: {
       type: 'boolean',
-      description:
-        'Request estimated total count',
+      description: 'Request estimated total count',
     },
   },
   outputs: {
@@ -1355,24 +1350,20 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
     offset: { type: 'number', description: 'Offset of this page' },
     nextOffset: {
       type: 'number',
-      description:
-        'Offset for the next explicit request when another page exists',
+      description: 'Offset for the next explicit request when another page exists',
     },
     totalResults: {
       type: 'number',
-      description:
-        'Estimated total count when requested and returned',
+      description: 'Estimated total count when requested and returned',
     },
     deleted: { type: 'boolean', description: 'Deletion acknowledged by Oracle for delete actions' },
     requestId: {
       type: 'string',
-      description:
-        'Submitted access-simulation tracking ID; analysis may still be pending',
+      description: 'Submitted access-simulation tracking ID; analysis may still be pending',
     },
     status: {
       type: 'string',
-      description:
-        'Simulation job status returned by Get Access Simulation Status',
+      description: 'Simulation job status returned by Get Access Simulation Status',
     },
   },
 }
