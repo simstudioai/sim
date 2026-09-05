@@ -1,0 +1,482 @@
+import { NetSuiteIcon } from '@/components/icons'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { getScopesForService } from '@/lib/oauth'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+
+const LIST_OPERATIONS = [
+  'list_self_paced_items',
+  'list_learning_events',
+  'list_event_activities',
+  'list_learning_records',
+  'list_selected_course_offerings',
+  'list_completion_details',
+  'list_completion_summaries',
+  'list_learning_record_action_hints',
+  'list_enrollment_history',
+  'list_assignment_profiles',
+  'list_assignment_profile_records',
+  'list_assignment_profile_criteria',
+  'list_learning_item_audiences',]
+const BODY_OPERATIONS = [
+  'create_self_paced_item',
+  'update_self_paced_item',
+  'create_learning_event',
+  'update_learning_event',
+  'create_event_activity',
+  'update_event_activity',
+  'create_learning_record',
+  'update_learning_record',
+  'select_course_offering',
+  'update_selected_course_offering',
+  'update_completion_detail',
+  'create_assignment_profile',
+  'update_assignment_profile',
+  'add_assignment_profile_criterion',
+  'add_learning_item_audience',
+  'create_web_link_content',
+  'update_content_item',]
+const DELETE_OPERATIONS = [
+  'delete_self_paced_item',
+  'delete_event_activity',
+  'remove_assignment_profile_criterion',
+  'remove_learning_item_audience',]
+const ITEM_OPERATIONS = [
+  'get_self_paced_item',
+  'create_self_paced_item',
+  'update_self_paced_item',
+  'get_learning_event',
+  'create_learning_event',
+  'update_learning_event',
+  'create_event_activity',
+  'update_event_activity',
+  'get_learning_record',
+  'create_learning_record',
+  'update_learning_record',
+  'select_course_offering',
+  'update_selected_course_offering',
+  'update_completion_detail',
+  'get_assignment_profile',
+  'create_assignment_profile',
+  'update_assignment_profile',
+  'add_assignment_profile_criterion',
+  'add_learning_item_audience',
+  'get_content_item',
+  'create_web_link_content',
+  'update_content_item',]
+
+export const OracleFusionLearningBlock: BlockConfig = {
+  type: 'oracle_fusion_learning',
+  name: 'Oracle Fusion Learning',
+  description: 'Manage Fusion Learning catalog drafts, assignments, events, and learning records',
+  longDescription: 'Connect Oracle Fusion Cloud Learning using a reusable Fusion integration-user credential. Author self-paced and event drafts, enroll learners, read completion evidence, update permitted learning states, and process administrator assignment profiles. Learner and manager records remain subject to Oracle data security. Self-paced and event APIs require enabled tenant features and appropriate catalog privileges; classic available-offerings catalogs, package uploads, and publication are not included. HCM worker and organization operations remain in the HCM integration.',
+  docsLink: 'https://docs.sim.ai/integrations/oracle_fusion_learning',
+  category: 'tools',
+  integrationType: IntegrationType.HR,
+  authMode: AuthMode.ApiKey,
+  bgColor: '#F80000',
+  icon: NetSuiteIcon,
+  canvasPresentation: {
+    defaultTitle: 'Oracle Fusion Learning',
+    sentences: {
+      byOperation: {
+        list_self_paced_items: ['List Self Paced Items', { text: ', up to', field: 'limit', after: 'per page' }],
+        get_self_paced_item: [{ text: 'Get Self Paced Item for', field: ['learningItemIdPicker', 'learningItemIdInput'], core: true }],
+        create_self_paced_item: [{ text: 'Create Self Paced Item', field: 'body', core: true }],
+        update_self_paced_item: [{ text: 'Update Self Paced Item for', field: ['learningItemIdPicker', 'learningItemIdInput'], core: true }],
+        delete_self_paced_item: [{ text: 'Delete Self Paced Item for', field: ['learningItemIdPicker', 'learningItemIdInput'], core: true }],
+        list_learning_events: ['List Learning Events', { text: ', up to', field: 'limit', after: 'per page' }],
+        get_learning_event: [{ text: 'Get Learning Event for', field: ['eventIdPicker', 'eventIdInput'], core: true }],
+        create_learning_event: [{ text: 'Create Learning Event', field: 'body', core: true }],
+        update_learning_event: [{ text: 'Update Learning Event for', field: ['eventIdPicker', 'eventIdInput'], core: true }],
+        list_event_activities: [{ text: 'List Event Activities for', field: ['eventIdPicker', 'eventIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        create_event_activity: [{ text: 'Create Event Activity for', field: ['eventIdPicker', 'eventIdInput'], core: true }],
+        update_event_activity: [{ text: 'Update Event Activity for', field: ['activityIdPicker', 'activityIdInput'], core: true }],
+        delete_event_activity: [{ text: 'Delete Event Activity for', field: ['activityIdPicker', 'activityIdInput'], core: true }],
+        list_learning_records: [{ text: 'List Learning Records for', field: 'personId', core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        get_learning_record: [{ text: 'Get Learning Record for', field: ['recordIdPicker', 'recordIdInput'], core: true }],
+        create_learning_record: [{ text: 'Create Learning Record for', field: 'personId', core: true }],
+        update_learning_record: [{ text: 'Update Learning Record for', field: ['recordIdPicker', 'recordIdInput'], core: true }],
+        list_selected_course_offerings: [{ text: 'List Selected Course Offerings for', field: ['recordIdPicker', 'recordIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        select_course_offering: [{ text: 'Select Course Offering for', field: ['recordIdPicker', 'recordIdInput'], core: true }],
+        update_selected_course_offering: [{ text: 'Update Selected Course Offering for', field: ['offeringRecordIdPicker', 'offeringRecordIdInput'], core: true }],
+        list_completion_details: [{ text: 'List Completion Details for', field: ['recordIdPicker', 'recordIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        update_completion_detail: [{ text: 'Update Completion Detail for', field: ['completionDetailIdPicker', 'completionDetailIdInput'], core: true }],
+        list_completion_summaries: [{ text: 'List Completion Summaries for', field: ['recordIdPicker', 'recordIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        list_learning_record_action_hints: [{ text: 'List Learning Record Action Hints for', field: ['recordIdPicker', 'recordIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        list_enrollment_history: [{ text: 'List Enrollment History for', field: ['recordIdPicker', 'recordIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        list_assignment_profiles: ['List Assignment Profiles', { text: ', up to', field: 'limit', after: 'per page' }],
+        get_assignment_profile: [{ text: 'Get Assignment Profile for', field: ['profileIdPicker', 'profileIdInput'], core: true }],
+        create_assignment_profile: [{ text: 'Create Assignment Profile', field: 'body', core: true }],
+        update_assignment_profile: [{ text: 'Update Assignment Profile for', field: ['profileIdPicker', 'profileIdInput'], core: true }],
+        process_assignment_profile: [{ text: 'Process Assignment Profile for', field: ['profileIdPicker', 'profileIdInput'], core: true }],
+        list_assignment_profile_records: [{ text: 'List Assignment Profile Records for', field: ['profileIdPicker', 'profileIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        list_assignment_profile_criteria: [{ text: 'List Assignment Profile Criteria for', field: ['profileIdPicker', 'profileIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        add_assignment_profile_criterion: [{ text: 'Add Assignment Profile Criterion for', field: ['profileIdPicker', 'profileIdInput'], core: true }],
+        remove_assignment_profile_criterion: [{ text: 'Remove Assignment Profile Criterion for', field: 'criterionId', core: true }],
+        list_learning_item_audiences: [{ text: 'List Learning Item Audiences for', field: ['learningItemIdPicker', 'learningItemIdInput'], core: true }, { text: ', up to', field: 'limit', after: 'per page' }],
+        add_learning_item_audience: [{ text: 'Add Learning Item Audience for', field: ['learningItemIdPicker', 'learningItemIdInput'], core: true }],
+        remove_learning_item_audience: [{ text: 'Remove Learning Item Audience for', field: 'audienceId', core: true }],
+        get_content_item: [{ text: 'Get Content Item for', field: 'contentId', core: true }],
+        create_web_link_content: [{ text: 'Create Web Link Content', field: 'body', core: true }],
+        update_content_item: [{ text: 'Update Content Item for', field: 'contentId', core: true }],
+      },
+    },
+  },
+  subBlocks: [
+    {
+      id: 'operation', title: 'Operation', type: 'dropdown', value: () => 'list_self_paced_items',
+      options: [
+        { label: 'List Self Paced Items', id: 'list_self_paced_items' },
+        { label: 'Get Self Paced Item', id: 'get_self_paced_item' },
+        { label: 'Create Self Paced Item', id: 'create_self_paced_item' },
+        { label: 'Update Self Paced Item', id: 'update_self_paced_item' },
+        { label: 'Delete Self Paced Item', id: 'delete_self_paced_item' },
+        { label: 'List Learning Events', id: 'list_learning_events' },
+        { label: 'Get Learning Event', id: 'get_learning_event' },
+        { label: 'Create Learning Event', id: 'create_learning_event' },
+        { label: 'Update Learning Event', id: 'update_learning_event' },
+        { label: 'List Event Activities', id: 'list_event_activities' },
+        { label: 'Create Event Activity', id: 'create_event_activity' },
+        { label: 'Update Event Activity', id: 'update_event_activity' },
+        { label: 'Delete Event Activity', id: 'delete_event_activity' },
+        { label: 'List Learning Records', id: 'list_learning_records' },
+        { label: 'Get Learning Record', id: 'get_learning_record' },
+        { label: 'Create Learning Record', id: 'create_learning_record' },
+        { label: 'Update Learning Record', id: 'update_learning_record' },
+        { label: 'List Selected Course Offerings', id: 'list_selected_course_offerings' },
+        { label: 'Select Course Offering', id: 'select_course_offering' },
+        { label: 'Update Selected Course Offering', id: 'update_selected_course_offering' },
+        { label: 'List Completion Details', id: 'list_completion_details' },
+        { label: 'Update Completion Detail', id: 'update_completion_detail' },
+        { label: 'List Completion Summaries', id: 'list_completion_summaries' },
+        { label: 'List Learning Record Action Hints', id: 'list_learning_record_action_hints' },
+        { label: 'List Enrollment History', id: 'list_enrollment_history' },
+        { label: 'List Assignment Profiles', id: 'list_assignment_profiles' },
+        { label: 'Get Assignment Profile', id: 'get_assignment_profile' },
+        { label: 'Create Assignment Profile', id: 'create_assignment_profile' },
+        { label: 'Update Assignment Profile', id: 'update_assignment_profile' },
+        { label: 'Process Assignment Profile', id: 'process_assignment_profile' },
+        { label: 'List Assignment Profile Records', id: 'list_assignment_profile_records' },
+        { label: 'List Assignment Profile Criteria', id: 'list_assignment_profile_criteria' },
+        { label: 'Add Assignment Profile Criterion', id: 'add_assignment_profile_criterion' },
+        { label: 'Remove Assignment Profile Criterion', id: 'remove_assignment_profile_criterion' },
+        { label: 'List Learning Item Audiences', id: 'list_learning_item_audiences' },
+        { label: 'Add Learning Item Audience', id: 'add_learning_item_audience' },
+        { label: 'Remove Learning Item Audience', id: 'remove_learning_item_audience' },
+        { label: 'Get Content Item', id: 'get_content_item' },
+        { label: 'Create Web Link Content', id: 'create_web_link_content' },
+        { label: 'Update Content Item', id: 'update_content_item' },
+      ],
+    },
+    {
+      id: 'credential', title: 'Oracle Fusion Account', type: 'oauth-input',
+      serviceId: 'oracle_fusion_learning', requiredScopes: getScopesForService('oracle_fusion_learning'),
+      credentialKind: 'service-account', canonicalParamId: 'oauthCredential', mode: 'basic',
+      placeholder: 'Select Oracle Fusion credential', required: true,
+    },
+    {
+      id: 'manualCredential', title: 'Oracle Fusion Account', type: 'short-input',
+      canonicalParamId: 'oauthCredential', mode: 'advanced', placeholder: 'Enter credential ID', required: true,
+    },
+    {
+      id: 'limit', mode: 'advanced', title: 'Limit', type: 'short-input', condition: { field: 'operation', value: ["list_self_paced_items","list_learning_events","list_event_activities","list_learning_records","list_selected_course_offerings","list_completion_details","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history","list_assignment_profiles","list_assignment_profile_records","list_assignment_profile_criteria","list_learning_item_audiences"] }, required: false,
+      placeholder: '20',
+    },
+    {
+      id: 'offset', mode: 'advanced', title: 'Offset', type: 'short-input', condition: { field: 'operation', value: ["list_self_paced_items","list_learning_events","list_event_activities","list_learning_records","list_selected_course_offerings","list_completion_details","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history","list_assignment_profiles","list_assignment_profile_records","list_assignment_profile_criteria","list_learning_item_audiences"] }, required: false,
+      placeholder: '0',
+    },
+    {
+      id: 'search', title: 'Search', type: 'short-input', condition: { field: 'operation', value: ["list_self_paced_items","list_learning_events","list_event_activities","list_learning_records","list_selected_course_offerings","list_assignment_profiles"] }, required: false,
+      placeholder: 'Search title or number',
+    },
+    {
+      id: 'effectiveDate', mode: 'advanced', title: 'Effective Date', type: 'short-input', condition: { field: 'operation', value: ["list_self_paced_items","get_self_paced_item","list_learning_events","get_learning_event","list_event_activities","list_learning_records","get_learning_record","list_selected_course_offerings","list_completion_details","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history","list_assignment_profiles","get_assignment_profile","list_assignment_profile_records","list_assignment_profile_criteria"] }, required: false,
+      placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true, generationType: 'timestamp',
+        prompt: 'Return only a valid YYYY-MM-DD effective date for the requested Oracle Learning read.',
+      },
+    },
+    {
+      id: 'learningItemIdPicker', title: 'Learning Item Id', type: 'file-selector',
+      canonicalParamId: 'learningItemId', serviceId: 'oracle_fusion_learning', selectorKey: 'oracle_fusion_learning.selfPacedItems',
+      dependsOn: ["credential","effectiveDate"], mode: 'basic', condition: { field: 'operation', value: ["get_self_paced_item","update_self_paced_item","delete_self_paced_item","list_learning_records","list_learning_item_audiences","add_learning_item_audience","remove_learning_item_audience"] },
+      required: { field: 'operation', value: ["get_self_paced_item","update_self_paced_item","delete_self_paced_item","list_learning_item_audiences","add_learning_item_audience","remove_learning_item_audience"] }, placeholder: 'Select learning item id',
+    },
+    {
+      id: 'learningItemIdInput', title: 'Learning Item Id', type: 'short-input', canonicalParamId: 'learningItemId', mode: 'advanced',
+      condition: { field: 'operation', value: ["get_self_paced_item","update_self_paced_item","delete_self_paced_item","list_learning_records","list_learning_item_audiences","add_learning_item_audience","remove_learning_item_audience"] }, required: { field: 'operation', value: ["get_self_paced_item","update_self_paced_item","delete_self_paced_item","list_learning_item_audiences","add_learning_item_audience","remove_learning_item_audience"] }, placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'eventIdPicker', title: 'Event Id', type: 'file-selector',
+      canonicalParamId: 'eventId', serviceId: 'oracle_fusion_learning', selectorKey: 'oracle_fusion_learning.events',
+      dependsOn: ["credential","effectiveDate"], mode: 'basic', condition: { field: 'operation', value: ["get_learning_event","update_learning_event","list_event_activities","create_event_activity","update_event_activity","delete_event_activity"] },
+      required: { field: 'operation', value: ["get_learning_event","update_learning_event","list_event_activities","create_event_activity","update_event_activity","delete_event_activity"] }, placeholder: 'Select event id',
+    },
+    {
+      id: 'eventIdInput', title: 'Event Id', type: 'short-input', canonicalParamId: 'eventId', mode: 'advanced',
+      condition: { field: 'operation', value: ["get_learning_event","update_learning_event","list_event_activities","create_event_activity","update_event_activity","delete_event_activity"] }, required: { field: 'operation', value: ["get_learning_event","update_learning_event","list_event_activities","create_event_activity","update_event_activity","delete_event_activity"] }, placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'activityIdPicker', title: 'Activity Id', type: 'file-selector',
+      canonicalParamId: 'activityId', serviceId: 'oracle_fusion_learning', selectorKey: 'oracle_fusion_learning.eventActivities',
+      dependsOn: ["credential","eventIdPicker","effectiveDate"], mode: 'basic', condition: { field: 'operation', value: ["update_event_activity","delete_event_activity"] },
+      required: { field: 'operation', value: ["update_event_activity","delete_event_activity"] }, placeholder: 'Select activity id',
+    },
+    {
+      id: 'activityIdInput', title: 'Activity Id', type: 'short-input', canonicalParamId: 'activityId', mode: 'advanced',
+      condition: { field: 'operation', value: ["update_event_activity","delete_event_activity"] }, required: { field: 'operation', value: ["update_event_activity","delete_event_activity"] }, placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'personId', title: 'Person Id', type: 'short-input', condition: { field: 'operation', value: ["list_learning_records","get_learning_record","create_learning_record","update_learning_record","list_selected_course_offerings","select_course_offering","update_selected_course_offering","list_completion_details","update_completion_detail","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] }, required: { field: 'operation', value: ["list_learning_records","get_learning_record","create_learning_record","update_learning_record","list_selected_course_offerings","select_course_offering","update_selected_course_offering","list_completion_details","update_completion_detail","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] },
+      placeholder: 'Enter the learner’s person ID',
+    },
+    {
+      id: 'assignmentStatus', title: 'Assignment Status', type: 'short-input', condition: { field: 'operation', value: ["list_learning_records","list_selected_course_offerings"] }, required: false,
+      placeholder: 'ORA_ASSN_REC_ACTIVE',
+    },
+    {
+      id: 'recordIdPicker', title: 'Record Id', type: 'file-selector',
+      canonicalParamId: 'recordId', serviceId: 'oracle_fusion_learning', selectorKey: 'oracle_fusion_learning.learningRecords',
+      dependsOn: ["credential","personId","effectiveDate"], mode: 'basic', condition: { field: 'operation', value: ["get_learning_record","update_learning_record","list_selected_course_offerings","select_course_offering","update_selected_course_offering","list_completion_details","update_completion_detail","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] },
+      required: { field: 'operation', value: ["get_learning_record","update_learning_record","list_selected_course_offerings","select_course_offering","update_selected_course_offering","list_completion_details","update_completion_detail","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] }, placeholder: 'Select record id',
+    },
+    {
+      id: 'recordIdInput', title: 'Record Id', type: 'short-input', canonicalParamId: 'recordId', mode: 'advanced',
+      condition: { field: 'operation', value: ["get_learning_record","update_learning_record","list_selected_course_offerings","select_course_offering","update_selected_course_offering","list_completion_details","update_completion_detail","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] }, required: { field: 'operation', value: ["get_learning_record","update_learning_record","list_selected_course_offerings","select_course_offering","update_selected_course_offering","list_completion_details","update_completion_detail","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] }, placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'offeringRecordIdPicker', title: 'Offering Record Id', type: 'file-selector',
+      canonicalParamId: 'offeringRecordId', serviceId: 'oracle_fusion_learning', selectorKey: 'oracle_fusion_learning.selectedCourseOfferings',
+      dependsOn: ["credential","personId","recordIdPicker","effectiveDate"], mode: 'basic', condition: { field: 'operation', value: ["update_selected_course_offering","list_completion_details","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] },
+      required: { field: 'operation', value: ["update_selected_course_offering"] }, placeholder: 'Select offering record id',
+    },
+    {
+      id: 'offeringRecordIdInput', title: 'Offering Record Id', type: 'short-input', canonicalParamId: 'offeringRecordId', mode: 'advanced',
+      condition: { field: 'operation', value: ["update_selected_course_offering","list_completion_details","list_completion_summaries","list_learning_record_action_hints","list_enrollment_history"] }, required: { field: 'operation', value: ["update_selected_course_offering"] }, placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'completionDetailIdPicker', title: 'Completion Detail Id', type: 'file-selector',
+      canonicalParamId: 'completionDetailId', serviceId: 'oracle_fusion_learning', selectorKey: 'oracle_fusion_learning.completionDetails',
+      dependsOn: ["credential","personId","recordIdPicker","effectiveDate"], mode: 'basic', condition: { field: 'operation', value: ["update_completion_detail"] },
+      required: { field: 'operation', value: ["update_completion_detail"] }, placeholder: 'Select completion detail id',
+    },
+    {
+      id: 'completionDetailIdInput', title: 'Completion Detail Id', type: 'short-input', canonicalParamId: 'completionDetailId', mode: 'advanced',
+      condition: { field: 'operation', value: ["update_completion_detail"] }, required: { field: 'operation', value: ["update_completion_detail"] }, placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'profileIdPicker', title: 'Profile Id', type: 'file-selector',
+      canonicalParamId: 'profileId', serviceId: 'oracle_fusion_learning', selectorKey: 'oracle_fusion_learning.assignmentProfiles',
+      dependsOn: ["credential","effectiveDate"], mode: 'basic', condition: { field: 'operation', value: ["get_assignment_profile","update_assignment_profile","process_assignment_profile","list_assignment_profile_records","list_assignment_profile_criteria","add_assignment_profile_criterion","remove_assignment_profile_criterion"] },
+      required: { field: 'operation', value: ["get_assignment_profile","update_assignment_profile","process_assignment_profile","list_assignment_profile_records","list_assignment_profile_criteria","add_assignment_profile_criterion","remove_assignment_profile_criterion"] }, placeholder: 'Select profile id',
+    },
+    {
+      id: 'profileIdInput', title: 'Profile Id', type: 'short-input', canonicalParamId: 'profileId', mode: 'advanced',
+      condition: { field: 'operation', value: ["get_assignment_profile","update_assignment_profile","process_assignment_profile","list_assignment_profile_records","list_assignment_profile_criteria","add_assignment_profile_criterion","remove_assignment_profile_criterion"] }, required: { field: 'operation', value: ["get_assignment_profile","update_assignment_profile","process_assignment_profile","list_assignment_profile_records","list_assignment_profile_criteria","add_assignment_profile_criterion","remove_assignment_profile_criterion"] }, placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'criterionId', title: 'Criterion Id', type: 'short-input', condition: { field: 'operation', value: ["remove_assignment_profile_criterion"] }, required: { field: 'operation', value: ["remove_assignment_profile_criterion"] },
+      placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'audienceId', title: 'Audience Id', type: 'short-input', condition: { field: 'operation', value: ["remove_learning_item_audience"] }, required: { field: 'operation', value: ["remove_learning_item_audience"] },
+      placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'contentId', title: 'Content Id', type: 'short-input', condition: { field: 'operation', value: ["get_content_item","update_content_item"] }, required: { field: 'operation', value: ["get_content_item","update_content_item"] },
+      placeholder: 'Enter decimal ID',
+    },
+    {
+      id: 'body', title: 'Writable Fields (JSON)', type: 'code', language: 'json',
+      condition: { field: 'operation', value: BODY_OPERATIONS }, required: { field: 'operation', value: BODY_OPERATIONS },
+      description: 'Use the documented fields for the selected operation. Keep IDs as strings. Omit unchanged fields; use null only for nullable fields. Completion detail updates accept activityAttemptStatus and activityAttemptCompletionReasonCode only.',
+      placeholder: '{"learningItemDescription":"Updated course description"}',
+      wandConfig: {
+        enabled: true, generationType: 'json-object',
+        prompt: 'Generate only the documented writable JSON fields for the selected Oracle Fusion Learning operation. Use decimal strings for IDs. Do not invent status or lookup codes, inject PATCH defaults, or include upload material. Return only JSON.',
+      },
+    },
+  ],
+  tools: {
+    access: [
+  'oracle_fusion_learning_list_self_paced_items',
+  'oracle_fusion_learning_get_self_paced_item',
+  'oracle_fusion_learning_create_self_paced_item',
+  'oracle_fusion_learning_update_self_paced_item',
+  'oracle_fusion_learning_delete_self_paced_item',
+  'oracle_fusion_learning_list_learning_events',
+  'oracle_fusion_learning_get_learning_event',
+  'oracle_fusion_learning_create_learning_event',
+  'oracle_fusion_learning_update_learning_event',
+  'oracle_fusion_learning_list_event_activities',
+  'oracle_fusion_learning_create_event_activity',
+  'oracle_fusion_learning_update_event_activity',
+  'oracle_fusion_learning_delete_event_activity',
+  'oracle_fusion_learning_list_learning_records',
+  'oracle_fusion_learning_get_learning_record',
+  'oracle_fusion_learning_create_learning_record',
+  'oracle_fusion_learning_update_learning_record',
+  'oracle_fusion_learning_list_selected_course_offerings',
+  'oracle_fusion_learning_select_course_offering',
+  'oracle_fusion_learning_update_selected_course_offering',
+  'oracle_fusion_learning_list_completion_details',
+  'oracle_fusion_learning_update_completion_detail',
+  'oracle_fusion_learning_list_completion_summaries',
+  'oracle_fusion_learning_list_learning_record_action_hints',
+  'oracle_fusion_learning_list_enrollment_history',
+  'oracle_fusion_learning_list_assignment_profiles',
+  'oracle_fusion_learning_get_assignment_profile',
+  'oracle_fusion_learning_create_assignment_profile',
+  'oracle_fusion_learning_update_assignment_profile',
+  'oracle_fusion_learning_process_assignment_profile',
+  'oracle_fusion_learning_list_assignment_profile_records',
+  'oracle_fusion_learning_list_assignment_profile_criteria',
+  'oracle_fusion_learning_add_assignment_profile_criterion',
+  'oracle_fusion_learning_remove_assignment_profile_criterion',
+  'oracle_fusion_learning_list_learning_item_audiences',
+  'oracle_fusion_learning_add_learning_item_audience',
+  'oracle_fusion_learning_remove_learning_item_audience',
+  'oracle_fusion_learning_get_content_item',
+  'oracle_fusion_learning_create_web_link_content',
+  'oracle_fusion_learning_update_content_item',],
+    config: {
+      tool: (params) => `oracle_fusion_learning_${params.operation || 'list_self_paced_items'}`,
+      params: (params) => {
+        const { operation, ...rest } = params
+        for (const key of ["limit","offset","search","effectiveDate","learningItemId","eventId","activityId","personId","assignmentStatus","recordId","offeringRecordId","completionDetailId","profileId","criterionId","audienceId","contentId"] as const) {
+          const value = rest[key]
+          if (value == null || (typeof value === 'string' && value.trim() === '')) rest[key] = undefined
+        }
+        for (const key of ['limit', 'offset'] as const) {
+          if (typeof rest[key] === 'string') rest[key] = Number(rest[key])
+        }
+        if (typeof rest.body === 'string' && rest.body.trim()) {
+          if (rest.body.length > MAX_INLINE_MATERIALIZATION_BYTES || new TextEncoder().encode(rest.body).byteLength > MAX_INLINE_MATERIALIZATION_BYTES) {
+            throw new Error('Learning writable fields exceed the inline payload limit')
+          }
+          try { rest.body = JSON.parse(rest.body) } catch { throw new Error('Writable fields must be valid JSON') }
+        }
+        /** The executor merges converted inputs over raw values; clear inactive optional context explicitly. */
+        if (!['list_completion_details', 'list_completion_summaries', 'list_learning_record_action_hints', 'list_enrollment_history', 'update_selected_course_offering'].includes(operation)) rest.offeringRecordId = undefined
+        return rest
+      },
+    },
+  },
+  inputs: {
+    operation: { type: 'string', description: 'Oracle Fusion Learning operation' },
+    oauthCredential: { type: 'string', description: 'Reusable Oracle Fusion credential' },
+    limit: { type: 'number', description: 'limit' },
+    offset: { type: 'number', description: 'offset' },
+    search: { type: 'string', description: 'search' },
+    effectiveDate: { type: 'string', description: 'effectiveDate' },
+    learningItemId: { type: 'string', description: 'learningItemId' },
+    eventId: { type: 'string', description: 'eventId' },
+    activityId: { type: 'string', description: 'activityId' },
+    personId: { type: 'string', description: 'personId' },
+    assignmentStatus: { type: 'string', description: 'assignmentStatus' },
+    recordId: { type: 'string', description: 'recordId' },
+    offeringRecordId: { type: 'string', description: 'offeringRecordId' },
+    completionDetailId: { type: 'string', description: 'completionDetailId' },
+    profileId: { type: 'string', description: 'profileId' },
+    criterionId: { type: 'string', description: 'criterionId' },
+    audienceId: { type: 'string', description: 'audienceId' },
+    contentId: { type: 'string', description: 'contentId' },
+    body: { type: 'json', description: 'Documented writable fields, with string IDs and explicit nulls' },
+  },
+  outputs: {
+    item: { type: 'json', description: 'Projected Learning resource with IDs, metadata, and applicable lifecycle state', condition: { field: 'operation', value: ITEM_OPERATIONS } },
+    items: { type: 'json', description: 'One page of projected Learning records', condition: { field: 'operation', value: LIST_OPERATIONS } },
+    deleted: { type: 'boolean', description: 'Oracle accepted the deletion', condition: { field: 'operation', value: DELETE_OPERATIONS } },
+    result: { type: 'number', description: 'Numeric processing acknowledgement; not a verified job ID', condition: { field: 'operation', value: 'process_assignment_profile' } },
+    count: { type: 'number', description: 'count', condition: { field: 'operation', value: LIST_OPERATIONS } },
+    hasMore: { type: 'boolean', description: 'hasMore', condition: { field: 'operation', value: LIST_OPERATIONS } },
+    limit: { type: 'number', description: 'limit', condition: { field: 'operation', value: LIST_OPERATIONS } },
+    offset: { type: 'number', description: 'offset', condition: { field: 'operation', value: LIST_OPERATIONS } },
+    totalResults: { type: 'number', description: 'totalResults', condition: { field: 'operation', value: LIST_OPERATIONS } },
+    nextOffset: { type: 'number', description: 'nextOffset', condition: { field: 'operation', value: LIST_OPERATIONS } },
+  },
+}
+
+export const OracleFusionLearningBlockMeta = {
+  tags: ['automation'],
+  url: 'https://www.oracle.com/human-capital-management/talent-management/learning/',
+  templates: [
+    {
+      icon: NetSuiteIcon, title: 'Review learner completion', prompt: "Build a workflow that reads one person’s Oracle Fusion Learning assignments, retrieves completion details and summaries for a selected assignment, and reports Oracle’s recorded state without changing completion.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+    {
+      icon: NetSuiteIcon, title: 'Enroll a learner', prompt: "Build a workflow that creates a learning record for a supplied person and learning item, then reports the returned assignment status, including pending approval or waitlist states.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+    {
+      icon: NetSuiteIcon, title: 'Review selected course offerings', prompt: "Build a workflow that lists offerings selected under a learner’s course assignment and reads the selected offering’s enrollment history and completion summary. Do not describe these as all available offerings.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+    {
+      icon: NetSuiteIcon, title: 'Prepare self-paced catalog drafts', prompt: "Build a workflow that authors self-paced Learning metadata, reads the created draft, and produces an administrator review summary without publishing it.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+    {
+      icon: NetSuiteIcon, title: 'Schedule Learning event activities', prompt: "Build a workflow that creates an event draft, adds scheduled activities, and reads the event’s activities for a scheduling review. Use the enabled Oracle Learning event API.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+    {
+      icon: NetSuiteIcon, title: 'Process administrator assignment profiles', prompt: "Build a workflow that creates a Learning assignment profile, adds documented selection criteria, requests processing, and separately reads assignment-profile records to report actual processing outcomes.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+    {
+      icon: NetSuiteIcon, title: 'Maintain learning audiences', prompt: "Build a workflow that lists an item’s Learning audience relationships, adds an authorized person or learning organization relationship, and returns the updated requested page.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+    {
+      icon: NetSuiteIcon, title: 'Maintain web-link content metadata', prompt: "Build a workflow that creates Oracle Learning web-link content, reads its safe metadata, and updates its description or URL without uploading packages or handling upload credentials.",
+      modules: ['agent', 'workflows'], category: 'operations', tags: ['hr', 'enterprise'],
+    },
+  ],
+  skills: [
+    {
+      name: 'oracle-learning-review-learner-completion',
+      description: 'Review learner completion using documented Fusion Learning APIs.',
+      content: "# Review learner completion\n\n## Steps\n\nBuild a workflow that reads one person’s Oracle Fusion Learning assignments, retrieves completion details and summaries for a selected assignment, and reports Oracle’s recorded state without changing completion.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/Retrieve_Learning_Records.html",
+    },
+    {
+      name: 'oracle-learning-enroll-a-learner',
+      description: 'Enroll a learner using documented Fusion Learning APIs.',
+      content: "# Enroll a learner\n\n## Steps\n\nBuild a workflow that creates a learning record for a supplied person and learning item, then reports the returned assignment status, including pending approval or waitlist states.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learnerlearningrecords-post.html",
+    },
+    {
+      name: 'oracle-learning-review-selected-course-offerings',
+      description: 'Review selected course offerings using documented Fusion Learning APIs.',
+      content: "# Review selected course offerings\n\n## Steps\n\nBuild a workflow that lists offerings selected under a learner’s course assignment and reads the selected offering’s enrollment history and completion summary. Do not describe these as all available offerings.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learnerlearningrecords-learnerlearningrecordsuniqid-child-selectedcourseofferings-get.html",
+    },
+    {
+      name: 'oracle-learning-prepare-self-paced-catalog-drafts',
+      description: 'Prepare self-paced catalog drafts using documented Fusion Learning APIs.',
+      content: "# Prepare self-paced catalog drafts\n\n## Steps\n\nBuild a workflow that authors self-paced Learning metadata, reads the created draft, and produces an administrator review summary without publishing it.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningselfpaceditems-post.html",
+    },
+    {
+      name: 'oracle-learning-schedule-learning-event-activities',
+      description: 'Schedule Learning event activities using documented Fusion Learning APIs.',
+      content: "# Schedule Learning event activities\n\n## Steps\n\nBuild a workflow that creates an event draft, adds scheduled activities, and reads the event’s activities for a scheduling review. Use the enabled Oracle Learning event API.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningevents-learningeventsuniqid-child-activities-post.html",
+    },
+    {
+      name: 'oracle-learning-process-administrator-assignment-profiles',
+      description: 'Process administrator assignment profiles using documented Fusion Learning APIs.',
+      content: "# Process administrator assignment profiles\n\n## Steps\n\nBuild a workflow that creates a Learning assignment profile, adds documented selection criteria, requests processing, and separately reads assignment-profile records to report actual processing outcomes.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningassignmentprofiles-learningassignmentprofilesuniqid-action-process-post.html",
+    },
+    {
+      name: 'oracle-learning-maintain-learning-audiences',
+      description: 'Maintain learning audiences using documented Fusion Learning APIs.',
+      content: "# Maintain learning audiences\n\n## Steps\n\nBuild a workflow that lists an item’s Learning audience relationships, adds an authorized person or learning organization relationship, and returns the updated requested page.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningitemaudiences-post.html",
+    },
+    {
+      name: 'oracle-learning-maintain-web-link-content-metadata',
+      description: 'Maintain web-link content metadata using documented Fusion Learning APIs.',
+      content: "# Maintain web-link content metadata\n\n## Steps\n\nBuild a workflow that creates Oracle Learning web-link content, reads its safe metadata, and updates its description or URL without uploading packages or handling upload credentials.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/Uploading_Learning_Content.html",
+    },
+  ],
+} as const satisfies BlockMeta

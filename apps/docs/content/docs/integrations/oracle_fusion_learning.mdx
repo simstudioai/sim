@@ -1,0 +1,1457 @@
+---
+title: Oracle Fusion Learning
+description: Manage Fusion Learning catalog drafts, assignments, events, and learning records
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_learning"
+  color="#F80000"
+/>
+
+## Usage Instructions
+
+Connect Oracle Fusion Cloud Learning using a reusable Fusion integration-user credential. Author self-paced and event drafts, enroll learners, read completion evidence, update permitted learning states, and process administrator assignment profiles. Learner and manager records remain subject to Oracle data security. Self-paced and event APIs require enabled tenant features and appropriate catalog privileges; classic available-offerings catalogs, package uploads, and publication are not included. HCM worker and organization operations remain in the HCM integration.
+
+
+
+## Actions
+
+### List Self Paced Items
+
+List or search self-paced catalog items in an enabled Fusion Learning tenant.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `search` | string | No | Literal search text \(maximum 200 characters\) |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `learningItemActiveDate` | string | Learning Item Active Date |
+|   ↳ `learningItemInactiveDate` | string | Learning Item Inactive Date |
+|   ↳ `learningItemProvider` | string | Learning Item Provider |
+|   ↳ `learningItemProviderType` | string | Learning Item Provider Type |
+|   ↳ `learningItemDraftExists` | string | Learning Item Draft Exists |
+|   ↳ `learningItemPublishedExists` | string | Learning Item Published Exists |
+
+### Get Self Paced Item
+
+Read a self-paced catalog item by its learning item ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `learningItemId` | string | Yes | Learning Item Id as a positive decimal string |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `learningItemActiveDate` | string | Learning Item Active Date |
+|   ↳ `learningItemInactiveDate` | string | Learning Item Inactive Date |
+|   ↳ `learningItemProvider` | string | Learning Item Provider |
+|   ↳ `learningItemProviderType` | string | Learning Item Provider Type |
+|   ↳ `learningItemDraftExists` | string | Learning Item Draft Exists |
+|   ↳ `learningItemPublishedExists` | string | Learning Item Published Exists |
+
+### Create Self Paced Item
+
+Author a self-paced catalog draft. Creation does not publish the item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `body` | json | Yes | Required: learningItemNumber, learningItemVisibility. Writable fields: learningItemNumber, learningItemTitle, learningItemType, learningItemStatus, learningItemVisibility, learningItemDescription, learningItemLongDescription, learningItemShortDescription, learningItemCatalogProfileId, learningItemCatalogProfileNumber, learningItemExpectedEffortInSeconds, learningItemPublishStartDate, learningItemPublishEndDate, learningItemEnrollmentStartDate, learningItemEnrollmentEndDate, learningItemActiveDate, learningItemInactiveDate, learningItemInactiveReasonCode, learningItemStatusComment, learningItemKeepCompletionsOnDelete, learningItemProvider, learningItemProviderType. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningselfpaceditems-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `learningItemActiveDate` | string | Learning Item Active Date |
+|   ↳ `learningItemInactiveDate` | string | Learning Item Inactive Date |
+|   ↳ `learningItemProvider` | string | Learning Item Provider |
+|   ↳ `learningItemProviderType` | string | Learning Item Provider Type |
+|   ↳ `learningItemDraftExists` | string | Learning Item Draft Exists |
+|   ↳ `learningItemPublishedExists` | string | Learning Item Published Exists |
+
+### Update Self Paced Item
+
+Update documented self-paced metadata or lifecycle fields. Oracle enforces draft and activation rules.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `learningItemId` | string | Yes | Learning Item Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: learningItemNumber, learningItemTitle, learningItemType, learningItemStatus, learningItemVisibility, learningItemDescription, learningItemLongDescription, learningItemShortDescription, learningItemCatalogProfileId, learningItemCatalogProfileNumber, learningItemExpectedEffortInSeconds, learningItemPublishStartDate, learningItemPublishEndDate, learningItemEnrollmentStartDate, learningItemEnrollmentEndDate, learningItemActiveDate, learningItemInactiveDate, learningItemInactiveReasonCode, learningItemStatusComment, learningItemKeepCompletionsOnDelete, learningItemProvider, learningItemProviderType. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningselfpaceditems-learningselfpaceditemsuniqid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `learningItemActiveDate` | string | Learning Item Active Date |
+|   ↳ `learningItemInactiveDate` | string | Learning Item Inactive Date |
+|   ↳ `learningItemProvider` | string | Learning Item Provider |
+|   ↳ `learningItemProviderType` | string | Learning Item Provider Type |
+|   ↳ `learningItemDraftExists` | string | Learning Item Draft Exists |
+|   ↳ `learningItemPublishedExists` | string | Learning Item Published Exists |
+
+### Delete Self Paced Item
+
+Delete an initial-draft self-paced item. Published items require the documented deactivation lifecycle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `learningItemId` | string | Yes | Learning Item Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the bodyless deletion |
+
+### List Learning Events
+
+List or search Learning events. Requires the event API and unified catalog to be enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `search` | string | No | Literal search text \(maximum 200 characters\) |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `eventStartDate` | string | Event Start Date |
+|   ↳ `eventEndDate` | string | Event End Date |
+|   ↳ `eventTimezone` | string | Event Timezone |
+|   ↳ `eventCapacityEnabled` | string | Event Capacity Enabled |
+|   ↳ `eventCapacityMaximum` | number | Event Capacity Maximum |
+|   ↳ `eventCapacityMinimum` | number | Event Capacity Minimum |
+|   ↳ `eventWaitlistEnabled` | string | Event Waitlist Enabled |
+|   ↳ `eventWaitlistMaximum` | number | Event Waitlist Maximum |
+|   ↳ `eventClosedDate` | string | Event Closed Date |
+|   ↳ `eventCancelDate` | string | Event Cancel Date |
+
+### Get Learning Event
+
+Read Learning event metadata and scheduling fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `eventId` | string | Yes | Event Id as a positive decimal string |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `eventStartDate` | string | Event Start Date |
+|   ↳ `eventEndDate` | string | Event End Date |
+|   ↳ `eventTimezone` | string | Event Timezone |
+|   ↳ `eventCapacityEnabled` | string | Event Capacity Enabled |
+|   ↳ `eventCapacityMaximum` | number | Event Capacity Maximum |
+|   ↳ `eventCapacityMinimum` | number | Event Capacity Minimum |
+|   ↳ `eventWaitlistEnabled` | string | Event Waitlist Enabled |
+|   ↳ `eventWaitlistMaximum` | number | Event Waitlist Maximum |
+|   ↳ `eventClosedDate` | string | Event Closed Date |
+|   ↳ `eventCancelDate` | string | Event Cancel Date |
+
+### Create Learning Event
+
+Create a Learning event draft with catalog visibility and scheduling metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `body` | json | Yes | Required: learningItemNumber, learningItemVisibility. Writable fields: learningItemNumber, learningItemTitle, learningItemType, learningItemStatus, learningItemVisibility, learningItemDescription, learningItemLongDescription, learningItemCatalogProfileId, learningItemCatalogProfileNumber, learningItemPublishStartDate, learningItemPublishEndDate, learningItemEnrollmentStartDate, learningItemEnrollmentEndDate, learningItemStatusComment, eventStartDate, eventEndDate, eventTimezone, eventCapacityEnabled, eventCapacityMaximum, eventCapacityMinimum, eventWaitlistEnabled, eventWaitlistMaximumEnabled, eventWaitlistMaximum, eventCancelDate, eventCancelReasonCode, eventClosedDate, eventClosedReasonCode, eventClosedActivityStatus. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningevents-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `eventStartDate` | string | Event Start Date |
+|   ↳ `eventEndDate` | string | Event End Date |
+|   ↳ `eventTimezone` | string | Event Timezone |
+|   ↳ `eventCapacityEnabled` | string | Event Capacity Enabled |
+|   ↳ `eventCapacityMaximum` | number | Event Capacity Maximum |
+|   ↳ `eventCapacityMinimum` | number | Event Capacity Minimum |
+|   ↳ `eventWaitlistEnabled` | string | Event Waitlist Enabled |
+|   ↳ `eventWaitlistMaximum` | number | Event Waitlist Maximum |
+|   ↳ `eventClosedDate` | string | Event Closed Date |
+|   ↳ `eventCancelDate` | string | Event Cancel Date |
+
+### Update Learning Event
+
+Update event metadata, capacity, scheduling, or documented cancellation and closure fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `eventId` | string | Yes | Event Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: learningItemNumber, learningItemTitle, learningItemType, learningItemStatus, learningItemVisibility, learningItemDescription, learningItemLongDescription, learningItemCatalogProfileId, learningItemCatalogProfileNumber, learningItemPublishStartDate, learningItemPublishEndDate, learningItemEnrollmentStartDate, learningItemEnrollmentEndDate, learningItemStatusComment, eventStartDate, eventEndDate, eventTimezone, eventCapacityEnabled, eventCapacityMaximum, eventCapacityMinimum, eventWaitlistEnabled, eventWaitlistMaximumEnabled, eventWaitlistMaximum, eventCancelDate, eventCancelReasonCode, eventClosedDate, eventClosedReasonCode, eventClosedActivityStatus. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningevents-learningeventsuniqid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `learningItemStatus` | string | Learning Item Status |
+|   ↳ `learningItemVisibility` | string | Learning Item Visibility |
+|   ↳ `learningItemDescription` | string | Learning Item Description |
+|   ↳ `learningItemCatalogProfileId` | string | Learning Item Catalog Profile Id |
+|   ↳ `learningItemCatalogProfileNumber` | string | Learning Item Catalog Profile Number |
+|   ↳ `learningItemExpectedEffortInSeconds` | number | Learning Item Expected Effort In Seconds |
+|   ↳ `learningItemPublishStartDate` | string | Learning Item Publish Start Date |
+|   ↳ `learningItemPublishEndDate` | string | Learning Item Publish End Date |
+|   ↳ `learningItemEnrollmentStartDate` | string | Learning Item Enrollment Start Date |
+|   ↳ `learningItemEnrollmentEndDate` | string | Learning Item Enrollment End Date |
+|   ↳ `learningItemLastModifiedDate` | string | Learning Item Last Modified Date |
+|   ↳ `eventStartDate` | string | Event Start Date |
+|   ↳ `eventEndDate` | string | Event End Date |
+|   ↳ `eventTimezone` | string | Event Timezone |
+|   ↳ `eventCapacityEnabled` | string | Event Capacity Enabled |
+|   ↳ `eventCapacityMaximum` | number | Event Capacity Maximum |
+|   ↳ `eventCapacityMinimum` | number | Event Capacity Minimum |
+|   ↳ `eventWaitlistEnabled` | string | Event Waitlist Enabled |
+|   ↳ `eventWaitlistMaximum` | number | Event Waitlist Maximum |
+|   ↳ `eventClosedDate` | string | Event Closed Date |
+|   ↳ `eventCancelDate` | string | Event Cancel Date |
+
+### List Event Activities
+
+List activities belonging to one Learning event; search uses activity number.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `eventId` | string | Yes | Event Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `search` | string | No | Literal search text \(maximum 200 characters\) |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `activityId` | string | Activity Id |
+|   ↳ `activityNumber` | string | Activity Number |
+|   ↳ `activityType` | string | Activity Type |
+|   ↳ `title` | string | Title |
+|   ↳ `description` | string | Description |
+|   ↳ `status` | string | Status |
+|   ↳ `startDate` | string | Start Date |
+|   ↳ `endDate` | string | End Date |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `expectedEffortInSeconds` | number | Expected Effort In Seconds |
+|   ↳ `completionRule` | string | Completion Rule |
+|   ↳ `completionType` | string | Completion Type |
+|   ↳ `enableAttendanceProcessing` | string | Enable Attendance Processing |
+|   ↳ `minimumAttendance` | number | Minimum Attendance |
+|   ↳ `minimumAttendanceUOM` | string | Minimum Attendance U O M |
+|   ↳ `instructors` | string | Instructors |
+|   ↳ `classrooms` | string | Classrooms |
+|   ↳ `virtualClassroomURL` | string | Virtual Classroom U R L |
+
+### Create Event Activity
+
+Create a scheduled activity within a Learning event.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `eventId` | string | Yes | Event Id as a positive decimal string |
+| `body` | json | Yes | Required: activityNumber, status. Writable fields: activityNumber, activityType, title, description, status, startDate, endDate, timezone, expectedEffortInSeconds, completionRule, completionType, enableAttendanceProcessing, minimumAttendance, minimumAttendanceUOM, learnerNoMinimumAttendanceStatus, learnerNotAttendStatus, instructors, classrooms, providerType, onlineMeetingType, virtualClassroomURL. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningevents-learningeventsuniqid-child-activities-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `activityId` | string | Activity Id |
+|   ↳ `activityNumber` | string | Activity Number |
+|   ↳ `activityType` | string | Activity Type |
+|   ↳ `title` | string | Title |
+|   ↳ `description` | string | Description |
+|   ↳ `status` | string | Status |
+|   ↳ `startDate` | string | Start Date |
+|   ↳ `endDate` | string | End Date |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `expectedEffortInSeconds` | number | Expected Effort In Seconds |
+|   ↳ `completionRule` | string | Completion Rule |
+|   ↳ `completionType` | string | Completion Type |
+|   ↳ `enableAttendanceProcessing` | string | Enable Attendance Processing |
+|   ↳ `minimumAttendance` | number | Minimum Attendance |
+|   ↳ `minimumAttendanceUOM` | string | Minimum Attendance U O M |
+|   ↳ `instructors` | string | Instructors |
+|   ↳ `classrooms` | string | Classrooms |
+|   ↳ `virtualClassroomURL` | string | Virtual Classroom U R L |
+
+### Update Event Activity
+
+Update an event activity schedule, attendance rules, or classroom metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `eventId` | string | Yes | Event Id as a positive decimal string |
+| `activityId` | string | Yes | Activity Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: activityNumber, activityType, title, description, status, startDate, endDate, timezone, expectedEffortInSeconds, completionRule, completionType, enableAttendanceProcessing, minimumAttendance, minimumAttendanceUOM, learnerNoMinimumAttendanceStatus, learnerNotAttendStatus, instructors, classrooms, providerType, onlineMeetingType, virtualClassroomURL. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningevents-learningeventsuniqid-child-activities-activitiesuniqid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `activityId` | string | Activity Id |
+|   ↳ `activityNumber` | string | Activity Number |
+|   ↳ `activityType` | string | Activity Type |
+|   ↳ `title` | string | Title |
+|   ↳ `description` | string | Description |
+|   ↳ `status` | string | Status |
+|   ↳ `startDate` | string | Start Date |
+|   ↳ `endDate` | string | End Date |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `expectedEffortInSeconds` | number | Expected Effort In Seconds |
+|   ↳ `completionRule` | string | Completion Rule |
+|   ↳ `completionType` | string | Completion Type |
+|   ↳ `enableAttendanceProcessing` | string | Enable Attendance Processing |
+|   ↳ `minimumAttendance` | number | Minimum Attendance |
+|   ↳ `minimumAttendanceUOM` | string | Minimum Attendance U O M |
+|   ↳ `instructors` | string | Instructors |
+|   ↳ `classrooms` | string | Classrooms |
+|   ↳ `virtualClassroomURL` | string | Virtual Classroom U R L |
+
+### Delete Event Activity
+
+Delete an event activity when its lifecycle permits deletion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `eventId` | string | Yes | Event Id as a positive decimal string |
+| `activityId` | string | Yes | Activity Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the bodyless deletion |
+
+### List Learning Records
+
+List learning assignments for one person within the credential owner’s learner or manager data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `search` | string | No | Literal search text \(maximum 200 characters\) |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+| `assignmentStatus` | string | No | Exact Oracle assignment status code |
+| `learningItemId` | string | No | Learning Item Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `assignedToId` | string | Assigned To Id |
+|   ↳ `assignedToNumber` | string | Assigned To Number |
+|   ↳ `assignedToDisplayName` | string | Assigned To Display Name |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentSubStatus` | string | Assignment Sub Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignedDate` | string | Assigned Date |
+|   ↳ `completedDate` | string | Completed Date |
+|   ↳ `actualScore` | number | Actual Score |
+|   ↳ `actualEffortInHours` | number | Actual Effort In Hours |
+|   ↳ `actualCpeUnits` | number | Actual Cpe Units |
+|   ↳ `assignmentLastModifiedDate` | string | Assignment Last Modified Date |
+
+### Get Learning Record
+
+Read one person’s learning assignment, including Oracle’s existing completion state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `assignedToId` | string | Assigned To Id |
+|   ↳ `assignedToNumber` | string | Assigned To Number |
+|   ↳ `assignedToDisplayName` | string | Assigned To Display Name |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentSubStatus` | string | Assignment Sub Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignedDate` | string | Assigned Date |
+|   ↳ `completedDate` | string | Completed Date |
+|   ↳ `actualScore` | number | Actual Score |
+|   ↳ `actualEffortInHours` | number | Actual Effort In Hours |
+|   ↳ `actualCpeUnits` | number | Actual Cpe Units |
+|   ↳ `assignmentLastModifiedDate` | string | Assignment Last Modified Date |
+
+### Create Learning Record
+
+Enroll or assign a person to a learning item. Oracle may return pending, approval, or waitlist status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `body` | json | Yes | Required: learningItemId. Writable fields: learningItemId, learningItemNumber, learningItemType, assignmentType, assignmentStatus, assignmentSubStatus, assignmentDueDate, assignedDate, completedDate, actualScore, actualEffortInHours, actualCpeUnits, assignmentJustification, reasonCode, statusChangeComment, dataSecurityPrivilege. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learnerlearningrecords-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `assignedToId` | string | Assigned To Id |
+|   ↳ `assignedToNumber` | string | Assigned To Number |
+|   ↳ `assignedToDisplayName` | string | Assigned To Display Name |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentSubStatus` | string | Assignment Sub Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignedDate` | string | Assigned Date |
+|   ↳ `completedDate` | string | Completed Date |
+|   ↳ `actualScore` | number | Actual Score |
+|   ↳ `actualEffortInHours` | number | Actual Effort In Hours |
+|   ↳ `actualCpeUnits` | number | Actual Cpe Units |
+|   ↳ `assignmentLastModifiedDate` | string | Assignment Last Modified Date |
+
+### Update Learning Record
+
+Update permitted assignment fields, including completion or withdrawal where the role and lifecycle allow.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: learningItemNumber, assignmentType, assignmentStatus, assignmentSubStatus, assignmentDueDate, assignedDate, completedDate, actualScore, actualEffortInHours, actualCpeUnits, assignmentJustification, reasonCode, statusChangeComment, dataSecurityPrivilege. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learnerlearningrecords-learnerlearningrecordsuniqid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `assignedToId` | string | Assigned To Id |
+|   ↳ `assignedToNumber` | string | Assigned To Number |
+|   ↳ `assignedToDisplayName` | string | Assigned To Display Name |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentSubStatus` | string | Assignment Sub Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignedDate` | string | Assigned Date |
+|   ↳ `completedDate` | string | Completed Date |
+|   ↳ `actualScore` | number | Actual Score |
+|   ↳ `actualEffortInHours` | number | Actual Effort In Hours |
+|   ↳ `actualCpeUnits` | number | Actual Cpe Units |
+|   ↳ `assignmentLastModifiedDate` | string | Assignment Last Modified Date |
+
+### List Selected Course Offerings
+
+List offerings selected under one learning assignment. This is not an available-offerings catalog.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `search` | string | No | Literal search text \(maximum 200 characters\) |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+| `assignmentStatus` | string | No | Exact Oracle assignment status code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentSubStatus` | string | Assignment Sub Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `completedDate` | string | Completed Date |
+|   ↳ `isPrimaryOffering` | string | Is Primary Offering |
+|   ↳ `offeringStartDate` | string | Offering Start Date |
+|   ↳ `offeringEndDate` | string | Offering End Date |
+|   ↳ `offeringTimeZone` | string | Offering Time Zone |
+|   ↳ `offeringDeliveryMode` | string | Offering Delivery Mode |
+|   ↳ `maximumCapacity` | number | Maximum Capacity |
+|   ↳ `offeringAvailableCapacity` | number | Offering Available Capacity |
+|   ↳ `currentWaitlistPosition` | number | Current Waitlist Position |
+
+### Select Course Offering
+
+Select an offering for a person’s course assignment. Enrollment policies may require approval or waitlisting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `body` | json | Yes | Required: learningItemId. Writable fields: learningItemId, learningItemNumber, learningItemType, assignmentType, assignmentStatus, assignmentDueDate, assignmentJustification, reasonCode, statusChangeComment, dataSecurityPrivilege. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learnerlearningrecords-learnerlearningrecordsuniqid-child-selectedcourseofferings-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentSubStatus` | string | Assignment Sub Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `completedDate` | string | Completed Date |
+|   ↳ `isPrimaryOffering` | string | Is Primary Offering |
+|   ↳ `offeringStartDate` | string | Offering Start Date |
+|   ↳ `offeringEndDate` | string | Offering End Date |
+|   ↳ `offeringTimeZone` | string | Offering Time Zone |
+|   ↳ `offeringDeliveryMode` | string | Offering Delivery Mode |
+|   ↳ `maximumCapacity` | number | Maximum Capacity |
+|   ↳ `offeringAvailableCapacity` | number | Offering Available Capacity |
+|   ↳ `currentWaitlistPosition` | number | Current Waitlist Position |
+
+### Update Selected Course Offering
+
+Update the documented status, due date, or justification of a selected offering assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `offeringRecordId` | string | Yes | Offering Record Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: learningItemType, assignmentType, assignmentStatus, assignmentDueDate, assignmentJustification, reasonCode, statusChangeComment, dataSecurityPrivilege. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learnerlearningrecords-learnerlearningrecordsuniqid-child-selectedcourseofferings-otherselectedcourseofferingsuniqid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentSubStatus` | string | Assignment Sub Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `completedDate` | string | Completed Date |
+|   ↳ `isPrimaryOffering` | string | Is Primary Offering |
+|   ↳ `offeringStartDate` | string | Offering Start Date |
+|   ↳ `offeringEndDate` | string | Offering End Date |
+|   ↳ `offeringTimeZone` | string | Offering Time Zone |
+|   ↳ `offeringDeliveryMode` | string | Offering Delivery Mode |
+|   ↳ `maximumCapacity` | number | Maximum Capacity |
+|   ↳ `offeringAvailableCapacity` | number | Offering Available Capacity |
+|   ↳ `currentWaitlistPosition` | number | Current Waitlist Position |
+
+### List Completion Details
+
+Read activity completion details for an assignment or its selected offering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+| `offeringRecordId` | string | No | Offering Record Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `activityAssignmentRecordId` | string | Activity Assignment Record Id |
+|   ↳ `activityAttemptId` | string | Activity Attempt Id |
+|   ↳ `activityId` | string | Activity Id |
+|   ↳ `activityNumber` | string | Activity Number |
+|   ↳ `activityTitle` | string | Activity Title |
+|   ↳ `activityType` | string | Activity Type |
+|   ↳ `activityAttemptStatus` | string | Activity Attempt Status |
+|   ↳ `activityAttemptActualScore` | number | Activity Attempt Actual Score |
+|   ↳ `activityAttemptActualEffort` | number | Activity Attempt Actual Effort |
+|   ↳ `activityPassingScore` | number | Activity Passing Score |
+|   ↳ `activityAttemptLocked` | string | Activity Attempt Locked |
+|   ↳ `activityLearnerMarkCompl` | string | Activity Learner Mark Compl |
+|   ↳ `activityLearnerRecordAttendance` | string | Activity Learner Record Attendance |
+|   ↳ `activityStartDatetimeUTC` | string | Activity Start Datetime U T C |
+|   ↳ `activityEndDatetimeUTC` | string | Activity End Datetime U T C |
+|   ↳ `activityTimeZone` | string | Activity Time Zone |
+|   ↳ `activityAttemptComplDate` | string | Activity Attempt Compl Date |
+
+### Update Completion Detail
+
+Change a root assignment activity attempt status or completion reason. Activity completion does not imply course completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `completionDetailId` | string | Yes | Completion Detail Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: activityAttemptStatus, activityAttemptCompletionReasonCode. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learnerlearningrecords-learnerlearningrecordsuniqid-child-completiondetails-completiondetailsuniqid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `activityAssignmentRecordId` | string | Activity Assignment Record Id |
+|   ↳ `activityAttemptId` | string | Activity Attempt Id |
+|   ↳ `activityId` | string | Activity Id |
+|   ↳ `activityNumber` | string | Activity Number |
+|   ↳ `activityTitle` | string | Activity Title |
+|   ↳ `activityType` | string | Activity Type |
+|   ↳ `activityAttemptStatus` | string | Activity Attempt Status |
+|   ↳ `activityAttemptActualScore` | number | Activity Attempt Actual Score |
+|   ↳ `activityAttemptActualEffort` | number | Activity Attempt Actual Effort |
+|   ↳ `activityPassingScore` | number | Activity Passing Score |
+|   ↳ `activityAttemptLocked` | string | Activity Attempt Locked |
+|   ↳ `activityLearnerMarkCompl` | string | Activity Learner Mark Compl |
+|   ↳ `activityLearnerRecordAttendance` | string | Activity Learner Record Attendance |
+|   ↳ `activityStartDatetimeUTC` | string | Activity Start Datetime U T C |
+|   ↳ `activityEndDatetimeUTC` | string | Activity End Datetime U T C |
+|   ↳ `activityTimeZone` | string | Activity Time Zone |
+|   ↳ `activityAttemptComplDate` | string | Activity Attempt Compl Date |
+
+### List Completion Summaries
+
+Read Oracle’s completion aggregates for an assignment or selected offering. Progress is not necessarily a percentage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+| `offeringRecordId` | string | No | Offering Record Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `activitySectionsCount` | number | Activity Sections Count |
+|   ↳ `activitySectionsTotalActivitiesCount` | number | Activity Sections Total Activities Count |
+|   ↳ `actualEffort` | number | Actual Effort |
+|   ↳ `actualScore` | number | Actual Score |
+|   ↳ `completionProgress` | number | Completion Progress |
+|   ↳ `completionRequirement` | number | Completion Requirement |
+|   ↳ `completionRequirementUnits` | string | Completion Requirement Units |
+|   ↳ `completionRequirementUnitsMeaning` | string | Completion Requirement Units Meaning |
+|   ↳ `effortUnits` | string | Effort Units |
+|   ↳ `effortUnitsMeaning` | string | Effort Units Meaning |
+|   ↳ `expectedEffort` | string | Expected Effort |
+|   ↳ `expectedEffortInSeconds` | string | Expected Effort In Seconds |
+|   ↳ `passingScore` | number | Passing Score |
+
+### List Learning Record Action Hints
+
+Read Oracle’s permitted-action hints for an assignment or selected offering; hints do not override authorization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+| `offeringRecordId` | string | No | Offering Record Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `activityLearnerMarkCompl` | string | Activity Learner Mark Compl |
+|   ↳ `allowRetry` | string | Allow Retry |
+|   ↳ `canEditAssignmentHint` | string | Can Edit Assignment Hint |
+|   ↳ `canManageLearningItem` | string | Can Manage Learning Item |
+|   ↳ `canRecommendLearningItem` | string | Can Recommend Learning Item |
+|   ↳ `canRetakeLearningItem` | string | Can Retake Learning Item |
+|   ↳ `dataSecurityPrivilege` | string | Data Security Privilege |
+|   ↳ `isWithdrawApprovalEnabled` | string | Is Withdraw Approval Enabled |
+|   ↳ `nextRetryDate` | string | Next Retry Date |
+
+### List Enrollment History
+
+Read ordered enrollment status messages for an assignment or selected offering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Person Id as a positive decimal string |
+| `recordId` | string | Yes | Record Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+| `offeringRecordId` | string | No | Offering Record Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `enrollmentHistoryOrderId` | number | Enrollment History Order Id |
+|   ↳ `enrollmentHistoryStatusMessage` | string | Enrollment History Status Message |
+
+### List Assignment Profiles
+
+List or search administrator assignment profiles within the credential owner’s data access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `search` | string | No | Literal search text \(maximum 200 characters\) |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `assignmentProfileId` | string | Assignment Profile Id |
+|   ↳ `assignmentProfileNumber` | string | Assignment Profile Number |
+|   ↳ `assignmentProfileTitle` | string | Assignment Profile Title |
+|   ↳ `assignmentProfileDescription` | string | Assignment Profile Description |
+|   ↳ `assignmentProfileStatus` | string | Assignment Profile Status |
+|   ↳ `assignmentProfileStartDate` | string | Assignment Profile Start Date |
+|   ↳ `assignmentProfileEndDate` | string | Assignment Profile End Date |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentSubType` | string | Assignment Sub Type |
+|   ↳ `targetAssignmentStatus` | string | Target Assignment Status |
+|   ↳ `assignmentRecordStatus` | string | Assignment Record Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignmentDueDateType` | string | Assignment Due Date Type |
+|   ↳ `processingRule` | string | Processing Rule |
+|   ↳ `processingFrequency` | string | Processing Frequency |
+|   ↳ `processId` | string | Process Id |
+|   ↳ `lastProcessedDate` | string | Last Processed Date |
+|   ↳ `lastModifiedDate` | string | Last Modified Date |
+
+### Get Assignment Profile
+
+Read an assignment profile and its processing settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile Id as a positive decimal string |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentProfileId` | string | Assignment Profile Id |
+|   ↳ `assignmentProfileNumber` | string | Assignment Profile Number |
+|   ↳ `assignmentProfileTitle` | string | Assignment Profile Title |
+|   ↳ `assignmentProfileDescription` | string | Assignment Profile Description |
+|   ↳ `assignmentProfileStatus` | string | Assignment Profile Status |
+|   ↳ `assignmentProfileStartDate` | string | Assignment Profile Start Date |
+|   ↳ `assignmentProfileEndDate` | string | Assignment Profile End Date |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentSubType` | string | Assignment Sub Type |
+|   ↳ `targetAssignmentStatus` | string | Target Assignment Status |
+|   ↳ `assignmentRecordStatus` | string | Assignment Record Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignmentDueDateType` | string | Assignment Due Date Type |
+|   ↳ `processingRule` | string | Processing Rule |
+|   ↳ `processingFrequency` | string | Processing Frequency |
+|   ↳ `processId` | string | Process Id |
+|   ↳ `lastProcessedDate` | string | Last Processed Date |
+|   ↳ `lastModifiedDate` | string | Last Modified Date |
+
+### Create Assignment Profile
+
+Create an administrator assignment profile for a learning item. Processing is a separate action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `body` | json | Yes | Required: assignmentProfileStatus, assignmentType, learningItemId. Writable fields: assignmentProfileNumber, assignmentProfileTitle, assignmentProfileDescription, assignmentProfileStatus, assignmentProfileStartDate, assignmentProfileEndDate, learningItemId, learningItemNumber, learningItemType, assignmentType, assignmentSubType, targetAssignmentStatus, assignmentRecordStatus, assignmentDueDate, assignmentDueDateType, assignmentDueIn, assignmentDueInUnits, processingRule, processingFrequency, assignmentCompletionDate, assignmentActualScore, assignmentActualEffort, completionReasonCode, completionComments, waivePrerequisites, waiveReasonCode, waiveComments, increaseMaximumCapacity, withdrawOnProcessing, excludeEnrollmentFromHistory, enableRenewals, retakeRule, dataSecurityPrivilege. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningassignmentprofiles-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentProfileId` | string | Assignment Profile Id |
+|   ↳ `assignmentProfileNumber` | string | Assignment Profile Number |
+|   ↳ `assignmentProfileTitle` | string | Assignment Profile Title |
+|   ↳ `assignmentProfileDescription` | string | Assignment Profile Description |
+|   ↳ `assignmentProfileStatus` | string | Assignment Profile Status |
+|   ↳ `assignmentProfileStartDate` | string | Assignment Profile Start Date |
+|   ↳ `assignmentProfileEndDate` | string | Assignment Profile End Date |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentSubType` | string | Assignment Sub Type |
+|   ↳ `targetAssignmentStatus` | string | Target Assignment Status |
+|   ↳ `assignmentRecordStatus` | string | Assignment Record Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignmentDueDateType` | string | Assignment Due Date Type |
+|   ↳ `processingRule` | string | Processing Rule |
+|   ↳ `processingFrequency` | string | Processing Frequency |
+|   ↳ `processId` | string | Process Id |
+|   ↳ `lastProcessedDate` | string | Last Processed Date |
+|   ↳ `lastModifiedDate` | string | Last Modified Date |
+
+### Update Assignment Profile
+
+Update assignment profile scheduling, completion, renewal, or processing rules.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: assignmentProfileTitle, assignmentProfileDescription, assignmentProfileStatus, assignmentProfileStartDate, assignmentProfileEndDate, learningItemNumber, learningItemType, assignmentType, assignmentSubType, targetAssignmentStatus, assignmentRecordStatus, assignmentDueDate, assignmentDueDateType, assignmentDueIn, assignmentDueInUnits, processingRule, processingFrequency, assignmentCompletionDate, assignmentActualScore, assignmentActualEffort, completionReasonCode, completionComments, waivePrerequisites, waiveReasonCode, waiveComments, increaseMaximumCapacity, withdrawOnProcessing, excludeEnrollmentFromHistory, enableRenewals, retakeRule, dataSecurityPrivilege. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningassignmentprofiles-learningassignmentprofilesuniqid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentProfileId` | string | Assignment Profile Id |
+|   ↳ `assignmentProfileNumber` | string | Assignment Profile Number |
+|   ↳ `assignmentProfileTitle` | string | Assignment Profile Title |
+|   ↳ `assignmentProfileDescription` | string | Assignment Profile Description |
+|   ↳ `assignmentProfileStatus` | string | Assignment Profile Status |
+|   ↳ `assignmentProfileStartDate` | string | Assignment Profile Start Date |
+|   ↳ `assignmentProfileEndDate` | string | Assignment Profile End Date |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemTitle` | string | Learning Item Title |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentSubType` | string | Assignment Sub Type |
+|   ↳ `targetAssignmentStatus` | string | Target Assignment Status |
+|   ↳ `assignmentRecordStatus` | string | Assignment Record Status |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignmentDueDateType` | string | Assignment Due Date Type |
+|   ↳ `processingRule` | string | Processing Rule |
+|   ↳ `processingFrequency` | string | Processing Frequency |
+|   ↳ `processId` | string | Process Id |
+|   ↳ `lastProcessedDate` | string | Last Processed Date |
+|   ↳ `lastModifiedDate` | string | Last Modified Date |
+
+### Process Assignment Profile
+
+Request assignment profile processing. The numeric result is an acknowledgement, not a verified job ID or assignment success count.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | number | Numeric processing acknowledgement; not a verified job ID |
+
+### List Assignment Profile Records
+
+Read assignment results and processing statuses belonging to one assignment profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `assignmentRecordId` | string | Assignment Record Id |
+|   ↳ `assignmentRecordNumber` | string | Assignment Record Number |
+|   ↳ `assignmentProfileId` | string | Assignment Profile Id |
+|   ↳ `assignmentProfileNumber` | string | Assignment Profile Number |
+|   ↳ `assignedToId` | string | Assigned To Id |
+|   ↳ `assignedToDisplayName` | string | Assigned To Display Name |
+|   ↳ `assignedOnDate` | string | Assigned On Date |
+|   ↳ `assignmentDueDate` | string | Assignment Due Date |
+|   ↳ `assignmentStatus` | string | Assignment Status |
+|   ↳ `assignmentStatusMeaning` | string | Assignment Status Meaning |
+|   ↳ `assignmentType` | string | Assignment Type |
+|   ↳ `assignmentProcessingStatus` | string | Assignment Processing Status |
+|   ↳ `assignmentProcessingStatusMeaning` | string | Assignment Processing Status Meaning |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `reasonCodeMeaning` | string | Reason Code Meaning |
+
+### List Assignment Profile Criteria
+
+List selection criteria belonging to an assignment profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+| `effectiveDate` | string | No | Read as of YYYY-MM-DD; sent only to resources supporting effectiveDate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `assignmentProfileCriteriaId` | string | Assignment Profile Criteria Id |
+|   ↳ `assignmentProfileCriteriaType` | string | Assignment Profile Criteria Type |
+|   ↳ `assignmentProfileCriteriaTypeMeaning` | string | Assignment Profile Criteria Type Meaning |
+|   ↳ `assignmentProfileCriteriaTypeId` | string | Assignment Profile Criteria Type Id |
+|   ↳ `assignmentProfileCriteriaTypeNumber` | string | Assignment Profile Criteria Type Number |
+|   ↳ `assignmentProfileCriteriaSourceName` | string | Assignment Profile Criteria Source Name |
+|   ↳ `assignmentProfileCriteriaCount` | number | Assignment Profile Criteria Count |
+|   ↳ `assignmentProfileId` | string | Assignment Profile Id |
+|   ↳ `reportName` | string | Report Name |
+
+### Add Assignment Profile Criterion
+
+Add a documented selection criterion to an assignment profile using the tenant’s criterion type and source ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile Id as a positive decimal string |
+| `body` | json | Yes | Required: assignmentProfileCriteriaTypeId. Writable fields: assignmentProfileCriteriaType, assignmentProfileCriteriaTypeId, assignmentProfileCriteriaTypeNumber, reportName. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningassignmentprofiles-learningassignmentprofilesuniqid-child-learningassignmentprofilecriteria-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `assignmentProfileCriteriaId` | string | Assignment Profile Criteria Id |
+|   ↳ `assignmentProfileCriteriaType` | string | Assignment Profile Criteria Type |
+|   ↳ `assignmentProfileCriteriaTypeMeaning` | string | Assignment Profile Criteria Type Meaning |
+|   ↳ `assignmentProfileCriteriaTypeId` | string | Assignment Profile Criteria Type Id |
+|   ↳ `assignmentProfileCriteriaTypeNumber` | string | Assignment Profile Criteria Type Number |
+|   ↳ `assignmentProfileCriteriaSourceName` | string | Assignment Profile Criteria Source Name |
+|   ↳ `assignmentProfileCriteriaCount` | number | Assignment Profile Criteria Count |
+|   ↳ `assignmentProfileId` | string | Assignment Profile Id |
+|   ↳ `reportName` | string | Report Name |
+
+### Remove Assignment Profile Criterion
+
+Remove a selection criterion from its assignment profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `profileId` | string | Yes | Profile Id as a positive decimal string |
+| `criterionId` | string | Yes | Criterion Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the bodyless deletion |
+
+### List Learning Item Audiences
+
+List audience relationships for one learning item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `learningItemId` | string | Yes | Learning Item Id as a positive decimal string |
+| `limit` | number | No | Page size \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based page offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records returned in this page |
+| `hasMore` | boolean | Oracle indicates another page is available |
+| `limit` | number | Oracle page limit |
+| `offset` | number | Current zero-based offset |
+| `totalResults` | number | Estimated total, when returned |
+| `nextOffset` | number | Next offset when hasMore is true |
+| `items` | array | Requested page of Learning records |
+|   ↳ `learnRelationId` | string | Learn Relation Id |
+|   ↳ `learnRelationNumber` | string | Learn Relation Number |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `sourceType` | string | Source Type |
+|   ↳ `sourceTypeId` | string | Source Type Id |
+|   ↳ `sourceTypeNumber` | string | Source Type Number |
+|   ↳ `sourceTypeDisplayName` | string | Source Type Display Name |
+|   ↳ `creationDate` | string | Creation Date |
+
+### Add Learning Item Audience
+
+Add a person or learning organization audience relationship to a learning item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `learningItemId` | string | Yes | Learning Item Id as a positive decimal string |
+| `body` | json | Yes | Required: sourceType, sourceTypeId, learningItemType. Writable fields: learningItemNumber, learningItemType, sourceType, sourceTypeId, sourceTypeNumber, learnRelationNumber. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningitemaudiences-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `learnRelationId` | string | Learn Relation Id |
+|   ↳ `learnRelationNumber` | string | Learn Relation Number |
+|   ↳ `learningItemId` | string | Learning Item Id |
+|   ↳ `learningItemNumber` | string | Learning Item Number |
+|   ↳ `learningItemType` | string | Learning Item Type |
+|   ↳ `sourceType` | string | Source Type |
+|   ↳ `sourceTypeId` | string | Source Type Id |
+|   ↳ `sourceTypeNumber` | string | Source Type Number |
+|   ↳ `sourceTypeDisplayName` | string | Source Type Display Name |
+|   ↳ `creationDate` | string | Creation Date |
+
+### Remove Learning Item Audience
+
+Remove an audience relationship from its learning item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `learningItemId` | string | Yes | Learning Item Id as a positive decimal string |
+| `audienceId` | string | Yes | Audience Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle accepted the bodyless deletion |
+
+### Get Content Item
+
+Read safe Learning content metadata by content ID. Upload credentials and locations are excluded.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `contentId` | string | Yes | Content Id as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `ContentId` | string | Content Id |
+|   ↳ `Title` | string | Title |
+|   ↳ `Description` | string | Description |
+|   ↳ `ItemNumber` | string | Item Number |
+|   ↳ `TrackingType` | string | Tracking Type |
+|   ↳ `URL` | string | U R L |
+|   ↳ `Status` | string | Status |
+|   ↳ `IngestionStatus` | string | Ingestion Status |
+|   ↳ `ReplaceStatus` | string | Replace Status |
+|   ↳ `StartDate` | string | Start Date |
+|   ↳ `EndDate` | string | End Date |
+
+### Create Web Link Content
+
+Create URL content with ORA_AUTO tracking. This does not upload a package or publish a catalog item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `body` | json | Yes | Required: Title, URL. Writable fields: Title, Description, ItemNumber, URL, Status, StartDate, EndDate. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningcontentitems-post.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `ContentId` | string | Content Id |
+|   ↳ `Title` | string | Title |
+|   ↳ `Description` | string | Description |
+|   ↳ `ItemNumber` | string | Item Number |
+|   ↳ `TrackingType` | string | Tracking Type |
+|   ↳ `URL` | string | U R L |
+|   ↳ `Status` | string | Status |
+|   ↳ `IngestionStatus` | string | Ingestion Status |
+|   ↳ `ReplaceStatus` | string | Replace Status |
+|   ↳ `StartDate` | string | Start Date |
+|   ↳ `EndDate` | string | End Date |
+
+### Update Content Item
+
+Update safe content metadata. Package uploads, ingestion controls, and upload authentication are not supported.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `contentId` | string | Yes | Content Id as a positive decimal string |
+| `body` | json | Yes | Writable fields: Title, Description, ItemNumber, URL, Status, StartDate, EndDate. IDs use decimal strings. Omit unchanged fields; null is accepted only for nullable fields. Use tenant-defined lookup codes. Schema: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningcontentitems-contentid-patch.html |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Safe Learning resource projection |
+|   ↳ `ContentId` | string | Content Id |
+|   ↳ `Title` | string | Title |
+|   ↳ `Description` | string | Description |
+|   ↳ `ItemNumber` | string | Item Number |
+|   ↳ `TrackingType` | string | Tracking Type |
+|   ↳ `URL` | string | U R L |
+|   ↳ `Status` | string | Status |
+|   ↳ `IngestionStatus` | string | Ingestion Status |
+|   ↳ `ReplaceStatus` | string | Replace Status |
+|   ↳ `StartDate` | string | Start Date |
+|   ↳ `EndDate` | string | End Date |
+
+

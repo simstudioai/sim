@@ -1281,7 +1281,54 @@ function registerFamily(
   }
 }
 
+const ORACLE_FUSION_LEARNING_TOOL_IDS = [
+  'oracle_fusion_learning_list_self_paced_items',
+  'oracle_fusion_learning_get_self_paced_item',
+  'oracle_fusion_learning_create_self_paced_item',
+  'oracle_fusion_learning_update_self_paced_item',
+  'oracle_fusion_learning_delete_self_paced_item',
+  'oracle_fusion_learning_list_learning_events',
+  'oracle_fusion_learning_get_learning_event',
+  'oracle_fusion_learning_create_learning_event',
+  'oracle_fusion_learning_update_learning_event',
+  'oracle_fusion_learning_list_event_activities',
+  'oracle_fusion_learning_create_event_activity',
+  'oracle_fusion_learning_update_event_activity',
+  'oracle_fusion_learning_delete_event_activity',
+  'oracle_fusion_learning_list_learning_records',
+  'oracle_fusion_learning_get_learning_record',
+  'oracle_fusion_learning_create_learning_record',
+  'oracle_fusion_learning_update_learning_record',
+  'oracle_fusion_learning_list_selected_course_offerings',
+  'oracle_fusion_learning_select_course_offering',
+  'oracle_fusion_learning_update_selected_course_offering',
+  'oracle_fusion_learning_list_completion_details',
+  'oracle_fusion_learning_update_completion_detail',
+  'oracle_fusion_learning_list_completion_summaries',
+  'oracle_fusion_learning_list_learning_record_action_hints',
+  'oracle_fusion_learning_list_enrollment_history',
+  'oracle_fusion_learning_list_assignment_profiles',
+  'oracle_fusion_learning_get_assignment_profile',
+  'oracle_fusion_learning_create_assignment_profile',
+  'oracle_fusion_learning_update_assignment_profile',
+  'oracle_fusion_learning_process_assignment_profile',
+  'oracle_fusion_learning_list_assignment_profile_records',
+  'oracle_fusion_learning_list_assignment_profile_criteria',
+  'oracle_fusion_learning_add_assignment_profile_criterion',
+  'oracle_fusion_learning_remove_assignment_profile_criterion',
+  'oracle_fusion_learning_list_learning_item_audiences',
+  'oracle_fusion_learning_add_learning_item_audience',
+  'oracle_fusion_learning_remove_learning_item_audience',
+  'oracle_fusion_learning_get_content_item',
+  'oracle_fusion_learning_create_web_link_content',
+  'oracle_fusion_learning_update_content_item',
+] as const
+
 const handlerLoaders = new Map<string, InternalToolOperationHandlerLoader>()
+
+registerFamily(handlerLoaders, ORACLE_FUSION_LEARNING_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-learning/execute-tool')).executeOracleFusionLearningTool
+})
 
 registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
   return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool
