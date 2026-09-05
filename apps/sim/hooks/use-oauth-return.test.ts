@@ -70,7 +70,28 @@ describe('resolveOAuthMessage', () => {
     await expect(resolveOAuthMessage(context)).resolves.toEqual({
       kind: 'success',
       text: 'This account is already connected as "Existing Gmail".',
+      credentialId: 'credential-existing',
     })
+  })
+
+  it('identifies a newly connected account even when several accounts already exist', async () => {
+    mocks.requireWorkspaceCredentialListResponse.mockReturnValue([
+      existingCredential,
+      { ...existingCredential, id: 'credential-new', displayName: context.displayName },
+    ])
+    await expect(resolveOAuthMessage(context)).resolves.toMatchObject({
+      kind: 'success',
+      credentialId: 'credential-new',
+    })
+  })
+
+  it('does not choose an arbitrary account when multiple new credentials are ambiguous', async () => {
+    mocks.requireWorkspaceCredentialListResponse.mockReturnValue([
+      existingCredential,
+      { ...existingCredential, id: 'credential-a' },
+      { ...existingCredential, id: 'credential-b' },
+    ])
+    expect(await resolveOAuthMessage(context)).not.toHaveProperty('credentialId')
   })
 
   it('keeps explicit update-access flows on the reconnect success path without a baseline', async () => {

@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { isConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
@@ -72,6 +73,8 @@ interface ConnectorAccessFieldProps {
   allowWorkspace?: boolean
   /** Rendered under the selection, for a caller that applies the change with its own control. */
   footer?: ReactNode
+  searchSetupSource?: 'slack'
+  onSetupNavigate?: () => void
 }
 
 /**
@@ -102,6 +105,8 @@ export function ConnectorAccessField({
   allowAdmin = false,
   allowWorkspace = true,
   footer,
+  searchSetupSource,
+  onSetupNavigate,
 }: ConnectorAccessFieldProps) {
   /**
    * Member access needs a supported sign-in provider. Source permissions may
@@ -145,7 +150,7 @@ export function ConnectorAccessField({
     return (
       <ChipModalField
         type='custom'
-        title='Access'
+        title='Document access'
         hint={accessHint(value.accessMode, connectorConfig.name)}
       >
         <ButtonGroup value={value.accessMode}>{modeItems(() => true)}</ButtonGroup>
@@ -156,7 +161,7 @@ export function ConnectorAccessField({
   return (
     <ChipModalField
       type='custom'
-      title='Access'
+      title='Document access'
       error={error?.message}
       hint={accessHint(value.accessMode, connectorConfig.name)}
     >
@@ -178,7 +183,13 @@ export function ConnectorAccessField({
         {value.accessMode === 'members' &&
           connectorConfig.id === 'slack' &&
           !isLoading &&
-          !configured && <SlackMemberSetup workspaceId={workspaceId} />}
+          !configured && (
+            <SlackMemberSetup
+              workspaceId={workspaceId}
+              searchSetupSource={searchSetupSource}
+              onNavigate={onSetupNavigate}
+            />
+          )}
 
         {footer}
       </div>
@@ -188,20 +199,28 @@ export function ConnectorAccessField({
 
 interface SlackMemberSetupProps {
   workspaceId: string
+  searchSetupSource?: 'slack' | 'search'
+  onNavigate?: () => void
 }
 
 /** Uses the existing app and credential-group setup to collect Slack user authorization. */
-export function SlackMemberSetup({ workspaceId }: SlackMemberSetupProps) {
+export function SlackMemberSetup({
+  workspaceId,
+  searchSetupSource,
+  onNavigate,
+}: SlackMemberSetupProps) {
+  const href = searchSetupSource
+    ? slackSearchSetupHref(workspaceId, searchSetupSource)
+    : `/workspace/${workspaceId}/settings/credential-groups`
   return (
     <div className='flex flex-col items-start gap-2'>
       <p className='text-[var(--text-muted)] text-caption leading-snug'>
-        Set up a Slack app, then enable member sign-in in Connected accounts. Each member connects
-        their own Slack account.
+        An admin sets up Slack once for the workspace. Then each member connects their own Slack
+        account.
       </p>
       <div className='flex flex-wrap items-center gap-2'>
-        <ChipLink href={`/workspace/${workspaceId}/integrations/slack`}>Set up Slack app</ChipLink>
-        <ChipLink href={`/workspace/${workspaceId}/settings/credential-groups`}>
-          Configure member sign-in
+        <ChipLink href={href} onClick={onNavigate}>
+          Set up Slack
         </ChipLink>
       </div>
     </div>

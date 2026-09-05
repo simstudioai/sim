@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,7 +26,13 @@ describe('Search MCP setup', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    await act(async () => root?.render(<SearchMcpSetup workspaceId='workspace-1' />))
+    await act(async () =>
+      root?.render(
+        <NuqsTestingAdapter hasMemory>
+          <SearchMcpSetup workspaceId='workspace-1' />
+        </NuqsTestingAdapter>
+      )
+    )
     const setup = Array.from(document.querySelectorAll('button')).find(
       (button) => button.textContent === 'Set up'
     )
@@ -40,7 +47,7 @@ describe('Search MCP setup', () => {
     ).toBe(true)
     expect(modal?.querySelector('[aria-label="Copy MCP server URL"]')).not.toBeNull()
     expect(modal?.querySelector('a')?.getAttribute('href')).toBe(
-      '/workspace/workspace-1/settings/apikeys'
+      '/workspace/workspace-1/settings/apikeys?search-setup=mcp'
     )
     expect(modal?.textContent).toContain('personal key uses your document access')
     expect(modal?.textContent).toContain(

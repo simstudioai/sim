@@ -20,6 +20,10 @@ const mocks = vi.hoisted(() => ({
   } | null,
 }))
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/workspace/workspace-1/settings/credential-groups',
+  useRouter: () => ({ push: vi.fn() }),
+}))
 vi.mock('@/hooks/queries/credential-groups', () => ({
   useWorkspaceAccounts: (workspaceId: string) => ({
     data: {

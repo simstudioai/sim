@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useRef } from 'react'
-import { Button, ChipInput, ChipLink } from '@sim/emcn'
+import { Chip, ChipInput, ChipLink } from '@sim/emcn'
 import { Search as SearchIcon } from '@sim/emcn/icons'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { groupSearchConnections } from '@/lib/sim-search/connections'
 import {
@@ -15,12 +15,12 @@ import {
   type SearchConnector,
   searchConnectorUnavailableReason,
 } from '@/lib/sim-search/connectors'
+import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
-import { SlackMemberSetup } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { ManagedSearchSources } from '@/app/workspace/[workspaceId]/search/components/managed-search-sources'
 import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
@@ -29,9 +29,13 @@ import {
   connectorSearchParam,
   connectorSearchUrlKeys,
 } from '@/app/workspace/[workspaceId]/search/search-params'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
 import {
   memberConnectorKeys,
   useWorkspaceMemberConnectors,
@@ -54,6 +58,7 @@ const NEEDS_KNOWLEDGE_BASE_SETUP = 'Set up by a workspace admin from a knowledge
 /** What a source row says once the viewer's own indexing has settled. */
 function connectedDescription(connector: WorkspaceMemberConnector): string {
   const count = connector.viewerDocumentCount
+  if (count === 0) return 'Connected · No searchable documents yet'
   return count === 1 ? 'Connected · 1 document' : `Connected · ${count} documents`
 }
 
@@ -66,6 +71,7 @@ interface SourceRowProps {
   waiting: boolean
   isPending: boolean
   onConnect: () => void
+  setupHref?: string
 }
 
 /**
@@ -81,6 +87,7 @@ function SourceRow({
   waiting,
   isPending,
   onConnect,
+  setupHref,
 }: SourceRowProps) {
   const unavailable = unavailableReason !== null
   const personal = canConnectPersonally(connector.meta)
@@ -108,13 +115,21 @@ function SourceRow({
       iconVariant='custom'
       icon={<IntegrationTile blockType={connector.blockType} icon={connector.meta.icon} />}
       title={connector.meta.name}
-      description={description}
+      description={
+        setupHref && !unavailable
+          ? 'Set up Slack once for this workspace. Then each person connects their own account.'
+          : description
+      }
       disabled={unavailable || !personal}
       trailing={
-        connectable ? (
-          <Button variant='primary' size='sm' onClick={onConnect} disabled={isPending}>
+        setupHref && !unavailable ? (
+          <ChipLink href={setupHref} variant='primary'>
+            Set up Slack
+          </ChipLink>
+        ) : connectable ? (
+          <Chip variant='primary' onClick={onConnect} disabled={isPending}>
             {enrollmentActionLabel(membership ?? 'not_enrolled', waiting)}
-          </Button>
+          </Chip>
         ) : undefined
       }
     />
@@ -132,7 +147,6 @@ function SourceRow({
 export function Search() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
-  const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability } = usePermissionConfig()
   const { features } = useWorkspaceHostContext()
@@ -145,6 +159,17 @@ export function Search() {
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
   /** The first connect of a source turns it on for the workspace, which takes an admin. */
   const canCreate = workspacePermissions?.viewer?.isAdmin ?? false
+  const workspaceAccounts = useWorkspaceAccounts(
+    canCreate && memberAccessAvailable ? workspaceId : undefined
+  )
+  const slackReady =
+    workspaceAccounts.data?.credentialGroup?.status === 'active' &&
+    workspaceAccounts.data.credentialGroup.options.some(
+      (option) =>
+        option.provider === 'slack' &&
+        option.status === 'active' &&
+        option.configurationStatus === 'ready'
+    )
 
   const [searchTerm, setSearchTermParam] = useQueryState(connectorSearchParam.key, {
     ...connectorSearchParam.parser,
@@ -247,15 +272,21 @@ export function Search() {
         className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
       >
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
+          <div className='flex flex-col gap-2'>
+            <h1 className='text-[var(--text-body)] text-base'>Connect sources to Search</h1>
+            <p className='text-[var(--text-muted)] text-small leading-relaxed'>
+              Connect an account, choose what to sync, and search your documents in Sim.
+            </p>
+          </div>
           <ChipInput
             icon={SearchIcon}
-            placeholder='Search connectors...'
+            placeholder='Find a source...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {!normalizedSearch && <SearchMcpSetup workspaceId={workspaceId} />}
 
           <div className='flex flex-col gap-7'>
-            {!normalizedSearch && <SearchMcpSetup workspaceId={workspaceId} />}
             <ManagedSearchSources
               key={workspaceId}
               workspaceId={workspaceId}
@@ -264,11 +295,32 @@ export function Search() {
               search={normalizedSearch}
             />
             {visibleConnectors.length > 0 && (
-              <IntegrationSection label={CONNECTORS_LABEL}>
+              <IntegrationSection
+                label={CONNECTORS_LABEL}
+                layout='list'
+                description='Connect your own account to search documents you can access. Each teammate connects separately; connecting does not share your private documents with the workspace.'
+              >
                 {visibleConnectors.map((connector) => {
                   const connections = (connectionByType.get(connector.type) ?? [undefined]).filter(
                     (connection) => matchesCatalog(connector) || matchesSource(connection)
                   )
+                  if (
+                    connector.type === 'slack' &&
+                    canCreate &&
+                    memberAccessAvailable &&
+                    workspaceAccounts.error
+                  ) {
+                    return (
+                      <SettingsQueryErrorState
+                        key='slack'
+                        error={workspaceAccounts.error}
+                        fallback='Could not load Slack setup'
+                        isRetrying={workspaceAccounts.isFetching}
+                        onRetry={() => void workspaceAccounts.refetch()}
+                        variant='inline'
+                      />
+                    )
+                  }
                   return connections.map((connection) => (
                     <SourceRow
                       key={connection?.connectorId ?? connector.type}
@@ -288,7 +340,18 @@ export function Search() {
                           ? isAwaiting(connection.connectorId)
                           : isAwaitingSource(connector.type)
                       }
-                      isPending={isPending}
+                      isPending={
+                        isPending ||
+                        (connector.type === 'slack' && canCreate && workspaceAccounts.isLoading)
+                      }
+                      setupHref={
+                        connector.type === 'slack' &&
+                        canCreate &&
+                        !workspaceAccounts.isLoading &&
+                        !slackReady
+                          ? slackSearchSetupHref(workspaceId, 'search')
+                          : undefined
+                      }
                       onConnect={() => connectSearchSource(workspaceId, connector, connection)}
                     />
                   ))
@@ -296,15 +359,8 @@ export function Search() {
               </IntegrationSection>
             )}
 
-            {canCreate &&
-              memberAccessAvailable &&
-              !connectionByType.has('slack') &&
-              visibleConnectors.some((connector) => connector.type === 'slack') && (
-                <SlackMemberSetup workspaceId={workspaceId} />
-              )}
-
             {existingSources.length > 0 && (
-              <IntegrationSection label='Existing sources'>
+              <IntegrationSection label='Existing sources' layout='list'>
                 {existingSources.map((connection) => (
                   <SettingsResourceRow
                     key={connection.connectorId}
