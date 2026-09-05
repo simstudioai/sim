@@ -36,7 +36,7 @@ export const describeInstancePatchesTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Managed node to report patches for (e.g., i-0abc123)',
+      description: 'Managed node to report patches for (e.g., i-0123456789abcdef0)',
     },
     filters: {
       type: 'json',

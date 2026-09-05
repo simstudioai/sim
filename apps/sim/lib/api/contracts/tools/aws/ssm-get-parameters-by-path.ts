@@ -34,7 +34,11 @@ const RequestSchema = z.object({
     }),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  path: z.string().min(1, 'Parameter path is required').max(2048),
+  path: z
+    .string()
+    .min(1, 'Parameter path is required')
+    .max(2048)
+    .startsWith('/', 'path must start with a forward slash (e.g., /prod/app)'),
   recursive: z.boolean().nullish(),
   withDecryption: z.boolean().nullish(),
   parameterFilters: z.array(ParameterStringFilterSchema).nullish(),
