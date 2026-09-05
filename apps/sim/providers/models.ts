@@ -166,6 +166,16 @@ export function getProviderFileAttachment(providerId: string): ProviderFileAttac
   return PROVIDER_DEFINITIONS[providerId]?.fileAttachment ?? DEFAULT_FILE_ATTACHMENT
 }
 
+const CLAUDE_5_1_TOOL_CAPABILITIES = { forcedToolUse: false } as const satisfies ModelCapabilities
+
+/** Known capabilities for model aliases; explicit catalog capabilities take precedence. */
+const MODEL_CAPABILITY_FALLBACKS = [
+  {
+    pattern: /(?:^|[/.])claude-(?:fable|mythos)-5-1(?:$|[-:])/,
+    capabilities: CLAUDE_5_1_TOOL_CAPABILITIES,
+  },
+] satisfies { pattern: RegExp; capabilities: ModelCapabilities }[]
+
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   fireworks: {
     id: 'fireworks',
@@ -916,7 +926,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-09-04',
         },
         capabilities: {
-          forcedToolUse: false,
+          ...CLAUDE_5_1_TOOL_CAPABILITIES,
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
           promptCaching: { minimumCacheableTokens: 512 },
@@ -4387,10 +4397,19 @@ export function getModelPricing(modelId: string): ModelPricing | null {
 }
 
 export function getModelCapabilities(modelId: string): ModelCapabilities | null {
+  const normalizedModel = modelId.toLowerCase()
+  const fallbackCapabilities = MODEL_CAPABILITY_FALLBACKS.find(({ pattern }) =>
+    pattern.test(normalizedModel)
+  )?.capabilities
+
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    const model = provider.models.find((m) => m.id.toLowerCase() === modelId.toLowerCase())
+    const model = provider.models.find((m) => m.id.toLowerCase() === normalizedModel)
     if (model) {
-      const capabilities: ModelCapabilities = { ...provider.capabilities, ...model.capabilities }
+      const capabilities: ModelCapabilities = {
+        ...provider.capabilities,
+        ...fallbackCapabilities,
+        ...model.capabilities,
+      }
       return capabilities
     }
   }
@@ -4398,14 +4417,16 @@ export function getModelCapabilities(modelId: string): ModelCapabilities | null 
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
     if (provider.modelPatterns) {
       for (const pattern of provider.modelPatterns) {
-        if (pattern.test(modelId.toLowerCase())) {
-          return provider.capabilities || null
+        if (pattern.test(normalizedModel)) {
+          return fallbackCapabilities
+            ? { ...provider.capabilities, ...fallbackCapabilities }
+            : provider.capabilities || null
         }
       }
     }
   }
 
-  return null
+  return fallbackCapabilities || null
 }
 
 export function getModelsWithTemperatureSupport(): string[] {
@@ -4484,18 +4505,10 @@ export function supportsToolUsageControl(providerId: string): boolean {
   return getProvidersWithToolUsageControl().includes(providerId)
 }
 
-/** Whether the model accepts forced tool choice, including uncataloged Claude aliases. */
+/** Whether the model accepts forced tool choice. */
 export function supportsForcedToolUse(modelId: string): boolean {
   const capabilities = getModelCapabilities(modelId)
-  if (capabilities?.forcedToolUse !== undefined) return capabilities.forcedToolUse
-
-  /** Preserve the restriction for date-suffixed and reseller IDs outside the catalog. */
-  const normalizedModel = modelId.toLowerCase()
-  if (normalizedModel.includes('fable-5-1') || normalizedModel.includes('mythos-5-1')) {
-    return false
-  }
-
-  return capabilities?.toolUsageControl ?? false
+  return capabilities?.forcedToolUse ?? capabilities?.toolUsageControl ?? false
 }
 
 export function updateOllamaModels(models: string[]): void {
