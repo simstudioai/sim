@@ -161,6 +161,27 @@ describe('ResizableImageView', () => {
     expect(image.style.height).toBe('100px')
   })
 
+  it.each(['50%', 'auto', '10em', 'calc(50% - 10px)', 'min-content', 'inherit'])(
+    'preserves the native height-only CSS value %s before and after loading',
+    (height) => {
+      renderImage(vi.fn(), { height })
+      const image = host.querySelector<HTMLImageElement>('img')!
+      expect(image.style.width).toBe('')
+      expect(image.style.height).toBe(height)
+      expect(image.style.maxHeight).toBe('')
+
+      Object.defineProperties(image, {
+        naturalWidth: { configurable: true, value: 400 },
+        naturalHeight: { configurable: true, value: 200 },
+      })
+      act(() => image.dispatchEvent(new Event('load')))
+
+      expect(image.style.width).toBe('')
+      expect(image.style.height).toBe(height)
+      expect(image.style.maxHeight).toBe('')
+    }
+  )
+
   it('commits one proportional width change and clears a stale explicit height', () => {
     const updateAttributes = vi.fn()
     const handle = renderImage(updateAttributes)
