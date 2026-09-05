@@ -3,7 +3,7 @@ import type {
   OracleEpmAccountReconciliationResponse,
   OracleEpmAccountReconciliationRunAutoAlertParams,
 } from '@/tools/oracle_epm_account_reconciliation/types'
-import { ARCS_MATCHING_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
+import { ARCS_JOB_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
 import { arcsAuthParamFields } from '@/tools/oracle_epm_account_reconciliation/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -38,5 +38,5 @@ export const oracleEpmAccountReconciliationRunAutoAlertTool: InternalToolConfig<
     },
   },
   operation: { input: createInternalToolOperationInput },
-  outputs: ARCS_MATCHING_OUTPUTS,
+  outputs: ARCS_JOB_OUTPUTS,
 }

@@ -13,6 +13,11 @@ import { hasToolId } from '@/tools/tool-ids'
 import type { InternalToolConfig } from '@/tools/types'
 
 const prefix = 'oracle_epm_account_reconciliation_'
+function toolIdForAction(action: string) {
+  return (
+    prefix + (action === 'import_reconciliation_attributes' ? 'import_recon_attributes' : action)
+  )
+}
 const tools = Object.values(toolExports).filter(
   (value): value is InternalToolConfig =>
     typeof value === 'object' && value !== null && 'id' in value && 'operation' in value
@@ -80,7 +85,7 @@ function mapParams(input: Record<string, unknown>) {
 }
 describe('Account Reconciliation public integration contract', () => {
   it('exposes exactly the agreed 33 actions everywhere', () => {
-    const ids = actions.map((action) => prefix + action).sort()
+    const ids = actions.map(toolIdForAction).sort()
     expect(actions).toHaveLength(33)
     expect(tools.map((tool) => tool.id).sort()).toEqual(ids)
     expect([...block.tools.access].sort()).toEqual(ids)
@@ -96,6 +101,14 @@ describe('Account Reconciliation public integration contract', () => {
         .filter((id) => id.startsWith(prefix))
         .sort()
     ).toEqual(ids)
+  })
+  it('uses provider-safe unique tool IDs while preserving all UI operations', () => {
+    expect(new Set(tools.map((tool) => tool.id)).size).toBe(33)
+    for (const action of actions) {
+      const id = toolIdForAction(action)
+      expect(id).toMatch(/^[a-zA-Z0-9_-]{1,64}$/)
+      expect(block.tools.config.tool({ operation: action })).toBe(id)
+    }
   })
   it.each(tools)(
     '$id uses the in-process boundary and matches generated output contracts',
@@ -114,7 +127,7 @@ describe('Account Reconciliation public integration contract', () => {
   it.each(tools)(
     '$id has visible fields with matching requiredness and conditional outputs',
     (tool) => {
-      const action = tool.id.slice(prefix.length)
+      const action = actions.find((action) => toolIdForAction(action) === tool.id)!
       for (const [paramId, param] of Object.entries(tool.params)) {
         if (param.visibility === 'hidden') continue
         const id = uiAliases[`${action}_${paramId}`] ?? paramId
@@ -136,8 +149,37 @@ describe('Account Reconciliation public integration contract', () => {
           )
         }
       }
+      // The block must not advertise outputs that this operation cannot produce.
+      for (const [outputId, output] of Object.entries(block.outputs)) {
+        if (typeof output !== 'object' || !('condition' in output)) continue
+        const condition = output.condition
+        if (!condition || typeof condition === 'function') continue
+        const values = Array.isArray(condition.value) ? condition.value : [condition.value]
+        if (values.includes(action))
+          expect(tool.outputs, `${action}: ${outputId}`).toHaveProperty(outputId)
+      }
     }
   )
+  it('only exposes launch acceptance and documented matching artifacts', () => {
+    const logActions = [
+      'archive_matched_transactions',
+      'get_matching_job_status',
+      'import_matching_transactions',
+      'purge_archived_transactions',
+      'purge_matched_transactions',
+      'unmatch_auto_match_job',
+      'unmatch_transactions',
+    ]
+    for (const action of actions) {
+      const outputs = tools.find((tool) => tool.id === toolIdForAction(action))!.outputs
+      expect('logFileName' in outputs, action).toBe(logActions.includes(action))
+      expect('archiveFileName' in outputs, action).toBe(
+        ['archive_matched_transactions', 'get_matching_job_status'].includes(action)
+      )
+      if (action === 'get_compliance_job_status' || action === 'get_matching_job_status')
+        expect(outputs).not.toHaveProperty('accepted')
+    }
+  })
   it('uses existing service-account credentials and the Oracle oval', () => {
     expect(block.authMode).toBe(AuthMode.ApiKey)
     expect(block.icon).toBe(NetSuiteIcon)

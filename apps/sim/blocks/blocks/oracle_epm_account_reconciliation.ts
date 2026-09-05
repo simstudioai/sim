@@ -821,7 +821,7 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
             'purge_archived_transactions',
           ],
         },
-        placeholder: 'Reconciliation Compliance job ID',
+        placeholder: 'Job ID; for purge, use the completed archive job ID',
       },
       {
         id: 'dataLoadDefinition',
@@ -893,7 +893,7 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
           field: 'operation',
           value: ['import_matching_transactions'],
         },
-        placeholder: 'Name of the Transaction Matching data source',
+        placeholder: 'Text ID of the Transaction Matching data source',
       },
       {
         id: 'balanceType',
@@ -1327,7 +1327,7 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
         'oracle_epm_account_reconciliation_import_premapped_balances',
         'oracle_epm_account_reconciliation_import_profiles',
         'oracle_epm_account_reconciliation_import_rates',
-        'oracle_epm_account_reconciliation_import_reconciliation_attributes',
+        'oracle_epm_account_reconciliation_import_recon_attributes',
         'oracle_epm_account_reconciliation_list_files',
         'oracle_epm_account_reconciliation_list_periods',
         'oracle_epm_account_reconciliation_list_reconciliation_comments',
@@ -1346,7 +1346,14 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
         'oracle_epm_account_reconciliation_upload_file',
       ],
       config: {
-        tool: (params) => `oracle_epm_account_reconciliation_${params.operation ?? 'list_periods'}`,
+        tool: (params) => {
+          switch (params.operation) {
+            case 'import_reconciliation_attributes':
+              return 'oracle_epm_account_reconciliation_import_recon_attributes'
+            default:
+              return `oracle_epm_account_reconciliation_${params.operation ?? 'list_periods'}`
+          }
+        },
         params: (params) => {
           switch (params.operation ?? 'list_periods') {
             case 'add_users_to_team':
@@ -1753,7 +1760,7 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
       },
       jobId: {
         type: 'string',
-        description: 'Reconciliation Compliance job ID',
+        description: 'Compliance or Matching job ID; for purge, use the completed archive job ID',
       },
       dataLoadDefinition: {
         type: 'string',
@@ -1769,7 +1776,7 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
       },
       dataSource: {
         type: 'string',
-        description: 'Name of the Transaction Matching data source',
+        description: 'Text ID of the Transaction Matching data source',
       },
       balanceType: {
         type: 'string',
@@ -1877,7 +1884,8 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
     outputs: {
       status: {
         type: 'number',
-        description: 'Oracle operation status: -1 in progress, 0 success, positive failure',
+        description:
+          'Oracle status: -1 pending job (Monitor: some reconciliations remain open), 0 success (Monitor: all closed), positive failure',
         condition: {
           field: 'operation',
           value: [
@@ -2030,8 +2038,6 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
             'create_reconciliations',
             'delete_profile',
             'export_user_details_report',
-            'get_compliance_job_status',
-            'get_matching_job_status',
             'import_balances',
             'import_compliance_transactions',
             'import_matching_transactions',
@@ -2063,8 +2069,6 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
             'import_matching_transactions',
             'purge_archived_transactions',
             'purge_matched_transactions',
-            'run_auto_alert',
-            'run_auto_match',
             'unmatch_auto_match_job',
             'unmatch_transactions',
           ],
@@ -2075,17 +2079,7 @@ export const OracleEpmAccountReconciliationBlock: BlockConfig<OracleEpmAccountRe
         description: 'Repository archive filename extracted from a validated file-content link',
         condition: {
           field: 'operation',
-          value: [
-            'archive_matched_transactions',
-            'get_matching_job_status',
-            'import_matching_transactions',
-            'purge_archived_transactions',
-            'purge_matched_transactions',
-            'run_auto_alert',
-            'run_auto_match',
-            'unmatch_auto_match_job',
-            'unmatch_transactions',
-          ],
+          value: ['archive_matched_transactions', 'get_matching_job_status'],
         },
       },
       fileName: {

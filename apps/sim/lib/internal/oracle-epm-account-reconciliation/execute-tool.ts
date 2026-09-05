@@ -120,7 +120,7 @@ export const executeOracleEpmAccountReconciliationTool: InternalToolOperationHan
         executeOracleEpmAccountReconciliationImportRatesOperation,
         request
       )
-    case 'oracle_epm_account_reconciliation_import_reconciliation_attributes':
+    case 'oracle_epm_account_reconciliation_import_recon_attributes':
       return executeToolOperationImplementation(
         executeOracleEpmAccountReconciliationImportReconciliationAttributesOperation,
         request

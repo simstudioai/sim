@@ -564,7 +564,7 @@ const cases = [
 
 async function invoke(id: string, input: object) {
   const response = await executeOracleEpmAccountReconciliationTool({
-    toolId: `oracle_epm_account_reconciliation_${id}`,
+    toolId: `oracle_epm_account_reconciliation_${id === 'import_reconciliation_attributes' ? 'import_recon_attributes' : id}`,
     input: { ...AUTH, ...input },
     context,
     headers: new Headers(),

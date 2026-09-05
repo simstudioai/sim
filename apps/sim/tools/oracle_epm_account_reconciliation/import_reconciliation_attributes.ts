@@ -11,7 +11,7 @@ export const oracleEpmAccountReconciliationImportReconciliationAttributesTool: I
   OracleEpmAccountReconciliationImportReconciliationAttributesParams,
   OracleEpmAccountReconciliationResponse
 > = {
-  id: 'oracle_epm_account_reconciliation_import_reconciliation_attributes',
+  id: 'oracle_epm_account_reconciliation_import_recon_attributes',
   name: 'Oracle EPM Account Reconciliation Import Reconciliation Attributes',
   description: 'Load attribute values from a staged file into existing reconciliations.',
   version: '1.0.0',

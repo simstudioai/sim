@@ -23,6 +23,16 @@ import type {
 
 export type ArcsJobKind = keyof typeof arcsJobLinkPolicies
 
+type ArcsArtifactRelation = 'log-content' | 'file-content'
+const matchingJobArtifacts: Record<string, readonly ArcsArtifactRelation[]> = {
+  archivetransactions: ['log-content', 'file-content'],
+  purgetransactions: ['log-content'],
+  purgearchivetransactions: ['log-content'],
+  importtmpremappedtransactions: ['log-content'],
+  unmatchtransactions: ['log-content'],
+  unmatchtransactionsbyautomatch: ['log-content'],
+}
+
 export function classifyArcsStatus(status: number): 'pending' | 'succeeded' | 'failed' {
   return status === -1 ? 'pending' : status === 0 ? 'succeeded' : 'failed'
 }
@@ -70,7 +80,8 @@ export function projectArcsJob(
   client: OracleEpmClient,
   kind: ArcsJobKind,
   job: ArcsJob,
-  jobId?: string
+  jobId?: string,
+  allowedArtifacts: readonly ArcsArtifactRelation[] = ['log-content', 'file-content']
 ): OracleEpmAccountReconciliationJobOutput {
   const output: OracleEpmAccountReconciliationJobOutput = {
     status: job.status,
@@ -80,9 +91,9 @@ export function projectArcsJob(
   }
   if (kind === 'matching') {
     for (const link of job.links ?? []) {
-      if (link.rel === 'log-content')
+      if (link.rel === 'log-content' && allowedArtifacts.includes('log-content'))
         output.logFileName = resolveArcsArtifact(client, link).fileName
-      if (link.rel === 'file-content')
+      if (link.rel === 'file-content' && allowedArtifacts.includes('file-content'))
         output.archiveFileName = resolveArcsArtifact(client, link).fileName
     }
   }
@@ -155,7 +166,20 @@ export async function launchArcsJob(
       details: job.details ?? null,
       state: classifyArcsStatus(job.status),
     }
-    if (job.status > 0) return { success: false, error: 'Oracle EPM rejected the job', output }
+    if (job.status > 0) {
+      // Opening changes the period immediately; a returned job tracks reconciliation opening.
+      if (options.periodStatus === 'open') {
+        const resolved = resolveArcsJobLink(client, kind, job)
+        if (resolved) {
+          return {
+            success: false,
+            error: 'Oracle EPM reconciliation-opening job completed with errors',
+            output: { ...output, accepted: true, periodStatus: 'open', jobId: resolved.jobId },
+          }
+        }
+      }
+      return { success: false, error: 'Oracle EPM rejected the job', output }
+    }
     output.accepted = true
     if (options.periodStatus) output.periodStatus = options.periodStatus
     if (options.periodStatus && options.periodStatus !== 'open') {
@@ -167,7 +191,8 @@ export async function launchArcsJob(
       throw new ArcsContractError(
         'Oracle EPM accepted the job but did not return a valid status link'
       )
-    output = { ...output, ...projectArcsJob(client, kind, job, resolved?.jobId) }
+    const allowedArtifacts = matchingJobArtifacts[jobName] ?? []
+    output = { ...output, ...projectArcsJob(client, kind, job, resolved?.jobId, allowedArtifacts) }
     if (!options.waitForCompletion || job.status !== -1 || !resolved)
       return { success: true, output }
     const completed = await waitForArcsJob(
@@ -176,7 +201,10 @@ export async function launchArcsJob(
       options.maxWaitSeconds ?? 60,
       signal
     )
-    output = { ...output, ...projectArcsJob(client, kind, completed, resolved.jobId) }
+    output = {
+      ...output,
+      ...projectArcsJob(client, kind, completed, resolved.jobId, allowedArtifacts),
+    }
     return completed.status === 0
       ? { success: true, output }
       : { success: false, error: 'Oracle EPM job completed with errors', output }

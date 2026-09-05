@@ -218,7 +218,6 @@ Read the status of one Reconciliation Compliance job.
 | `details` | string | Documented provider details; counts remain provider text |
 | `state` | string | Normalized job state: pending, succeeded, or failed |
 | `jobId` | string | Job ID extracted from a validated provider status link |
-| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
 
 ### Oracle EPM Account Reconciliation Get Matching Job Status
 
@@ -239,7 +238,6 @@ Read one Transaction Matching job status and validated artifact filenames.
 | `details` | string | Documented provider details; counts remain provider text |
 | `state` | string | Normalized job state: pending, succeeded, or failed |
 | `jobId` | string | Job ID extracted from a validated provider status link |
-| `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
 | `logFileName` | string | Repository log filename extracted from a validated log-content link |
 | `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
@@ -304,7 +302,7 @@ Import pre-mapped transactions into a Transaction Matching data source.
 | `oauthCredential` | string | Yes | Oracle EPM service-account credential |
 | `fileName` | string | Yes | Exact staged transaction filename |
 | `matchTypeId` | string | Yes | Text ID of the Transaction Matching match type |
-| `dataSource` | string | Yes | Name of the Transaction Matching data source |
+| `dataSource` | string | Yes | Text ID of the Transaction Matching data source |
 | `dateFormat` | string | Yes | Date format used in the import file, for example MMM d, yyyy |
 | `waitForCompletion` | boolean | No | Wait for the accepted job to finish \(default false\) |
 | `maxWaitSeconds` | number | No | Maximum wait in seconds \(5–300; default 60\) |
@@ -319,7 +317,6 @@ Import pre-mapped transactions into a Transaction Matching data source.
 | `jobId` | string | Job ID extracted from a validated provider status link |
 | `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
 | `logFileName` | string | Repository log filename extracted from a validated log-content link |
-| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
 ### Oracle EPM Account Reconciliation Import Premapped Balances
 
@@ -556,7 +553,7 @@ Check whether all reconciliations selected by a public filter are closed.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `status` | number | Oracle operation status: -1 in progress, 0 success, positive failure |
+| `status` | number | Monitor status: -1 some reconciliations remain open, 0 all closed, positive failure |
 | `details` | string | Documented provider details; counts remain provider text |
 | `allClosed` | boolean | True only when all filtered reconciliations are closed; -1 means some remain open |
 
@@ -584,7 +581,6 @@ Permanently purge transactions from a completed archive job.
 | `jobId` | string | Job ID extracted from a validated provider status link |
 | `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
 | `logFileName` | string | Repository log filename extracted from a validated log-content link |
-| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
 ### Oracle EPM Account Reconciliation Purge Matched Transactions
 
@@ -613,7 +609,6 @@ Permanently purge matched transactions older than the specified age.
 | `jobId` | string | Job ID extracted from a validated provider status link |
 | `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
 | `logFileName` | string | Repository log filename extracted from a validated log-content link |
-| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
 ### Oracle EPM Account Reconciliation Remove Users from Team
 
@@ -661,8 +656,6 @@ Run automatic alerts for a Transaction Matching match type.
 | `state` | string | Normalized job state: pending, succeeded, or failed |
 | `jobId` | string | Job ID extracted from a validated provider status link |
 | `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
-| `logFileName` | string | Repository log filename extracted from a validated log-content link |
-| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
 ### Oracle EPM Account Reconciliation Run Auto Match
 
@@ -686,8 +679,6 @@ Run automatic matching for a Transaction Matching match type.
 | `state` | string | Normalized job state: pending, succeeded, or failed |
 | `jobId` | string | Job ID extracted from a validated provider status link |
 | `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
-| `logFileName` | string | Repository log filename extracted from a validated log-content link |
-| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
 ### Oracle EPM Account Reconciliation Run Profile Rules
 
@@ -787,7 +778,6 @@ Unmatch all transactions matched by a specified auto-match job.
 | `jobId` | string | Job ID extracted from a validated provider status link |
 | `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
 | `logFileName` | string | Repository log filename extracted from a validated log-content link |
-| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
 ### Oracle EPM Account Reconciliation Unmatch Transactions
 
@@ -814,7 +804,6 @@ Unmatch up to 10,000 specified matches in a match type.
 | `jobId` | string | Job ID extracted from a validated provider status link |
 | `accepted` | boolean | Whether Oracle accepted the launch; preserved if later work fails |
 | `logFileName` | string | Repository log filename extracted from a validated log-content link |
-| `archiveFileName` | string | Repository archive filename extracted from a validated file-content link |
 
 ### Oracle EPM Account Reconciliation Upload File
 

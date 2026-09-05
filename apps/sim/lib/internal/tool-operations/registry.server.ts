@@ -800,7 +800,7 @@ const ORACLE_EPM_ACCOUNT_RECONCILIATION_TOOL_IDS = [
   'oracle_epm_account_reconciliation_import_premapped_balances',
   'oracle_epm_account_reconciliation_import_profiles',
   'oracle_epm_account_reconciliation_import_rates',
-  'oracle_epm_account_reconciliation_import_reconciliation_attributes',
+  'oracle_epm_account_reconciliation_import_recon_attributes',
   'oracle_epm_account_reconciliation_list_files',
   'oracle_epm_account_reconciliation_list_periods',
   'oracle_epm_account_reconciliation_list_reconciliation_comments',

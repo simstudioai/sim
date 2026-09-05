@@ -9950,7 +9950,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   oracle_epm_account_reconciliation_import_profiles:
     oracleEpmAccountReconciliationImportProfilesTool,
   oracle_epm_account_reconciliation_import_rates: oracleEpmAccountReconciliationImportRatesTool,
-  oracle_epm_account_reconciliation_import_reconciliation_attributes:
+  oracle_epm_account_reconciliation_import_recon_attributes:
     oracleEpmAccountReconciliationImportReconciliationAttributesTool,
   oracle_epm_account_reconciliation_list_files: oracleEpmAccountReconciliationListFilesTool,
   oracle_epm_account_reconciliation_list_periods: oracleEpmAccountReconciliationListPeriodsTool,

@@ -3,7 +3,7 @@ import type {
   OracleEpmAccountReconciliationImportMatchingTransactionsParams,
   OracleEpmAccountReconciliationResponse,
 } from '@/tools/oracle_epm_account_reconciliation/types'
-import { ARCS_MATCHING_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
+import { ARCS_MATCHING_LOG_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
 import { arcsAuthParamFields } from '@/tools/oracle_epm_account_reconciliation/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -33,7 +33,7 @@ export const oracleEpmAccountReconciliationImportMatchingTransactionsTool: Inter
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the Transaction Matching data source',
+      description: 'Text ID of the Transaction Matching data source',
     },
     dateFormat: {
       type: 'string',
@@ -56,5 +56,5 @@ export const oracleEpmAccountReconciliationImportMatchingTransactionsTool: Inter
     },
   },
   operation: { input: createInternalToolOperationInput },
-  outputs: ARCS_MATCHING_OUTPUTS,
+  outputs: ARCS_MATCHING_LOG_OUTPUTS,
 }

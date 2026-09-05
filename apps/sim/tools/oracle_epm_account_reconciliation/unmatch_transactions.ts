@@ -3,7 +3,7 @@ import type {
   OracleEpmAccountReconciliationResponse,
   OracleEpmAccountReconciliationUnmatchTransactionsParams,
 } from '@/tools/oracle_epm_account_reconciliation/types'
-import { ARCS_MATCHING_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
+import { ARCS_MATCHING_LOG_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
 import { arcsAuthParamFields } from '@/tools/oracle_epm_account_reconciliation/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -50,5 +50,5 @@ export const oracleEpmAccountReconciliationUnmatchTransactionsTool: InternalTool
     },
   },
   operation: { input: createInternalToolOperationInput },
-  outputs: ARCS_MATCHING_OUTPUTS,
+  outputs: ARCS_MATCHING_LOG_OUTPUTS,
 }

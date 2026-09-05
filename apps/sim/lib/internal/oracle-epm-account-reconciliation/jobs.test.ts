@@ -173,6 +173,90 @@ describe('Account Reconciliation job behavior', () => {
       expect(mocks.fetch).toHaveBeenCalledTimes(1)
     }
   )
+  it('preserves an already-open period when the initial opening job has failed', async () => {
+    mocks.fetch.mockResolvedValueOnce(
+      response(1, {
+        links: [{ rel: 'Job Status', action: 'GET', href: `${origin}/armARCS/rest/v1/jobs/42` }],
+      })
+    )
+    const result = await launchArcsJob(
+      client,
+      'compliance',
+      'SET_PERIOD_STATUS',
+      { period: 'Jan', status: 'open' },
+      { periodStatus: 'open', waitForCompletion: true }
+    )
+    expect(result).toMatchObject({
+      success: false,
+      output: { status: 1, state: 'failed', accepted: true, periodStatus: 'open', jobId: '42' },
+    })
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+  it.each([
+    { links: [] },
+    {
+      links: [
+        {
+          rel: 'Job Status',
+          action: 'GET',
+          href: 'https://attacker.example/armARCS/rest/v1/jobs/42',
+        },
+      ],
+    },
+    { links: [{ rel: 'Job Status', action: 'POST', href: `${origin}/armARCS/rest/v1/jobs/42` }] },
+  ])(
+    'does not claim an applied period change without a valid failed opening-job link ($links)',
+    async ({ links }) => {
+      mocks.fetch.mockResolvedValueOnce(response(1, { links }))
+      const result = await launchArcsJob(
+        client,
+        'compliance',
+        'SET_PERIOD_STATUS',
+        { period: 'Jan', status: 'open' },
+        { periodStatus: 'open' }
+      )
+      expect(result).toMatchObject({ success: false, output: { status: 1, state: 'failed' } })
+      expect(result.output).not.toHaveProperty('accepted')
+      expect(result.output).not.toHaveProperty('periodStatus')
+      expect(result.output).not.toHaveProperty('jobId')
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    }
+  )
+  it.each([
+    ['runautomatch', false, false],
+    ['runautoalert', false, false],
+    ['archivetransactions', true, true],
+    ['purgetransactions', true, false],
+    ['purgearchivetransactions', true, false],
+    ['importtmpremappedtransactions', true, false],
+    ['unmatchtransactions', true, false],
+    ['unmatchtransactionsbyautomatch', true, false],
+  ] as const)(
+    'projects only documented artifacts for %s on launch and after waiting',
+    async (jobName, hasLog, hasArchive) => {
+      const links = [
+        { rel: 'Job Status', action: 'GET', href },
+        {
+          rel: 'log-content',
+          action: 'GET',
+          href: `${origin}/rest/applicationsnapshots/log.txt/contents`,
+        },
+        {
+          rel: 'file-content',
+          action: 'GET',
+          href: `${origin}/rest/applicationsnapshots/archive.zip/contents`,
+        },
+      ]
+      for (const waitForCompletion of [false, true]) {
+        mocks.fetch.mockResolvedValueOnce(response(-1, { links }))
+        if (waitForCompletion) mocks.fetch.mockResolvedValueOnce(response(0, { links }))
+        const result = await launchArcsJob(client, 'matching', jobName, {}, { waitForCompletion })
+        expect(result.success).toBe(true)
+        expect(result.output.logFileName).toBe(hasLog ? 'log.txt' : undefined)
+        expect(result.output.archiveFileName).toBe(hasArchive ? 'archive.zip' : undefined)
+      }
+    }
+  )
   it('projects validated matching artifacts without parsing counts from details', async () => {
     mocks.fetch.mockResolvedValueOnce(
       response(0, {

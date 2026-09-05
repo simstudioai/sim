@@ -3,7 +3,7 @@ import type {
   OracleEpmAccountReconciliationGetComplianceJobStatusParams,
   OracleEpmAccountReconciliationResponse,
 } from '@/tools/oracle_epm_account_reconciliation/types'
-import { ARCS_JOB_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
+import { ARCS_JOB_STATUS_OUTPUTS } from '@/tools/oracle_epm_account_reconciliation/types'
 import { arcsAuthParamFields } from '@/tools/oracle_epm_account_reconciliation/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -25,5 +25,5 @@ export const oracleEpmAccountReconciliationGetComplianceJobStatusTool: InternalT
     },
   },
   operation: { input: createInternalToolOperationInput },
-  outputs: ARCS_JOB_OUTPUTS,
+  outputs: ARCS_JOB_STATUS_OUTPUTS,
 }

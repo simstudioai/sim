@@ -361,7 +361,7 @@ export interface OracleEpmAccountReconciliationResponse extends ToolResponse {
   }
 }
 
-export const ARCS_JOB_OUTPUTS = {
+export const ARCS_JOB_STATUS_OUTPUTS = {
   status: {
     type: 'number',
     description: 'Oracle operation status: -1 in progress, 0 success, positive failure',
@@ -380,6 +380,10 @@ export const ARCS_JOB_OUTPUTS = {
     description: 'Job ID extracted from a validated provider status link',
     optional: true,
   },
+} satisfies ToolConfig['outputs']
+
+export const ARCS_JOB_OUTPUTS = {
+  ...ARCS_JOB_STATUS_OUTPUTS,
   accepted: {
     type: 'boolean',
     description: 'Whether Oracle accepted the launch; preserved if later work fails',
@@ -387,35 +391,31 @@ export const ARCS_JOB_OUTPUTS = {
   },
 } satisfies ToolConfig['outputs']
 
-export const ARCS_MATCHING_OUTPUTS = {
-  status: {
-    type: 'number',
-    description: 'Oracle operation status: -1 in progress, 0 success, positive failure',
-  },
-  details: {
-    type: 'string',
-    description: 'Documented provider details; counts remain provider text',
-    nullable: true,
-  },
-  state: {
-    type: 'string',
-    description: 'Normalized job state: pending, succeeded, or failed',
-  },
-  jobId: {
-    type: 'string',
-    description: 'Job ID extracted from a validated provider status link',
-    optional: true,
-  },
-  accepted: {
-    type: 'boolean',
-    description: 'Whether Oracle accepted the launch; preserved if later work fails',
-    optional: true,
-  },
+export const ARCS_MATCHING_STATUS_OUTPUTS = {
+  ...ARCS_JOB_STATUS_OUTPUTS,
   logFileName: {
     type: 'string',
     description: 'Repository log filename extracted from a validated log-content link',
     optional: true,
   },
+  archiveFileName: {
+    type: 'string',
+    description: 'Repository archive filename extracted from a validated file-content link',
+    optional: true,
+  },
+} satisfies ToolConfig['outputs']
+
+export const ARCS_MATCHING_LOG_OUTPUTS = {
+  ...ARCS_JOB_OUTPUTS,
+  logFileName: {
+    type: 'string',
+    description: 'Repository log filename extracted from a validated log-content link',
+    optional: true,
+  },
+} satisfies ToolConfig['outputs']
+
+export const ARCS_MATCHING_OUTPUTS = {
+  ...ARCS_MATCHING_LOG_OUTPUTS,
   archiveFileName: {
     type: 'string',
     description: 'Repository archive filename extracted from a validated file-content link',
@@ -699,7 +699,8 @@ export const ARCS_COMMENTS_OUTPUTS = {
 export const ARCS_MONITOR_OUTPUTS = {
   status: {
     type: 'number',
-    description: 'Oracle operation status: -1 in progress, 0 success, positive failure',
+    description:
+      'Monitor status: -1 some reconciliations remain open, 0 all closed, positive failure',
   },
   details: {
     type: 'string',
