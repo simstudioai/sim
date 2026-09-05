@@ -36,8 +36,13 @@ const RequestSchema = z.object({
     }),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+  /**
+   * AWS documents "you can only specify one resource ID per call" for `ResourceIds`.
+   * `ResourceTypes` publishes a minimum of 1 item and no maximum, so it is left
+   * unbounded rather than inheriting a cap AWS never documented.
+   */
   resourceIds: z.array(z.string().min(1)).max(1).nullish(),
-  resourceTypes: z.array(z.string().min(1)).max(1).nullish(),
+  resourceTypes: z.array(z.string().min(1)).min(1).nullish(),
   filters: z.array(ComplianceStringFilterSchema).nullish(),
   maxResults: z.number().int().min(1).max(50).nullish(),
   nextToken: z.string().nullish(),

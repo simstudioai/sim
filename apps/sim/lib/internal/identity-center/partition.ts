@@ -9,6 +9,7 @@ export type AwsPartition =
   | 'aws-iso'
   | 'aws-iso-b'
   | 'aws-iso-e'
+  | 'aws-iso-f'
   | 'aws-eusc'
 
 interface PartitionRule {
@@ -17,12 +18,16 @@ interface PartitionRule {
 }
 
 /**
- * Ordered longest-prefix-first so `us-isob-east-1` is not mistaken for `us-iso-*`.
- * Regions that match no prefix belong to the commercial `aws` partition.
+ * Ordered longest-prefix-first so `us-isob-east-1` and `us-isof-south-1` are not
+ * mistaken for `us-iso-*`. Regions that match no prefix belong to the commercial
+ * `aws` partition, so every isolated partition the shared region validator admits
+ * must appear here — otherwise it falls through to `aws` and
+ * `resolveOrganizationsRegion` hands back a commercial endpoint instead of throwing.
  */
 const PARTITION_RULES: readonly PartitionRule[] = [
   { prefix: 'us-gov-', partition: 'aws-us-gov' },
   { prefix: 'us-isob-', partition: 'aws-iso-b' },
+  { prefix: 'us-isof-', partition: 'aws-iso-f' },
   { prefix: 'us-iso-', partition: 'aws-iso' },
   { prefix: 'eu-isoe-', partition: 'aws-iso-e' },
   { prefix: 'eusc-', partition: 'aws-eusc' },

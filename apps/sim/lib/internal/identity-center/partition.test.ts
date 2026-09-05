@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import {
   getAwsPartition,
   resolveOrganizationsRegion,
@@ -18,10 +19,38 @@ describe('getAwsPartition', () => {
     ['cn-northwest-1', 'aws-cn'],
     ['us-iso-east-1', 'aws-iso'],
     ['us-isob-east-1', 'aws-iso-b'],
+    ['us-isof-east-1', 'aws-iso-f'],
+    ['us-isof-south-1', 'aws-iso-f'],
     ['eu-isoe-west-1', 'aws-iso-e'],
     ['eusc-de-east-1', 'aws-eusc'],
   ])('maps %s to the %s partition', (region, partition) => {
     expect(getAwsPartition(region)).toBe(partition)
+  })
+
+  /**
+   * `getAwsPartition` falls through to the commercial `aws` partition for any region
+   * it does not recognize, so widening `validateAwsRegion` without adding the matching
+   * rule here silently routes an isolated-partition caller to a commercial endpoint.
+   * This couples the two so that drift fails the suite instead of shipping.
+   */
+  it('claims a non-commercial partition for every isolated region the shared validator admits', () => {
+    const isolatedRegions = [
+      'us-gov-west-1',
+      'us-gov-east-1',
+      'cn-north-1',
+      'cn-northwest-1',
+      'us-iso-east-1',
+      'us-isob-east-1',
+      'us-isof-east-1',
+      'us-isof-south-1',
+      'eu-isoe-west-1',
+      'eusc-de-east-1',
+    ]
+
+    for (const region of isolatedRegions) {
+      expect(validateAwsRegion(region).isValid).toBe(true)
+      expect(getAwsPartition(region)).not.toBe('aws')
+    }
   })
 })
 

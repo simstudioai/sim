@@ -26,7 +26,11 @@ In Sim, the Systems Manager integration is what lets an agent act on infrastruct
 
 Parameter Store decryption is opt-in: `Get Parameter`, `Get Parameters`, and `Get Parameters By Path` leave `WithDecryption` off unless you explicitly enable it, so a SecureString stays encrypted by default.
 
-Be precise about what that protects. The value you supply to `Put Parameter` is masked in the block, is never echoed back in the result, and no parameter value ever appears in an error message. A value you read is different: once you enable decryption, the plaintext is ordinary block output. It flows to downstream blocks as intended, and it is also written to the run log and the execution trace like any other output. Enable decryption only on the steps that genuinely need the plaintext, and treat those run logs as secret material.
+Be precise about what that protects, because it is narrower than it looks. The value you supply to `Put Parameter` is masked in the editor and is never echoed back in the operation's result, and Sim never puts a parameter value into an error message. It is **not** kept out of the run log: block inputs are recorded, and a value typed directly into the field is recorded verbatim. Referencing an environment variable instead — `{{MY_SECRET}}` — keeps the literal out of the log, because references are restored to their placeholder before the log is written.
+
+Reads are exposed the same way. Once you enable decryption the plaintext is ordinary block output: it flows to downstream blocks as intended, and it is written to the run log and the execution trace like any other output.
+
+So enable decryption only on the steps that genuinely need the plaintext, prefer environment-variable references over typed literals when writing, and treat the run logs of any workflow that touches SecureString values as secret material.
 {/* MANUAL-CONTENT-END */}
 
 
