@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-04",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -1033,7 +1033,7 @@
       "slug": "amazon-sqs",
       "name": "Amazon SQS",
       "description": "Connect to Amazon SQS",
-      "longDescription": "Integrate Amazon SQS into the workflow. Can send messages to SQS queues.",
+      "longDescription": "Integrate Amazon SQS into the workflow. Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.",
       "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
       "iconName": "SQSIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sqs",
@@ -1041,9 +1041,89 @@
         {
           "name": "Send Message",
           "description": "Send a message to an Amazon SQS queue"
+        },
+        {
+          "name": "Send Message Batch",
+          "description": "Send up to 10 messages to an Amazon SQS queue in a single request"
+        },
+        {
+          "name": "Receive Message",
+          "description": "Receive up to 10 messages from an Amazon SQS queue, with optional long polling"
+        },
+        {
+          "name": "Delete Message",
+          "description": "Delete a received message from an Amazon SQS queue using its receipt handle"
+        },
+        {
+          "name": "Delete Message Batch",
+          "description": "Delete up to 10 received messages from an Amazon SQS queue in a single request"
+        },
+        {
+          "name": "Change Message Visibility",
+          "description": "Change how long a received Amazon SQS message stays hidden from other consumers"
+        },
+        {
+          "name": "Change Message Visibility Batch",
+          "description": "Change the visibility timeout of up to 10 received Amazon SQS messages at once"
+        },
+        {
+          "name": "List Queues",
+          "description": "List Amazon SQS queue URLs in a region, optionally filtered by name prefix"
+        },
+        {
+          "name": "Get Queue URL",
+          "description": "Resolve an Amazon SQS queue name to its queue URL"
+        },
+        {
+          "name": "Get Queue Attributes",
+          "description": "Read configuration and message-count attributes of an Amazon SQS queue"
+        },
+        {
+          "name": "Set Queue Attributes",
+          "description": "Update configuration attributes of an existing Amazon SQS queue"
+        },
+        {
+          "name": "Create Queue",
+          "description": "Create a standard or FIFO Amazon SQS queue"
+        },
+        {
+          "name": "Delete Queue",
+          "description": "Delete an Amazon SQS queue and every message still in it"
+        },
+        {
+          "name": "Purge Queue",
+          "description": "Delete every message in an Amazon SQS queue while keeping the queue itself"
+        },
+        {
+          "name": "List Dead-Letter Source Queues",
+          "description": "List the Amazon SQS queues that use a given queue as their dead-letter queue"
+        },
+        {
+          "name": "List Queue Tags",
+          "description": "List the cost-allocation tags attached to an Amazon SQS queue"
+        },
+        {
+          "name": "Tag Queue",
+          "description": "Add or overwrite cost-allocation tags on an Amazon SQS queue"
+        },
+        {
+          "name": "Untag Queue",
+          "description": "Remove cost-allocation tags from an Amazon SQS queue"
+        },
+        {
+          "name": "Start Message Move Task",
+          "description": "Start redriving messages out of an Amazon SQS dead-letter queue"
+        },
+        {
+          "name": "List Message Move Tasks",
+          "description": "List the most recent message move tasks for an Amazon SQS source queue"
+        },
+        {
+          "name": "Cancel Message Move Task",
+          "description": "Cancel an in-progress Amazon SQS message move task"
         }
       ],
-      "operationCount": 1,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
