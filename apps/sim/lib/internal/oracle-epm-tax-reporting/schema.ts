@@ -188,19 +188,112 @@ const operationShapes = {
 
 export type TaxOperation = keyof typeof operationShapes
 export const TAX_OPERATIONS = Object.keys(operationShapes) as TaxOperation[]
-type ShapeOutput<S> = { [P in keyof S]: S[P] extends z.ZodType ? z.output<S[P]> : never }
-export type TaxInput<K extends TaxOperation = TaxOperation> = K extends TaxOperation
-  ? ShapeOutput<(typeof operationShapes)[K]> & ShapeOutput<typeof auth> & { operation: K }
-  : never
+const inputSchema = z.discriminatedUnion('operation', [
+  z.object({
+    ...auth,
+    ...operationShapes.get_api_version,
+    operation: z.literal('get_api_version'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.list_applications,
+    operation: z.literal('list_applications'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.list_job_definitions,
+    operation: z.literal('list_job_definitions'),
+  }),
+  z.object({ ...auth, ...operationShapes.get_member, operation: z.literal('get_member') }),
+  z.object({ ...auth, ...operationShapes.add_member, operation: z.literal('add_member') }),
+  z.object({
+    ...auth,
+    ...operationShapes.export_data_slice,
+    operation: z.literal('export_data_slice'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.import_data_slice,
+    operation: z.literal('import_data_slice'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.clear_data_slice,
+    operation: z.literal('clear_data_slice'),
+  }),
+  z.object({ ...auth, ...operationShapes.copy_data, operation: z.literal('copy_data') }),
+  z.object({ ...auth, ...operationShapes.clear_data, operation: z.literal('clear_data') }),
+  z.object({ ...auth, ...operationShapes.run_rule, operation: z.literal('run_rule') }),
+  z.object({ ...auth, ...operationShapes.run_ruleset, operation: z.literal('run_ruleset') }),
+  z.object({ ...auth, ...operationShapes.execute_job, operation: z.literal('execute_job') }),
+  z.object({ ...auth, ...operationShapes.get_job_status, operation: z.literal('get_job_status') }),
+  z.object({
+    ...auth,
+    ...operationShapes.get_job_details,
+    operation: z.literal('get_job_details'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.get_child_job_details,
+    operation: z.literal('get_child_job_details'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.export_metadata,
+    operation: z.literal('export_metadata'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.import_metadata,
+    operation: z.literal('import_metadata'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.import_supplemental_collection_data,
+    operation: z.literal('import_supplemental_collection_data'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.deploy_form_templates,
+    operation: z.literal('deploy_form_templates'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.import_supplemental_dimension_members,
+    operation: z.literal('import_supplemental_dimension_members'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.generate_report,
+    operation: z.literal('generate_report'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.generate_user_details_report,
+    operation: z.literal('generate_user_details_report'),
+  }),
+  z.object({
+    ...auth,
+    ...operationShapes.get_report_status,
+    operation: z.literal('get_report_status'),
+  }),
+  z.object({ ...auth, ...operationShapes.list_files, operation: z.literal('list_files') }),
+  z.object({ ...auth, ...operationShapes.upload_file, operation: z.literal('upload_file') }),
+  z.object({ ...auth, ...operationShapes.download_file, operation: z.literal('download_file') }),
+])
+export type TaxInput<K extends TaxOperation = TaxOperation> = Extract<
+  z.output<typeof inputSchema>,
+  { operation: K }
+>
 
 /** The registered tool ID selects its contract; callers cannot choose a different operation. */
-export function parseTaxInput<K extends TaxOperation>(operation: K, input: unknown): TaxInput<K> {
+export function parseTaxInput<K extends TaxOperation>(operation: K, input: unknown): TaxInput<K>
+export function parseTaxInput(operation: TaxOperation, input: unknown): TaxInput {
   assertTaxInputBudget(input)
-  const parsed = z
-    .object({ ...auth, ...operationShapes[operation] })
-    .strip()
-    .parse(input)
-  const result = { ...parsed, operation } as unknown as TaxInput<K>
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('Tax Reporting inputs must be an object')
+  }
+  const result = inputSchema.parse({ ...input, operation })
   if (result.operation === 'execute_job') {
     jobParametersSchemas[result.jobType].parse(result.parameters ?? {})
   }

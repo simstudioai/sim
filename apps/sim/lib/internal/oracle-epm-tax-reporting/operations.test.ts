@@ -57,6 +57,25 @@ const execute = (
 const wire = () => JSON.parse(mocks.fetch.mock.calls.at(-1)![2].body)
 
 describe('Tax Reporting provider behavior', () => {
+  it.each(['standalone', 'generated_report', 'user_details'])(
+    'projects only documented report fields for the %s status route',
+    async (reportStatusRoute) => {
+      mocks.fetch.mockResolvedValueOnce(
+        Response.json({
+          status: 0,
+          jobID: 224,
+          type: 'SDM',
+          details: null,
+          jobName: 'Planning-only field',
+          detailedStatus: 2,
+        })
+      )
+      expect(
+        await execute('get_report_status', { jobId: '224', module: 'SDM', reportStatusRoute })
+      ).toEqual({ status: 0, jobId: '224', type: 'SDM', details: null })
+    }
+  )
+
   it('preserves accepted job identity when the execution deadline leaves no time to poll', async () => {
     mocks.deadline.mockReturnValueOnce(new Date(Date.now() + 1000))
     expect(

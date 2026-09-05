@@ -575,7 +575,7 @@ export async function executeTaxReportingOperation(
           ? { jobId: input.jobId }
           : { jobId: input.jobId, module: input.module! }
       const read = (readSignal?: AbortSignal) =>
-        readJson(client, endpoint, jobResponseSchema, { pathParams, signal: readSignal })
+        readJson(client, endpoint, reportResponseSchema, { pathParams, signal: readSignal })
       const initial = await read(signal)
       const job = input.waitForCompletion ? await waitForJob(initial, read, signal) : initial
       return input.downloadReport && job.status === 0

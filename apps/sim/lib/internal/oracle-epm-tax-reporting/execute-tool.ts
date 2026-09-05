@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { OracleEpmError } from '@/lib/internal/oracle-epm'
 import {
@@ -33,9 +34,7 @@ export const executeTaxReportingTool: InternalToolOperationHandler = async ({
     const message =
       error instanceof z.ZodError
         ? `Invalid Tax Reporting input: ${error.issues[0]?.path.join('.') || 'parameters'}`
-        : error instanceof Error
-          ? error.message
-          : 'Invalid Tax Reporting input'
+        : getErrorMessage(error, 'Invalid Tax Reporting input')
     return Response.json({ success: false, error: message }, { status: 400 })
   }
   try {
