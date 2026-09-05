@@ -25,21 +25,40 @@ import { Glob } from 'bun'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-/** The `tsc` a bare invocation in `dir` would run: nearest `node_modules/.bin`, walking up. */
+/**
+ * The `tsc` a bare invocation in `dir` would run: nearest `node_modules/.bin`, walking up.
+ *
+ * The walk stops at the repository root even when nothing is found there. A machine that happens
+ * to have a TypeScript 7 above the checkout would otherwise satisfy every workspace and let the
+ * audit pass with `@typescript/native` deleted — the one thing it exists to catch.
+ */
 function resolveTsc(dir: string): string | null {
   let current = dir
   while (true) {
     const candidate = path.join(current, 'node_modules', '.bin', 'tsc')
     if (existsSync(candidate)) return candidate
+    if (current === ROOT) return null
     const parent = path.dirname(current)
-    if (parent === current || !current.startsWith(ROOT)) return null
+    if (parent === current) return null
     current = parent
   }
 }
 
+/** Read from the manifest rather than restating its globs, so a new workspace pattern is covered. */
+function workspacePatterns(): string[] {
+  const manifest = require(path.join(ROOT, 'package.json'))
+  const declared = Array.isArray(manifest.workspaces)
+    ? manifest.workspaces
+    : (manifest.workspaces?.packages ?? [])
+  if (declared.length === 0) throw new Error('Root package.json declares no workspaces')
+  return declared
+}
+
 const workspaceDirs = [
   '.',
-  ...[...new Glob('{apps,packages}/*/package.json').scanSync(ROOT)].map(path.dirname),
+  ...workspacePatterns().flatMap((pattern) =>
+    [...new Glob(`${pattern}/package.json`).scanSync(ROOT)].map(path.dirname)
+  ),
 ].sort()
 
 const failures: string[] = []
