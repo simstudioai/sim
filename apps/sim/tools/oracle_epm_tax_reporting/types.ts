@@ -180,6 +180,23 @@ export interface TaxFileResponse extends ToolResponse {
   output: { file: UserFile }
 }
 
+export type TaxReportingBlockResponse =
+  | TaxVersionResponse
+  | TaxApplicationsResponse
+  | TaxDefinitionsResponse
+  | TaxMemberResponse
+  | TaxJobStatusResponse
+  | TaxSupplementalResponse
+  | TaxReportResponse
+  | TaxUploadResponse
+  | TaxGridResponse
+  | TaxImportSliceResponse
+  | TaxClearSliceResponse
+  | TaxDetailsResponse
+  | TaxChildDetailsResponse
+  | TaxFilesResponse
+  | TaxFileResponse
+
 export type TaxReportingConnection = Pick<
   TaxReportingParams,
   'oauthCredential' | 'accessToken' | 'instanceUrl'

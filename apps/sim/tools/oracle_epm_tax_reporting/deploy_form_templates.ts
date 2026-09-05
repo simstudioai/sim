@@ -25,7 +25,12 @@ export const oracleEpmTaxReportingDeployFormTemplatesTool: InternalToolConfig<
     templates: taxFields.templates,
     frequencyDimensions: taxFields.frequencyDimensions,
     resetWorkflows: taxFields.resetWorkflows,
-    jobName: { ...taxFields.jobName, required: false },
+    jobName: {
+      ...taxFields.jobName,
+      required: false,
+      description:
+        'Optional name for this supplemental job submission, not a deployed Planning job definition.',
+    },
     waitForCompletion: taxFields.waitForCompletion,
   },
   operation: { input: createInternalToolOperationInput },

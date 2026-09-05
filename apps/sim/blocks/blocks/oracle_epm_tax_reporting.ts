@@ -2,7 +2,7 @@ import { NetSuiteIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalNumberInput } from '@/blocks/utils'
-import type { TaxReportingResponse } from '@/tools/oracle_epm_tax_reporting/types'
+import type { TaxReportingBlockResponse } from '@/tools/oracle_epm_tax_reporting/types'
 import { parseTaxBooleanInput, parseTaxJsonInput } from '@/tools/oracle_epm_tax_reporting/utils'
 
 const OPERATION_FIELDS: Record<string, readonly string[]> = {
@@ -86,6 +86,7 @@ const OPERATION_FIELDS: Record<string, readonly string[]> = {
     'period',
     'frequencyDimensions',
     'waitForCompletion',
+    'jobName',
   ],
   oracle_epm_tax_reporting_deploy_form_templates: [
     'application',
@@ -94,6 +95,7 @@ const OPERATION_FIELDS: Record<string, readonly string[]> = {
     'frequencyDimensions',
     'resetWorkflows',
     'waitForCompletion',
+    'jobName',
   ],
   oracle_epm_tax_reporting_import_supplemental_dimension_members: [
     'dimension',
@@ -146,7 +148,7 @@ const BOOLEAN_FIELDS = new Set([
   'downloadReport',
 ])
 
-export const OracleEpmTaxReportingBlock: BlockConfig<TaxReportingResponse> = {
+export const OracleEpmTaxReportingBlock: BlockConfig<TaxReportingBlockResponse> = {
   type: 'oracle_epm_tax_reporting',
   name: 'Oracle EPM Tax Reporting',
   description:
@@ -1145,6 +1147,20 @@ export const OracleEpmTaxReportingBlock: BlockConfig<TaxReportingResponse> = {
       },
     },
     {
+      id: 'submissionName',
+      title: 'Submission Name',
+      type: 'short-input',
+      placeholder: 'Optional name for this supplemental job submission',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'oracle_epm_tax_reporting_import_supplemental_collection_data',
+          'oracle_epm_tax_reporting_deploy_form_templates',
+        ],
+      },
+    },
+    {
       id: 'collection',
       title: 'Collection',
       type: 'short-input',
@@ -1301,9 +1317,9 @@ export const OracleEpmTaxReportingBlock: BlockConfig<TaxReportingResponse> = {
       title: 'Format',
       type: 'dropdown',
       value: () => '',
-      options: (values) => [
+      options: (params) => [
         { id: '', label: 'Oracle default (PDF report / CSV user details)' },
-        ...(values?.operation === 'oracle_epm_tax_reporting_generate_user_details_report'
+        ...(params?.values.operation === 'oracle_epm_tax_reporting_generate_user_details_report'
           ? ['CSV', 'XLS']
           : ['HTML', 'PDF', 'XLSX', 'CSV']
         ).map((id) => ({ id, label: id })),
@@ -1322,8 +1338,8 @@ export const OracleEpmTaxReportingBlock: BlockConfig<TaxReportingResponse> = {
       id: 'module',
       title: 'Module',
       type: 'dropdown',
-      options: (values) =>
-        (values?.operation === 'oracle_epm_tax_reporting_generate_report'
+      options: (params) =>
+        (params?.values.operation === 'oracle_epm_tax_reporting_generate_report'
           ? ['FCM', 'SDM']
           : ['FCCS', 'SDM']
         ).map((id) => ({ id, label: id })),
@@ -1442,7 +1458,10 @@ export const OracleEpmTaxReportingBlock: BlockConfig<TaxReportingResponse> = {
         if (!fields) return {}
         const result: Record<string, unknown> = { oauthCredential: params.oauthCredential }
         for (const key of fields) {
-          const value = params[key]
+          const supplemental =
+            params.operation === 'oracle_epm_tax_reporting_import_supplemental_collection_data' ||
+            params.operation === 'oracle_epm_tax_reporting_deploy_form_templates'
+          const value = key === 'jobName' && supplemental ? params.submissionName : params[key]
           if (value === undefined || value === null || value === '') continue
           if (JSON_FIELDS.has(key)) result[key] = parseTaxJsonInput(value, key)
           else if (BOOLEAN_FIELDS.has(key)) result[key] = parseTaxBooleanInput(value)

@@ -16,6 +16,47 @@ const block = OracleEpmTaxReportingBlock
 const tools = Object.values(toolExports)
 
 describe('Tax Reporting integration contracts', () => {
+  it.each(['import_supplemental_collection_data', 'deploy_form_templates'])(
+    'maps only the supplemental submission label for %s',
+    (operation) => {
+      const params = {
+        operation: `oracle_epm_tax_reporting_${operation}`,
+        oauthCredential: 'credential',
+        jobName: 'Stale saved rule',
+        submissionName: '<trigger.label>',
+      }
+      expect(block.tools.config.params?.(params)).toEqual({
+        oauthCredential: 'credential',
+        jobName: '<trigger.label>',
+      })
+      expect(block.tools.config.params?.({ ...params, submissionName: '' })).toEqual({
+        oauthCredential: 'credential',
+      })
+      expect(
+        block.tools.config.params?.({ ...params, operation: 'oracle_epm_tax_reporting_run_rule' })
+      ).toEqual({ oauthCredential: 'credential', jobName: 'Stale saved rule' })
+    }
+  )
+
+  it('derives report enums from the current block values wrapper', () => {
+    const format = block.subBlocks.find((item) => item.id === 'format')!
+    const module = block.subBlocks.find((item) => item.id === 'module')!
+    if (typeof format.options !== 'function' || typeof module.options !== 'function')
+      throw new Error('Expected derived options')
+    const values = { operation: 'oracle_epm_tax_reporting_generate_user_details_report' }
+    expect(format.options({ values }).map((option) => option.id)).toEqual(['', 'CSV', 'XLS'])
+    expect(
+      module
+        .options({ values: { operation: 'oracle_epm_tax_reporting_generate_report' } })
+        .map((option) => option.id)
+    ).toEqual(['FCM', 'SDM'])
+    expect(
+      module
+        .options({ values: { operation: 'oracle_epm_tax_reporting_get_report_status' } })
+        .map((option) => option.id)
+    ).toEqual(['FCCS', 'SDM'])
+  })
+
   it('requires the active application and report module according to their route family', () => {
     const required = (id: string, values: Record<string, unknown>) => {
       const config = block.subBlocks.find((item) => item.id === id)!

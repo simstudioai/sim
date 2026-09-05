@@ -526,7 +526,7 @@ Import an uploaded collection CSV for a year, period, and configured frequency d
 | `year` | string | Yes | Collection year member, for example FY26; tenant-specific. |
 | `period` | string | Yes | Collection period member, for example Jan; tenant-specific. |
 | `frequencyDimensions` | json | No | JSON object of additional collection-interval frequency dimension names and member strings. Preserve case. For template deployment supply all configured dimensions \(up to four\), including Year/Period when applicable. |
-| `jobName` | string | No | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `jobName` | string | No | Optional name for this supplemental job submission, not a deployed Planning job definition. |
 | `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
 
 #### Output
@@ -557,7 +557,7 @@ Deploy Supplemental Data templates for a collection interval. Empty templates de
 | `templates` | array | Yes | Template name array. An explicit empty array deploys ALL templates for the interval; use named templates to limit scope. |
 | `frequencyDimensions` | json | No | JSON object of additional collection-interval frequency dimension names and member strings. Preserve case. For template deployment supply all configured dimensions \(up to four\), including Year/Period when applicable. |
 | `resetWorkflows` | boolean | No | Reset existing form workflows during deployment \(default false\). |
-| `jobName` | string | No | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `jobName` | string | No | Optional name for this supplemental job submission, not a deployed Planning job definition. |
 | `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
 
 #### Output
