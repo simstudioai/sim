@@ -1250,6 +1250,7 @@ export type CreateCredentialConnectionBody =
       workspaceId: string
       displayName: string
       providerId:
+        | 'github-repositories'
         | 'google-email'
         | 'google-drive'
         | 'google-docs'

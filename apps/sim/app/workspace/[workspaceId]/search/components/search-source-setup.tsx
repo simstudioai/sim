@@ -67,7 +67,15 @@ export function SearchSourceSetup({
   mirroredAccessAvailable,
 }: SearchSourceSetupProps) {
   const { data: session } = useSession()
-  const { integrationAvailability } = usePermissionConfig()
+  const {
+    integrationAvailability,
+    oauthServiceAvailability,
+    isIntegrationAvailabilityReady,
+    isIntegrationAvailabilityFetching,
+    isIntegrationAvailabilityLoading,
+    integrationAvailabilityError,
+    refetchIntegrationAvailability,
+  } = usePermissionConfig()
   const [selectedType, setSelectedType] = useQueryState(
     searchSetupParam.key,
     searchSetupParam.parser.withOptions({ history: 'replace' })
@@ -110,13 +118,20 @@ export function SearchSourceSetup({
       getConnectorAccessAvailability(meta, integrationAvailability, {
         memberAccessAvailable,
         mirroredAccessAvailable,
+        oauthServiceAvailability,
+        isIntegrationAvailabilityReady:
+          isIntegrationAvailabilityReady || integrationAvailability.size > 0,
       }).admin
     )
       return 'admin' as const
     return 'members' as const
   }
 
-  if (!failedQuery && knowledgeBaseId) {
+  if (
+    !failedQuery &&
+    knowledgeBaseId &&
+    (isIntegrationAvailabilityReady || integrationAvailability.size > 0)
+  ) {
     if (selectedType && session?.user?.id) {
       return (
         <AddConnectorModal
@@ -180,6 +195,20 @@ export function SearchSourceSetup({
               variant='inline'
             />
           </ChipModalField>
+        ) : integrationAvailabilityError ? (
+          <ChipModalField type='custom' title='Connection availability'>
+            <SettingsQueryErrorState
+              error={integrationAvailabilityError}
+              isRetrying={isIntegrationAvailabilityFetching}
+              fallback='Could not load connection availability'
+              onRetry={() => void refetchIntegrationAvailability()}
+              variant='inline'
+            />
+          </ChipModalField>
+        ) : isIntegrationAvailabilityLoading ? (
+          <ChipModalField type='custom' title='Sources'>
+            <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+          </ChipModalField>
         ) : managedSource ? (
           <ChipModalField type='custom' title='Source'>
             <SettingsEmptyState variant='inline'>
@@ -204,7 +233,12 @@ export function SearchSourceSetup({
                   const { admin: central, members } = getConnectorAccessAvailability(
                     meta,
                     integrationAvailability,
-                    { memberAccessAvailable, mirroredAccessAvailable }
+                    {
+                      memberAccessAvailable,
+                      mirroredAccessAvailable,
+                      oauthServiceAvailability,
+                      isIntegrationAvailabilityReady,
+                    }
                   )
                   const available = central || members
                   return (

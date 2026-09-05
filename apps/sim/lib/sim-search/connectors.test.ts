@@ -74,6 +74,7 @@ vi.mock('@/lib/oauth', () => {
     gmail: { providerId: 'google-email', name: 'Gmail', icon: () => null },
     confluence: { providerId: 'confluence', name: 'Confluence', icon: () => null },
     slack: { providerId: 'slack', name: 'Slack', icon: () => null },
+    'github-repositories': { providerId: 'github-repositories', name: 'GitHub', icon: () => null },
     salesforce: {
       providerId: 'salesforce',
       name: 'Salesforce',
@@ -101,9 +102,15 @@ vi.mock('@/lib/integrations/credential-display', () => ({
 
 vi.mock('@/lib/credential-groups/providers', () => ({
   findCredentialGroupProviderFromProviderId: (providerId: string) =>
-    ['google-drive', 'confluence', 'slack', 'jira', 'google-email', 'salesforce'].includes(
-      providerId
-    )
+    [
+      'google-drive',
+      'confluence',
+      'slack',
+      'jira',
+      'google-email',
+      'salesforce',
+      'github-repositories',
+    ].includes(providerId)
       ? providerId
       : null,
 }))
@@ -169,37 +176,87 @@ describe('personalSetupFields', () => {
   })
 })
 
+const ready = {
+  isIntegrationAvailabilityReady: true,
+  oauthServiceAvailability: new Map([
+    ['google-drive', true],
+    ['confluence', true],
+    ['jira', true],
+    ['github-repositories', true],
+  ]),
+}
+
 describe('isSearchConnectorAvailable', () => {
   it('allows Slack custom-app authorization on limited deployments but respects unavailable states', () => {
-    const sample = SEARCH_CONNECTORS[0]
-    const slack = { ...sample, type: 'slack', blockType: 'slack_v2' }
+    const slack = {
+      ...SEARCH_CONNECTORS[0],
+      type: 'slack',
+      blockType: 'slack_v2',
+      providerId: 'slack',
+    }
     expect(
       isSearchConnectorAvailable(
         slack,
-        new Map([['slack_v2', { oauthAvailable: false, state: 'limited' }]])
+        new Map([['slack_v2', { oauthAvailable: false, state: 'limited' }]]),
+        ready
       )
     ).toBe(true)
     for (const state of ['unavailable', 'misconfigured'] as const) {
       expect(
-        isSearchConnectorAvailable(slack, new Map([['slack_v2', { oauthAvailable: true, state }]]))
+        isSearchConnectorAvailable(
+          slack,
+          new Map([['slack_v2', { oauthAvailable: true, state }]]),
+          ready
+        )
       ).toBe(false)
     }
+    expect(isSearchConnectorAvailable(slack, new Map(), ready)).toBe(false)
   })
 
-  it('reads the OAuth path of the connector’s block, defaulting to available', () => {
+  it('uses the canonical OAuth service independently of workflow authentication', () => {
+    const github = { type: 'github', blockType: 'github_v2', providerId: 'github-repositories' }
+    const tokenOnlyBlock = new Map([
+      ['github_v2', { oauthAvailable: false, state: 'ready' as const }],
+    ])
+    expect(isSearchConnectorAvailable(github, tokenOnlyBlock, ready)).toBe(true)
+    expect(
+      isSearchConnectorAvailable(github, tokenOnlyBlock, {
+        ...ready,
+        oauthServiceAvailability: new Map([['github-repositories', false]]),
+      })
+    ).toBe(false)
+  })
+
+  it('refuses unknown or unconfigured OAuth services even when the workflow block is ready', () => {
     const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
-    expect(isSearchConnectorAvailable(jira, new Map([['jira', { oauthAvailable: false }]]))).toBe(
-      false
-    )
-    expect(isSearchConnectorAvailable(jira, new Map([['jira', { oauthAvailable: true }]]))).toBe(
-      true
-    )
-    expect(isSearchConnectorAvailable(jira, new Map())).toBe(true)
+    const blockAvailability = new Map([['jira', { oauthAvailable: true }]])
+    expect(
+      isSearchConnectorAvailable(jira, blockAvailability, {
+        ...ready,
+        oauthServiceAvailability: new Map(),
+      })
+    ).toBe(false)
+    expect(
+      isSearchConnectorAvailable(jira, blockAvailability, {
+        ...ready,
+        oauthServiceAvailability: new Map([['jira', false]]),
+      })
+    ).toBe(false)
+  })
+
+  it('refuses setup while availability is loading or failed, including with stale cached data', () => {
+    const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
+    expect(
+      isSearchConnectorAvailable(jira, new Map(), {
+        ...ready,
+        isIntegrationAvailabilityReady: false,
+      })
+    ).toBe(false)
   })
 })
 
 describe('getConnectorAccessAvailability', () => {
-  const enabled = { memberAccessAvailable: true, mirroredAccessAvailable: true }
+  const enabled = { ...ready, memberAccessAvailable: true, mirroredAccessAvailable: true }
   const drive: ConnectorMeta = {
     id: 'google_drive',
     name: 'Google Drive',
@@ -235,6 +292,7 @@ describe('getConnectorAccessAvailability', () => {
     (member, mirrored, expected) => {
       expect(
         getConnectorAccessAvailability(drive, new Map(), {
+          ...ready,
           memberAccessAvailable: member,
           mirroredAccessAvailable: mirrored,
         })
@@ -247,7 +305,7 @@ describe('getConnectorAccessAvailability', () => {
       getConnectorAccessAvailability(
         drive,
         new Map([['google_drive', { state: 'limited', oauthAvailable: false }]]),
-        enabled
+        { ...enabled, oauthServiceAvailability: new Map([['google-drive', false]]) }
       )
     ).toEqual({ admin: true, members: false })
   })
@@ -257,7 +315,7 @@ describe('getConnectorAccessAvailability', () => {
       getConnectorAccessAvailability(
         confluence,
         new Map([['confluence', { state: 'limited', oauthAvailable: false }]]),
-        enabled
+        { ...enabled, oauthServiceAvailability: new Map([['confluence', false]]) }
       )
     ).toEqual({ admin: false, members: false })
   })
@@ -265,8 +323,8 @@ describe('getConnectorAccessAvailability', () => {
   it('refuses Confluence central setup when managed identity features are disabled', () => {
     expect(
       getConnectorAccessAvailability(confluence, new Map(), {
+        ...enabled,
         memberAccessAvailable: false,
-        mirroredAccessAvailable: true,
       })
     ).toEqual({ admin: false, members: false })
   })
@@ -313,8 +371,8 @@ describe('getConnectorAccessAvailability', () => {
       expect(
         getConnectorAccessAvailability(
           drive,
-          new Map([['google_drive', { state, oauthAvailable: true }]]),
-          enabled
+          new Map([['google_drive', { state, oauthAvailable: false }]]),
+          { ...enabled, oauthServiceAvailability: new Map([['google-drive', false]]) }
         )
       ).toEqual({ admin: false, members: false })
     }
@@ -331,9 +389,29 @@ describe('getConnectorAccessAvailability', () => {
       getConnectorAccessAvailability(
         gitlab,
         new Map([['gitlab', { state: 'ready', oauthAvailable: false }]]),
-        { memberAccessAvailable: false, mirroredAccessAvailable: true }
+        { ...ready, memberAccessAvailable: false, mirroredAccessAvailable: true }
       )
     ).toEqual({ admin: true, members: false })
+  })
+
+  it('offers GitHub member crawling only when its own App client is configured', () => {
+    const github: ConnectorMeta = {
+      ...drive,
+      id: 'github',
+      auth: { mode: 'oauth', provider: 'github-repositories' },
+      mirrorsSourceAcls: undefined,
+    }
+    const deployment = new Map([['github', { state: 'ready' as const, oauthAvailable: false }]])
+    expect(getConnectorAccessAvailability(github, deployment, enabled)).toEqual({
+      admin: false,
+      members: true,
+    })
+    expect(
+      getConnectorAccessAvailability(github, deployment, {
+        ...enabled,
+        oauthServiceAvailability: new Map([['github-repositories', false]]),
+      })
+    ).toEqual({ admin: false, members: false })
   })
 
   it('does not offer identity-dependent methods for an unknown OAuth service', () => {
@@ -343,6 +421,15 @@ describe('getConnectorAccessAvailability', () => {
         new Map(),
         enabled
       )
+    ).toEqual({ admin: false, members: false })
+  })
+
+  it('does not offer either method until availability has loaded successfully', () => {
+    expect(
+      getConnectorAccessAvailability(drive, new Map(), {
+        ...enabled,
+        isIntegrationAvailabilityReady: false,
+      })
     ).toEqual({ admin: false, members: false })
   })
 })

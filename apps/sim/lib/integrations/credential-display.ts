@@ -11,6 +11,7 @@
  */
 
 import type { ComponentType } from 'react'
+import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { GitlabIcon } from '@/components/icons'
 import { getServiceAccountConnectNoun } from '@/lib/credentials/service-account-provider-ids'
@@ -18,12 +19,7 @@ import { CANONICAL_SERVICE_ACCOUNT_SLUGS } from '@/lib/integrations/oauth-servic
 import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import type { OAuthProvider, OAuthServiceConfig } from '@/lib/oauth/types'
-import {
-  credentialProviderMatchesService,
-  getServiceConfigByProviderId,
-  getServiceConfigByServiceId,
-  parseProvider,
-} from '@/lib/oauth/utils'
+import { getServiceConfigByProviderId, parseProvider } from '@/lib/oauth/utils'
 
 const INTEGRATIONS_DATA: readonly Integration[] =
   integrationsJson.integrations as readonly Integration[]
@@ -42,6 +38,9 @@ const MAX_ENUMERATED_INTEGRATIONS = 3
  */
 const INTEGRATION_BY_SLUG: ReadonlyMap<string, Integration> = new Map(
   INTEGRATIONS_DATA.map((i) => [i.slug, i])
+)
+const INTEGRATION_BY_TYPE: ReadonlyMap<string, Integration> = new Map(
+  INTEGRATIONS_DATA.map((integration) => [integration.type, integration])
 )
 
 /** Keyed by lowercased display name, matching how OAuth services are named. */
@@ -64,10 +63,8 @@ const SERVICE_ACCOUNT_PROVIDER_IDS: ReadonlySet<string> = new Set(
  * `OAUTH_PROVIDERS`, which is wasted work to repeat per lookup (same reasoning
  * as `SERVICE_ACCOUNT_INTEGRATIONS` in `oauth-service.ts`).
  *
- * Indexing under every id a service answers to — its OAuth provider id, its
- * service-account provider id, and any additional authorization server — is
- * the predicate {@link credentialProviderMatchesService} expressed as a map,
- * so the two can never disagree.
+ * The deployment service mapping also covers Search-only OAuth credentials
+ * whose corresponding workflow integration uses an API key.
  */
 const INTEGRATIONS_BY_CREDENTIAL_PROVIDER: ReadonlyMap<string, readonly Integration[]> = (() => {
   const index = new Map<string, Integration[]>()
@@ -78,17 +75,28 @@ const INTEGRATIONS_BY_CREDENTIAL_PROVIDER: ReadonlyMap<string, readonly Integrat
     else index.set(providerId, [integration])
   }
 
-  for (const integration of INTEGRATIONS_DATA) {
-    if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue
-    const service = getServiceConfigByServiceId(integration.oauthServiceId)
-    if (!service) continue
-    add(service.providerId, integration)
-    add(service.serviceAccountProviderId, integration)
-    for (const extraProviderId of service.additionalProviderIds ?? []) {
-      add(extraProviderId, integration)
+  for (const provider of Object.values(OAUTH_PROVIDERS)) {
+    for (const [serviceId, service] of Object.entries(provider.services)) {
+      for (const integrationType of getIntegrationTypesForOAuthServiceId(serviceId)) {
+        const integration = INTEGRATION_BY_TYPE.get(integrationType)
+        if (!integration) continue
+        add(service.providerId, integration)
+        add(service.serviceAccountProviderId, integration)
+        for (const extraProviderId of service.additionalProviderIds ?? []) {
+          add(extraProviderId, integration)
+        }
+      }
     }
   }
 
+  const catalogOrder = new Map(
+    INTEGRATIONS_DATA.map((integration, order) => [integration.type, order])
+  )
+  for (const covered of index.values()) {
+    covered.sort(
+      (left, right) => (catalogOrder.get(left.type) ?? 0) - (catalogOrder.get(right.type) ?? 0)
+    )
+  }
   return index
 })()
 

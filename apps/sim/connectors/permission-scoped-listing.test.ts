@@ -42,8 +42,12 @@ describe('permission-scoped connector listings', () => {
     const search = Object.values(CONNECTOR_META_REGISTRY).filter((meta) => meta.search)
     expect(search.map((meta) => meta.id).sort()).toEqual([
       'confluence',
+      'github',
       'gitlab',
+      'gmail',
+      'google_calendar',
       'google_drive',
+      'jira',
       'slack',
     ])
     for (const meta of search) {
@@ -63,6 +67,7 @@ describe('permission-scoped connector listings', () => {
       'confluence',
       'docusign',
       'dropbox',
+      'github',
       'gmail',
       'google_calendar',
       'google_chat',

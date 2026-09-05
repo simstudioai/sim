@@ -1,9 +1,20 @@
 import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
+const SEARCH_SETUP_SOURCES = [
+  'confluence',
+  'github',
+  'gitlab',
+  'gmail',
+  'google_calendar',
+  'google_drive',
+  'jira',
+  'slack',
+] as const
+
 /** Null closes setup; an empty value opens the picker, and a source type resumes its form. */
 export const searchSetupParam = {
   key: 'addConnector',
-  parser: parseAsStringLiteral(['', 'google_drive', 'confluence', 'gitlab', 'slack']),
+  parser: parseAsStringLiteral(['', ...SEARCH_SETUP_SOURCES]),
 } as const
 
 /** Null closes the source management panel. */
@@ -15,7 +26,7 @@ export const managedSourceParam = {
 /** A setup detour carries intent, never an arbitrary redirect URL. */
 export const searchSetupReturnParam = {
   key: 'search-setup',
-  parser: parseAsStringLiteral(['google_drive', 'confluence', 'gitlab', 'slack', 'search']),
+  parser: parseAsStringLiteral([...SEARCH_SETUP_SOURCES, 'search']),
 } as const
 
 export type SearchSetupSource = NonNullable<ReturnType<typeof searchSetupParam.parser.parse>>

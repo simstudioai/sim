@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   getUserPermissionConfig: vi.fn(),
   resolveMembersBinding: vi.fn(),
   provision: vi.fn(),
+  decryptApiKey: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -83,6 +84,7 @@ vi.mock('@/lib/credentials/access', () => ({
 vi.mock('@/lib/oauth/credential-service', () => ({
   resolveCredentialTokenBundle: mocks.resolveTokenBundle,
 }))
+vi.mock('@/lib/api-key/crypto', () => ({ decryptApiKey: mocks.decryptApiKey }))
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
@@ -90,6 +92,14 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
+    github: {
+      auth: {
+        mode: 'oauth',
+        provider: 'github-repositories',
+        apiKey: { label: 'Personal access token' },
+      },
+      validateConfig: mocks.validateConnectorConfig,
+    },
     confluence: {
       auth: { mode: 'oauth', requiredScopes: ['read:confluence-content.all'] },
       validateConfig: mocks.validateConnectorConfig,
@@ -152,7 +162,7 @@ describe('knowledge connector application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('admin')
     for (const [connectorType, accessMode] of [
       ['confluence', 'workspace'],
-      ['jira', 'members'],
+      ['notion', 'members'],
     ] as const) {
       await expect(
         createKnowledgeConnector.execute({
@@ -189,12 +199,88 @@ describe('knowledge connector application use cases', () => {
     )
     mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'oauth', userId: 'credential-owner' })
     mocks.resolveTokenBundle.mockResolvedValue({ accessToken: 'access-token' })
+    mocks.decryptApiKey.mockResolvedValue({ decrypted: 'existing-pat' })
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
     mocks.resolveBilling.mockResolvedValue(BILLING)
     mocks.getUserPermissionConfig.mockResolvedValue(null)
   })
 
   afterAll(resetDbChainMock)
+
+  it.each([
+    { connectorType: 'confluence', apiKey: 'token', error: 'requires an OAuth account' },
+    {
+      connectorType: 'github',
+      apiKey: 'token',
+      credentialId: 'credential-1',
+      error: 'Choose either an OAuth account or an API key',
+    },
+    {
+      connectorType: 'github',
+      apiKey: 'token',
+      accessMode: 'members' as const,
+      error: 'requires an OAuth account',
+    },
+  ])(
+    'rejects unsupported, mixed, or member API keys before credential use: $connectorType $accessMode',
+    async ({ error, ...input }) => {
+      mocks.resolvePermission.mockResolvedValue('admin')
+      await expect(
+        createKnowledgeConnector.execute({
+          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+          input: {
+            knowledgeBaseId: 'knowledge-b',
+            sourceConfig: {},
+            syncIntervalMinutes: 60,
+            ...input,
+          },
+        })
+      ).rejects.toThrow(error)
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+      expect(mocks.getCredentialActorContext).not.toHaveBeenCalled()
+      expect(mocks.resolveMembersBinding).not.toHaveBeenCalled()
+      expect(mocks.decryptApiKey).not.toHaveBeenCalled()
+    }
+  )
+
+  it('validates an existing GitHub PAT while updating source settings without inventing an OAuth owner', async () => {
+    const persisted = {
+      ...connectorContext.connector,
+      connectorType: 'github',
+      credentialId: null,
+      encryptedApiKey: 'persisted-cipher',
+      accessMode: 'workspace' as const,
+    }
+    const sourceConfig = { owner: 'acme', repo: 'handbook' }
+    mocks.resolveConnector.mockResolvedValueOnce({ ...connectorContext, connector: persisted })
+    mocks.updateConnector.mockImplementationOnce(
+      async (input: {
+        validateSourceConfig: (
+          connector: typeof persisted,
+          sourceConfig: Record<string, unknown>
+        ) => Promise<unknown>
+      }) => {
+        expect(await input.validateSourceConfig(persisted, sourceConfig)).toBeNull()
+        return { success: true, connector: { ...persisted, sourceConfig } }
+      }
+    )
+
+    await updateKnowledgeConnector.execute({
+      principal: { kind: 'session', userId: 'writer', sessionId: 'session' },
+      input: { connectorId: 'connector-b', updates: { sourceConfig } },
+    })
+
+    expect(mocks.decryptApiKey).toHaveBeenCalledWith('persisted-cipher')
+    expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('existing-pat', sourceConfig, {
+      mirrorsSourceAcls: false,
+    })
+    expect(mocks.getCredentialActorContext).not.toHaveBeenCalled()
+    expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
+    expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.decryptApiKey.mock.invocationCallOrder[0]!
+    )
+  })
 
   it.each([
     [

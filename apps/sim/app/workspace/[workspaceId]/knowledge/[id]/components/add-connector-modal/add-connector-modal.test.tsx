@@ -36,7 +36,27 @@ vi.mock('@/hooks/use-member-access', () => ({
   useMemberAccessAvailable: () => mocks.memberAccess,
 }))
 vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({ integrationAvailability: new Map() }),
+  usePermissionConfig: () => ({
+    integrationAvailability: new Map([
+      ['slack', { oauthAvailable: true, state: 'ready' }],
+      ['slack_v2', { oauthAvailable: true, state: 'ready' }],
+    ]),
+    oauthServiceAvailability: new Map(
+      [
+        'confluence',
+        'google-drive',
+        'google_drive',
+        'google-email',
+        'google-calendar',
+        'jira',
+        'github-repositories',
+      ].map((providerId) => [providerId, true])
+    ),
+    isIntegrationAvailabilityReady: true,
+    isIntegrationAvailabilityLoading: false,
+    integrationAvailabilityError: null,
+    refetchIntegrationAvailability: vi.fn(),
+  }),
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useCreateConnector: () => ({ mutate: mocks.create, isPending: false }),

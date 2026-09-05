@@ -33,6 +33,8 @@ const deploymentGatedIntegrationTypes = new Set(
     .map((integration) => integration.type.toLowerCase())
 )
 const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
+/** Search authorization shares GitHub's integration policy while its workflow tools retain PAT auth. */
+integrationTypesByOAuthServiceId.set('github-repositories', ['github_v2'])
 const previewServiceAccountProvidersByIntegrationType = new Map<string, string>()
 for (const integration of integrations) {
   if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue

@@ -83,7 +83,10 @@ interface ConnectorAccessFieldProps {
 function accessHint(mode: ConnectorAccessMode, connectorConfig: ConnectorMeta): string {
   const sourceName = connectorConfig.name
   if (mode === 'members') {
-    return `Each teammate connects their ${sourceName} account. They see only documents they can open there.`
+    return (
+      connectorConfig.memberSetupHint ??
+      `Each teammate connects their ${sourceName} account. They see only documents they can open there.`
+    )
   }
   if (mode === 'admin') {
     const identityHint = connectorConfig.requiresMemberIdentity

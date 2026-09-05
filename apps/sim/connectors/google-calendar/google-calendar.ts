@@ -4,11 +4,15 @@ import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/document
 import { DEFAULT_MAX_EVENTS, googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  computeContentHash,
+  htmlToPlainText,
   isListingScopeUnavailableError,
   isPerMemberListing,
   listingRequestError,
+  memberDocumentId,
   parseMultiValue,
   parseTagDate,
+  sourceDocumentId,
 } from '@/connectors/utils'
 
 const logger = createLogger('GoogleCalendarConnector')
@@ -16,6 +20,8 @@ const logger = createLogger('GoogleCalendarConnector')
 const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
 const DEFAULT_RANGE_DAYS = 30
 const PAGE_SIZE = 250
+
+class GoogleCalendarCredentialInvalidError extends Error {}
 
 interface CalendarEventTime {
   date?: string
@@ -195,12 +201,7 @@ function eventToContent(event: CalendarEvent, includeAttendees: boolean): string
   if (event.description) {
     parts.push('')
     parts.push('Description:')
-    parts.push(
-      event.description
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    )
+    parts.push(htmlToPlainText(event.description))
   }
 
   return parts.join('\n')
@@ -262,12 +263,13 @@ function getTimeRange(sourceConfig: Record<string, unknown>): { timeMin: string;
  * calendarId because Google Calendar event IDs are only unique within a
  * single calendar.
  */
-function eventToDocument(
+async function eventToDocument(
   event: CalendarEvent,
   calendarId: string,
   isMultiCalendar: boolean,
-  includeAttendees: boolean
-): ExternalDocument | null {
+  includeAttendees: boolean,
+  syncContext?: Record<string, unknown>
+): Promise<ExternalDocument | null> {
   if (event.status === 'cancelled') return null
 
   const content = eventToContent(event, includeAttendees)
@@ -276,31 +278,40 @@ function eventToDocument(
   const startTime = event.start?.dateTime || event.start?.date || ''
   const attendeeCount = countAttendees(event.attendees)
 
-  const externalId = isMultiCalendar ? `${calendarId}:${event.id}` : event.id
+  const memberScoped = isPerMemberListing(syncContext)
+  const externalId = memberDocumentId(
+    isMultiCalendar || memberScoped ? `${calendarId}:${event.id}` : event.id,
+    syncContext
+  )
   const baseHash = isMultiCalendar
     ? `gcal:${calendarId}:${event.id}:${event.updated ?? ''}`
     : `gcal:${event.id}:${event.updated ?? ''}`
   const contentHash = includeAttendees ? baseHash : `${baseHash}${NO_ATTENDEES_HASH_SUFFIX}`
+
+  const metadata = {
+    calendarId,
+    startTime,
+    endTime: event.end?.dateTime || event.end?.date || '',
+    location: event.location || '',
+    organizer: includeAttendees ? formatOrganizer(event.organizer) : '',
+    attendeeCount,
+    isAllDay: isAllDayEvent(event),
+    eventDate: startTime,
+    updatedTime: event.updated,
+    createdTime: event.created,
+  }
 
   return {
     externalId,
     title: event.summary || 'Untitled Event',
     content,
     mimeType: 'text/plain',
-    sourceUrl: event.htmlLink || `https://calendar.google.com/calendar/event?eid=${event.id}`,
-    contentHash,
-    metadata: {
-      calendarId,
-      startTime,
-      endTime: event.end?.dateTime || event.end?.date || '',
-      location: event.location || '',
-      organizer: includeAttendees ? formatOrganizer(event.organizer) : '',
-      attendeeCount,
-      isAllDay: isAllDayEvent(event),
-      eventDate: startTime,
-      updatedTime: event.updated,
-      createdTime: event.created,
-    },
+    sourceUrl: event.htmlLink || 'https://calendar.google.com/calendar/',
+    /** A reader's visible fields can change with calendar permissions without editing the event. */
+    contentHash: memberScoped
+      ? `gcal:${externalId}:${await computeContentHash(JSON.stringify({ content, metadata }))}`
+      : contentHash,
+    metadata,
   }
 }
 
@@ -308,6 +319,7 @@ export const googleCalendarConnector: ConnectorConfig = {
   ...googleCalendarConnectorMeta,
 
   isListingScopeUnavailableError: isListingScopeUnavailableError,
+  isCredentialInvalidError: (error) => error instanceof GoogleCalendarCredentialInvalidError,
 
   listDocuments: async (
     accessToken: string,
@@ -317,7 +329,7 @@ export const googleCalendarConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const parsedCalendarIds = parseMultiValue(sourceConfig.calendarId)
     const calendarIds = parsedCalendarIds.length > 0 ? parsedCalendarIds : ['primary']
-    const { timeMin, timeMax } = getTimeRange(sourceConfig)
+    let timeRange = getTimeRange(sourceConfig)
     const searchQuery = (sourceConfig.searchQuery as string) || ''
 
     /**
@@ -330,10 +342,22 @@ export const googleCalendarConnector: ConnectorConfig = {
 
     if (cursor) {
       try {
-        const parsed = JSON.parse(cursor) as { calendarIndex: number; pageToken?: string }
+        const parsed = JSON.parse(cursor) as {
+          calendarIndex: number
+          pageToken?: string
+          timeRange?: { timeMin: string; timeMax: string }
+        }
         if (typeof parsed.calendarIndex === 'number') {
           calendarIndex = parsed.calendarIndex
           pageToken = parsed.pageToken
+          if (
+            parsed.timeRange &&
+            typeof parsed.timeRange.timeMin === 'string' &&
+            typeof parsed.timeRange.timeMax === 'string' &&
+            Date.parse(parsed.timeRange.timeMin) < Date.parse(parsed.timeRange.timeMax)
+          ) {
+            timeRange = parsed.timeRange
+          }
         } else {
           pageToken = cursor
         }
@@ -347,6 +371,7 @@ export const googleCalendarConnector: ConnectorConfig = {
     }
 
     const calendarId = calendarIds[calendarIndex]
+    const { timeMin, timeMax } = timeRange
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     /** Absent means the default cap; an explicit 0 (a per-member sync) means unlimited. */
@@ -399,6 +424,9 @@ export const googleCalendarConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new GoogleCalendarCredentialInvalidError('Reconnect your Google Calendar account')
+      }
       const errorText = await response.text()
       logger.error('Failed to list Google Calendar events', {
         status: response.status,
@@ -426,7 +454,7 @@ export const googleCalendarConnector: ConnectorConfig = {
         return calendarIndex + 1 < calendarIds.length
           ? {
               documents: [],
-              nextCursor: JSON.stringify({ calendarIndex: calendarIndex + 1 }),
+              nextCursor: JSON.stringify({ calendarIndex: calendarIndex + 1, timeRange }),
               hasMore: true,
             }
           : { documents: [], hasMore: false }
@@ -441,7 +469,13 @@ export const googleCalendarConnector: ConnectorConfig = {
     const includeAttendees = readIncludeAttendees(sourceConfig)
     const allDocuments: ExternalDocument[] = []
     for (const event of events) {
-      const doc = eventToDocument(event, calendarId, isMultiCalendar, includeAttendees)
+      const doc = await eventToDocument(
+        event,
+        calendarId,
+        isMultiCalendar,
+        includeAttendees,
+        syncContext
+      )
       if (doc) allDocuments.push(doc)
     }
 
@@ -479,7 +513,7 @@ export const googleCalendarConnector: ConnectorConfig = {
     if (nextPageToken) {
       return {
         documents,
-        nextCursor: JSON.stringify({ calendarIndex, pageToken: nextPageToken }),
+        nextCursor: JSON.stringify({ calendarIndex, pageToken: nextPageToken, timeRange }),
         hasMore: true,
       }
     }
@@ -487,7 +521,7 @@ export const googleCalendarConnector: ConnectorConfig = {
     if (hasMoreCalendars) {
       return {
         documents,
-        nextCursor: JSON.stringify({ calendarIndex: calendarIndex + 1 }),
+        nextCursor: JSON.stringify({ calendarIndex: calendarIndex + 1, timeRange }),
         hasMore: true,
       }
     }
@@ -498,8 +532,11 @@ export const googleCalendarConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
+    const sourceId = sourceDocumentId(externalId, syncContext)
+    if (!sourceId) return null
     /**
      * externalId format depends on connector configuration:
      * - Single-calendar (1 calendar configured): externalId = eventId (legacy
@@ -522,17 +559,18 @@ export const googleCalendarConnector: ConnectorConfig = {
      * returning a doc without the prefix would mint a duplicate via the sync
      * engine's externalId-keyed matching.
      */
-    const separatorIndex = externalId.indexOf(':')
+    const separatorIndex = sourceId.lastIndexOf(':')
     const isMultiCalendar = separatorIndex !== -1
     let calendarId: string
     let eventId: string
     if (separatorIndex === -1) {
       calendarId = calendarIds[0] ?? 'primary'
-      eventId = externalId
+      eventId = sourceId
     } else {
-      calendarId = externalId.slice(0, separatorIndex)
-      eventId = externalId.slice(separatorIndex + 1)
+      calendarId = sourceId.slice(0, separatorIndex)
+      eventId = sourceId.slice(separatorIndex + 1)
     }
+    if (isPerMemberListing(syncContext) && !calendarIds.includes(calendarId)) return null
 
     const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
 
@@ -545,7 +583,10 @@ export const googleCalendarConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
-      if (response.status === 404) return null
+      if (response.status === 404 || response.status === 410) return null
+      if (response.status === 401) {
+        throw new GoogleCalendarCredentialInvalidError('Reconnect your Google Calendar account')
+      }
       throw new Error(`Failed to get Google Calendar event: ${response.status}`)
     }
 
@@ -553,16 +594,28 @@ export const googleCalendarConnector: ConnectorConfig = {
 
     if (event.status === 'cancelled') return null
 
-    return eventToDocument(event, calendarId, isMultiCalendar, readIncludeAttendees(sourceConfig))
+    return eventToDocument(
+      event,
+      calendarId,
+      isMultiCalendar,
+      readIncludeAttendees(sourceConfig),
+      syncContext
+    )
   },
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxEvents = sourceConfig.maxEvents as string | undefined
-    if (maxEvents && (Number.isNaN(Number(maxEvents)) || Number(maxEvents) <= 0)) {
-      return { valid: false, error: 'Max events must be a positive number' }
+    const maxEvents = sourceConfig.maxEvents
+    if (
+      maxEvents !== undefined &&
+      maxEvents !== '' &&
+      !(isPerMemberListing(syncContext) && maxEvents === 0) &&
+      (!Number.isSafeInteger(Number(maxEvents)) || Number(maxEvents) <= 0)
+    ) {
+      return { valid: false, error: 'Max events must be a positive whole number' }
     }
 
     const parsedCalendarIds = parseMultiValue(sourceConfig.calendarId)

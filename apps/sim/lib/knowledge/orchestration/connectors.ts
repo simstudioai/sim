@@ -46,6 +46,8 @@ import {
 import { cleanupUnusedTagDefinitions, createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
+import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const logger = createLogger('KnowledgeConnectorOrchestration')
 
@@ -241,6 +243,14 @@ export async function performCreateKnowledgeConnector(
   let resolvedEncryptedApiKey: string | null = null
   let accessToken: string | null = null
   let tokenContext: Record<string, unknown> = {}
+  const apiKeyConfig = getConnectorApiKeyConfig(connectorConfig.auth)
+  if (apiKey && (!apiKeyConfig || accessMode === 'members')) {
+    return fail('This connection method requires an OAuth account', 'validation')
+  }
+  if (apiKey && credentialId) {
+    return fail('Choose either an OAuth account or an API key', 'validation')
+  }
+  const usesApiKey = connectorConfig.auth.mode === 'apiKey' || Boolean(apiKeyConfig && apiKey)
 
   if (membersBinding) {
     /**
@@ -262,8 +272,8 @@ export async function performCreateKnowledgeConnector(
   } else if (!isContentEngineAccessMode(accessMode)) {
     return fail(`Unsupported access mode: ${accessMode}`, 'validation')
   }
-  if (connectorConfig.auth.mode === 'apiKey') {
-    if (!apiKey && !connectorConfig.auth.optional) {
+  if (usesApiKey) {
+    if (!apiKey && !apiKeyConfig?.optional) {
       return fail('API key is required', 'validation')
     }
     accessToken = apiKey ?? ''
@@ -289,6 +299,7 @@ export async function performCreateKnowledgeConnector(
     const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig, {
       ...tokenContext,
       mirrorsSourceAcls: accessMode === 'admin',
+      ...(accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
     })
     if (!configValidation.valid) {
       return fail(
@@ -299,7 +310,7 @@ export async function performCreateKnowledgeConnector(
     }
   }
 
-  if (connectorConfig.auth.mode === 'apiKey' && apiKey) {
+  if (usesApiKey && apiKey) {
     resolvedEncryptedApiKey = (await encryptApiKey(apiKey)).encrypted
   }
 
@@ -563,7 +574,7 @@ export async function performCreateKnowledgeConnector(
         knowledgeBaseName: kb.name,
         connectorType,
         syncIntervalMinutes,
-        authMode: connectorConfig.auth.mode,
+        authMode: usesApiKey ? 'apiKey' : 'oauth',
       },
       ...(request ? { request } : {}),
     })

@@ -12,6 +12,8 @@ export type ConnectorAuthConfig =
       mode: 'oauth'
       provider: OAuthService
       requiredScopes?: string[]
+      /** Optional token authentication for workspace crawls; member access always uses OAuth. */
+      apiKey?: { label: string; placeholder?: string }
       /**
        * Scopes to mint with when the connector's credential is a service
        * account rather than a person's OAuth account.
@@ -245,6 +247,8 @@ export interface ConnectorConfigField {
   placeholder?: string
   required?: boolean
   description?: string
+  /** Account-local selector IDs cannot be reused across members; keep the manual sibling instead. */
+  hideInMemberMode?: true
   options?: { label: string; id: string }[]
 
   /** Selector key from the selector registry (used when type is 'selector') */
@@ -358,6 +362,8 @@ export interface ConnectorMeta {
   mirrorsSourceAcls?: true
   /** Provider prerequisites shown when an administrator configures permission-aware indexing. */
   adminSetupHint?: string
+  /** Provider prerequisites or content scope shown for per-member setup. */
+  memberSetupHint?: string
   /** Mirrored ACLs identify people by their own verified OAuth subject instead of email. */
   requiresMemberIdentity?: true
 }

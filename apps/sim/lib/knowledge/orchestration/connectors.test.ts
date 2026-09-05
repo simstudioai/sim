@@ -20,6 +20,8 @@ const {
   mockRevoke,
   mockHasWorkspaceLiveSyncAccess,
   mockRecordAudit,
+  mockEncryptApiKey,
+  mockValidateGitHub,
 } = vi.hoisted(() => ({
   mockCaptureServerEvent: vi.fn(),
   mockDispatchSync: vi.fn(),
@@ -28,6 +30,8 @@ const {
   mockRevoke: vi.fn(),
   mockHasWorkspaceLiveSyncAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
+  mockEncryptApiKey: vi.fn(),
+  mockValidateGitHub: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -40,7 +44,7 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { CONNECTOR: 'connector' },
   recordAudit: mockRecordAudit,
 }))
-vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: vi.fn() }))
+vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: mockEncryptApiKey }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
 }))
@@ -64,6 +68,17 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
+    github: {
+      name: 'GitHub',
+      auth: {
+        mode: 'oauth',
+        provider: 'github-repositories',
+        apiKey: { label: 'Personal access token' },
+      },
+      permissionScopedListing: { capFieldIds: [] },
+      configFields: [],
+      validateConfig: mockValidateGitHub,
+    },
     notion: {
       auth: { mode: 'apiKey', optional: true },
       validateConfig: vi.fn().mockResolvedValue({ valid: true }),
@@ -96,6 +111,8 @@ describe('performCreateKnowledgeConnector', () => {
     resetDbChainMock()
     mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
     mockDispatchSync.mockResolvedValue({ queued: true })
+    mockEncryptApiKey.mockResolvedValue({ encrypted: 'encrypted-pat' })
+    mockValidateGitHub.mockResolvedValue({ valid: true })
   })
 
   afterAll(resetDbChainMock)
@@ -116,6 +133,95 @@ describe('performCreateKnowledgeConnector', () => {
     resolveBillingAttribution,
     resolveAccessToken: vi.fn(),
   }
+
+  it('validates and encrypts a GitHub PAT without resolving an OAuth account or returning the secret', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'github',
+        credentialId: null,
+        encryptedApiKey: 'encrypted-pat',
+      },
+    ])
+    const sourceConfig = { owner: 'acme', repo: 'handbook' }
+    const result = await performCreateKnowledgeConnector({
+      ...createParams,
+      connectorType: 'github',
+      apiKey: 'personal-token',
+      sourceConfig,
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      connector: { connectorType: 'github', credentialId: null },
+    })
+    expect(mockValidateGitHub).toHaveBeenCalledWith('personal-token', sourceConfig, {
+      mirrorsSourceAcls: false,
+    })
+    expect(mockEncryptApiKey).toHaveBeenCalledWith('personal-token')
+    expect(createParams.resolveAccessToken).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorType: 'github',
+        credentialId: null,
+        encryptedApiKey: 'encrypted-pat',
+        accessMode: 'workspace',
+      })
+    )
+    expect(JSON.stringify(result)).not.toContain('encrypted-pat')
+    expect(JSON.stringify(result)).not.toContain('personal-token')
+  })
+
+  it.each([
+    { connectorType: 'google_drive', apiKey: 'token', error: 'requires an OAuth account' },
+    {
+      connectorType: 'github',
+      apiKey: 'token',
+      credentialId: 'credential-1',
+      error: 'Choose either',
+    },
+    {
+      connectorType: 'github',
+      apiKey: 'token',
+      accessMode: 'members' as const,
+      error: 'requires an OAuth account',
+    },
+  ])(
+    'rejects invalid authentication combinations before source access or storage: $connectorType $accessMode',
+    async ({ error, ...input }) => {
+      const result = await performCreateKnowledgeConnector({ ...createParams, ...input })
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: expect.stringContaining(error),
+      })
+      expect(mockValidateGitHub).not.toHaveBeenCalled()
+      expect(mockEncryptApiKey).not.toHaveBeenCalled()
+      expect(createParams.resolveAccessToken).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it('continues to resolve an explicitly selected GitHub OAuth account', async () => {
+    queueSuccessfulInsert()
+    createParams.resolveAccessToken.mockResolvedValueOnce({ accessToken: 'oauth-token' })
+    const result = await performCreateKnowledgeConnector({
+      ...createParams,
+      connectorType: 'github',
+      credentialId: 'credential-1',
+    })
+    expect(result.success).toBe(true)
+    expect(createParams.resolveAccessToken).toHaveBeenCalledWith('credential-1')
+    expect(mockValidateGitHub).toHaveBeenCalledWith('oauth-token', {}, { mirrorsSourceAcls: false })
+    expect(mockEncryptApiKey).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'credential-1',
+        encryptedApiKey: null,
+      })
+    )
+  })
 
   /**
    * A detached dispatch settles after the caller has already been handed the

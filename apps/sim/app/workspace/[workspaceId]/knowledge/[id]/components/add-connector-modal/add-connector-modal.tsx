@@ -53,9 +53,13 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { withBrandIcon } from '@/blocks/brand-icon'
+import { getConnectorApiKeyConfig } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useWorkspaceAccounts } from '@/hooks/queries/credential-groups'
@@ -137,6 +141,7 @@ export function AddConnectorModal({
   const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
 
   const [apiKeyValue, setApiKeyValue] = useState('')
+  const [useApiKey, setUseApiKey] = useState(!isSearchIndex)
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -154,13 +159,25 @@ export function AddConnectorModal({
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
-  const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
-  const { integrationAvailability } = usePermissionConfig()
+  const apiKeyConfig = connectorConfig ? getConnectorApiKeyConfig(connectorConfig.auth) : undefined
+  const isApiKeyMode =
+    connectorConfig?.auth.mode === 'apiKey' || Boolean(apiKeyConfig && !isMembersMode && useApiKey)
+  const {
+    integrationAvailability,
+    oauthServiceAvailability,
+    isIntegrationAvailabilityReady,
+    isIntegrationAvailabilityFetching,
+    isIntegrationAvailabilityLoading,
+    integrationAvailabilityError,
+    refetchIntegrationAvailability,
+  } = usePermissionConfig()
   const { admin: allowAdmin, members: allowMembers } = connectorConfig
     ? getConnectorAccessAvailability(connectorConfig, integrationAvailability, {
         memberAccessAvailable,
         mirroredAccessAvailable,
+        oauthServiceAvailability,
+        isIntegrationAvailabilityReady,
       })
     : { admin: false, members: false }
   const needsSlackSetup = selectedType === 'slack' && isMembersMode
@@ -180,13 +197,10 @@ export function AddConnectorModal({
   /** True when the connector declares its key optional (public sources need none). */
   const isApiKeyOptional =
     connectorConfig?.auth.mode === 'apiKey' && connectorConfig.auth.optional === true
-  const connectorProviderId = useMemo(
-    () =>
-      connectorConfig && connectorConfig.auth.mode === 'oauth'
-        ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
-        : null,
-    [connectorConfig]
-  )
+  const connectorProviderId =
+    connectorConfig?.auth.mode === 'oauth'
+      ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
+      : null
 
   const serviceAccountProviderId = connectorProviderId
     ? getServiceAccountProviderForProviderId(connectorProviderId)
@@ -236,9 +250,17 @@ export function AddConnectorModal({
     resolveSourceConfig,
   } = useConnectorConfigFields({
     connectorConfig,
+    accessMode: access.accessMode,
     initialSourceConfig: draft?.sourceConfig,
     initialCanonicalModes: draft?.canonicalModes,
   })
+
+  const showCredentialPicker =
+    !isMembersMode ||
+    connectorConfig?.supportsSeparateContentCredential ||
+    connectorConfig?.configFields.some(
+      (field) => field.type === 'selector' && isFieldVisible(field)
+    )
 
   const saveSetup = () => {
     if (!setupDraftKey) return
@@ -272,6 +294,7 @@ export function AddConnectorModal({
         : WORKSPACE_ACCESS
     )
     setApiKeyValue('')
+    setUseApiKey(!isSearchIndex)
     setApiKeyFocused(false)
     setDisabledTagIds(new Set())
     setShowMetadata(false)
@@ -442,6 +465,17 @@ export function AddConnectorModal({
             </div>
           ) : connectorConfig ? (
             <>
+              {integrationAvailabilityError && (
+                <ChipModalField type='custom' title='Connection availability'>
+                  <SettingsQueryErrorState
+                    error={integrationAvailabilityError}
+                    isRetrying={isIntegrationAvailabilityFetching}
+                    fallback='Could not load connection availability'
+                    onRetry={() => void refetchIntegrationAvailability()}
+                    variant='inline'
+                  />
+                </ChipModalField>
+              )}
               {(memberAccessAvailable || mirroredAccessAvailable || slackSetupRequired) && (
                 <ConnectorAccessField
                   workspaceId={workspaceId}
@@ -462,15 +496,25 @@ export function AddConnectorModal({
 
               {!slackSetupRequired && (
                 <>
+                  {connectorConfig.auth.mode === 'oauth' && apiKeyConfig && !isMembersMode && (
+                    <ChipModalField type='custom' title='Authentication'>
+                      <ChipCombobox
+                        disabled={isCreating}
+                        value={isApiKeyMode ? 'apiKey' : 'oauth'}
+                        options={[
+                          { label: apiKeyConfig.label || 'API key', value: 'apiKey' },
+                          { label: 'Connected account', value: 'oauth' },
+                        ]}
+                        onChange={(value) => {
+                          setUseApiKey(value === 'apiKey')
+                          setApiKeyValue('')
+                          setSelectedCredentialId(null)
+                        }}
+                      />
+                    </ChipModalField>
+                  )}
                   {isApiKeyMode ? (
-                    <ChipModalField
-                      type='custom'
-                      title={
-                        connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
-                          ? connectorConfig.auth.label
-                          : 'API Key'
-                      }
-                    >
+                    <ChipModalField type='custom' title={apiKeyConfig?.label || 'API Key'}>
                       <ChipInput
                         type={apiKeyFocused ? 'text' : 'password'}
                         autoComplete='new-password'
@@ -478,14 +522,10 @@ export function AddConnectorModal({
                         onChange={(e) => setApiKeyValue(e.target.value)}
                         onFocus={() => setApiKeyFocused(true)}
                         onBlur={() => setApiKeyFocused(false)}
-                        placeholder={
-                          connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
-                            ? connectorConfig.auth.placeholder
-                            : 'Enter API key'
-                        }
+                        placeholder={apiKeyConfig?.placeholder || 'Enter API key'}
                       />
                     </ChipModalField>
-                  ) : (
+                  ) : showCredentialPicker ? (
                     <ChipModalField
                       type='custom'
                       title={isMembersMode ? 'Browse with' : 'Account'}
@@ -529,10 +569,11 @@ export function AddConnectorModal({
                           if (isOpen) void refetchCredentials()
                         }}
                         placeholder={`Select ${connectorConfig.name} account`}
-                        isLoading={credentialsLoading}
+                        isLoading={credentialsLoading || isIntegrationAvailabilityLoading}
+                        disabled={!isIntegrationAvailabilityReady}
                       />
                     </ChipModalField>
-                  )}
+                  ) : null}
 
                   {isMembersMode && connectorConfig.supportsSeparateContentCredential && (
                     <ConnectorContentCredentialField

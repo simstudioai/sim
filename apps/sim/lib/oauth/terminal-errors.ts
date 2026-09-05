@@ -6,6 +6,7 @@ const logger = createLogger('OAuthTerminalErrors')
 
 const TERMINAL_ERRORS = new Set<string>([
   'invalid_refresh_token',
+  'bad_refresh_token',
   'invalid_grant',
   'access_denied',
   'bad_client_secret',

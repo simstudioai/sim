@@ -8,6 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
+  availabilityReady: true,
+  availabilityLoading: false,
+  availabilityError: null as Error | null,
+  refetchAvailability: vi.fn(),
+  unavailableProviders: [] as string[],
   userId: 'user-1',
   urlUpdate: vi.fn(),
   oauthReturn: vi.fn(),
@@ -57,7 +62,27 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
 vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({ integrationAvailability: new Map() }),
+  usePermissionConfig: () => ({
+    integrationAvailability: new Map([
+      ['slack', { oauthAvailable: true, state: 'ready' }],
+      ['slack_v2', { oauthAvailable: true, state: 'ready' }],
+    ]),
+    oauthServiceAvailability: new Map(
+      [
+        'confluence',
+        'google-drive',
+        'google_drive',
+        'google-email',
+        'google-calendar',
+        'jira',
+        'github-repositories',
+      ].map((providerId) => [providerId, !mocks.unavailableProviders.includes(providerId)])
+    ),
+    isIntegrationAvailabilityReady: mocks.availabilityReady,
+    isIntegrationAvailabilityLoading: mocks.availabilityLoading,
+    integrationAvailabilityError: mocks.availabilityError,
+    refetchIntegrationAvailability: mocks.refetchAvailability,
+  }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-status', () => ({
   SearchSourceStatus: (props: { knowledgeBaseId: string; connectorType: string }) => {
@@ -237,6 +262,10 @@ beforeEach(() => {
   mocks.userId = 'user-1'
   useConnectorSetupStore.getState().reset()
   mocks.canAdmin = true
+  mocks.availabilityReady = true
+  mocks.availabilityLoading = false
+  mocks.availabilityError = null
+  mocks.unavailableProviders = []
   mocks.features = { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true }
   mocks.createPending = false
   mocks.updatePending = false
@@ -340,8 +369,17 @@ describe('Search source setup with real connector dialogs', () => {
       Array.from(document.querySelectorAll('button')).filter(
         (node) => node.textContent === 'Set up'
       )
-    ).toHaveLength(4)
-    for (const name of ['Confluence', 'GitLab', 'Google Drive', 'Slack']) {
+    ).toHaveLength(8)
+    for (const name of [
+      'Confluence',
+      'GitHub',
+      'GitLab',
+      'Gmail',
+      'Google Calendar',
+      'Google Drive',
+      'Jira',
+      'Slack',
+    ]) {
       expect(document.body.textContent).toContain(name)
     }
     await fill('Find a source…', 'no-such-source')
@@ -349,6 +387,99 @@ describe('Search source setup with real connector dialogs', () => {
     expect(document.body.textContent).not.toContain('Google Drive')
     expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
   })
+
+  it('waits for availability and offers a retry after it fails', async () => {
+    mocks.availabilityReady = false
+    mocks.availabilityLoading = true
+    await render(setup(), '?addConnector=')
+    expect(document.body.textContent).toContain('Loading sources…')
+    expect(
+      Array.from(document.querySelectorAll('button')).some((node) => node.textContent === 'Set up')
+    ).toBe(false)
+    mocks.availabilityLoading = false
+    mocks.availabilityError = new Error('Availability failed')
+    await render(setup(), '?addConnector=')
+    expect(document.body.textContent).toContain('Availability failed')
+    await click(button('Try again'))
+    expect(mocks.refetchAvailability).toHaveBeenCalledOnce()
+  })
+
+  it('does not offer GitHub App setup when only its workflow token integration is available', async () => {
+    mocks.unavailableProviders = ['github-repositories']
+    await render(setup(), '?addConnector=')
+    expect(
+      Array.from(document.querySelectorAll('button')).filter(
+        (node) => node.textContent === 'Set up'
+      )
+    ).toHaveLength(7)
+    expect(document.body.textContent).toContain('GitHub')
+    expect(document.body.textContent).toContain('Not available in this workspace')
+  })
+
+  it('preserves a setup draft while an availability refresh fails and recovers', async () => {
+    await render(setup(), '?addConnector=github')
+    await fill('owner/repo', 'acme/docs')
+    expect(button('Create & Invite').disabled).toBe(false)
+    mocks.availabilityReady = false
+    mocks.availabilityError = new Error('Availability refresh failed')
+    await render(setup(), '?addConnector=github')
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="owner/repo"]')?.value).toBe(
+      'acme/docs'
+    )
+    expect(button('Create & Invite').disabled).toBe(true)
+    await click(button('Try again'))
+    expect(mocks.refetchAvailability).toHaveBeenCalledOnce()
+    mocks.availabilityReady = true
+    mocks.availabilityError = null
+    await render(setup(), '?addConnector=github')
+    expect(button('Create & Invite').disabled).toBe(false)
+  })
+
+  it.each(['gmail', 'jira', 'github', 'google_calendar'])(
+    'sets up %s with member access and no shared workspace or admin mode',
+    async (type) => {
+      await render(setup(), `?addConnector=${type}`)
+      expect(document.body.textContent).toContain('Member accounts')
+      expect(
+        Array.from(document.querySelectorAll('button')).some((node) =>
+          ['Workspace', 'Admin or service account'].includes(node.textContent ?? '')
+        )
+      ).toBe(false)
+      expect(document.body.textContent).not.toContain('Sync Frequency')
+      expect(document.body.textContent).not.toContain('Max Threads')
+      expect(document.body.textContent).not.toContain('Max Events')
+      expect(document.body.textContent).not.toContain('Max Files')
+      expect(document.body.textContent).not.toContain('Max Issues')
+      if (type === 'github') await fill('owner/repo', 'acme/docs')
+      if (type === 'jira') {
+        expect(button('Create & Invite').disabled).toBe(true)
+        await fill('yoursite.atlassian.net', 'acme.atlassian.net')
+        const modeToggle = document.querySelector<HTMLButtonElement>(
+          'button[aria-label="Switch Projects to manual input"]'
+        )
+        expect(modeToggle).not.toBeNull()
+        await click(modeToggle!)
+        await fill('e.g. ENG, PROJ (comma-separated for multiple)', 'ENG')
+      }
+      if (type === 'gmail') {
+        expect(document.body.textContent).not.toContain('Browse with')
+        expect(
+          document.querySelector('input[placeholder="e.g. INBOX, Engineering (comma-separated)"]')
+        ).not.toBeNull()
+        expect(document.querySelector('button[aria-label="Switch Labels to selector"]')).toBeNull()
+      }
+      expect(button('Create & Invite').disabled).toBe(false)
+      await click(button('Create & Invite'))
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          knowledgeBaseId: 'kb-search',
+          connectorType: type,
+          accessMode: 'members',
+        }),
+        expect.any(Object)
+      )
+    }
+  )
 
   it('prepares a canonical index instead of an ordinary base with the Search name', async () => {
     mocks.bases = [{ id: 'ordinary-base', name: 'Sim Search', isSearchIndex: false }]
@@ -1073,11 +1204,20 @@ describe('canonical Search connector safety', () => {
       />
     )
     const sourceButtons = Array.from(document.querySelectorAll('button')).filter((node) =>
-      ['Confluence', 'GitLab', 'Google Drive', 'Slack', 'Airtable', 'Google Chat'].some(
-        (name) => node.getAttribute('aria-label') === name
-      )
+      [
+        'Confluence',
+        'GitHub',
+        'GitLab',
+        'Gmail',
+        'Google Calendar',
+        'Google Drive',
+        'Jira',
+        'Slack',
+        'Airtable',
+        'Google Chat',
+      ].some((name) => node.getAttribute('aria-label') === name)
     )
-    expect(sourceButtons.map((node) => node.getAttribute('aria-label'))).toHaveLength(4)
+    expect(sourceButtons.map((node) => node.getAttribute('aria-label'))).toHaveLength(8)
     expect(sourceButtons.some((node) => node.getAttribute('aria-label') === 'Airtable')).toBe(false)
     expect(sourceButtons.some((node) => node.getAttribute('aria-label') === 'Google Chat')).toBe(
       false

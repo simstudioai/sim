@@ -3,7 +3,7 @@ import { effectiveConnectorSyncIntervalMinutes } from '@/lib/knowledge/connector
 
 /** Under the account picker of a per-member connector, whose account only browses. */
 export const BROWSE_WITH_HINT =
-  'Only used to pick folders and spaces below. It does not change who indexes documents or who can read them.'
+  'Only used to choose what to sync below. It does not change who indexes documents or who can read them.'
 
 /** Explain when permission refresh requires a more frequent pass than content indexing. */
 export function connectorSyncFrequencyHint(

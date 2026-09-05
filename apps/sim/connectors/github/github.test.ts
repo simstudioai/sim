@@ -3,6 +3,237 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { githubConnector } from '@/connectors/github/github'
+import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
+
+const source = { repository: 'owner/repo', branch: 'main' }
+
+function treeFile(path: string, sha = path, size = 20) {
+  return { path, sha, size, mode: '100644', type: 'blob' }
+}
+
+function treeResponse(tree: ReturnType<typeof treeFile>[], truncated = false) {
+  return new Response(JSON.stringify({ tree, truncated }), { status: 200 })
+}
+
+describe('githubConnector member listing', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('resolves a member source default branch once and reuses it during hydration', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ default_branch: 'master' })))
+      .mockResolvedValueOnce(treeResponse([treeFile('readme.md', 'sha')]))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ sha: 'sha', size: 4, content: 'dGV4dA==', encoding: 'base64' })
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const context: Record<string, unknown> = { ...PER_MEMBER_LISTING_CONTEXT }
+    const config = { repository: 'owner/repo' }
+    const listing = await githubConnector.listDocuments('member-token', config, undefined, context)
+    const hydrated = await githubConnector.getDocument('member-token', config, 'readme.md', context)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.github.com/repos/owner/repo',
+      'https://api.github.com/repos/owner/repo/git/trees/master?recursive=1',
+      'https://api.github.com/repos/owner/repo/contents/readme.md?ref=master',
+    ])
+    expect(listing.documents[0]?.metadata?.branch).toBe('master')
+    expect(hydrated?.metadata?.branch).toBe('master')
+    expect(hydrated?.contentHash).toBe(listing.documents[0]?.contentHash)
+  })
+
+  it('preserves the default main branch for existing general KB sources', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(treeResponse([]))
+    vi.stubGlobal('fetch', fetchMock)
+    await githubConnector.listDocuments('pat', { repository: 'owner/repo' })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://api.github.com/repos/owner/repo/git/trees/main?recursive=1'
+    )
+  })
+
+  it('uses an explicitly configured member branch without a repository metadata lookup', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(treeResponse([]))
+    vi.stubGlobal('fetch', fetchMock)
+    await githubConnector.listDocuments(
+      'member-token',
+      { repository: 'owner/repo', branch: 'release/docs' },
+      undefined,
+      { ...PER_MEMBER_LISTING_CONTEXT }
+    )
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://api.github.com/repos/owner/repo/git/trees/release%2Fdocs?recursive=1'
+    )
+  })
+
+  it('validates a member source against its actual default branch', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ default_branch: 'develop' })))
+      .mockResolvedValueOnce(new Response('{}'))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      githubConnector.validateConfig(
+        'member-token',
+        { repository: 'owner/repo' },
+        {
+          ...PER_MEMBER_LISTING_CONTEXT,
+        }
+      )
+    ).resolves.toEqual({ valid: true })
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      'https://api.github.com/repos/owner/repo/branches/develop'
+    )
+  })
+
+  it('lists only metadata under the caller token and retains the hydration hash', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(treeResponse([treeFile('docs/readme.md', 'blob-sha')]))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ sha: 'blob-sha', size: 20, content: 'dGV4dA==', encoding: 'base64' })
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await githubConnector.listDocuments('member-token', source)
+    expect(result.documents[0]).toMatchObject({
+      externalId: 'docs/readme.md',
+      content: '',
+      contentDeferred: true,
+      contentHash: 'git-sha:blob-sha',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]![1].headers.Authorization).toBe('Bearer member-token')
+    const hydrated = await githubConnector.getDocument('member-token', source, 'docs/readme.md')
+    expect(hydrated?.contentHash).toBe(result.documents[0]?.contentHash)
+    expect(hydrated?.content).toBe('text')
+  })
+
+  it('pages the same tree without refetching a moving branch', async () => {
+    const files = Array.from({ length: 201 }, (_, index) => treeFile(`file-${index}.md`))
+    const fetchMock = vi.fn().mockResolvedValue(treeResponse(files))
+    vi.stubGlobal('fetch', fetchMock)
+    const context: Record<string, unknown> = {}
+    const first = await githubConnector.listDocuments('token', source, undefined, context)
+    const second = await githubConnector.listDocuments('token', source, first.nextCursor, context)
+    expect(first.documents).toHaveLength(200)
+    expect(first.hasMore).toBe(true)
+    expect(second.documents.map((document) => document.externalId)).toEqual(['file-200.md'])
+    expect(second.hasMore).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([401, 403, 404])(
+    'classifies repository rejection %i for member access',
+    async (status) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status })))
+      const error = await githubConnector.listDocuments('token', source).catch((error) => error)
+      expect(githubConnector.isCredentialInvalidError?.(error)).toBe(status === 401)
+      expect(githubConnector.isListingScopeUnavailableError?.(error)).toBe(status !== 401)
+    }
+  )
+
+  it('keeps an SSO denial distinct from invalid credentials', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(null, { status: 403, headers: { 'x-github-sso': 'required' } })
+        )
+    )
+    const error = await githubConnector.listDocuments('token', source).catch((error) => error)
+    expect(githubConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+    expect(githubConnector.isCredentialInvalidError?.(error)).toBe(false)
+  })
+
+  it('does not revoke member access for a rate-limit 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(new Response(null, { status: 403, headers: { 'retry-after': '3600' } }))
+    )
+    const error = await githubConnector.listDocuments('token', source).catch((error) => error)
+    expect(githubConnector.isListingScopeUnavailableError?.(error)).toBe(false)
+    expect(githubConnector.isCredentialInvalidError?.(error)).toBe(false)
+  })
+
+  it('does not revoke access for a secondary throttle without rate-limit headers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: 'You have exceeded a secondary rate limit.' }), {
+          status: 403,
+        })
+      )
+    )
+    const error = await githubConnector.listDocuments('token', source).catch((error) => error)
+    expect(githubConnector.isListingScopeUnavailableError?.(error)).toBe(false)
+    expect(error).toMatchObject({ rateLimited: true, retryAfterMs: 60_000 })
+  })
+
+  it('prevents deletion reconciliation after GitHub truncates the tree', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(treeResponse([treeFile('one.md')], true)))
+    const context: Record<string, unknown> = {}
+    await githubConnector.listDocuments('token', source, undefined, context)
+    expect(context.listingCapped).toBe(true)
+  })
+
+  it('prevents reconciliation after a general KB file cap truncates the listing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(treeResponse([treeFile('one.md'), treeFile('two.md')]))
+    )
+    const context: Record<string, unknown> = {}
+    const result = await githubConnector.listDocuments(
+      'token',
+      { ...source, maxFiles: '1' },
+      undefined,
+      context
+    )
+    expect(result.documents).toHaveLength(1)
+    expect(context.listingCapped).toBe(true)
+  })
+
+  it('allows reconciliation after intentional scope filtering', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          treeResponse([treeFile('docs/one.md'), treeFile('docs/two.txt'), treeFile('src/code.ts')])
+        )
+    )
+    const context: Record<string, unknown> = {}
+    const result = await githubConnector.listDocuments(
+      'token',
+      { ...source, pathPrefix: 'docs/', extensions: 'md' },
+      undefined,
+      context
+    )
+    expect(result.documents.map((document) => document.externalId)).toEqual(['docs/one.md'])
+    expect(context.listingCapped).toBeUndefined()
+  })
+
+  it('rejects malformed successful listings instead of treating them as an empty repository', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}')))
+    await expect(githubConnector.listDocuments('token', source)).rejects.toThrow()
+  })
+
+  it.each(['owner/repo?redirect=x', 'owner/../other', 'owner/repo/tree/main', 'owner/.'])(
+    'rejects invalid repository input %s before sending a token',
+    async (repository) => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      await expect(githubConnector.validateConfig('token', { repository })).resolves.toMatchObject({
+        valid: false,
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+})
 
 describe('githubConnector.getDocument', () => {
   afterEach(() => {

@@ -16,6 +16,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { createGitHubRepositoriesProvider } from '@/lib/oauth/github-repositories'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
 import {
   assertMicrosoftDataverseLegacyOAuthCallbackScopes,
@@ -192,6 +193,11 @@ function salesforceConnector(providerId: string, loginHost: string): GenericOAut
  */
 export function buildConnectorProviders(): GenericOAuthConfig[] {
   const providers: GenericOAuthConfig[] = [
+    createGitHubRepositoriesProvider({
+      clientId: env.GITHUB_APP_CLIENT_ID as string,
+      clientSecret: env.GITHUB_APP_CLIENT_SECRET as string,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/github-repositories`,
+    }),
     {
       providerId: 'google-email',
       clientId: env.GOOGLE_CLIENT_ID as string,

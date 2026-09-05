@@ -779,6 +779,36 @@ export function isPerMemberListing(syncContext: Record<string, unknown> | undefi
   return syncContext?.perMemberListing === true
 }
 
+function memberDocumentPrefix(syncContext: Record<string, unknown> | undefined): string {
+  const memberId = syncContext?.memberId
+  if (typeof memberId !== 'string' || !memberId.trim()) {
+    throw new Error('Per-member document identity requires a connector member ID')
+  }
+  return `member:${encodeURIComponent(memberId)}:`
+}
+
+/** Keeps credential-specific representations separate in the connector's shared document corpus. */
+export function memberDocumentId(
+  externalId: string,
+  syncContext: Record<string, unknown> | undefined
+): string {
+  return isPerMemberListing(syncContext)
+    ? `${memberDocumentPrefix(syncContext)}${externalId}`
+    : externalId
+}
+
+/** Refuses to hydrate another member's representation using the current member's credential. */
+export function sourceDocumentId(
+  externalId: string,
+  syncContext: Record<string, unknown> | undefined
+): string | null {
+  if (!isPerMemberListing(syncContext)) return externalId
+  const prefix = memberDocumentPrefix(syncContext)
+  return externalId.startsWith(prefix) && externalId.length > prefix.length
+    ? externalId.slice(prefix.length)
+    : null
+}
+
 /**
  * Whether a folder request that failed while walking a Microsoft Graph drive
  * can be left out of the listing: under a member's own token a descendant

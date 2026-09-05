@@ -49,6 +49,7 @@ import type {
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
@@ -236,6 +237,7 @@ export function EditConnectorModal({
     resolveSourceConfig,
   } = useConnectorConfigFields({
     connectorConfig,
+    accessMode: access.accessMode,
     initialSourceConfig,
     initialCanonicalModes,
   })
@@ -248,11 +250,20 @@ export function EditConnectorModal({
   const isSaving = isSavingSettings || isSwitchingAccess
   const memberAccessAvailable = useMemberAccessAvailable()
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
-  const { integrationAvailability } = usePermissionConfig()
+  const {
+    integrationAvailability,
+    oauthServiceAvailability,
+    isIntegrationAvailabilityReady,
+    isIntegrationAvailabilityFetching,
+    integrationAvailabilityError,
+    refetchIntegrationAvailability,
+  } = usePermissionConfig()
   const { admin: allowAdmin, members: allowMembers } = connectorConfig
     ? getConnectorAccessAvailability(connectorConfig, integrationAvailability, {
         memberAccessAvailable,
         mirroredAccessAvailable,
+        oauthServiceAvailability,
+        isIntegrationAvailabilityReady,
       })
     : { admin: false, members: false }
   const persistedAccess = currentAccess(connector)
@@ -432,6 +443,17 @@ export function EditConnectorModal({
       </ChipModalHeader>
 
       <ChipModalBody>
+        {integrationAvailabilityError && (
+          <ChipModalField type='custom' title='Connection availability'>
+            <SettingsQueryErrorState
+              error={integrationAvailabilityError}
+              isRetrying={isIntegrationAvailabilityFetching}
+              fallback='Could not load connection availability'
+              onRetry={() => void refetchIntegrationAvailability()}
+              variant='inline'
+            />
+          </ChipModalField>
+        )}
         <ChipModalTabs
           tabs={[
             { value: 'settings', label: 'Settings' },
@@ -686,18 +708,22 @@ function SettingsTab({
         />
       )}
 
-      {connectorConfig && syncsPerMember && (
-        <ChipModalField type='custom' title='Browse with' hint={BROWSE_WITH_HINT}>
-          <ChipCombobox
-            options={credentialOptions}
-            value={browseCredentialId ?? undefined}
-            onChange={setBrowseCredentialId}
-            placeholder={`Select your ${connectorConfig.name} account`}
-            isLoading={credentialsLoading}
-            disabled={isSaving}
-          />
-        </ChipModalField>
-      )}
+      {connectorConfig &&
+        syncsPerMember &&
+        connectorConfig.configFields.some(
+          (field) => field.type === 'selector' && isFieldVisible(field)
+        ) && (
+          <ChipModalField type='custom' title='Browse with' hint={BROWSE_WITH_HINT}>
+            <ChipCombobox
+              options={credentialOptions}
+              value={browseCredentialId ?? undefined}
+              onChange={setBrowseCredentialId}
+              placeholder={`Select your ${connectorConfig.name} account`}
+              isLoading={credentialsLoading}
+              disabled={isSaving}
+            />
+          </ChipModalField>
+        )}
 
       {connectorConfig && (
         <ConnectorConfigFields

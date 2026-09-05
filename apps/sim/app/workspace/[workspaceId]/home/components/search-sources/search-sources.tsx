@@ -131,7 +131,8 @@ interface SearchSourcesProps {
  * as workspace connectors do not appear here.
  */
 export function SearchSources({ workspaceId }: SearchSourcesProps) {
-  const { integrationAvailability } = usePermissionConfig()
+  const { integrationAvailability, oauthServiceAvailability, isIntegrationAvailabilityReady } =
+    usePermissionConfig()
   /** With per-member access off, a connect is refused, so the chips say so instead. */
   const memberAccessAvailable = useMemberAccessAvailable()
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
@@ -191,7 +192,13 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
               unavailableReason={searchConnectorUnavailableReason(
                 connector,
                 integrationAvailability,
-                { memberAccessAvailable, hasConnection: connection !== undefined, canCreate }
+                {
+                  memberAccessAvailable,
+                  hasConnection: connection !== undefined,
+                  canCreate,
+                  oauthServiceAvailability,
+                  isIntegrationAvailabilityReady,
+                }
               )}
               waiting={
                 connection ? isAwaiting(connection.connectorId) : isAwaitingSource(connector.type)

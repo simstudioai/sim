@@ -2,6 +2,7 @@ import { normalizeEmail } from '@sim/utils/string'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
+import { getConnectorApiKeyConfig } from '@/connectors/auth'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 
 /**
@@ -81,9 +82,13 @@ export async function resolveConnectorAccessToken(params: {
 }): Promise<ConnectorAccessToken | null> {
   const { auth, connector, userId, requestId } = params
 
-  if (auth.mode === 'apiKey') {
+  const apiKeyConfig = getConnectorApiKeyConfig(auth)
+  if (
+    auth.mode === 'apiKey' ||
+    (apiKeyConfig && !connector.credentialId && connector.encryptedApiKey)
+  ) {
     if (!connector.encryptedApiKey) {
-      if (auth.optional) return { accessToken: '' }
+      if (apiKeyConfig?.optional) return { accessToken: '' }
       throw new Error('API key connector is missing encrypted API key')
     }
     const { decrypted } = await decryptApiKey(connector.encryptedApiKey)

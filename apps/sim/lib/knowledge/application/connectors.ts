@@ -81,8 +81,10 @@ import { credentialProviderMatchesService, type ServiceProviderIdentity } from '
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
+import { getConnectorApiKeyConfig } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY, getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorAuthConfig } from '@/connectors/types'
+import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -310,8 +312,12 @@ export async function validateConnectorSourceConfig(input: {
    * key and a service account both ignore it.
    */
   let tokenUserId = input.actingUserId
-  if (connectorConfig.auth.mode === 'apiKey') {
-    if (!input.connector.encryptedApiKey && !connectorConfig.auth.optional) {
+  const apiKeyConfig = getConnectorApiKeyConfig(connectorConfig.auth)
+  if (
+    connectorConfig.auth.mode === 'apiKey' ||
+    (apiKeyConfig && !input.connector.credentialId && input.connector.encryptedApiKey)
+  ) {
+    if (!input.connector.encryptedApiKey && !apiKeyConfig?.optional) {
       return {
         message: 'API key not found. Please reconfigure the connector.',
         errorCode: 'validation',
@@ -358,6 +364,7 @@ export async function validateConnectorSourceConfig(input: {
     {
       ...syncContextForToken(resolved),
       mirrorsSourceAcls: mirrorsSourceAcls(input.connector.accessMode),
+      ...(input.connector.accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
     }
   )
   return validation.valid
@@ -637,6 +644,15 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     const connectorMeta = getConnectorMeta(input.connectorType)
     if (!connectorMeta) {
       throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
+    }
+    if (
+      input.apiKey &&
+      (!getConnectorApiKeyConfig(connectorMeta.auth) || input.accessMode === 'members')
+    ) {
+      throw new OrchestrationError('validation', 'This connection method requires an OAuth account')
+    }
+    if (input.apiKey && input.credentialId) {
+      throw new OrchestrationError('validation', 'Choose either an OAuth account or an API key')
     }
     if (
       context.knowledgeBase.isSearchIndex &&

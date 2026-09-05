@@ -114,6 +114,18 @@ One app registration in [Entra ID](https://entra.microsoft.com) covers all of th
 
 The same variables also power "Sign in with Microsoft".
 
+### GitHub Search
+
+Register a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) with repository **Contents: read-only**, **Metadata: read-only**, and account **Email addresses: read-only** permissions. Keep user access token expiration enabled so Sim can rotate access and refresh tokens.
+
+| Environment variables | Provider ID |
+|---|---|
+| `GITHUB_APP_CLIENT_ID`<br />`GITHUB_APP_CLIENT_SECRET` | `github-repositories` |
+
+Register `https://<your-domain>/api/auth/oauth2/callback/github-repositories` as the callback. These App OAuth client credentials are separate from `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` used for Sim sign-in. Sim does not require an App private key.
+
+A repository or organization administrator installs the App on the repositories to search. Each member connects their own GitHub account, with a verified email matching their Sim account. Search indexes repository files that both the member and the installed App can access. GitHub workflow blocks and existing knowledge-base token connections continue to use personal access tokens.
+
 ### Everything else
 
 | Service | Environment variables | Provider ID |

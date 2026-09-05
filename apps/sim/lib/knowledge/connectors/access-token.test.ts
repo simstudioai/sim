@@ -73,6 +73,46 @@ describe('resolveConnectorAccessToken', () => {
     expect(mockResolveTokenBundle).not.toHaveBeenCalled()
   })
 
+  it('preserves a stored PAT when a connector adds an OAuth connection method', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: { mode: 'oauth', provider: 'github-repositories', apiKey: { label: 'Token' } },
+        connector: { credentialId: null, encryptedApiKey: 'legacy-cipher' },
+        userId: 'user-1',
+        requestId: 'req-1',
+        sourceConfig: {},
+      })
+    ).resolves.toEqual({ accessToken: 'plaintext-key' })
+    expect(mockDecryptApiKey).toHaveBeenCalledWith('legacy-cipher')
+    expect(mockResolveTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it('uses an explicitly selected OAuth account before a retained legacy key', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: { mode: 'oauth', provider: 'github-repositories', apiKey: { label: 'Token' } },
+        connector: { credentialId: 'account-1', encryptedApiKey: 'legacy-cipher' },
+        userId: 'user-1',
+        requestId: 'req-1',
+        sourceConfig: {},
+      })
+    ).resolves.toEqual({ accessToken: 'access-token' })
+    expect(mockDecryptApiKey).not.toHaveBeenCalled()
+  })
+
+  it('does not accept an undeclared key alternative on other OAuth connectors', async () => {
+    await expect(
+      resolveConnectorAccessToken({
+        auth: OAUTH_AUTH,
+        connector: { credentialId: null, encryptedApiKey: 'cipher' },
+        userId: 'user-1',
+        requestId: 'req-1',
+        sourceConfig: {},
+      })
+    ).rejects.toThrow('missing credential ID')
+    expect(mockDecryptApiKey).not.toHaveBeenCalled()
+  })
+
   it('resolves an empty token for an optional API-key connector with no key', async () => {
     await expect(
       resolveConnectorAccessToken({

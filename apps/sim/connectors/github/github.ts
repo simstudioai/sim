@@ -1,11 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { z } from 'zod'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  fetchWithRetry,
+  type RetryOptions,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { githubConnectorMeta } from '@/connectors/github/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  isPerMemberListing,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
@@ -51,9 +58,19 @@ function isBinaryBuffer(buf: Buffer): boolean {
  * Parses the repository string into owner and repo.
  */
 function parseRepo(repository: string): { owner: string; repo: string } {
-  const cleaned = repository.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '')
+  const cleaned = repository
+    .trim()
+    .replace(/^https?:\/\/github\.com\//i, '')
+    .replace(/\/$/, '')
+    .replace(/\.git$/, '')
   const parts = cleaned.split('/')
-  if (parts.length < 2 || !parts[0] || !parts[1]) {
+  if (
+    parts.length !== 2 ||
+    !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(parts[0] ?? '') ||
+    !/^[a-z\d_.-]+$/i.test(parts[1] ?? '') ||
+    parts[1] === '.' ||
+    parts[1] === '..'
+  ) {
     throw new Error(`Invalid repository format: "${repository}". Use "owner/repo".`)
   }
   return { owner: parts[0], repo: parts[1] }
@@ -91,12 +108,90 @@ function matchesExtension(filePath: string, extSet: Set<string> | null): boolean
   return extSet.has(fileName.slice(lastDot).toLowerCase())
 }
 
-interface TreeItem {
-  path: string
-  mode: string
-  type: string
-  sha: string
-  size?: number
+const treeItemSchema = z.object({
+  path: z.string().min(1),
+  mode: z.string().min(1),
+  type: z.enum(['blob', 'tree', 'commit']),
+  sha: z.string().min(1),
+  size: z.number().nonnegative().optional(),
+})
+const treeSchema = z.object({
+  tree: z.array(treeItemSchema).max(100_000),
+  truncated: z.boolean(),
+})
+const repositorySchema = z.object({ default_branch: z.string().min(1) })
+type TreeItem = z.output<typeof treeItemSchema>
+
+class GitHubApiError extends Error {
+  readonly retryAfterMs: number | undefined
+
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly rateLimited = false
+  ) {
+    super(`${message}: ${status}`)
+    this.name = 'GitHubApiError'
+    this.retryAfterMs = rateLimited ? 60_000 : undefined
+  }
+}
+
+/** Secondary throttles may carry only a JSON message and must never withdraw member access. */
+async function repositoryRequestError(
+  message: string,
+  response: Response
+): Promise<GitHubApiError> {
+  if (response.status === 403) {
+    const body = await readResponseJsonWithLimit<{ message?: unknown }>(response, {
+      maxBytes: 64 * 1024,
+      label: 'GitHub repository error',
+    }).catch(() => undefined)
+    if (typeof body?.message === 'string' && /rate limit|abuse detection/i.test(body.message)) {
+      return new GitHubApiError(message, response.status, true)
+    }
+  } else {
+    await response.body?.cancel()
+  }
+  return new GitHubApiError(message, response.status)
+}
+
+/** Member sources follow the repository default; existing workspace sources retain main. */
+async function resolveBranch(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  sourceConfig: Record<string, unknown>,
+  syncContext?: Record<string, unknown>,
+  retryOptions?: RetryOptions
+): Promise<string> {
+  const configuredBranch = typeof sourceConfig.branch === 'string' ? sourceConfig.branch.trim() : ''
+  if (configuredBranch) return configuredBranch
+  if (!isPerMemberListing(syncContext)) return 'main'
+  if (typeof syncContext?.githubBranch === 'string') return syncContext.githubBranch
+
+  const response = await fetchWithRetry(
+    `${GITHUB_API_URL}/repos/${owner}/${repo}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'Sim',
+      },
+    },
+    retryOptions
+  )
+  if (!response.ok) {
+    throw await repositoryRequestError('Failed to access GitHub repository', response)
+  }
+  const repository = repositorySchema.parse(
+    await readResponseJsonWithLimit(response, {
+      maxBytes: 1024 * 1024,
+      label: 'GitHub repository response',
+    })
+  )
+  if (syncContext) syncContext.githubBranch = repository.default_branch
+  return repository.default_branch
 }
 
 /**
@@ -121,16 +216,20 @@ async function fetchTree(
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${accessToken}`,
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'Sim',
     },
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    logger.error('Failed to fetch GitHub tree', { status: response.status, error: errorText })
-    throw new Error(`Failed to fetch repository tree: ${response.status}`)
+    throw await repositoryRequestError('Failed to fetch repository tree', response)
   }
 
-  const data = await response.json()
+  const data = treeSchema.parse(
+    await readResponseJsonWithLimit(response, {
+      maxBytes: 8 * 1024 * 1024,
+      label: 'GitHub repository tree response',
+    })
+  )
 
   const truncated = Boolean(data.truncated)
   if (truncated) {
@@ -138,7 +237,7 @@ async function fetchTree(
   }
 
   return {
-    items: (data.tree || []).filter((item: TreeItem) => item.type === 'blob'),
+    items: data.tree.filter((item) => item.type === 'blob'),
     truncated,
   }
 }
@@ -161,11 +260,12 @@ async function fetchBlobContent(
       Accept: 'application/vnd.github.raw+json',
       Authorization: `Bearer ${accessToken}`,
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'Sim',
     },
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch git blob ${sha}: ${response.status}`)
+    throw await repositoryRequestError(`Failed to fetch git blob ${sha}`, response)
   }
 
   if (!response.body) {
@@ -217,6 +317,13 @@ function treeItemToStub(
 export const githubConnector: ConnectorConfig = {
   ...githubConnectorMeta,
 
+  isCredentialInvalidError: (error) => error instanceof GitHubApiError && error.status === 401,
+  /** Provider throttles preserve membership; a genuine scope denial withdraws it. */
+  isListingScopeUnavailableError: (error) =>
+    error instanceof GitHubApiError &&
+    !error.rateLimited &&
+    (error.status === 403 || error.status === 404),
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -224,7 +331,7 @@ export const githubConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const { owner, repo } = parseRepo(sourceConfig.repository as string)
-    const branch = ((sourceConfig.branch as string) || 'main').trim()
+    const branch = await resolveBranch(accessToken, owner, repo, sourceConfig, syncContext)
     const pathPrefix = ((sourceConfig.pathPrefix as string) || '').trim()
     const extSet = parseExtensions((sourceConfig.extensions as string) || '')
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
@@ -235,16 +342,13 @@ export const githubConnector: ConnectorConfig = {
     } else {
       const { items: tree, truncated } = await fetchTree(accessToken, owner, repo, branch)
 
-      // Filter by path prefix and extensions. Oversized files are kept here and
-      // surfaced as skipped (failed) documents at stub time so they stay visible.
+      /** Oversized files remain visible as skipped documents and never consume the file cap. */
       const filtered = tree.filter((item) => {
         if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
         if (!matchesExtension(item.path, extSet)) return false
         return true
       })
 
-      // Apply the max-files limit to indexable files only; oversized files within
-      // the capped window are kept (and surfaced as skipped) but never consume the cap.
       capped =
         maxFiles > 0
           ? takeIndexableWithinCap(
@@ -277,8 +381,10 @@ export const githubConnector: ConnectorConfig = {
       if (syncContext) syncContext.filteredTree = capped
     }
 
-    // Paginate using offset cursor
     const offset = cursor ? Number(cursor) : 0
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new Error('Invalid GitHub listing cursor')
+    }
     const batch = capped.slice(offset, offset + BATCH_SIZE)
 
     logger.info('Listing GitHub files', {
@@ -308,12 +414,11 @@ export const githubConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     externalId: string,
-    _syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const { owner, repo } = parseRepo(sourceConfig.repository as string)
-    const branch = ((sourceConfig.branch as string) || 'main').trim()
+    const branch = await resolveBranch(accessToken, owner, repo, sourceConfig, syncContext)
 
-    // externalId is the file path
     const path = externalId
 
     try {
@@ -325,20 +430,19 @@ export const githubConnector: ConnectorConfig = {
           Accept: 'application/vnd.github.object+json',
           Authorization: `Bearer ${accessToken}`,
           'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'Sim',
         },
       })
 
       if (!response.ok) {
         if (response.status === 404) return null
-        throw new Error(`Failed to fetch file ${path}: ${response.status}`)
+        throw await repositoryRequestError(`Failed to fetch file ${path}`, response)
       }
 
       const lastModifiedHeader = response.headers.get('last-modified') || undefined
       const data = await response.json()
 
       const size = typeof data.size === 'number' ? data.size : 0
-      // Shared stub keeps externalId, sourceUrl, contentHash, and metadata byte-identical
-      // to what `listDocuments` produced, so hydration never looks like a content change.
       const stub = treeItemToStub(owner, repo, branch, {
         path,
         sha: data.sha as string,
@@ -413,7 +517,8 @@ export const githubConnector: ConnectorConfig = {
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const repository = (sourceConfig.repository as string)?.trim()
     if (!repository) {
@@ -434,14 +539,19 @@ export const githubConnector: ConnectorConfig = {
     }
 
     const maxFiles = sourceConfig.maxFiles as string | undefined
-    if (maxFiles && (Number.isNaN(Number(maxFiles)) || Number(maxFiles) <= 0)) {
-      return { valid: false, error: 'Max files must be a positive number' }
+    if (maxFiles && (!Number.isSafeInteger(Number(maxFiles)) || Number(maxFiles) <= 0)) {
+      return { valid: false, error: 'Max files must be a positive whole number' }
     }
 
-    const branch = ((sourceConfig.branch as string) || 'main').trim()
-
     try {
-      // Verify repo and branch are accessible
+      const branch = await resolveBranch(
+        accessToken,
+        owner,
+        repo,
+        sourceConfig,
+        syncContext,
+        VALIDATE_RETRY_OPTIONS
+      )
       const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`
       const response = await fetchWithRetry(
         url,
@@ -451,6 +561,7 @@ export const githubConnector: ConnectorConfig = {
             Accept: 'application/vnd.github+json',
             Authorization: `Bearer ${accessToken}`,
             'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'Sim',
           },
         },
         VALIDATE_RETRY_OPTIONS
@@ -459,12 +570,18 @@ export const githubConnector: ConnectorConfig = {
       if (response.status === 404) {
         return {
           valid: false,
-          error: `Repository "${owner}/${repo}" or branch "${branch}" not found`,
+          error: `Repository "${owner}/${repo}" or branch "${branch}" is unavailable. Check repository access and the GitHub App installation.`,
         }
       }
 
       if (!response.ok) {
-        return { valid: false, error: `Cannot access repository: ${response.status}` }
+        return {
+          valid: false,
+          error:
+            response.status === 403
+              ? 'GitHub denied access. Check repository permissions and authorize your organization’s SSO session before reconnecting.'
+              : `Cannot access repository: ${response.status}`,
+        }
       }
 
       return { valid: true }

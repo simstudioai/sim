@@ -40,7 +40,7 @@ export interface SearchConnector {
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
-   * Block type lending the brand tile and the deployment-availability lookup:
+   * Block type lending the brand tile and integration policy:
    * the first catalog integration on the provider, else the connector type.
    */
   blockType: string
@@ -118,7 +118,12 @@ export function connectorDisplayName(connectorType: string): string {
   return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
 }
 
-export interface SearchConnectorAvailabilityContext {
+export interface OAuthServiceAvailabilityContext {
+  oauthServiceAvailability: ReadonlyMap<string, boolean>
+  isIntegrationAvailabilityReady: boolean
+}
+
+export interface SearchConnectorAvailabilityContext extends OAuthServiceAvailabilityContext {
   /** Whether per-member access is on for the workspace. */
   memberAccessAvailable: boolean
   /** Whether someone already connected this source in the workspace. */
@@ -130,7 +135,7 @@ export interface SearchConnectorAvailabilityContext {
 type SearchIntegrationAvailability = Pick<IntegrationAvailabilityResponse, 'oauthAvailable'> &
   Partial<Pick<IntegrationAvailabilityResponse, 'state'>>
 
-interface ConnectorAccessAvailabilityContext {
+interface ConnectorAccessAvailabilityContext extends OAuthServiceAvailabilityContext {
   memberAccessAvailable: boolean
   mirroredAccessAvailable: boolean
 }
@@ -146,6 +151,7 @@ export function getConnectorAccessAvailability(
   integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
   context: ConnectorAccessAvailabilityContext
 ): ConnectorAccessAvailability {
+  if (!context.isIntegrationAvailabilityReady) return { admin: false, members: false }
   const service =
     meta.auth.mode === 'oauth'
       ? (getServiceConfigByServiceId(meta.auth.provider) ??
@@ -161,8 +167,11 @@ export function getConnectorAccessAvailability(
     context.memberAccessAvailable &&
       service &&
       findCredentialGroupProviderFromProviderId(service.providerId) &&
-      deploymentAvailable &&
-      isSearchConnectorAvailable({ type: meta.id, blockType }, integrationAvailability)
+      isSearchConnectorAvailable(
+        { type: meta.id, blockType, providerId: service.providerId },
+        integrationAvailability,
+        context
+      )
   )
 
   return {
@@ -182,7 +191,8 @@ export function searchConnectorUnavailableReason(
   integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
   context: SearchConnectorAvailabilityContext
 ): string | null {
-  if (!isSearchConnectorAvailable(connector, integrationAvailability)) {
+  if (!context.isIntegrationAvailabilityReady) return 'Source availability is not loaded yet'
+  if (!isSearchConnectorAvailable(connector, integrationAvailability, context)) {
     return `${connector.meta.name} is unavailable in this deployment`
   }
   if (!context.memberAccessAvailable) return 'Per-member access is not available in this workspace'
@@ -198,12 +208,14 @@ export function searchConnectorUnavailableReason(
  * a limited deployment, matching the Integrations setup surface.
  */
 export function isSearchConnectorAvailable(
-  connector: Pick<SearchConnector, 'type' | 'blockType'>,
-  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>
+  connector: Pick<SearchConnector, 'type' | 'blockType' | 'providerId'>,
+  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
+  context: OAuthServiceAvailabilityContext
 ): boolean {
+  if (!context.isIntegrationAvailabilityReady) return false
   const availability = integrationAvailability.get(connector.blockType.toLowerCase())
-  if (connector.type === 'slack' && availability?.state) {
-    return availability.state === 'ready' || availability.state === 'limited'
+  if (connector.type === 'slack') {
+    return availability?.state === 'ready' || availability?.state === 'limited'
   }
-  return availability ? availability.oauthAvailable : true
+  return context.oauthServiceAvailability.get(connector.providerId.toLowerCase()) === true
 }
