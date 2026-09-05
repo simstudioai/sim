@@ -12,10 +12,10 @@ import {
   Duplicate,
   Eye,
   EyeOff,
-  Key,
   Tooltip,
   toast,
 } from '@sim/emcn'
+import { BrowserCredentialIcon } from '@/components/browser-credential-icon'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   RESOURCE_TILE_BASE,
@@ -143,14 +143,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
             <SettingsField label='Site'>
               <div className='flex items-center gap-2.5'>
                 <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
-                  {credential.icon ? (
-                    // A `data:` URL copied from the source browser at import
-                    // time — never a network request, which would disclose
-                    // which sites the user has passwords for.
-                    <img src={credential.icon} alt='' className='size-full object-contain' />
-                  ) : (
-                    <Key className='size-5 text-[var(--text-icon)]' />
-                  )}
+                  <BrowserCredentialIcon icon={credential.icon} />
                 </div>
                 <ChipCopyInput value={credential.origin} copyLabel='Copy site' />
               </div>

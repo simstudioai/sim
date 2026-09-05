@@ -85,27 +85,16 @@ vi.mock(
   () => ({ SettingsEmptyState: ({ children }: { children: ReactNode }) => <p>{children}</p> })
 )
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/settings/components/browser/components/import-modal/import-modal',
-  () => ({
-    ImportModal: ({
-      open,
-      profiles,
-      onImport,
-    }: {
-      open: boolean
-      profiles: Array<{ id: string; label: string }>
-      onImport: (profile: { id: string; label: string }) => void
-    }) =>
-      open ? (
-        <div role='dialog' aria-label='Import from your browser'>
-          <button type='button' onClick={() => onImport(profiles[0])}>
-            Confirm import
-          </button>
-        </div>
-      ) : null,
-  })
-)
+vi.mock('@/components/browser-import/browser-import-dialog', () => ({
+  BrowserImportDialog: ({ open, onImported }: { open: boolean; onImported: () => void }) =>
+    open ? (
+      <div role='dialog' aria-label='Import from your browser'>
+        <button type='button' onClick={onImported}>
+          Confirm import
+        </button>
+      </div>
+    ) : null,
+}))
 
 vi.mock(
   '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail',
@@ -276,23 +265,17 @@ describe('PasswordsView', () => {
     ).not.toContain('Delete all')
   })
 
-  it('imports the chosen profile and tells the browser page to refresh', async () => {
+  it('opens the shared import dialog and refreshes the password list after import', async () => {
     await render()
 
     await click(buttonLabelled('Import'))
     await click(buttonLabelled('Confirm import'))
 
-    // 'replace' so a password rotated in the other browser actually lands here.
-    expect(bridge().browserImport.importFromChrome).toHaveBeenCalledWith(
-      'chrome:Default',
-      'replace'
-    )
-    expect(mockToast.success).toHaveBeenCalledWith('Imported 4 cookies and 3 passwords from Chrome')
     expect(onImported).toHaveBeenCalled()
   })
 
-  it('hides import when no other browser was found', async () => {
-    mockBridge.current = createBridge({ profiles: [] })
+  it('hides import on a shell without an importer', async () => {
+    mockBridge.current = { browserCredentials: createBridge().browserCredentials }
     await render()
 
     expect(

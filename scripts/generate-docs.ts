@@ -315,10 +315,17 @@ interface RegistrySubBlock {
   placeholder?: unknown
   /** `true`, or a condition object making the field required only for some configurations. */
   required?: unknown
+  hidden?: boolean
   readOnly?: boolean
 }
 
 interface RegistryTrigger {
+  id?: string
+  name?: string
+  provider?: string
+  description?: string
+  polling?: boolean
+  deprecated?: boolean
   subBlocks?: RegistrySubBlock[]
   outputs?: Record<string, any>
 }
@@ -1772,6 +1779,23 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
             description: descMatch?.[1] ?? '',
           })
         }
+      }
+
+      const evaluatedTriggers = await loadTriggerRegistry()
+      const factoryExportRegex =
+        /export\s+const\s+\w+(?:\s*:\s*TriggerConfig)?\s*=\s*\w+\s*\(\s*['"]([^'"]+)['"]/g
+      let factoryExportMatch: RegExpExecArray | null
+      while ((factoryExportMatch = factoryExportRegex.exec(content)) !== null) {
+        const trigger = evaluatedTriggers[factoryExportMatch[1]]
+        if (!trigger?.id || !trigger.name || trigger.deprecated || registry.has(trigger.id)) {
+          continue
+        }
+
+        registry.set(trigger.id, {
+          id: trigger.id,
+          name: trigger.name,
+          description: trigger.description ?? '',
+        })
       }
     } catch {
       // skip unreadable files silently
@@ -4584,7 +4608,7 @@ function normalizeTriggerOutputNode(node: Record<string, any>): Record<string, a
 function triggerConfigFields(trigger: RegistryTrigger | undefined): TriggerConfigField[] {
   const fields: TriggerConfigField[] = []
   for (const subBlock of trigger?.subBlocks ?? []) {
-    if (!subBlock.id || TRIGGER_UI_ONLY_IDS.has(subBlock.id)) continue
+    if (!subBlock.id || subBlock.hidden === true || TRIGGER_UI_ONLY_IDS.has(subBlock.id)) continue
     if (subBlock.type === 'text' || subBlock.readOnly === true) continue
     fields.push({
       id: subBlock.id,
@@ -4655,6 +4679,32 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
           polling,
           outputs: normalizeTriggerOutputs(registryTrigger?.outputs ?? {}),
           configFields: triggerConfigFields(registryTrigger),
+        })
+      }
+
+      const factoryExportRegex =
+        /export\s+const\s+\w+(?:\s*:\s*TriggerConfig)?\s*=\s*\w+\s*\(\s*['"]([^'"]+)['"]/g
+      let factoryExportMatch: RegExpExecArray | null
+      while ((factoryExportMatch = factoryExportRegex.exec(content)) !== null) {
+        const trigger = registryTriggers[factoryExportMatch[1]]
+        if (
+          !trigger?.id ||
+          !trigger.name ||
+          !trigger.provider ||
+          trigger.deprecated ||
+          registry.has(trigger.id)
+        ) {
+          continue
+        }
+
+        registry.set(trigger.id, {
+          id: trigger.id,
+          name: trigger.name,
+          description: trigger.description ?? '',
+          provider: trigger.provider,
+          polling: trigger.polling === true,
+          outputs: normalizeTriggerOutputs(trigger.outputs ?? {}),
+          configFields: triggerConfigFields(trigger),
         })
       }
     } catch {

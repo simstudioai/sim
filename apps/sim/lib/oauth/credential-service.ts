@@ -28,6 +28,7 @@ import {
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
 import { refreshOAuthToken } from '@/lib/oauth/oauth'
+import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import {
   extractSlackTeamId,
@@ -754,6 +755,7 @@ interface CoalescedRefreshOptions {
   refreshToken: string
   /** External provider account id (`account.accountId`), used to scope Slack refreshes per installation. */
   providerAccountId?: string | null
+  oauthConfig?: string | null
   requestId?: string
   userId?: string
   privacyMode?: 'selector'
@@ -778,6 +780,7 @@ async function performCoalescedRefresh({
   providerId,
   refreshToken,
   providerAccountId,
+  oauthConfig,
   requestId,
   userId,
   privacyMode,
@@ -850,7 +853,16 @@ async function performCoalescedRefresh({
             refreshTokenToUse = freshest.refreshToken
           }
 
-          const result = await refreshOAuthToken(providerId, refreshTokenToUse)
+          let quickBooksClientConfig
+          if (providerId === 'quickbooks') {
+            if (!oauthConfig) {
+              throw new Error('QuickBooks OAuth client configuration is missing')
+            }
+            quickBooksClientConfig = await decryptQuickBooksOAuthClientConfig(oauthConfig)
+          }
+          const result = quickBooksClientConfig
+            ? await refreshOAuthToken(providerId, refreshTokenToUse, quickBooksClientConfig)
+            : await refreshOAuthToken(providerId, refreshTokenToUse)
 
           if (!result.ok) {
             logger.error('Failed to refresh token', {
@@ -898,6 +910,11 @@ async function performCoalescedRefresh({
             }
             if (isMicrosoftProvider(providerId)) {
               updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+            }
+            if (result.refreshTokenExpiresIn) {
+              updateData.refreshTokenExpiresAt = new Date(
+                Date.now() + result.refreshTokenExpiresIn * 1000
+              )
             }
 
             await db.update(account).set(updateData).where(eq(account.id, accountId))
@@ -965,6 +982,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       idToken: account.idToken,
       scope: account.scope,
       updatedAt: account.updatedAt,
+      oauthConfig: account.oauthConfig,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
@@ -999,6 +1017,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       providerId,
       refreshToken: credential.refreshToken!,
       providerAccountId: credential.providerAccountId,
+      oauthConfig: credential.oauthConfig,
       userId,
     })
     if (fresh) return fresh
@@ -1104,6 +1123,7 @@ export async function resolveCredentialTokenBundle(
       providerId: credential.providerId,
       refreshToken: credential.refreshToken!,
       providerAccountId: credential.accountId,
+      oauthConfig: credential.oauthConfig,
       requestId,
       userId: credential.userId,
       privacyMode: options?.privacyMode,
@@ -1212,6 +1232,7 @@ export async function refreshTokenIfNeeded(
     providerId: credential.providerId,
     refreshToken: credential.refreshToken!,
     providerAccountId: credential.accountId,
+    oauthConfig: credential.oauthConfig,
     requestId,
     userId: credential.userId,
   })

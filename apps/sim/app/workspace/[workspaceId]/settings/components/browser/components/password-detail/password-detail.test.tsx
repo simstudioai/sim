@@ -273,6 +273,22 @@ describe('PasswordDetail', () => {
     expect(container.querySelector('img')).toBeNull()
   })
 
+  it('falls back when an imported icon fails and retries when the icon changes', async () => {
+    await render({ ...CREDENTIAL, icon: 'data:image/png;base64,broken' })
+    act(() => container.querySelector('img')?.dispatchEvent(new Event('error')))
+    expect(container.querySelector('img')).toBeNull()
+
+    await render({ ...CREDENTIAL, icon: 'data:image/png;base64,replacement' })
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      'data:image/png;base64,replacement'
+    )
+  })
+
+  it('does not load remote logos for saved-password sites', async () => {
+    await render({ ...CREDENTIAL, icon: 'https://example.com/favicon.png' })
+    expect(container.querySelector('img')).toBeNull()
+  })
+
   it('returns to the list', async () => {
     await render()
 

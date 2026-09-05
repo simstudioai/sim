@@ -1,26 +1,31 @@
 import { z } from 'zod'
+import {
+  iamAssumeRolePolicyDocumentSchema,
+  iamConnectionShape,
+  iamCreatePathSchema,
+  iamRoleDescriptionSchema,
+  iamRoleNameSchema,
+} from '@/lib/api/contracts/tools/aws/iam-shared'
 import type {
   ContractBody,
   ContractBodyInput,
   ContractJsonResponse,
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
 const Schema = z.object({
-  region: z
-    .string()
-    .min(1, 'AWS region is required')
-    .refine((v) => validateAwsRegion(v).isValid, {
-      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
-    }),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  roleName: z.string().min(1, 'Role name is required'),
-  assumeRolePolicyDocument: z.string().min(1, 'Assume role policy document is required'),
-  description: z.string().optional().nullable(),
-  path: z.string().optional().nullable(),
-  maxSessionDuration: z.number().int().min(3600).max(43200).optional().nullable(),
+  ...iamConnectionShape,
+  roleName: iamRoleNameSchema,
+  assumeRolePolicyDocument: iamAssumeRolePolicyDocumentSchema,
+  description: iamRoleDescriptionSchema.optional().nullable(),
+  path: iamCreatePathSchema.optional().nullable(),
+  maxSessionDuration: z
+    .number()
+    .int('Max session duration must be a whole number of seconds')
+    .min(3600, 'Max session duration must be at least 3600 seconds (1 hour)')
+    .max(43200, 'Max session duration cannot exceed 43200 seconds (12 hours)')
+    .optional()
+    .nullable(),
 })
 
 const CreateRoleResponseSchema = z.object({

@@ -17,7 +17,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
-import { ADD_CONNECTOR_SEARCH_PARAM, writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import {
+  ADD_CONNECTOR_SEARCH_PARAM,
+  clearOAuthReturnContext,
+  writeOAuthReturnContext,
+} from '@/lib/credentials/client-state'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import {
   getProviderIdFromServiceId,
@@ -43,6 +47,17 @@ const logger = createLogger('ConnectOAuthModal')
 const EMPTY_SCOPES: readonly string[] = []
 
 type ServiceIcon = ComponentType<{ className?: string }>
+
+function initialOAuthClientFields(
+  fields: readonly { id: string; options?: readonly { value: string }[] }[] | undefined
+): Record<string, string> {
+  const values: Record<string, string> = {}
+  for (const field of fields ?? []) {
+    const defaultOption = field.options?.[0]
+    if (defaultOption) values[field.id] = defaultOption.value
+  }
+  return values
+}
 
 /** Scopes hidden from the permissions list — always present on Google flows. */
 function isHiddenScope(scope: string): boolean {
@@ -110,7 +125,11 @@ type ConnectOAuthModalConnectProps = ConnectOAuthModalBaseProps & {
   requiredScopes: readonly string[]
 } & (
     | { origin: 'workflow'; workflowId: string }
-    | { origin: 'kb-connectors'; knowledgeBaseId: string; connectorType?: string }
+    | {
+        origin: 'kb-connectors'
+        knowledgeBaseId: string
+        connectorType?: string
+      }
     | { origin: 'integrations' }
   )
 
@@ -178,6 +197,8 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   const [displayName, setDisplayName] = useState('')
   const [description, setDescription] = useState('')
+  const [oauthClientFields, setOAuthClientFields] = useState<Record<string, string>>({})
+  const [oauthClientFieldsOpen, setOAuthClientFieldsOpen] = useState<boolean | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -186,16 +207,24 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   const { providerName, ProviderIcon } = useMemo(() => {
     if (props.serviceName && props.serviceIcon) {
-      return { providerName: props.serviceName, ProviderIcon: props.serviceIcon }
+      return {
+        providerName: props.serviceName,
+        ProviderIcon: props.serviceIcon,
+      }
     }
     const provider = (props.provider ?? providerId) as OAuthProvider
     return resolveService(provider, props.serviceId ?? providerId)
   }, [props.serviceName, props.serviceIcon, props.provider, props.serviceId, providerId])
 
-  const workspaceId = isConnect ? props.workspaceId : ''
+  const workspaceId = isConnect ? props.workspaceId : (props.reconnectTarget?.workspaceId ?? '')
+  const clientConfiguration = getServiceConfigByProviderId(providerId)?.clientConfiguration
+  const oauthClientRedirectUri =
+    clientConfiguration?.redirectPath && typeof window !== 'undefined'
+      ? new URL(clientConfiguration.redirectPath, window.location.origin).toString()
+      : null
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
-    enabled: isConnect && Boolean(workspaceId) && open,
+    enabled: Boolean(workspaceId) && open,
   })
   const createDraft = useCreateCredentialDraft()
   const connectOAuthService = useConnectOAuthService()
@@ -207,6 +236,11 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     providerId,
     required: props.requireDataverseEnvironment === true,
   })
+
+  if (oauthClientFieldsOpen !== open) {
+    setOAuthClientFieldsOpen(open)
+    setOAuthClientFields(open ? initialOAuthClientFields(clientConfiguration?.fields) : {})
+  }
 
   /**
    * Lowercased set of OAuth credential names already in the workspace. Drives
@@ -278,6 +312,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   const handleConnect = async () => {
     setValidationError(null)
     setSubmitError(null)
+    let returnContextWritten = false
     try {
       const environmentUrl = dataverseEnvironmentForm.validate()
       if (dataverseEnvironmentForm.enabled && !environmentUrl) return
@@ -285,6 +320,23 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
       let connectorType: string | undefined
       let draftId: string | undefined
+      const quickBooksOAuthClientConfig =
+        providerId === 'quickbooks'
+          ? {
+              clientId: oauthClientFields.clientId?.trim() ?? '',
+              clientSecret: oauthClientFields.clientSecret?.trim() ?? '',
+              environment:
+                oauthClientFields.environment === 'production'
+                  ? ('production' as const)
+                  : ('sandbox' as const),
+              webhookVerifierToken: oauthClientFields.webhookVerifierToken?.trim() ?? '',
+            }
+          : undefined
+
+      if (clientConfiguration?.fields.some((field) => !oauthClientFields[field.id]?.trim())) {
+        setSubmitError('Complete every OAuth app configuration field.')
+        return
+      }
 
       if (isConnect) {
         const trimmed = displayName.trim()
@@ -298,6 +350,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           providerId,
           displayName: trimmed,
           description: description.trim() || undefined,
+          oauthClientConfig: quickBooksOAuthClientConfig,
         })
         draftId = draft.draftId
 
@@ -332,12 +385,17 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             connectorType: props.connectorType,
           }
         } else if (props.origin === 'workflow') {
-          returnContext = { ...baseContext, origin: 'workflow', workflowId: props.workflowId }
+          returnContext = {
+            ...baseContext,
+            origin: 'workflow',
+            workflowId: props.workflowId,
+          }
         } else {
           returnContext = { ...baseContext, origin: 'integrations' }
         }
 
         writeOAuthReturnContext(returnContext)
+        returnContextWritten = true
       } else if (props.onConnect) {
         await props.onConnect()
         handleClose()
@@ -349,8 +407,28 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             providerId,
             credentialId: props.reconnectTarget.credentialId,
             displayName: props.reconnectTarget.displayName,
+            oauthClientConfig: quickBooksOAuthClientConfig,
           })
           draftId = draft.draftId
+
+          const providerCredentials = credentials.filter(
+            (credential) => credential.type === 'oauth' && credential.providerId === providerId
+          )
+          writeOAuthReturnContext({
+            origin: 'integrations',
+            displayName: props.reconnectTarget.displayName,
+            providerId,
+            preCount: providerCredentials.length,
+            baselineCredentials: providerCredentials.map((credential) => ({
+              id: credential.id,
+              accountId: credential.accountId,
+              updatedAt: credential.updatedAt,
+            })),
+            workspaceId: props.reconnectTarget.workspaceId,
+            reconnect: true,
+            requestedAt: Date.now(),
+          })
+          returnContextWritten = true
         }
 
         logger.info('Reauthorizing OAuth2', {
@@ -361,6 +439,9 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       }
 
       const callbackURL = new URL(window.location.href)
+      callbackURL.searchParams.delete('error')
+      callbackURL.searchParams.delete('error_description')
+      callbackURL.searchParams.delete('quickbooks_connected')
       if (connectorType) {
         callbackURL.searchParams.set(ADD_CONNECTOR_SEARCH_PARAM, connectorType)
       }
@@ -380,6 +461,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       }
       handleClose()
     } catch (err: unknown) {
+      if (returnContextWritten) clearOAuthReturnContext()
       const message = getErrorMessage(err, 'Failed to start OAuth connection')
       setSubmitError(message)
       logger.error('Failed to connect OAuth service', err)
@@ -394,9 +476,12 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   const isDisabled = isConnect
     ? !displayName.trim() ||
       !dataverseEnvironmentForm.isComplete ||
+      Boolean(clientConfiguration?.fields.some((field) => !oauthClientFields[field.id]?.trim())) ||
       isPending ||
       Boolean(existingCredential)
-    : !dataverseEnvironmentForm.isComplete || isPending
+    : !dataverseEnvironmentForm.isComplete ||
+      Boolean(clientConfiguration?.fields.some((field) => !oauthClientFields[field.id]?.trim())) ||
+      isPending
 
   const displayNameError =
     validationError ??
@@ -450,6 +535,55 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         )}
 
         <MicrosoftDataverseEnvironmentField form={dataverseEnvironmentForm} />
+
+        {oauthClientRedirectUri && (
+          <ChipModalField
+            type='copy'
+            title='Redirect URI'
+            value={oauthClientRedirectUri}
+            copyLabel='Copy redirect URI'
+            required
+          />
+        )}
+
+        {clientConfiguration?.fields.map((field) =>
+          field.options ? (
+            <ChipModalField
+              key={field.id}
+              type='dropdown'
+              title={field.label}
+              value={oauthClientFields[field.id] ?? ''}
+              onChange={(value) =>
+                setOAuthClientFields((current) => ({
+                  ...current,
+                  [field.id]: value,
+                }))
+              }
+              options={[...field.options]}
+              placeholder={field.placeholder}
+              hint={field.hint}
+              required
+              align='start'
+            />
+          ) : (
+            <ChipModalField
+              key={field.id}
+              type='input'
+              title={field.label}
+              value={oauthClientFields[field.id] ?? ''}
+              onChange={(value) =>
+                setOAuthClientFields((current) => ({
+                  ...current,
+                  [field.id]: value,
+                }))
+              }
+              placeholder={field.placeholder}
+              inputType={field.secret ? 'password' : 'text'}
+              autoComplete={field.secret ? 'new-password' : 'off'}
+              required
+            />
+          )
+        )}
 
         {isConnect && (
           <ChipModalField

@@ -20,6 +20,7 @@
  */
 
 import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
+import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
 export interface ErrorInfo {
   status?: number
@@ -262,7 +263,10 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
        * appended to the message rather than dropped with the rest of the envelope.
        */
       if (data.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)) {
-        const detail = data.detail as { message?: unknown; enrichment_urn?: unknown }
+        const detail = data.detail as {
+          message?: unknown
+          enrichment_urn?: unknown
+        }
         const detailMessage = typeof detail.message === 'string' ? detail.message.trim() : ''
         const enrichmentUrn =
           typeof detail.enrichment_urn === 'string' ? detail.enrichment_urn.trim() : ''
@@ -413,6 +417,35 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       if (typeof detail !== 'string' || !detail.trim()) return undefined
       const attr = errorInfo?.data?.attr
       return typeof attr === 'string' && attr ? `${detail} (${attr})` : detail
+    },
+  },
+  {
+    id: 'quickbooks-fault',
+    description: 'QuickBooks Online Fault.Error[] responses with authentication and rate guidance',
+    examples: ['QuickBooks Online Accounting API'],
+    extract: (errorInfo) => {
+      const status = errorInfo?.status
+      const data = errorInfo?.data
+      const fault =
+        sanitizeQuickBooksFaultData(data) ??
+        (data && typeof data === 'object' && !Array.isArray(data)
+          ? sanitizeQuickBooksFaultData((data as Record<string, unknown>).QueryResponse)
+          : null)
+      if (!fault) return null
+
+      const guidance =
+        status === 401
+          ? 'Reconnect the QuickBooks credential.'
+          : status === 403
+            ? 'Confirm the QuickBooks accounting scope and access to this company.'
+            : status === 429
+              ? 'QuickBooks rate limit reached; retry after the indicated delay.'
+              : ''
+      const statusMessage =
+        typeof status === 'number'
+          ? `QuickBooks request failed with HTTP ${status}.`
+          : 'QuickBooks request failed.'
+      return [statusMessage, guidance, formatQuickBooksFaultDetail(fault)].filter(Boolean).join(' ')
     },
   },
   {
@@ -592,6 +625,7 @@ export const ErrorExtractorId = {
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  QUICKBOOKS_FAULT: 'quickbooks-fault',
   PROSPEO_ERRORS: 'prospeo-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   PITCHBOOK_ERRORS: 'pitchbook-errors',

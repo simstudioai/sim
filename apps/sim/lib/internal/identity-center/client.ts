@@ -4,6 +4,7 @@ import {
   GetGroupIdCommand,
   GetUserIdCommand,
   IdentitystoreClient,
+  ListGroupMembershipsCommand,
   ListGroupsCommand,
 } from '@aws-sdk/client-identitystore'
 import {
@@ -18,6 +19,7 @@ import {
   DescribeAccountAssignmentCreationStatusCommand,
   DescribeAccountAssignmentDeletionStatusCommand,
   DescribePermissionSetCommand,
+  ListAccountAssignmentsCommand,
   ListAccountAssignmentsForPrincipalCommand,
   ListInstancesCommand,
   ListPermissionSetsCommand,
@@ -25,14 +27,18 @@ import {
   SSOAdminClient,
   type TargetType,
 } from '@aws-sdk/client-sso-admin'
+import {
+  AWS_FANOUT_CONCURRENCY,
+  mapWithConcurrency,
+  withThrottleRetry,
+} from '@/lib/internal/identity-center/concurrency'
+import { resolveOrganizationsRegion } from '@/lib/internal/identity-center/partition'
 
 interface IdentityCenterConnectionConfig {
   region: string
   accessKeyId: string
   secretAccessKey: string
 }
-
-const AWS_ORGANIZATIONS_REGION = 'us-east-1'
 
 export function createSSOAdminClient(config: IdentityCenterConnectionConfig): SSOAdminClient {
   return new SSOAdminClient({
@@ -56,9 +62,13 @@ export function createIdentityStoreClient(
   })
 }
 
+/**
+ * AWS Organizations is global *per partition*, so the client signs for the
+ * caller's partition home region rather than the caller's own region.
+ */
 export function createOrganizationsClient(config: IdentityCenterConnectionConfig) {
   return new OrganizationsClient({
-    region: AWS_ORGANIZATIONS_REGION,
+    region: resolveOrganizationsRegion(config.region),
     credentials: {
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
@@ -126,13 +136,18 @@ export async function listPermissionSets(
   const listResponse = await client.send(listCommand, { abortSignal: signal })
   const permissionSetArns = listResponse.PermissionSets ?? []
 
-  const permissionSets = await Promise.all(
-    permissionSetArns.map(async (arn) => {
+  const permissionSets = await mapWithConcurrency(
+    permissionSetArns,
+    AWS_FANOUT_CONCURRENCY,
+    async (arn) => {
       const describeCommand = new DescribePermissionSetCommand({
         InstanceArn: instanceArn,
         PermissionSetArn: arn,
       })
-      const describeResponse = await client.send(describeCommand, { abortSignal: signal })
+      const describeResponse = await withThrottleRetry(
+        () => client.send(describeCommand, { abortSignal: signal }),
+        signal
+      )
       const permissionSet = describeResponse.PermissionSet
       return {
         permissionSetArn: permissionSet?.PermissionSetArn ?? arn,
@@ -141,7 +156,7 @@ export async function listPermissionSets(
         sessionDuration: permissionSet?.SessionDuration ?? null,
         createdDate: permissionSet?.CreatedDate?.toISOString() ?? null,
       }
-    })
+    }
   )
 
   return {
@@ -370,4 +385,102 @@ export async function listAccountAssignmentsForPrincipal(
     principalId: assignment.PrincipalId ?? '',
   }))
   return { assignments, nextToken: response.NextToken ?? null, count: assignments.length }
+}
+
+export async function listAccountAssignmentsForAccount(
+  client: SSOAdminClient,
+  instanceArn: string,
+  accountId: string,
+  permissionSetArn: string,
+  maxResults?: number | null,
+  nextToken?: string | null,
+  signal?: AbortSignal
+) {
+  const command = new ListAccountAssignmentsCommand({
+    InstanceArn: instanceArn,
+    AccountId: accountId,
+    PermissionSetArn: permissionSetArn,
+    ...(maxResults ? { MaxResults: maxResults } : {}),
+    ...(nextToken ? { NextToken: nextToken } : {}),
+  })
+  const response = await client.send(command, { abortSignal: signal })
+  const assignments = (response.AccountAssignments ?? []).map((assignment) => ({
+    accountId: assignment.AccountId ?? accountId,
+    permissionSetArn: assignment.PermissionSetArn ?? permissionSetArn,
+    principalType: assignment.PrincipalType ?? '',
+    principalId: assignment.PrincipalId ?? '',
+  }))
+  return { assignments, nextToken: response.NextToken ?? null, count: assignments.length }
+}
+
+export async function describeUserById(
+  client: IdentitystoreClient,
+  identityStoreId: string,
+  userId: string,
+  signal?: AbortSignal
+) {
+  const command = new DescribeUserCommand({ IdentityStoreId: identityStoreId, UserId: userId })
+  const response = await client.send(command, { abortSignal: signal })
+  const primaryEmail =
+    response.Emails?.find((entry) => entry.Primary)?.Value ?? response.Emails?.[0]?.Value ?? null
+
+  return {
+    userId: response.UserId ?? userId,
+    userName: response.UserName ?? '',
+    displayName: response.DisplayName ?? null,
+    email: primaryEmail,
+    userStatus: response.UserStatus ?? null,
+    title: response.Title ?? null,
+    externalIds:
+      response.ExternalIds?.map((externalId) => ({
+        issuer: externalId.Issuer ?? '',
+        id: externalId.Id ?? '',
+      })) ?? [],
+  }
+}
+
+export async function describeGroupById(
+  client: IdentitystoreClient,
+  identityStoreId: string,
+  groupId: string,
+  signal?: AbortSignal
+) {
+  const command = new DescribeGroupCommand({ IdentityStoreId: identityStoreId, GroupId: groupId })
+  const response = await client.send(command, { abortSignal: signal })
+  return {
+    groupId: response.GroupId ?? groupId,
+    displayName: response.DisplayName ?? null,
+    description: response.Description ?? null,
+    externalIds:
+      response.ExternalIds?.map((externalId) => ({
+        issuer: externalId.Issuer ?? '',
+        id: externalId.Id ?? '',
+      })) ?? [],
+  }
+}
+
+export async function listGroupMemberships(
+  client: IdentitystoreClient,
+  identityStoreId: string,
+  groupId: string,
+  maxResults?: number | null,
+  nextToken?: string | null,
+  signal?: AbortSignal
+) {
+  const command = new ListGroupMembershipsCommand({
+    IdentityStoreId: identityStoreId,
+    GroupId: groupId,
+    ...(maxResults ? { MaxResults: maxResults } : {}),
+    ...(nextToken ? { NextToken: nextToken } : {}),
+  })
+  const response = await client.send(command, { abortSignal: signal })
+  const memberships = (response.GroupMemberships ?? []).map((membership) => ({
+    membershipId: membership.MembershipId ?? '',
+    groupId: membership.GroupId ?? groupId,
+    userId:
+      membership.MemberId && 'UserId' in membership.MemberId
+        ? (membership.MemberId.UserId ?? null)
+        : null,
+  }))
+  return { memberships, nextToken: response.NextToken ?? null, count: memberships.length }
 }

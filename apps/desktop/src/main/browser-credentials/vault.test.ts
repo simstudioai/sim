@@ -39,6 +39,25 @@ const CANDIDATES = [
 ]
 
 describe('CredentialVault', () => {
+  it('retains imported logins when the vault is reopened and does not duplicate a re-import', async () => {
+    const original = new CredentialVault(vaultPath, encryption())
+    await original.importCredentials(CANDIDATES, 'replace')
+    const metadata = await original.list()
+
+    const reopened = new CredentialVault(vaultPath, encryption())
+    expect(await reopened.list()).toEqual(metadata)
+    expect(await reopened.readForFill(metadata[0].id, metadata[0].origin)).toEqual({
+      username: 'ada',
+      password: 'hunter2',
+    })
+    expect(await reopened.importCredentials(CANDIDATES, 'replace')).toEqual({
+      added: 0,
+      updated: 0,
+      skipped: 2,
+    })
+    expect(await reopened.list()).toEqual(metadata)
+  })
+
   it('stores and lists credentials without their passwords', async () => {
     const vault = new CredentialVault(vaultPath, encryption())
 

@@ -245,6 +245,20 @@ describe('entitlement-projected block schemas', () => {
 })
 
 describe('hosted-key VFS metadata', () => {
+  it('preserves multi-select dropdown behavior in block schemas', () => {
+    const block = {
+      type: 'events',
+      name: 'Events',
+      subBlocks: [{ id: 'eventTypes', type: 'dropdown', multiSelect: true }],
+      tools: { access: [] },
+      inputs: {},
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const schema = JSON.parse(serializeBlockSchema(block))
+    expect(schema.subBlocks[0].multiSelect).toBe(true)
+  })
+
   it('indexes hosted and conditional-hosted operations for every configured service', () => {
     const metadata = JSON.parse(
       serializeApiKeyIntegrations(

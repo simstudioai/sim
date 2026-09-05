@@ -21,17 +21,20 @@ With Amazon SQS, you can:
 - **Ensure reliability**: Built-in redundancy and high availability
 - **Support FIFO queues**: Maintain strict message ordering and exactly-once processing
 
-In Sim, the SQS integration enables your agents to send messages to Amazon SQS queues securely and programmatically. Supported operations include:
+In Sim, the SQS integration gives your agents both sides of the queue — producing work and consuming it. Supported operations cover:
 
-- **Send Message**: Send messages to SQS queues with optional message group ID and deduplication ID for FIFO queues
+- **Messages**: Send one message or a batch of up to 10, receive with long polling, delete individually or in batches, and extend visibility timeouts while work is still in flight
+- **Queues**: Create, delete, and purge queues, look up a queue URL by name, and read or update queue attributes
+- **Dead-letter handling**: List the source queues feeding a dead-letter queue, then start, monitor, and cancel message move tasks to redrive failed messages back
+- **Tags**: List, add, and remove queue tags for cost allocation and ownership tracking
 
-This integration allows your agents to automate message sending workflows without manual intervention. By connecting Sim with Amazon SQS, you can build agents that publish messages to queues within your workflows—all without handling queue infrastructure or connections.
+Because an agent can now drain a queue rather than only fill it, SQS becomes a way to hand work to Sim as well as from it. A workflow can long-poll a queue for jobs, process each message, delete it on success, and let the visibility timeout return anything it fails to finish — the standard reliable-consumer pattern, without running a worker of your own.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate Amazon SQS into the workflow. Can send messages to SQS queues.
+Integrate Amazon SQS into the workflow. Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.
 
 
 
@@ -49,7 +52,9 @@ Send a message to an Amazon SQS queue
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
 | `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
-| `data` | object | Yes | Message body to send as JSON object \(e.g., \{ "action": "process", "payload": \{...\} \}\) |
+| `data` | json | Yes | Message body to send as JSON object \(e.g., \{ "action": "process", "payload": \{...\} \}\) |
+| `delaySeconds` | number | No | Seconds to delay delivery of this message, 0-900. Not supported per-message on FIFO queues |
+| `messageAttributes` | json | No | Message attributes keyed by name, each \{ "dataType": "String" \| "Number", "stringValue": "..." \}. A custom label such as Number.float is allowed; Binary attributes are not supported |
 | `messageGroupId` | string | No | Message group ID for FIFO queues \(e.g., "order-processing-group"\) |
 | `messageDeduplicationId` | string | No | Message deduplication ID for FIFO queues \(e.g., "order-12345-v1"\) |
 
@@ -59,5 +64,470 @@ Send a message to an Amazon SQS queue
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `id` | string | Message ID |
+| `md5OfMessageBody` | string | MD5 digest of the message body, for verifying SQS received it intact |
+| `md5OfMessageAttributes` | string | MD5 digest of the message attributes |
+| `sequenceNumber` | string | Large, non-consecutive sequence number assigned by a FIFO queue |
+
+### SQS Send Message Batch
+
+Send up to 10 messages to an Amazon SQS queue in a single request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `entries` | array | Yes | Up to 10 entries, each \{ "id": "unique-id", "data": \{ ... \}, "delaySeconds"?, "messageGroupId"?, "messageDeduplicationId"?, "messageAttributes"? \} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `successful` | array | Entries that were accepted |
+|   ↳ `id` | string | Id supplied for this batch entry |
+|   ↳ `messageId` | string | Message ID assigned by SQS |
+|   ↳ `md5OfMessageBody` | string | MD5 digest of the message body |
+|   ↳ `md5OfMessageAttributes` | string | MD5 digest of the message attributes |
+|   ↳ `sequenceNumber` | string | Sequence number assigned by a FIFO queue |
+| `failed` | array | Entries that were rejected |
+|   ↳ `id` | string | Id supplied for this batch entry |
+|   ↳ `senderFault` | boolean | Whether the sender caused the failure |
+|   ↳ `code` | string | Error code for the failure |
+|   ↳ `message` | string | Human-readable failure message |
+| `successCount` | number | Number of messages accepted |
+| `failureCount` | number | Number of messages rejected |
+
+### SQS Receive Message
+
+Receive up to 10 messages from an Amazon SQS queue, with optional long polling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `maxNumberOfMessages` | number | No | Maximum number of messages to return, 1-10 \(default 1\) |
+| `waitTimeSeconds` | number | No | Long-poll duration in seconds, 0-20. Waits for a message to arrive before returning \(default 0, short poll\) |
+| `visibilityTimeout` | number | No | Seconds the returned messages stay hidden from other consumers, 0-43200. Defaults to the queue setting |
+| `messageAttributeNames` | array | No | Names of user-defined message attributes to return. Use \["All"\] to return all of them |
+| `messageSystemAttributeNames` | array | No | System attributes to return: All, SenderId, SentTimestamp, ApproximateReceiveCount, ApproximateFirstReceiveTimestamp, SequenceNumber, MessageDeduplicationId, MessageGroupId, AWSTraceHeader, DeadLetterQueueSourceArn |
+| `receiveRequestAttemptId` | string | No | FIFO queues only: deduplication token that lets a retried receive return the same messages \(max 128 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Received messages. Pass a receiptHandle to sqs_delete_message, sqs_delete_message_batch, sqs_change_message_visibility, or sqs_change_message_visibility_batch |
+|   ↳ `messageId` | string | Unique ID SQS assigned to the message |
+|   ↳ `receiptHandle` | string | Handle identifying this receipt of the message, required to delete it |
+|   ↳ `body` | string | Message body as it was sent |
+|   ↳ `md5OfBody` | string | MD5 digest of the message body |
+|   ↳ `md5OfMessageAttributes` | string | MD5 digest of the message attributes |
+|   ↳ `attributes` | json | Requested system attributes as string values keyed by attribute name |
+|   ↳ `messageAttributes` | json | Requested user-defined attributes, each with dataType, stringValue, and stringListValues |
+| `count` | number | Number of messages returned |
+
+### SQS Delete Message
+
+Delete a received message from an Amazon SQS queue using its receipt handle
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `receiptHandle` | string | Yes | Receipt handle returned by sqs_receive_message for the message to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### SQS Delete Message Batch
+
+Delete up to 10 received messages from an Amazon SQS queue in a single request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `entries` | array | Yes | Up to 10 entries, each \{ "id": "unique-id", "receiptHandle": "..." \}. Receipt handles come from sqs_receive_message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `successful` | array | Entries that were deleted |
+|   ↳ `id` | string | Id supplied for this batch entry |
+| `failed` | array | Entries that were rejected |
+|   ↳ `id` | string | Id supplied for this batch entry |
+|   ↳ `senderFault` | boolean | Whether the sender caused the failure |
+|   ↳ `code` | string | Error code for the failure |
+|   ↳ `message` | string | Human-readable failure message |
+| `successCount` | number | Number of messages deleted |
+| `failureCount` | number | Number of messages rejected |
+
+### SQS Change Message Visibility
+
+Change how long a received Amazon SQS message stays hidden from other consumers
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `receiptHandle` | string | Yes | Receipt handle returned by sqs_receive_message for the message to update |
+| `visibilityTimeout` | number | Yes | New visibility timeout in seconds, 0-43200 \(12 hours\). 0 makes the message immediately visible again |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### SQS Change Message Visibility Batch
+
+Change the visibility timeout of up to 10 received Amazon SQS messages at once
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `entries` | array | Yes | Up to 10 entries, each \{ "id": "unique-id", "receiptHandle": "...", "visibilityTimeout": 0-43200 \}. Receipt handles come from sqs_receive_message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `successful` | array | Entries that were updated |
+|   ↳ `id` | string | Id supplied for this batch entry |
+| `failed` | array | Entries that were rejected |
+|   ↳ `id` | string | Id supplied for this batch entry |
+|   ↳ `senderFault` | boolean | Whether the sender caused the failure |
+|   ↳ `code` | string | Error code for the failure |
+|   ↳ `message` | string | Human-readable failure message |
+| `successCount` | number | Number of messages updated |
+| `failureCount` | number | Number of messages rejected |
+
+### SQS List Queues
+
+List Amazon SQS queue URLs in a region, optionally filtered by name prefix
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueNamePrefix` | string | No | Return only queues whose name begins with this string \(case-sensitive\) |
+| `maxResults` | number | No | Maximum queues to return, 1-1000. Must be set to receive a nextToken \(default returns up to 1000\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueUrls` | array | Queue URLs returned by the request |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of queue URLs returned |
+
+### SQS Get Queue URL
+
+Resolve an Amazon SQS queue name to its queue URL
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueName` | string | Yes | Queue name, up to 80 characters of letters, digits, hyphens and underscores. A FIFO queue name ends in .fifo |
+| `queueOwnerAwsAccountId` | string | No | 12-digit AWS account ID of the queue owner, when the queue belongs to another account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueUrl` | string | URL of the queue |
+
+### SQS Get Queue Attributes
+
+Read configuration and message-count attributes of an Amazon SQS queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `attributeNames` | array | No | Attributes to return, e.g. \["All"\], \["ApproximateNumberOfMessages"\], \["QueueArn"\], \["VisibilityTimeout"\], \["RedrivePolicy"\]. Omitting this returns no attributes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attributes` | json | Queue attributes as string values keyed by attribute name \(e.g., ApproximateNumberOfMessages, QueueArn, VisibilityTimeout, RedrivePolicy\) |
+
+### SQS Set Queue Attributes
+
+Update configuration attributes of an existing Amazon SQS queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `attributes` | json | Yes | Attributes to set as string values, e.g. \{ "VisibilityTimeout": "60", "MessageRetentionPeriod": "345600", "RedrivePolicy": "\{...\}" \}. FifoQueue can only be set at creation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### SQS Create Queue
+
+Create a standard or FIFO Amazon SQS queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueName` | string | Yes | Queue name, up to 80 characters of letters, digits, hyphens and underscores. A FIFO queue name must end in .fifo |
+| `attributes` | json | No | Queue attributes as string values, e.g. \{ "FifoQueue": "true", "VisibilityTimeout": "30", "DelaySeconds": "0", "RedrivePolicy": "\{...\}" \} |
+| `tags` | json | No | Cost-allocation tags to apply to the new queue, as \{ "key": "value" \} pairs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `queueUrl` | string | URL of the created queue |
+
+### SQS Delete Queue
+
+Delete an Amazon SQS queue and every message still in it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### SQS Purge Queue
+
+Delete every message in an Amazon SQS queue while keeping the queue itself
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### SQS List Dead-Letter Source Queues
+
+List the Amazon SQS queues that use a given queue as their dead-letter queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | URL of the dead-letter queue whose source queues should be listed |
+| `maxResults` | number | No | Maximum source queues to return, 1-1000. Must be set to receive a nextToken \(default returns up to 1000\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueUrls` | array | URLs of the source queues that redrive to this dead-letter queue |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of source queues returned |
+
+### SQS List Queue Tags
+
+List the cost-allocation tags attached to an Amazon SQS queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | json | Tags attached to the queue, as string values keyed by tag key |
+
+### SQS Tag Queue
+
+Add or overwrite cost-allocation tags on an Amazon SQS queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `tags` | json | Yes | Tags to apply as \{ "key": "value" \} pairs. An existing key is overwritten. AWS recommends no more than 50 tags per queue |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### SQS Untag Queue
+
+Remove cost-allocation tags from an Amazon SQS queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `tagKeys` | array | Yes | Tag keys to remove, e.g. \["env", "team"\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### SQS Start Message Move Task
+
+Start redriving messages out of an Amazon SQS dead-letter queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `sourceArn` | string | Yes | ARN of the dead-letter queue to move messages out of \(e.g., arn:aws:sqs:us-east-1:123456789012:my-dlq\) |
+| `destinationArn` | string | No | ARN of the queue to move messages into. Omit to redrive each message to its original source queue |
+| `maxNumberOfMessagesPerSecond` | number | No | Throttle the move to at most this many messages per second, up to 500. Omit to move as fast as possible |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `taskHandle` | string | Handle identifying the move task, accepted by sqs_cancel_message_move_task |
+
+### SQS List Message Move Tasks
+
+List the most recent message move tasks for an Amazon SQS source queue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `sourceArn` | string | Yes | ARN of the queue whose move tasks should be listed \(e.g., arn:aws:sqs:us-east-1:123456789012:my-dlq\) |
+| `maxResults` | number | No | Maximum move tasks to return, 1-10 \(default 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Move tasks for the source queue |
+|   ↳ `taskHandle` | string | Handle of the task, populated only while its status is RUNNING |
+|   ↳ `status` | string | RUNNING, COMPLETED, CANCELLING, CANCELLED, or FAILED |
+|   ↳ `sourceArn` | string | ARN of the source queue |
+|   ↳ `destinationArn` | string | ARN of the destination queue, absent when redriving to source queues |
+|   ↳ `maxNumberOfMessagesPerSecond` | number | Per-second throttle applied to the move |
+|   ↳ `approximateNumberOfMessagesMoved` | number | Approximate number of messages moved so far |
+|   ↳ `approximateNumberOfMessagesToMove` | number | Approximate number of messages still to move |
+|   ↳ `failureReason` | string | Why the task failed, set only when the status is FAILED |
+|   ↳ `startedTimestamp` | number | Epoch milliseconds when the task started |
+| `count` | number | Number of move tasks returned |
+
+### SQS Cancel Message Move Task
+
+Cancel an in-progress Amazon SQS message move task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `taskHandle` | string | Yes | Task handle returned by sqs_start_message_move_task or sqs_list_message_move_tasks. Only a RUNNING task can be cancelled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `approximateNumberOfMessagesMoved` | number | Approximate number of messages already moved before the task was cancelled |
 
 

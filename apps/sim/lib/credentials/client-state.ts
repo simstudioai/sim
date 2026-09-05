@@ -92,10 +92,13 @@ export function readOAuthReturnContext(): OAuthReturnContext | null {
   return parseJson<OAuthReturnContext>(window.sessionStorage.getItem(OAUTH_RETURN_CONTEXT_KEY))
 }
 
+export function clearOAuthReturnContext(): void {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(OAUTH_RETURN_CONTEXT_KEY)
+}
+
 export function consumeOAuthReturnContext(): OAuthReturnContext | null {
   const ctx = readOAuthReturnContext()
-  if (ctx) {
-    window.sessionStorage.removeItem(OAUTH_RETURN_CONTEXT_KEY)
-  }
+  if (ctx) clearOAuthReturnContext()
   return ctx
 }

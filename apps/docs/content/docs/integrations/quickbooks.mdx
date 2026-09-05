@@ -1,0 +1,3834 @@
+---
+title: QuickBooks
+description: Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="quickbooks"
+  color="#2CA01C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Connect one QuickBooks Online company per credential. Create an app in the Intuit Developer Portal, register `https://<your-sim-host>/api/auth/oauth2/callback/quickbooks` as its redirect URI, then enter that app's client ID, client secret, and webhook verifier token in Sim and select its Sandbox or Production environment. Sim encrypts this app configuration on the credential and uses it for authorization, refresh, revocation, and webhook signature verification.
+
+During OAuth, choose the company that the workflow should access. Intuit returns the realm ID in the callback, and Sim verifies that the issued token can read CompanyInfo through that company-scoped API path before binding it to the credential, so you do not enter a realm ID or API host. The `CompanyInfo.Id` field is a separate entity ID and is not used as the realm ID.
+
+Master Data, Sales, and Purchasing transaction reads support **List** and **By ID** modes. List actions return at most one page. Use `nextStartPosition` in another workflow step when `hasMore` is true. Sim does not paginate, retry, or fetch related records automatically.
+
+QuickBooks update actions require the record ID and its current `SyncToken`; provide only the fields you want to change. Sim uses Intuit's documented sparse-update mode where the entity supports it, and otherwise reads the current entity, merges the requested fields, and submits a full update. Use the latest `SyncToken` returned by a read or mutation. Voiding keeps the transaction in QuickBooks with a zeroed financial effect; it is not deletion and requires explicit confirmation. Create actions accept an optional `requestId` that QuickBooks uses for idempotency when the same request may be submitted again.
+
+Sandbox credentials call only Intuit's sandbox API and are suitable for disposable test data. Production credentials call the production API and affect the selected live company.
+
+QuickBooks triggers use Intuit's app-level webhook model. After adding a trigger and deploying the workflow once, copy the generated Webhook URL from the block into the matching Development or Production Webhooks settings for the same Intuit app. Enable the CloudEvents payload format and select every entity and operation needed by your deployed workflows. One Intuit endpoint can serve multiple connected companies; Sim verifies the raw-body `intuit-signature` with that app's encrypted verifier token and routes each event by both Intuit app and OAuth-derived realm ID.
+
+Run Financial Report exposes verified financial statements, aging, balance, sales, and expense reports while preserving QuickBooks' native columns and nested rows. Advanced controls appear only where QuickBooks supports them. Use Read Master Data to discover customer, vendor, account, item, class, and department IDs for report filters. Intuit recommends report periods of six months or less for performance, though Sim does not forbid longer accounting periods.
+
+Document actions can read attachment metadata, add one File or Note attachment, download an attachment file, and download supported transactions as PDFs. Downloaded files are stored as Sim files for downstream blocks. Attachment deletion, bulk upload/download, and bulk email remain outside this version of the block.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.
+
+
+
+## Actions
+
+### QuickBooks Get Company Info
+
+Get information about the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | json | Verified QuickBooks CompanyInfo object with tax identifiers removed |
+|   ↳ `Id` | string | QuickBooks CompanyInfo entity ID \(commonly "1"\); this is not the OAuth realmId |
+|   ↳ `SyncToken` | string | CompanyInfo sync token |
+|   ↳ `CompanyName` | string | Company display name |
+|   ↳ `LegalName` | string | Company legal name |
+|   ↳ `CompanyAddr` | json | Company address |
+|   ↳ `CustomerCommunicationAddr` | json | Customer communication address |
+|   ↳ `LegalAddr` | json | Company legal address |
+|   ↳ `PrimaryPhone` | json | Primary phone details |
+|   ↳ `Email` | json | Company email details |
+|   ↳ `WebAddr` | json | Company website details |
+|   ↳ `CompanyStartDate` | string | Company start date |
+|   ↳ `Country` | string | Company country code |
+|   ↳ `FiscalYearStartMonth` | string | Fiscal year starting month |
+|   ↳ `SupportedLanguages` | string | Comma-separated list of languages supported by the company |
+|   ↳ `domain` | string | Originating Intuit domain |
+|   ↳ `sparse` | boolean | Whether QuickBooks returned a partial representation |
+|   ↳ `NameValue` | array | QuickBooks company settings represented as name/value entries |
+|   ↳ `MetaData` | json | CompanyInfo creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Read Master Data
+
+List or read one account, class, customer, department, employee, item, or vendor
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `recordType` | string | Yes | Master-data entity to read: account, class, customer, department, employee, item, or vendor |
+| `readMode` | string | Yes | Whether to list records or read one record by ID |
+| `recordId` | string | No | QuickBooks record ID, required for by-ID reads |
+| `startPosition` | number | No | One-based position of the first list record to return |
+| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `activeStatus` | string | No | List records using the QuickBooks default, active, or inactive status |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordType` | string | Master-data record type returned by this action |
+| `item` | json | Single QuickBooks master-data record returned by a by-ID read |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `Name` | string | Account, item, class, or department name |
+|   ↳ `SubAccount` | boolean | Whether this is a subaccount |
+|   ↳ `ParentRef` | json | Parent account, item, class, or department reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account, item, class, or department name |
+|   ↳ `Classification` | string | Account classification |
+|   ↳ `AccountType` | string | Account type |
+|   ↳ `AccountSubType` | string | Account subtype |
+|   ↳ `CurrentBalance` | number | Account current balance |
+|   ↳ `CurrencyRef` | json | Account, customer, or vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `DisplayName` | string | Customer, vendor, or employee display name |
+|   ↳ `CompanyName` | string | Customer or vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Taxable status for the customer or item |
+|   ↳ `PrimaryEmailAddr` | json | Customer, vendor, or employee primary email address |
+|   ↳ `PrimaryPhone` | json | Customer, vendor, or employee primary phone number |
+|   ↳ `BillAddr` | json | Customer or vendor billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Customer or vendor balance |
+|   ↳ `PrintOnCheckName` | string | Vendor or employee name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+|   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
+|   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
+| `items` | array | QuickBooks master-data records returned by a list read |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `Name` | string | Account, item, class, or department name |
+|   ↳ `SubAccount` | boolean | Whether this is a subaccount |
+|   ↳ `ParentRef` | json | Parent account, item, class, or department reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified account, item, class, or department name |
+|   ↳ `Classification` | string | Account classification |
+|   ↳ `AccountType` | string | Account type |
+|   ↳ `AccountSubType` | string | Account subtype |
+|   ↳ `CurrentBalance` | number | Account current balance |
+|   ↳ `CurrencyRef` | json | Account, customer, or vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `DisplayName` | string | Customer, vendor, or employee display name |
+|   ↳ `CompanyName` | string | Customer or vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Taxable status for the customer or item |
+|   ↳ `PrimaryEmailAddr` | json | Customer, vendor, or employee primary email address |
+|   ↳ `PrimaryPhone` | json | Customer, vendor, or employee primary phone number |
+|   ↳ `BillAddr` | json | Customer or vendor billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Customer or vendor balance |
+|   ↳ `PrintOnCheckName` | string | Vendor or employee name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+|   ↳ `SubClass` | boolean | Whether the Class is nested under another Class |
+|   ↳ `SubDepartment` | boolean | Whether the Department is nested under another Department |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID record |
+| `startPosition` | number | One-based position of the first record in this page |
+| `maxResults` | number | Actual number of records returned in this page |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Create Customer
+
+Create a customer in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | No | Unique customer display name. Required unless givenName or familyName is supplied |
+| `companyName` | string | No | Customer company name |
+| `givenName` | string | No | Customer given name |
+| `familyName` | string | No | Customer family name |
+| `primaryEmail` | string | No | Customer primary email address |
+| `primaryPhone` | string | No | Customer primary phone number |
+| `billingAddress` | json | No | Customer billing address |
+| `shippingAddress` | json | No | Customer shipping address |
+| `taxable` | boolean | No | Whether sales to this customer are taxable |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Customer record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Customer display name |
+|   ↳ `CompanyName` | string | Customer company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Whether the customer is taxable |
+|   ↳ `PrimaryEmailAddr` | json | Customer primary email address |
+|   ↳ `PrimaryPhone` | json | Customer primary phone number |
+|   ↳ `BillAddr` | json | Customer billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Customer balance |
+|   ↳ `CurrencyRef` | json | Customer currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### QuickBooks Update Customer
+
+Sparse-update a customer in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | ID of the customer to update |
+| `syncToken` | string | Yes | Current customer sync token |
+| `displayName` | string | No | Replacement customer display name |
+| `companyName` | string | No | Replacement customer company name |
+| `givenName` | string | No | Replacement customer given name |
+| `familyName` | string | No | Replacement customer family name |
+| `primaryEmail` | string | No | Replacement primary email address |
+| `primaryPhone` | string | No | Replacement primary phone number |
+| `billingAddress` | json | No | Replacement billing address |
+| `shippingAddress` | json | No | Replacement shipping address |
+| `taxable` | boolean | No | Whether sales to this customer are taxable |
+| `activeStatus` | string | No | Customer status change: unchanged, active, or inactive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Customer record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Customer display name |
+|   ↳ `CompanyName` | string | Customer company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `Taxable` | boolean | Whether the customer is taxable |
+|   ↳ `PrimaryEmailAddr` | json | Customer primary email address |
+|   ↳ `PrimaryPhone` | json | Customer primary phone number |
+|   ↳ `BillAddr` | json | Customer billing address |
+|   ↳ `ShipAddr` | json | Customer shipping address |
+|   ↳ `Balance` | number | Customer balance |
+|   ↳ `CurrencyRef` | json | Customer currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### QuickBooks Create Employee
+
+Create a non-payroll employee profile in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | No | Unique employee display name. When omitted QuickBooks derives it from the supplied name components, and it is read-only when QuickBooks Payroll is enabled |
+| `givenName` | string | No | Employee given name. At least one of givenName or familyName is required |
+| `familyName` | string | No | Employee family name. At least one of givenName or familyName is required |
+| `primaryEmail` | string | No | Employee primary email address |
+| `primaryPhone` | string | No | Employee primary phone number |
+| `primaryAddress` | json | No | Employee primary address |
+| `printOnCheckName` | string | No | Employee name printed on checks |
+| `billableTime` | boolean | No | Whether employee time is billable |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Employee record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Employee name printed on checks |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+
+### QuickBooks Update Employee
+
+Read, merge, and full-update a non-payroll employee profile
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | ID of the employee to update |
+| `syncToken` | string | Yes | Current employee sync token |
+| `displayName` | string | No | Replacement employee display name |
+| `givenName` | string | No | Replacement employee given name |
+| `familyName` | string | No | Replacement employee family name |
+| `primaryEmail` | string | No | Replacement employee primary email address |
+| `primaryPhone` | string | No | Replacement employee primary phone number |
+| `primaryAddress` | json | No | Replacement employee primary address |
+| `printOnCheckName` | string | No | Replacement employee name printed on checks |
+| `billableTime` | boolean | No | Whether employee time is billable |
+| `activeStatus` | string | No | Employee status change: unchanged, active, or inactive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Employee record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Employee display name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Employee name printed on checks |
+|   ↳ `PrimaryEmailAddr` | json | Employee primary email address |
+|   ↳ `PrimaryPhone` | json | Employee primary phone number |
+|   ↳ `PrimaryAddr` | json | Employee primary address |
+|   ↳ `BillableTime` | boolean | Whether employee time is billable |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+
+### QuickBooks Create Vendor
+
+Create a vendor in the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | No | Unique vendor display name. Required unless givenName or familyName is supplied |
+| `companyName` | string | No | Vendor company name |
+| `givenName` | string | No | Vendor given name |
+| `familyName` | string | No | Vendor family name |
+| `primaryEmail` | string | No | Vendor primary email address |
+| `primaryPhone` | string | No | Vendor primary phone number |
+| `billingAddress` | json | No | Vendor billing address |
+| `printOnCheckName` | string | No | Name to print on checks |
+| `accountNumber` | string | No | Vendor account number |
+| `vendor1099` | boolean | No | Whether the vendor is tracked for 1099 reporting |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Vendor record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Vendor display name |
+|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `PrimaryEmailAddr` | json | Vendor primary email address |
+|   ↳ `PrimaryPhone` | json | Vendor primary phone number |
+|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### QuickBooks Update Vendor
+
+Read, merge, and full-update a vendor in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | Yes | ID of the vendor to update |
+| `syncToken` | string | Yes | Current vendor sync token |
+| `displayName` | string | No | Replacement vendor display name |
+| `companyName` | string | No | Replacement vendor company name |
+| `givenName` | string | No | Replacement vendor given name |
+| `familyName` | string | No | Replacement vendor family name |
+| `primaryEmail` | string | No | Replacement primary email address |
+| `primaryPhone` | string | No | Replacement primary phone number |
+| `billingAddress` | json | No | Replacement billing address |
+| `printOnCheckName` | string | No | Replacement name to print on checks |
+| `accountNumber` | string | No | Replacement vendor account number |
+| `vendor1099` | boolean | No | Whether the vendor is tracked for 1099 reporting |
+| `activeStatus` | string | No | Vendor status change: unchanged, active, or inactive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Vendor record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `DisplayName` | string | Vendor display name |
+|   ↳ `CompanyName` | string | Vendor company name |
+|   ↳ `GivenName` | string | Given name |
+|   ↳ `FamilyName` | string | Family name |
+|   ↳ `PrintOnCheckName` | string | Name printed on checks |
+|   ↳ `Vendor1099` | boolean | Whether the vendor is tracked for 1099 reporting |
+|   ↳ `PrimaryEmailAddr` | json | Vendor primary email address |
+|   ↳ `PrimaryPhone` | json | Vendor primary phone number |
+|   ↳ `BillAddr` | json | Vendor billing address |
+|   ↳ `AcctNum` | string | Vendor account number |
+|   ↳ `Balance` | number | Vendor balance |
+|   ↳ `CurrencyRef` | json | Vendor currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### QuickBooks Create Item
+
+Create a Service or Non-inventory item in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Unique item name |
+| `itemType` | string | Yes | Writable item type: service or non_inventory |
+| `incomeAccountId` | string | No | Sales of Product Income account ID recording proceeds from the sale. Intuit requires it for Service items except in France locales |
+| `description` | string | No | Sales description |
+| `unitPrice` | number | No | Sales price per unit |
+| `purchaseDescription` | string | No | Purchase description |
+| `purchaseCost` | number | No | Purchase cost per unit |
+| `expenseAccountId` | string | No | Cost of Goods Sold account ID used to pay the vendor for this item. Intuit requires it for Service and Non-inventory items except in France locales |
+| `taxable` | boolean | No | Whether the item is taxable |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created QuickBooks Item record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `Name` | string | Item name |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `Taxable` | boolean | Whether the item is taxable |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `ParentRef` | json | Parent item or category reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### QuickBooks Update Item
+
+Read, merge, and full-update an item without changing its type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | ID of the item to update |
+| `syncToken` | string | Yes | Current item sync token |
+| `name` | string | No | Replacement item name |
+| `incomeAccountId` | string | No | Replacement income account ID |
+| `description` | string | No | Replacement sales description |
+| `unitPrice` | number | No | Replacement sales price per unit |
+| `purchaseDescription` | string | No | Replacement purchase description |
+| `purchaseCost` | number | No | Replacement purchase cost per unit |
+| `expenseAccountId` | string | No | Replacement expense account ID |
+| `taxable` | boolean | No | Whether the item is taxable |
+| `activeStatus` | string | No | Item status change: unchanged, active, or inactive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated QuickBooks Item record |
+|   ↳ `Id` | string | QuickBooks entity ID |
+|   ↳ `SyncToken` | string | Entity sync token |
+|   ↳ `Active` | boolean | Whether the entity is active |
+|   ↳ `MetaData` | json | Entity creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `Name` | string | Item name |
+|   ↳ `Description` | string | Item sales description |
+|   ↳ `FullyQualifiedName` | string | Hierarchical qualified item name |
+|   ↳ `Taxable` | boolean | Whether the item is taxable |
+|   ↳ `UnitPrice` | number | Item sale price |
+|   ↳ `Type` | string | Item type |
+|   ↳ `IncomeAccountRef` | json | Item income account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ExpenseAccountRef` | json | Item expense account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PurchaseDesc` | string | Item purchase description |
+|   ↳ `PurchaseCost` | number | Item purchase cost |
+|   ↳ `AssetAccountRef` | json | Inventory asset account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `TrackQtyOnHand` | boolean | Whether QuickBooks tracks quantity on hand |
+|   ↳ `QtyOnHand` | number | Current quantity on hand |
+|   ↳ `InvStartDate` | string | Inventory tracking start date |
+|   ↳ `ParentRef` | json | Parent item or category reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+
+### QuickBooks Read Sales Transactions
+
+List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Sales transaction type to read |
+| `readMode` | string | Yes | Whether to list transactions or read one transaction by ID |
+| `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
+| `startPosition` | number | No | One-based position of the first list record to return |
+| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
+| `customerId` | string | No | List transactions for one QuickBooks customer ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactionType` | string | Sales transaction type returned |
+| `item` | json | Single native QuickBooks sales transaction |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `items` | array | Native QuickBooks sales transactions |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID transaction |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Create Estimate
+
+Create an estimate with bounded item and description lines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer receiving the estimate |
+| `lines` | json | Yes | Bounded item and description lines |
+| `transactionDate` | string | No | Estimate date in YYYY-MM-DD format |
+| `expirationDate` | string | No | Estimate expiration date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional estimate number |
+| `privateNote` | string | No | Internal estimate note |
+| `customerMemo` | string | No | Customer-facing estimate memo |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks Estimate |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Estimate
+
+Sparse-update an estimate using its current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Estimate ID to update |
+| `syncToken` | string | Yes | Current estimate sync token |
+| `customerId` | string | No | Replacement customer ID |
+| `lines` | json | No | Complete replacement set of estimate lines: any existing line omitted here is deleted from the estimate |
+| `transactionDate` | string | No | Replacement estimate date in YYYY-MM-DD format |
+| `expirationDate` | string | No | Replacement expiration date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement estimate number |
+| `privateNote` | string | No | Replacement internal note |
+| `customerMemo` | string | No | Replacement customer-facing memo |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks Estimate |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Invoice
+
+Create an invoice without emailing or collecting payment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer receiving the invoice |
+| `lines` | json | Yes | Bounded item and description lines |
+| `transactionDate` | string | No | Invoice date in YYYY-MM-DD format |
+| `dueDate` | string | No | Invoice due date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional invoice number |
+| `privateNote` | string | No | Internal invoice note |
+| `customerMemo` | string | No | Customer-facing invoice memo |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks Invoice |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Invoice
+
+Sparse-update an invoice using its current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Invoice ID to update |
+| `syncToken` | string | Yes | Current invoice sync token |
+| `customerId` | string | No | Replacement customer ID |
+| `lines` | json | No | Complete replacement set of invoice lines: any existing line omitted here is deleted from the invoice |
+| `transactionDate` | string | No | Replacement invoice date in YYYY-MM-DD format |
+| `dueDate` | string | No | Replacement due date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement invoice number |
+| `privateNote` | string | No | Replacement internal note |
+| `customerMemo` | string | No | Replacement customer-facing memo |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks Invoice |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Void Invoice
+
+Void an invoice after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Invoice ID to void |
+| `syncToken` | string | Yes | Current invoice sync token |
+| `confirmVoid` | boolean | Yes | Explicit confirmation that the invoice should be voided |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `voided` | boolean | Whether QuickBooks voided the transaction |
+| `record` | json | Voided native QuickBooks Invoice |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Sales Receipt
+
+Create a sales receipt for a completed customer sale
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer for the sales receipt |
+| `lines` | json | Yes | Bounded item and description lines |
+| `transactionDate` | string | No | Sales receipt date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional sales receipt number |
+| `privateNote` | string | No | Internal sales receipt note |
+| `customerMemo` | string | No | Customer-facing sales receipt memo |
+| `paymentMethodId` | string | No | QuickBooks payment method ID |
+| `paymentReferenceNumber` | string | No | Payment reference number |
+| `depositAccountId` | string | No | QuickBooks deposit account ID |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks SalesReceipt |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Sales Receipt
+
+Sparse-update a sales receipt using its current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Sales receipt ID to update |
+| `syncToken` | string | Yes | Current sales receipt sync token |
+| `customerId` | string | No | Replacement customer ID |
+| `lines` | json | No | Complete replacement set of sales receipt lines: any existing line omitted here is deleted from the sales receipt |
+| `transactionDate` | string | No | Replacement receipt date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement sales receipt number |
+| `privateNote` | string | No | Replacement internal note |
+| `customerMemo` | string | No | Replacement customer-facing memo |
+| `paymentMethodId` | string | No | Replacement payment method ID |
+| `paymentReferenceNumber` | string | No | Replacement payment reference number |
+| `depositAccountId` | string | No | Replacement deposit account ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks SalesReceipt |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Customer Payment
+
+Record a customer payment with optional bounded invoice allocations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer making the payment |
+| `totalAmount` | number | Yes | Positive total payment amount |
+| `transactionDate` | string | No | Payment date in YYYY-MM-DD format |
+| `privateNote` | string | No | Internal payment note |
+| `paymentReferenceNumber` | string | No | Payment reference number such as a check number |
+| `paymentMethodId` | string | No | QuickBooks payment method ID |
+| `depositAccountId` | string | No | QuickBooks deposit account ID |
+| `invoiceAllocations` | json | No | Up to 100 invoice allocations with invoiceId and positive amount |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks Payment |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Customer Payment
+
+Read, merge, and full-update a customer payment using its current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `paymentId` | string | Yes | Payment ID to update |
+| `syncToken` | string | Yes | Current payment sync token |
+| `customerId` | string | No | Replacement customer ID |
+| `totalAmount` | number | No | Replacement positive payment total |
+| `transactionDate` | string | No | Replacement payment date in YYYY-MM-DD format |
+| `privateNote` | string | No | Replacement internal note |
+| `paymentReferenceNumber` | string | No | Replacement payment reference number |
+| `paymentMethodId` | string | No | Replacement payment method ID |
+| `depositAccountId` | string | No | Replacement deposit account ID |
+| `invoiceAllocations` | json | No | Bounded invoice allocations to apply. Each entry sets the amount applied to that invoice; invoices already applied on the payment and not listed here keep their current amounts |
+| `unapplyOmittedInvoices` | boolean | No | Replace the payment allocations outright. Requires a non-empty invoiceAllocations list; every invoice not listed is UNAPPLIED and returns to open |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks Payment |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Void Customer Payment
+
+Void a customer payment after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Payment ID to void |
+| `syncToken` | string | Yes | Current payment sync token |
+| `confirmVoid` | boolean | Yes | Explicit confirmation that the payment should be voided |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `voided` | boolean | Whether QuickBooks voided the transaction |
+| `record` | json | Voided native QuickBooks Payment |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Credit Memo
+
+Create a customer credit memo with bounded sales lines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer receiving the credit memo |
+| `lines` | json | Yes | Bounded item and description lines |
+| `transactionDate` | string | No | Credit memo date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional credit memo number |
+| `privateNote` | string | No | Internal credit memo note |
+| `customerMemo` | string | No | Customer-facing credit memo memo |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks CreditMemo |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Credit Memo
+
+Read, merge, and full-update a credit memo using its current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Credit memo ID to update |
+| `syncToken` | string | Yes | Current credit memo sync token |
+| `customerId` | string | No | Replacement customer ID |
+| `lines` | json | No | Complete replacement set of credit memo lines: any existing line omitted here is deleted from the credit memo |
+| `transactionDate` | string | No | Replacement credit memo date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement credit memo number |
+| `privateNote` | string | No | Replacement internal note |
+| `customerMemo` | string | No | Replacement customer-facing memo |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks CreditMemo |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Refund Receipt
+
+Create a customer refund receipt against a required deposit account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer receiving the refund |
+| `lines` | json | Yes | Bounded item and description lines |
+| `depositAccountId` | string | Yes | QuickBooks bank account funding the refund |
+| `transactionDate` | string | No | Refund receipt date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional refund receipt number |
+| `privateNote` | string | No | Internal refund receipt note |
+| `customerMemo` | string | No | Customer-facing refund memo |
+| `paymentMethodId` | string | No | QuickBooks payment method ID |
+| `paymentReferenceNumber` | string | No | Refund payment reference number |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks RefundReceipt |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Refund Receipt
+
+Read, merge, and full-update a refund receipt using its current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | Refund receipt ID to update |
+| `syncToken` | string | Yes | Current refund receipt sync token |
+| `customerId` | string | No | Replacement customer ID |
+| `lines` | json | No | Complete replacement set of refund receipt lines: any existing line omitted here is deleted from the refund receipt |
+| `transactionDate` | string | No | Replacement refund date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement refund receipt number |
+| `privateNote` | string | No | Replacement internal note |
+| `customerMemo` | string | No | Replacement customer-facing memo |
+| `paymentMethodId` | string | No | Replacement payment method ID |
+| `paymentReferenceNumber` | string | No | Replacement payment reference number |
+| `depositAccountId` | string | No | Replacement deposit account ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks RefundReceipt |
+|   ↳ `Id` | string | QuickBooks sales transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Invoice due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Customer payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks transaction lines |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Read Purchasing Transactions
+
+List or read one purchase order, bill, bill payment, vendor credit, or purchase
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Purchasing transaction type to read |
+| `readMode` | string | Yes | Whether to list transactions or read one transaction by ID |
+| `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
+| `startPosition` | number | No | One-based position of the first list record to return |
+| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
+| `vendorId` | string | No | List transactions for one supported QuickBooks vendor ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactionType` | string | Purchasing transaction type returned |
+| `item` | json | Single native QuickBooks purchasing transaction |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `items` | array | Native QuickBooks purchasing transactions |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID transaction |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Create Purchase Order
+
+Create a purchase order with bounded expense lines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | Yes | Purchase-order vendor ID |
+| `apAccountId` | string | Yes | Accounts-payable account ID |
+| `lines` | json | Yes | Bounded account-based or item-based expense lines |
+| `transactionDate` | string | No | Purchase-order date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional purchase-order number |
+| `privateNote` | string | No | Internal purchase-order note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks PurchaseOrder |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Purchase Order
+
+Read, merge, and full-update purchase-order header fields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `purchaseOrderId` | string | Yes | Purchase Order ID to update |
+| `syncToken` | string | Yes | Current purchase-order sync token |
+| `vendorId` | string | No | Replacement vendor ID |
+| `apAccountId` | string | No | Replacement accounts-payable account ID |
+| `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement purchase-order number |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks PurchaseOrder |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Bill
+
+Create a vendor bill with optional Purchase Order line links without paying it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | Yes | Bill vendor ID |
+| `lines` | json | Yes | Bounded account-based or item-based expense lines with optional paired Purchase Order and line IDs |
+| `apAccountId` | string | No | Optional accounts-payable account ID |
+| `transactionDate` | string | No | Bill date in YYYY-MM-DD format |
+| `dueDate` | string | No | Bill due date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional bill number |
+| `privateNote` | string | No | Internal bill note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `linkingRequested` | boolean | Whether any Purchase Order line links were requested |
+| `linkingSucceeded` | boolean | Whether QuickBooks returned every requested Purchase Order line link |
+| `linkedLines` | array | Requested Purchase Order line links confirmed by QuickBooks |
+|   ↳ `purchaseOrderId` | string | Requested Purchase Order ID |
+|   ↳ `purchaseOrderLineId` | string | Requested Purchase Order line ID |
+|   ↳ `billLineId` | string | Created Bill line ID carrying the confirmed link |
+| `missingLinks` | array | Requested Purchase Order line links omitted by QuickBooks |
+|   ↳ `purchaseOrderId` | string | Requested Purchase Order ID |
+|   ↳ `purchaseOrderLineId` | string | Requested Purchase Order line ID |
+| `linkingWarning` | string | Warning that the Bill was created without every requested Purchase Order link |
+| `record` | json | Created native QuickBooks Bill |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Bill
+
+Read, merge, and full-update bill header fields using its current sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `billId` | string | Yes | Bill ID to update |
+| `syncToken` | string | Yes | Current bill sync token |
+| `vendorId` | string | No | Replacement vendor ID; omit to preserve the current vendor |
+| `apAccountId` | string | No | Replacement accounts-payable account ID |
+| `transactionDate` | string | No | Replacement bill date in YYYY-MM-DD format |
+| `dueDate` | string | No | Replacement due date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement bill number |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks Bill |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Bill Payment
+
+Record a check or credit-card payment allocated to one or more bills
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | Yes | Vendor whose bills are being paid |
+| `totalAmount` | number | Yes | Positive total payment amount |
+| `paymentType` | string | Yes | Check or credit-card payment type |
+| `paymentAccountId` | string | Yes | Bank or credit-card account ID matching the payment type |
+| `billAllocations` | json | No | Optional bounded Bill-only allocations; any unallocated amount becomes vendor credit |
+| `transactionDate` | string | No | Payment date in YYYY-MM-DD format |
+| `privateNote` | string | No | Internal payment note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks BillPayment |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Bill Payment
+
+Read, merge, and full-update a BillPayment without changing allocations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `billPaymentId` | string | Yes | BillPayment ID to update |
+| `syncToken` | string | Yes | Current BillPayment sync token |
+| `vendorId` | string | No | Replacement vendor ID; omit to preserve the current vendor |
+| `transactionDate` | string | No | Replacement payment date in YYYY-MM-DD format |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks BillPayment |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Vendor Credit
+
+Create a vendor credit without applying it to a bill
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | Yes | Vendor issuing the credit |
+| `lines` | json | Yes | Bounded account-based or item-based expense lines |
+| `apAccountId` | string | No | Optional accounts-payable account ID |
+| `transactionDate` | string | No | Credit date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional vendor-credit number |
+| `privateNote` | string | No | Internal vendor-credit note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks VendorCredit |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Vendor Credit
+
+Read, merge, and full-update vendor-credit header fields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorCreditId` | string | Yes | VendorCredit ID to update |
+| `syncToken` | string | Yes | Current vendor-credit sync token |
+| `vendorId` | string | No | Replacement vendor ID; omit to preserve the current vendor |
+| `apAccountId` | string | No | Replacement accounts-payable account ID |
+| `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement vendor-credit number |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks VendorCredit |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Purchase
+
+Record a cash, check, or credit-card purchase with bounded expense lines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `paymentType` | string | Yes | Cash, check, or credit-card purchase type |
+| `paymentAccountId` | string | Yes | Bank or credit-card account ID matching the purchase type |
+| `lines` | json | Yes | Bounded account-based or item-based expense lines |
+| `vendorId` | string | No | Optional vendor payee ID |
+| `transactionDate` | string | No | Purchase date in YYYY-MM-DD format |
+| `paymentReference` | string | No | Optional transaction reference number, such as a check number, sent as the purchase DocNumber |
+| `privateNote` | string | No | Internal purchase note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks Purchase |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Purchase
+
+Read, merge, and full-update purchase header fields without changing lines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `purchaseId` | string | Yes | Purchase ID to update |
+| `syncToken` | string | Yes | Current purchase sync token |
+| `vendorId` | string | No | Replacement vendor payee ID |
+| `transactionDate` | string | No | Replacement purchase date in YYYY-MM-DD format |
+| `paymentReference` | string | No | Replacement transaction reference number, such as a check number, sent as the purchase DocNumber |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks Purchase |
+|   ↳ `Id` | string | QuickBooks purchasing transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Bill due date |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks expense or allocation lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Read Accounting Transactions
+
+List or read one journal entry, deposit, or transfer
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Accounting transaction type to read |
+| `readMode` | string | Yes | Whether to list transactions or read one transaction by ID |
+| `transactionId` | string | No | QuickBooks transaction ID, required for by-ID reads |
+| `startPosition` | number | No | One-based position of the first list record to return |
+| `maxResults` | number | No | Number of list records to request \(1–100\) |
+| `startDate` | string | No | List transactions on or after this date in YYYY-MM-DD format |
+| `endDate` | string | No | List transactions on or before this date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactionType` | string | Accounting transaction type returned |
+| `item` | json | Single native QuickBooks accounting transaction |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `items` | array | Native QuickBooks accounting transactions |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+| `recordVersion` | string | Display-safe alias for the native SyncToken on a by-ID transaction |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Create Journal Entry
+
+Post a balanced journal entry after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lines` | json | Yes | Two to 100 balanced debit and credit lines |
+| `confirmPosting` | boolean | Yes | Explicit confirmation that this journal entry should be posted |
+| `transactionDate` | string | No | Journal-entry date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Optional journal-entry number |
+| `privateNote` | string | No | Internal journal-entry note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks JournalEntry |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Journal Entry
+
+Sparse-update journal-entry header fields after explicit confirmation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `journalEntryId` | string | Yes | Journal Entry ID to update |
+| `syncToken` | string | Yes | Current journal-entry sync token |
+| `confirmPosting` | boolean | Yes | Explicit confirmation that this journal-entry update should be posted |
+| `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
+| `documentNumber` | string | No | Replacement journal-entry number |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks JournalEntry |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Create Deposit
+
+Create a deposit with bounded account lines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `depositAccountId` | string | Yes | Bank or asset account receiving the deposit |
+| `lines` | json | Yes | One to 100 account-based deposit lines |
+| `transactionDate` | string | No | Deposit date in YYYY-MM-DD format |
+| `privateNote` | string | No | Internal deposit note |
+| `requestId` | string | No | Optional Intuit idempotency request ID, up to 50 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Created native QuickBooks Deposit |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Update Deposit
+
+Sparse-update deposit header fields using the current sync token and destination account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `depositId` | string | Yes | Deposit ID to update |
+| `syncToken` | string | Yes | Current deposit sync token |
+| `depositAccountId` | string | Yes | Current QuickBooks account receiving the deposit |
+| `transactionDate` | string | No | Replacement date in YYYY-MM-DD format |
+| `privateNote` | string | No | Replacement internal note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the created or updated QuickBooks entity |
+| `syncToken` | string | Native QuickBooks SyncToken returned by the mutation |
+| `recordVersion` | string | Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name |
+| `time` | string | QuickBooks response timestamp |
+| `record` | json | Updated native QuickBooks Deposit |
+|   ↳ `Id` | string | QuickBooks accounting transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `Adjustment` | boolean | Whether the journal entry is an adjusting entry |
+|   ↳ `DepositToAccountRef` | json | Account receiving a deposit |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `FromAccountRef` | json | Transfer source account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `ToAccountRef` | json | Transfer destination account |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks journal or deposit lines |
+|   ↳ `Amount` | number | Transfer amount |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+
+### QuickBooks Run Financial Report
+
+Run a fixed QuickBooks financial report with verified accountant-focused filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `reportType` | string | Yes | Fixed QuickBooks financial report to run |
+| `startDate` | string | No | Report start date in YYYY-MM-DD format; Intuit recommends periods of six months or less for performance |
+| `endDate` | string | No | Report end or as-of date in YYYY-MM-DD format |
+| `accountingMethod` | string | No | Use the QuickBooks default, cash basis, or accrual basis |
+| `summarizeBy` | string | No | Time period or business dimension used to summarize report columns |
+| `customerId` | string | No | Single QuickBooks customer ID filter |
+| `vendorId` | string | No | Single QuickBooks vendor ID filter |
+| `accountId` | string | No | Single QuickBooks account ID filter |
+| `itemId` | string | No | Single QuickBooks item ID filter |
+| `classId` | string | No | Single QuickBooks class ID filter |
+| `departmentId` | string | No | Single QuickBooks department ID filter |
+| `agingMethod` | string | No | Age open balances from the report date or current date |
+| `agingDays` | number | No | Positive number of days in each aging period |
+| `transactionType` | string | No | Transaction type filter for Transaction List |
+| `groupBy` | string | No | Grouping dimension for Transaction List |
+| `accountsPayablePaid` | string | No | Accounts-payable paid status for Transaction List |
+| `accountsReceivablePaid` | string | No | Accounts-receivable paid status for Transaction List |
+| `clearedStatus` | string | No | Cleared status filter for Transaction List |
+| `documentNumber` | string | No | Document number filter for Transaction List |
+| `sourceAccountType` | string | No | Source account type filter for Transaction List |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reportType` | string | Financial report type that was run |
+| `header` | json | Native QuickBooks report header with name, periods, basis, currency, summarization, filters, and options |
+|   ↳ `Time` | string | QuickBooks report generation timestamp |
+|   ↳ `ReportName` | string | Native QuickBooks report name |
+|   ↳ `DateMacro` | string | QuickBooks date macro, when returned |
+|   ↳ `ReportBasis` | string | Cash or accrual basis |
+|   ↳ `StartPeriod` | string | Report start date |
+|   ↳ `EndPeriod` | string | Report end or as-of date |
+|   ↳ `SummarizeColumnsBy` | string | Dimension or time period used for report columns |
+|   ↳ `Currency` | string | Report currency |
+|   ↳ `Customer` | string | Applied customer filter |
+|   ↳ `Vendor` | string | Applied vendor filter |
+|   ↳ `Account` | string | Applied account filter |
+|   ↳ `Item` | string | Applied item filter |
+|   ↳ `Class` | string | Applied class filter |
+|   ↳ `Department` | string | Applied department filter |
+|   ↳ `Option` | array | Native QuickBooks report options, including no-data indicators when present |
+| `columns` | json | Native QuickBooks report column definitions |
+|   ↳ `Column` | array | Native report column definitions with titles, types, and metadata |
+|     ↳ `ColTitle` | string | Column title |
+|     ↳ `ColType` | string | QuickBooks column data type |
+|     ↳ `MetaData` | array | Native column metadata name/value entries |
+| `rows` | json | Native hierarchical QuickBooks report rows and section summaries |
+|   ↳ `Row` | array | Native hierarchical report rows; section rows may contain Header, nested Rows, and Summary, while data rows contain ColData values, IDs, and links |
+|     ↳ `type` | string | QuickBooks row type |
+|     ↳ `group` | string | QuickBooks section group |
+|     ↳ `Header` | json | Section header column data |
+|     ↳ `ColData` | array | Row values with optional operational IDs and links |
+|     ↳ `Rows` | json | Nested native QuickBooks report rows |
+|     ↳ `Summary` | json | Section summary column data |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Email Transaction
+
+Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Supported transaction type to email |
+| `transactionId` | string | Yes | QuickBooks transaction ID |
+| `recipient` | string | No | Required for Customer Payments; otherwise an optional single recipient override |
+| `confirmSend` | boolean | Yes | Explicit confirmation that an external email should be sent |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactionType` | string | Emailed QuickBooks transaction type |
+| `transactionId` | string | Emailed QuickBooks transaction ID |
+| `sent` | boolean | Whether QuickBooks accepted the email send request |
+| `record` | json | Native QuickBooks transaction returned after sending |
+|   ↳ `Id` | string | QuickBooks transaction ID |
+|   ↳ `SyncToken` | string | Current transaction sync token |
+|   ↳ `DocNumber` | string | Transaction document number |
+|   ↳ `TxnDate` | string | Transaction date |
+|   ↳ `DueDate` | string | Transaction due date |
+|   ↳ `ExpirationDate` | string | Estimate expiration date |
+|   ↳ `CustomerRef` | json | Customer reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `CustomerMemo` | json | Customer-facing memo |
+|   ↳ `DepositToAccountRef` | json | Deposit account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentMethodRef` | json | Payment method reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `CurrencyRef` | json | Transaction currency reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `Line` | array | Native QuickBooks sales or purchasing transaction lines |
+|     ↳ `Id` | string | QuickBooks transaction line ID |
+|     ↳ `LineNum` | number | QuickBooks transaction line number |
+|     ↳ `Description` | string | Transaction line description |
+|     ↳ `Amount` | number | Transaction line amount |
+|     ↳ `DetailType` | string | QuickBooks line detail type |
+|     ↳ `LinkedTxn` | array | Transactions linked to this QuickBooks line |
+|       ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|       ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|       ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|     ↳ `AccountBasedExpenseLineDetail` | json | Native QuickBooks account-based expense details |
+|     ↳ `ItemBasedExpenseLineDetail` | json | Native QuickBooks item-based expense details |
+|     ↳ `SalesItemLineDetail` | json | Native QuickBooks sales item line details |
+|     ↳ `DescriptionLineDetail` | json | Native QuickBooks description line details |
+|   ↳ `LinkedTxn` | array | Transactions linked by QuickBooks |
+|     ↳ `TxnId` | string | Linked QuickBooks transaction ID |
+|     ↳ `TxnType` | string | Linked QuickBooks transaction type |
+|     ↳ `TxnLineId` | string | Linked QuickBooks transaction line ID |
+|   ↳ `TotalAmt` | number | Transaction total amount |
+|   ↳ `Balance` | number | Remaining transaction balance |
+|   ↳ `UnappliedAmt` | number | Unapplied payment amount |
+|   ↳ `PrivateNote` | string | Internal transaction note |
+|   ↳ `TxnStatus` | string | Transaction status |
+|   ↳ `TxnTaxDetail` | json | Calculated tax details |
+|   ↳ `MetaData` | json | Transaction creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `VendorRef` | json | Vendor reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `APAccountRef` | json | Accounts-payable account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `AccountRef` | json | Payment account reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|   ↳ `EntityRef` | json | Purchase payee reference |
+|     ↳ `value` | string | QuickBooks entity ID |
+|     ↳ `name` | string | QuickBooks entity display name |
+|     ↳ `type` | string | Referenced entity type |
+|   ↳ `PaymentType` | string | Purchase payment type |
+|   ↳ `PayType` | string | Bill-payment type |
+|   ↳ `CheckPayment` | json | Check payment account details |
+|   ↳ `CreditCardPayment` | json | Credit-card payment account details |
+|   ↳ `POStatus` | string | Purchase order status |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Download Transaction PDF
+
+Download a supported QuickBooks transaction as a bounded PDF file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionType` | string | Yes | Supported transaction type to download |
+| `transactionId` | string | Yes | QuickBooks transaction ID |
+| `fileName` | string | No | Optional safe PDF filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `fileName` | string | Safe downloaded filename |
+| `mimeType` | string | Downloaded file MIME type |
+| `size` | number | Downloaded file size in bytes |
+| `transactionType` | string | Downloaded QuickBooks transaction type |
+| `transactionId` | string | Downloaded QuickBooks transaction ID |
+
+### QuickBooks Read Attachments
+
+List attachment metadata for a fixed QuickBooks entity or read one attachment by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `readMode` | string | Yes | Read mode: list or by_id |
+| `targetType` | string | No | Fixed QuickBooks entity type for List mode |
+| `targetId` | string | No | QuickBooks entity ID for List mode |
+| `attachmentId` | string | No | QuickBooks attachment ID for By ID mode |
+| `startPosition` | number | No | One-based list start position; defaults to 1 |
+| `maxResults` | number | No | List page size from 1 through 100; defaults to 25 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `startPosition` | number | One-based position of the first item in this response |
+| `maxResults` | number | Actual number of items reported for this response |
+| `nextStartPosition` | number | Position to use when explicitly requesting the next page |
+| `hasMore` | boolean | Conservative indication that another page may exist |
+| `time` | string | QuickBooks response timestamp |
+| `item` | json | Native QuickBooks attachment metadata |
+|   ↳ `Id` | string | QuickBooks attachment ID |
+|   ↳ `SyncToken` | string | Attachment sync token |
+|   ↳ `FileName` | string | Attached file name |
+|   ↳ `ContentType` | string | Attached file MIME type |
+|   ↳ `Size` | number | Attached file size in bytes |
+|   ↳ `Note` | string | Attachment note or description |
+|   ↳ `Category` | string | Native QuickBooks attachment category |
+|   ↳ `AttachableRef` | array | QuickBooks entities referenced by this attachment |
+|     ↳ `EntityRef` | json | Attached entity type and operational ID |
+|     ↳ `IncludeOnSend` | boolean | Whether QuickBooks includes the attachment when sending |
+|   ↳ `MetaData` | json | Attachment creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+| `items` | array | Native QuickBooks attachment metadata page |
+|   ↳ `Id` | string | QuickBooks attachment ID |
+|   ↳ `SyncToken` | string | Attachment sync token |
+|   ↳ `FileName` | string | Attached file name |
+|   ↳ `ContentType` | string | Attached file MIME type |
+|   ↳ `Size` | number | Attached file size in bytes |
+|   ↳ `Note` | string | Attachment note or description |
+|   ↳ `Category` | string | Native QuickBooks attachment category |
+|   ↳ `AttachableRef` | array | QuickBooks entities referenced by this attachment |
+|     ↳ `EntityRef` | json | Attached entity type and operational ID |
+|     ↳ `IncludeOnSend` | boolean | Whether QuickBooks includes the attachment when sending |
+|   ↳ `MetaData` | json | Attachment creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+
+### QuickBooks Add Attachment
+
+Attach one supported file or one note to a fixed QuickBooks entity
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `attachmentKind` | string | Yes | Attachment kind: file or note |
+| `targetType` | string | Yes | Fixed QuickBooks entity type to attach to |
+| `targetId` | string | Yes | QuickBooks target entity ID |
+| `file` | file | No | Single Sim file to upload |
+| `fileName` | string | No | Optional safe filename override |
+| `contentType` | string | No | Optional compatible QuickBooks MIME type override |
+| `description` | string | No | Optional file attachment description |
+| `note` | string | No | Required nonempty note text in Note mode |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | json | Created native QuickBooks attachment metadata |
+|   ↳ `Id` | string | QuickBooks attachment ID |
+|   ↳ `SyncToken` | string | Attachment sync token |
+|   ↳ `FileName` | string | Attached file name |
+|   ↳ `ContentType` | string | Attached file MIME type |
+|   ↳ `Size` | number | Attached file size in bytes |
+|   ↳ `Note` | string | Attachment note or description |
+|   ↳ `Category` | string | Native QuickBooks attachment category |
+|   ↳ `AttachableRef` | array | QuickBooks entities referenced by this attachment |
+|     ↳ `EntityRef` | json | Attached entity type and operational ID |
+|     ↳ `IncludeOnSend` | boolean | Whether QuickBooks includes the attachment when sending |
+|   ↳ `MetaData` | json | Attachment creation and update timestamps |
+|     ↳ `CreateTime` | string | Entity creation timestamp |
+|     ↳ `LastUpdatedTime` | string | Entity last-updated timestamp |
+|   ↳ `domain` | string | QuickBooks domain |
+|   ↳ `sparse` | boolean | Whether this is a sparse entity |
+| `attachmentId` | string | Created QuickBooks attachment ID |
+| `attachmentKind` | string | Created attachment kind |
+| `targetType` | string | QuickBooks target entity type |
+| `targetId` | string | QuickBooks target entity ID |
+| `time` | string | QuickBooks response timestamp |
+
+### QuickBooks Download Attachment
+
+Download a QuickBooks file attachment as a stored Sim file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `attachmentId` | string | Yes | QuickBooks attachment ID |
+| `fileName` | string | No | Optional safe filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `fileName` | string | Safe downloaded filename |
+| `mimeType` | string | Downloaded file MIME type |
+| `size` | number | Downloaded file size in bytes |
+| `attachmentId` | string | Downloaded QuickBooks attachment ID |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### QuickBooks Account Events
+
+Trigger when selected Account events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_account_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Bill Events
+
+Trigger when selected Bill events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_bill_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Bill Payment Events
+
+Trigger when selected Bill Payment events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_bill_payment_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Budget Events
+
+Trigger when selected Budget events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_budget_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Class Events
+
+Trigger when selected Class events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_class_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Credit Memo Events
+
+Trigger when selected Credit Memo events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_credit_memo_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Currency Events
+
+Trigger when selected Currency events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_currency_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Customer Events
+
+Trigger when selected Customer events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_customer_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Department Events
+
+Trigger when selected Department events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_department_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Deposit Events
+
+Trigger when selected Deposit events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_deposit_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Employee Events
+
+Trigger when selected Employee events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_employee_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Estimate Events
+
+Trigger when selected Estimate events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_estimate_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Invoice Events
+
+Trigger when selected Invoice events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_invoice_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Item Events
+
+Trigger when selected Item events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_item_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Journal Code Events
+
+Trigger when selected Journal Code events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_journal_code_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Journal Entry Events
+
+Trigger when selected Journal Entry events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_journal_entry_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Payment Events
+
+Trigger when selected Payment events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_payment_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Payment Method Events
+
+Trigger when selected Payment Method events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_payment_method_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Preferences Updated
+
+Trigger when QuickBooks Preferences are updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Purchase Events
+
+Trigger when selected Purchase events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_purchase_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Purchase Order Events
+
+Trigger when selected Purchase Order events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_purchase_order_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Refund Receipt Events
+
+Trigger when selected Refund Receipt events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_refund_receipt_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Sales Receipt Events
+
+Trigger when selected Sales Receipt events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_sales_receipt_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Tax Agency Events
+
+Trigger when selected Tax Agency events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_tax_agency_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Term Events
+
+Trigger when selected Term events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_term_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Time Activity Events
+
+Trigger when selected Time Activity events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_time_activity_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Transfer Events
+
+Trigger when selected Transfer events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_transfer_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Vendor Credit Events
+
+Trigger when selected Vendor Credit events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_vendor_credit_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+
+
+---
+
+### QuickBooks Vendor Events
+
+Trigger when selected Vendor events occur in QuickBooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | QuickBooks Account |
+| `eventTypes_quickbooks_vendor_events` | string | Yes | Event Types |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | Intuit webhook event ID |
+| `eventType` | string | Full Intuit CloudEvent type |
+| `entityType` | string | QuickBooks entity type |
+| `action` | string | QuickBooks webhook action |
+| `entityId` | string | QuickBooks entity ID |
+| `realmId` | string | QuickBooks company realm ID |
+| `eventTime` | string | Event timestamp |
+| `specVersion` | string | CloudEvents specification version |
+| `source` | string | Intuit event source |
+| `contentType` | string | Event content type, when provided |
+| `data` | json | Optional event data supplied by Intuit |
+

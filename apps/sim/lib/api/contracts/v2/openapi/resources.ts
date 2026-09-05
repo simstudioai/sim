@@ -424,6 +424,7 @@ const CREDENTIAL_PROVIDER_EXAMPLE = {
   providerFamily: 'salesforce',
   available: true,
   supportsReconnect: true,
+  fields: [],
   authorizationOptions: [
     { providerId: 'salesforce', label: 'Production' },
     { providerId: 'salesforce-sandbox', label: 'Sandbox' },

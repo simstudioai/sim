@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { account, credential } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   coalesceLocally: vi.fn(),
@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     fatal: vi.fn(),
   },
   refreshOAuthToken: vi.fn(),
+  decryptQuickBooksOAuthClientConfig: vi.fn(),
   withLeaderLock: vi.fn(),
 }))
 
@@ -47,6 +48,10 @@ vi.mock('@/lib/oauth/microsoft', () => ({
 vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
   refreshOAuthToken: mocks.refreshOAuthToken,
+}))
+
+vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
+  decryptQuickBooksOAuthClientConfig: mocks.decryptQuickBooksOAuthClientConfig,
 }))
 
 vi.mock('@/lib/oauth/slack', () => ({
@@ -155,6 +160,10 @@ describe('resolveCredentialTokenBundle selector privacy', () => {
     resetDbChainMock()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('HMACs OAuth and Slack refresh identities and suppresses raw identifiers and provider errors', async () => {
     for (const providerId of ['google', 'slack'] as const) {
       const observed = await observeRefresh(providerId, 'selector')
@@ -198,5 +207,74 @@ describe('resolveCredentialTokenBundle selector privacy', () => {
     expect(slack.coalescingKey).not.toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_PROVIDER_ERROR)
+  })
+
+  it('refreshes QuickBooks with its own encrypted app config and rotates both expirations', async () => {
+    const now = new Date('2026-09-04T18:00:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    mocks.getRecentTerminalError.mockResolvedValue(null)
+    mocks.coalesceLocally.mockImplementation(
+      async (_key: string, producer: () => Promise<unknown>) => producer()
+    )
+    mocks.withLeaderLock.mockImplementation(async (options: { onLeader: () => Promise<unknown> }) =>
+      options.onLeader()
+    )
+    mocks.decryptQuickBooksOAuthClientConfig.mockResolvedValue({
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      environment: 'sandbox',
+      webhookVerifierToken: 'verifier-token',
+    })
+    mocks.refreshOAuthToken.mockResolvedValue({
+      ok: true,
+      accessToken: 'new-access-token',
+      expiresIn: 3600,
+      refreshToken: 'new-refresh-token',
+      refreshTokenExpiresIn: 8_726_400,
+    })
+    queueTableRows(credential, [
+      {
+        id: 'credential-1',
+        type: 'oauth',
+        accountId: 'account-1',
+        workspaceId: 'workspace-1',
+        providerId: null,
+      },
+    ])
+    queueTableRows(account, [
+      {
+        id: 'account-1',
+        accountId:
+          'quickbooks:v2:NkYPLLqX2cM-QABxg0vbv71mQS9s_aRP3v7ZKLvnJyo:sandbox:1234567890:dXNlci0x',
+        providerId: 'quickbooks',
+        userId: 'user-1',
+        accessToken: 'expired-access-token',
+        refreshToken: 'old-refresh-token',
+        accessTokenExpiresAt: new Date(now.getTime() - 1),
+        refreshTokenExpiresAt: new Date(now.getTime() + 1000),
+        oauthConfig: 'encrypted-client-config',
+        updatedAt: new Date(0),
+      },
+    ])
+
+    await expect(
+      resolveCredentialTokenBundle('credential-1', 'user-1', 'request-1')
+    ).resolves.toEqual({ accessToken: 'new-access-token' })
+
+    expect(mocks.refreshOAuthToken).toHaveBeenCalledWith('quickbooks', 'old-refresh-token', {
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      environment: 'sandbox',
+      webhookVerifierToken: 'verifier-token',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        accessTokenExpiresAt: new Date(now.getTime() + 3_600_000),
+        refreshTokenExpiresAt: new Date(now.getTime() + 8_726_400_000),
+      })
+    )
   })
 })
