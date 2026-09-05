@@ -93,4 +93,34 @@ describe('withThrottleRetry', () => {
     await expect(withThrottleRetry(operation, controller.signal)).rejects.toThrow()
     expect(operation).not.toHaveBeenCalled()
   })
+
+  it('exits a throttling backoff as soon as the caller aborts', async () => {
+    const controller = new AbortController()
+    let calls = 0
+    let abortedAt = 0
+
+    /**
+     * Aborts on the third attempt, whose pending backoff is at least 640ms
+     * (200ms base doubled twice, minus the 20% jitter floor). A backoff that
+     * ignored the signal would therefore keep the caller waiting far longer
+     * than the assertion below allows.
+     */
+    const operation = vi.fn(async () => {
+      calls++
+      if (calls === 3) {
+        abortedAt = Date.now()
+        controller.abort()
+      }
+      throw throttlingError()
+    })
+
+    const rejection = await withThrottleRetry(operation, controller.signal).catch(
+      (error: unknown) => error
+    )
+    const elapsedSinceAbort = Date.now() - abortedAt
+
+    expect((rejection as Error).name).toBe('AbortError')
+    expect(operation).toHaveBeenCalledTimes(3)
+    expect(elapsedSinceAbort).toBeLessThan(200)
+  })
 })

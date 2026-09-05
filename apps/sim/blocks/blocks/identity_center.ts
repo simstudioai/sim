@@ -45,7 +45,7 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
         ],
         list_assignments_for_account: [
           { text: 'List assignments on account', field: 'accountId', core: true },
-          { text: 'for permission set', field: 'permissionSetArn' },
+          { text: 'for permission set', field: 'permissionSetArn', core: true },
         ],
         describe_user: [{ text: 'Look up the user with ID', field: 'userId', core: true }],
         describe_group: [{ text: 'Look up the group with ID', field: 'groupId', core: true }],

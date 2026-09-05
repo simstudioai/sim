@@ -22,11 +22,13 @@ With AWS IAM Identity Center, you can:
 - **Monitor assignment status**: Poll the provisioning status of create/delete operations, which are asynchronous in AWS
 - **List accounts in your organization**: Enumerate all AWS accounts in your AWS Organizations structure to populate access request dropdowns
 - **Manage groups**: List groups, resolve group IDs by display name, and enumerate group memberships for group-based access grants
-- **Audit an account's access**: List every assignment on a given AWS account, then resolve each principal ID back to the user or group behind it
+- **Audit an account's access**: List the assignments on a given AWS account for one permission set, then resolve each principal ID back to the user or group behind it
 
 In Sim, the AWS Identity Center integration is designed to power **TEAM (Temporary Elevated Access Management)** workflows — automated pipelines where users request elevated access, approvers approve or deny it, access is provisioned with a time limit, and auto-revocation removes it when the window expires. This replaces manual console-based access management with auditable, agent-driven workflows that integrate with Slack, email, ticketing systems, and CloudTrail for full traceability.
 
 The same operations support the reverse direction — access review. Starting from an account, an agent can list its assignments, resolve the principals, expand groups into their members, and produce a written report of exactly who can reach that account and through which permission set.
+
+One detail shapes how that review has to be built. AWS requires a permission set ARN alongside the account ID on this call, so *List Assignments For Account* returns only the assignments granted through that one permission set — not every assignment on the account. To cover an account completely, run *List Permission Sets* for the instance first, then call *List Assignments For Account* once per permission set and combine the results. Skipping that loop silently omits access granted through the permission sets you did not ask about.
 
 Two AWS behaviors are worth knowing. Creating and deleting an account assignment are **asynchronous**: both return a request ID, and each has its own status poller — use *Check Assignment Status* for creations and *Check Assignment Deletion Status* for deletions, as the two request-ID types are not interchangeable. And the account-listing operations call AWS Organizations, which is global per partition; the block resolves the correct endpoint for commercial, GovCloud, and China regions automatically.
 {/* MANUAL-CONTENT-END */}
@@ -192,10 +194,10 @@ Resolve an Identity Store user ID to the user behind it. Use to turn the princip
 | --------- | ---- | ----------- |
 | `userId` | string | Identity Store user ID |
 | `userName` | string | Username in the Identity Store |
-| `displayName` | string | Display name of the user |
-| `email` | string | Primary email address |
-| `userStatus` | string | Account status: ENABLED or DISABLED |
-| `title` | string | Job title |
+| `displayName` | string | Display name of the user, or null when the Identity Store omits it |
+| `email` | string | Primary email address, or null when the user has no email attribute |
+| `userStatus` | string | Account status \(ENABLED or DISABLED\), or null when the Identity Store omits it |
+| `title` | string | Job title, or null when the Identity Store omits it |
 | `externalIds` | array | External identity provider IDs linked to the user |
 |   ↳ `issuer` | string | Identity provider that issued the ID |
 |   ↳ `id` | string | Identifier at the issuer |

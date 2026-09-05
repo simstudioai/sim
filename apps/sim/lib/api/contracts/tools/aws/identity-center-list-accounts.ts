@@ -2,7 +2,7 @@ import { z } from 'zod'
 import {
   identityCenterAccountsMaxResultsSchema,
   identityCenterConnectionShape,
-  identityCenterNextTokenSchema,
+  identityCenterOrganizationsNextTokenSchema,
 } from '@/lib/api/contracts/tools/aws/identity-center-shared'
 import type {
   ContractBody,
@@ -14,7 +14,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const Schema = z.object({
   ...identityCenterConnectionShape,
   maxResults: identityCenterAccountsMaxResultsSchema.optional(),
-  nextToken: identityCenterNextTokenSchema.optional(),
+  nextToken: identityCenterOrganizationsNextTokenSchema.optional(),
 })
 
 const ResponseSchema = z.object({
