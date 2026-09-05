@@ -1,11 +1,26 @@
 /**
  * @vitest-environment jsdom
  */
+
+import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { Editor } from '@tiptap/core'
-import { undoDepth } from '@tiptap/pm/history'
-import { afterEach, describe, expect, it } from 'vitest'
-import { createMarkdownContentExtensions } from '../extensions'
-import { getFindTally, RichMarkdownFind, setFindQuery, stepFindMatch } from './find-extension'
+import { redoDepth, undoDepth } from '@tiptap/pm/history'
+import { yUndoPluginKey } from '@tiptap/y-tiptap'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Awareness } from 'y-protocols/awareness'
+import type * as Y from 'yjs'
+import { markdownToYDoc } from '@/lib/collab-doc/converter'
+import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import {
+  getFindTally,
+  RichMarkdownFind,
+  replaceActiveFindMatch,
+  replaceAllFindMatches,
+  setFindQuery,
+  stepFindMatch,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/find-extension'
+import { FIND_MATCH_LIMIT } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/find-matches'
 
 let editor: Editor | null = null
 afterEach(() => {
@@ -128,5 +143,134 @@ describe('RichMarkdownFind', () => {
     // A search that added an undo step would make the user's next Cmd+Z undo the search
     // instead of their real last edit.
     expect(undoDepth(instance.state)).toBe(undoBefore)
+  })
+
+  it('replaces the active match while preserving its inline marks', () => {
+    const instance = mountEditor('**alpha** and alpha')
+    setFindQuery(instance, 'alpha')
+
+    expect(replaceActiveFindMatch(instance, 'beta')).toBe(true)
+    expect(instance.getMarkdown()).toBe('**beta** and alpha')
+    expect(getFindTally(instance.state).matches).toHaveLength(1)
+  })
+
+  it('uses the matched text formatting instead of an unrelated typing mark', () => {
+    const instance = mountEditor('alpha and beta')
+    instance.commands.setTextSelection(instance.state.doc.content.size - 1)
+    instance.commands.toggleBold()
+    setFindQuery(instance, 'alpha')
+
+    expect(replaceActiveFindMatch(instance, 'gamma')).toBe(true)
+    expect(instance.getMarkdown()).toBe('gamma and beta')
+  })
+
+  it.each([
+    ['he**llo**', 'world'],
+    ['**he**llo', '**world**'],
+  ])('follows native ProseMirror replacement formatting for %s', (source, expected) => {
+    const instance = mountEditor(source)
+    setFindQuery(instance, 'hello')
+    const { from, to } = getFindTally(instance.state).matches[0]
+    const nativeResult = instance.state.tr.setStoredMarks(null).insertText('world', from, to).doc
+
+    expect(replaceActiveFindMatch(instance, 'world')).toBe(true)
+    expect(instance.state.doc.eq(nativeResult)).toBe(true)
+    expect(instance.getMarkdown()).toBe(expected)
+  })
+
+  it('preserves each matched range formatting during Replace All', () => {
+    const instance = mountEditor('**alpha** and alpha and *alpha*')
+    instance.commands.setTextSelection(instance.state.doc.content.size - 1)
+    instance.commands.toggleStrike()
+    setFindQuery(instance, 'alpha')
+
+    expect(replaceAllFindMatches(instance, 'beta')).toBe(3)
+    expect(instance.getMarkdown()).toBe('**beta** and beta and *beta*')
+  })
+
+  it('supports deleting matches with an empty replacement', () => {
+    const instance = mountEditor('alpha beta alpha')
+    setFindQuery(instance, 'alpha ')
+
+    expect(replaceActiveFindMatch(instance, '')).toBe(true)
+    expect(instance.getMarkdown()).toBe('beta alpha')
+  })
+
+  it('rejects oversized individual and aggregate replacements before dispatching a transaction', () => {
+    const instance = mountEditor(Array.from({ length: FIND_MATCH_LIMIT }, () => 'x').join(' '))
+    setFindQuery(instance, 'x')
+    const onLimitExceeded = vi.fn()
+    const dispatch = vi.spyOn(instance.view, 'dispatch')
+    const documentBefore = instance.state.doc
+
+    expect(
+      replaceActiveFindMatch(
+        instance,
+        'y'.repeat(PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS),
+        onLimitExceeded
+      )
+    ).toBe(false)
+    expect(replaceAllFindMatches(instance, 'y'.repeat(600), onLimitExceeded)).toBe(0)
+
+    expect(onLimitExceeded).toHaveBeenCalledTimes(2)
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(instance.state.doc).toBe(documentBefore)
+  })
+
+  it('advances past a replacement that still contains the search term', () => {
+    const instance = mountEditor('alpha alpha')
+    setFindQuery(instance, 'alpha')
+
+    expect(replaceActiveFindMatch(instance, 'alphaX')).toBe(true)
+    expect(replaceActiveFindMatch(instance, 'alphaX')).toBe(true)
+
+    expect(instance.getMarkdown()).toBe('alphaX alphaX')
+  })
+
+  it('keeps each collaborative replacement as a separate undo item', () => {
+    const doc = markdownToYDoc('alpha alpha')
+    const awareness = new Awareness(doc)
+    editor = new Editor({
+      extensions: createMarkdownEditorExtensions({
+        placeholder: '',
+        collaboration: { doc, awareness, user: { name: 'User', color: '#fff' } },
+      }),
+    })
+    const history = yUndoPluginKey.getState(editor.state) as { undoManager: Y.UndoManager }
+    history.undoManager.clear()
+    setFindQuery(editor, 'alpha')
+
+    replaceActiveFindMatch(editor, 'beta')
+    replaceActiveFindMatch(editor, 'gamma')
+    expect(editor.getMarkdown()).toBe('beta gamma')
+
+    expect(editor.commands.undo()).toBe(true)
+    expect(editor.getMarkdown()).toBe('beta alpha')
+    editor.destroy()
+    editor = null
+    awareness.destroy()
+    doc.destroy()
+  })
+
+  it('replaces every match in one undo step', () => {
+    const instance = mountEditor('alpha alpha alpha')
+    setFindQuery(instance, 'alpha')
+    const undoBefore = undoDepth(instance.state)
+
+    expect(replaceAllFindMatches(instance, 'beta')).toBe(3)
+    expect(instance.getMarkdown()).toBe('beta beta beta')
+    expect(undoDepth(instance.state)).toBe(undoBefore + 1)
+    expect(redoDepth(instance.state)).toBe(0)
+    expect(instance.commands.undo()).toBe(true)
+    expect(instance.getMarkdown()).toBe('alpha alpha alpha')
+  })
+
+  it('refuses to label a capped partial replacement as replace all', () => {
+    const instance = mountEditor(Array.from({ length: FIND_MATCH_LIMIT + 1 }, () => 'x').join(' '))
+    setFindQuery(instance, 'x')
+    expect(getFindTally(instance.state).truncated).toBe(true)
+
+    expect(replaceAllFindMatches(instance, 'y')).toBe(0)
+    expect(instance.getMarkdown().startsWith('x x x')).toBe(true)
   })
 })

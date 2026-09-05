@@ -22,7 +22,10 @@ const { collaborationRef, uploadFile } = vi.hoisted(() => ({
   uploadFile: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/workspace/workspace-1/files',
+  useRouter: () => ({ push: vi.fn() }),
+}))
 vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => ({ data: null, isPending: false }) }))
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
@@ -253,9 +256,13 @@ describe('loaded rich editor lifecycle', () => {
     expect(editor.isEditable).toBe(true)
     expect(editor.view.dom.getAttribute('aria-readonly')).toBe('false')
     expect(container.textContent).not.toContain('Reconnecting…')
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
   })
 
-  it('keeps the live document visible and read-only after a fatal collaboration error', async () => {
+  it('keeps revoked pending edits visible and read-only without draft-management prompts', async () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
@@ -275,7 +282,7 @@ describe('loaded rich editor lifecycle', () => {
       provider.fail({
         fileId: 'file-1',
         error: 'Access denied',
-        code: 'ACCESS_DENIED',
+        code: 'ACCESS_REVOKED',
         retryable: false,
       })
     )
@@ -286,6 +293,13 @@ describe('loaded rich editor lifecycle', () => {
     expect(editor.view.dom.closest('.hidden')).toBeNull()
     expect(container.textContent).not.toContain('stale opening snapshot')
     expect(container.textContent).not.toContain('Reconnecting…')
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      'You no longer have edit access to this document.'
+    )
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('[role="alert"], [role="dialog"]')).toBeNull()
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
   })
 
   it('shows stored content read-only when collaboration fails before the first sync', async () => {
@@ -315,6 +329,44 @@ describe('loaded rich editor lifecycle', () => {
     expect(editor.view.dom.closest('.hidden')).toBeNull()
     expect(container.textContent).not.toContain('Reconnecting…')
   })
+
+  it.each(['DOCUMENT_REPLACED', 'PENDING_UPDATE_LIMIT', 'INVALID_UPDATE'])(
+    'preserves pending edits with only a passive status for %s',
+    async (code) => {
+      const provider = new FakeFileDocProvider()
+      const doc = new Y.Doc()
+      doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+      collaborationRef.current = {
+        doc,
+        awareness: new Awareness(doc),
+        provider,
+        user: { name: 'User', color: '#000000', clientId: doc.clientID },
+      }
+      await render('stored body', 'stored body', true, { collaborative: true })
+
+      await act(async () => provider.setSynced(true))
+      await act(async () => getEditor().commands.insertContent('preserved local change'))
+      await act(async () =>
+        provider.fail({
+          fileId: 'file-1',
+          error: 'Local recovery required',
+          code,
+          retryable: false,
+        })
+      )
+
+      expect(container.querySelector('[role="status"]')?.textContent).toBe(
+        'Live editing is unavailable.'
+      )
+      expect(container.querySelector('button')).toBeNull()
+      expect(container.querySelector('[role="alert"], [role="dialog"]')).toBeNull()
+      expect(container.textContent).not.toContain('Reconnecting…')
+      expect(toast.warning).not.toHaveBeenCalled()
+      expect(toast.info).not.toHaveBeenCalled()
+      expect(getEditor().isEditable).toBe(false)
+      expect(getEditor().getText()).toContain('preserved local change')
+    }
+  )
 
   it('explains a picker selection whose insertion anchor was invalidated', async () => {
     await render('before TARGET after')

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Chip, cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
@@ -446,6 +446,7 @@ export function LoadedRichMarkdownEditor({
   const isEditable = canEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   const collaboration = useFileDocCollaboration({
+    workspaceId,
     fileId: file.id,
     userId,
     userName,
@@ -921,7 +922,9 @@ export function LoadedRichMarkdownEditor({
      * fire an observer and the editor would stay editable on a document the provider has abandoned.
      */
     const onJoinError = (error: JoinFileDocError) => {
-      if (error.retryable === false) seedFromLoaded()
+      if (error.retryable === false) {
+        seedFromLoaded()
+      }
       report()
     }
 
@@ -1314,6 +1317,8 @@ export function LoadedRichMarkdownEditor({
   /** Use the stored-content placeholder only while the live document is bootstrapping. */
   const showPlaceholder = collaborationEnabled && collabStatus === 'connecting'
   const showReconnecting = collaborationEnabled && collabStatus === 'reconnecting'
+  const collabFailure = collaboration?.provider?.joinError ?? null
+  const showCollabFailure = collaborationEnabled && collabStatus === 'fatal' ? collabFailure : null
 
   /**
    * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own
@@ -1322,6 +1327,28 @@ export function LoadedRichMarkdownEditor({
    * native find reads the rendered placeholder correctly; it becomes ours once the seed lands.
    */
   const find = useMarkdownFind({ editor, enabled: enableFind && !showPlaceholder })
+  const replaceControls = useMemo(
+    () =>
+      isEditable
+        ? {
+            value: find.replacement,
+            onChange: find.setReplacement,
+            onReplace: find.replaceCurrent,
+            onReplaceAll: find.replaceAll,
+            canReplace: find.count > 0,
+            canReplaceAll: find.count > 0 && !find.truncated,
+          }
+        : undefined,
+    [
+      find.count,
+      find.replaceAll,
+      find.replaceCurrent,
+      find.replacement,
+      find.setReplacement,
+      find.truncated,
+      isEditable,
+    ]
+  )
 
   return (
     // The find bar is a sibling of the scroller, not a child: pinned inside `containerRef` it would
@@ -1347,6 +1374,17 @@ export function LoadedRichMarkdownEditor({
           Reconnecting…
         </div>
       )}
+      {showCollabFailure && (
+        <div
+          role='status'
+          aria-live='polite'
+          className='border-[var(--border)] border-b px-4 py-2 text-[var(--text-muted)] text-small'
+        >
+          {showCollabFailure.code === 'ACCESS_REVOKED' || showCollabFailure.code === 'ACCESS_DENIED'
+            ? 'You no longer have edit access to this document.'
+            : 'Live editing is unavailable.'}
+        </div>
+      )}
       {find.isOpen && (
         <FindBar
           ariaLabel='Find in document'
@@ -1360,6 +1398,7 @@ export function LoadedRichMarkdownEditor({
           truncated={find.truncated}
           isLoading={false}
           inputRef={find.inputRef}
+          replace={replaceControls}
         />
       )}
       <div

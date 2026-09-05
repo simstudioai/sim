@@ -301,6 +301,52 @@ describe('editor markdown round-trip', () => {
     expect(roundTrip('![a](https://e.com/i.png)')).toContain('![a](https://e.com/i.png)')
   })
 
+  it('round-trips every sized linked-image attribute without dropping dimensions', () => {
+    const source =
+      '[<img src="https://e.com/i.png" alt="" title="Diagram" width="320" height="180">](https://e.com "Details")'
+    const out = roundTrip(source)
+
+    expect(out).toContain('alt=""')
+    expect(out).toContain('width="320" height="180"')
+    expect(out).toContain('](https://e.com "Details")')
+    expect(roundTrip(out)).toBe(out)
+  })
+
+  it('uses empty alt text when a linked HTML image has no alt attribute', () => {
+    const source = '[<img src="https://e.com/i.png" width="320">](https://e.com)'
+    const out = roundTrip(source)
+
+    expect(out).toContain('alt=""')
+    expect(out).not.toContain('alt="&lt;img')
+    expect(roundTrip(out)).toBe(out)
+  })
+
+  it('round-trips linked images with escaped alt text and angle-bracket destinations', () => {
+    const source = '[![a\\]b](<https://e.com/image (1).png>)](<https://e.com/view (1)> "Details")'
+    const out = roundTrip(source)
+
+    expect(out).toContain('a\\]b')
+    expect(out).toContain('<https://e.com/image (1).png>')
+    expect(out).toContain('<https://e.com/view (1)>')
+    expect(roundTrip(out)).toBe(out)
+  })
+
+  it('parses a paragraph of adjacent links and linked images without recursive suffix scans', () => {
+    const links = Array.from(
+      { length: 80 },
+      (_, index) => `[Link ${index}](https://e.com/${index})`
+    )
+    const images = Array.from(
+      { length: 40 },
+      (_, index) => `[![Image ${index}](https://e.com/${index}.png)](https://e.com/${index})`
+    )
+    const out = roundTrip([...links, ...images].join(' '))
+
+    for (const link of links) expect(out).toContain(link)
+    for (const image of images) expect(out).toContain(image)
+    expect(roundTrip(out)).toBe(out)
+  })
+
   it('preserves a sized base64 image and escapes quotes in attributes', () => {
     const dataUrl = '<img src="data:image/png;base64,iVBORw0KGgo=" width="200">'
     expect(roundTrip(dataUrl)).toContain('data:image/png;base64,iVBORw0KGgo=')
