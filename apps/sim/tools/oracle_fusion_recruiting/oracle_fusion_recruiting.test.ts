@@ -6,7 +6,36 @@ import { listCandidatesSchema } from '@/lib/internal/oracle-fusion-recruiting/sc
 import { OracleFusionRecruitingBlock } from '@/blocks/blocks/oracle_fusion_recruiting'
 import * as recruitingTools from '@/tools/oracle_fusion_recruiting'
 
-const tools = Object.values(recruitingTools)
+const tools = [
+  recruitingTools.oracleFusionRecruitingCreateCandidateTool,
+  recruitingTools.oracleFusionRecruitingCreateCandidatePhoneTool,
+  recruitingTools.oracleFusionRecruitingCreateRequisitionTool,
+  recruitingTools.oracleFusionRecruitingDeleteCandidateTool,
+  recruitingTools.oracleFusionRecruitingDeleteCandidatePhoneTool,
+  recruitingTools.oracleFusionRecruitingDeleteRequisitionTool,
+  recruitingTools.oracleFusionRecruitingGetApplicationTool,
+  recruitingTools.oracleFusionRecruitingGetCandidateTool,
+  recruitingTools.oracleFusionRecruitingGetCandidatePhoneTool,
+  recruitingTools.oracleFusionRecruitingGetInterviewScheduleTool,
+  recruitingTools.oracleFusionRecruitingGetOfferTool,
+  recruitingTools.oracleFusionRecruitingGetRequisitionTool,
+  recruitingTools.oracleFusionRecruitingListApplicationsTool,
+  recruitingTools.oracleFusionRecruitingListCandidateAttachmentsTool,
+  recruitingTools.oracleFusionRecruitingListCandidateEducationTool,
+  recruitingTools.oracleFusionRecruitingListCandidateExperienceTool,
+  recruitingTools.oracleFusionRecruitingListCandidatePhonesTool,
+  recruitingTools.oracleFusionRecruitingListCandidateSkillsTool,
+  recruitingTools.oracleFusionRecruitingListCandidatesTool,
+  recruitingTools.oracleFusionRecruitingListInterviewSchedulesTool,
+  recruitingTools.oracleFusionRecruitingListOffersTool,
+  recruitingTools.oracleFusionRecruitingListRecruitingRepresentativesTool,
+  recruitingTools.oracleFusionRecruitingListRequisitionPostingsTool,
+  recruitingTools.oracleFusionRecruitingListRequisitionTemplatesTool,
+  recruitingTools.oracleFusionRecruitingListRequisitionsTool,
+  recruitingTools.oracleFusionRecruitingUpdateCandidateTool,
+  recruitingTools.oracleFusionRecruitingUpdateCandidatePhoneTool,
+  recruitingTools.oracleFusionRecruitingUpdateRequisitionTool,
+]
 
 describe('Recruiting block and tools', () => {
   it('exposes exactly the agreed 28 operations and maps each to its tool', () => {
