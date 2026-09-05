@@ -122,12 +122,6 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
 }
 
 /**
- * Serializes the final creation-policy check with membership/ownership
- * mutations and row-locks the paid entitlement used by organization mode.
- * Returns the live billing owner. The caller must invoke this in the same
- * transaction as the workspace insert.
- */
-/**
  * permission-group-enforced: workspace.create — the creation gate, deliberately
  * OUTSIDE the creation transaction.
  *
@@ -168,6 +162,19 @@ export async function assertWorkspaceCreationCapability({
   }
 }
 
+/**
+ * Serializes the membership/ownership context with the workspace insert and
+ * row-locks the paid entitlement used by organization mode. Returns the live
+ * billing owner. The caller must invoke this in the same transaction as the
+ * insert.
+ *
+ * The permission-group gate is NOT here — see
+ * {@link assertWorkspaceCreationCapability}, which the caller runs before
+ * opening the transaction. This function still enforces the invariant that
+ * verdict depends on: it throws {@link WorkspaceCreationContextChangedError}
+ * unless live membership still equals the `observedOrganizationId` the gate
+ * was evaluated against.
+ */
 export async function lockWorkspaceCreationContext(
   tx: DbOrTx,
   {
