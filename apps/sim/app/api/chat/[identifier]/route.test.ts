@@ -376,9 +376,10 @@ describe('Chat Identifier API Route', () => {
         await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
 
         expect(mockEnforceIpRateLimit).toHaveBeenCalledWith(
-          'chat-execute:chat-id',
+          'chat-execute',
           req,
-          expect.objectContaining({ refillIntervalMs: 60_000 })
+          expect.objectContaining({ refillIntervalMs: 60_000 }),
+          'chat-id'
         )
         expect(mockEnforceResourceRateLimit).toHaveBeenCalledWith(
           'chat-execute',

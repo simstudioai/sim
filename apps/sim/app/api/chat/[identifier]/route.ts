@@ -228,9 +228,10 @@ export const POST = withRouteHandler(
       // Both buckets apply regardless of the chat's auth type: an email or SSO
       // visitor is still not the payer.
       const ipLimited = await enforceIpRateLimitWithIndependentBackstop(
-        `chat-execute:${deployment.id}`,
+        'chat-execute',
         request,
-        CHAT_EXECUTION_IP_LIMIT
+        CHAT_EXECUTION_IP_LIMIT,
+        deployment.id
       )
       if (ipLimited) return ipLimited
 

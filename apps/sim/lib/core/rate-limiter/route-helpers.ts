@@ -60,22 +60,25 @@ async function enforceIpRateLimitWithPolicy(
   bucketName: string,
   request: NextRequest,
   config: TokenBucketConfig,
-  unresolvedClientPolicy: 'deny' | 'defer'
+  unresolvedClientPolicy: 'deny' | 'defer',
+  resourceId?: string
 ): Promise<NextResponse | null> {
   const ip = getClientIp(request)
   if (!ip) {
     logger.warn('Unable to resolve client IP for public rate limit', {
       bucket: bucketName,
+      resourceId,
       unresolvedClientPolicy,
     })
     return unresolvedClientPolicy === 'deny'
       ? buildRateLimitResponse(new Date(Date.now() + config.refillIntervalMs))
       : null
   }
-  const key = `route:${bucketName}:ip:${ip}`
+  const scope = resourceId ? `resource:${resourceId}:` : ''
+  const key = `route:${bucketName}:${scope}ip:${ip}`
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null
-  logger.warn('IP rate limit exceeded', { bucket: bucketName, ip })
+  logger.warn('IP rate limit exceeded', { bucket: bucketName, resourceId, ip })
   return buildRateLimitResponse(resetAt)
 }
 
@@ -91,13 +94,19 @@ export async function enforceIpRateLimit(
 /**
  * Apply a per-IP bucket when resolvable, deferring unresolved clients to an
  * independent non-IP limit that the caller must enforce before any side effect.
+ *
+ * Pass `resourceId` to give each resource its own per-IP budget — the caller
+ * that pairs this with {@link enforceResourceRateLimit} wants both scoped the
+ * same way. It belongs here rather than interpolated into `bucketName`, which
+ * is emitted as a log field and has to stay low-cardinality.
  */
 export async function enforceIpRateLimitWithIndependentBackstop(
   bucketName: string,
   request: NextRequest,
-  config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
+  config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT,
+  resourceId?: string
 ): Promise<NextResponse | null> {
-  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'defer')
+  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'defer', resourceId)
 }
 
 /**
