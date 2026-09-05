@@ -176,14 +176,14 @@ describe('PendingFileDocUpdateJournal', () => {
     await expect(subject.load()).resolves.toMatchObject({ docId: 'doc-4' })
   })
 
-  it('discards only the selected document identity', async () => {
+  it('clears only the acknowledged document identity', async () => {
     const subject = journal()
     const oldUpdate = updateWith('old')
     const currentUpdate = updateWith('current')
     await subject.save('old-doc', oldUpdate, oldUpdate)
     await subject.save('current-doc', currentUpdate, currentUpdate)
 
-    await subject.discard('old-doc')
+    await subject.clear('old-doc', oldUpdate)
 
     await expect(subject.load('old-doc')).resolves.toBeNull()
     await expect(subject.load('current-doc')).resolves.toMatchObject({ docId: 'current-doc' })

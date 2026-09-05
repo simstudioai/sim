@@ -373,14 +373,15 @@ describe('real editor BubbleMenu keyboard integration', () => {
     }
   )
 
-  it('cancels a caret-opened URL draft without changing the link or losing its selection', async () => {
+  it.each([0, 2, 6])('restores the original caret at link offset %i on cancel', async (offset) => {
     act(() =>
       editor.commands.setContent(
         editorNormalForm('before [format](https://example.com/original) after')
       )
     )
-    const input = await openLinkAtCaret(2)
-    const selection = editor.state.selection.toJSON()
+    select('format', true)
+    const caret = editor.state.selection.from + offset
+    const input = await openLinkAtCaret(offset)
     const before = editor.getJSON()
     changeUrl(input, 'https://example.com/cancelled')
     key(input, 'Escape')
@@ -388,8 +389,71 @@ describe('real editor BubbleMenu keyboard integration', () => {
 
     expect(viewport.contains(input)).toBe(false)
     expect(document.activeElement).toBe(editor.view.dom)
-    expect(editor.state.selection.toJSON()).toEqual(selection)
+    expect(editor.state.selection.empty).toBe(true)
+    expect(editor.state.selection.from).toBe(caret)
     expect(editor.getJSON()).toEqual(before)
+    act(() => editor.commands.insertContent('X'))
+    expect(editor.getText()).toBe(
+      `before ${'format'.slice(0, offset)}X${'format'.slice(offset)} after`
+    )
+  })
+
+  it('maps the original caret through peer and appended edits before canceling', async () => {
+    act(() =>
+      editor.commands.setContent(
+        editorNormalForm('before [format](https://example.com/original) after')
+      )
+    )
+    select('format', true)
+    const caret = editor.state.selection.from + 2
+    const input = await openLinkAtCaret(2)
+    editor.registerPlugin(
+      new Plugin({
+        appendTransaction: (transactions, _oldState, newState) =>
+          transactions.some((transaction) => transaction.getMeta('toolbar-prefix'))
+            ? newState.tr.insertText('appended ', 1)
+            : null,
+      })
+    )
+    act(() => editor.setEditable(false))
+    act(() =>
+      editor.view.dispatch(editor.state.tr.insertText('peer ', 1).setMeta('toolbar-prefix', true))
+    )
+    act(() => editor.setEditable(true))
+    const before = editor.getJSON()
+    key(input, 'Escape')
+    await frame()
+
+    expect(document.activeElement).toBe(editor.view.dom)
+    expect(editor.state.selection.empty).toBe(true)
+    expect(editor.state.selection.from).toBe(caret + 'appended peer '.length)
+    expect(editor.getJSON()).toEqual(before)
+    act(() => editor.commands.insertContent('X'))
+    expect(editor.getText()).toBe('appended peer before foXrmat after')
+  })
+
+  it.each(['Apply link', 'Remove link'])('restores the caret on Escape from %s', async (label) => {
+    act(() =>
+      editor.commands.setContent(
+        editorNormalForm('before [format](https://example.com/original) after')
+      )
+    )
+    select('format', true)
+    const caret = editor.state.selection.from + 2
+    const input = await openLinkAtCaret(2)
+    changeUrl(input, 'https://example.com/cancelled')
+    const action = button(linkGroup(), label)
+    act(() => action.focus())
+    key(action, 'Escape')
+    await frame()
+
+    expect(viewport.contains(input)).toBe(false)
+    expect(document.activeElement).toBe(editor.view.dom)
+    expect(editor.state.selection.empty).toBe(true)
+    expect(editor.state.selection.from).toBe(caret)
+    expect(editor.view.dom.querySelector('a')?.getAttribute('href')).toBe(
+      'https://example.com/original'
+    )
   })
 
   it('maps the captured link target through a prefix edit and an appended transaction', async () => {

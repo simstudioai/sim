@@ -786,7 +786,7 @@ describe('FileDocProvider', () => {
     provider.destroy()
   })
 
-  it('does not recreate a discarded recovery record during page teardown or destroy', async () => {
+  it('preserves pending recovery through page teardown and destroy', async () => {
     journalStorage.clear()
     const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
     const { socket, fire } = createSocket(true)
@@ -801,15 +801,21 @@ describe('FileDocProvider', () => {
     )
     acceptJoin(fire, doc.clientID, 'doc-1')
     fire('disconnect')
-    doc.getText('default').insert(0, 'discard me')
+    doc.getText('default').insert(0, 'preserve me')
     const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
     await vi.waitFor(async () => expect(await journal.load('doc-1')).not.toBeNull())
 
-    await provider.discardPendingChanges()
     ;(provider as unknown as { handlePageHide: () => void }).handlePageHide()
     provider.destroy()
 
-    await expect(journal.load('doc-1')).resolves.toBeNull()
+    const stored = await journal.load('doc-1')
+    expect(stored).not.toBeNull()
+    const recovered = new Y.Doc()
+    Y.applyUpdate(recovered, stored!.recoverySnapshot!)
+    Y.applyUpdate(recovered, stored!.pendingUpdate)
+    expect(recovered.getText('default').toString()).toBe('preserve me')
+    recovered.destroy()
+    doc.destroy()
   })
 
   it('hydrates the complete local draft before reporting a replaced document', async () => {
@@ -890,8 +896,7 @@ describe('FileDocProvider', () => {
       updatedAt: Date.now(),
     })
     const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
-    const discard = vi.spyOn(PendingFileDocUpdateJournal.prototype, 'discard').mockResolvedValue()
-    const { socket, fire } = createSocket(true)
+    const { socket, emit, fire } = createSocket(true)
     const doc = new Y.Doc()
     const provider = new FileDocProvider(
       socket,
@@ -904,12 +909,10 @@ describe('FileDocProvider', () => {
 
     await vi.waitFor(() => expect(provider.joinError).toMatchObject({ code: 'INVALID_UPDATE' }))
     expect(doc.getText('default').toString()).toBe('')
-    await provider.discardPendingChanges()
-    expect(discard).toHaveBeenCalledWith('doc-1')
+    expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
     provider.destroy()
     doc.destroy()
     load.mockRestore()
-    discard.mockRestore()
   })
 
   it('ignores an obsolete schema rejection when recovery finishes after reconnecting', async () => {

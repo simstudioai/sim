@@ -1,9 +1,8 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Chip, ChipConfirmModal, cn, toast } from '@sim/emcn'
+import { Chip, cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
-import { getErrorMessage } from '@sim/utils/errors'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import type { Extensions, JSONContent, Range } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
@@ -15,7 +14,6 @@ import {
   buildFileSelectionLabel,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
-import { saveBlob } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
@@ -32,7 +30,6 @@ import {
   beginAgentStream,
   endAgentStream,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown'
-import type { FileDocProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
 import { isCollabReady } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/readiness'
 import { useFileDocCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
@@ -103,81 +100,6 @@ function warnRichMarkdownPasteLimit(reason?: 'paste' | 'formatting') {
   toast.warning('Paste is too large for rich-text editing', {
     description: `Rich-text editing supports up to ${PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS.toLocaleString()} characters. Use the source editor for larger documents.`,
   })
-}
-
-interface CollaborationFailureBannerProps {
-  failure: JoinFileDocError
-  provider: FileDocProvider | null
-  onDownloadDraft: () => void
-}
-
-/** Keeps a stale local draft recoverable when live editing must stop rather than silently retry. */
-function CollaborationFailureBanner({
-  failure,
-  provider,
-  onDownloadDraft,
-}: CollaborationFailureBannerProps) {
-  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
-  const [isDiscarding, setIsDiscarding] = useState(false)
-  const requiresDraftRecovery =
-    failure.code === 'DOCUMENT_REPLACED' ||
-    failure.code === 'PENDING_UPDATE_LIMIT' ||
-    failure.code === 'INVALID_UPDATE'
-  const accessLost = failure.code === 'ACCESS_REVOKED' || failure.code === 'ACCESS_DENIED'
-  const discardPendingChangesAndReload = async () => {
-    setIsDiscarding(true)
-    try {
-      await provider?.discardPendingChanges()
-      window.location.reload()
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Could not discard the stale local recovery copy.'))
-      setIsDiscarding(false)
-    }
-  }
-
-  const message = accessLost
-    ? 'You no longer have edit access to this document.'
-    : failure.code === 'DOCUMENT_REPLACED'
-      ? 'The live document changed while this tab was disconnected. Your local draft is preserved.'
-      : failure.code === 'PENDING_UPDATE_LIMIT'
-        ? 'Local edits exceeded this browser’s safe recovery limit. Download your draft before reloading.'
-        : failure.code === 'INVALID_UPDATE'
-          ? 'A local edit could not be synchronized safely. Download your draft before reloading.'
-          : failure.code === 'SCHEMA_VERSION_MISMATCH'
-            ? 'This app version cannot edit the live document. Reload to update.'
-            : 'Live editing could not connect. Reload to try again.'
-
-  return (
-    <div
-      role='alert'
-      aria-live='assertive'
-      className='flex flex-wrap items-center gap-2 border-[var(--border)] border-b px-4 py-2 text-[var(--text-muted)] text-small'
-    >
-      <p className='min-w-48 flex-1'>{message}</p>
-      <Chip onClick={onDownloadDraft}>Download local draft</Chip>
-      {requiresDraftRecovery ? (
-        <>
-          <Chip variant='destructive' onClick={() => setConfirmDiscardOpen(true)}>
-            Discard draft
-          </Chip>
-          <ChipConfirmModal
-            open={confirmDiscardOpen}
-            onOpenChange={setConfirmDiscardOpen}
-            title='Discard local draft?'
-            text='This removes the recovery copy from this browser and reloads the current document. Download the draft first if you may need it.'
-            confirm={{
-              label: 'Discard and reload',
-              onClick: () => void discardPendingChangesAndReload(),
-              pending: isDiscarding,
-              pendingLabel: 'Discarding...',
-            }}
-          />
-        </>
-      ) : !accessLost ? (
-        <Chip onClick={() => window.location.reload()}>Reload</Chip>
-      ) : null}
-    </div>
-  )
 }
 
 /**
@@ -403,7 +325,6 @@ function RichMarkdownSurface({
         onDeriveTitleFromHeading={onDeriveTitleFromHeading}
         enableFind={enableFind}
         onEditSource={onEditSource}
-        onDownloadDraft={downloadDraft}
       />
     </>
   )
@@ -440,7 +361,6 @@ interface LoadedRichMarkdownEditorProps {
   /** See {@link RichMarkdownEditorProps.enableFind}. */
   enableFind: boolean
   onEditSource?: () => void
-  onDownloadDraft: () => void
 }
 
 type CollaborationStatus = 'connecting' | 'ready' | 'reconnecting' | 'fatal'
@@ -477,7 +397,6 @@ export function LoadedRichMarkdownEditor({
   onDeriveTitleFromHeading,
   enableFind,
   onEditSource,
-  onDownloadDraft,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const [streamingAtMount] = useState(isStreaming)
@@ -1395,16 +1314,6 @@ export function LoadedRichMarkdownEditor({
 
   useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
 
-  const downloadLiveDraft = () => {
-    if (!editor) {
-      onDownloadDraft()
-      return
-    }
-    const body = postProcessSerializedMarkdown(editor.getMarkdown())
-    const markdown = applyFrontmatter(saveFrontmatterResolverRef.current(), body)
-    saveBlob(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }), file.name)
-  }
-
   /** Use the stored-content placeholder only while the live document is bootstrapping. */
   const showPlaceholder = collaborationEnabled && collabStatus === 'connecting'
   const showReconnecting = collaborationEnabled && collabStatus === 'reconnecting'
@@ -1466,11 +1375,15 @@ export function LoadedRichMarkdownEditor({
         </div>
       )}
       {showCollabFailure && (
-        <CollaborationFailureBanner
-          failure={showCollabFailure}
-          provider={collaboration?.provider ?? null}
-          onDownloadDraft={downloadLiveDraft}
-        />
+        <div
+          role='status'
+          aria-live='polite'
+          className='border-[var(--border)] border-b px-4 py-2 text-[var(--text-muted)] text-small'
+        >
+          {showCollabFailure.code === 'ACCESS_REVOKED' || showCollabFailure.code === 'ACCESS_DENIED'
+            ? 'You no longer have edit access to this document.'
+            : 'Live editing is unavailable.'}
+        </div>
       )}
       {find.isOpen && (
         <FindBar
