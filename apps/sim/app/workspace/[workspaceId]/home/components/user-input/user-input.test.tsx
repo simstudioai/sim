@@ -9,14 +9,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptEditorInstance } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-const { mockSubmit, mockResetTranscript } = vi.hoisted(() => ({
+const { mockSubmit, mockResetTranscript, mockMemberAccessAvailable } = vi.hoisted(() => ({
   mockSubmit: vi.fn(),
   mockResetTranscript: vi.fn(),
+  /** Search mode exists only where per-member access is on; these tests are that workspace. */
+  mockMemberAccessAvailable: vi.fn(() => true),
 }))
 
 vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: vi.fn() }))
+vi.mock('@/hooks/use-member-access', () => ({
+  useMemberAccessAvailable: () => mockMemberAccessAvailable(),
+}))
 vi.mock('@/hooks/use-settings-navigation', () => ({
   useSettingsNavigation: () => ({ navigateToSettings: vi.fn() }),
 }))

@@ -56,6 +56,7 @@ import {
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -256,7 +257,7 @@ export function EditConnectorModal({
    * an admin can still bring it back to workspace mode; that mode cannot be
    * re-chosen.
    */
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const persistedAccess = currentAccess(connector)
   const searchSourceSupported = !isSearchIndex || connectorConfig?.search === true

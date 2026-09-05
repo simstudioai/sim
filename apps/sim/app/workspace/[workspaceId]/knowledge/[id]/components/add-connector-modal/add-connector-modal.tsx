@@ -55,6 +55,7 @@ import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 
@@ -112,7 +113,7 @@ export function AddConnectorModal({
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { ownerBilling, features } = useWorkspaceHostContext()
   const { canAdmin } = useUserPermissionsContext()
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 

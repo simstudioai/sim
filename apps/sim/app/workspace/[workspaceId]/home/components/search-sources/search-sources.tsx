@@ -11,7 +11,6 @@ import {
   searchConnectorUnavailableReason,
 } from '@/lib/sim-search/connectors'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
 import {
   memberConnectorKeys,
@@ -19,6 +18,7 @@ import {
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { CONNECTABLE_MEMBERSHIPS, useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -132,12 +132,8 @@ interface SearchSourcesProps {
  */
 export function SearchSources({ workspaceId }: SearchSourcesProps) {
   const { integrationAvailability } = usePermissionConfig()
-  const { features } = useWorkspaceHostContext()
-  /**
-   * Judged by the workspace, as the server judges it: with per-member access
-   * off, a connect is refused, so the chips say so instead of offering one.
-   */
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  /** With per-member access off, a connect is refused, so the chips say so instead. */
+  const memberAccessAvailable = useMemberAccessAvailable()
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
   /** The first connect of a source turns it on for the workspace, which takes an admin. */
   const canCreate = workspacePermissions?.viewer?.isAdmin ?? false

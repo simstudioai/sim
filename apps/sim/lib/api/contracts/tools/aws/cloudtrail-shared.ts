@@ -13,7 +13,7 @@ const TRAIL_NAME_MAX_LENGTH = 128
 const TRAIL_ARN_MAX_LENGTH = 256
 
 const TRAIL_NAME_OR_ARN_PATTERN =
-  /^(?:arn:aws[a-zA-Z0-9-]*:cloudtrail:[a-z0-9-]+:\d{12}:trail\/[\w.\-/]+|[a-zA-Z0-9](?:[._-]?[a-zA-Z0-9]+)+)$/
+  /^(?:arn:aws[a-zA-Z0-9-]*:cloudtrail:[a-z0-9-]+:\d{12}:trail\/[\w.\-/]+|[a-zA-Z0-9](?:[a-zA-Z0-9]|[._-][a-zA-Z0-9])+)$/
 
 /**
  * A trail name or a full trail ARN. The two branches carry different ceilings: a bare name
