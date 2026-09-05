@@ -752,6 +752,62 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const ORACLE_FUSION_PROJECT_MANAGEMENT_TOOL_IDS = [
+  'oracle_fusion_project_management_adjust_project_budget',
+  'oracle_fusion_project_management_adjust_project_cost',
+  'oracle_fusion_project_management_create_deliverable',
+  'oracle_fusion_project_management_create_deliverable_task_association',
+  'oracle_fusion_project_management_create_milestone',
+  'oracle_fusion_project_management_create_project',
+  'oracle_fusion_project_management_create_project_budget',
+  'oracle_fusion_project_management_create_project_team_member',
+  'oracle_fusion_project_management_create_task',
+  'oracle_fusion_project_management_create_task_labor_resource_assignment',
+  'oracle_fusion_project_management_delete_deliverable',
+  'oracle_fusion_project_management_delete_deliverable_task_association',
+  'oracle_fusion_project_management_delete_draft_project_contract_invoice',
+  'oracle_fusion_project_management_delete_project_budget',
+  'oracle_fusion_project_management_delete_project_team_member',
+  'oracle_fusion_project_management_delete_task',
+  'oracle_fusion_project_management_delete_task_labor_resource_assignment',
+  'oracle_fusion_project_management_get_deliverable',
+  'oracle_fusion_project_management_get_deliverable_task_association',
+  'oracle_fusion_project_management_get_project',
+  'oracle_fusion_project_management_get_project_budget',
+  'oracle_fusion_project_management_get_project_contract_invoice',
+  'oracle_fusion_project_management_get_project_cost',
+  'oracle_fusion_project_management_get_project_plan',
+  'oracle_fusion_project_management_get_project_team_member',
+  'oracle_fusion_project_management_get_task',
+  'oracle_fusion_project_management_get_task_labor_resource_assignment',
+  'oracle_fusion_project_management_list_deliverable_task_associations',
+  'oracle_fusion_project_management_list_deliverables',
+  'oracle_fusion_project_management_list_milestones',
+  'oracle_fusion_project_management_list_project_budgets',
+  'oracle_fusion_project_management_list_project_contract_invoices',
+  'oracle_fusion_project_management_list_project_costs',
+  'oracle_fusion_project_management_list_project_enterprise_resources',
+  'oracle_fusion_project_management_list_project_plans',
+  'oracle_fusion_project_management_list_project_status_history',
+  'oracle_fusion_project_management_list_project_statuses',
+  'oracle_fusion_project_management_list_project_team_members',
+  'oracle_fusion_project_management_list_projects',
+  'oracle_fusion_project_management_list_task_labor_resource_assignments',
+  'oracle_fusion_project_management_list_task_status_history',
+  'oracle_fusion_project_management_list_tasks',
+  'oracle_fusion_project_management_refresh_project_budget_rates',
+  'oracle_fusion_project_management_transition_project_contract_invoice',
+  'oracle_fusion_project_management_update_deliverable',
+  'oracle_fusion_project_management_update_deliverable_task_association',
+  'oracle_fusion_project_management_update_project',
+  'oracle_fusion_project_management_update_project_budget',
+  'oracle_fusion_project_management_update_project_contract_invoice',
+  'oracle_fusion_project_management_update_project_cost',
+  'oracle_fusion_project_management_update_project_team_member',
+  'oracle_fusion_project_management_update_task',
+  'oracle_fusion_project_management_update_task_labor_resource_assignment',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1424,6 +1480,10 @@ registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_PROJECT_MANAGEMENT_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-project-management/execute-tool'))
+    .executeOracleFusionProjectManagementTool
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool

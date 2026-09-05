@@ -960,6 +960,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  oracle_fusion: {
+    name: 'Oracle Fusion',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_project_management: {
+        name: 'Oracle Fusion Project Management',
+        description:
+          'Manage projects, project plans, tasks, deliverables, resources, costs, budgets, and project contract invoices.',
+        providerId: 'oracle_fusion_project_management',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_project_management',
+  },
   netsuite: {
     name: 'Oracle NetSuite',
     icon: NetSuiteIcon,
