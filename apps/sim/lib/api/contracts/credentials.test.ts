@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  createCredentialDraftBodySchema,
   updateCredentialByIdBodySchema,
   workspaceCredentialSchema,
 } from '@/lib/api/contracts/credentials'
@@ -24,7 +25,9 @@ const credential = {
 
 describe('updateCredentialByIdBodySchema unredacted', () => {
   it('accepts unredacted alone as the one updated field', () => {
-    const parsed = updateCredentialByIdBodySchema.safeParse({ unredacted: true })
+    const parsed = updateCredentialByIdBodySchema.safeParse({
+      unredacted: true,
+    })
 
     expect(parsed.success).toBe(true)
     if (parsed.success) expect(parsed.data).toEqual({ unredacted: true })
@@ -37,12 +40,55 @@ describe('updateCredentialByIdBodySchema unredacted', () => {
 
 describe('workspaceCredentialSchema unredacted', () => {
   it('accepts a credential carrying unredacted: false', () => {
-    const parsed = workspaceCredentialSchema.parse({ ...credential, unredacted: false })
+    const parsed = workspaceCredentialSchema.parse({
+      ...credential,
+      unredacted: false,
+    })
 
     expect(parsed.unredacted).toBe(false)
   })
 
   it('requires the field so a response cannot silently drop it', () => {
     expect(workspaceCredentialSchema.safeParse(credential).success).toBe(false)
+  })
+})
+
+describe('createCredentialDraftBodySchema OAuth client configuration', () => {
+  const base = {
+    workspaceId: 'workspace-1',
+    displayName: 'Accounting',
+  }
+  const oauthClientConfig = {
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    environment: 'sandbox' as const,
+    webhookVerifierToken: 'verifier-token',
+  }
+
+  it('requires caller-managed app credentials for QuickBooks', () => {
+    const result = createCredentialDraftBodySchema.safeParse({
+      ...base,
+      providerId: 'quickbooks',
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error.issues[0]?.path).toEqual(['oauthClientConfig'])
+  })
+
+  it('accepts QuickBooks app credentials and rejects them for other providers', () => {
+    expect(
+      createCredentialDraftBodySchema.safeParse({
+        ...base,
+        providerId: 'quickbooks',
+        oauthClientConfig,
+      }).success
+    ).toBe(true)
+    expect(
+      createCredentialDraftBodySchema.safeParse({
+        ...base,
+        providerId: 'google-email',
+        oauthClientConfig,
+      }).success
+    ).toBe(false)
   })
 })
