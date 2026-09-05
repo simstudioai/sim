@@ -20,7 +20,11 @@ export interface PendingDocumentRecovery {
 
 interface PendingUpdateJournalRecord {
   version: typeof JOURNAL_VERSION
-  documents: PendingDocumentRecovery[]
+  documents: JournalDocument[]
+}
+
+interface JournalDocument extends PendingDocumentRecovery {
+  quarantined?: boolean
 }
 
 interface PendingUpdateJournalScope {
@@ -34,9 +38,9 @@ interface JournalSaveResult {
   status: 'saved' | 'limit-exceeded' | 'unavailable'
 }
 
-function isRecovery(value: unknown): value is PendingDocumentRecovery {
+function isRecovery(value: unknown): value is JournalDocument {
   if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Partial<PendingDocumentRecovery>
+  const candidate = value as Partial<JournalDocument>
   return (
     typeof candidate.docId === 'string' &&
     candidate.docId.length > 0 &&
@@ -48,26 +52,32 @@ function isRecovery(value: unknown): value is PendingDocumentRecovery {
         candidate.recoverySnapshot.byteLength > 0 &&
         candidate.recoverySnapshot.byteLength <= RECOVERY_SNAPSHOT_MAX_BYTES)) &&
     typeof candidate.updatedAt === 'number' &&
-    Number.isFinite(candidate.updatedAt)
+    Number.isFinite(candidate.updatedAt) &&
+    (candidate.quarantined === undefined || typeof candidate.quarantined === 'boolean')
   )
 }
 
-function liveDocuments(value: unknown, now: number): PendingDocumentRecovery[] {
+function liveDocuments(value: unknown, now: number): JournalDocument[] {
   if (typeof value !== 'object' || value === null) return []
   const candidate = value as Partial<PendingUpdateJournalRecord>
   if (candidate.version !== JOURNAL_VERSION || !Array.isArray(candidate.documents)) return []
   return candidate.documents
     .filter(isRecovery)
     .filter((document) => now - document.updatedAt <= JOURNAL_TTL_MS)
-    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .sort(
+      (left, right) =>
+        Number(left.quarantined === true) - Number(right.quarantined === true) ||
+        right.updatedAt - left.updatedAt
+    )
     .slice(0, MAX_DOCUMENTS)
 }
 
-function record(documents: PendingDocumentRecovery[]): PendingUpdateJournalRecord {
+function record(documents: JournalDocument[]): PendingUpdateJournalRecord {
   return { version: JOURNAL_VERSION, documents }
 }
 
-function sameUpdate(left: Uint8Array, right: Uint8Array): boolean {
+function sameUpdate(left: Uint8Array | null, right: Uint8Array | null): boolean {
+  if (left === null || right === null) return left === right
   if (left.byteLength !== right.byteLength) return false
   return left.every((byte, index) => byte === right[index])
 }
@@ -98,10 +108,25 @@ export class PendingFileDocUpdateJournal {
   async load(preferredDocId?: string): Promise<PendingDocumentRecovery | null> {
     try {
       await this.mutationQueue
-      const documents = liveDocuments(await get<unknown>(this.key), Date.now())
-      return preferredDocId
+      const documents = liveDocuments(await get<unknown>(this.key), Date.now()).filter(
+        (document) => !document.quarantined
+      )
+      const recovered = preferredDocId
         ? (documents.find((document) => document.docId === preferredDocId) ?? null)
         : (documents[0] ?? null)
+      if (!recovered) return null
+      const validationDoc = new Y.Doc()
+      try {
+        if (recovered.recoverySnapshot) Y.applyUpdate(validationDoc, recovered.recoverySnapshot)
+        Y.applyUpdate(validationDoc, recovered.pendingUpdate)
+        return recovered
+      } catch (error) {
+        logger.warn('Isolating malformed pending file edits', { error })
+        await this.quarantine(recovered)
+        return null
+      } finally {
+        validationDoc.destroy()
+      }
     } catch (error) {
       logger.warn('Failed to load pending file edits', { error })
       return null
@@ -126,7 +151,9 @@ export class PendingFileDocUpdateJournal {
         await updateValue<unknown>(this.key, (value) => {
           const now = Date.now()
           const documents = liveDocuments(value, now)
-          const existing = documents.find((document) => document.docId === docId)
+          const existing = documents.find(
+            (document) => document.docId === docId && !document.quarantined
+          )
           const merged = existing
             ? Y.mergeUpdates([existing.pendingUpdate, pendingUpdate])
             : pendingUpdate
@@ -145,7 +172,7 @@ export class PendingFileDocUpdateJournal {
           }
           const retained = [
             next,
-            ...documents.filter((document) => document.docId !== docId),
+            ...documents.filter((document) => document.docId !== docId || document.quarantined),
           ].slice(0, MAX_DOCUMENTS)
           result = {
             pendingUpdate: merged,
@@ -170,10 +197,32 @@ export class PendingFileDocUpdateJournal {
           return record(
             documents.filter(
               (document) =>
-                document.docId !== docId || !sameUpdate(document.pendingUpdate, acknowledgedUpdate)
+                document.quarantined ||
+                document.docId !== docId ||
+                !sameUpdate(document.pendingUpdate, acknowledgedUpdate)
             )
           )
         }),
+      undefined
+    )
+  }
+
+  /** Retain invalid bytes within the journal's existing bounds without replaying or merging them. */
+  private quarantine(recovered: PendingDocumentRecovery): Promise<void> {
+    return this.enqueue(
+      () =>
+        updateValue<unknown>(this.key, (value) =>
+          record(
+            liveDocuments(value, Date.now()).map((document) =>
+              document.docId === recovered.docId &&
+              document.updatedAt === recovered.updatedAt &&
+              sameUpdate(document.pendingUpdate, recovered.pendingUpdate) &&
+              sameUpdate(document.recoverySnapshot, recovered.recoverySnapshot)
+                ? { ...document, quarantined: true }
+                : document
+            )
+          )
+        ),
       undefined
     )
   }

@@ -381,7 +381,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
    * rebuilt only when the room AND the shared stream are both gone (a tab that slept through it), which
    * is precisely when a stale tab reconnects. There is no way to un-merge afterwards, so the sync never
    * happens: take the fatal path, which leaves the editor read-only on the content it already shows.
-   * A reload binds a fresh document and recovers.
    */
   private handleJoinSuccess = (data: JoinFileDocSuccess) => {
     if (
@@ -432,18 +431,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
 
     if (recovered !== null && !this.recoveryApplied) {
-      const validationDoc = new Y.Doc()
-      try {
-        if (recovered.recoverySnapshot) {
-          Y.applyUpdate(validationDoc, recovered.recoverySnapshot)
-        }
-        Y.applyUpdate(validationDoc, recovered.pendingUpdate)
-      } catch {
-        this.failFatally('The local recovery copy is damaged.', 'INVALID_UPDATE')
-        return
-      } finally {
-        validationDoc.destroy()
-      }
       try {
         if (recovered.recoverySnapshot) {
           Y.applyUpdate(this.doc, recovered.recoverySnapshot, RECOVERY_ORIGIN)
@@ -699,14 +686,13 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
 
-    if (!this.joinAccepted) {
-      if (this.updateMode !== 'legacy') this.queuePendingUpdate(update)
-      if (this.updateMode === 'acknowledged') this.scheduleUpdateFlush(UPDATE_BATCH_MS)
+    if (!this.joinAccepted || !this.socket.connected) {
+      this.queuePendingUpdate(update)
+      if (this.updateMode !== 'negotiating') this.scheduleUpdateFlush(UPDATE_BATCH_MS)
       return
     }
 
     if (this.updateMode !== 'acknowledged') {
-      if (!this.socket.connected) return
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
       syncProtocol.writeUpdate(encoder, update)
@@ -734,7 +720,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private async flushPendingUpdates(): Promise<void> {
     if (
-      this.updateMode !== 'acknowledged' ||
+      this.updateMode === 'negotiating' ||
       this.pendingUpdateBatch.length === 0 ||
       this.disposed ||
       this.fatal

@@ -45,13 +45,8 @@ function imageAttrsFromHtml(raw: string): Record<string, string> | null {
 }
 
 /**
- * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
- * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
- * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
- * wrapped in a markdown link so a linked badge round-trips as `[![alt](src)](href)`.
- *
- * Sized linked images use the standard `[<img …>](href)` combination, preserving both dimensions and
- * link semantics while remaining readable by ordinary Markdown renderers.
+ * Markdown has no image dimensions, so sized images use HTML. Links wrap either representation:
+ * `[![alt](src)](href)` or `[<img …>](href)`.
  */
 function imageMarkdown(node: JSONContent): string {
   const attrs = node.attrs ?? {}

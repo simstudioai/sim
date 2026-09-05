@@ -661,6 +661,75 @@ describe('FileDocStore', () => {
     recovered.destroy()
   })
 
+  it.each(['headless', 'attached'] as const)(
+    'does not recount a replacement snapshot near the byte budget during %s replay',
+    async (mode) => {
+      const streamKey = `filedoc:stream:${NAME}`
+      const source = new Y.Doc()
+      source.getText('body').insert(0, 'x'.repeat(10 * 1024 * 1024))
+      const initial = Buffer.from(Y.encodeStateAsUpdate(source)).toString('base64')
+      const noop = Buffer.from(updateFor('')).toString('base64')
+      state.backing!.streams.set(
+        streamKey,
+        Array.from({ length: 8 }, (_, index) => ({
+          id: `${index + 1}-0`,
+          message: { u: index === 0 ? initial : noop },
+        }))
+      )
+      source.getText('body').insert(source.getText('body').length, ' joined')
+      const compacted = Buffer.from(Y.encodeStateAsUpdate(source)).toString('base64')
+      state.backing!.seq = 8
+      state.backing!.onRange = (_call, key, start) => {
+        if (key !== streamKey || start !== '(4-0') return
+        state.backing!.streams.set(streamKey, [{ id: '9-0', message: { u: compacted, s: '1' } }])
+        state.backing!.seq = 9
+        state.backing!.onRange = undefined
+      }
+      const store = await newStore()
+      const recovered = new Y.Doc()
+      try {
+        if (mode === 'attached') await store.attachRoom(NAME, recovered)
+        else Y.applyUpdate(recovered, (await store.getStreamState(NAME))!)
+        expect(recovered.getText('body').toString()).toBe(source.getText('body').toString())
+      } finally {
+        store.detachRoom(NAME)
+        recovered.destroy()
+        source.destroy()
+      }
+    }
+  )
+
+  it('does not recount retained entries when compaction meets the exact entry budget', async () => {
+    const streamKey = `filedoc:stream:${NAME}`
+    const noop = Buffer.from(updateFor('')).toString('base64')
+    const entries = Array.from({ length: 1_999 }, (_, index) => ({
+      id: `${index + 1}-0`,
+      message: { u: noop },
+    }))
+    state.backing!.streams.set(streamKey, entries)
+    state.backing!.seq = 1_999
+    state.backing!.onRange = (_call, key, start) => {
+      if (key !== streamKey || start !== '(1996-0') return
+      state.backing!.streams.set(streamKey, [
+        ...entries.slice(1_996),
+        {
+          id: '2000-0',
+          message: { u: Buffer.from(updateFor('complete')).toString('base64'), s: '1' },
+        },
+      ])
+      state.backing!.seq = 2_000
+      state.backing!.onRange = undefined
+    }
+    const store = await newStore()
+    const recovered = new Y.Doc()
+    try {
+      Y.applyUpdate(recovered, (await store.getStreamState(NAME))!)
+      expect(recovered.getText('body').toString()).toBe('complete')
+    } finally {
+      recovered.destroy()
+    }
+  })
+
   it('reads the replacement snapshot when peer deltas cross the old replay tail', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const source = new Y.Doc()

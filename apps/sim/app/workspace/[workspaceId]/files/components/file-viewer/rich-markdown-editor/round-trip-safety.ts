@@ -45,10 +45,8 @@ const fidelityLexer = new Marked({ gfm: true })
 const SUPPORTED_IMAGE_ATTRIBUTES = new Set(['src', 'alt', 'title', 'width', 'height'])
 
 /**
- * The image node deliberately models only the attributes it can render and serialize. An HTML image
- * carrying anything else must stay in source mode; comparing only its `src` would declare a stable but
- * lossy conversion safe after the unsupported attribute had already disappeared.
- * Duplicate attributes also stay in source mode rather than choosing between conflicting values.
+ * Unsupported or duplicate HTML image attributes require source mode; a stable serialization
+ * is not lossless if parsing already discarded those attributes.
  */
 function hasUnsupportedHtmlImageAttribute(content: string): boolean {
   const tokenizer = new Tokenizer()

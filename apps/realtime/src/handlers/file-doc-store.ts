@@ -73,12 +73,7 @@ const INVALIDATE_DOCUMENT_SCRIPT =
 const ADOPT_GENERATION_SCRIPT =
   "local generation = redis.call('get', KEYS[2]); if generation then return generation end; if redis.call('xlen', KEYS[1]) == 0 then return false end; redis.call('set', KEYS[2], ARGV[1], 'EX', ARGV[2]); return ARGV[1]"
 
-/**
- * Append an ordinary update only while the live-document generation is valid. A durable replacement
- * that cannot be represented by the rich editor first sets the invalidation tombstone and then removes
- * the stream; keeping the guard and XADD in one script prevents an old room from recreating that stream.
- * Returns the new stream id, or `false` while invalidated.
- */
+/** Atomically fence XADD so stale rooms cannot recreate a replaced or expired stream. Returns false when fenced. */
 const APPEND_UPDATE_SCRIPT =
   "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; if ARGV[3] ~= '' then return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1') else return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]) end"
 
@@ -403,13 +398,8 @@ export class FileDocStore {
   }
 
   /**
-   * PULL the shared state into a registered room: read the stream and apply every entry the doc has
-   * not integrated yet (origin {@link REDIS_ORIGIN}), advancing `lastId` so the tailer resumes exactly
-   * after it. This is the ONLY way a room loads shared state, so a caller that must not depend on the
-   * tailer's asynchronous push — the join, which may not serve a client a half-assembled document —
-   * can converge on demand. Idempotent and safe to call repeatedly; no-op when disabled or the room is
-   * not registered (a fast open→close detached it). Throws without applying partial state when replay
-   * cannot complete, so a join never serves a prefix of the shared document.
+   * Completes shared replay before applying entries, so joins never receive a partial document.
+   * Repeated calls skip integrated entries; detached rooms and disabled stores are ignored.
    */
   async catchUp(name: string): Promise<void> {
     if (!this.enabled) return
@@ -543,10 +533,8 @@ export class FileDocStore {
   }
 
   /**
-   * Append a user update exactly once within the stream's bounded deduplication window and return only
-   * after Redis has accepted it. The client keeps the batch in IndexedDB until this promise succeeds
-   * and its socket acknowledgement arrives, so a relay restart or lost acknowledgement is safe to
-   * retry throughout that window.
+   * Waits for Redis acceptance before the relay acknowledges the client. Retries are deduplicated
+   * within the bounded window; clients retain their journal until the acknowledgement arrives.
    */
   async publishClientUpdateAndWait(
     name: string,
@@ -656,10 +644,8 @@ export class FileDocStore {
   }
 
   /**
-   * Invalidate the current live-document generation after a durable replacement that the rich editor
-   * cannot represent. The invalid generation marker is written before deleting the stream, so stale
-   * room publishers cannot recreate it; the next authoritative seed atomically replaces the marker
-   * with its generation. The same TTL as the stream bounds abandoned markers.
+   * Fences an unsupported durable replacement before deleting its stream. The next authoritative
+   * seed replaces the tombstone; abandoned tombstones expire with the stream TTL.
    */
   async invalidateDocument(name: string, version: number): Promise<boolean> {
     if (!this.enabled) {
@@ -830,12 +816,11 @@ export class FileDocStore {
         }
       }
 
-      /** A moving head means compaction may have removed unread dependencies. Replay its snapshot. */
+      /** Compaction appends its snapshot before trimming; extend the barrier without rereading it. */
       const currentFirstId = (await this.write.xRange(key, '-', '+', { COUNT: 1 }))[0]?.id
       if (!currentFirstId) throw new FileDocInvalidatedError()
       if (currentFirstId === firstId) return entriesRead
       firstId = currentFirstId
-      cursor = '0-0'
       const currentTail = await this.write.xRevRange(key, '+', '-', { COUNT: 1 })
       if (currentTail.length === 0) throw new FileDocInvalidatedError()
       endId = currentTail[0].id
