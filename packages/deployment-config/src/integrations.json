@@ -16180,6 +16180,101 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_queue",
+      "slug": "oci-queue",
+      "name": "OCI Queue",
+      "description": "Manage OCI queues, messages, channels, and work requests",
+      "longDescription": "Connect an OCI API-key service account to manage queues and exchange bounded message batches. Data endpoints are discovered through authenticated GetQueue. Processing uses current receipts for acknowledgement and visibility changes. Receive is one bounded poll; schedule it in a workflow when needed and leave automatic retries disabled for message operations. Queue management returns asynchronous work request IDs. OCI IAM must permit the selected control or message operation and QUEUE_READ for endpoint discovery.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_queue",
+      "operations": [
+        {
+          "name": "List Queues",
+          "description": "List one page of OCI queues with exact-name and lifecycle filters."
+        },
+        {
+          "name": "Get Queue",
+          "description": "Get queue configuration and its discovered message endpoint."
+        },
+        {
+          "name": "Create Queue",
+          "description": "Request queue creation and return its work request. An explicit retry token enables at most two tokenized attempts."
+        },
+        {
+          "name": "Update Queue",
+          "description": "Request queue configuration changes and return the work request."
+        },
+        {
+          "name": "Delete Queue",
+          "description": "Request deletion of a queue and return its work request."
+        },
+        {
+          "name": "Change Queue Compartment",
+          "description": "Move a queue to another compartment and return its work request."
+        },
+        {
+          "name": "Purge Queue",
+          "description": "Purge normal messages, dead-letter messages, or both. Returns asynchronous acceptance."
+        },
+        {
+          "name": "Put Messages",
+          "description": "Publish one batch of 1–20 messages with one OCI client attempt; keep workflow block retries disabled. Preserve the returned order; Oracle does not document positional correlation or atomicity guarantees."
+        },
+        {
+          "name": "Get Messages",
+          "description": "Receive one bounded batch of 1–20 messages. This GET changes visibility and delivery counts. The OCI client makes one receive attempt; keep workflow block retries disabled."
+        },
+        {
+          "name": "Delete Message",
+          "description": "Acknowledge one message using its current receipt, not its message ID."
+        },
+        {
+          "name": "Delete Messages",
+          "description": "Acknowledge 1–20 messages by receipt and return ordered per-entry outcomes and failure counts."
+        },
+        {
+          "name": "Update Message",
+          "description": "Change one received message visibility from now. Zero releases it; the current receipt is required."
+        },
+        {
+          "name": "Update Messages",
+          "description": "Change visibility for 1–20 receipts and return ordered per-entry outcomes, including partial failures."
+        },
+        {
+          "name": "Get Statistics",
+          "description": "Inspect visible, in-flight, and retained-byte counts for the queue and its dead-letter queue."
+        },
+        {
+          "name": "List Channels",
+          "description": "List one approximate page of nonempty channels. This operation does not create or delete channels."
+        },
+        {
+          "name": "List Work Requests",
+          "description": "List one page of Queue work requests by compartment or work request ID."
+        },
+        {
+          "name": "Get Work Request",
+          "description": "Inspect the status and resources of an asynchronous Queue work request."
+        },
+        {
+          "name": "List Work Request Errors",
+          "description": "List one page of errors for a Queue work request."
+        },
+        {
+          "name": "List Work Request Logs",
+          "description": "List one page of logs for a Queue work request."
+        }
+      ],
+      "operationCount": 19,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["automation", "monitoring"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",

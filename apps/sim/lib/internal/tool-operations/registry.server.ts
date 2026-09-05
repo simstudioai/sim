@@ -238,6 +238,28 @@ const POSTGRESQL_TOOL_IDS = [
   'postgresql_introspect',
 ] as const
 
+const OCI_QUEUE_TOOL_IDS = [
+  'oci_queue_change_queue_compartment',
+  'oci_queue_create_queue',
+  'oci_queue_delete_message',
+  'oci_queue_delete_messages',
+  'oci_queue_delete_queue',
+  'oci_queue_get_messages',
+  'oci_queue_get_queue',
+  'oci_queue_get_stats',
+  'oci_queue_get_work_request',
+  'oci_queue_list_channels',
+  'oci_queue_list_queues',
+  'oci_queue_list_work_request_errors',
+  'oci_queue_list_work_request_logs',
+  'oci_queue_list_work_requests',
+  'oci_queue_purge_queue',
+  'oci_queue_put_messages',
+  'oci_queue_update_message',
+  'oci_queue_update_messages',
+  'oci_queue_update_queue',
+] as const
+
 const REDIS_TOOL_IDS = [
   'redis_command',
   'redis_delete',
@@ -1418,6 +1440,9 @@ registerFamily(handlerLoaders, CLOUDTRAIL_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, POSTGRESQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/postgresql/execute-tool')).executePostgresqlTool
+})
+registerFamily(handlerLoaders, OCI_QUEUE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-queue/execute-tool')).executeOciQueueTool
 })
 registerFamily(handlerLoaders, REDIS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/redis/execute-tool')).executeRedisTool
