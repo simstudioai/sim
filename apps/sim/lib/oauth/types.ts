@@ -151,6 +151,7 @@ export type OAuthService =
   | 'github'
   | 'monday'
   | 'zoho-desk'
+  | 'oracle_fusion_financials'
 
 export interface OAuthProviderConfig {
   name: string

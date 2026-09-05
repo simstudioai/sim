@@ -978,6 +978,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracle_fusion_financials: {
+    name: 'Oracle Fusion Cloud Financials',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_financials: {
+        name: 'Oracle Fusion Cloud Financials',
+        description:
+          'Read Payables invoices, lines, distributions, installments, prepayments, holds, payments, payment runs, and terms.',
+        providerId: 'oracle_fusion_financials',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_financials',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
