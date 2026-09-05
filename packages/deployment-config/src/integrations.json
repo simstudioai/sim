@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,105 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_profitability",
+      "slug": "oracle-epm-profitability-and-cost-management-pcm",
+      "name": "Oracle EPM Profitability and Cost Management (PCM)",
+      "description": "Calculate allocations and manage PCM data, POVs, reports, and tasks",
+      "longDescription": "Automate Cloud PCM Management Ledger applications using the epm/rest/v1 API family. This is distinct from Enterprise Profitability and Cost Management (EPCM). Use a provisioned PCM environment under an eligible EPM Enterprise or legacy PCM subscription. Most operations require Service Administrator or Power User; creating an application requires Service Administrator. Report and query-export submissions accept all application roles, but task polling requires Service Administrator or Power User. File operations and file selectors require Service Administrator or an application role with Migrations - Administer. Upload inputs to profitinbox and download reports from profitoutbox. Downloads require repository paths of at most 255 UTF-8 bytes; use short output filenames. Submission and waiting are separate; retain processName and inspect the Job Library after ambiguous failures. Application, POV, model view, rule, and query names are manual inputs. Template export and undocumented nested rule-balancing fields are not exposed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_profitability",
+      "operations": [
+        {
+          "name": "Create Application",
+          "description": "Create a PCM file-based application with rule and balance dimensions. Requires Service Administrator. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Enable Application",
+          "description": "Enable a PCM file-based application after loading its dimensions. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Deploy Cube",
+          "description": "Deploy or redeploy the PCM calculation cube immediately. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Update Dimensions",
+          "description": "Update PCM dimensions from metadata files already staged in profitinbox. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Load Data",
+          "description": "Load Essbase input data from a file in profitinbox. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Run Calculation",
+          "description": "Run PCM allocations using all rules, a rule-set range, or one rule. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Copy POV",
+          "description": "Copy PCM rules and input data to a destination POV. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Clear POV",
+          "description": "Clear selected PCM POV rules or data, optionally limiting input data by an existing query. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Get Rule Balancing",
+          "description": "Read documented scalar rule-balancing results for a PCM POV and model view; nested rules are not exposed. Requires Service Administrator or Power User."
+        },
+        {
+          "name": "Generate Program Documentation",
+          "description": "Submit a PCM program documentation report to profitoutbox. Available to all application roles; status polling requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Export Query Results",
+          "description": "Export an existing PCM query or application data to profitoutbox. Available to all application roles; status polling requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Import Template",
+          "description": "Import a PCM application template ZIP already staged in profitinbox. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Apply Data Grants",
+          "description": "Recreate Essbase data grants from the latest PCM application grants. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Merge Slices",
+          "description": "Merge PCM incremental data slices into the main database slice. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Optimize Cube",
+          "description": "Control query tracking or create and clear aggregate views for a PCM ASO cube. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure."
+        },
+        {
+          "name": "Get Task Status",
+          "description": "Read PCM task status using its processName. Requires Service Administrator or Power User."
+        },
+        {
+          "name": "Wait for Task",
+          "description": "Wait within a bounded deadline for a PCM task; retain processName to resume after timeout. Requires Service Administrator or Power User."
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload one authorized Sim file to profitinbox, up to 100 MiB. Existing names are rejected. Requires Service Administrator or an application role with Migrations - Administer."
+        },
+        {
+          "name": "List Files",
+          "description": "List ordinary files in profitinbox and profitoutbox, excluding LCM snapshots. Requires Service Administrator or an application role with Migrations - Administer."
+        },
+        {
+          "name": "Download File",
+          "description": "Download one listed PCM repository file as a Sim UserFile, up to 100 MiB. Requires Service Administrator or an application role with Migrations - Administer."
+        }
+      ],
+      "operationCount": 20,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "automation"]
     },
     {
       "type": "netsuite",

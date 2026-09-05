@@ -188,6 +188,8 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracleEpmPcm.inputFiles': providerSelector([], { detail: true }),
+  'oracleEpmPcm.outputFiles': providerSelector([], { detail: true }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
