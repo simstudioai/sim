@@ -17,7 +17,7 @@ export interface RiskOperationDefinition {
 
 /** Browser-safe action metadata; provider execution and validation remain server-only. */
 export const RISK_OPERATIONS = {
-  'oracle_fusion_risk_management_create_advanced_control_comment': {
+  oracle_fusion_risk_management_create_advanced_control_comment: {
     resource: 'advanced_control_comment',
     kind: 'create',
     label: 'Create Advanced Control Comment',
@@ -25,7 +25,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with UserComment: string (required) (maximum 2000 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_assignment_group': {
+  oracle_fusion_risk_management_create_assignment_group: {
     resource: 'assignment_group',
     kind: 'create',
     label: 'Create Assignment Group',
@@ -33,7 +33,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with Name: string (required) (maximum 200 characters); RoleType: string (required) (maximum 100 characters); SecurableType: string (required) (maximum 100 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_control': {
+  oracle_fusion_risk_management_create_control: {
     resource: 'control',
     kind: 'create',
     label: 'Create Control',
@@ -41,7 +41,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with AssessmentFlag: string or null (maximum 1 characters); AuditTestingFlag: string or null (maximum 1 characters); ControlCost: number or null; ControlFrequency: string or null (maximum 30 characters); ControlMethod: string (maximum 40 characters); ControlType: string or null (maximum 30 characters); DetailedDescription: string or null (byte); EnforcementType: string or null (maximum 50 characters); Name: string (required) (maximum 150 characters); Status: string [ACTIVE, INACTIVE] (maximum 30 characters); perspectives: array [{ControlId, PerspItemId}] (maximum 100 entries). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_control_assertion': {
+  oracle_fusion_risk_management_create_control_assertion: {
     resource: 'control_assertion',
     kind: 'create',
     label: 'Create Control Assertion',
@@ -49,7 +49,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with AssertionCode: string (required) (maximum 30 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_control_comment': {
+  oracle_fusion_risk_management_create_control_comment: {
     resource: 'control_comment',
     kind: 'create',
     label: 'Create Control Comment',
@@ -57,7 +57,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with UserComment: string (required) (maximum 2000 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_group_member': {
+  oracle_fusion_risk_management_create_group_member: {
     resource: 'group_member',
     kind: 'create',
     label: 'Create Group Member',
@@ -65,7 +65,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with UserId: string (required) (maximum 100 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged. Parent business identifiers are resolved from the selected resource and bound automatically.',
   },
-  'oracle_fusion_risk_management_create_group_security_assignment': {
+  oracle_fusion_risk_management_create_group_security_assignment: {
     resource: 'group_security_assignment',
     kind: 'create',
     label: 'Create Group Security Assignment',
@@ -73,7 +73,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with AccessorId: string (required) (maximum 100 characters); AccessorType: string (required) [USER, GROUP] (maximum 20 characters); IsEditor: integer or null; IsOwner: integer or null; IsViewer: integer or null. Unsupported fields are rejected. Omitted optional fields remain unchanged. Parent business identifiers are resolved from the selected resource and bound automatically.',
   },
-  'oracle_fusion_risk_management_create_incident_comment': {
+  oracle_fusion_risk_management_create_incident_comment: {
     resource: 'incident_comment',
     kind: 'create',
     label: 'Create Incident Comment',
@@ -81,7 +81,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with Delegated: string or null; UserComment: string (required) (maximum 2000 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_process': {
+  oracle_fusion_risk_management_create_process: {
     resource: 'process',
     kind: 'create',
     label: 'Create Process',
@@ -89,7 +89,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with AssessmentFlag: boolean; AuditTestingFlag: boolean; DetailedDescription: string or null (byte); Name: string (required) (maximum 150 characters); Status: string [ACTIVE, INACTIVE] (maximum 30 characters); Type: string or null (maximum 30 characters); perspectives: array [{PerspItemId, ProcessId}] (maximum 100 entries). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_process_comment': {
+  oracle_fusion_risk_management_create_process_comment: {
     resource: 'process_comment',
     kind: 'create',
     label: 'Create Process Comment',
@@ -97,7 +97,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with UserComment: string (required) (maximum 2000 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_process_risk': {
+  oracle_fusion_risk_management_create_process_risk: {
     resource: 'process_risk',
     kind: 'create',
     label: 'Create Process Risk',
@@ -105,7 +105,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with RiskId: decimal ID string (required). Unsupported fields are rejected. Omitted optional fields remain unchanged. Parent business identifiers are resolved from the selected resource and bound automatically.',
   },
-  'oracle_fusion_risk_management_create_risk': {
+  oracle_fusion_risk_management_create_risk: {
     resource: 'risk',
     kind: 'create',
     label: 'Create Risk',
@@ -113,7 +113,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with DetailedDescription: string or null (byte); Name: string (required) (maximum 150 characters); RiskAnalysisModelId: decimal ID string or null; RiskContextModelId: decimal ID string or null; Status: string [ACTIVE, INACTIVE] (maximum 30 characters); Type: string or null (maximum 30 characters); perspectives: array [{PerspItemId, RiskId}] (maximum 100 entries); relatedControls: array [{ChildId, ParentId}] (maximum 100 entries); relatedProcesses: array [{ProcessId, RiskId}] (maximum 100 entries). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_risk_comment': {
+  oracle_fusion_risk_management_create_risk_comment: {
     resource: 'risk_comment',
     kind: 'create',
     label: 'Create Risk Comment',
@@ -121,7 +121,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with UserComment: string (required) (maximum 2000 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_create_test_plan_activity': {
+  oracle_fusion_risk_management_create_test_plan_activity: {
     resource: 'test_plan_activity',
     kind: 'create',
     label: 'Create Test Plan Activity',
@@ -129,7 +129,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with ActivityCode: string (required) (maximum 30 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged. Parent business identifiers are resolved from the selected resource and bound automatically.',
   },
-  'oracle_fusion_risk_management_create_test_plan_step': {
+  oracle_fusion_risk_management_create_test_plan_step: {
     resource: 'test_plan_step',
     kind: 'create',
     label: 'Create Test Plan Step',
@@ -137,529 +137,529 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with DetailedDescription: string or null (byte); StepOrder: integer (required). Unsupported fields are rejected. Omitted optional fields remain unchanged. Parent business identifiers are resolved from the selected resource and bound automatically.',
   },
-  'oracle_fusion_risk_management_delete_assignment_group': {
+  oracle_fusion_risk_management_delete_assignment_group: {
     resource: 'assignment_group',
     kind: 'delete',
     label: 'Delete Assignment Group',
     params: ['groupKey'],
   },
-  'oracle_fusion_risk_management_delete_control_assertion': {
+  oracle_fusion_risk_management_delete_control_assertion: {
     resource: 'control_assertion',
     kind: 'delete',
     label: 'Delete Control Assertion',
     params: ['controlId', 'assertionKey'],
   },
-  'oracle_fusion_risk_management_delete_control_test_plan': {
+  oracle_fusion_risk_management_delete_control_test_plan: {
     resource: 'control_test_plan',
     kind: 'delete',
     label: 'Delete Control Test Plan',
     params: ['controlId', 'testPlanId'],
   },
-  'oracle_fusion_risk_management_delete_group_member': {
+  oracle_fusion_risk_management_delete_group_member: {
     resource: 'group_member',
     kind: 'delete',
     label: 'Delete Group Member',
     params: ['groupKey', 'memberId'],
   },
-  'oracle_fusion_risk_management_delete_group_security_assignment': {
+  oracle_fusion_risk_management_delete_group_security_assignment: {
     resource: 'group_security_assignment',
     kind: 'delete',
     label: 'Delete Group Security Assignment',
     params: ['groupKey', 'securityAssignmentId'],
   },
-  'oracle_fusion_risk_management_delete_process_risk': {
+  oracle_fusion_risk_management_delete_process_risk: {
     resource: 'process_risk',
     kind: 'delete',
     label: 'Delete Process Risk',
     params: ['processId', 'relationshipKey'],
   },
-  'oracle_fusion_risk_management_delete_test_plan_step': {
+  oracle_fusion_risk_management_delete_test_plan_step: {
     resource: 'test_plan_step',
     kind: 'delete',
     label: 'Delete Test Plan Step',
     params: ['controlId', 'testPlanId', 'stepId'],
   },
-  'oracle_fusion_risk_management_get_access_simulation_status': {
+  oracle_fusion_risk_management_get_access_simulation_status: {
     resource: 'simulation_result',
     kind: 'action',
     label: 'Get Access Simulation Status',
     params: ['requestId'],
   },
-  'oracle_fusion_risk_management_get_advanced_control': {
+  oracle_fusion_risk_management_get_advanced_control: {
     resource: 'advanced_control',
     kind: 'get',
     label: 'Get Advanced Control',
     params: ['advancedControlId'],
   },
-  'oracle_fusion_risk_management_get_advanced_control_comment': {
+  oracle_fusion_risk_management_get_advanced_control_comment: {
     resource: 'advanced_control_comment',
     kind: 'get',
     label: 'Get Advanced Control Comment',
     params: ['advancedControlId', 'commentKey'],
   },
-  'oracle_fusion_risk_management_get_advanced_control_job': {
+  oracle_fusion_risk_management_get_advanced_control_job: {
     resource: 'advanced_control_job',
     kind: 'get',
     label: 'Get Advanced Control Job',
     params: ['jobId'],
   },
-  'oracle_fusion_risk_management_get_advanced_control_perspective': {
+  oracle_fusion_risk_management_get_advanced_control_perspective: {
     resource: 'advanced_control_perspective',
     kind: 'get',
     label: 'Get Advanced Control Perspective',
     params: ['advancedControlId', 'perspectiveKey'],
   },
-  'oracle_fusion_risk_management_get_assignment_group': {
+  oracle_fusion_risk_management_get_assignment_group: {
     resource: 'assignment_group',
     kind: 'get',
     label: 'Get Assignment Group',
     params: ['groupKey'],
   },
-  'oracle_fusion_risk_management_get_control': {
+  oracle_fusion_risk_management_get_control: {
     resource: 'control',
     kind: 'get',
     label: 'Get Control',
     params: ['controlId'],
   },
-  'oracle_fusion_risk_management_get_control_assertion': {
+  oracle_fusion_risk_management_get_control_assertion: {
     resource: 'control_assertion',
     kind: 'get',
     label: 'Get Control Assertion',
     params: ['controlId', 'assertionKey'],
   },
-  'oracle_fusion_risk_management_get_control_assessment_result': {
+  oracle_fusion_risk_management_get_control_assessment_result: {
     resource: 'control_assessment_result',
     kind: 'get',
     label: 'Get Control Assessment Result',
     params: ['controlAssessmentResultId'],
   },
-  'oracle_fusion_risk_management_get_control_comment': {
+  oracle_fusion_risk_management_get_control_comment: {
     resource: 'control_comment',
     kind: 'get',
     label: 'Get Control Comment',
     params: ['controlId', 'commentId'],
   },
-  'oracle_fusion_risk_management_get_control_perspective': {
+  oracle_fusion_risk_management_get_control_perspective: {
     resource: 'control_perspective',
     kind: 'get',
     label: 'Get Control Perspective',
     params: ['controlId', 'perspectiveKey'],
   },
-  'oracle_fusion_risk_management_get_control_risk': {
+  oracle_fusion_risk_management_get_control_risk: {
     resource: 'control_risk',
     kind: 'get',
     label: 'Get Control Risk',
     params: ['controlId', 'relationshipKey'],
   },
-  'oracle_fusion_risk_management_get_control_test_plan': {
+  oracle_fusion_risk_management_get_control_test_plan: {
     resource: 'control_test_plan',
     kind: 'get',
     label: 'Get Control Test Plan',
     params: ['controlId', 'testPlanId'],
   },
-  'oracle_fusion_risk_management_get_group_eligible_user': {
+  oracle_fusion_risk_management_get_group_eligible_user: {
     resource: 'group_eligible_user',
     kind: 'get',
     label: 'Get Group Eligible User',
     params: ['groupKey', 'userKey'],
   },
-  'oracle_fusion_risk_management_get_group_member': {
+  oracle_fusion_risk_management_get_group_member: {
     resource: 'group_member',
     kind: 'get',
     label: 'Get Group Member',
     params: ['groupKey', 'memberId'],
   },
-  'oracle_fusion_risk_management_get_group_security_assignment': {
+  oracle_fusion_risk_management_get_group_security_assignment: {
     resource: 'group_security_assignment',
     kind: 'get',
     label: 'Get Group Security Assignment',
     params: ['groupKey', 'securityAssignmentId'],
   },
-  'oracle_fusion_risk_management_get_incident': {
+  oracle_fusion_risk_management_get_incident: {
     resource: 'incident',
     kind: 'get',
     label: 'Get Incident',
     params: ['advancedControlId', 'incidentKey'],
   },
-  'oracle_fusion_risk_management_get_incident_attribute': {
+  oracle_fusion_risk_management_get_incident_attribute: {
     resource: 'incident_attribute',
     kind: 'get',
     label: 'Get Incident Attribute',
     params: ['advancedControlId', 'incidentKey', 'attributeKey'],
   },
-  'oracle_fusion_risk_management_get_incident_comment': {
+  oracle_fusion_risk_management_get_incident_comment: {
     resource: 'incident_comment',
     kind: 'get',
     label: 'Get Incident Comment',
     params: ['advancedControlId', 'incidentKey', 'commentKey'],
   },
-  'oracle_fusion_risk_management_get_incident_perspective': {
+  oracle_fusion_risk_management_get_incident_perspective: {
     resource: 'incident_perspective',
     kind: 'get',
     label: 'Get Incident Perspective',
     params: ['advancedControlId', 'incidentKey', 'treeId'],
   },
-  'oracle_fusion_risk_management_get_issue': {
+  oracle_fusion_risk_management_get_issue: {
     resource: 'issue',
     kind: 'get',
     label: 'Get Issue',
     params: ['issueId'],
   },
-  'oracle_fusion_risk_management_get_open_incident': {
+  oracle_fusion_risk_management_get_open_incident: {
     resource: 'open_incident',
     kind: 'get',
     label: 'Get Open Incident',
     params: ['openIncidentKey'],
   },
-  'oracle_fusion_risk_management_get_process': {
+  oracle_fusion_risk_management_get_process: {
     resource: 'process',
     kind: 'get',
     label: 'Get Process',
     params: ['processId'],
   },
-  'oracle_fusion_risk_management_get_process_action_item': {
+  oracle_fusion_risk_management_get_process_action_item: {
     resource: 'process_action_item',
     kind: 'get',
     label: 'Get Process Action Item',
     params: ['processId', 'actionItemId'],
   },
-  'oracle_fusion_risk_management_get_process_assessment_result': {
+  oracle_fusion_risk_management_get_process_assessment_result: {
     resource: 'process_assessment_result',
     kind: 'get',
     label: 'Get Process Assessment Result',
     params: ['processAssessmentResultId'],
   },
-  'oracle_fusion_risk_management_get_process_comment': {
+  oracle_fusion_risk_management_get_process_comment: {
     resource: 'process_comment',
     kind: 'get',
     label: 'Get Process Comment',
     params: ['processId', 'commentId'],
   },
-  'oracle_fusion_risk_management_get_process_perspective': {
+  oracle_fusion_risk_management_get_process_perspective: {
     resource: 'process_perspective',
     kind: 'get',
     label: 'Get Process Perspective',
     params: ['processId', 'perspectiveKey'],
   },
-  'oracle_fusion_risk_management_get_process_risk': {
+  oracle_fusion_risk_management_get_process_risk: {
     resource: 'process_risk',
     kind: 'get',
     label: 'Get Process Risk',
     params: ['processId', 'relationshipKey'],
   },
-  'oracle_fusion_risk_management_get_risk': {
+  oracle_fusion_risk_management_get_risk: {
     resource: 'risk',
     kind: 'get',
     label: 'Get Risk',
     params: ['riskId'],
   },
-  'oracle_fusion_risk_management_get_risk_assessment_result': {
+  oracle_fusion_risk_management_get_risk_assessment_result: {
     resource: 'risk_assessment_result',
     kind: 'get',
     label: 'Get Risk Assessment Result',
     params: ['riskAssessmentResultId'],
   },
-  'oracle_fusion_risk_management_get_risk_comment': {
+  oracle_fusion_risk_management_get_risk_comment: {
     resource: 'risk_comment',
     kind: 'get',
     label: 'Get Risk Comment',
     params: ['riskId', 'commentId'],
   },
-  'oracle_fusion_risk_management_get_risk_control': {
+  oracle_fusion_risk_management_get_risk_control: {
     resource: 'risk_control',
     kind: 'get',
     label: 'Get Risk Control',
     params: ['riskId', 'relationshipKey'],
   },
-  'oracle_fusion_risk_management_get_risk_perspective': {
+  oracle_fusion_risk_management_get_risk_perspective: {
     resource: 'risk_perspective',
     kind: 'get',
     label: 'Get Risk Perspective',
     params: ['riskId', 'perspectiveKey'],
   },
-  'oracle_fusion_risk_management_get_risk_process': {
+  oracle_fusion_risk_management_get_risk_process: {
     resource: 'risk_process',
     kind: 'get',
     label: 'Get Risk Process',
     params: ['riskId', 'relationshipKey'],
   },
-  'oracle_fusion_risk_management_get_securable_eligible_user': {
+  oracle_fusion_risk_management_get_securable_eligible_user: {
     resource: 'securable_eligible_user',
     kind: 'get',
     label: 'Get Securable Eligible User',
     params: ['securableTypeKey', 'userKey'],
   },
-  'oracle_fusion_risk_management_get_securable_role_type': {
+  oracle_fusion_risk_management_get_securable_role_type: {
     resource: 'securable_role_type',
     kind: 'get',
     label: 'Get Securable Role Type',
     params: ['securableTypeKey', 'roleTypeKey'],
   },
-  'oracle_fusion_risk_management_get_securable_type': {
+  oracle_fusion_risk_management_get_securable_type: {
     resource: 'securable_type',
     kind: 'get',
     label: 'Get Securable Type',
     params: ['securableTypeKey'],
   },
-  'oracle_fusion_risk_management_get_simulation_result': {
+  oracle_fusion_risk_management_get_simulation_result: {
     resource: 'simulation_result',
     kind: 'get',
     label: 'Get Simulation Result',
     params: ['simulationResultKey'],
   },
-  'oracle_fusion_risk_management_get_test_plan_activity': {
+  oracle_fusion_risk_management_get_test_plan_activity: {
     resource: 'test_plan_activity',
     kind: 'get',
     label: 'Get Test Plan Activity',
     params: ['controlId', 'testPlanId', 'activityKey'],
   },
-  'oracle_fusion_risk_management_get_test_plan_step': {
+  oracle_fusion_risk_management_get_test_plan_step: {
     resource: 'test_plan_step',
     kind: 'get',
     label: 'Get Test Plan Step',
     params: ['controlId', 'testPlanId', 'stepId'],
   },
-  'oracle_fusion_risk_management_list_advanced_control_comments': {
+  oracle_fusion_risk_management_list_advanced_control_comments: {
     resource: 'advanced_control_comment',
     kind: 'list',
     label: 'List Advanced Control Comments',
     params: ['advancedControlId'],
   },
-  'oracle_fusion_risk_management_list_advanced_control_jobs': {
+  oracle_fusion_risk_management_list_advanced_control_jobs: {
     resource: 'advanced_control_job',
     kind: 'list',
     label: 'List Advanced Control Jobs',
     params: [],
   },
-  'oracle_fusion_risk_management_list_advanced_control_perspectives': {
+  oracle_fusion_risk_management_list_advanced_control_perspectives: {
     resource: 'advanced_control_perspective',
     kind: 'list',
     label: 'List Advanced Control Perspectives',
     params: ['advancedControlId'],
   },
-  'oracle_fusion_risk_management_list_advanced_controls': {
+  oracle_fusion_risk_management_list_advanced_controls: {
     resource: 'advanced_control',
     kind: 'list',
     label: 'List Advanced Controls',
     params: [],
   },
-  'oracle_fusion_risk_management_list_assignment_groups': {
+  oracle_fusion_risk_management_list_assignment_groups: {
     resource: 'assignment_group',
     kind: 'list',
     label: 'List Assignment Groups',
     params: [],
   },
-  'oracle_fusion_risk_management_list_control_assertions': {
+  oracle_fusion_risk_management_list_control_assertions: {
     resource: 'control_assertion',
     kind: 'list',
     label: 'List Control Assertions',
     params: ['controlId'],
   },
-  'oracle_fusion_risk_management_list_control_assessment_results': {
+  oracle_fusion_risk_management_list_control_assessment_results: {
     resource: 'control_assessment_result',
     kind: 'list',
     label: 'List Control Assessment Results',
     params: [],
   },
-  'oracle_fusion_risk_management_list_control_comments': {
+  oracle_fusion_risk_management_list_control_comments: {
     resource: 'control_comment',
     kind: 'list',
     label: 'List Control Comments',
     params: ['controlId'],
   },
-  'oracle_fusion_risk_management_list_control_perspectives': {
+  oracle_fusion_risk_management_list_control_perspectives: {
     resource: 'control_perspective',
     kind: 'list',
     label: 'List Control Perspectives',
     params: ['controlId'],
   },
-  'oracle_fusion_risk_management_list_control_risks': {
+  oracle_fusion_risk_management_list_control_risks: {
     resource: 'control_risk',
     kind: 'list',
     label: 'List Control Risks',
     params: ['controlId'],
   },
-  'oracle_fusion_risk_management_list_control_test_plans': {
+  oracle_fusion_risk_management_list_control_test_plans: {
     resource: 'control_test_plan',
     kind: 'list',
     label: 'List Control Test Plans',
     params: ['controlId'],
   },
-  'oracle_fusion_risk_management_list_controls': {
+  oracle_fusion_risk_management_list_controls: {
     resource: 'control',
     kind: 'list',
     label: 'List Controls',
     params: [],
   },
-  'oracle_fusion_risk_management_list_group_eligible_users': {
+  oracle_fusion_risk_management_list_group_eligible_users: {
     resource: 'group_eligible_user',
     kind: 'list',
     label: 'List Group Eligible Users',
     params: ['groupKey'],
   },
-  'oracle_fusion_risk_management_list_group_members': {
+  oracle_fusion_risk_management_list_group_members: {
     resource: 'group_member',
     kind: 'list',
     label: 'List Group Members',
     params: ['groupKey'],
   },
-  'oracle_fusion_risk_management_list_group_security_assignments': {
+  oracle_fusion_risk_management_list_group_security_assignments: {
     resource: 'group_security_assignment',
     kind: 'list',
     label: 'List Group Security Assignments',
     params: ['groupKey'],
   },
-  'oracle_fusion_risk_management_list_incident_attributes': {
+  oracle_fusion_risk_management_list_incident_attributes: {
     resource: 'incident_attribute',
     kind: 'list',
     label: 'List Incident Attributes',
     params: ['advancedControlId', 'incidentKey'],
   },
-  'oracle_fusion_risk_management_list_incident_comments': {
+  oracle_fusion_risk_management_list_incident_comments: {
     resource: 'incident_comment',
     kind: 'list',
     label: 'List Incident Comments',
     params: ['advancedControlId', 'incidentKey'],
   },
-  'oracle_fusion_risk_management_list_incident_perspectives': {
+  oracle_fusion_risk_management_list_incident_perspectives: {
     resource: 'incident_perspective',
     kind: 'list',
     label: 'List Incident Perspectives',
     params: ['advancedControlId', 'incidentKey'],
   },
-  'oracle_fusion_risk_management_list_incidents': {
+  oracle_fusion_risk_management_list_incidents: {
     resource: 'incident',
     kind: 'list',
     label: 'List Incidents',
     params: ['advancedControlId'],
   },
-  'oracle_fusion_risk_management_list_issues': {
+  oracle_fusion_risk_management_list_issues: {
     resource: 'issue',
     kind: 'list',
     label: 'List Issues',
     params: [],
   },
-  'oracle_fusion_risk_management_list_open_incidents': {
+  oracle_fusion_risk_management_list_open_incidents: {
     resource: 'open_incident',
     kind: 'list',
     label: 'List Open Incidents',
     params: [],
   },
-  'oracle_fusion_risk_management_list_process_action_items': {
+  oracle_fusion_risk_management_list_process_action_items: {
     resource: 'process_action_item',
     kind: 'list',
     label: 'List Process Action Items',
     params: ['processId'],
   },
-  'oracle_fusion_risk_management_list_process_assessment_results': {
+  oracle_fusion_risk_management_list_process_assessment_results: {
     resource: 'process_assessment_result',
     kind: 'list',
     label: 'List Process Assessment Results',
     params: [],
   },
-  'oracle_fusion_risk_management_list_process_comments': {
+  oracle_fusion_risk_management_list_process_comments: {
     resource: 'process_comment',
     kind: 'list',
     label: 'List Process Comments',
     params: ['processId'],
   },
-  'oracle_fusion_risk_management_list_process_perspectives': {
+  oracle_fusion_risk_management_list_process_perspectives: {
     resource: 'process_perspective',
     kind: 'list',
     label: 'List Process Perspectives',
     params: ['processId'],
   },
-  'oracle_fusion_risk_management_list_process_risks': {
+  oracle_fusion_risk_management_list_process_risks: {
     resource: 'process_risk',
     kind: 'list',
     label: 'List Process Risks',
     params: ['processId'],
   },
-  'oracle_fusion_risk_management_list_processes': {
+  oracle_fusion_risk_management_list_processes: {
     resource: 'process',
     kind: 'list',
     label: 'List Processes',
     params: [],
   },
-  'oracle_fusion_risk_management_list_risk_assessment_results': {
+  oracle_fusion_risk_management_list_risk_assessment_results: {
     resource: 'risk_assessment_result',
     kind: 'list',
     label: 'List Risk Assessment Results',
     params: [],
   },
-  'oracle_fusion_risk_management_list_risk_comments': {
+  oracle_fusion_risk_management_list_risk_comments: {
     resource: 'risk_comment',
     kind: 'list',
     label: 'List Risk Comments',
     params: ['riskId'],
   },
-  'oracle_fusion_risk_management_list_risk_controls': {
+  oracle_fusion_risk_management_list_risk_controls: {
     resource: 'risk_control',
     kind: 'list',
     label: 'List Risk Controls',
     params: ['riskId'],
   },
-  'oracle_fusion_risk_management_list_risk_perspectives': {
+  oracle_fusion_risk_management_list_risk_perspectives: {
     resource: 'risk_perspective',
     kind: 'list',
     label: 'List Risk Perspectives',
     params: ['riskId'],
   },
-  'oracle_fusion_risk_management_list_risk_processes': {
+  oracle_fusion_risk_management_list_risk_processes: {
     resource: 'risk_process',
     kind: 'list',
     label: 'List Risk Processes',
     params: ['riskId'],
   },
-  'oracle_fusion_risk_management_list_risks': {
+  oracle_fusion_risk_management_list_risks: {
     resource: 'risk',
     kind: 'list',
     label: 'List Risks',
     params: [],
   },
-  'oracle_fusion_risk_management_list_securable_eligible_users': {
+  oracle_fusion_risk_management_list_securable_eligible_users: {
     resource: 'securable_eligible_user',
     kind: 'list',
     label: 'List Securable Eligible Users',
     params: ['securableTypeKey'],
   },
-  'oracle_fusion_risk_management_list_securable_role_types': {
+  oracle_fusion_risk_management_list_securable_role_types: {
     resource: 'securable_role_type',
     kind: 'list',
     label: 'List Securable Role Types',
     params: ['securableTypeKey'],
   },
-  'oracle_fusion_risk_management_list_securable_types': {
+  oracle_fusion_risk_management_list_securable_types: {
     resource: 'securable_type',
     kind: 'list',
     label: 'List Securable Types',
     params: [],
   },
-  'oracle_fusion_risk_management_list_simulation_results': {
+  oracle_fusion_risk_management_list_simulation_results: {
     resource: 'simulation_result',
     kind: 'list',
     label: 'List Simulation Results',
     params: ['requestId'],
   },
-  'oracle_fusion_risk_management_list_test_plan_activities': {
+  oracle_fusion_risk_management_list_test_plan_activities: {
     resource: 'test_plan_activity',
     kind: 'list',
     label: 'List Test Plan Activities',
     params: ['controlId', 'testPlanId'],
   },
-  'oracle_fusion_risk_management_list_test_plan_steps': {
+  oracle_fusion_risk_management_list_test_plan_steps: {
     resource: 'test_plan_step',
     kind: 'list',
     label: 'List Test Plan Steps',
     params: ['controlId', 'testPlanId'],
   },
-  'oracle_fusion_risk_management_run_access_simulation': {
+  oracle_fusion_risk_management_run_access_simulation: {
     resource: 'simulation_result',
     kind: 'action',
     label: 'Run Access Simulation',
     params: ['userName', 'provisioningInfo'],
   },
-  'oracle_fusion_risk_management_update_advanced_control': {
+  oracle_fusion_risk_management_update_advanced_control: {
     resource: 'advanced_control',
     kind: 'update',
     label: 'Update Advanced Control',
@@ -667,7 +667,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with Description: string or null (maximum 2000 characters); Name: string (maximum 256 characters); Status: string or null (maximum 30 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_assignment_group': {
+  oracle_fusion_risk_management_update_assignment_group: {
     resource: 'assignment_group',
     kind: 'update',
     label: 'Update Assignment Group',
@@ -675,7 +675,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with Name: string (maximum 200 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_control': {
+  oracle_fusion_risk_management_update_control: {
     resource: 'control',
     kind: 'update',
     label: 'Update Control',
@@ -683,7 +683,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with AssessmentFlag: string or null (maximum 1 characters); AuditTestingFlag: string or null (maximum 1 characters); ControlCost: number or null; ControlFrequency: string or null (maximum 30 characters); ControlMethod: string (maximum 40 characters); ControlType: string or null (maximum 30 characters); DetailedDescription: string or null (byte); EnforcementType: string or null (maximum 50 characters); Name: string (maximum 150 characters); Status: string [ACTIVE, INACTIVE] (maximum 30 characters); perspectives: array [{ControlId, PerspItemId}] (maximum 100 entries). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_control_assertion': {
+  oracle_fusion_risk_management_update_control_assertion: {
     resource: 'control_assertion',
     kind: 'update',
     label: 'Update Control Assertion',
@@ -691,7 +691,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with AssertionCode: string (required) (maximum 30 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_control_assessment_result': {
+  oracle_fusion_risk_management_update_control_assessment_result: {
     resource: 'control_assessment_result',
     kind: 'update',
     label: 'Update Control Assessment Result',
@@ -699,7 +699,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with ObjectVersionNumber: integer; ResponseCode: string or null [PASS, PASS_WITH_EXCEPTION, FAIL, NO_OPINION] (maximum 30 characters); ResultSummary: string or null (byte). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_control_test_plan': {
+  oracle_fusion_risk_management_update_control_test_plan: {
     resource: 'control_test_plan',
     kind: 'update',
     label: 'Update Control Test Plan',
@@ -707,7 +707,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with DetailedDescription: string or null (byte); Name: string (maximum 150 characters); SampleSize: integer or null; TestPlanFrequency: string or null (maximum 30 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_group_security_assignment': {
+  oracle_fusion_risk_management_update_group_security_assignment: {
     resource: 'group_security_assignment',
     kind: 'update',
     label: 'Update Group Security Assignment',
@@ -715,7 +715,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with IsEditor: integer or null; IsOwner: integer or null; IsViewer: integer or null. Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_incident': {
+  oracle_fusion_risk_management_update_incident: {
     resource: 'incident',
     kind: 'update',
     label: 'Update Incident',
@@ -723,7 +723,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with ResultInvestigator: string or null (maximum 255 characters); Status: string or null [Assigned, Accepted, Remediate, Resolved] (maximum 30 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_issue': {
+  oracle_fusion_risk_management_update_issue: {
     resource: 'issue',
     kind: 'update',
     label: 'Update Issue',
@@ -731,7 +731,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with DetailedDescription: string or null (byte); LikelihoodCode: string or null [HIGH, LOW, MEDIUM] (maximum 30 characters); Name: string (maximum 150 characters); ReasonCode: string or null (maximum 30 characters); RemedDate: string or null (date); RemediationFlag: boolean; Severity: string [DEFICIENCY, DOCUMENTATION_ONLY, MINOR_GAP, SIGNIFICANT_DEFICIENCY] (maximum 30 characters); Type: string or null (maximum 30 characters). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_process': {
+  oracle_fusion_risk_management_update_process: {
     resource: 'process',
     kind: 'update',
     label: 'Update Process',
@@ -739,7 +739,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with AssessmentFlag: boolean; AuditTestingFlag: boolean; DetailedDescription: string or null (byte); Name: string (maximum 150 characters); Status: string [ACTIVE, INACTIVE] (maximum 30 characters); Type: string or null (maximum 30 characters); perspectives: array [{PerspItemId, ProcessId}] (maximum 100 entries); actionItems: array [{ActionId, CompletedDate, DetailedDescription, DueDate, EstimatedCompletionDate, Name, PriorityCode, ProcessId, ProgressCode}] (maximum 100 entries). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_process_assessment_result': {
+  oracle_fusion_risk_management_update_process_assessment_result: {
     resource: 'process_assessment_result',
     kind: 'update',
     label: 'Update Process Assessment Result',
@@ -747,7 +747,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with ObjectVersionNumber: integer; ResponseCode: string or null [COMPLETED, AGREE, AGREE_WITH_EXCEPTION, DO_NOT_AGREE,  PASS_WITH_EXCEPTION, FAIL, NO_OPINION, PASS, NO_ACTION] (maximum 30 characters); ResultSummary: string or null (byte). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_risk_assessment_result': {
+  oracle_fusion_risk_management_update_risk_assessment_result: {
     resource: 'risk_assessment_result',
     kind: 'update',
     label: 'Update Risk Assessment Result',
@@ -755,7 +755,7 @@ export const RISK_OPERATIONS = {
     bodyDescription:
       'JSON object with ObjectVersionNumber: integer; ResponseCode: string or null [REQ_EVALUATION, REQ_ADDITIONAL_ANALYSIS, REQ_DOCUMENTATION, MEETS_GUIDANCE, PASS_WITH_EXCEPTION, FAIL, NO_OPINION, OUT_OF_TOLERANCE, AGREE, AGREE_WITH_EXCEPTION, PASS, DO_NOT_AGREE] (maximum 30 characters); ResultSummary: string or null (byte). Unsupported fields are rejected. Omitted optional fields remain unchanged.',
   },
-  'oracle_fusion_risk_management_update_test_plan_step': {
+  oracle_fusion_risk_management_update_test_plan_step: {
     resource: 'test_plan_step',
     kind: 'update',
     label: 'Update Test Plan Step',
@@ -766,7 +766,46 @@ export const RISK_OPERATIONS = {
 } as const satisfies Record<string, RiskOperationDefinition>
 
 export type RiskOperation = keyof typeof RISK_OPERATIONS
-export type RiskResource = 'process' | 'risk' | 'control' | 'issue' | 'process_comment' | 'process_perspective' | 'risk_comment' | 'risk_perspective' | 'control_comment' | 'control_perspective' | 'process_risk' | 'risk_process' | 'risk_control' | 'control_risk' | 'process_action_item' | 'process_assessment_result' | 'risk_assessment_result' | 'control_assessment_result' | 'control_assertion' | 'control_test_plan' | 'test_plan_step' | 'test_plan_activity' | 'advanced_control' | 'advanced_control_comment' | 'advanced_control_perspective' | 'incident' | 'incident_comment' | 'incident_attribute' | 'incident_perspective' | 'open_incident' | 'advanced_control_job' | 'simulation_result' | 'assignment_group' | 'group_member' | 'group_security_assignment' | 'group_eligible_user' | 'securable_type' | 'securable_role_type' | 'securable_eligible_user'
+export type RiskResource =
+  | 'process'
+  | 'risk'
+  | 'control'
+  | 'issue'
+  | 'process_comment'
+  | 'process_perspective'
+  | 'risk_comment'
+  | 'risk_perspective'
+  | 'control_comment'
+  | 'control_perspective'
+  | 'process_risk'
+  | 'risk_process'
+  | 'risk_control'
+  | 'control_risk'
+  | 'process_action_item'
+  | 'process_assessment_result'
+  | 'risk_assessment_result'
+  | 'control_assessment_result'
+  | 'control_assertion'
+  | 'control_test_plan'
+  | 'test_plan_step'
+  | 'test_plan_activity'
+  | 'advanced_control'
+  | 'advanced_control_comment'
+  | 'advanced_control_perspective'
+  | 'incident'
+  | 'incident_comment'
+  | 'incident_attribute'
+  | 'incident_perspective'
+  | 'open_incident'
+  | 'advanced_control_job'
+  | 'simulation_result'
+  | 'assignment_group'
+  | 'group_member'
+  | 'group_security_assignment'
+  | 'group_eligible_user'
+  | 'securable_type'
+  | 'securable_role_type'
+  | 'securable_eligible_user'
 
 export const PROCESS_OUTPUT_PROPERTIES = {
   ApprovedBy: {

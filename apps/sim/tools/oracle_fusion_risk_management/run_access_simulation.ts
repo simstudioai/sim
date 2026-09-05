@@ -5,7 +5,8 @@ export const oracleFusionRiskManagementRunAccessSimulationTool = createRiskTool(
   outputs: {
     requestId: {
       type: 'string',
-      description: 'Simulation tracking ID; submission does not mean analysis is complete or access was granted',
+      description:
+        'Simulation tracking ID; submission does not mean analysis is complete or access was granted',
     },
   },
 })

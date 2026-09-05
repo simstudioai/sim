@@ -100,6 +100,10 @@ export { oracleFusionRiskManagementListSimulationResultsTool } from '@/tools/ora
 export { oracleFusionRiskManagementListTestPlanActivitiesTool } from '@/tools/oracle_fusion_risk_management/list_test_plan_activities'
 export { oracleFusionRiskManagementListTestPlanStepsTool } from '@/tools/oracle_fusion_risk_management/list_test_plan_steps'
 export { oracleFusionRiskManagementRunAccessSimulationTool } from '@/tools/oracle_fusion_risk_management/run_access_simulation'
+export type {
+  OracleFusionRiskManagementParams,
+  OracleFusionRiskManagementResponse,
+} from '@/tools/oracle_fusion_risk_management/types'
 export { oracleFusionRiskManagementUpdateAdvancedControlTool } from '@/tools/oracle_fusion_risk_management/update_advanced_control'
 export { oracleFusionRiskManagementUpdateAssignmentGroupTool } from '@/tools/oracle_fusion_risk_management/update_assignment_group'
 export { oracleFusionRiskManagementUpdateControlTool } from '@/tools/oracle_fusion_risk_management/update_control'
@@ -113,4 +117,3 @@ export { oracleFusionRiskManagementUpdateProcessTool } from '@/tools/oracle_fusi
 export { oracleFusionRiskManagementUpdateProcessAssessmentResultTool } from '@/tools/oracle_fusion_risk_management/update_process_assessment_result'
 export { oracleFusionRiskManagementUpdateRiskAssessmentResultTool } from '@/tools/oracle_fusion_risk_management/update_risk_assessment_result'
 export { oracleFusionRiskManagementUpdateTestPlanStepTool } from '@/tools/oracle_fusion_risk_management/update_test_plan_step'
-export type { OracleFusionRiskManagementParams, OracleFusionRiskManagementResponse } from '@/tools/oracle_fusion_risk_management/types'

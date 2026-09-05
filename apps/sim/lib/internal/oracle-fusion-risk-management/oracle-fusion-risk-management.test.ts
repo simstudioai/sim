@@ -6,7 +6,10 @@ import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
 import { serializeOracleFusionJsonBody } from '@/lib/internal/oracle-fusion/request-body'
 import { executeOracleFusionRiskManagementTool } from '@/lib/internal/oracle-fusion-risk-management/execute-tool'
 import { executeRiskOperation } from '@/lib/internal/oracle-fusion-risk-management/operations'
-import { parseRiskBody, riskWriteSchemas } from '@/lib/internal/oracle-fusion-risk-management/schema'
+import {
+  parseRiskBody,
+  riskWriteSchemas,
+} from '@/lib/internal/oracle-fusion-risk-management/schema'
 import { getRegisteredInternalToolOperationIds } from '@/lib/internal/tool-operations/registry.server'
 import * as riskTools from '@/tools/oracle_fusion_risk_management'
 import { RISK_OPERATIONS } from '@/tools/oracle_fusion_risk_management/types'
@@ -30,21 +33,42 @@ function page(items: unknown[], hasMore = false, offset = 0) {
   return { items, count: items.length, hasMore, offset, limit: 100 }
 }
 function execute(action: string, input: Record<string, unknown> = {}, signal?: AbortSignal) {
-  return executeRiskOperation(`oracle_fusion_risk_management_${action}`, { ...AUTH, ...input }, signal)
+  return executeRiskOperation(
+    `oracle_fusion_risk_management_${action}`,
+    { ...AUTH, ...input },
+    signal
+  )
 }
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mocks.resolveAccount.mockResolvedValue({ credentialType: 'service_account', providerId: 'oracle-fusion-service-account' })
+  mocks.resolveAccount.mockResolvedValue({
+    credentialType: 'service_account',
+    providerId: 'oracle-fusion-service-account',
+  })
 })
 
 describe('Risk Management provider contracts', () => {
   it('projects one process page without rounding identifiers or following next links', async () => {
-    mocks.request.mockResolvedValue(page([record(`frcProcesses/${ID}`, { ProcessId: ID, Name: 'Review', AssessmentFlag: false })], true, 5))
+    mocks.request.mockResolvedValue(
+      page(
+        [record(`frcProcesses/${ID}`, { ProcessId: ID, Name: 'Review', AssessmentFlag: false })],
+        true,
+        5
+      )
+    )
     const result = await execute('list_processes', { offset: 5 })
-    expect(result.output).toMatchObject({ items: [{ ProcessId: ID, Name: 'Review', AssessmentFlag: false }], count: 1, nextOffset: 6 })
+    expect(result.output).toMatchObject({
+      items: [{ ProcessId: ID, Name: 'Review', AssessmentFlag: false }],
+      count: 1,
+      nextOffset: 6,
+    })
     expect(mocks.request).toHaveBeenCalledTimes(1)
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'GET', address: { family: 'fscm', relativePath: 'frcProcesses' }, query: { limit: 100, offset: 5 } })
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'GET',
+      address: { family: 'fscm', relativePath: 'frcProcesses' },
+      query: { limit: 100, offset: 5 },
+    })
     expect(JSON.stringify(result.output)).not.toContain('@context')
   })
 
@@ -53,10 +77,18 @@ describe('Risk Management provider contracts', () => {
     await execute('create_risk', { body: { Name: 'Risk', RiskAnalysisModelId: ID } })
     const request = mocks.request.mock.calls[0][1]
     expect(request).toMatchObject({ method: 'POST', address: { relativePath: 'frcRisks' } })
-    expect(serializeOracleFusionJsonBody(request.body)).toBe(`{"Name":"Risk","RiskAnalysisModelId":${ID}}`)
+    expect(serializeOracleFusionJsonBody(request.body)).toBe(
+      `{"Name":"Risk","RiskAnalysisModelId":${ID}}`
+    )
   })
 
-  it.each(['update_risk', 'create_issue', 'run_advanced_controls', 'approve_assessment', 'approve_access_request'])('does not expose %s', async (action) => {
+  it.each([
+    'update_risk',
+    'create_issue',
+    'run_advanced_controls',
+    'approve_assessment',
+    'approve_access_request',
+  ])('does not expose %s', async (action) => {
     await expect(execute(action)).rejects.toThrow('Unsupported')
     expect(mocks.request).not.toHaveBeenCalled()
   })
@@ -74,29 +106,54 @@ describe('Risk Management provider contracts', () => {
   })
 
   it('keeps process boolean flags distinct from control string flags', () => {
-    expect(riskWriteSchemas.update_process.parse({ AssessmentFlag: false })).toEqual({ AssessmentFlag: false })
+    expect(riskWriteSchemas.update_process.parse({ AssessmentFlag: false })).toEqual({
+      AssessmentFlag: false,
+    })
     expect(() => riskWriteSchemas.update_control.parse({ AssessmentFlag: false })).toThrow()
-    expect(riskWriteSchemas.update_control.parse({ AssessmentFlag: 'N' })).toEqual({ AssessmentFlag: 'N' })
+    expect(riskWriteSchemas.update_control.parse({ AssessmentFlag: 'N' })).toEqual({
+      AssessmentFlag: 'N',
+    })
   })
 
   it('uses assessment-specific response codes and does not certify results', async () => {
-    mocks.request.mockResolvedValue(record(`frcRiskAssessmentResults/${ID}`, { ResultId: ID, ResponseCode: 'MEETS_GUIDANCE' }))
-    await execute('update_risk_assessment_result', { riskAssessmentResultId: ID, body: { ResponseCode: 'MEETS_GUIDANCE' } })
-    expect(mocks.request.mock.calls[0][1]).toMatchObject({ method: 'PATCH', address: { relativePath: `frcRiskAssessmentResults/${ID}` } })
-    expect(() => riskWriteSchemas.update_control_assessment_result.parse({ ResponseCode: 'MEETS_GUIDANCE' })).toThrow()
-    expect(() => riskWriteSchemas.update_risk_assessment_result.parse({ ApprovedBy: 'someone' })).toThrow()
+    mocks.request.mockResolvedValue(
+      record(`frcRiskAssessmentResults/${ID}`, { ResultId: ID, ResponseCode: 'MEETS_GUIDANCE' })
+    )
+    await execute('update_risk_assessment_result', {
+      riskAssessmentResultId: ID,
+      body: { ResponseCode: 'MEETS_GUIDANCE' },
+    })
+    expect(mocks.request.mock.calls[0][1]).toMatchObject({
+      method: 'PATCH',
+      address: { relativePath: `frcRiskAssessmentResults/${ID}` },
+    })
+    expect(() =>
+      riskWriteSchemas.update_control_assessment_result.parse({ ResponseCode: 'MEETS_GUIDANCE' })
+    ).toThrow()
+    expect(() =>
+      riskWriteSchemas.update_risk_assessment_result.parse({ ApprovedBy: 'someone' })
+    ).toThrow()
   })
 
   it('derives relationship keys from validated self links, not numeric parent IDs', async () => {
-    mocks.request.mockResolvedValue(page([record(`frcProcesses/${ID}/child/relatedRisks/${KEY}`, { ProcessId: ID, RiskId: '8' })]))
+    mocks.request.mockResolvedValue(
+      page([record(`frcProcesses/${ID}/child/relatedRisks/${KEY}`, { ProcessId: ID, RiskId: '8' })])
+    )
     const result = await execute('list_process_risks', { processId: ID })
     expect(result.output).toMatchObject({ items: [{ key: KEY, ProcessId: ID, RiskId: '8' }] })
     await execute('delete_process_risk', { processId: ID, relationshipKey: KEY })
-    expect(mocks.empty.mock.calls[0][1]).toEqual({ method: 'DELETE', address: { family: 'fscm', relativePath: `frcProcesses/${ID}/child/relatedRisks/${KEY}` } })
+    expect(mocks.empty.mock.calls[0][1]).toEqual({
+      method: 'DELETE',
+      address: { family: 'fscm', relativePath: `frcProcesses/${ID}/child/relatedRisks/${KEY}` },
+    })
   })
 
   it('rejects a relationship self link belonging to another parent', async () => {
-    mocks.request.mockResolvedValue(page([record(`frcProcesses/999/child/relatedRisks/${KEY}`, { ProcessId: '999', RiskId: '8' })]))
+    mocks.request.mockResolvedValue(
+      page([
+        record(`frcProcesses/999/child/relatedRisks/${KEY}`, { ProcessId: '999', RiskId: '8' }),
+      ])
+    )
     await expect(execute('list_process_risks', { processId: ID })).rejects.toThrow('invalid')
   })
 

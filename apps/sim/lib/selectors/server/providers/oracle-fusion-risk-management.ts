@@ -28,8 +28,8 @@ import {
   listSelectorResult,
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
-import type { RiskResource } from '@/tools/oracle_fusion_risk_management/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
+import type { RiskResource } from '@/tools/oracle_fusion_risk_management/types'
 
 type RiskSelectorKey = Extract<ServerSelectorKey, `oracle_fusion_risk_management.${string}`>
 
@@ -41,18 +41,78 @@ interface SelectorDefinition {
 }
 
 const definitions = {
-  'oracle_fusion_risk_management.process': { resource: 'process', id: 'ProcessId', labels: ['Name'], param: 'processId' },
-  'oracle_fusion_risk_management.risk': { resource: 'risk', id: 'RiskId', labels: ['Name'], param: 'riskId' },
-  'oracle_fusion_risk_management.control': { resource: 'control', id: 'ControlId', labels: ['Name'], param: 'controlId' },
-  'oracle_fusion_risk_management.issue': { resource: 'issue', id: 'IssueId', labels: ['Name'], param: 'issueId' },
-  'oracle_fusion_risk_management.process_assessment_result': { resource: 'process_assessment_result', id: 'ResultId', labels: ['ResultId'], param: 'processAssessmentResultId' },
-  'oracle_fusion_risk_management.risk_assessment_result': { resource: 'risk_assessment_result', id: 'ResultId', labels: ['ResultId'], param: 'riskAssessmentResultId' },
-  'oracle_fusion_risk_management.control_assessment_result': { resource: 'control_assessment_result', id: 'ResultId', labels: ['ResultId'], param: 'controlAssessmentResultId' },
-  'oracle_fusion_risk_management.advanced_control': { resource: 'advanced_control', id: 'Id', labels: ['Name'], param: 'advancedControlId' },
-  'oracle_fusion_risk_management.open_incident': { resource: 'open_incident', id: 'key', labels: ['ResultId'], param: 'openIncidentKey' },
-  'oracle_fusion_risk_management.advanced_control_job': { resource: 'advanced_control_job', id: 'Id', labels: ['Name'], param: 'jobId' },
-  'oracle_fusion_risk_management.assignment_group': { resource: 'assignment_group', id: 'key', labels: ['Name'], param: 'groupKey' },
-  'oracle_fusion_risk_management.securable_type': { resource: 'securable_type', id: 'key', labels: ['Meaning'], param: 'securableTypeKey' },
+  'oracle_fusion_risk_management.process': {
+    resource: 'process',
+    id: 'ProcessId',
+    labels: ['Name'],
+    param: 'processId',
+  },
+  'oracle_fusion_risk_management.risk': {
+    resource: 'risk',
+    id: 'RiskId',
+    labels: ['Name'],
+    param: 'riskId',
+  },
+  'oracle_fusion_risk_management.control': {
+    resource: 'control',
+    id: 'ControlId',
+    labels: ['Name'],
+    param: 'controlId',
+  },
+  'oracle_fusion_risk_management.issue': {
+    resource: 'issue',
+    id: 'IssueId',
+    labels: ['Name'],
+    param: 'issueId',
+  },
+  'oracle_fusion_risk_management.process_assessment_result': {
+    resource: 'process_assessment_result',
+    id: 'ResultId',
+    labels: ['ResultId'],
+    param: 'processAssessmentResultId',
+  },
+  'oracle_fusion_risk_management.risk_assessment_result': {
+    resource: 'risk_assessment_result',
+    id: 'ResultId',
+    labels: ['ResultId'],
+    param: 'riskAssessmentResultId',
+  },
+  'oracle_fusion_risk_management.control_assessment_result': {
+    resource: 'control_assessment_result',
+    id: 'ResultId',
+    labels: ['ResultId'],
+    param: 'controlAssessmentResultId',
+  },
+  'oracle_fusion_risk_management.advanced_control': {
+    resource: 'advanced_control',
+    id: 'Id',
+    labels: ['Name'],
+    param: 'advancedControlId',
+  },
+  'oracle_fusion_risk_management.open_incident': {
+    resource: 'open_incident',
+    id: 'key',
+    labels: ['ResultId'],
+    param: 'openIncidentKey',
+  },
+  'oracle_fusion_risk_management.advanced_control_job': {
+    resource: 'advanced_control_job',
+    id: 'Id',
+    labels: ['Name'],
+    param: 'jobId',
+  },
+  'oracle_fusion_risk_management.assignment_group': {
+    resource: 'assignment_group',
+    id: 'key',
+    labels: ['Name'],
+    param: 'groupKey',
+  },
+  'oracle_fusion_risk_management.securable_type': {
+    resource: 'securable_type',
+    id: 'key',
+    labels: ['Meaning'],
+    param: 'securableTypeKey',
+  },
 } as const satisfies Record<RiskSelectorKey, SelectorDefinition>
 
 async function prepareDestination(

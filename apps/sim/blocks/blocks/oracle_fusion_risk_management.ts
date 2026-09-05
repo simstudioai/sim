@@ -1,16 +1,20 @@
 import { NetSuiteIcon } from '@/components/icons'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
-import { getScopesForService } from '@/lib/oauth/utils'
 import {
   RISK_OPERATIONS,
   type RiskOperationDefinition,
 } from '@/tools/oracle_fusion_risk_management/types'
 
 const operationEntries = Object.entries(RISK_OPERATIONS)
-const listOperations = operationEntries.filter(([, operation]) => operation.kind === 'list').map(([id]) => id)
-const writeOperations = operationEntries.filter(([, operation]) => operation.kind === 'create' || operation.kind === 'update').map(([id]) => id)
+const listOperations = operationEntries
+  .filter(([, operation]) => operation.kind === 'list')
+  .map(([id]) => id)
+const writeOperations = operationEntries
+  .filter(([, operation]) => operation.kind === 'create' || operation.kind === 'update')
+  .map(([id]) => id)
 const inputOperations: Record<string, string[]> = {}
 for (const [id, definition] of operationEntries) {
   for (const param of definition.params) (inputOperations[param] ??= []).push(id)
@@ -30,7 +34,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Activity Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.activityKey },
   },
   {
@@ -60,7 +65,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Assertion Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.assertionKey },
   },
   {
@@ -68,7 +74,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Attribute Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.attributeKey },
   },
   {
@@ -84,7 +91,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Comment Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.commentKey },
   },
   {
@@ -150,7 +158,8 @@ const identifierInputs: SubBlockConfig[] = [
     canonicalParamId: 'groupKey',
     mode: 'advanced',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.groupKey },
   },
   {
@@ -158,7 +167,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Incident Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.incidentKey },
   },
   {
@@ -232,7 +242,8 @@ const identifierInputs: SubBlockConfig[] = [
     canonicalParamId: 'openIncidentKey',
     mode: 'advanced',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.openIncidentKey },
   },
   {
@@ -240,7 +251,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Perspective Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.perspectiveKey },
   },
   {
@@ -292,7 +304,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Relationship Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.relationshipKey },
   },
   {
@@ -300,7 +313,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Request Id',
     type: 'short-input',
     required: true,
-    placeholder: 'Simulation request identifier returned by Run Access Simulation, preserved as a decimal string',
+    placeholder:
+      'Simulation request identifier returned by Run Access Simulation, preserved as a decimal string',
     condition: { field: 'operation', value: inputOperations.requestId },
   },
   {
@@ -352,7 +366,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Role Type Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.roleTypeKey },
   },
   {
@@ -374,7 +389,8 @@ const identifierInputs: SubBlockConfig[] = [
     canonicalParamId: 'securableTypeKey',
     mode: 'advanced',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.securableTypeKey },
   },
   {
@@ -390,7 +406,8 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'Simulation Result Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.simulationResultKey },
   },
   {
@@ -422,16 +439,18 @@ const identifierInputs: SubBlockConfig[] = [
     title: 'User Key',
     type: 'short-input',
     required: true,
-    placeholder: 'Opaque key returned by the corresponding list action; retain the same parent identifiers',
+    placeholder:
+      'Opaque key returned by the corresponding list action; retain the same parent identifiers',
     condition: { field: 'operation', value: inputOperations.userKey },
   },
- ]
+]
 
 export const OracleFusionRiskManagementBlock: BlockConfig = {
   type: 'oracle_fusion_risk_management',
   name: 'Oracle Fusion Risk Management',
   description: 'Manage compliance records, investigate incidents, and simulate access conflicts',
-  longDescription: 'Connect an Oracle Fusion integration-user credential to maintain Financial Reporting Compliance processes, risks, controls, issue remediation fields, assessment results, supporting relationships, and test procedures. Investigate Advanced Controls incidents, simulate proposed access, and administer Risk Management assignment groups. Each list returns one bounded page. Identifiers and resource numeric values are returned as decimal strings; pagination values remain numbers. Supply integer IDs as quoted decimal strings in mutation JSON. Group security assignments secure the group itself. Assessment updates do not certify or approve assessments, simulations do not grant access or create incidents, and changing control metadata does not execute controls. Requires licensed and enabled Oracle product features, REST privileges, and object-level access. No risk updates, issue creation, approval/provisioning workflows, control execution, test-plan creation, binary attachments, tenant-specific flexfield writes, or platform administration are included.',
+  longDescription:
+    'Connect an Oracle Fusion integration-user credential to maintain Financial Reporting Compliance processes, risks, controls, issue remediation fields, assessment results, supporting relationships, and test procedures. Investigate Advanced Controls incidents, simulate proposed access, and administer Risk Management assignment groups. Each list returns one bounded page. Identifiers and resource numeric values are returned as decimal strings; pagination values remain numbers. Supply integer IDs as quoted decimal strings in mutation JSON. Group security assignments secure the group itself. Assessment updates do not certify or approve assessments, simulations do not grant access or create incidents, and changing control metadata does not execute controls. Requires licensed and enabled Oracle product features, REST privileges, and object-level access. No risk updates, issue creation, approval/provisioning workflows, control execution, test-plan creation, binary attachments, tenant-specific flexfield writes, or platform administration are included.',
   docsLink: 'https://docs.sim.ai/integrations/oracle_fusion_risk_management',
   category: 'tools',
   integrationType: IntegrationType.Security,
@@ -439,173 +458,551 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
   icon: NetSuiteIcon,
   canvasPresentation: {
     defaultTitle: 'Oracle Fusion Risk Management',
-    sentences: { byOperation: Object.fromEntries(operationEntries.map(([id, definition]) => [id, [definition.label]])) },
+    sentences: {
+      byOperation: Object.fromEntries(
+        operationEntries.map(([id, definition]) => [id, [definition.label]])
+      ),
+    },
   },
   subBlocks: [
     {
-      id: 'credential', title: 'Oracle Fusion Account', type: 'oauth-input',
-      serviceId: 'oracle_fusion_risk_management', credentialKind: 'service-account',
+      id: 'credential',
+      title: 'Oracle Fusion Account',
+      type: 'oauth-input',
+      serviceId: 'oracle_fusion_risk_management',
+      credentialKind: 'service-account',
       requiredScopes: getScopesForService('oracle_fusion_risk_management'),
-      canonicalParamId: 'oauthCredential', mode: 'basic', required: true,
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      required: true,
     },
     {
-      id: 'manualCredential', title: 'Oracle Fusion Account', type: 'short-input',
-      canonicalParamId: 'oauthCredential', mode: 'advanced', required: true,
+      id: 'manualCredential',
+      title: 'Oracle Fusion Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      required: true,
       placeholder: 'Enter credential ID',
     },
     {
-      id: 'operation', title: 'Operation', type: 'dropdown', required: true,
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      required: true,
       options: [
-        { id: 'oracle_fusion_risk_management_create_advanced_control_comment', label: 'Create Advanced Control Comment' },
-        { id: 'oracle_fusion_risk_management_create_assignment_group', label: 'Create Assignment Group' },
-        { id: 'oracle_fusion_risk_management_create_control', label: 'Create Control' },
-        { id: 'oracle_fusion_risk_management_create_control_assertion', label: 'Create Control Assertion' },
-        { id: 'oracle_fusion_risk_management_create_control_comment', label: 'Create Control Comment' },
-        { id: 'oracle_fusion_risk_management_create_group_member', label: 'Create Group Member' },
-        { id: 'oracle_fusion_risk_management_create_group_security_assignment', label: 'Create Group Security Assignment' },
-        { id: 'oracle_fusion_risk_management_create_incident_comment', label: 'Create Incident Comment' },
-        { id: 'oracle_fusion_risk_management_create_process', label: 'Create Process' },
-        { id: 'oracle_fusion_risk_management_create_process_comment', label: 'Create Process Comment' },
-        { id: 'oracle_fusion_risk_management_create_process_risk', label: 'Create Process Risk' },
-        { id: 'oracle_fusion_risk_management_create_risk', label: 'Create Risk' },
-        { id: 'oracle_fusion_risk_management_create_risk_comment', label: 'Create Risk Comment' },
-        { id: 'oracle_fusion_risk_management_create_test_plan_activity', label: 'Create Test Plan Activity' },
-        { id: 'oracle_fusion_risk_management_create_test_plan_step', label: 'Create Test Plan Step' },
-        { id: 'oracle_fusion_risk_management_delete_assignment_group', label: 'Delete Assignment Group' },
-        { id: 'oracle_fusion_risk_management_delete_control_assertion', label: 'Delete Control Assertion' },
-        { id: 'oracle_fusion_risk_management_delete_control_test_plan', label: 'Delete Control Test Plan' },
-        { id: 'oracle_fusion_risk_management_delete_group_member', label: 'Delete Group Member' },
-        { id: 'oracle_fusion_risk_management_delete_group_security_assignment', label: 'Delete Group Security Assignment' },
-        { id: 'oracle_fusion_risk_management_delete_process_risk', label: 'Delete Process Risk' },
-        { id: 'oracle_fusion_risk_management_delete_test_plan_step', label: 'Delete Test Plan Step' },
-        { id: 'oracle_fusion_risk_management_get_access_simulation_status', label: 'Get Access Simulation Status' },
-        { id: 'oracle_fusion_risk_management_get_advanced_control', label: 'Get Advanced Control' },
-        { id: 'oracle_fusion_risk_management_get_advanced_control_comment', label: 'Get Advanced Control Comment' },
-        { id: 'oracle_fusion_risk_management_get_advanced_control_job', label: 'Get Advanced Control Job' },
-        { id: 'oracle_fusion_risk_management_get_advanced_control_perspective', label: 'Get Advanced Control Perspective' },
-        { id: 'oracle_fusion_risk_management_get_assignment_group', label: 'Get Assignment Group' },
-        { id: 'oracle_fusion_risk_management_get_control', label: 'Get Control' },
-        { id: 'oracle_fusion_risk_management_get_control_assertion', label: 'Get Control Assertion' },
-        { id: 'oracle_fusion_risk_management_get_control_assessment_result', label: 'Get Control Assessment Result' },
-        { id: 'oracle_fusion_risk_management_get_control_comment', label: 'Get Control Comment' },
-        { id: 'oracle_fusion_risk_management_get_control_perspective', label: 'Get Control Perspective' },
-        { id: 'oracle_fusion_risk_management_get_control_risk', label: 'Get Control Risk' },
-        { id: 'oracle_fusion_risk_management_get_control_test_plan', label: 'Get Control Test Plan' },
-        { id: 'oracle_fusion_risk_management_get_group_eligible_user', label: 'Get Group Eligible User' },
-        { id: 'oracle_fusion_risk_management_get_group_member', label: 'Get Group Member' },
-        { id: 'oracle_fusion_risk_management_get_group_security_assignment', label: 'Get Group Security Assignment' },
-        { id: 'oracle_fusion_risk_management_get_incident', label: 'Get Incident' },
-        { id: 'oracle_fusion_risk_management_get_incident_attribute', label: 'Get Incident Attribute' },
-        { id: 'oracle_fusion_risk_management_get_incident_comment', label: 'Get Incident Comment' },
-        { id: 'oracle_fusion_risk_management_get_incident_perspective', label: 'Get Incident Perspective' },
-        { id: 'oracle_fusion_risk_management_get_issue', label: 'Get Issue' },
-        { id: 'oracle_fusion_risk_management_get_open_incident', label: 'Get Open Incident' },
-        { id: 'oracle_fusion_risk_management_get_process', label: 'Get Process' },
-        { id: 'oracle_fusion_risk_management_get_process_action_item', label: 'Get Process Action Item' },
-        { id: 'oracle_fusion_risk_management_get_process_assessment_result', label: 'Get Process Assessment Result' },
-        { id: 'oracle_fusion_risk_management_get_process_comment', label: 'Get Process Comment' },
-        { id: 'oracle_fusion_risk_management_get_process_perspective', label: 'Get Process Perspective' },
-        { id: 'oracle_fusion_risk_management_get_process_risk', label: 'Get Process Risk' },
-        { id: 'oracle_fusion_risk_management_get_risk', label: 'Get Risk' },
-        { id: 'oracle_fusion_risk_management_get_risk_assessment_result', label: 'Get Risk Assessment Result' },
-        { id: 'oracle_fusion_risk_management_get_risk_comment', label: 'Get Risk Comment' },
-        { id: 'oracle_fusion_risk_management_get_risk_control', label: 'Get Risk Control' },
-        { id: 'oracle_fusion_risk_management_get_risk_perspective', label: 'Get Risk Perspective' },
-        { id: 'oracle_fusion_risk_management_get_risk_process', label: 'Get Risk Process' },
-        { id: 'oracle_fusion_risk_management_get_securable_eligible_user', label: 'Get Securable Eligible User' },
-        { id: 'oracle_fusion_risk_management_get_securable_role_type', label: 'Get Securable Role Type' },
-        { id: 'oracle_fusion_risk_management_get_securable_type', label: 'Get Securable Type' },
-        { id: 'oracle_fusion_risk_management_get_simulation_result', label: 'Get Simulation Result' },
-        { id: 'oracle_fusion_risk_management_get_test_plan_activity', label: 'Get Test Plan Activity' },
-        { id: 'oracle_fusion_risk_management_get_test_plan_step', label: 'Get Test Plan Step' },
-        { id: 'oracle_fusion_risk_management_list_advanced_control_comments', label: 'List Advanced Control Comments' },
-        { id: 'oracle_fusion_risk_management_list_advanced_control_jobs', label: 'List Advanced Control Jobs' },
-        { id: 'oracle_fusion_risk_management_list_advanced_control_perspectives', label: 'List Advanced Control Perspectives' },
-        { id: 'oracle_fusion_risk_management_list_advanced_controls', label: 'List Advanced Controls' },
-        { id: 'oracle_fusion_risk_management_list_assignment_groups', label: 'List Assignment Groups' },
-        { id: 'oracle_fusion_risk_management_list_control_assertions', label: 'List Control Assertions' },
-        { id: 'oracle_fusion_risk_management_list_control_assessment_results', label: 'List Control Assessment Results' },
-        { id: 'oracle_fusion_risk_management_list_control_comments', label: 'List Control Comments' },
-        { id: 'oracle_fusion_risk_management_list_control_perspectives', label: 'List Control Perspectives' },
-        { id: 'oracle_fusion_risk_management_list_control_risks', label: 'List Control Risks' },
-        { id: 'oracle_fusion_risk_management_list_control_test_plans', label: 'List Control Test Plans' },
-        { id: 'oracle_fusion_risk_management_list_controls', label: 'List Controls' },
-        { id: 'oracle_fusion_risk_management_list_group_eligible_users', label: 'List Group Eligible Users' },
-        { id: 'oracle_fusion_risk_management_list_group_members', label: 'List Group Members' },
-        { id: 'oracle_fusion_risk_management_list_group_security_assignments', label: 'List Group Security Assignments' },
-        { id: 'oracle_fusion_risk_management_list_incident_attributes', label: 'List Incident Attributes' },
-        { id: 'oracle_fusion_risk_management_list_incident_comments', label: 'List Incident Comments' },
-        { id: 'oracle_fusion_risk_management_list_incident_perspectives', label: 'List Incident Perspectives' },
-        { id: 'oracle_fusion_risk_management_list_incidents', label: 'List Incidents' },
-        { id: 'oracle_fusion_risk_management_list_issues', label: 'List Issues' },
-        { id: 'oracle_fusion_risk_management_list_open_incidents', label: 'List Open Incidents' },
-        { id: 'oracle_fusion_risk_management_list_process_action_items', label: 'List Process Action Items' },
-        { id: 'oracle_fusion_risk_management_list_process_assessment_results', label: 'List Process Assessment Results' },
-        { id: 'oracle_fusion_risk_management_list_process_comments', label: 'List Process Comments' },
-        { id: 'oracle_fusion_risk_management_list_process_perspectives', label: 'List Process Perspectives' },
-        { id: 'oracle_fusion_risk_management_list_process_risks', label: 'List Process Risks' },
-        { id: 'oracle_fusion_risk_management_list_processes', label: 'List Processes' },
-        { id: 'oracle_fusion_risk_management_list_risk_assessment_results', label: 'List Risk Assessment Results' },
-        { id: 'oracle_fusion_risk_management_list_risk_comments', label: 'List Risk Comments' },
-        { id: 'oracle_fusion_risk_management_list_risk_controls', label: 'List Risk Controls' },
-        { id: 'oracle_fusion_risk_management_list_risk_perspectives', label: 'List Risk Perspectives' },
-        { id: 'oracle_fusion_risk_management_list_risk_processes', label: 'List Risk Processes' },
-        { id: 'oracle_fusion_risk_management_list_risks', label: 'List Risks' },
-        { id: 'oracle_fusion_risk_management_list_securable_eligible_users', label: 'List Securable Eligible Users' },
-        { id: 'oracle_fusion_risk_management_list_securable_role_types', label: 'List Securable Role Types' },
-        { id: 'oracle_fusion_risk_management_list_securable_types', label: 'List Securable Types' },
-        { id: 'oracle_fusion_risk_management_list_simulation_results', label: 'List Simulation Results' },
-        { id: 'oracle_fusion_risk_management_list_test_plan_activities', label: 'List Test Plan Activities' },
-        { id: 'oracle_fusion_risk_management_list_test_plan_steps', label: 'List Test Plan Steps' },
-        { id: 'oracle_fusion_risk_management_run_access_simulation', label: 'Run Access Simulation' },
-        { id: 'oracle_fusion_risk_management_update_advanced_control', label: 'Update Advanced Control' },
-        { id: 'oracle_fusion_risk_management_update_assignment_group', label: 'Update Assignment Group' },
-        { id: 'oracle_fusion_risk_management_update_control', label: 'Update Control' },
-        { id: 'oracle_fusion_risk_management_update_control_assertion', label: 'Update Control Assertion' },
-        { id: 'oracle_fusion_risk_management_update_control_assessment_result', label: 'Update Control Assessment Result' },
-        { id: 'oracle_fusion_risk_management_update_control_test_plan', label: 'Update Control Test Plan' },
-        { id: 'oracle_fusion_risk_management_update_group_security_assignment', label: 'Update Group Security Assignment' },
-        { id: 'oracle_fusion_risk_management_update_incident', label: 'Update Incident' },
-        { id: 'oracle_fusion_risk_management_update_issue', label: 'Update Issue' },
-        { id: 'oracle_fusion_risk_management_update_process', label: 'Update Process' },
-        { id: 'oracle_fusion_risk_management_update_process_assessment_result', label: 'Update Process Assessment Result' },
-        { id: 'oracle_fusion_risk_management_update_risk_assessment_result', label: 'Update Risk Assessment Result' },
-        { id: 'oracle_fusion_risk_management_update_test_plan_step', label: 'Update Test Plan Step' },
+        {
+          id: 'oracle_fusion_risk_management_create_advanced_control_comment',
+          label: 'Create Advanced Control Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_assignment_group',
+          label: 'Create Assignment Group',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_control',
+          label: 'Create Control',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_control_assertion',
+          label: 'Create Control Assertion',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_control_comment',
+          label: 'Create Control Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_group_member',
+          label: 'Create Group Member',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_group_security_assignment',
+          label: 'Create Group Security Assignment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_incident_comment',
+          label: 'Create Incident Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_process',
+          label: 'Create Process',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_process_comment',
+          label: 'Create Process Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_process_risk',
+          label: 'Create Process Risk',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_risk',
+          label: 'Create Risk',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_risk_comment',
+          label: 'Create Risk Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_test_plan_activity',
+          label: 'Create Test Plan Activity',
+        },
+        {
+          id: 'oracle_fusion_risk_management_create_test_plan_step',
+          label: 'Create Test Plan Step',
+        },
+        {
+          id: 'oracle_fusion_risk_management_delete_assignment_group',
+          label: 'Delete Assignment Group',
+        },
+        {
+          id: 'oracle_fusion_risk_management_delete_control_assertion',
+          label: 'Delete Control Assertion',
+        },
+        {
+          id: 'oracle_fusion_risk_management_delete_control_test_plan',
+          label: 'Delete Control Test Plan',
+        },
+        {
+          id: 'oracle_fusion_risk_management_delete_group_member',
+          label: 'Delete Group Member',
+        },
+        {
+          id: 'oracle_fusion_risk_management_delete_group_security_assignment',
+          label: 'Delete Group Security Assignment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_delete_process_risk',
+          label: 'Delete Process Risk',
+        },
+        {
+          id: 'oracle_fusion_risk_management_delete_test_plan_step',
+          label: 'Delete Test Plan Step',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_access_simulation_status',
+          label: 'Get Access Simulation Status',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_advanced_control',
+          label: 'Get Advanced Control',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_advanced_control_comment',
+          label: 'Get Advanced Control Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_advanced_control_job',
+          label: 'Get Advanced Control Job',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_advanced_control_perspective',
+          label: 'Get Advanced Control Perspective',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_assignment_group',
+          label: 'Get Assignment Group',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_control',
+          label: 'Get Control',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_control_assertion',
+          label: 'Get Control Assertion',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_control_assessment_result',
+          label: 'Get Control Assessment Result',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_control_comment',
+          label: 'Get Control Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_control_perspective',
+          label: 'Get Control Perspective',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_control_risk',
+          label: 'Get Control Risk',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_control_test_plan',
+          label: 'Get Control Test Plan',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_group_eligible_user',
+          label: 'Get Group Eligible User',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_group_member',
+          label: 'Get Group Member',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_group_security_assignment',
+          label: 'Get Group Security Assignment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_incident',
+          label: 'Get Incident',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_incident_attribute',
+          label: 'Get Incident Attribute',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_incident_comment',
+          label: 'Get Incident Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_incident_perspective',
+          label: 'Get Incident Perspective',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_issue',
+          label: 'Get Issue',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_open_incident',
+          label: 'Get Open Incident',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_process',
+          label: 'Get Process',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_process_action_item',
+          label: 'Get Process Action Item',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_process_assessment_result',
+          label: 'Get Process Assessment Result',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_process_comment',
+          label: 'Get Process Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_process_perspective',
+          label: 'Get Process Perspective',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_process_risk',
+          label: 'Get Process Risk',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_risk',
+          label: 'Get Risk',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_risk_assessment_result',
+          label: 'Get Risk Assessment Result',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_risk_comment',
+          label: 'Get Risk Comment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_risk_control',
+          label: 'Get Risk Control',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_risk_perspective',
+          label: 'Get Risk Perspective',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_risk_process',
+          label: 'Get Risk Process',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_securable_eligible_user',
+          label: 'Get Securable Eligible User',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_securable_role_type',
+          label: 'Get Securable Role Type',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_securable_type',
+          label: 'Get Securable Type',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_simulation_result',
+          label: 'Get Simulation Result',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_test_plan_activity',
+          label: 'Get Test Plan Activity',
+        },
+        {
+          id: 'oracle_fusion_risk_management_get_test_plan_step',
+          label: 'Get Test Plan Step',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_advanced_control_comments',
+          label: 'List Advanced Control Comments',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_advanced_control_jobs',
+          label: 'List Advanced Control Jobs',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_advanced_control_perspectives',
+          label: 'List Advanced Control Perspectives',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_advanced_controls',
+          label: 'List Advanced Controls',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_assignment_groups',
+          label: 'List Assignment Groups',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_control_assertions',
+          label: 'List Control Assertions',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_control_assessment_results',
+          label: 'List Control Assessment Results',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_control_comments',
+          label: 'List Control Comments',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_control_perspectives',
+          label: 'List Control Perspectives',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_control_risks',
+          label: 'List Control Risks',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_control_test_plans',
+          label: 'List Control Test Plans',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_controls',
+          label: 'List Controls',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_group_eligible_users',
+          label: 'List Group Eligible Users',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_group_members',
+          label: 'List Group Members',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_group_security_assignments',
+          label: 'List Group Security Assignments',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_incident_attributes',
+          label: 'List Incident Attributes',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_incident_comments',
+          label: 'List Incident Comments',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_incident_perspectives',
+          label: 'List Incident Perspectives',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_incidents',
+          label: 'List Incidents',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_issues',
+          label: 'List Issues',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_open_incidents',
+          label: 'List Open Incidents',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_process_action_items',
+          label: 'List Process Action Items',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_process_assessment_results',
+          label: 'List Process Assessment Results',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_process_comments',
+          label: 'List Process Comments',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_process_perspectives',
+          label: 'List Process Perspectives',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_process_risks',
+          label: 'List Process Risks',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_processes',
+          label: 'List Processes',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_risk_assessment_results',
+          label: 'List Risk Assessment Results',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_risk_comments',
+          label: 'List Risk Comments',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_risk_controls',
+          label: 'List Risk Controls',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_risk_perspectives',
+          label: 'List Risk Perspectives',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_risk_processes',
+          label: 'List Risk Processes',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_risks',
+          label: 'List Risks',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_securable_eligible_users',
+          label: 'List Securable Eligible Users',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_securable_role_types',
+          label: 'List Securable Role Types',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_securable_types',
+          label: 'List Securable Types',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_simulation_results',
+          label: 'List Simulation Results',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_test_plan_activities',
+          label: 'List Test Plan Activities',
+        },
+        {
+          id: 'oracle_fusion_risk_management_list_test_plan_steps',
+          label: 'List Test Plan Steps',
+        },
+        {
+          id: 'oracle_fusion_risk_management_run_access_simulation',
+          label: 'Run Access Simulation',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_advanced_control',
+          label: 'Update Advanced Control',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_assignment_group',
+          label: 'Update Assignment Group',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_control',
+          label: 'Update Control',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_control_assertion',
+          label: 'Update Control Assertion',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_control_assessment_result',
+          label: 'Update Control Assessment Result',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_control_test_plan',
+          label: 'Update Control Test Plan',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_group_security_assignment',
+          label: 'Update Group Security Assignment',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_incident',
+          label: 'Update Incident',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_issue',
+          label: 'Update Issue',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_process',
+          label: 'Update Process',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_process_assessment_result',
+          label: 'Update Process Assessment Result',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_risk_assessment_result',
+          label: 'Update Risk Assessment Result',
+        },
+        {
+          id: 'oracle_fusion_risk_management_update_test_plan_step',
+          label: 'Update Test Plan Step',
+        },
       ],
       value: () => 'oracle_fusion_risk_management_list_processes',
     },
     ...identifierInputs,
     {
-      id: 'body', title: 'Fields (JSON)', type: 'long-input', required: true,
+      id: 'body',
+      title: 'Fields (JSON)',
+      type: 'long-input',
+      required: true,
       placeholder: '{"Name":"Quarterly compliance review"}',
       condition: { field: 'operation', value: writeOperations },
       wandConfig: {
         enabled: true,
-        prompt: 'Generate a JSON object using only the documented writable fields of the selected Oracle Fusion Risk Management action. Quote integer identifiers as decimal strings. Return ONLY the JSON object.',
-        placeholder: 'Describe the record fields to change', generationType: 'json-object',
+        prompt:
+          'Generate a JSON object using only the documented writable fields of the selected Oracle Fusion Risk Management action. Quote integer identifiers as decimal strings. Return ONLY the JSON object.',
+        placeholder: 'Describe the record fields to change',
+        generationType: 'json-object',
       },
     },
     {
-      id: 'userName', title: 'Oracle Username', type: 'short-input', required: true,
+      id: 'userName',
+      title: 'Oracle Username',
+      type: 'short-input',
+      required: true,
       condition: { field: 'operation', value: inputOperations.userName },
     },
     {
-      id: 'provisioningInfo', title: 'Proposed Roles and Data Access (JSON)', type: 'long-input', required: true,
+      id: 'provisioningInfo',
+      title: 'Proposed Roles and Data Access (JSON)',
+      type: 'long-input',
+      required: true,
       placeholder: '{"ROLE_CODE":["BUSINESS_UNIT = Example"]}',
       condition: { field: 'operation', value: inputOperations.provisioningInfo },
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an Oracle provisioning simulation object mapping role codes to arrays of Oracle data access scope strings. Supported scope kinds are BUSINESS_UNIT, LEDGER_SET, DATA_ACCESS_SET, ASSET_BOOK, REFERENCE_DATA_SET. Return ONLY the JSON object.',
-        placeholder: 'Describe the proposed roles and data scopes', generationType: 'json-object',
+        prompt:
+          'Generate an Oracle provisioning simulation object mapping role codes to arrays of Oracle data access scope strings. Supported scope kinds are BUSINESS_UNIT, LEDGER_SET, DATA_ACCESS_SET, ASSET_BOOK, REFERENCE_DATA_SET. Return ONLY the JSON object.',
+        placeholder: 'Describe the proposed roles and data scopes',
+        generationType: 'json-object',
       },
     },
     {
-      id: 'q', title: 'Filter', type: 'long-input', mode: 'advanced',
+      id: 'q',
+      title: 'Filter',
+      type: 'long-input',
+      mode: 'advanced',
       condition: { field: 'operation', value: listOperations.filter((id) => id !== 'oracle_fusion_risk_management_list_simulation_results') },
       placeholder: 'Oracle q expression using queryable fields for this resource',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an Oracle q filter using documented queryable fields for the selected Risk Management resource, for example Name="Review" when Name is queryable. Return ONLY the filter expression.',
+        prompt:
+          'Generate an Oracle q filter using documented queryable fields for the selected Risk Management resource, for example Name="Review" when Name is queryable. Return ONLY the filter expression.',
         placeholder: 'Describe which records to retrieve',
       },
     },
@@ -828,7 +1225,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Review compliance coverage',
-      prompt: 'Build a workflow that lists a bounded page of processes and reads their related risks, then inspects risk-control relationships. Report coverage using returned identifiers without inventing assessments or approving records.',
+      prompt:
+        'Build a workflow that lists a bounded page of processes and reads their related risks, then inspects risk-control relationships. Report coverage using returned identifiers without inventing assessments or approving records.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -836,7 +1234,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Maintain compliance records',
-      prompt: 'Build a workflow that creates approved process, risk, or control definitions and updates documented process/control fields. Preserve exact IDs and keep risk updates and issue creation outside the workflow.',
+      prompt:
+        'Build a workflow that creates approved process, risk, or control definitions and updates documented process/control fields. Preserve exact IDs and keep risk updates and issue creation outside the workflow.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -844,7 +1243,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Track issue remediation',
-      prompt: 'Build a scheduled workflow that reads issues and summarizes severity, remediation requirements, and target dates. Update only explicitly requested remediation fields; do not approve or close issues.',
+      prompt:
+        'Build a scheduled workflow that reads issues and summarizes severity, remediation requirements, and target dates. Update only explicitly requested remediation fields; do not approve or close issues.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -852,7 +1252,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Review assessment results',
-      prompt: 'Build a workflow that reads process, risk, and control assessment results and records an assessor response and result summary when requested. Use the response codes for the selected assessment type; do not certify or approve assessments.',
+      prompt:
+        'Build a workflow that reads process, risk, and control assessment results and records an assessor response and result summary when requested. Use the response codes for the selected assessment type; do not certify or approve assessments.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -860,7 +1261,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Maintain control test procedures',
-      prompt: 'Build a workflow that retrieves an existing control test plan, reviews its steps and activities, and updates the documented procedure fields. Create steps or activity associations when requested; do not create test plans or execute controls.',
+      prompt:
+        'Build a workflow that retrieves an existing control test plan, reviews its steps and activities, and updates the documented procedure fields. Create steps or activity associations when requested; do not create test plans or execute controls.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -868,7 +1270,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Investigate control incidents',
-      prompt: 'Build a workflow that lists advanced-control incidents and their dynamic transaction attributes, reviews comments, and records investigation notes. Update an investigator or documented incident status only when requested.',
+      prompt:
+        'Build a workflow that lists advanced-control incidents and their dynamic transaction attributes, reviews comments, and records investigation notes. Update an investigator or documented incident status only when requested.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -876,7 +1279,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Simulate proposed access',
-      prompt: 'Build a workflow that submits proposed role codes and data access for a named Oracle user, stores the returned simulation request ID, and checks status in separate invocations. Retrieve paginated results after completion and report conflicts without granting access.',
+      prompt:
+        'Build a workflow that submits proposed role codes and data access for a named Oracle user, stores the returned simulation request ID, and checks status in separate invocations. Retrieve paginated results after completion and report conflicts without granting access.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -884,7 +1288,8 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Maintain assignment groups',
-      prompt: 'Build a workflow that discovers securable types and eligible users, creates an assignment group, and maintains its members and group security assignments when requested. Clarify that group permissions do not automatically assign the group to compliance records.',
+      prompt:
+        'Build a workflow that discovers securable types and eligible users, creates an assignment group, and maintains its members and group security assignments when requested. Clarify that group permissions do not automatically assign the group to compliance records.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation', 'reporting'],
@@ -894,42 +1299,50 @@ export const OracleFusionRiskManagementBlockMeta = {
     {
       name: 'review-compliance-coverage',
       description: 'Review compliance coverage',
-      content: '# Review compliance coverage\n\n## Steps\n\nList processes, inspect related risks, and read the controls that mitigate each selected risk. Report gaps with record identifiers.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Review compliance coverage\n\n## Steps\n\nList processes, inspect related risks, and read the controls that mitigate each selected risk. Report gaps with record identifiers.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
     {
       name: 'maintain-compliance-records',
       description: 'Maintain compliance records',
-      content: '# Maintain compliance records\n\n## Steps\n\nSelect the record type, retrieve existing records when updating, and submit only the intended documented fields. Preserve exact identifiers and report the resulting record.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Maintain compliance records\n\n## Steps\n\nSelect the record type, retrieve existing records when updating, and submit only the intended documented fields. Preserve exact identifiers and report the resulting record.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
     {
       name: 'track-issue-remediation',
       description: 'Track issue remediation',
-      content: '# Track issue remediation\n\n## Steps\n\nList issues, inspect severity and remediation fields, and update explicitly requested remediation details. Report current status without asserting a workflow approval.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Track issue remediation\n\n## Steps\n\nList issues, inspect severity and remediation fields, and update explicitly requested remediation details. Report current status without asserting a workflow approval.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
     {
       name: 'review-assessment-results',
       description: 'Review assessment results',
-      content: '# Review assessment results\n\n## Steps\n\nRetrieve the assessment result, inspect its version and response, and update documented assessor response fields when requested. Report the result without claiming certification.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Review assessment results\n\n## Steps\n\nRetrieve the assessment result, inspect its version and response, and update documented assessor response fields when requested. Report the result without claiming certification.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
     {
       name: 'maintain-control-test-procedures',
       description: 'Maintain control test procedures',
-      content: '# Maintain control test procedures\n\n## Steps\n\nRetrieve an existing control test plan with its control ID, list steps and activities, and apply explicitly requested procedure edits. Return exact IDs and updated records.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Maintain control test procedures\n\n## Steps\n\nRetrieve an existing control test plan with its control ID, list steps and activities, and apply explicitly requested procedure edits. Return exact IDs and updated records.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
     {
       name: 'investigate-control-incidents',
       description: 'Investigate control incidents',
-      content: '# Investigate control incidents\n\n## Steps\n\nRetrieve the advanced control, list incidents, and inspect transaction attributes and comments for selected incidents. Record requested investigation notes and report current incident status.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Investigate control incidents\n\n## Steps\n\nRetrieve the advanced control, list incidents, and inspect transaction attributes and comments for selected incidents. Record requested investigation notes and report current incident status.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
     {
       name: 'simulate-proposed-access',
       description: 'Simulate proposed access',
-      content: '# Simulate proposed access\n\n## Steps\n\nSubmit a provisioning simulation for the intended user. Preserve its request ID, query status separately, and read results after completion. Report conflicts without creating incidents or granting roles.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Simulate proposed access\n\n## Steps\n\nSubmit a provisioning simulation for the intended user. Preserve its request ID, query status separately, and read results after completion. Report conflicts without creating incidents or granting roles.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
     {
       name: 'maintain-assignment-groups',
       description: 'Maintain assignment groups',
-      content: '# Maintain assignment groups\n\n## Steps\n\nChoose a securable type and authorization, inspect eligible users, and apply explicitly requested group membership or group security changes. Report the group and assignments without implying ERP role grants.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
+      content:
+        '# Maintain assignment groups\n\n## Steps\n\nChoose a securable type and authorization, inspect eligible users, and apply explicitly requested group membership or group security changes. Report the group and assignments without implying ERP role grants.\n\n## Output\n\nReturn the documented record fields and explicit pagination or simulation state. Consult the [Oracle Risk Management REST reference](https://docs.oracle.com/en/cloud/saas/risk-management-and-compliance/26c/farkm/index.html) for resource-specific prerequisites.',
     },
   ],
 } as const satisfies BlockMeta

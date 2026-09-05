@@ -966,7 +966,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       oracle_fusion_risk_management: {
         name: 'Oracle Fusion Risk Management',
-        description: 'Manage compliance records, investigate incidents, and simulate access conflicts.',
+        description:
+          'Manage compliance records, investigate incidents, and simulate access conflicts.',
         providerId: 'oracle_fusion_risk_management',
         serviceAccountProviderId: 'oracle-fusion-service-account',
         icon: NetSuiteIcon,

@@ -22,20 +22,28 @@ export const riskIdentifierSchema = z.unknown().transform((value, context) => {
     normalized.length > MAX_INT64.length ||
     (normalized.length === MAX_INT64.length && normalized > MAX_INT64)
   ) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Expected an exact non-negative int64 identifier' })
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Expected an exact non-negative int64 identifier',
+    })
     return z.NEVER
   }
   return normalized
 })
 
-export const riskKeySchema = z.string().trim().min(1).max(2048).refine((value) => {
-  try {
-    encodeOracleFusionPathSegment(value)
-    return true
-  } catch {
-    return false
-  }
-}, 'Expected an Oracle identifier or opaque key, not a URL')
+export const riskKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2048)
+  .refine((value) => {
+    try {
+      encodeOracleFusionPathSegment(value)
+      return true
+    } catch {
+      return false
+    }
+  }, 'Expected an Oracle identifier or opaque key, not a URL')
 
 export const riskPagingSchema = z.object({
   limit: z.number().int().min(1).max(RISK_PAGE_SIZE).default(RISK_PAGE_SIZE),
@@ -46,15 +54,25 @@ export const riskPagingSchema = z.object({
 })
 
 function nullableField<T extends z.ZodTypeAny>(schema: T) {
-  return z.preprocess((value) => value === undefined ? null : value, schema.nullable())
+  return z.preprocess((value) => (value === undefined ? null : value), schema.nullable())
 }
 const nullableString = nullableField(z.string())
 const nullableBoolean = nullableField(z.boolean())
 const nullableIdentifier = nullableField(riskIdentifierSchema)
-const nullableNumber = nullableField(z.union([
-  z.number().finite().refine((value) => !Number.isInteger(value) || Number.isSafeInteger(value)),
-  z.string().max(256).regex(/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/),
-]).transform((value) => String(value)))
+const nullableNumber = nullableField(
+  z
+    .union([
+      z
+        .number()
+        .finite()
+        .refine((value) => !Number.isInteger(value) || Number.isSafeInteger(value)),
+      z
+        .string()
+        .max(256)
+        .regex(/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/),
+    ])
+    .transform((value) => String(value))
+)
 const requestInteger = riskIdentifierSchema.transform(oracleFusionExactInteger)
 
 /** Oracle 26C scalar projections; links are consumed separately and children are paginated explicitly. */
@@ -553,225 +571,389 @@ export const riskResourceSchemas = {
 
 export const riskWriteSchemas = {
   /** 26C: op-frcprocesses-post.html */
-  create_process: z.object({
-    AssessmentFlag: z.boolean().optional(),
-    AuditTestingFlag: z.boolean().optional(),
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    Name: z.string().min(1).max(150),
-    Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-    Type: z.string().max(30).nullable().optional(),
-    perspectives: z.array(z.object({
-      PerspItemId: requestInteger,
-      ProcessId: requestInteger.optional(),
-    }).strict()).max(100).optional(),
-  }).strict(),
-  /** 26C: op-frcprocesses-processid-patch.html */
-  update_process: z.object({
-    AssessmentFlag: z.boolean().optional(),
-    AuditTestingFlag: z.boolean().optional(),
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    Name: z.string().max(150).optional(),
-    Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-    Type: z.string().max(30).nullable().optional(),
-    perspectives: z.array(z.object({
-      PerspItemId: requestInteger,
-      ProcessId: requestInteger.optional(),
-    }).strict()).max(100).optional(),
-    actionItems: z.array(z.object({
-      ActionId: requestInteger,
-      CompletedDate: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).date().nullable().optional(),
+  create_process: z
+    .object({
+      AssessmentFlag: z.boolean().optional(),
+      AuditTestingFlag: z.boolean().optional(),
       DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-      DueDate: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).datetime({ offset: true }).optional(),
-      EstimatedCompletionDate: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).datetime({ offset: true }).nullable().optional(),
+      Name: z.string().min(1).max(150),
+      Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+      Type: z.string().max(30).nullable().optional(),
+      perspectives: z
+        .array(
+          z
+            .object({
+              PerspItemId: requestInteger,
+              ProcessId: requestInteger.optional(),
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+    })
+    .strict(),
+  /** 26C: op-frcprocesses-processid-patch.html */
+  update_process: z
+    .object({
+      AssessmentFlag: z.boolean().optional(),
+      AuditTestingFlag: z.boolean().optional(),
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
       Name: z.string().max(150).optional(),
-      PriorityCode: z.string().max(30).optional(),
-      ProcessId: requestInteger.optional(),
-      ProgressCode: z.string().max(30).optional(),
-    }).strict()).max(100).optional(),
-  }).strict(),
+      Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+      Type: z.string().max(30).nullable().optional(),
+      perspectives: z
+        .array(
+          z
+            .object({
+              PerspItemId: requestInteger,
+              ProcessId: requestInteger.optional(),
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+      actionItems: z
+        .array(
+          z
+            .object({
+              ActionId: requestInteger,
+              CompletedDate: z
+                .string()
+                .max(MAX_INLINE_MATERIALIZATION_BYTES)
+                .date()
+                .nullable()
+                .optional(),
+              DetailedDescription: z
+                .string()
+                .max(MAX_INLINE_MATERIALIZATION_BYTES)
+                .nullable()
+                .optional(),
+              DueDate: z
+                .string()
+                .max(MAX_INLINE_MATERIALIZATION_BYTES)
+                .datetime({ offset: true })
+                .optional(),
+              EstimatedCompletionDate: z
+                .string()
+                .max(MAX_INLINE_MATERIALIZATION_BYTES)
+                .datetime({ offset: true })
+                .nullable()
+                .optional(),
+              Name: z.string().max(150).optional(),
+              PriorityCode: z.string().max(30).optional(),
+              ProcessId: requestInteger.optional(),
+              ProgressCode: z.string().max(30).optional(),
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+    })
+    .strict(),
   /** 26C: op-frcrisks-post.html */
-  create_risk: z.object({
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    Name: z.string().min(1).max(150),
-    RiskAnalysisModelId: requestInteger.nullable().optional(),
-    RiskContextModelId: requestInteger.nullable().optional(),
-    Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-    Type: z.string().max(30).nullable().optional(),
-    perspectives: z.array(z.object({
-      PerspItemId: requestInteger,
-      RiskId: requestInteger.optional(),
-    }).strict()).max(100).optional(),
-    relatedControls: z.array(z.object({
-      ChildId: requestInteger,
-      ParentId: requestInteger.optional(),
-    }).strict()).max(100).optional(),
-    relatedProcesses: z.array(z.object({
-      ProcessId: requestInteger,
-      RiskId: requestInteger.optional(),
-    }).strict()).max(100).optional(),
-  }).strict(),
+  create_risk: z
+    .object({
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      Name: z.string().min(1).max(150),
+      RiskAnalysisModelId: requestInteger.nullable().optional(),
+      RiskContextModelId: requestInteger.nullable().optional(),
+      Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+      Type: z.string().max(30).nullable().optional(),
+      perspectives: z
+        .array(
+          z
+            .object({
+              PerspItemId: requestInteger,
+              RiskId: requestInteger.optional(),
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+      relatedControls: z
+        .array(
+          z
+            .object({
+              ChildId: requestInteger,
+              ParentId: requestInteger.optional(),
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+      relatedProcesses: z
+        .array(
+          z
+            .object({
+              ProcessId: requestInteger,
+              RiskId: requestInteger.optional(),
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+    })
+    .strict(),
   /** 26C: op-frccontrols-post.html */
-  create_control: z.object({
-    AssessmentFlag: z.string().max(1).nullable().optional(),
-    AuditTestingFlag: z.string().max(1).nullable().optional(),
-    ControlCost: z.number().finite().nullable().optional(),
-    ControlFrequency: z.string().max(30).nullable().optional(),
-    ControlMethod: z.string().max(40).optional(),
-    ControlType: z.string().max(30).nullable().optional(),
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    EnforcementType: z.string().max(50).nullable().optional(),
-    Name: z.string().min(1).max(150),
-    Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-    perspectives: z.array(z.object({
-      ControlId: requestInteger.optional(),
-      PerspItemId: requestInteger,
-    }).strict()).max(100).optional(),
-  }).strict(),
+  create_control: z
+    .object({
+      AssessmentFlag: z.string().max(1).nullable().optional(),
+      AuditTestingFlag: z.string().max(1).nullable().optional(),
+      ControlCost: z.number().finite().nullable().optional(),
+      ControlFrequency: z.string().max(30).nullable().optional(),
+      ControlMethod: z.string().max(40).optional(),
+      ControlType: z.string().max(30).nullable().optional(),
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      EnforcementType: z.string().max(50).nullable().optional(),
+      Name: z.string().min(1).max(150),
+      Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+      perspectives: z
+        .array(
+          z
+            .object({
+              ControlId: requestInteger.optional(),
+              PerspItemId: requestInteger,
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-patch.html */
-  update_control: z.object({
-    AssessmentFlag: z.string().max(1).nullable().optional(),
-    AuditTestingFlag: z.string().max(1).nullable().optional(),
-    ControlCost: z.number().finite().nullable().optional(),
-    ControlFrequency: z.string().max(30).nullable().optional(),
-    ControlMethod: z.string().max(40).optional(),
-    ControlType: z.string().max(30).nullable().optional(),
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    EnforcementType: z.string().max(50).nullable().optional(),
-    Name: z.string().max(150).optional(),
-    Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-    perspectives: z.array(z.object({
-      ControlId: requestInteger.optional(),
-      PerspItemId: requestInteger,
-    }).strict()).max(100).optional(),
-  }).strict(),
+  update_control: z
+    .object({
+      AssessmentFlag: z.string().max(1).nullable().optional(),
+      AuditTestingFlag: z.string().max(1).nullable().optional(),
+      ControlCost: z.number().finite().nullable().optional(),
+      ControlFrequency: z.string().max(30).nullable().optional(),
+      ControlMethod: z.string().max(40).optional(),
+      ControlType: z.string().max(30).nullable().optional(),
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      EnforcementType: z.string().max(50).nullable().optional(),
+      Name: z.string().max(150).optional(),
+      Status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+      perspectives: z
+        .array(
+          z
+            .object({
+              ControlId: requestInteger.optional(),
+              PerspItemId: requestInteger,
+            })
+            .strict()
+        )
+        .max(100)
+        .optional(),
+    })
+    .strict(),
   /** 26C: op-frcissues-issueid-patch.html */
-  update_issue: z.object({
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    LikelihoodCode: z.enum(['HIGH', 'LOW', 'MEDIUM']).nullable().optional(),
-    Name: z.string().max(150).optional(),
-    ReasonCode: z.string().max(30).nullable().optional(),
-    RemedDate: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).date().nullable().optional(),
-    RemediationFlag: z.boolean().optional(),
-    Severity: z.enum(['DEFICIENCY', 'DOCUMENTATION_ONLY', 'MINOR_GAP', 'SIGNIFICANT_DEFICIENCY']).optional(),
-    Type: z.string().max(30).nullable().optional(),
-  }).strict(),
+  update_issue: z
+    .object({
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      LikelihoodCode: z.enum(['HIGH', 'LOW', 'MEDIUM']).nullable().optional(),
+      Name: z.string().max(150).optional(),
+      ReasonCode: z.string().max(30).nullable().optional(),
+      RemedDate: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).date().nullable().optional(),
+      RemediationFlag: z.boolean().optional(),
+      Severity: z
+        .enum(['DEFICIENCY', 'DOCUMENTATION_ONLY', 'MINOR_GAP', 'SIGNIFICANT_DEFICIENCY'])
+        .optional(),
+      Type: z.string().max(30).nullable().optional(),
+    })
+    .strict(),
   /** 26C: op-frcprocesses-processid-child-comments-post.html */
-  create_process_comment: z.object({
-    UserComment: z.string().min(1).max(2000),
-  }).strict(),
+  create_process_comment: z
+    .object({
+      UserComment: z.string().min(1).max(2000),
+    })
+    .strict(),
   /** 26C: op-frcrisks-riskid-child-comments-post.html */
-  create_risk_comment: z.object({
-    UserComment: z.string().min(1).max(2000),
-  }).strict(),
+  create_risk_comment: z
+    .object({
+      UserComment: z.string().min(1).max(2000),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-child-comments-post.html */
-  create_control_comment: z.object({
-    UserComment: z.string().min(1).max(2000),
-  }).strict(),
+  create_control_comment: z
+    .object({
+      UserComment: z.string().min(1).max(2000),
+    })
+    .strict(),
   /** 26C: op-frcprocesses-processid-child-relatedrisks-post.html */
-  create_process_risk: z.object({
-    ProcessId: requestInteger.optional(),
-    RiskId: requestInteger,
-  }).strict(),
+  create_process_risk: z
+    .object({
+      ProcessId: requestInteger.optional(),
+      RiskId: requestInteger,
+    })
+    .strict(),
   /** 26C: op-frcprocessassessmentresults-resultid-patch.html */
-  update_process_assessment_result: z.object({
-    ObjectVersionNumber: z.number().int().min(0).max(2147483647).optional(),
-    ResponseCode: z.enum(['COMPLETED', 'AGREE', 'AGREE_WITH_EXCEPTION', 'DO_NOT_AGREE', 'PASS_WITH_EXCEPTION', 'FAIL', 'NO_OPINION', 'PASS', 'NO_ACTION']).nullable().optional(),
-    ResultSummary: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-  }).strict(),
+  update_process_assessment_result: z
+    .object({
+      ObjectVersionNumber: z.number().int().min(0).max(2147483647).optional(),
+      ResponseCode: z
+        .enum([
+          'COMPLETED',
+          'AGREE',
+          'AGREE_WITH_EXCEPTION',
+          'DO_NOT_AGREE',
+          'PASS_WITH_EXCEPTION',
+          'FAIL',
+          'NO_OPINION',
+          'PASS',
+          'NO_ACTION',
+        ])
+        .nullable()
+        .optional(),
+      ResultSummary: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+    })
+    .strict(),
   /** 26C: op-frcriskassessmentresults-resultid-patch.html */
-  update_risk_assessment_result: z.object({
-    ObjectVersionNumber: z.number().int().min(0).max(2147483647).optional(),
-    ResponseCode: z.enum(['REQ_EVALUATION', 'REQ_ADDITIONAL_ANALYSIS', 'REQ_DOCUMENTATION', 'MEETS_GUIDANCE', 'PASS_WITH_EXCEPTION', 'FAIL', 'NO_OPINION', 'OUT_OF_TOLERANCE', 'AGREE', 'AGREE_WITH_EXCEPTION', 'PASS', 'DO_NOT_AGREE']).nullable().optional(),
-    ResultSummary: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-  }).strict(),
+  update_risk_assessment_result: z
+    .object({
+      ObjectVersionNumber: z.number().int().min(0).max(2147483647).optional(),
+      ResponseCode: z
+        .enum([
+          'REQ_EVALUATION',
+          'REQ_ADDITIONAL_ANALYSIS',
+          'REQ_DOCUMENTATION',
+          'MEETS_GUIDANCE',
+          'PASS_WITH_EXCEPTION',
+          'FAIL',
+          'NO_OPINION',
+          'OUT_OF_TOLERANCE',
+          'AGREE',
+          'AGREE_WITH_EXCEPTION',
+          'PASS',
+          'DO_NOT_AGREE',
+        ])
+        .nullable()
+        .optional(),
+      ResultSummary: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+    })
+    .strict(),
   /** 26C: op-frccontrolassessmentresults-resultid-patch.html */
-  update_control_assessment_result: z.object({
-    ObjectVersionNumber: z.number().int().min(0).max(2147483647).optional(),
-    ResponseCode: z.enum(['PASS', 'PASS_WITH_EXCEPTION', 'FAIL', 'NO_OPINION']).nullable().optional(),
-    ResultSummary: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-  }).strict(),
+  update_control_assessment_result: z
+    .object({
+      ObjectVersionNumber: z.number().int().min(0).max(2147483647).optional(),
+      ResponseCode: z
+        .enum(['PASS', 'PASS_WITH_EXCEPTION', 'FAIL', 'NO_OPINION'])
+        .nullable()
+        .optional(),
+      ResultSummary: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-child-assertions-post.html */
-  create_control_assertion: z.object({
-    AssertionCode: z.string().min(1).max(30),
-  }).strict(),
+  create_control_assertion: z
+    .object({
+      AssertionCode: z.string().min(1).max(30),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-child-assertions-assertionsuniqid-patch.html */
-  update_control_assertion: z.object({
-    AssertionCode: z.string().min(1).max(30),
-  }).strict(),
+  update_control_assertion: z
+    .object({
+      AssertionCode: z.string().min(1).max(30),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-child-testplans-testplanid-patch.html */
-  update_control_test_plan: z.object({
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    Name: z.string().max(150).optional(),
-    SampleSize: z.number().int().min(0).max(2147483647).nullable().optional(),
-    TestPlanFrequency: z.string().max(30).nullable().optional(),
-  }).strict(),
+  update_control_test_plan: z
+    .object({
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      Name: z.string().max(150).optional(),
+      SampleSize: z.number().int().min(0).max(2147483647).nullable().optional(),
+      TestPlanFrequency: z.string().max(30).nullable().optional(),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-child-testplans-testplanid-child-steps-post.html */
-  create_test_plan_step: z.object({
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    StepOrder: z.number().int().min(0).max(2147483647),
-    TestPlanId: requestInteger.optional(),
-  }).strict(),
+  create_test_plan_step: z
+    .object({
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      StepOrder: z.number().int().min(0).max(2147483647),
+      TestPlanId: requestInteger.optional(),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-child-testplans-testplanid-child-steps-stepid-patch.html */
-  update_test_plan_step: z.object({
-    DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    StepOrder: z.number().int().min(0).max(2147483647).optional(),
-  }).strict(),
+  update_test_plan_step: z
+    .object({
+      DetailedDescription: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      StepOrder: z.number().int().min(0).max(2147483647).optional(),
+    })
+    .strict(),
   /** 26C: op-frccontrols-controlid-child-testplans-testplanid-child-planactivity-post.html */
-  create_test_plan_activity: z.object({
-    ActivityCode: z.string().min(1).max(30),
-    ControlId: requestInteger.optional(),
-    TestPlanId: requestInteger.optional(),
-  }).strict(),
+  create_test_plan_activity: z
+    .object({
+      ActivityCode: z.string().min(1).max(30),
+      ControlId: requestInteger.optional(),
+      TestPlanId: requestInteger.optional(),
+    })
+    .strict(),
   /** 26C: op-advancedcontrols-id-patch.html */
-  update_advanced_control: z.object({
-    Description: z.string().max(2000).nullable().optional(),
-    Name: z.string().max(256).optional(),
-    Status: z.string().max(30).nullable().optional(),
-  }).strict(),
+  update_advanced_control: z
+    .object({
+      Description: z.string().max(2000).nullable().optional(),
+      Name: z.string().max(256).optional(),
+      Status: z.string().max(30).nullable().optional(),
+    })
+    .strict(),
   /** 26C: op-advancedcontrols-id-child-comments-post.html */
-  create_advanced_control_comment: z.object({
-    UserComment: z.string().min(1).max(2000),
-  }).strict(),
+  create_advanced_control_comment: z
+    .object({
+      UserComment: z.string().min(1).max(2000),
+    })
+    .strict(),
   /** 26C: op-advancedcontrols-id-child-incidents-id4-patch.html */
-  update_incident: z.object({
-    ResultInvestigator: z.string().max(255).nullable().optional(),
-    Status: z.enum(['Assigned', 'Accepted', 'Remediate', 'Resolved']).nullable().optional(),
-  }).strict(),
+  update_incident: z
+    .object({
+      ResultInvestigator: z.string().max(255).nullable().optional(),
+      Status: z.enum(['Assigned', 'Accepted', 'Remediate', 'Resolved']).nullable().optional(),
+    })
+    .strict(),
   /** 26C: op-advancedcontrols-id-child-incidents-id4-child-comments-post.html */
-  create_incident_comment: z.object({
-    Delegated: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
-    UserComment: z.string().min(1).max(2000),
-  }).strict(),
+  create_incident_comment: z
+    .object({
+      Delegated: z.string().max(MAX_INLINE_MATERIALIZATION_BYTES).nullable().optional(),
+      UserComment: z.string().min(1).max(2000),
+    })
+    .strict(),
   /** 26C: op-userassignmentgroups-post.html */
-  create_assignment_group: z.object({
-    Name: z.string().min(1).max(200),
-    RoleType: z.string().min(1).max(100),
-    SecurableType: z.string().min(1).max(100),
-  }).strict(),
+  create_assignment_group: z
+    .object({
+      Name: z.string().min(1).max(200),
+      RoleType: z.string().min(1).max(100),
+      SecurableType: z.string().min(1).max(100),
+    })
+    .strict(),
   /** 26C: op-userassignmentgroups-groupid-patch.html */
-  update_assignment_group: z.object({
-    Name: z.string().max(200).optional(),
-  }).strict(),
+  update_assignment_group: z
+    .object({
+      Name: z.string().max(200).optional(),
+    })
+    .strict(),
   /** 26C: op-userassignmentgroups-groupid-child-members-post.html */
-  create_group_member: z.object({
-    GroupId: z.string().max(100).optional(),
-    UserId: z.string().min(1).max(100),
-  }).strict(),
+  create_group_member: z
+    .object({
+      GroupId: z.string().max(100).optional(),
+      UserId: z.string().min(1).max(100),
+    })
+    .strict(),
   /** 26C: op-userassignmentgroups-groupid-child-securityassignments-post.html */
-  create_group_security_assignment: z.object({
-    AccessorId: z.string().min(1).max(100),
-    AccessorType: z.enum(['USER', 'GROUP']),
-    IsEditor: z.number().int().min(0).max(2147483647).nullable().optional(),
-    IsOwner: z.number().int().min(0).max(2147483647).nullable().optional(),
-    IsViewer: z.number().int().min(0).max(2147483647).nullable().optional(),
-    SecurableId: z.string().max(100).optional(),
-  }).strict(),
+  create_group_security_assignment: z
+    .object({
+      AccessorId: z.string().min(1).max(100),
+      AccessorType: z.enum(['USER', 'GROUP']),
+      IsEditor: z.number().int().min(0).max(2147483647).nullable().optional(),
+      IsOwner: z.number().int().min(0).max(2147483647).nullable().optional(),
+      IsViewer: z.number().int().min(0).max(2147483647).nullable().optional(),
+      SecurableId: z.string().max(100).optional(),
+    })
+    .strict(),
   /** 26C: op-userassignmentgroups-groupid-child-securityassignments-id-patch.html */
-  update_group_security_assignment: z.object({
-    IsEditor: z.number().int().min(0).max(2147483647).nullable().optional(),
-    IsOwner: z.number().int().min(0).max(2147483647).nullable().optional(),
-    IsViewer: z.number().int().min(0).max(2147483647).nullable().optional(),
-  }).strict(),
+  update_group_security_assignment: z
+    .object({
+      IsEditor: z.number().int().min(0).max(2147483647).nullable().optional(),
+      IsOwner: z.number().int().min(0).max(2147483647).nullable().optional(),
+      IsViewer: z.number().int().min(0).max(2147483647).nullable().optional(),
+    })
+    .strict(),
 } as const
 
 /** Bound serialized strings and plain objects before recursive mutation validation. */

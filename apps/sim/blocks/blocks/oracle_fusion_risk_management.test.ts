@@ -2,12 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { selectorManifest } from '@/lib/selectors/manifest'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import {
   OracleFusionRiskManagementBlock,
   OracleFusionRiskManagementBlockMeta,
 } from '@/blocks/blocks/oracle_fusion_risk_management'
-import { selectorManifest } from '@/lib/selectors/manifest'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import * as riskTools from '@/tools/oracle_fusion_risk_management'
 
 const block = OracleFusionRiskManagementBlock
@@ -23,16 +23,18 @@ describe('Risk Management block contracts', () => {
       for (const [param, config] of Object.entries(tool.params)) {
         if (!config.required || config.visibility === 'hidden') continue
         for (const mode of ['basic', 'advanced']) {
-          const fields = block.subBlocks.filter((field) =>
-            (field.canonicalParamId ?? field.id) === param &&
-            (!field.mode || field.mode === mode) &&
-            evaluateSubBlockCondition(field.condition, values)
+          const fields = block.subBlocks.filter(
+            (field) =>
+              (field.canonicalParamId ?? field.id) === param &&
+              (!field.mode || field.mode === mode) &&
+              evaluateSubBlockCondition(field.condition, values)
           )
           expect(fields.length, `${tool.id}: ${param} in ${mode}`).toBeGreaterThan(0)
           expect(fields.every((field) => field.required === true)).toBe(true)
         }
       }
-      for (const output of Object.keys(tool.outputs ?? {})) expect(block.outputs).toHaveProperty(output)
+      for (const output of Object.keys(tool.outputs ?? {}))
+        expect(block.outputs).toHaveProperty(output)
     }
     expect(OracleFusionRiskManagementBlockMeta.templates.length).toBeGreaterThanOrEqual(7)
   })
@@ -47,7 +49,14 @@ describe('Risk Management block contracts', () => {
     expect(params.processId).toBe('<previous.record.ProcessId>')
     const mapped = block.tools.config.params!({ ...params, processId: '9007199254740993' })
     expect(mapped).toEqual({ processId: '9007199254740993' })
-    expect(block.tools.config.params!({ operation: 'oracle_fusion_risk_management_list_processes', limit: '25', offset: '0', totalResults: 'false' })).toEqual({ limit: 25, offset: 0, totalResults: false })
+    expect(
+      block.tools.config.params!({
+        operation: 'oracle_fusion_risk_management_list_processes',
+        limit: '25',
+        offset: '0',
+        totalResults: 'false',
+      })
+    ).toEqual({ limit: 25, offset: 0, totalResults: false })
   })
 
   it('binds selectors to the shared service and credential context', () => {

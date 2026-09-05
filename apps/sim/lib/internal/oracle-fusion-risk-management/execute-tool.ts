@@ -11,7 +11,9 @@ import type { InternalToolOperationHandler } from '@/lib/internal/tool-operation
 import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 
 /** The executor authorizes credential use; this product boundary binds the credential family. */
-export const executeOracleFusionRiskManagementTool: InternalToolOperationHandler = async (request) => {
+export const executeOracleFusionRiskManagementTool: InternalToolOperationHandler = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   if (!isPlainRecord(request.input) || typeof request.input.oauthCredential !== 'string') {
     return Response.json(

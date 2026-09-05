@@ -230,14 +230,16 @@ export const riskResources = {
     numeric: ['advancedControlId'],
   },
   incident_attribute: {
-    collection: 'advancedControls/{advancedControlId}/child/incidents/{incidentKey}/child/dynamicAttributes',
+    collection:
+      'advancedControls/{advancedControlId}/child/incidents/{incidentKey}/child/dynamicAttributes',
     param: 'attributeKey',
     idField: 'Id',
     opaque: true,
     numeric: ['advancedControlId'],
   },
   incident_perspective: {
-    collection: 'advancedControls/{advancedControlId}/child/incidents/{incidentKey}/child/perspectives',
+    collection:
+      'advancedControls/{advancedControlId}/child/incidents/{incidentKey}/child/perspectives',
     param: 'treeId',
     idField: 'TreeId',
     opaque: false,
@@ -322,7 +324,10 @@ function identifier(resource: RiskResource, name: string, value: unknown): strin
     : riskKeySchema.parse(value)
 }
 
-function collectionAddress(resource: RiskResource, params: Record<string, unknown>): OracleFusionResourceAddress {
+function collectionAddress(
+  resource: RiskResource,
+  params: Record<string, unknown>
+): OracleFusionResourceAddress {
   return {
     family: 'fscm',
     relativePath: riskResources[resource].collection.replace(/\{(\w+)\}/g, (_, name: string) =>
@@ -331,14 +336,25 @@ function collectionAddress(resource: RiskResource, params: Record<string, unknow
   }
 }
 
-function detailAddress(resource: RiskResource, params: Record<string, unknown>): OracleFusionResourceAddress {
+function detailAddress(
+  resource: RiskResource,
+  params: Record<string, unknown>
+): OracleFusionResourceAddress {
   const definition = riskResources[resource]
   const address = collectionAddress(resource, params)
   const key = identifier(resource, definition.param, params[definition.param])
-  return { ...address, relativePath: `${address.relativePath}/${encodeOracleFusionPathSegment(key)}` }
+  return {
+    ...address,
+    relativePath: `${address.relativePath}/${encodeOracleFusionPathSegment(key)}`,
+  }
 }
 
-function projectResource(resource: RiskResource, raw: unknown, credential: OracleFusionResolvedCredential, collection: OracleFusionResourceAddress): Record<string, unknown> {
+function projectResource(
+  resource: RiskResource,
+  raw: unknown,
+  credential: OracleFusionResolvedCredential,
+  collection: OracleFusionResourceAddress
+): Record<string, unknown> {
   try {
     const key = riskResources[resource].opaque
       ? extractOracleFusionOpaqueKey(raw, credential.instanceUrl, collection)
@@ -351,21 +367,41 @@ function projectResource(resource: RiskResource, raw: unknown, credential: Oracl
 }
 
 /** One bounded page; transport byte caps and retries belong to the existing Fusion client. */
-export async function listRiskResource(resource: RiskResource, credential: OracleFusionResolvedCredential, params: Record<string, unknown>, signal?: AbortSignal) {
+export async function listRiskResource(
+  resource: RiskResource,
+  credential: OracleFusionResolvedCredential,
+  params: Record<string, unknown>,
+  signal?: AbortSignal
+) {
   signal?.throwIfAborted()
   const paging = riskPagingSchema.parse(params)
   const address = collectionAddress(resource, params)
-  const finder = resource === 'simulation_result'
-    ? `getUserProvisioningAnalysisIncidents;requestId=${riskIdentifierSchema.parse(params.requestId)}`
-    : undefined
-  const raw = await requestOracleFusionJson(credential, {
-    method: 'GET', address,
-    query: { ...paging, finder, fields: Object.keys(riskResourceSchemas[resource].shape).join(',') },
-  }, signal)
+  const finder =
+    resource === 'simulation_result'
+      ? `getUserProvisioningAnalysisIncidents;requestId=${riskIdentifierSchema.parse(params.requestId)}`
+      : undefined
+  const raw = await requestOracleFusionJson(
+    credential,
+    {
+      method: 'GET',
+      address,
+      query: {
+        ...paging,
+        finder,
+        fields: Object.keys(riskResourceSchemas[resource].shape).join(','),
+      },
+    },
+    signal
+  )
   try {
-    const page = parseOracleFusionCollection(raw, (item) => projectResource(resource, item, credential, address), {
-      expectedOffset: paging.offset, maxItems: paging.limit,
-    })
+    const page = parseOracleFusionCollection(
+      raw,
+      (item) => projectResource(resource, item, credential, address),
+      {
+        expectedOffset: paging.offset,
+        maxItems: paging.limit,
+      }
+    )
     if (page.hasMore && page.nextOffset > RISK_MAX_OFFSET) {
       throw new RiskResponseError('Oracle Fusion pagination exceeds the supported offset')
     }
@@ -377,16 +413,32 @@ export async function listRiskResource(resource: RiskResource, credential: Oracl
   }
 }
 
-export async function getRiskResource(resource: RiskResource, credential: OracleFusionResolvedCredential, params: Record<string, unknown>, signal?: AbortSignal) {
+export async function getRiskResource(
+  resource: RiskResource,
+  credential: OracleFusionResolvedCredential,
+  params: Record<string, unknown>,
+  signal?: AbortSignal
+) {
   const address = detailAddress(resource, params)
-  const raw = await requestOracleFusionJson(credential, {
-    method: 'GET', address,
-    query: { fields: Object.keys(riskResourceSchemas[resource].shape).join(',') },
-  }, signal)
+  const raw = await requestOracleFusionJson(
+    credential,
+    {
+      method: 'GET',
+      address,
+      query: { fields: Object.keys(riskResourceSchemas[resource].shape).join(',') },
+    },
+    signal
+  )
   return verifyResource(resource, raw, credential, params, address)
 }
 
-function verifyResource(resource: RiskResource, raw: unknown, credential: OracleFusionResolvedCredential, params: Record<string, unknown>, expectedAddress?: OracleFusionResourceAddress) {
+function verifyResource(
+  resource: RiskResource,
+  raw: unknown,
+  credential: OracleFusionResolvedCredential,
+  params: Record<string, unknown>,
+  expectedAddress?: OracleFusionResourceAddress
+) {
   const collection = collectionAddress(resource, params)
   const record = projectResource(resource, raw, credential, collection)
   const definition = riskResources[resource]
@@ -398,7 +450,10 @@ function verifyResource(resource: RiskResource, raw: unknown, credential: Oracle
       relativePath: `${collection.relativePath}/${encodeOracleFusionPathSegment(resultId)}`,
     }
     validateOracleFusionSelfLink(raw, credential.instanceUrl, address)
-    if (expectedAddress && resultId !== identifier(resource, definition.param, params[definition.param])) {
+    if (
+      expectedAddress &&
+      resultId !== identifier(resource, definition.param, params[definition.param])
+    ) {
       throw new Error('Different identifier')
     }
   } catch {
@@ -407,32 +462,48 @@ function verifyResource(resource: RiskResource, raw: unknown, credential: Oracle
   return record
 }
 
-const simulationInfoSchema = z.record(z.string().min(1).max(256), z.array(z.string().min(1).max(1024)).max(100))
-  .refine((value) => Object.keys(value).length > 0 && Object.keys(value).length <= 100, 'Supply 1-100 role codes')
+const simulationInfoSchema = z
+  .record(z.string().min(1).max(256), z.array(z.string().min(1).max(1024)).max(100))
+  .refine(
+    (value) => Object.keys(value).length > 0 && Object.keys(value).length <= 100,
+    'Supply 1-100 role codes'
+  )
 const stringActionSchema = z.object({ result: z.string().min(1) })
 
 function parseInput(definition: RiskOperationDefinition, input: unknown) {
+  const pagingShape =
+    definition.resource === 'simulation_result'
+      ? riskPagingSchema.omit({ q: true }).shape
+      : riskPagingSchema.shape
   const shape: Record<string, z.ZodTypeAny> = {
-    oauthCredential: z.string().min(1), accessToken: z.string().min(1), instanceUrl: z.string().min(1),
-    ...(definition.kind === 'list' ? riskPagingSchema.shape : {}),
+    oauthCredential: z.string().min(1),
+    accessToken: z.string().min(1),
+    instanceUrl: z.string().min(1),
+    ...(definition.kind === 'list' ? pagingShape : {}),
     ...(definition.bodyDescription ? { body: z.unknown() } : {}),
   }
-  if (definition.resource === 'simulation_result') delete shape.q
   for (const name of definition.params) {
-    shape[name] = name === 'requestId' ? riskIdentifierSchema
-      : name === 'userName' ? z.string().trim().min(1).max(256)
-      : name === 'provisioningInfo' ? z.unknown()
-      : z.unknown().transform((value) => identifier(definition.resource, name, value))
+    shape[name] =
+      name === 'requestId'
+        ? riskIdentifierSchema
+        : name === 'userName'
+          ? z.string().trim().min(1).max(256)
+          : name === 'provisioningInfo'
+            ? z.unknown()
+            : z.unknown().transform((value) => identifier(definition.resource, name, value))
   }
   return z.object(shape).strict().parse(input)
 }
 
 const parentBodyBindings: Partial<Record<RiskOperation, Record<string, string>>> = {
-  'oracle_fusion_risk_management_create_group_member': { GroupId: 'groupKey' },
-  'oracle_fusion_risk_management_create_group_security_assignment': { SecurableId: 'groupKey' },
-  'oracle_fusion_risk_management_create_process_risk': { ProcessId: 'processId' },
-  'oracle_fusion_risk_management_create_test_plan_activity': { ControlId: 'controlId', TestPlanId: 'testPlanId' },
-  'oracle_fusion_risk_management_create_test_plan_step': { TestPlanId: 'testPlanId' },
+  oracle_fusion_risk_management_create_group_member: { GroupId: 'groupKey' },
+  oracle_fusion_risk_management_create_group_security_assignment: { SecurableId: 'groupKey' },
+  oracle_fusion_risk_management_create_process_risk: { ProcessId: 'processId' },
+  oracle_fusion_risk_management_create_test_plan_activity: {
+    ControlId: 'controlId',
+    TestPlanId: 'testPlanId',
+  },
+  oracle_fusion_risk_management_create_test_plan_step: { TestPlanId: 'testPlanId' },
 }
 
 async function mutationBody(
@@ -444,71 +515,135 @@ async function mutationBody(
 ) {
   const body = { ...parseRiskBody(params.body) }
   let groupId: string | undefined
-  if (definition.kind === 'create' && (definition.resource === 'group_member' || definition.resource === 'group_security_assignment')) {
-    const group = await getRiskResource('assignment_group', credential, { groupKey: params.groupKey }, signal)
+  if (
+    definition.kind === 'create' &&
+    (definition.resource === 'group_member' || definition.resource === 'group_security_assignment')
+  ) {
+    const group = await getRiskResource(
+      'assignment_group',
+      credential,
+      { groupKey: params.groupKey },
+      signal
+    )
     const parsed = riskKeySchema.safeParse(group.GroupId)
-    if (!parsed.success) throw new RiskResponseError('Oracle Fusion did not return the group business identifier')
+    if (!parsed.success) {
+      throw new RiskResponseError('Oracle Fusion did not return the group business identifier')
+    }
     groupId = parsed.data
   }
   for (const [field, param] of Object.entries(parentBodyBindings[toolId] ?? {})) {
-    const expected = param === 'groupKey' ? groupId : identifier(definition.resource, param, params[param])
+    const expected =
+      param === 'groupKey' ? groupId : identifier(definition.resource, param, params[param])
     if (expected === undefined) throw new RiskInputError('Missing parent identifier')
-    const actual = body[field] === undefined ? undefined : param === 'groupKey'
-      ? riskKeySchema.parse(body[field])
-      : identifier(definition.resource, param, body[field])
+    const actual =
+      body[field] === undefined
+        ? undefined
+        : param === 'groupKey'
+          ? riskKeySchema.parse(body[field])
+          : identifier(definition.resource, param, body[field])
     if (actual !== undefined && actual !== expected) {
       throw new RiskInputError('Body parent identifier must match the selected resource')
     }
     body[field] = expected
   }
-  const operation = toolId.slice('oracle_fusion_risk_management_'.length) as keyof typeof riskWriteSchemas
+  const operation = toolId.slice(
+    'oracle_fusion_risk_management_'.length
+  ) as keyof typeof riskWriteSchemas
   const schema = riskWriteSchemas[operation]
   if (!schema) throw new RiskInputError('Unsupported Risk Management mutation')
   return schema.parse(body)
 }
 
-export async function executeRiskOperation(toolId: string, input: unknown, signal?: AbortSignal): Promise<ToolResponse> {
-  if (!Object.hasOwn(RISK_OPERATIONS, toolId)) throw new RiskInputError('Unsupported Oracle Fusion Risk Management operation')
+export async function executeRiskOperation(
+  toolId: string,
+  input: unknown,
+  signal?: AbortSignal
+): Promise<ToolResponse> {
+  if (!Object.hasOwn(RISK_OPERATIONS, toolId)) {
+    throw new RiskInputError('Unsupported Oracle Fusion Risk Management operation')
+  }
   signal?.throwIfAborted()
   const id = toolId as RiskOperation
   const definition: RiskOperationDefinition = RISK_OPERATIONS[id]
   const params = parseInput(definition, input)
-  const credential = { instanceUrl: params.instanceUrl as string, accessToken: params.accessToken as string }
+  const credential = {
+    instanceUrl: params.instanceUrl as string,
+    accessToken: params.accessToken as string,
+  }
   if (definition.kind === 'action') {
     const run = id === 'oracle_fusion_risk_management_run_access_simulation'
-    const body = run ? {
-      userName: params.userName,
-      provisioningInfo: simulationInfoSchema.parse(parseRiskBody(params.provisioningInfo)),
-    } : { requestId: oracleFusionExactInteger(riskIdentifierSchema.parse(params.requestId)) }
-    const raw = await requestOracleFusionJson(credential, {
-      method: 'POST',
-      address: { family: 'fscm', relativePath: `advancedControlsRolesProvisioning/action/${run ? 'runUserProvisioningAnalysis' : 'getRequestStatus'}` },
-      mediaType: 'application/vnd.oracle.adf.action+json', body,
-    }, signal)
+    const body = run
+      ? {
+          userName: params.userName,
+          provisioningInfo: simulationInfoSchema.parse(parseRiskBody(params.provisioningInfo)),
+        }
+      : { requestId: oracleFusionExactInteger(riskIdentifierSchema.parse(params.requestId)) }
+    const action = run ? 'runUserProvisioningAnalysis' : 'getRequestStatus'
+    const raw = await requestOracleFusionJson(
+      credential,
+      {
+        method: 'POST',
+        address: {
+          family: 'fscm',
+          relativePath: `advancedControlsRolesProvisioning/action/${action}`,
+        },
+        mediaType: 'application/vnd.oracle.adf.action+json',
+        body,
+      },
+      signal
+    )
     const parsed = stringActionSchema.safeParse(raw)
-    if (!parsed.success) throw new RiskResponseError('Oracle Fusion returned an invalid simulation result')
-    return { success: true, output: run ? { requestId: parsed.data.result } : { status: parsed.data.result } }
+    if (!parsed.success) {
+      throw new RiskResponseError('Oracle Fusion returned an invalid simulation result')
+    }
+    return {
+      success: true,
+      output: run ? { requestId: parsed.data.result } : { status: parsed.data.result },
+    }
   }
   const resource = definition.resource
-  if (definition.kind === 'list') return { success: true, output: await listRiskResource(resource, credential, params, signal) }
-  if (definition.kind === 'get') return { success: true, output: { record: await getRiskResource(resource, credential, params, signal) } }
-  const address = definition.kind === 'create' ? collectionAddress(resource, params) : detailAddress(resource, params)
+  if (definition.kind === 'list') {
+    return { success: true, output: await listRiskResource(resource, credential, params, signal) }
+  }
+  if (definition.kind === 'get') {
+    return {
+      success: true,
+      output: { record: await getRiskResource(resource, credential, params, signal) },
+    }
+  }
+  const address =
+    definition.kind === 'create'
+      ? collectionAddress(resource, params)
+      : detailAddress(resource, params)
   if (definition.kind === 'delete') {
     await requestOracleFusionEmpty(credential, { method: 'DELETE', address }, signal)
     return { success: true, output: { deleted: true } }
   }
   const body = await mutationBody(id, definition, params, credential, signal)
-  const raw = await requestOracleFusionJson(credential, {
-    method: definition.kind === 'create' ? 'POST' : 'PATCH', address,
-    mediaType: 'application/vnd.oracle.adf.resourceitem+json',
-    body,
-  }, signal)
+  const raw = await requestOracleFusionJson(
+    credential,
+    {
+      method: definition.kind === 'create' ? 'POST' : 'PATCH',
+      address,
+      mediaType: 'application/vnd.oracle.adf.resourceitem+json',
+      body,
+    },
+    signal
+  )
   /** AssertionCode is part of Oracle's composite key, so PATCH can return a new self key. */
   const changesAssertionKey = id === 'oracle_fusion_risk_management_update_control_assertion'
-  const record = verifyResource(resource, raw, credential, params,
-    definition.kind === 'update' && !changesAssertionKey ? address : undefined)
-  if (changesAssertionKey && (record.ControlId !== params.controlId ||
-    record.AssertionCode !== (body as { AssertionCode: string }).AssertionCode)) {
+  const record = verifyResource(
+    resource,
+    raw,
+    credential,
+    params,
+    definition.kind === 'update' && !changesAssertionKey ? address : undefined
+  )
+  if (
+    changesAssertionKey &&
+    (record.ControlId !== params.controlId ||
+      record.AssertionCode !== (body as { AssertionCode: string }).AssertionCode)
+  ) {
     throw new RiskResponseError('Oracle Fusion returned a different control assertion than requested')
   }
   return { success: true, output: { record } }
