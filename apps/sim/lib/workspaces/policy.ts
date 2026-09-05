@@ -138,13 +138,11 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
  * `null` when none does — resolved BEFORE the transaction opens and passed into
  * {@link lockWorkspaceCreationContext}.
  *
- * Governed by the organization the caller belongs to even when the resulting
- * workspace would be personal: a personal workspace is precisely the escape a
- * scoped group would otherwise leave open, so exempting it would leave the gate
- * answering only the case it is not for. `observedOrganizationId` carries that
- * membership, and {@link lockWorkspaceCreationContext} refuses to commit unless
- * live membership still equals it — so a verdict reached for this organization
- * can never be applied to a different one.
+ * Falls back to `observedOrganizationId` so a personal workspace stays governed
+ * by the caller's own organization — see {@link getWorkspaceCreationPolicy} for
+ * why exempting it would defeat the gate. {@link lockWorkspaceCreationContext}
+ * refuses to commit unless live membership still equals that value, so a verdict
+ * reached here can never be applied to a different organization.
  *
  * Only the entitlement half of the decision is answered here, because it cannot
  * be answered anywhere else — see {@link isOrganizationPermissionRegimeActive}
