@@ -21,9 +21,11 @@ Grant only the Oracle application, member, rule, journal, and migration permissi
 
 ### Selectors and manual inputs
 
+Use the block's credential selector to connect and select the Oracle EPM service account. As with NetSuite, the current shared catalog does not expose service-account-only connections through the integration-detail page or Copilot/VFS credential discovery. The block connection and execution path remains available.
+
 Choose an FCCS application, then its cube and dimensions. Member, entity, period, and scenario pickers retrieve the relevant hierarchy on the server. Each has an Advanced/manual alternative. Enter literal Oracle names and repository paths without URL encoding; Sim preserves them and the foundation encodes them once. Oracle's [dimension/member naming restrictions](https://docs.oracle.com/en/cloud/saas/financial-consolidation-cloud/agfcc/restricted_dimension_names.html) still apply.
 
-Hierarchy retrieval is capped at 2 MiB, 10,000 nodes, and 64 levels. Other JSON responses are capped at 8 MiB. A picker fails explicitly if it cannot provide a complete result within its budget; it never implies a truncated list is complete. Dimension pickers allow up to 1,000 dimensions; configured-job and file pickers allow up to 10,000 records. Use manual values for larger tenants. Rules and rulesets are deployed job definitions. Saved profiles, intercompany report definitions, and configurable-consolidation ruleset names remain manual where Oracle does not document a listing API.
+Hierarchy retrieval is capped at 2 MiB, 10,000 nodes, and 64 levels. Other JSON responses are capped at 8 MiB. A picker fails explicitly if it cannot provide a complete result within its budget; it never implies a truncated list is complete. Dimension pickers allow up to 1,000 dimensions; configured-job and file pickers allow up to 10,000 records. Use manual values for larger tenants. Manual file download/delete can find an external file beyond 10,000 entries, but still require a repository inventory within the 8 MiB response limit to exclude LCM snapshots. Rules and rulesets are deployed job definitions. Saved profiles, intercompany report definitions, and configurable-consolidation ruleset names remain manual where Oracle does not document a listing API.
 
 ### Jobs and files
 
@@ -34,6 +36,8 @@ Use **Upload File** before file-based imports. Input must be an authorized Sim U
 Repository operations exclude LCM snapshots. Upload takes a basename plus an optional inbox/outbox directory and does not overwrite an existing file. Download/delete take an exact repository path. A JSON response from Oracle's download API is an error, not a binary file. See [download](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/download.html).
 
 ### Contract limitations and workflow boundaries
+
+Numeric data slices accept numbers, decimal/percentage strings (such as `"70%"`), and `"#missing"`; numeric strings are capped at 1,024 characters. They do not enable Planning Text, Date, Smart List, or supporting-detail workflows. See [Import Data Slices](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/import_dataslices.html).
 
 - Saved data, metadata, exchange-rate, journal, and report definitions must already exist in Oracle. Their names, runtime prompts, and required overrides depend on the tenant. This is input configuration, not an undocumented response schema. Preserve parameter casing and use the documented parameters for the selected job family.
 - Consolidation/translation wrappers use the seeded `Consolidate`, `ForceConsolidate`, `Translate`, and `ForceTranslate` rules with `Entity`, `Period`, `Scenario`, and `Year`. Other deployed rules remain available through Run Rule. See Oracle's [automation rules table](https://docs.oracle.com/en/cloud/saas/financial-consolidation-cloud/agfcc/appendix_integrations_automated_integ_table.html).
@@ -537,7 +541,7 @@ Import a numeric Essbase data grid and return accepted/rejected cell counts and 
 | `oauthCredential` | string | Yes | Oracle EPM service account credential |
 | `application` | string | Yes | Exact FCCS application name |
 | `cube` | string | Yes | Cube planTypeName from List Cubes |
-| `dataGrid` | json | Yes | Numeric Essbase grid: pov:string\[\], columns:string\[\]\[\], rows:\{headers:string\[\],data:\(number\|numeric string\|"#missing"\)\[\]\}\[\] |
+| `dataGrid` | json | Yes | Numeric Essbase grid: pov:string\[\], columns:string\[\]\[\], rows:\{headers:string\[\],data:\(number\|decimal/percentage string\|"#missing"\)\[\]\}\[\] |
 | `aggregateEssbaseData` | boolean | No | Add to existing values instead of overwriting \(default false\) |
 
 #### Output
@@ -970,8 +974,8 @@ List external Oracle repository files with documented sizes and timestamps; excl
 | `items` | array | External repository files only; excludes LCM snapshots |
 |   ↳ `name` | string | Repository filename/path |
 |   ↳ `type` | string | EXTERNAL |
-|   ↳ `size` | string | Size in bytes as an Oracle decimal string |
-|   ↳ `lastmodifiedtime` | string | Milliseconds since Unix epoch as an Oracle decimal string |
+|   ↳ `size` | string | Size in bytes as an Oracle decimal string, or null when unavailable |
+|   ↳ `lastmodifiedtime` | string | Milliseconds since Unix epoch as an Oracle decimal string, or null when unavailable |
 
 ### Oracle EPM FCCS Upload File
 

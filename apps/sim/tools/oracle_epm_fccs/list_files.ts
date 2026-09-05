@@ -41,12 +41,13 @@ export const oracleEpmFccsListFilesTool: InternalToolConfig<FccsListFilesParams,
           },
           size: {
             type: 'string',
-            description: 'Size in bytes as an Oracle decimal string',
+            description: 'Size in bytes as an Oracle decimal string, or null when unavailable',
             nullable: true,
           },
           lastmodifiedtime: {
             type: 'string',
-            description: 'Milliseconds since Unix epoch as an Oracle decimal string',
+            description:
+              'Milliseconds since Unix epoch as an Oracle decimal string, or null when unavailable',
             nullable: true,
           },
         },

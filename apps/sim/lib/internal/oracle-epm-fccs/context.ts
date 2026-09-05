@@ -14,6 +14,9 @@ export interface FccsContext {
   execution?: InternalToolOperationContext
 }
 
+/** Explicit caller errors remain distinct from malformed provider responses. */
+export class FccsInputError extends Error {}
+
 export function createFccsContext(
   params: FccsAuthParams,
   signal?: AbortSignal,
@@ -21,7 +24,7 @@ export function createFccsContext(
 ): FccsContext {
   signal?.throwIfAborted()
   if (!params.accessToken || !params.instanceUrl)
-    throw new Error('Select an Oracle EPM service account credential')
+    throw new FccsInputError('Select an Oracle EPM service account credential')
   return {
     client: createOracleEpmClient({
       accessToken: params.accessToken,
@@ -54,7 +57,7 @@ export function parseFccsInput<T>(schema: z.ZodType<T>, value: unknown): T {
         parsed.error.issues.map((issue) => issue.path[0]).filter((key) => typeof key === 'string')
       ),
     ]
-    throw new Error(`Invalid FCCS input${fields.length ? `: ${fields.join(', ')}` : ''}`)
+    throw new FccsInputError(`Invalid FCCS input${fields.length ? `: ${fields.join(', ')}` : ''}`)
   }
   return parsed.data
 }

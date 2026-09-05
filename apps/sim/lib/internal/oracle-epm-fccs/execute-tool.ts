@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { OracleEpmError } from '@/lib/internal/oracle-epm'
+import { FccsInputError } from '@/lib/internal/oracle-epm-fccs/context'
 import {
   executeFccsAddMemberOperation,
   executeFccsClearDataProfileOperation,
@@ -45,6 +46,20 @@ import {
 } from '@/lib/internal/oracle-epm-fccs/operations'
 import { executeToolOperationImplementation } from '@/lib/internal/tool-operations/execute'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+
+const errorStatuses: Record<OracleEpmError['category'], number> = {
+  authentication_required: 401,
+  conflict: 409,
+  forbidden: 403,
+  invalid_configuration: 500,
+  invalid_input: 400,
+  invalid_response: 502,
+  not_found: 404,
+  payload_too_large: 413,
+  rate_limited: 429,
+  service_unavailable: 503,
+  timeout: 504,
+}
 
 export const executeOracleEpmFccsTool: InternalToolOperationHandler = async (request) => {
   request.signal?.throwIfAborted()
@@ -207,7 +222,14 @@ export const executeOracleEpmFccsTool: InternalToolOperationHandler = async (req
     }
     return Response.json(
       { success: false, error: getErrorMessage(error, 'Oracle EPM FCCS operation failed') },
-      { status: error instanceof OracleEpmError ? (error.status ?? 502) : 400 }
+      {
+        status:
+          error instanceof OracleEpmError
+            ? (error.status ?? errorStatuses[error.category])
+            : error instanceof FccsInputError
+              ? 400
+              : 502,
+      }
     )
   }
 }

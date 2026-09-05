@@ -21,7 +21,7 @@ const request = (id: string, input: unknown, signal?: AbortSignal) =>
     input,
     headers: new Headers(),
     requestId: 'test',
-    context: { userId: 'trusted' },
+    context: { userId: 'trusted', workflowId: 'trusted-workflow' },
     signal,
   })
 const run = async (id: string, input: object = {}, value: unknown = { jobId: 42, status: 0 }) => {
@@ -177,6 +177,29 @@ describe('FCCS internal execution and registration', () => {
       error: 'Oracle EPM denied the request',
     })
   })
+  it('distinguishes local input errors from malformed provider responses by HTTP status', async () => {
+    expect((await request('get_job', { ...auth, application: 'Close' })).status).toBe(400)
+    expect((await request('list_cubes', { ...auth, application: 'é'.repeat(128) })).status).toBe(
+      400
+    )
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      Response.json({ items: [{ unknown: true }] })
+    )
+    expect((await request('list_applications', auth)).status).toBe(502)
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('unexpected acknowledgement')
+    )
+    expect(
+      (
+        await request('export_consolidation_rulesets', {
+          ...auth,
+          application: 'Close',
+          rules: ['Rule'],
+        })
+      ).status
+    ).toBe(502)
+  })
   it.each([
     {
       id: 'generate_intercompany_report',
@@ -208,6 +231,24 @@ describe('FCCS internal execution and registration', () => {
     expect(
       JSON.parse(inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0][2].body as string)
     ).toEqual(contract.body)
+  })
+  it('preserves documented percentage cells through the real foundation client', async () => {
+    const dataGrid = {
+      pov: ['Actual'],
+      columns: [['Jan']],
+      rows: [{ headers: ['Close Rate'], data: ['70%'] }],
+    }
+    expect(
+      await run(
+        'import_data_slice',
+        { application: 'Close', cube: 'Consol', dataGrid },
+        { numAcceptedCells: 1, numUpdateCells: 1, numRejectedCells: 0, rejectedCells: [] }
+      )
+    ).toMatchObject({ success: true })
+    expect(
+      JSON.parse(inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0][2].body as string)
+        .dataGrid
+    ).toEqual(dataGrid)
   })
   it('propagates caller cancellation without converting it to a provider error', async () => {
     await expect(

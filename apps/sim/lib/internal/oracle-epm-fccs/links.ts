@@ -15,11 +15,11 @@ interface FccsJobLinkContext {
 
 function assertJobLinkContext(href: string, expected: FccsJobLinkContext): void {
   /** The foundation has already validated this exact route and destination. */
-  const path = new URL(href).pathname
-  const marker = '/HyperionPlanning/rest/v3/applications/'
-  const parts = path.slice(path.lastIndexOf(marker) + marker.length).split('/')
+  const segments = new URL(href).pathname.split('/').map(decodeURIComponent)
+  /** Use the fixed route suffix, so an application literally named "applications" is valid. */
+  const parts = segments.slice(segments.at(-3) === 'childjobs' ? -6 : -4)
   if (
-    decodeURIComponent(parts[0]) !== expected.application ||
+    parts[0] !== expected.application ||
     BigInt(parts[2]) !== BigInt(expected.jobId) ||
     (expected.childJobId !== undefined && BigInt(parts[4]) !== BigInt(expected.childJobId))
   )

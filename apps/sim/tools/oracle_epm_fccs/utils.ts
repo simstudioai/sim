@@ -195,7 +195,7 @@ export const fccsParamFields = {
   dataGrid: {
     type: 'json',
     description:
-      'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|numeric string|"#missing")[]}[]',
+      'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|decimal/percentage string|"#missing")[]}[]',
     required: true,
     visibility: 'user-or-llm',
   },

@@ -1,8 +1,17 @@
-import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { PayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { openOracleEpmSourceFile, storeOracleEpmDownload } from '@/lib/internal/oracle-epm'
-import { type FccsContext, projectFccsResponse } from '@/lib/internal/oracle-epm-fccs/context'
+import {
+  type FccsContext,
+  FccsInputError,
+  projectFccsResponse,
+} from '@/lib/internal/oracle-epm-fccs/context'
 import { FCCS_FILE_LIMIT, fccsEndpoints } from '@/lib/internal/oracle-epm-fccs/endpoints'
-import { fccsFileStatusSchema, fccsFilesSchema } from '@/lib/internal/oracle-epm-fccs/schemas'
+import {
+  fccsFileLookupSchema,
+  fccsFileSchema,
+  fccsFileStatusSchema,
+  fccsFilesSchema,
+} from '@/lib/internal/oracle-epm-fccs/schemas'
 import type { UserFile } from '@/executor/types'
 
 /** Repository files, not LCM snapshots. List Files v2 documents the EXTERNAL discriminator. */
@@ -16,12 +25,29 @@ export async function listFccsFiles(context: FccsContext) {
 }
 
 async function requireExternalFile(context: FccsContext, fileName: string) {
-  const files = await listFccsFiles(context)
+  const files = projectFccsResponse(
+    fccsFileLookupSchema,
+    await context.client.request(fccsEndpoints.listFiles, { signal: context.signal })
+  )
+  if (files.status !== 0) throw new Error('Oracle EPM FCCS could not list repository files')
   const comparisonName = fileName.replaceAll('\\', '/')
-  const file = files.items.find((item) => item.name.replaceAll('\\', '/') === comparisonName)
-  if (!file)
-    throw new Error('FCCS external repository file was not found; LCM snapshots are not supported')
-  return file
+  /** Scan the byte-bounded inventory without building another full projected file list. */
+  for (const item of files.items) {
+    context.signal?.throwIfAborted()
+    if (
+      typeof item !== 'object' ||
+      item === null ||
+      !('name' in item) ||
+      typeof item.name !== 'string' ||
+      item.name.replaceAll('\\', '/') !== comparisonName
+    )
+      continue
+    const file = projectFccsResponse(fccsFileSchema, { status: 200, data: item })
+    if (file.type === 'EXTERNAL') return file
+  }
+  throw new FccsInputError(
+    'FCCS external repository file was not found; LCM snapshots are not supported'
+  )
 }
 
 export async function uploadFccsFile(
@@ -32,13 +58,15 @@ export async function uploadFccsFile(
 ) {
   if (!context.execution?.userId) throw new Error('FCCS upload requires trusted user context')
   if (/[\\/]/.test(fileName))
-    throw new Error('FCCS upload filename must be a basename; use Directory for a folder')
+    throw new FccsInputError('FCCS upload filename must be a basename; use Directory for a folder')
   if (
     directory !== undefined &&
     (!/^(inbox|outbox)([/\\][^/\\]+)*$/.test(directory) ||
       directory.split(/[/\\]/).some((part) => part === '.' || part === '..'))
   ) {
-    throw new Error('FCCS upload directory must be inbox or outbox, optionally with subdirectories')
+    throw new FccsInputError(
+      'FCCS upload directory must be inbox or outbox, optionally with subdirectories'
+    )
   }
   const source = await openOracleEpmSourceFile({
     file,
@@ -46,10 +74,16 @@ export async function uploadFccsFile(
     maxBytes: FCCS_FILE_LIMIT,
     signal: context.signal,
   })
-  const chunks: Buffer[] = []
+  /** Metadata sizes the buffer but never replaces the foundation's actual-byte limit. */
+  let buffer = new Uint8Array(file.size)
   let size = 0
   for await (const chunk of source.chunks) {
-    chunks.push(chunk)
+    if (size + chunk.byteLength > buffer.byteLength) {
+      const expanded = new Uint8Array(source.maxBytes)
+      expanded.set(buffer.subarray(0, size))
+      buffer = expanded
+    }
+    buffer.set(chunk, size)
     size += chunk.byteLength
   }
   context.signal?.throwIfAborted()
@@ -58,7 +92,7 @@ export async function uploadFccsFile(
     await context.client.request(fccsEndpoints.uploadFile, {
       pathParams: { fileName },
       query: { extDirPath: directory },
-      stream: new Uint8Array(Buffer.concat(chunks, size)),
+      stream: buffer.subarray(0, size),
       signal: context.signal,
     })
   )
@@ -75,9 +109,10 @@ export async function downloadFccsFile(context: FccsContext, fileName: string) {
     throw new Error('FCCS download requires trusted execution context')
   const existing = await requireExternalFile(context, fileName)
   if (existing.size !== null && BigInt(existing.size) > BigInt(FCCS_FILE_LIMIT)) {
-    throw new Error(
-      'FCCS file exceeds the 100 MiB Sim output limit. The Oracle export may have completed; retrieve or split the file outside Sim.'
-    )
+    throw new PayloadSizeLimitError({
+      label: 'FCCS file; the Oracle export may have completed, retrieve or split it outside Sim',
+      maxBytes: FCCS_FILE_LIMIT,
+    })
   }
   const response = await context.client.request(fccsEndpoints.downloadFile, {
     pathParams: { fileName },

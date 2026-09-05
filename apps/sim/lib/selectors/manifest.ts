@@ -141,7 +141,7 @@ export const selectorManifest = {
     detail: true,
   }),
   'oracleEpmFccs.jobDefinitions': providerSelector(['database', 'environmentType', 'objectType'], {
-    readiness: { all: ['oauthCredential', 'database'] },
+    readiness: { all: ['oauthCredential', 'database'], any: ['environmentType', 'objectType'] },
     sourceFields: {
       database: ['application'],
       environmentType: ['operation'],

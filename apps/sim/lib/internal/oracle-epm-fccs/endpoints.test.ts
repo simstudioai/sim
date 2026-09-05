@@ -95,6 +95,36 @@ describe('FCCS endpoint policies and returned diagnostic links', () => {
       })
     ).toThrow()
   })
+  it.each(['Close', 'applications'])(
+    'accepts policy-valid encoded route characters for application %s',
+    (application) => {
+      const client = createOracleEpmClient(auth)
+      const encodedRoute = `${auth.instanceUrl}/%48yperionPlanning/rest/v3/%61pplications/${application}/jobs/%34%32`
+      expect(
+        fccsChildJobId(
+          client,
+          [{ rel: 'child-job-details', href: `${encodedRoute}/childjobs/%37/details` }],
+          { application, jobId: '42' }
+        )
+      ).toBe('7')
+      expect(
+        fccsNextPage(
+          client,
+          fccsEndpoints.getJobDetails,
+          [{ rel: 'next', href: `${encodedRoute}/details?offset=25` }],
+          { application, jobId: '42', offset: 0 }
+        )
+      ).toEqual({ hasMore: true, nextOffset: 25 })
+      expect(
+        fccsNextPage(
+          client,
+          fccsEndpoints.getChildJobDetails,
+          [{ rel: 'next', href: `${encodedRoute}/childjobs/%37/details?offset=25` }],
+          { application, jobId: '42', childJobId: '7', offset: 0 }
+        )
+      ).toEqual({ hasMore: true, nextOffset: 25 })
+    }
+  )
   it('rejects a next link that repeats a page or belongs to another child job', () => {
     const client = createOracleEpmClient(auth)
     expect(() =>

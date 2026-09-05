@@ -84,7 +84,7 @@ describe('FCCS documented projections', () => {
     const grid = {
       pov: ['Actual'],
       columns: [['Jan']],
-      rows: [{ headers: ['Entity'], data: [42, '3.5', '#missing'] }],
+      rows: [{ headers: ['Entity'], data: [42, '3.5', '70%', '#missing'] }],
     }
     expect(fccsDataGridInput.parse(grid)).toEqual(grid)
     expect(fccsDataGridInput.safeParse({ ...grid, cellNotes: [] }).success).toBe(false)
@@ -106,4 +106,16 @@ describe('FCCS documented projections', () => {
     expect(fccsChildJobType.safeParse('IMPORT_DATA').success).toBe(false)
     expect(fccsChildJobType.safeParse('IMPORT_METADATA').success).toBe(true)
   })
+  it.each(['0x10', '0b10', 'Infinity', '1e999', '70%%', 'abc%', '1'.repeat(1025)])(
+    'rejects undocumented or oversized numeric syntax',
+    (value) => {
+      expect(
+        fccsDataGridInput.safeParse({
+          pov: [],
+          columns: [[]],
+          rows: [{ headers: [], data: [value] }],
+        }).success
+      ).toBe(false)
+    }
+  )
 })

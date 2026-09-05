@@ -1554,7 +1554,7 @@ export const OracleEpmFccsBlock: BlockConfig<FccsResponse> = {
       title: 'Data Grid',
       type: 'code',
       placeholder:
-        'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|numeric string|"#missing")[]}[]',
+        'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|decimal/percentage string|"#missing")[]}[]',
       condition: {
         field: 'operation',
         value: ['oracle_epm_fccs_import_data_slice'],
@@ -1567,7 +1567,7 @@ export const OracleEpmFccsBlock: BlockConfig<FccsResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|numeric string|"#missing")[]}[]. Return only JSON.',
+          'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|decimal/percentage string|"#missing")[]}[]. Return only JSON.',
         generationType: 'json-object',
       },
     },
@@ -2102,7 +2102,7 @@ export const OracleEpmFccsBlock: BlockConfig<FccsResponse> = {
     dataGrid: {
       type: 'json',
       description:
-        'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|numeric string|"#missing")[]}[]',
+        'Numeric Essbase grid: pov:string[], columns:string[][], rows:{headers:string[],data:(number|decimal/percentage string|"#missing")[]}[]',
     },
     aggregateEssbaseData: {
       type: 'boolean',

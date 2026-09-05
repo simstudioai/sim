@@ -30,6 +30,7 @@ import { FCCS_FILE_LIMIT, fccsEndpoints } from '@/lib/internal/oracle-epm-fccs/e
 import {
   deleteFccsFile,
   downloadFccsFile,
+  listFccsFiles,
   submitFccsConsolidationRulesets,
   uploadFccsFile,
 } from '@/lib/internal/oracle-epm-fccs/files'
@@ -141,12 +142,56 @@ describe('FCCS file workflow through real foundation file primitives', () => {
     storage.read.mockResolvedValue(Readable.from(Array(100).fill(chunk)))
     const request = vi.fn().mockImplementation(async (_endpoint, input) => {
       expect(input.stream.byteLength).toBe(FCCS_FILE_LIMIT)
+      expect(input.stream.buffer.byteLength).toBe(FCCS_FILE_LIMIT)
       return { status: 200, data: { status: 0, details: null } }
     })
     await expect(
       uploadFccsFile(context(request), { ...source, size: FCCS_FILE_LIMIT }, 'report.csv')
     ).resolves.toMatchObject({ status: 0 })
   })
+  it.each([0, 2, 8])('uploads actual multi-chunk bytes when metadata size is %s', async (size) => {
+    storage.read.mockResolvedValue(Readable.from([Buffer.from('ab'), Buffer.from('cd')]))
+    const request = vi.fn().mockImplementation(async (_endpoint, input) => {
+      expect([...input.stream]).toEqual([97, 98, 99, 100])
+      return { status: 200, data: { status: 0 } }
+    })
+    await expect(
+      uploadFccsFile(context(request), { ...source, size }, 'report.csv')
+    ).resolves.toMatchObject({ status: 0 })
+  })
+  it.each(['download', 'delete'] as const)(
+    'allows manual %s beyond the picker inventory count without admitting LCM snapshots',
+    async (action) => {
+      const inventory = listing()
+      inventory.data.items.unshift(
+        ...Array.from({ length: 10_000 }, (_, index) => ({
+          name: `snapshot-${index}`,
+          type: 'LCM',
+          size: null,
+          lastmodifiedtime: null,
+        }))
+      )
+      const request = vi
+        .fn()
+        .mockResolvedValueOnce(inventory)
+        .mockResolvedValueOnce(
+          action === 'download'
+            ? stream([new Uint8Array([1, 2, 3])])
+            : { status: 200, data: { status: 0 } }
+        )
+      const operation = action === 'download' ? downloadFccsFile : deleteFccsFile
+      await expect(operation(context(request), 'inbox/report %20.csv')).resolves.toMatchObject({
+        fileName: 'inbox/report %20.csv',
+      })
+      expect(request).toHaveBeenCalledTimes(2)
+      request.mockReset().mockResolvedValue(inventory)
+      await expect(operation(context(request), 'snapshot-9999')).rejects.toThrow(
+        'LCM snapshots are not supported'
+      )
+      expect(request).toHaveBeenCalledTimes(1)
+      await expect(listFccsFiles(context(request))).rejects.toThrow('malformed response')
+    }
+  )
   it.each([
     ['folder/report.csv', undefined],
     ['report.csv', 'inbox/../outbox'],

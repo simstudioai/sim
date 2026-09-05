@@ -15,7 +15,11 @@ const auth = {
 describe('FCCS execution boundary', () => {
   it('requires system-injected credential material, not just a selected ID', () => {
     expect(() => createFccsContext({ oauthCredential: 'id' })).toThrow('service account')
-    const execution = { userId: 'trusted-user', workspaceId: 'trusted-workspace' }
+    const execution = {
+      userId: 'trusted-user',
+      workspaceId: 'trusted-workspace',
+      workflowId: 'trusted-workflow',
+    }
     const signal = new AbortController().signal
     const result = createFccsContext(auth, signal, execution)
     expect(result.signal).toBe(signal)

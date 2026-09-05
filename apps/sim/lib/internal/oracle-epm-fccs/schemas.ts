@@ -208,15 +208,17 @@ export const fccsGridDefinition = z
     suppressMissingColumns: z.boolean().optional(),
   })
   .strict()
-/** Numeric Essbase values and #missing only; no Planning cell notes/supporting details. */
+/** import_dataslices.html documents decimal and percentage cells; no Planning text/date/Smart List data. */
 const numericCell = z.union([
   z.number().finite(),
   z
     .string()
+    .max(1024)
     .refine(
       (value) =>
         value.toLowerCase() === '#missing' ||
-        (value.trim() !== '' && Number.isFinite(Number(value)))
+        (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?%?$/.test(value) &&
+          Number.isFinite(Number(value.endsWith('%') ? value.slice(0, -1) : value)))
     ),
 ])
 export const fccsDataGridInput = z
@@ -282,21 +284,20 @@ export const fccsJournalPeriodSchema = z.union([
   z.object({ scenario: z.string(), year: z.string(), period: z.string(), action: z.string() }),
 ])
 export const fccsFileStatusSchema = z.object({ status: z.number().int(), details: optionalText })
+export const fccsFileSchema = z.object({
+  name: z.string(),
+  type: z.enum(['EXTERNAL', 'LCM']),
+  size: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .nullable(),
+  lastmodifiedtime: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .nullable(),
+})
+/** Manual lookup is bounded by the endpoint's 8 MiB response budget, not the picker count. */
+export const fccsFileLookupSchema = fccsFileStatusSchema.extend({ items: z.array(z.unknown()) })
 export const fccsFilesSchema = fccsFileStatusSchema.extend({
-  items: z
-    .array(
-      z.object({
-        name: z.string(),
-        type: z.enum(['EXTERNAL', 'LCM']),
-        size: z
-          .string()
-          .regex(/^[0-9]+$/)
-          .nullable(),
-        lastmodifiedtime: z
-          .string()
-          .regex(/^[0-9]+$/)
-          .nullable(),
-      })
-    )
-    .max(10_000),
+  items: z.array(fccsFileSchema).max(10_000),
 })

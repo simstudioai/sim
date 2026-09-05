@@ -30,6 +30,7 @@ import {
   getSelectorContextSubBlocks,
   projectSelectorContext,
 } from '@/lib/selectors/context'
+import { isSelectorReady } from '@/lib/selectors/manifest'
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
@@ -141,6 +142,19 @@ describe('FCCS server selectors', () => {
     )
     expect(mocks.hierarchy).not.toHaveBeenCalled()
     expect(mocks.cubes).not.toHaveBeenCalled()
+  })
+  it('requires an operation or job type before preparing the configured-job picker', () => {
+    const context = { oauthCredential: 'id', database: 'Close' }
+    expect(isSelectorReady('oracleEpmFccs.jobDefinitions', context)).toBe(false)
+    expect(
+      isSelectorReady('oracleEpmFccs.jobDefinitions', {
+        ...context,
+        environmentType: 'oracle_epm_fccs_import_metadata',
+      })
+    ).toBe(true)
+    expect(
+      isSelectorReady('oracleEpmFccs.jobDefinitions', { ...context, objectType: 'IMPORT_DATA' })
+    ).toBe(true)
   })
   it('rejects incomplete dimension pages without accumulating or silently truncating', async () => {
     mocks.dimensions.mockResolvedValue(
