@@ -1,0 +1,430 @@
+---
+title: CloudTrail
+description: Audit who did what in AWS with CloudTrail event history and Lake queries
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cloudtrail"
+  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
+/>
+
+## Usage Instructions
+
+Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan. Requires AWS access key and secret access key.
+
+
+
+## Actions
+
+### CloudTrail Look Up Events
+
+Look up AWS CloudTrail management or Insights events from the last 90 days in a Region
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `attributeKey` | string | No | Lookup attribute to filter on: AccessKeyId, EventId, EventName, EventSource, ReadOnly, ResourceName, ResourceType, or Username. Must be paired with attributeValue |
+| `attributeValue` | string | No | Value the lookup attribute must equal. Must be paired with attributeKey |
+| `startTime` | string | No | Only return events at or after this ISO 8601 timestamp |
+| `endTime` | string | No | Only return events at or before this ISO 8601 timestamp |
+| `eventCategory` | string | No | Set to the value insight to return CloudTrail Insights events instead of management events |
+| `maxResults` | number | No | Number of events to return, 1 to 50 \(default 50\) |
+| `nextToken` | string | No | Pagination token from a previous lookup, which must repeat the same filters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Matching events, most recent first |
+|   ↳ `eventId` | string | CloudTrail event ID |
+|   ↳ `eventName` | string | API action that was called |
+|   ↳ `readOnly` | string | Whether the action was read-only, as the string 'true' or 'false' |
+|   ↳ `accessKeyId` | string | Access key ID used to make the call, when applicable |
+|   ↳ `eventTime` | string | When the event occurred \(ISO 8601\) |
+|   ↳ `eventSource` | string | AWS service endpoint that recorded the event |
+|   ↳ `username` | string | Name of the principal that made the call |
+|   ↳ `resources` | array | Resources referenced by the event, as resourceType and resourceName |
+|   ↳ `cloudTrailEvent` | object | Full CloudTrail event record parsed from JSON, including userIdentity, sourceIPAddress, userAgent, requestParameters, responseElements, and errorCode |
+|   ↳ `cloudTrailEventRaw` | string | Raw CloudTrail event JSON string, populated only when it could not be parsed |
+| `nextToken` | string | Pagination token for the next page of events |
+
+### CloudTrail Describe Trails
+
+Retrieve the full configuration of one or more CloudTrail trails in the current Region
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `trailNameList` | string | No | Comma-separated trail names or ARNs. Leave empty to describe every trail in the Region. Trails in another Region must be given as ARNs |
+| `includeShadowTrails` | boolean | No | Include shadow trails \(replications of trails created in another Region, and organization trails in member accounts\). Defaults to true |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trails` | array | Full configuration of each matching trail |
+|   ↳ `name` | string | Trail name |
+|   ↳ `s3BucketName` | string | S3 bucket that receives log files |
+|   ↳ `s3KeyPrefix` | string | S3 key prefix for delivered log files |
+|   ↳ `snsTopicName` | string | SNS topic notified on log delivery |
+|   ↳ `snsTopicArn` | string | ARN of that SNS topic |
+|   ↳ `includeGlobalServiceEvents` | boolean | Whether global service events are recorded |
+|   ↳ `isMultiRegionTrail` | boolean | Whether the trail records events in all Regions |
+|   ↳ `homeRegion` | string | Region in which the trail was created |
+|   ↳ `trailArn` | string | ARN of the trail |
+|   ↳ `logFileValidationEnabled` | boolean | Whether log file integrity validation is enabled |
+|   ↳ `cloudWatchLogsLogGroupArn` | string | CloudWatch Logs log group receiving events |
+|   ↳ `cloudWatchLogsRoleArn` | string | Role CloudTrail assumes to write to CloudWatch Logs |
+|   ↳ `kmsKeyId` | string | KMS key used to encrypt log files |
+|   ↳ `hasCustomEventSelectors` | boolean | Whether the trail has custom event selectors |
+|   ↳ `hasInsightSelectors` | boolean | Whether the trail has Insights event selectors |
+|   ↳ `isOrganizationTrail` | boolean | Whether the trail is an organization trail |
+
+### CloudTrail Get Trail
+
+Retrieve the settings of a single CloudTrail trail by name or ARN
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Trail name, or the trail ARN for a trail in another Region |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Trail name |
+| `s3BucketName` | string | Name of the S3 bucket that receives log files |
+| `s3KeyPrefix` | string | S3 key prefix prepended to delivered log files |
+| `snsTopicName` | string | Name of the SNS topic notified on log delivery |
+| `snsTopicArn` | string | ARN of the SNS topic notified on log delivery |
+| `includeGlobalServiceEvents` | boolean | Whether the trail records global service events |
+| `isMultiRegionTrail` | boolean | Whether the trail records events in all Regions |
+| `homeRegion` | string | Region in which the trail was created |
+| `trailArn` | string | ARN of the trail |
+| `logFileValidationEnabled` | boolean | Whether log file integrity validation is enabled |
+| `cloudWatchLogsLogGroupArn` | string | ARN of the CloudWatch Logs log group receiving events |
+| `cloudWatchLogsRoleArn` | string | ARN of the role CloudTrail assumes to write to CloudWatch Logs |
+| `kmsKeyId` | string | KMS key used to encrypt log files |
+| `hasCustomEventSelectors` | boolean | Whether the trail has custom event selectors |
+| `hasInsightSelectors` | boolean | Whether the trail has Insights event selectors |
+| `isOrganizationTrail` | boolean | Whether the trail is an organization trail |
+
+### CloudTrail Get Trail Status
+
+Check whether a CloudTrail trail is logging and surface its most recent delivery errors
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Trail name, or the trail ARN. An organization trail read from a member account must be given as an ARN |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `isLogging` | boolean | Whether the trail is currently recording API calls |
+| `latestDeliveryError` | string | Most recent S3 error encountered delivering log files |
+| `latestDeliveryTime` | string | When log files were last delivered to S3 \(ISO 8601\) |
+| `latestNotificationError` | string | Most recent SNS error encountered sending a notification |
+| `latestNotificationTime` | string | When the last SNS notification was sent \(ISO 8601\) |
+| `latestCloudWatchLogsDeliveryError` | string | Most recent CloudWatch Logs delivery error |
+| `latestCloudWatchLogsDeliveryTime` | string | When events were last delivered to CloudWatch Logs \(ISO 8601\) |
+| `latestDigestDeliveryError` | string | Most recent S3 error encountered delivering a digest file |
+| `latestDigestDeliveryTime` | string | When a digest file was last delivered to S3 \(ISO 8601\) |
+| `startLoggingTime` | string | When logging was most recently started \(ISO 8601\) |
+| `stopLoggingTime` | string | When logging was most recently stopped \(ISO 8601\) |
+
+### CloudTrail List Trails
+
+List the ARN, name, and home Region of every CloudTrail trail visible to the account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `nextToken` | string | No | Pagination token from a previous list request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trails` | array | Trail summaries |
+|   ↳ `trailArn` | string | ARN of the trail |
+|   ↳ `name` | string | Trail name |
+|   ↳ `homeRegion` | string | Region in which the trail was created |
+| `nextToken` | string | Pagination token for the next page of trails |
+
+### CloudTrail Get Event Selectors
+
+Read which management, data, and network activity events a CloudTrail trail is configured to log
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `trailName` | string | Yes | Trail name or trail ARN |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trailArn` | string | ARN of the trail that owns these selectors |
+| `eventSelectors` | array | Basic event selectors configured on the trail |
+|   ↳ `readWriteType` | string | All, ReadOnly, or WriteOnly |
+|   ↳ `includeManagementEvents` | boolean | Whether management events are recorded |
+|   ↳ `dataResources` | array | Data resources logged by the selector, as type and values |
+|   ↳ `excludeManagementEventSources` | array | Event sources excluded from management event logging |
+| `advancedEventSelectors` | array | Advanced event selectors configured on the trail |
+|   ↳ `name` | string | Name of the advanced event selector |
+|   ↳ `fieldSelectors` | array | Field selectors, each with field plus its equals, startsWith, endsWith, notEquals, notStartsWith, and notEndsWith values |
+
+### CloudTrail Get Insight Selectors
+
+Read which CloudTrail Insights types are enabled on a trail or event data store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `trailName` | string | No | Trail name or trail ARN. Cannot be combined with eventDataStore |
+| `eventDataStore` | string | No | Event data store ARN, or the ID suffix of that ARN. Cannot be combined with trailName |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trailArn` | string | ARN of the trail whose Insights selectors were read |
+| `eventDataStoreArn` | string | ARN of the source event data store that enabled Insights events |
+| `insightsDestination` | string | ARN of the destination event data store that logs Insights events |
+| `insightSelectors` | array | Enabled Insights types and their event categories |
+|   ↳ `insightType` | string | ApiCallRateInsight or ApiErrorRateInsight |
+|   ↳ `eventCategories` | array | Event categories the Insights type applies to: Management, Data, or both |
+
+### CloudTrail Start Query
+
+Start a CloudTrail Lake SQL query over an event data store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryStatement` | string | No | SQL query to run, up to 10,000 characters. The event data store ID is named in the FROM clause. Supply this or queryAlias, not both |
+| `queryAlias` | string | No | Alias of a query template used by CloudTrail Lake dashboards. Supply this or queryStatement, not both |
+| `queryParameters` | string | No | Comma-separated parameter values for the query alias, up to 10 values |
+| `deliveryS3Uri` | string | No | S3 URI where CloudTrail delivers the query results \(e.g., s3://my-bucket/results\) |
+| `eventDataStoreOwnerAccountId` | string | No | Account ID of the event data store owner, for a shared event data store |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryId` | string | ID of the started query. Pass it to Describe Query to poll status, or to Get Query Results to page through rows |
+| `eventDataStoreOwnerAccountId` | string | Account ID of the event data store owner |
+
+### CloudTrail Describe Query
+
+Check the status, run time, and scan statistics of a CloudTrail Lake query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryId` | string | No | ID of the query returned by Start Query. Supply this or queryAlias, not both |
+| `queryAlias` | string | No | Query template alias; returns the last run for that alias. Supply this or queryId, not both |
+| `refreshId` | string | No | Dashboard refresh ID, used together with queryAlias |
+| `eventDataStoreOwnerAccountId` | string | No | Account ID of the event data store owner, for a shared event data store |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryId` | string | ID of the query |
+| `queryString` | string | SQL body of the query |
+| `queryStatus` | string | QUEUED, RUNNING, FINISHED, FAILED, CANCELLED, or TIMED_OUT |
+| `errorMessage` | string | Error message returned if the query failed |
+| `deliveryS3Uri` | string | S3 URI the results were delivered to, if configured |
+| `deliveryStatus` | string | Delivery status of the S3 results \(SUCCESS, FAILED, PENDING, and similar\) |
+| `prompt` | string | Natural-language prompt used to generate the query, if it was generated |
+| `eventDataStoreOwnerAccountId` | string | Account ID of the event data store owner |
+| `eventsMatched` | number | Number of events that matched the query |
+| `eventsScanned` | number | Number of events scanned by the query |
+| `bytesScanned` | number | Bytes scanned by the query |
+| `executionTimeInMillis` | number | Query run time in milliseconds |
+| `creationTime` | string | When the query was created \(ISO 8601\) |
+
+### CloudTrail Get Query Results
+
+Fetch a page of result rows from a finished CloudTrail Lake query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryId` | string | Yes | ID of the query returned by Start Query |
+| `maxQueryResults` | number | No | Maximum rows to return on a single page, 1 to 1000 |
+| `nextToken` | string | No | Pagination token from a previous results request |
+| `eventDataStoreOwnerAccountId` | string | No | Account ID of the event data store owner, for a shared event data store |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryStatus` | string | QUEUED, RUNNING, FINISHED, FAILED, CANCELLED, or TIMED_OUT |
+| `rows` | array | Result rows, each flattened into a single object keyed by the query column names |
+| `resultsCount` | number | Number of rows on this page |
+| `totalResultsCount` | number | Total number of rows the query produced |
+| `bytesScanned` | number | Bytes scanned by the query |
+| `errorMessage` | string | Error message returned if the query failed |
+| `nextToken` | string | Pagination token for the next page of rows |
+
+### CloudTrail Cancel Query
+
+Cancel a running CloudTrail Lake query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryId` | string | Yes | ID of the query returned by Start Query |
+| `eventDataStoreOwnerAccountId` | string | No | Account ID of the event data store owner, for a shared event data store |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryId` | string | ID of the cancelled query |
+| `queryStatus` | string | Status AWS reported for the query after the cancellation request. Cancellation is asynchronous, so this is typically RUNNING or CANCELLED — poll Describe Lake Query for the terminal status |
+| `eventDataStoreOwnerAccountId` | string | Account ID of the event data store owner, when the query was cross-account |
+
+### CloudTrail List Event Data Stores
+
+List the CloudTrail Lake event data stores in the account for the current Region
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `maxResults` | number | No | Maximum event data stores to return on a single page, 1 to 1000 |
+| `nextToken` | string | No | Pagination token from a previous list request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventDataStores` | array | Event data stores in the account for the current Region |
+|   ↳ `eventDataStoreArn` | string | ARN of the event data store |
+|   ↳ `name` | string | Name of the event data store |
+|   ↳ `status` | string | CREATED, ENABLED, PENDING_DELETION, or an ingestion state |
+|   ↳ `advancedEventSelectors` | array | Advanced event selectors that define what the store ingests |
+|   ↳ `multiRegionEnabled` | boolean | Whether the store collects events from all Regions |
+|   ↳ `organizationEnabled` | boolean | Whether the store collects events for the organization |
+|   ↳ `retentionPeriod` | number | Retention period in days |
+|   ↳ `terminationProtectionEnabled` | boolean | Whether termination protection is enabled |
+|   ↳ `createdTimestamp` | string | When the store was created \(ISO 8601\) |
+|   ↳ `updatedTimestamp` | string | When the store was last updated \(ISO 8601\) |
+| `nextToken` | string | Pagination token for the next page of event data stores |
+
+### CloudTrail Get Event Data Store
+
+Retrieve the configuration of a single CloudTrail Lake event data store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `eventDataStore` | string | Yes | Event data store ARN, or the ID suffix of that ARN |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventDataStoreArn` | string | ARN of the event data store |
+| `name` | string | Name of the event data store |
+| `status` | string | CREATED, ENABLED, PENDING_DELETION, or an ingestion state |
+| `advancedEventSelectors` | array | Advanced event selectors that define what the store ingests |
+|   ↳ `name` | string | Name of the advanced event selector |
+|   ↳ `fieldSelectors` | array | Field selectors, each with field plus its equals, startsWith, endsWith, notEquals, notStartsWith, and notEndsWith values |
+| `multiRegionEnabled` | boolean | Whether the store collects events from all Regions |
+| `organizationEnabled` | boolean | Whether the store collects events for the organization |
+| `retentionPeriod` | number | Retention period in days |
+| `terminationProtectionEnabled` | boolean | Whether termination protection is enabled |
+| `createdTimestamp` | string | When the store was created \(ISO 8601\) |
+| `updatedTimestamp` | string | When the store was last updated \(ISO 8601\) |
+| `kmsKeyId` | string | KMS key used to encrypt the store |
+| `billingMode` | string | EXTENDABLE_RETENTION_PRICING or FIXED_RETENTION_PRICING |
+| `federationStatus` | string | Lake Formation federation status |
+| `federationRoleArn` | string | ARN of the role used for Lake Formation federation |
+| `partitionKeys` | array | Partition keys of the event data store |
+|   ↳ `name` | string | Partition key name |
+|   ↳ `type` | string | Partition key data type |
+
+### CloudTrail List Tags
+
+List the tags on CloudTrail trails, event data stores, dashboards, or channels
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `resourceIdList` | string | Yes | Comma-separated CloudTrail resource ARNs, up to 20 |
+| `nextToken` | string | No | Reserved for future use by AWS |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resourceTags` | array | Tags for each requested resource |
+|   ↳ `resourceId` | string | ARN of the tagged resource |
+|   ↳ `tags` | array | Tags on the resource, as key and value |
+| `nextToken` | string | Reserved for future use by AWS |
+
+

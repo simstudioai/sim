@@ -45,6 +45,7 @@
     "clickup-service-account",
     "cloudflare",
     "cloudformation",
+    "cloudtrail",
     "cloudwatch",
     "codepipeline",
     "confluence",

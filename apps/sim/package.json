@@ -43,6 +43,7 @@
     "@aws-sdk/client-athena": "3.1117.0",
     "@aws-sdk/client-bedrock-runtime": "3.1117.0",
     "@aws-sdk/client-cloudformation": "3.1117.0",
+    "@aws-sdk/client-cloudtrail": "3.1117.0",
     "@aws-sdk/client-cloudwatch": "3.1117.0",
     "@aws-sdk/client-cloudwatch-logs": "3.1117.0",
     "@aws-sdk/client-codepipeline": "3.1117.0",
