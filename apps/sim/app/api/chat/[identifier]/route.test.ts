@@ -14,6 +14,7 @@ import {
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
+import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -65,10 +66,18 @@ const createMockStream = () => {
   })
 }
 
-const { mockValidateChatAuth, mockSetChatAuthCookie, mockProcessChatFiles } = vi.hoisted(() => ({
+const {
+  mockValidateChatAuth,
+  mockSetChatAuthCookie,
+  mockProcessChatFiles,
+  mockEnforceIpRateLimit,
+  mockEnforceResourceRateLimit,
+} = vi.hoisted(() => ({
   mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
   mockSetChatAuthCookie: vi.fn(),
   mockProcessChatFiles: vi.fn(),
+  mockEnforceIpRateLimit: vi.fn(),
+  mockEnforceResourceRateLimit: vi.fn(),
 }))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
@@ -117,6 +126,12 @@ vi.mock('@/lib/core/utils/sse', () => ({
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
+vi.mock('@/lib/core/rate-limiter', () => ({
+  enforceIpRateLimitWithIndependentBackstop: mockEnforceIpRateLimit,
+  enforceResourceRateLimit: mockEnforceResourceRateLimit,
+}))
+
+import { RATE_LIMITS } from '@/lib/core/rate-limiter/types'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
@@ -182,6 +197,8 @@ describe('Chat Identifier API Route', () => {
     })
 
     mockValidateChatAuth.mockResolvedValue({ authorized: true })
+    mockEnforceIpRateLimit.mockResolvedValue(null)
+    mockEnforceResourceRateLimit.mockResolvedValue(null)
     mockProcessChatFiles.mockResolvedValue([])
     mockCreateErrorResponse.mockImplementation((message: string, status: number, code?: string) => {
       return new Response(
@@ -333,6 +350,107 @@ describe('Chat Identifier API Route', () => {
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
 
       expect(mockSetChatAuthCookie).toHaveBeenCalledWith(expect.anything(), passwordDeployment)
+    })
+
+    describe('execution rate limit', () => {
+      it.each([
+        ['per-IP', mockEnforceIpRateLimit],
+        ['per-deployment', mockEnforceResourceRateLimit],
+      ])("refuses on the %s bucket before the owner's budget is reserved", async (_, bucket) => {
+        bucket.mockResolvedValue(
+          NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+        )
+        const req = createMockNextRequest('POST', { input: 'drain the wallet' })
+
+        const response = await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+
+        expect(response.status).toBe(429)
+        expect(preprocessExecution).not.toHaveBeenCalled()
+        expect(createStreamingResponse).not.toHaveBeenCalled()
+        expect(mockProcessChatFiles).not.toHaveBeenCalled()
+      })
+
+      it('debits buckets keyed on the deployment, not the workflow', async () => {
+        const req = createMockNextRequest('POST', { input: 'hello' })
+
+        await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+
+        expect(mockEnforceIpRateLimit).toHaveBeenCalledWith(
+          'chat-execute',
+          req,
+          expect.objectContaining({ refillIntervalMs: 60_000 }),
+          'chat-id'
+        )
+        expect(mockEnforceResourceRateLimit).toHaveBeenCalledWith(
+          'chat-execute',
+          'chat-id',
+          expect.objectContaining({ refillIntervalMs: 60_000 })
+        )
+      })
+
+      it('leaves the deployment bucket untouched when the IP bucket refuses', async () => {
+        mockEnforceIpRateLimit.mockResolvedValue(NextResponse.json({}, { status: 429 }))
+        const req = createMockNextRequest('POST', { input: 'flood' })
+
+        await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+
+        expect(mockEnforceResourceRateLimit).not.toHaveBeenCalled()
+      })
+
+      /**
+       * The invariant the ceiling exists to hold. A chat execution debits the
+       * workspace `sync` counter the owner's API, webhook and scheduled runs
+       * share, so a ceiling at or above a plan's own rate never refuses before
+       * that shared counter is drained — the availability half of the attack.
+       * Asserted against every plan, including free, and on burst as well as
+       * sustained rate, since either one reaching the plan bucket first is the
+       * same hole.
+       */
+      it.each(Object.keys(RATE_LIMITS))(
+        'stays under the %s plan sync budget it debits',
+        async (plan) => {
+          const req = createMockNextRequest('POST', { input: 'hello' })
+
+          await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+
+          const planBucket = RATE_LIMITS[plan as keyof typeof RATE_LIMITS].sync
+          const [, , config] = mockEnforceResourceRateLimit.mock.calls[0]
+          expect(config.refillRate).toBeLessThan(planBucket.refillRate)
+          expect(config.maxTokens).toBeLessThan(planBucket.maxTokens)
+        }
+      )
+
+      /** One host must not be able to take the whole deployment's allowance. */
+      it('holds the per-IP bucket under the per-deployment one', async () => {
+        const req = createMockNextRequest('POST', { input: 'hello' })
+
+        await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+
+        const [, , ipConfig] = mockEnforceIpRateLimit.mock.calls[0]
+        const [, , deploymentConfig] = mockEnforceResourceRateLimit.mock.calls[0]
+        expect(ipConfig.refillRate).toBeLessThan(deploymentConfig.refillRate)
+      })
+
+      it('leaves the gate-configuration fetch unmetered', async () => {
+        const passwordDeployment = {
+          ...mockChatResult[0],
+          authType: 'password',
+          password: 'encrypted-password',
+        }
+        dbChainMockFns.select.mockImplementation(() => ({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue([passwordDeployment]),
+            }),
+          }),
+        }))
+        const req = createMockNextRequest('POST', { password: 'test-password' })
+
+        await POST(req, { params: Promise.resolve({ identifier: 'password-protected-chat' }) })
+
+        expect(mockEnforceIpRateLimit).not.toHaveBeenCalled()
+        expect(mockEnforceResourceRateLimit).not.toHaveBeenCalled()
+      })
     })
 
     it('should return 400 for requests without input', async () => {

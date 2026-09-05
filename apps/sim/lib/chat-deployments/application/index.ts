@@ -35,7 +35,9 @@ export {
   deleteWorkflowChatDeployment,
   type ReplaceWorkflowChatDeploymentInput,
   readWorkflowChatDeployment,
+  readWorkflowChatDeploymentStatus,
   replaceWorkflowChatDeployment,
   type WorkflowChatDeploymentInput,
   type WorkflowChatDeploymentResult,
+  type WorkflowChatDeploymentStatus,
 } from '@/lib/chat-deployments/application/workflow-chat-deployment'
