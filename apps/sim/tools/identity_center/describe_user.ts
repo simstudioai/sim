@@ -79,14 +79,26 @@ export const describeUserTool: InternalToolConfig<
   outputs: {
     userId: { type: 'string', description: 'Identity Store user ID' },
     userName: { type: 'string', description: 'Username in the Identity Store' },
-    displayName: { type: 'string', description: 'Display name of the user', optional: true },
-    email: { type: 'string', description: 'Primary email address', optional: true },
+    displayName: {
+      type: 'string',
+      description: 'Display name of the user, or null when the Identity Store omits it',
+      nullable: true,
+    },
+    email: {
+      type: 'string',
+      description: 'Primary email address, or null when the user has no email attribute',
+      nullable: true,
+    },
     userStatus: {
       type: 'string',
-      description: 'Account status: ENABLED or DISABLED',
-      optional: true,
+      description: 'Account status (ENABLED or DISABLED), or null when the Identity Store omits it',
+      nullable: true,
     },
-    title: { type: 'string', description: 'Job title', optional: true },
+    title: {
+      type: 'string',
+      description: 'Job title, or null when the Identity Store omits it',
+      nullable: true,
+    },
     externalIds: {
       type: 'array',
       description: 'External identity provider IDs linked to the user',

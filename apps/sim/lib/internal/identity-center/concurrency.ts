@@ -1,4 +1,4 @@
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 
 /**
@@ -34,6 +34,10 @@ function isThrottlingError(error: unknown): boolean {
  * Runs an AWS call, retrying with jittered exponential backoff while the
  * service reports throttling. Non-throttling failures and aborts propagate
  * immediately.
+ *
+ * The backoff itself is interruptible: an abort during the wait resolves it
+ * early, so the next loop iteration's `throwIfAborted` fires without the caller
+ * having to sit out the remaining delay.
  */
 export async function withThrottleRetry<T>(
   operation: () => Promise<T>,
@@ -45,7 +49,10 @@ export async function withThrottleRetry<T>(
       return await operation()
     } catch (error) {
       if (attempt >= MAX_THROTTLE_ATTEMPTS || !isThrottlingError(error)) throw error
-      await sleep(backoffWithJitter(attempt, null, { baseMs: 200, maxMs: 5_000 }))
+      await interruptibleSleep(
+        backoffWithJitter(attempt, null, { baseMs: 200, maxMs: 5_000 }),
+        signal
+      )
     }
   }
 }

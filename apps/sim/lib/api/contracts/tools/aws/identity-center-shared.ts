@@ -109,6 +109,18 @@ export const identityCenterNextTokenSchema = z
   .min(1, 'Pagination token cannot be empty')
   .max(65535, 'Pagination token is too long')
 
+/**
+ * Organizations pagination tokens are documented far longer than the Identity
+ * Store bound above, so `ListAccounts` gets its own ceiling rather than sharing
+ * one that would reject a valid continuation token before AWS sees it.
+ *
+ * @see https://docs.aws.amazon.com/organizations/latest/APIReference/API_ListAccounts.html
+ */
+export const identityCenterOrganizationsNextTokenSchema = z
+  .string()
+  .min(1, 'Pagination token cannot be empty')
+  .max(100000, 'Pagination token is too long')
+
 /** Every list operation in the family except Organizations `ListAccounts`. */
 export const identityCenterMaxResultsSchema = z
   .number()
