@@ -34,13 +34,13 @@ export function requireOrdinaryCredentialType(type: CredentialType): OrdinaryCre
 }
 
 /**
- * Credential types shared at the workspace level — every type except a user's
- * personal env vars. Derived from the enum so a newly added credential type is
+ * Credential types shared at the workspace level — every type except personal
+ * credentials. Derived from the enum so a newly added credential type is
  * treated as shared by default, keeping visibility, role, and admin derivation
  * consistent instead of drifting against a hand-maintained inclusion list.
  */
 export const SHARED_CREDENTIAL_TYPES = credentialTypeEnum.enumValues.filter(
-  (type) => type !== 'env_personal'
+  (type) => type !== 'env_personal' && type !== 'personal_token'
 )
 
 /**
@@ -103,15 +103,15 @@ export async function resolveCredentialTokenIdentity(
   return { kind: 'oauth', userId: accountRow.userId }
 }
 
-/** Whether a credential is shared at the workspace level (i.e. not a personal env var). */
+/** Whether a credential is shared at the workspace level (excluding personal credentials). */
 export function isSharedCredentialType(type: CredentialType): boolean {
-  return type !== 'env_personal'
+  return type !== 'env_personal' && type !== 'personal_token'
 }
 
 /**
  * Whether a user is an admin of a credential: an explicit credential-member admin,
  * or — for shared credentials only — a workspace admin (workspace admins are
- * derived credential admins, but never for personal env vars).
+ * derived credential admins, but never for personal credentials).
  */
 export function deriveCredentialAdmin(params: {
   credentialType: CredentialType
@@ -175,6 +175,15 @@ export async function getCredentialActorContext(
     userId,
     options?.workspaceAccess
   )
+  if (credentialRow.type === 'personal_token') {
+    return {
+      credential: credentialRow.createdBy === userId ? credentialRow : null,
+      member: null,
+      hasWorkspaceAccess: workspaceAccess.hasAccess,
+      canWriteWorkspace: workspaceAccess.canWrite,
+      isAdmin: credentialRow.createdBy === userId && workspaceAccess.hasAccess,
+    }
+  }
   const [memberRow] = await db
     .select()
     .from(credentialMember)

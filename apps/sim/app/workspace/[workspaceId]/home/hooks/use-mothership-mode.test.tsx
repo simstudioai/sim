@@ -15,6 +15,14 @@ const mockUrlUpdate = vi.fn<(event: UrlUpdateEvent) => void>()
 vi.mock('@/hooks/use-member-access', () => ({
   useMemberAccessAvailable: () => mockMemberAccessAvailable(),
 }))
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ workspaceId: 'workspace-1' }),
+  usePathname: () => '/workspace/workspace-1/home',
+  useRouter: () => ({ push: vi.fn() }),
+}))
+vi.mock('@/hooks/queries/mothership-chats', () => ({
+  useMothershipChatHistory: () => ({ data: undefined }),
+}))
 
 import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 

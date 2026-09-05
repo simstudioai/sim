@@ -52,6 +52,7 @@ import {
   type WorkspaceKnowledgeSearchBody,
   type WorkspaceKnowledgeSearchResult,
 } from '@/lib/api/contracts/knowledge'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
@@ -1177,36 +1178,26 @@ async function searchWorkspaceKnowledge(
   return data.data.results
 }
 
-/**
- * What the signed-in person may read that matches `query`, across the given
- * knowledge bases. Off until there is a query and a base to search.
- */
+/** Searches the canonical workspace index under the signed-in person's ACLs. */
 export function useWorkspaceKnowledgeSearch(
   workspaceId: string | undefined,
-  knowledgeBaseIds: readonly string[],
-  query: string
+  query: string,
+  filters?: WorkspaceSearchFilters
 ) {
   const trimmed = query.trim()
   return useQuery({
-    queryKey: knowledgeKeys.search(workspaceId, knowledgeBaseIds, trimmed),
+    queryKey: knowledgeKeys.search(workspaceId, trimmed, filters),
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
           workspaceId: workspaceId as string,
-          knowledgeBaseIds: [...knowledgeBaseIds],
           query: trimmed,
+          filters,
         },
         signal
       ),
-    enabled: Boolean(workspaceId) && knowledgeBaseIds.length > 0 && trimmed.length > 0,
+    enabled: Boolean(workspaceId) && trimmed.length > 0,
     staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
     retry: false,
-    placeholderData: (previous, previousQuery) =>
-      knowledgeKeys
-        .search(workspaceId, knowledgeBaseIds, '')
-        .slice(0, -1)
-        .every((part, index) => previousQuery?.queryKey[index] === part)
-        ? previous
-        : undefined,
   })
 }

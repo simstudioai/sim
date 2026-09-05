@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => ({ features: { knowledgeMemberAccess: mocks.enabled() } }),
+  useOptionalWorkspaceHostContext: () => ({ features: { knowledgeMemberAccess: mocks.enabled() } }),
 }))
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacePermissionsQuery: () => ({ data: { viewer: { isAdmin: mocks.admin() } } }),

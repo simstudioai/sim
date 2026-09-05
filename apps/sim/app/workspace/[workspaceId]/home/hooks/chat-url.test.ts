@@ -25,4 +25,12 @@ describe('chatUrl', () => {
     withSearch('?q=volvo')
     expect(chatUrl('ws-1', 'chat-1')).toBe('/workspace/ws-1/chat/chat-1')
   })
+
+  it('uses the submitted mode when the URL has not finished changing', () => {
+    withSearch('?mode=search&q=budget&source=upload')
+    expect(chatUrl('ws-1', 'chat-1', 'assistant')).toBe(
+      '/workspace/ws-1/chat/chat-1?mode=assistant'
+    )
+    expect(chatUrl('ws-1', 'chat-1', 'agent')).toBe('/workspace/ws-1/chat/chat-1')
+  })
 })

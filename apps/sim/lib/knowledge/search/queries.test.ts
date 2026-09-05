@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WORKSPACE_ACCESS_TOKENS } from '@/lib/knowledge/access/types'
 import { buildTagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
 import {
+  executeKeywordSearch,
   getStructuredTagFilters,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -380,5 +381,74 @@ describe('vector scan settings', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledOnce()
     await handleVectorOnlySearch(params)
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('workspace search filters before ranking', () => {
+  const params: SearchParams = {
+    knowledgeBaseIds: ['index'],
+    topK: 2,
+    access: { kind: 'workspace', tokens: WORKSPACE_ACCESS_TOKENS },
+    queryVector: { vector: '[0.1,0.2]', dimensions: 1536 },
+    distanceThreshold: 0.8,
+    filters: {
+      documentIds: ['selected-doc'],
+      source: 'upload',
+      modifiedAfter: '2026-09-01T00:00:00Z',
+    },
+  }
+  beforeEach(() => resetDbChainMock())
+
+  function expectScopeOnEveryQuery() {
+    expect(dbChainMockFns.where).toHaveBeenCalled()
+    for (const [condition] of dbChainMockFns.where.mock.calls) {
+      expect(
+        hasMockCondition(
+          condition,
+          (node) =>
+            node.type === 'inArray' &&
+            node.column === schemaMock.document.id &&
+            Array.isArray(node.values) &&
+            node.values.includes('selected-doc')
+        )
+      ).toBe(true)
+      expect(
+        hasMockCondition(
+          condition,
+          (node) => node.type === 'isNull' && node.column === schemaMock.document.connectorId
+        )
+      ).toBe(true)
+      expect(
+        hasMockCondition(
+          condition,
+          (node) =>
+            node.type === 'gte' &&
+            node.left === schemaMock.document.sourceModifiedAt &&
+            node.right instanceof Date &&
+            node.right.toISOString() === '2026-09-01T00:00:00.000Z'
+        )
+      ).toBe(true)
+    }
+  }
+
+  it.each([handleVectorOnlySearch, handleTagOnlySearch, handleTagAndVectorSearch])(
+    'applies the full document scope to vector and tag searches',
+    async (search) => {
+      await search({
+        ...params,
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'launch' },
+        ],
+      })
+      expectScopeOnEveryQuery()
+    }
+  )
+
+  it('rechecks the same scope while hydrating ranked keyword matches', async () => {
+    queueTableRows(schemaMock.embedding, [{ id: 'chunk', keywordRank: 1 }])
+    queueTableRows(schemaMock.embedding, [{ id: 'chunk', distance: 0.1 }])
+    await executeKeywordSearch({ ...params, query: 'launch' })
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(2)
+    expectScopeOnEveryQuery()
   })
 })

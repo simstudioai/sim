@@ -7,6 +7,7 @@ export const gitlabCreateIssueNoteTool: ToolConfig<
   GitLabCreateNoteResponse
 > = {
   id: 'gitlab_create_issue_note',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Create Issue Comment',
   description: 'Add a comment to a GitLab issue',
   version: '1.0.0',

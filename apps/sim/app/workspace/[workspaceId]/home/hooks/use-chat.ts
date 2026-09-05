@@ -21,6 +21,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type WorkspaceSearchFilters,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/knowledge/search'
+import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
@@ -165,8 +169,9 @@ export interface SendMessageOptions {
    * attempts instead of opening a second chat.
    */
   resumeUserMessageId?: string
-  /** Asked for beyond the default agent turn; `ask` answers from the attached knowledge alone. */
+  /** Assistant searches the workspace and acts through the caller's connected accounts. */
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 /**
@@ -191,6 +196,7 @@ interface StartSendMessageOptions {
    */
   resumeUserMessageId?: string
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -200,6 +206,7 @@ interface WithdrawnSend {
   contexts?: ChatContext[]
   userMessageId: string
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 export interface UseChatReturn {
@@ -311,6 +318,7 @@ interface QueuedSendHandoffState {
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
   requestedAt: number
   resolveAttempts?: number
 }
@@ -539,6 +547,9 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       return null
     }
 
+    const assistantSearch = workspaceSearchFiltersSchema.safeParse(parsed.assistantSearch ?? {})
+    if (!assistantSearch.success) return null
+
     return {
       id: parsed.id,
       ...(chatId ? { chatId } : {}),
@@ -552,6 +563,8 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       ...(Array.isArray(parsed.contexts)
         ? { contexts: parsed.contexts.filter(isChatContext) }
         : {}),
+      ...(parsed.requestMode === 'assistant' ? { requestMode: 'assistant' } : {}),
+      ...(parsed.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
       requestedAt: parsed.requestedAt,
       ...(typeof parsed.resolveAttempts === 'number' &&
       Number.isFinite(parsed.resolveAttempts) &&
@@ -1839,7 +1852,11 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(null, '', chatUrl(workspaceId, chatId))
+        window.history.replaceState(
+          null,
+          '',
+          chatUrl(workspaceId, chatId, activeTurn?.optimisticUserMessage.requestMode)
+        )
       }
       if (options?.invalidateList) {
         queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
@@ -3729,7 +3746,8 @@ export function useChat(
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
       resumeUserMessageId?: string,
-      requestMode?: ChatRequestMode
+      requestMode?: ChatRequestMode,
+      assistantSearch?: WorkspaceSearchFilters
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3751,6 +3769,7 @@ export function useChat(
         contexts,
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(requestMode ? { requestMode } : {}),
+        ...(assistantSearch ? { assistantSearch } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3893,6 +3912,7 @@ export function useChat(
           ...(fileAttachments ? { fileAttachments } : {}),
           ...(contexts ? { contexts } : {}),
           ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
+          ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
           requestedAt: Date.now(),
         })
       }
@@ -3939,6 +3959,7 @@ export function useChat(
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,
         role: 'user' as const,
+        requestMode: options?.requestMode ?? 'agent',
         content: message,
         timestamp: new Date().toISOString(),
         ...(storedAttachments && { fileAttachments: storedAttachments }),
@@ -3957,6 +3978,7 @@ export function useChat(
       const optimisticUserMessage: ChatMessage = {
         id: userMessageId,
         role: 'user',
+        requestMode: options?.requestMode ?? 'agent',
         content: message,
         attachments: userAttachments,
         ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
@@ -3964,6 +3986,7 @@ export function useChat(
       const optimisticAssistantMessage: ChatMessage = {
         id: assistantId,
         role: 'assistant',
+        requestMode: options?.requestMode ?? 'agent',
         content: '',
         contentBlocks: [],
       }
@@ -4100,12 +4123,18 @@ export function useChat(
         abortControllerRef.current = abortController
         sendAbortSignal = abortController.signal
 
-        const resourceAttachments = buildResourceAttachments(
-          resourcesRef.current,
-          activeResourceIdRef.current,
-          desktopScopeIdRef.current
-        )
-        const desktopChatCapabilities = await getDesktopChatCapabilities(desktopScopeIdRef.current)
+        const resourceAttachments =
+          options?.requestMode === 'assistant'
+            ? undefined
+            : buildResourceAttachments(
+                resourcesRef.current,
+                activeResourceIdRef.current,
+                desktopScopeIdRef.current
+              )
+        const desktopChatCapabilities =
+          options?.requestMode === 'assistant'
+            ? {}
+            : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
@@ -4120,7 +4149,10 @@ export function useChat(
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
             ...(options?.requestMode ? { mode: options.requestMode } : {}),
-            ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
+            ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+            ...(options?.requestMode !== 'assistant' && workflowIdRef.current
+              ? { workflowId: workflowIdRef.current }
+              : {}),
             // Desktop-only capabilities (local filesystem tools, browser
             // subagent) — the server gates the features on these flags.
             ...desktopChatCapabilities,
@@ -4325,7 +4357,8 @@ export function useChat(
           send.contexts,
           send.fileAttachments,
           send.userMessageId,
-          send.requestMode
+          send.requestMode,
+          send.assistantSearch
         )
       ) {
         return
@@ -4337,6 +4370,7 @@ export function useChat(
           ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
           resumeUserMessageId: send.userMessageId,
           ...(send.requestMode ? { requestMode: send.requestMode } : {}),
+          ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
         },
         workspaceId
       )
@@ -4367,6 +4401,7 @@ export function useChat(
             fileAttachments,
             contexts,
             requestMode: options?.requestMode,
+            assistantSearch: options?.assistantSearch,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -4399,7 +4434,8 @@ export function useChat(
             fileAttachments,
             contexts,
             options?.resumeUserMessageId,
-            options?.requestMode
+            options?.requestMode,
+            options?.assistantSearch
           )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
@@ -4422,6 +4458,7 @@ export function useChat(
         contexts,
         userMessageId: result.userMessageId,
         ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
+        ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -4436,7 +4473,8 @@ export function useChat(
             fileAttachments,
             contexts,
             result.userMessageId,
-            options?.requestMode
+            options?.requestMode,
+            options?.assistantSearch
           )
         )
     },
@@ -4612,6 +4650,7 @@ export function useChat(
     void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
       pendingStop: null,
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+      ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -5035,6 +5074,7 @@ export function useChat(
             fileAttachments: dispatched.fileAttachments,
             contexts: dispatched.contexts,
             ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
+            ...(dispatched.assistantSearch ? { assistantSearch: dispatched.assistantSearch } : {}),
             userMessageId: withdrawnUserMessageId,
           })
           return
@@ -5074,6 +5114,7 @@ export function useChat(
               ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
               : {}),
             ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
+            ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
           }
         )
 

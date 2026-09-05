@@ -208,7 +208,7 @@ interface OrchestratorRequest {
   workflowId: string
   userId: string
   chatId?: string
-  mode?: 'agent' | 'ask' | 'plan'
+  mode?: 'agent' | 'assistant' | 'plan'
   model?: string
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: FileAttachment[]

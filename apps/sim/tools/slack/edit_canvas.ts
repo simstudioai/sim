@@ -10,6 +10,7 @@ export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCan
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['canvases:write'],
   },
 
   params: {

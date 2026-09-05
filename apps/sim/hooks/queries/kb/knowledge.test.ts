@@ -129,7 +129,7 @@ describe('knowledge query placeholder scope', () => {
   it('forwards search cancellation and leaves provider retries to the server', async () => {
     mocks.requestJson.mockResolvedValueOnce({ data: { results: [] } })
     const query = captureQuery(() =>
-      useWorkspaceKnowledgeSearch('workspace-1', ['kb-1'], ' query ')
+      useWorkspaceKnowledgeSearch('workspace-1', ' query ', { source: 'slack' })
     )
     const controller = new AbortController()
     await query.queryFn({ signal: controller.signal })
@@ -192,25 +192,13 @@ describe('knowledge query placeholder scope', () => {
     ).toBeUndefined()
   })
 
-  it('preserves Search results only when both workspace and selected bases stay the same', () => {
+  it('does not reuse results from a different query, workspace, or filter', () => {
     const query = captureQuery(() =>
-      useWorkspaceKnowledgeSearch('workspace-1', ['kb-2', 'kb-1'], 'new query')
+      useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })
     )
-    const previous = [{ documentId: 'visible-document' }]
-    expect(
-      query.placeholderData?.(previous, {
-        queryKey: knowledgeKeys.search('workspace-1', ['kb-1', 'kb-2'], 'old'),
-      })
-    ).toBe(previous)
-    expect(
-      query.placeholderData?.(previous, {
-        queryKey: knowledgeKeys.search('workspace-2', ['kb-1', 'kb-2'], 'old'),
-      })
-    ).toBeUndefined()
-    expect(
-      query.placeholderData?.(previous, {
-        queryKey: knowledgeKeys.search('workspace-1', ['kb-1'], 'old'),
-      })
-    ).toBeUndefined()
+    expect(query.placeholderData).toBeUndefined()
+    expect(knowledgeKeys.search('workspace-1', 'query', { source: 'slack' })).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', { source: 'gitlab' })
+    )
   })
 })

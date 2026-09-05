@@ -31,6 +31,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockNavigate }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+  useWorkspaceHostContext: () => ({ features: mockFeatures() }),
   useOptionalWorkspaceHostContext: () => ({ features: mockFeatures() }),
 }))
 vi.mock('nuqs', () => ({

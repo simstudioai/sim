@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetProjectResponse> = {
   id: 'gitlab_get_project',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Get Project',
   description: 'Get details of a specific GitLab project',
   version: '1.0.0',

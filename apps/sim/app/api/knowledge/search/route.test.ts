@@ -6,8 +6,8 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ search: vi.fn() }))
-vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { operation: { id: 'knowledge.search' }, execute: mocks.search },
+vi.mock('@/lib/knowledge/application/workspace-search', () => ({
+  searchWorkspaceKnowledge: { operation: { id: 'knowledge.search' }, execute: mocks.search },
 }))
 
 import { POST } from '@/app/api/knowledge/search/route'
@@ -29,7 +29,7 @@ describe('workspace search route', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         workspaceId: 'workspace-1',
-        knowledgeBaseIds: ['kb-1'],
+        filters: { source: 'slack', documentIds: ['doc-1'] },
         query: 'Orion',
       }),
       signal: controller.signal,
@@ -38,6 +38,8 @@ describe('workspace search route', () => {
     expect(response.status).toBe(200)
     const call = mocks.search.mock.calls[0][0]
     expect(call.principal).toEqual({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    expect(call.input).not.toHaveProperty('knowledgeBaseIds')
+    expect(call.input.filters).toEqual({ source: 'slack', documentIds: ['doc-1'] })
     expect(call.input.signal).toBe(request.signal)
     controller.abort()
     expect(call.input.signal.aborted).toBe(true)

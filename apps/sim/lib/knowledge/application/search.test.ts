@@ -152,6 +152,21 @@ describe('knowledge search application use case', () => {
     mocks.importProvenance.mockResolvedValue({ imported: true, documentMetadata: {} })
   })
 
+  it('drops passages whose access was revoked before the final document metadata read', async () => {
+    mocks.getDocumentMetadata.mockResolvedValue({})
+    const result = await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workspaceId: 'workspace-1',
+        knowledgeBaseIds: ['knowledge-1'],
+        query: 'orion',
+        topK: 20,
+      },
+    })
+    expect(result.results).toEqual([])
+    expect(result.totalResults).toBe(0)
+  })
+
   it('authorizes every canonical knowledge base before billing and search', async () => {
     const result = await searchKnowledge.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },

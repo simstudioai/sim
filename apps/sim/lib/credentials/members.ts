@@ -85,7 +85,7 @@ export async function upsertCredentialMember(
   params: UpsertCredentialMemberParams
 ): Promise<UpsertCredentialMemberResult> {
   if (!isSharedCredentialType(params.credential.type)) {
-    throw new OrchestrationError('validation', 'Personal secrets cannot be shared')
+    throw new OrchestrationError('validation', 'Personal credentials cannot be shared')
   }
   const targetWorkspacePermission = await getUserEntityPermissions(
     params.targetUserId,
@@ -152,6 +152,8 @@ export async function removeCredentialMember(params: {
   credential: CredentialRow
   targetUserId: string
 }): Promise<void> {
+  if (params.credential.type === 'personal_token')
+    throw new OrchestrationError('validation', 'Personal tokens do not have shared members')
   const [target] = await db
     .select({ id: credentialMember.id, role: credentialMember.role })
     .from(credentialMember)

@@ -41,16 +41,19 @@ const turnRegistryCache = new Map<
 async function getTurnEgressRegistry(
   userId: string,
   workspaceId: string | undefined,
-  messageId: string | undefined
+  messageId: string | undefined,
+  requestMode?: string
 ): Promise<ResolvedSecretTraceRegistry> {
-  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${messageId ?? ''}`
+  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${messageId ?? ''}\u0000${requestMode ?? ''}`
   const now = Date.now()
   const hit = turnRegistryCache.get(key)
   if (hit && hit.expiresAt > now) {
     hit.expiresAt = now + TURN_REGISTRY_TTL_MS
     return hit.registry
   }
-  const environmentContext = await prepareCopilotEnvironmentContext(userId, workspaceId)
+  const environmentContext = await prepareCopilotEnvironmentContext(userId, workspaceId, {
+    includeSecrets: requestMode !== 'assistant',
+  })
   for (const [cachedKey, cached] of turnRegistryCache) {
     if (cached.expiresAt <= now) turnRegistryCache.delete(cachedKey)
   }
@@ -111,6 +114,8 @@ export const POST = withRouteHandler((request: NextRequest) =>
         messageId,
         parentToolCallId,
         userPermission,
+        requestMode,
+        assistantSearch,
       } = validation.data
       rootSpan.setAttributes({
         [TraceAttr.ToolName]: toolName,
@@ -121,7 +126,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
       let toolRegistry: ResolvedSecretTraceRegistry
       let turnRegistry: ResolvedSecretTraceRegistry
       try {
-        turnRegistry = await getTurnEgressRegistry(userId, workspaceId, messageId)
+        turnRegistry = await getTurnEgressRegistry(userId, workspaceId, messageId, requestMode)
         toolRegistry = turnRegistry.forkForInputPaths([])
       } catch (err) {
         /**
@@ -173,6 +178,9 @@ export const POST = withRouteHandler((request: NextRequest) =>
           parentToolCallId,
           userPermission,
           copilotToolExecution: true,
+          copilotInteractionMode: 'interactive',
+          requestMode,
+          assistantSearch,
           resolvedSecretTraceRegistry: toolRegistry,
         })
         const projection = inspectToolResultForCopilot(result, toolRegistry, toolName)

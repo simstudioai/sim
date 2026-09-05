@@ -5,6 +5,7 @@ import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 export const COPILOT_APPLICATION_DELEGATION_TTL_MS = ORCHESTRATION_TIMEOUT_MS
 
 export interface CopilotExecutionContext {
+  requestMode?: string
   userId?: string
   workspaceId?: string
   chatId?: string
@@ -88,6 +89,7 @@ export function requireTrustedCopilotExecutionContext(
     ...(context.executionId ? { executionId: context.executionId } : {}),
     toolCallId: context.toolCallId,
     copilotToolExecution: true,
+    ...(context.requestMode ? { requestMode: context.requestMode } : {}),
     ...(context.copilotInteractionMode
       ? { copilotInteractionMode: context.copilotInteractionMode }
       : {}),

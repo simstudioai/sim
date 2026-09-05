@@ -21,6 +21,7 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import { SlackMemberSetup } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { ManagedSearchSources } from '@/app/workspace/[workspaceId]/search/components/managed-search-sources'
 import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
 import { SearchMcpSetup } from '@/app/workspace/[workspaceId]/search/components/search-mcp-setup'
@@ -135,6 +136,7 @@ export function Search() {
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability } = usePermissionConfig()
+  const { features } = useWorkspaceHostContext()
   /**
    * With per-member access off, every connect is refused, so the rows say so
    * and the memberships are not fetched.

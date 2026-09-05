@@ -198,6 +198,7 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
     id: msg.id,
     role: msg.role,
     content: msg.content,
+    ...(msg.requestMode ? { requestMode: msg.requestMode } : {}),
   }
 
   if (msg.requestId) {

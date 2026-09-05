@@ -1,8 +1,11 @@
 import type { z } from 'zod'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ServerToolContext {
+  requestMode?: string
+  assistantSearch?: WorkspaceSearchFilters
   userId: string
   workspaceId?: string
   executionId?: string

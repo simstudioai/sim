@@ -16,6 +16,7 @@ export const slackCreateChannelCanvasTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['canvases:write'],
   },
 
   params: {

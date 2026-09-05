@@ -10,13 +10,19 @@ const CHAT_URL_PARAMS = [modeParam.key, resourceParam.key] as const
  * a search's `q` and filters, which never join a transcript, are left behind
  * whatever the URL held at that instant.
  */
-export function chatUrl(workspaceId: string, chatId: string): string {
+export function chatUrl(
+  workspaceId: string,
+  chatId: string,
+  requestMode?: 'agent' | 'assistant'
+): string {
   const current = new URLSearchParams(window.location.search)
   const carried = new URLSearchParams()
   for (const key of CHAT_URL_PARAMS) {
     const value = current.get(key)
     if (value) carried.set(key, value)
   }
+  if (requestMode === 'assistant') carried.set(modeParam.key, 'assistant')
+  else if (requestMode === 'agent') carried.delete(modeParam.key)
   const search = carried.toString()
   return `/workspace/${workspaceId}/chat/${chatId}${search ? `?${search}` : ''}`
 }

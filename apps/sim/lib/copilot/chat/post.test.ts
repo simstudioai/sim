@@ -4,6 +4,7 @@
 
 import {
   authMockFns,
+  dbChainMockFns,
   environmentUtilsMockFns,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
@@ -24,6 +25,7 @@ const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 const getEffectiveEnvironmentSnapshot = environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 const {
+  listPersonal,
   generateWorkspaceSnapshot,
   processContextsServer,
   resolveActiveResourceContext,
@@ -42,6 +44,7 @@ const {
   storeChatSendResult,
   releaseChatSendClaim,
 } = vi.hoisted(() => ({
+  listPersonal: vi.fn(),
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
   resolveActiveResourceContext: vi.fn(),
@@ -118,6 +121,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution,
+}))
+
+vi.mock('@/lib/credentials/application/personal-credentials', () => ({
+  listPersonalCredentials: { execute: listPersonal },
 }))
 
 vi.mock('@/lib/copilot/chat/workspace-context', () => ({
@@ -239,6 +246,84 @@ describe('handleUnifiedChatPost', () => {
       workspaceId: 'ws-1',
       outcome: 'appended_assistant',
     })
+  })
+
+  it('builds Assistant from only personal accounts and the selected Search scope', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    listPersonal.mockResolvedValue({ credentials: [{ id: 'mine', providerId: 'google-drive' }] })
+    const filters = { source: 'slack', documentIds: ['doc-1'] }
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find this',
+          workspaceId: 'ws-1',
+          mode: 'assistant',
+          assistantSearch: filters,
+          createNewChat: true,
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
+    expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
+    expect(processContextsServer).not.toHaveBeenCalled()
+    expect(listPersonal).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1' },
+    })
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'assistant',
+        assistantSearch: filters,
+        contexts: [],
+        workspaceContext: JSON.stringify({
+          credentials: [{ id: 'mine', providerId: 'google-drive' }],
+        }),
+      }),
+      expect.anything()
+    )
+    expect(createSSEStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orchestrateOptions: expect.objectContaining({
+          executionContext: expect.objectContaining({
+            requestMode: 'assistant',
+            assistantSearch: filters,
+            userId: 'user-1',
+          }),
+        }),
+      })
+    )
+    expect(appendCopilotChatMessages).toHaveBeenCalledWith(
+      'chat-1',
+      [expect.objectContaining({ requestMode: 'assistant', role: 'user' })],
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
+  it('refuses switching an existing Build conversation into Assistant', async () => {
+    resolveOrCreateChat.mockResolvedValue({
+      chatId: 'chat-1',
+      chat: { id: 'chat-1' },
+      isNew: false,
+      conversationHistory: [{ role: 'user', content: 'Build a workflow', requestMode: 'agent' }],
+    })
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Use those credentials',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          mode: 'assistant',
+        }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(createSSEStream).not.toHaveBeenCalled()
+    expect(appendCopilotChatMessages).not.toHaveBeenCalled()
   })
 
   it('routes workflow-attached chat requests through the copilot backend path', async () => {

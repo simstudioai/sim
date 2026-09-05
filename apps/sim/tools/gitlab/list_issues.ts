@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabListIssuesResponse> = {
   id: 'gitlab_list_issues',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Issues',
   description: 'List issues in a GitLab project',
   version: '1.0.0',

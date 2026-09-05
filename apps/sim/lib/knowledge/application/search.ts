@@ -40,6 +40,7 @@ import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
   executeKnowledgeSearch,
   getDocumentMetadataByIds,
@@ -87,6 +88,7 @@ export interface SearchKnowledgeInput {
   query?: string
   topK: number
   tagFilters?: KnowledgeSearchTagFilter[]
+  filters?: WorkspaceSearchFilters
   searchMode?: 'vector' | 'hybrid'
   rerankerEnabled?: boolean
   rerankerModel?: string
@@ -351,6 +353,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     let rows = await executeKnowledgeSearch({
       knowledgeBaseIds,
       topK: candidateTopK,
+      filters: input.filters,
       access,
       searchMode: searchDefaults.searchMode,
       boostRecency: searchDefaults.boostRecency,
@@ -539,37 +542,39 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       rows.map((row) => row.documentId),
       access
     )
-    const results = rows.map((row): KnowledgeSearchItem => {
-      const metadata: Record<string, unknown> = {}
-      const tagMap = tagMaps.get(row.knowledgeBaseId)
-      const provenanceDocument = provenanceSnapshot?.documentMetadata[row.documentId]
-      const basicDocument = basicDocumentMetadata[row.documentId]
-      const document = provenanceDocument ?? basicDocument
-      for (const slot of ALL_TAG_SLOTS) {
-        const value =
-          provenanceDocument && slot.startsWith('tag')
-            ? provenanceDocument[
-                slot as 'tag1' | 'tag2' | 'tag3' | 'tag4' | 'tag5' | 'tag6' | 'tag7'
-              ]
-            : row[slot]
-        if (value !== null && value !== undefined) metadata[tagMap?.get(slot) ?? slot] = value
-      }
-      const rerankerScore = rerankerScores.get(row.id)
-      return {
-        embeddingId: row.id,
-        knowledgeBaseId: row.knowledgeBaseId,
-        documentId: row.documentId,
-        documentName: document?.filename ?? null,
-        sourceUrl: document?.sourceUrl ?? null,
-        sourceModifiedAt: basicDocument?.sourceModifiedAt ?? null,
-        connectorType: basicDocument?.connectorType ?? null,
-        content: row.content,
-        chunkIndex: row.chunkIndex,
-        metadata,
-        similarity: hasQuery ? 1 - row.distance : 1,
-        ...(rerankerScore !== undefined ? { rerankerScore } : {}),
-      }
-    })
+    const results = rows
+      .filter((row) => basicDocumentMetadata[row.documentId])
+      .map((row): KnowledgeSearchItem => {
+        const metadata: Record<string, unknown> = {}
+        const tagMap = tagMaps.get(row.knowledgeBaseId)
+        const provenanceDocument = provenanceSnapshot?.documentMetadata[row.documentId]
+        const basicDocument = basicDocumentMetadata[row.documentId]
+        const document = provenanceDocument ?? basicDocument
+        for (const slot of ALL_TAG_SLOTS) {
+          const value =
+            provenanceDocument && slot.startsWith('tag')
+              ? provenanceDocument[
+                  slot as 'tag1' | 'tag2' | 'tag3' | 'tag4' | 'tag5' | 'tag6' | 'tag7'
+                ]
+              : row[slot]
+          if (value !== null && value !== undefined) metadata[tagMap?.get(slot) ?? slot] = value
+        }
+        const rerankerScore = rerankerScores.get(row.id)
+        return {
+          embeddingId: row.id,
+          knowledgeBaseId: row.knowledgeBaseId,
+          documentId: row.documentId,
+          documentName: document?.filename ?? null,
+          sourceUrl: document?.sourceUrl ?? null,
+          sourceModifiedAt: basicDocument?.sourceModifiedAt ?? null,
+          connectorType: basicDocument?.connectorType ?? null,
+          content: row.content,
+          chunkIndex: row.chunkIndex,
+          metadata,
+          similarity: hasQuery ? 1 - row.distance : 1,
+          ...(rerankerScore !== undefined ? { rerankerScore } : {}),
+        }
+      })
     if (registry && provenanceSnapshot) {
       const knowledgeEnforced = isDurableSecretProvenanceEnforced('knowledge')
       let unrecordedCount = provenanceSnapshot.unrecordedCount

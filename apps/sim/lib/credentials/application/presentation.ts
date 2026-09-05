@@ -52,6 +52,9 @@ export function toWorkspaceCredential(
     accountId: row.accountId,
     envKey: row.envKey,
     envOwnerUserId: row.envOwnerUserId,
+    ...(row.type === 'personal_token' && row.providerTenantId
+      ? { instanceUrl: row.providerTenantId }
+      : {}),
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

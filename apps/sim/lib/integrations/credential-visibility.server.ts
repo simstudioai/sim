@@ -16,7 +16,7 @@ import { isHiddenUnder } from '@/blocks/visibility/context'
 
 export interface IntegrationCredentialIdentity {
   providerId: string
-  type?: 'oauth' | 'service_account' | 'managed_oauth'
+  type?: 'oauth' | 'service_account' | 'managed_oauth' | 'personal_token'
 }
 
 interface IntegrationCredentialVisibilityOptions {
@@ -136,6 +136,19 @@ export function createIntegrationCredentialVisibility({
   }
 
   const isCredentialVisible = ({ providerId, type }: IntegrationCredentialIdentity): boolean => {
+    if (type === 'personal_token') {
+      if (
+        providerId !== 'gitlab' ||
+        (allowedIntegrationTypes && !allowedIntegrationTypes.has('gitlab'))
+      )
+        return false
+      const block = getBlock('gitlab')
+      const availability = availabilityByType.get('gitlab')
+      if (!block || block.hideFromToolbar || isHiddenUnder(blockVisibility, block) || !availability)
+        return false
+      const state = resolveIntegrationAvailabilityStateForVisibility(availability, blockVisibility)
+      return state === 'ready' || state === 'limited'
+    }
     if (type !== 'service_account') {
       const owners = oauthOwnersByProviderId.get(providerId)
       if (owners) return owners.some(isOAuthServiceVisible)

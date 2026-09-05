@@ -26,7 +26,7 @@ export const jiraAddAttachmentTool: InternalToolConfig<
     domain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     issueKey: {
@@ -38,7 +38,7 @@ export const jiraAddAttachmentTool: InternalToolConfig<
     files: {
       type: 'file[]',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Files to attach to the Jira issue',
     },
     cloudId: {
