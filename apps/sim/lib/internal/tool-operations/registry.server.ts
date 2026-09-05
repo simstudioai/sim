@@ -127,7 +127,29 @@ const SES_TOOL_IDS = [
   'ses_update_template',
 ] as const
 
-const SQS_TOOL_IDS = ['sqs_send'] as const
+const SQS_TOOL_IDS = [
+  'sqs_send',
+  'sqs_send_message_batch',
+  'sqs_receive_message',
+  'sqs_delete_message',
+  'sqs_delete_message_batch',
+  'sqs_change_message_visibility',
+  'sqs_change_message_visibility_batch',
+  'sqs_list_queues',
+  'sqs_get_queue_url',
+  'sqs_get_queue_attributes',
+  'sqs_set_queue_attributes',
+  'sqs_create_queue',
+  'sqs_delete_queue',
+  'sqs_purge_queue',
+  'sqs_list_dead_letter_source_queues',
+  'sqs_list_queue_tags',
+  'sqs_tag_queue',
+  'sqs_untag_queue',
+  'sqs_start_message_move_task',
+  'sqs_list_message_move_tasks',
+  'sqs_cancel_message_move_task',
+] as const
 
 const RDS_TOOL_IDS = [
   'rds_query',
