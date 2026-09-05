@@ -1151,7 +1151,9 @@ export type ListSelectedCourseOfferingsParams = Omit<
   accessToken?: string
   instanceUrl?: string
 }
-export type ListSelectedCourseOfferingsResponse = LearningResponse<LearningPage<SelectedCourseOffering>>
+export type ListSelectedCourseOfferingsResponse = LearningResponse<
+  LearningPage<SelectedCourseOffering>
+>
 
 export const ORACLE_FUSION_LEARNING_LIST_SELECTED_COURSE_OFFERINGS_OUTPUTS = {
   items: {
@@ -1193,7 +1195,9 @@ export type UpdateSelectedCourseOfferingParams = Omit<
   instanceUrl?: string
   body: z.input<typeof Schemas.offeringPatchSchema> | string
 }
-export type UpdateSelectedCourseOfferingResponse = LearningResponse<{ item: SelectedCourseOffering }>
+export type UpdateSelectedCourseOfferingResponse = LearningResponse<{
+  item: SelectedCourseOffering
+}>
 
 export const ORACLE_FUSION_LEARNING_UPDATE_SELECTED_COURSE_OFFERING_OUTPUTS = {
   item: {
@@ -1399,7 +1403,10 @@ export type ProcessAssignmentProfileParams = Omit<
 export type ProcessAssignmentProfileResponse = LearningResponse<{ result: number }>
 
 export const ORACLE_FUSION_LEARNING_PROCESS_ASSIGNMENT_PROFILE_OUTPUTS = {
-  result: { type: 'number', description: 'Numeric processing acknowledgement; not a verified job ID' },
+  result: {
+    type: 'number',
+    description: 'Numeric processing acknowledgement; not a verified job ID',
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type ListAssignmentProfileRecordsParams = Omit<
@@ -1410,7 +1417,9 @@ export type ListAssignmentProfileRecordsParams = Omit<
   accessToken?: string
   instanceUrl?: string
 }
-export type ListAssignmentProfileRecordsResponse = LearningResponse<LearningPage<AssignmentProfileRecord>>
+export type ListAssignmentProfileRecordsResponse = LearningResponse<
+  LearningPage<AssignmentProfileRecord>
+>
 
 export const ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILE_RECORDS_OUTPUTS = {
   items: {
@@ -1432,7 +1441,9 @@ export type ListAssignmentProfileCriteriaParams = Omit<
   accessToken?: string
   instanceUrl?: string
 }
-export type ListAssignmentProfileCriteriaResponse = LearningResponse<LearningPage<AssignmentProfileCriterion>>
+export type ListAssignmentProfileCriteriaResponse = LearningResponse<
+  LearningPage<AssignmentProfileCriterion>
+>
 
 export const ORACLE_FUSION_LEARNING_LIST_ASSIGNMENT_PROFILE_CRITERIA_OUTPUTS = {
   items: {
@@ -1455,7 +1466,9 @@ export type AddAssignmentProfileCriterionParams = Omit<
   instanceUrl?: string
   body: z.input<typeof Schemas.criterionPostSchema> | string
 }
-export type AddAssignmentProfileCriterionResponse = LearningResponse<{ item: AssignmentProfileCriterion }>
+export type AddAssignmentProfileCriterionResponse = LearningResponse<{
+  item: AssignmentProfileCriterion
+}>
 
 export const ORACLE_FUSION_LEARNING_ADD_ASSIGNMENT_PROFILE_CRITERION_OUTPUTS = {
   item: {

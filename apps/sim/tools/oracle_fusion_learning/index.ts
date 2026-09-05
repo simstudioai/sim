@@ -30,6 +30,7 @@ export { oracleFusionLearningProcessAssignmentProfileTool } from '@/tools/oracle
 export { oracleFusionLearningRemoveAssignmentProfileCriterionTool } from '@/tools/oracle_fusion_learning/remove_assignment_profile_criterion'
 export { oracleFusionLearningRemoveLearningItemAudienceTool } from '@/tools/oracle_fusion_learning/remove_learning_item_audience'
 export { oracleFusionLearningSelectCourseOfferingTool } from '@/tools/oracle_fusion_learning/select_course_offering'
+export type * from '@/tools/oracle_fusion_learning/types'
 export { oracleFusionLearningUpdateAssignmentProfileTool } from '@/tools/oracle_fusion_learning/update_assignment_profile'
 export { oracleFusionLearningUpdateCompletionDetailTool } from '@/tools/oracle_fusion_learning/update_completion_detail'
 export { oracleFusionLearningUpdateContentItemTool } from '@/tools/oracle_fusion_learning/update_content_item'
@@ -38,4 +39,3 @@ export { oracleFusionLearningUpdateLearningEventTool } from '@/tools/oracle_fusi
 export { oracleFusionLearningUpdateLearningRecordTool } from '@/tools/oracle_fusion_learning/update_learning_record'
 export { oracleFusionLearningUpdateSelectedCourseOfferingTool } from '@/tools/oracle_fusion_learning/update_selected_course_offering'
 export { oracleFusionLearningUpdateSelfPacedItemTool } from '@/tools/oracle_fusion_learning/update_self_paced_item'
-export type * from '@/tools/oracle_fusion_learning/types'

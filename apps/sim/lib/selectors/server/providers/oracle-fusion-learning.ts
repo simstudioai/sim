@@ -28,7 +28,8 @@ function parseId(value: string | undefined): string {
 function parseOffset(cursor?: string): number {
   if (!cursor) return 0
   const offset = Number(cursor)
-  if (!/^\d+$/.test(cursor) || !Number.isSafeInteger(offset)) throw new SelectorContextUnavailableError()
+  if (!/^\d+$/.test(cursor) || !Number.isSafeInteger(offset))
+    throw new SelectorContextUnavailableError()
   return offset
 }
 
@@ -108,7 +109,8 @@ export const oracleFusionLearningSelectorAttachments = {
           args.signal
         )
         const page = result.output
-        if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
+        if (page.hasMore && page.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
         return listSelectorResult(
           page.items.map((item) => ({
             id: item.learningItemId,
@@ -160,7 +162,8 @@ export const oracleFusionLearningSelectorAttachments = {
           args.signal
         )
         const page = result.output
-        if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
+        if (page.hasMore && page.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
         return listSelectorResult(
           page.items.map((item) => ({
             id: item.learningItemId,
@@ -213,7 +216,8 @@ export const oracleFusionLearningSelectorAttachments = {
           args.signal
         )
         const page = result.output
-        if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
+        if (page.hasMore && page.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
         return listSelectorResult(
           page.items.map((item) => ({
             id: item.activityId,
@@ -266,7 +270,8 @@ export const oracleFusionLearningSelectorAttachments = {
           args.signal
         )
         const page = result.output
-        if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
+        if (page.hasMore && page.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
         return listSelectorResult(
           page.items.map((item) => ({
             id: item.assignmentRecordId,
@@ -320,7 +325,8 @@ export const oracleFusionLearningSelectorAttachments = {
           args.signal
         )
         const page = result.output
-        if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
+        if (page.hasMore && page.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
         return listSelectorResult(
           page.items.map((item) => ({
             id: item.assignmentRecordId,
@@ -373,7 +379,8 @@ export const oracleFusionLearningSelectorAttachments = {
           args.signal
         )
         const page = result.output
-        if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
+        if (page.hasMore && page.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
         return listSelectorResult(
           page.items.map((item) => ({
             id: item.activityAssignmentRecordId,
@@ -425,11 +432,15 @@ export const oracleFusionLearningSelectorAttachments = {
           args.signal
         )
         const page = result.output
-        if (page.hasMore && page.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
+        if (page.hasMore && page.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
         return listSelectorResult(
           page.items.map((item) => ({
             id: item.assignmentProfileId,
-            label: item.assignmentProfileTitle || item.assignmentProfileNumber || item.assignmentProfileId,
+            label:
+              item.assignmentProfileTitle ||
+              item.assignmentProfileNumber ||
+              item.assignmentProfileId,
             meta: { number: item.assignmentProfileNumber },
           })),
           page.hasMore ? String(page.nextOffset) : undefined

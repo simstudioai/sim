@@ -415,7 +415,14 @@ export const contentPostSchema = z
     Title: z.string().max(100000),
     Description: z.string().max(100000).nullable().optional(),
     ItemNumber: z.string().max(100000).nullable().optional(),
-    URL: z.string().url().max(4096).refine((value) => ['https:', 'http:'].includes(new URL(value).protocol), 'URL must use HTTP or HTTPS'),
+    URL: z
+      .string()
+      .url()
+      .max(4096)
+      .refine(
+        (value) => ['https:', 'http:'].includes(new URL(value).protocol),
+        'URL must use HTTP or HTTPS'
+      ),
     Status: z.string().max(100000).nullable().optional(),
     StartDate: dateSchema.nullable().optional(),
     EndDate: dateSchema.nullable().optional(),
@@ -428,7 +435,16 @@ export const contentPatchSchema = z
     Title: z.string().max(100000).nullable().optional(),
     Description: z.string().max(100000).nullable().optional(),
     ItemNumber: z.string().max(100000).nullable().optional(),
-    URL: z.string().url().max(4096).refine((value) => ['https:', 'http:'].includes(new URL(value).protocol), 'URL must use HTTP or HTTPS').nullable().optional(),
+    URL: z
+      .string()
+      .url()
+      .max(4096)
+      .refine(
+        (value) => ['https:', 'http:'].includes(new URL(value).protocol),
+        'URL must use HTTP or HTTPS'
+      )
+      .nullable()
+      .optional(),
     Status: z.string().max(100000).nullable().optional(),
     StartDate: dateSchema.nullable().optional(),
     EndDate: dateSchema.nullable().optional(),
@@ -574,7 +590,9 @@ export const update_selected_course_offeringSchema = baseSchema.extend({
   offeringRecordId: decimalIdSchema,
   body: jsonBody(offeringPatchSchema),
 })
-export type UpdateSelectedCourseOfferingInput = z.output<typeof update_selected_course_offeringSchema>
+export type UpdateSelectedCourseOfferingInput = z.output<
+  typeof update_selected_course_offeringSchema
+>
 
 export const list_completion_detailsSchema = baseSchema.extend({
   personId: decimalIdSchema,
@@ -613,7 +631,9 @@ export const list_learning_record_action_hintsSchema = baseSchema.extend({
   effectiveDate: dateSchema.optional(),
   offeringRecordId: decimalIdSchema.optional(),
 })
-export type ListLearningRecordActionHintsInput = z.output<typeof list_learning_record_action_hintsSchema>
+export type ListLearningRecordActionHintsInput = z.output<
+  typeof list_learning_record_action_hintsSchema
+>
 
 export const list_enrollment_historySchema = baseSchema.extend({
   personId: decimalIdSchema,
@@ -661,7 +681,9 @@ export const list_assignment_profile_recordsSchema = baseSchema.extend({
   offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   effectiveDate: dateSchema.optional(),
 })
-export type ListAssignmentProfileRecordsInput = z.output<typeof list_assignment_profile_recordsSchema>
+export type ListAssignmentProfileRecordsInput = z.output<
+  typeof list_assignment_profile_recordsSchema
+>
 
 export const list_assignment_profile_criteriaSchema = baseSchema.extend({
   profileId: decimalIdSchema,
@@ -669,19 +691,25 @@ export const list_assignment_profile_criteriaSchema = baseSchema.extend({
   offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   effectiveDate: dateSchema.optional(),
 })
-export type ListAssignmentProfileCriteriaInput = z.output<typeof list_assignment_profile_criteriaSchema>
+export type ListAssignmentProfileCriteriaInput = z.output<
+  typeof list_assignment_profile_criteriaSchema
+>
 
 export const add_assignment_profile_criterionSchema = baseSchema.extend({
   profileId: decimalIdSchema,
   body: jsonBody(criterionPostSchema),
 })
-export type AddAssignmentProfileCriterionInput = z.output<typeof add_assignment_profile_criterionSchema>
+export type AddAssignmentProfileCriterionInput = z.output<
+  typeof add_assignment_profile_criterionSchema
+>
 
 export const remove_assignment_profile_criterionSchema = baseSchema.extend({
   profileId: decimalIdSchema,
   criterionId: decimalIdSchema,
 })
-export type RemoveAssignmentProfileCriterionInput = z.output<typeof remove_assignment_profile_criterionSchema>
+export type RemoveAssignmentProfileCriterionInput = z.output<
+  typeof remove_assignment_profile_criterionSchema
+>
 
 export const list_learning_item_audiencesSchema = baseSchema.extend({
   learningItemId: decimalIdSchema,

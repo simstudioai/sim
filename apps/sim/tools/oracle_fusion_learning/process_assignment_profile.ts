@@ -1,8 +1,4 @@
-import {
-  credentials,
-  internalExecution,
-  profileId,
-} from '@/tools/oracle_fusion_learning/common'
+import { credentials, internalExecution, profileId } from '@/tools/oracle_fusion_learning/common'
 import {
   ORACLE_FUSION_LEARNING_PROCESS_ASSIGNMENT_PROFILE_OUTPUTS,
   type ProcessAssignmentProfileParams,

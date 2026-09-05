@@ -198,13 +198,19 @@ describe('Learning selector permissions and scoping', () => {
   })
 
   it('returns safe permission errors without provider messages', async () => {
-    mocks.executeListSelfPacedItems.mockRejectedValue(new OracleFusionProviderError('private-secret', 403))
-    await expect(run(oracleFusionLearningSelectorAttachments['oracle_fusion_learning.selfPacedItems'], args())).rejects.toEqual(new SelectorConnectionUnavailableError(403))
+    mocks.executeListSelfPacedItems.mockRejectedValue(
+      new OracleFusionProviderError('private-secret', 403)
+    )
+    await expect(
+      run(oracleFusionLearningSelectorAttachments['oracle_fusion_learning.selfPacedItems'], args())
+    ).rejects.toEqual(new SelectorConnectionUnavailableError(403))
   })
 
   it('rejects malformed cursors and propagates cancellation', async () => {
     const attachment = oracleFusionLearningSelectorAttachments['oracle_fusion_learning.events']
-    await expect(run(attachment, args({ request: { kind: 'list', cursor: '-1' } }))).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    await expect(
+      run(attachment, args({ request: { kind: 'list', cursor: '-1' } }))
+    ).rejects.toBeInstanceOf(SelectorContextUnavailableError)
     const controller = new AbortController()
     controller.abort(new Error('cancelled'))
     await expect(run(attachment, args({ signal: controller.signal }))).rejects.toThrow('cancelled')

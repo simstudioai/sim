@@ -10,8 +10,11 @@ describe('Oracle Fusion Learning tool credential declarations', () => {
     for (const tool of tools) {
       expect(isInternalToolConfig(tool)).toBe(true)
       expect(tool.oauth).toEqual({
-        required: true, provider: 'oracle_fusion_learning', requiredScopes: [],
-        credentialKind: 'service-account', authoritativeParams: ['instanceUrl'],
+        required: true,
+        provider: 'oracle_fusion_learning',
+        requiredScopes: [],
+        credentialKind: 'service-account',
+        authoritativeParams: ['instanceUrl'],
       })
       expect(tool.params.oauthCredential).toMatchObject({ required: true, visibility: 'user-only' })
       expect(tool.params.instanceUrl).toMatchObject({ required: false, visibility: 'hidden' })
@@ -21,9 +24,18 @@ describe('Oracle Fusion Learning tool credential declarations', () => {
   })
 
   it('removes executor scope while retaining semantic fields for the internal boundary', () => {
-    const input = { oauthCredential: 'credential-id', personId: '1', body: { learningItemId: '2' }, _context: { workspaceId: 'private-workspace' } }
+    const input = {
+      oauthCredential: 'credential-id',
+      personId: '1',
+      body: { learningItemId: '2' },
+      _context: { workspaceId: 'private-workspace' },
+    }
     const result = learningTools.oracleFusionLearningCreateLearningRecordTool.operation.input(input)
-    expect(result).toEqual({ oauthCredential: 'credential-id', personId: '1', body: { learningItemId: '2' } })
+    expect(result).toEqual({
+      oauthCredential: 'credential-id',
+      personId: '1',
+      body: { learningItemId: '2' },
+    })
     expect(input).toHaveProperty('_context')
   })
 })

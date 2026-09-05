@@ -238,7 +238,8 @@ export const OracleFusionLearningBlock: BlockConfig = {
           { text: ', up to', field: 'limit', after: 'per page' },
         ],
         list_assignment_profiles: [
-          'List Assignment Profiles', { text: ', up to', field: 'limit', after: 'per page' },
+          'List Assignment Profiles',
+          { text: ', up to', field: 'limit', after: 'per page' },
         ],
         get_assignment_profile: [
           {
@@ -1063,7 +1064,8 @@ export const OracleFusionLearningBlock: BlockConfig = {
           'contentId',
         ] as const) {
           const value = rest[key]
-          if (value == null || (typeof value === 'string' && value.trim() === '')) rest[key] = undefined
+          if (value == null || (typeof value === 'string' && value.trim() === ''))
+            rest[key] = undefined
         }
         for (const key of ['limit', 'offset'] as const) {
           if (typeof rest[key] === 'string') rest[key] = Number(rest[key])
@@ -1115,13 +1117,15 @@ export const OracleFusionLearningBlock: BlockConfig = {
     criterionId: { type: 'string', description: 'criterionId' },
     audienceId: { type: 'string', description: 'audienceId' },
     contentId: { type: 'string', description: 'contentId' },
-    body: { type: 'json', description: 'Documented writable fields, with string IDs and explicit nulls' },
+    body: {
+      type: 'json',
+      description: 'Documented writable fields, with string IDs and explicit nulls',
+    },
   },
   outputs: {
     item: {
       type: 'json',
-      description:
-        'Projected Learning resource with IDs, metadata, and applicable lifecycle state',
+      description: 'Projected Learning resource with IDs, metadata, and applicable lifecycle state',
       condition: { field: 'operation', value: ITEM_OPERATIONS },
     },
     items: {
@@ -1282,7 +1286,8 @@ export const OracleFusionLearningBlockMeta = {
     },
     {
       name: 'oracle-learning-process-administrator-assignment-profiles',
-      description: 'Process administrator assignment profiles using documented Fusion Learning APIs.',
+      description:
+        'Process administrator assignment profiles using documented Fusion Learning APIs.',
       content:
         '# Process administrator assignment profiles\n\n## Steps\n\nBuild a workflow that creates a Learning assignment profile, adds documented selection criteria, requests processing, and separately reads assignment-profile records to report actual processing outcomes.\n\n## Output and Guidance\n\nUse the authorized Fusion credential and tenant lookup codes. Keep IDs as strings, read one requested page, and distinguish acknowledgements from final assignment outcomes. Oracle roles and lifecycle rules remain authoritative.\n\nSource: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-learningassignmentprofiles-learningassignmentprofilesuniqid-action-process-post.html',
     },

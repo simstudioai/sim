@@ -274,7 +274,10 @@ async function resolvePath<T>(
     signal
   )
   try {
-    const page = parseOracleFusionCollection(raw, (value) => value, { expectedOffset: 0, maxItems: 2 })
+    const page = parseOracleFusionCollection(raw, (value) => value, {
+      expectedOffset: 0,
+      maxItems: 2,
+    })
     if (page.items.length === 0 && !page.hasMore)
       throw new OracleFusionProviderError('Oracle Fusion Learning resource was not found', 404)
     if (page.items.length !== 1 || page.hasMore) invalidResponse()
@@ -427,7 +430,8 @@ async function mutate<T>(
   method: 'POST' | 'PATCH',
   signal?: AbortSignal
 ) {
-  const path = method === 'PATCH' ? await resolvePath(resource, input, collection, signal) : collection
+  const path =
+    method === 'PATCH' ? await resolvePath(resource, input, collection, signal) : collection
   const raw = await request(
     input,
     {
@@ -532,14 +536,26 @@ export async function executeCreateEventActivity(
   input: Schemas.CreateEventActivityInput,
   signal?: AbortSignal
 ) {
-  return mutate(activityResource, input, await collectionPath('activity', input, signal), 'POST', signal)
+  return mutate(
+    activityResource,
+    input,
+    await collectionPath('activity', input, signal),
+    'POST',
+    signal
+  )
 }
 
 export async function executeUpdateEventActivity(
   input: Schemas.UpdateEventActivityInput,
   signal?: AbortSignal
 ) {
-  return mutate(activityResource, input, await collectionPath('activity', input, signal), 'PATCH', signal)
+  return mutate(
+    activityResource,
+    input,
+    await collectionPath('activity', input, signal),
+    'PATCH',
+    signal
+  )
 }
 
 export async function executeDeleteEventActivity(
@@ -588,14 +604,26 @@ export async function executeSelectCourseOffering(
   input: Schemas.SelectCourseOfferingInput,
   signal?: AbortSignal
 ) {
-  return mutate(offeringResource, input, await collectionPath('offering', input, signal), 'POST', signal)
+  return mutate(
+    offeringResource,
+    input,
+    await collectionPath('offering', input, signal),
+    'POST',
+    signal
+  )
 }
 
 export async function executeUpdateSelectedCourseOffering(
   input: Schemas.UpdateSelectedCourseOfferingInput,
   signal?: AbortSignal
 ) {
-  return mutate(offeringResource, input, await collectionPath('offering', input, signal), 'PATCH', signal)
+  return mutate(
+    offeringResource,
+    input,
+    await collectionPath('offering', input, signal),
+    'PATCH',
+    signal
+  )
 }
 
 export async function executeListCompletionDetails(
@@ -609,7 +637,13 @@ export async function executeUpdateCompletionDetail(
   input: Schemas.UpdateCompletionDetailInput,
   signal?: AbortSignal
 ) {
-  return mutate(completionResource, input, await collectionPath('completion', input, signal), 'PATCH', signal)
+  return mutate(
+    completionResource,
+    input,
+    await collectionPath('completion', input, signal),
+    'PATCH',
+    signal
+  )
 }
 
 export async function executeListCompletionSummaries(
@@ -688,7 +722,12 @@ export async function executeListAssignmentProfileRecords(
   input: Schemas.ListAssignmentProfileRecordsInput,
   signal?: AbortSignal
 ) {
-  return list(profileRecordResource, input, await collectionPath('profileRecord', input, signal), signal)
+  return list(
+    profileRecordResource,
+    input,
+    await collectionPath('profileRecord', input, signal),
+    signal
+  )
 }
 
 export async function executeListAssignmentProfileCriteria(
@@ -702,7 +741,13 @@ export async function executeAddAssignmentProfileCriterion(
   input: Schemas.AddAssignmentProfileCriterionInput,
   signal?: AbortSignal
 ) {
-  return mutate(criterionResource, input, await collectionPath('criterion', input, signal), 'POST', signal)
+  return mutate(
+    criterionResource,
+    input,
+    await collectionPath('criterion', input, signal),
+    'POST',
+    signal
+  )
 }
 
 export async function executeRemoveAssignmentProfileCriterion(
@@ -754,14 +799,38 @@ export async function executeUpdateContentItem(
   return mutate(contentResource, input, contentResource.path, 'PATCH', signal)
 }
 
-export async function getEventActivityForSelector(input: OracleFusionResolvedCredential & { eventId: string; activityId: string; effectiveDate?: string }, signal?: AbortSignal) {
+export async function getEventActivityForSelector(
+  input: OracleFusionResolvedCredential & {
+    eventId: string
+    activityId: string
+    effectiveDate?: string
+  },
+  signal?: AbortSignal
+) {
   return get(activityResource, input, await collectionPath('activity', input, signal), signal)
 }
 
-export async function getSelectedCourseOfferingForSelector(input: OracleFusionResolvedCredential & { personId: string; recordId: string; offeringRecordId: string; effectiveDate?: string }, signal?: AbortSignal) {
+export async function getSelectedCourseOfferingForSelector(
+  input: OracleFusionResolvedCredential & {
+    personId: string
+    recordId: string
+    offeringRecordId: string
+    effectiveDate?: string
+  },
+  signal?: AbortSignal
+) {
   return get(offeringResource, input, await collectionPath('offering', input, signal), signal)
 }
 
-export async function getCompletionDetailForSelector(input: OracleFusionResolvedCredential & { personId: string; recordId: string; completionDetailId: string; offeringRecordId?: string; effectiveDate?: string }, signal?: AbortSignal) {
+export async function getCompletionDetailForSelector(
+  input: OracleFusionResolvedCredential & {
+    personId: string
+    recordId: string
+    completionDetailId: string
+    offeringRecordId?: string
+    effectiveDate?: string
+  },
+  signal?: AbortSignal
+) {
   return get(completionResource, input, await collectionPath('completion', input, signal), signal)
 }

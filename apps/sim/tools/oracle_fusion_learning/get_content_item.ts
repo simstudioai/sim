@@ -1,8 +1,4 @@
-import {
-  contentId,
-  credentials,
-  internalExecution,
-} from '@/tools/oracle_fusion_learning/common'
+import { contentId, credentials, internalExecution } from '@/tools/oracle_fusion_learning/common'
 import {
   type GetContentItemParams,
   type GetContentItemResponse,

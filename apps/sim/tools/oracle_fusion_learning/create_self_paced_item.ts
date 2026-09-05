@@ -1,8 +1,4 @@
-import {
-  body,
-  credentials,
-  internalExecution,
-} from '@/tools/oracle_fusion_learning/common'
+import { body, credentials, internalExecution } from '@/tools/oracle_fusion_learning/common'
 import {
   type CreateSelfPacedItemParams,
   type CreateSelfPacedItemResponse,
