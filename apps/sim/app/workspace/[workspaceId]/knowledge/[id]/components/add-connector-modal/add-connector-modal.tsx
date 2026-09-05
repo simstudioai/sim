@@ -30,22 +30,21 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { derivedAclCapFieldIds } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
   ConnectorAccessField,
   type ConnectorAccessSelection,
+  ConnectorContentCredentialField,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import {
   BROWSE_WITH_HINT,
+  connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import {
-  derivedAclCapFieldIds,
-  useConnectorMemberGroupOptions,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
@@ -66,7 +65,10 @@ interface AddConnectorModalProps {
   onOpenChange: (open: boolean) => void
   onConnectorTypeChange?: (connectorType: string | null) => void
   knowledgeBaseId: string
+  isSearchIndex?: boolean
   initialConnectorType?: string | null
+  initialAccessMode?: ConnectorAccessSelection['accessMode']
+  initialSyncIntervalMinutes?: number
 }
 
 type Step = 'select-type' | 'configure'
@@ -76,13 +78,29 @@ export function AddConnectorModal({
   onOpenChange,
   onConnectorTypeChange,
   knowledgeBaseId,
+  isSearchIndex = false,
   initialConnectorType,
+  initialAccessMode = 'workspace',
+  initialSyncIntervalMinutes = 1440,
 }: AddConnectorModalProps) {
-  const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
-  const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
-  const [syncInterval, setSyncInterval] = useState(1440)
+  const initialType =
+    initialConnectorType &&
+    (!isSearchIndex || CONNECTOR_META_REGISTRY[initialConnectorType]?.search)
+      ? initialConnectorType
+      : null
+  const [step, setStep] = useState<Step>(() => (initialType ? 'configure' : 'select-type'))
+  const [selectedType, setSelectedType] = useState<string | null>(initialType)
+  const [syncInterval, setSyncInterval] = useState(initialSyncIntervalMinutes)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [access, setAccess] = useState<ConnectorAccessSelection>(WORKSPACE_ACCESS)
+  const [contentCredentialId, setContentCredentialId] = useState<string | null>(null)
+  const [access, setAccess] = useState<ConnectorAccessSelection>(() => ({
+    accessMode:
+      isSearchIndex && initialAccessMode === 'workspace'
+        ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
+          ? 'admin'
+          : 'members'
+        : initialAccessMode,
+  }))
   const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
@@ -103,14 +121,6 @@ export function AddConnectorModal({
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
-  const groupOptions = useConnectorMemberGroupOptions({
-    workspaceId,
-    connectorConfig,
-    enabled: canAdmin && memberAccessAvailable,
-  })
-  /** Several groups collect this provider's accounts: the admin has to say which. */
-  const membersChoiceOpen =
-    isMembersMode && groupOptions.needsChoice && !access.credentialGroupOptionId
   const hiddenCapFieldIds = useMemo(
     () => derivedAclCapFieldIds(connectorConfig, access.accessMode),
     [connectorConfig, access.accessMode]
@@ -157,7 +167,14 @@ export function AddConnectorModal({
     setSelectedType(type)
     setSourceConfig({})
     setSelectedCredentialId(null)
-    setAccess(WORKSPACE_ACCESS)
+    setContentCredentialId(null)
+    setAccess(
+      isSearchIndex
+        ? {
+            accessMode: CONNECTOR_META_REGISTRY[type]?.auth.mode === 'apiKey' ? 'admin' : 'members',
+          }
+        : WORKSPACE_ACCESS
+    )
     setApiKeyValue('')
     setApiKeyFocused(false)
     setDisabledTagIds(new Set())
@@ -182,10 +199,17 @@ export function AddConnectorModal({
 
   const canSubmit = useMemo(() => {
     if (!connectorConfig) return false
+    if (
+      isSearchIndex &&
+      (!connectorConfig.search ||
+        access.accessMode === 'workspace' ||
+        (isMembersMode && !memberAccessAvailable) ||
+        (access.accessMode === 'admin' && !mirroredAccessAvailable))
+    )
+      return false
     if (isApiKeyMode) {
       if (!isApiKeyOptional && !apiKeyValue.trim()) return false
     } else if (isMembersMode) {
-      if (membersChoiceOpen) return false
     } else {
       if (!effectiveCredentialId) return false
     }
@@ -199,9 +223,12 @@ export function AddConnectorModal({
     return true
   }, [
     connectorConfig,
+    isSearchIndex,
+    access.accessMode,
+    memberAccessAvailable,
+    mirroredAccessAvailable,
     isApiKeyMode,
     isMembersMode,
-    membersChoiceOpen,
     hiddenCapFieldIds,
     isApiKeyOptional,
     apiKeyValue,
@@ -238,6 +265,7 @@ export function AddConnectorModal({
       {
         knowledgeBaseId,
         connectorType: selectedType,
+        accessMode: access.accessMode,
         ...(isApiKeyMode
           ? apiKeyValue.trim()
             ? { apiKey: apiKeyValue }
@@ -245,8 +273,7 @@ export function AddConnectorModal({
           : isMembersMode
             ? {
                 accessMode: 'members' as const,
-                credentialGroupId: access.credentialGroupId,
-                credentialGroupOptionId: access.credentialGroupOptionId,
+                credentialId: contentCredentialId ?? undefined,
               }
             : { accessMode: access.accessMode, credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
@@ -265,12 +292,15 @@ export function AddConnectorModal({
 
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
-    if (!term) return CONNECTOR_ENTRIES
-    return CONNECTOR_ENTRIES.filter(
+    const entries = isSearchIndex
+      ? CONNECTOR_ENTRIES.filter(([, config]) => config.search)
+      : CONNECTOR_ENTRIES
+    if (!term) return entries
+    return entries.filter(
       ([, config]) =>
         config.name.toLowerCase().includes(term) || config.description.toLowerCase().includes(term)
     )
-  }, [searchTerm])
+  }, [searchTerm, isSearchIndex])
 
   return (
     <>
@@ -286,6 +316,7 @@ export function AddConnectorModal({
             <span className='flex items-center gap-2'>
               <Button
                 variant='ghost'
+                aria-label='Choose another source'
                 className='size-6 p-0'
                 onClick={() => {
                   setStep('select-type')
@@ -334,15 +365,16 @@ export function AddConnectorModal({
             </div>
           ) : connectorConfig ? (
             <>
-              {!isApiKeyMode && (memberAccessAvailable || mirroredAccessAvailable) && (
+              {(memberAccessAvailable || mirroredAccessAvailable) && (
                 <ConnectorAccessField
+                  workspaceId={workspaceId}
                   connectorConfig={connectorConfig}
                   value={access}
                   onChange={setAccess}
-                  groupOptions={groupOptions}
                   canAdmin={canAdmin}
                   allowMembers={memberAccessAvailable}
                   allowAdmin={mirroredAccessAvailable}
+                  allowWorkspace={!isSearchIndex}
                   disabled={isCreating}
                 />
               )}
@@ -406,6 +438,19 @@ export function AddConnectorModal({
                 </ChipModalField>
               )}
 
+              {isMembersMode && connectorConfig.supportsSeparateContentCredential && (
+                <ConnectorContentCredentialField
+                  credentialId={contentCredentialId}
+                  onChange={setContentCredentialId}
+                  options={credentials.map((credential) => ({
+                    value: credential.id,
+                    label: credential.name || credential.provider,
+                  }))}
+                  isLoading={credentialsLoading}
+                  disabled={isCreating}
+                />
+              )}
+
               <ConnectorConfigFields
                 connectorConfig={connectorConfig}
                 sourceConfig={sourceConfig}
@@ -463,7 +508,15 @@ export function AddConnectorModal({
                 </ChipModalField>
               )}
 
-              <ChipModalField type='custom' title='Sync Frequency'>
+              <ChipModalField
+                type='custom'
+                title='Sync Frequency'
+                hint={connectorSyncFrequencyHint(
+                  access.accessMode,
+                  syncInterval,
+                  Boolean(contentCredentialId)
+                )}
+              >
                 <ButtonGroup
                   value={String(syncInterval)}
                   onValueChange={(val) => setSyncInterval(Number(val))}

@@ -18,6 +18,7 @@ export interface KnowledgeBaseWithCounts {
   id: string
   userId: string
   name: string
+  isSearchIndex?: boolean
   description: string | null
   tokenCount: number
   embeddingModel: string
@@ -37,6 +38,7 @@ export interface KnowledgeBaseWithCounts {
 
 export interface CreateKnowledgeBaseData {
   name: string
+  isSearchIndex?: boolean
   description?: string
   workspaceId: string
   folderId?: string | null
@@ -111,6 +113,7 @@ export interface KnowledgeBaseData {
   id: string
   userId: string
   name: string
+  isSearchIndex?: boolean
   description: string | null
   tokenCount: number
   embeddingModel: string

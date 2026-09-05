@@ -13,7 +13,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
+import { type AtlassianProduct, serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import {
   type ClientCredentialAccountProviderId,
   getClientCredentialAccountDescriptor,
@@ -109,6 +109,7 @@ interface ConnectServiceAccountModalProps {
   onOpenChange: (open: boolean) => void
   workspaceId: string
   serviceAccountProviderId: ServiceAccountProviderId
+  atlassianProduct?: AtlassianProduct
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
@@ -142,6 +143,7 @@ export function ConnectServiceAccountModal({
   onOpenChange,
   workspaceId,
   serviceAccountProviderId,
+  atlassianProduct,
   serviceName,
   serviceIcon,
   credentialId,
@@ -199,6 +201,7 @@ export function ConnectServiceAccountModal({
   if (serviceAccountProviderId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
     return (
       <AtlassianServiceAccountModal
+        atlassianProduct={atlassianProduct}
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
@@ -438,6 +441,7 @@ function GoogleServiceAccountModal({
  * or upstream availability is at fault.
  */
 function AtlassianServiceAccountModal({
+  atlassianProduct,
   open,
   onOpenChange,
   workspaceId,
@@ -447,7 +451,7 @@ function AtlassianServiceAccountModal({
   initialDisplayName,
   initialDescription,
   onCreated,
-}: ProviderModalProps) {
+}: ProviderModalProps & { atlassianProduct?: AtlassianProduct }) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
@@ -484,6 +488,7 @@ function AtlassianServiceAccountModal({
           credentialId,
           apiToken: trimmedToken,
           domain: normalizedDomain,
+
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
@@ -494,6 +499,7 @@ function AtlassianServiceAccountModal({
           providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
           apiToken: trimmedToken,
           domain: normalizedDomain,
+          atlassianProduct,
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })

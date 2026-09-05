@@ -72,6 +72,7 @@ vi.mock('@/connectors/registry.server', () => ({
       name: 'Google Drive',
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
+      configFields: [{ id: 'folderId', type: 'short-input', title: 'Folder' }],
       validateConfig: vi.fn().mockResolvedValue({ valid: true }),
     },
   },
@@ -550,7 +551,7 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
 
-  it('preserves an already-due source sync when scheduled sync is disabled', async () => {
+  it('clears an already-due source sync when scheduled sync is disabled', async () => {
     const pendingSourceSyncAt = new Date(0)
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -579,7 +580,7 @@ describe('performUpdateKnowledgeConnector', () => {
 
     expect(outcome).toMatchObject({ success: true })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ nextSyncAt: pendingSourceSyncAt, syncIntervalMinutes: 0 })
+      expect.objectContaining({ nextSyncAt: null, syncIntervalMinutes: 0 })
     )
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
@@ -984,6 +985,33 @@ describe('members-mode connectors', () => {
     mockRevoke.mockResolvedValue(undefined)
   })
 
+  it('invalidates member cursors and freshness atomically when the source scope changes', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+    dbChainMockFns.returning.mockResolvedValueOnce([MEMBERS_CONNECTOR])
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { sourceConfig: { database: 'different-scope' } },
+      resolveBillingAttribution,
+      validateSourceConfig: async () => null,
+    })
+    expect(outcome).toMatchObject({ success: true })
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listingCheckpoint: null,
+        changeCursor: null,
+        memberSyncedThrough: null,
+        lastCompleteListingAt: null,
+        lastListedCount: null,
+        nextAttemptAt: expect.any(Date),
+      })
+    )
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
+    expect(mockDispatchMemberSync).toHaveBeenCalledOnce()
+  })
+
   it('refuses to keep the documents of a connector that syncs per member', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
 
@@ -1231,6 +1259,66 @@ describe('members-mode connectors', () => {
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(dbChainMockFns.insert).toHaveBeenCalledOnce()
     expect(mockRevoke).not.toHaveBeenCalled()
+  })
+
+  it('reuses a matching Search source without inserting, redispatching, or recording another creation', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        ...MEMBERS_CONNECTOR,
+        connectorType: 'google_drive',
+        sourceConfig: { folderId: 'one' },
+      },
+    ])
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'google_drive',
+      sourceConfig: { folderId: 'one' },
+      syncIntervalMinutes: 60,
+      reuseSearchSource: true,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+    expect(outcome).toMatchObject({
+      success: true,
+      reused: true,
+      connector: { id: MEMBERS_CONNECTOR.id },
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockRevoke).toHaveBeenCalledWith(
+      expect.objectContaining({ connectorId: expect.not.stringMatching(MEMBERS_CONNECTOR.id) }),
+      ACTOR.userId
+    )
+  })
+
+  it('does not reuse matching settings bound to a different account option', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        ...MEMBERS_CONNECTOR,
+        connectorType: 'google_drive',
+        sourceConfig: {},
+        credentialGroupOptionId: 'another-option',
+      },
+    ])
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'google_drive',
+      sourceConfig: {},
+      syncIntervalMinutes: 60,
+      reuseSearchSource: true,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
   })
 
   it('refuses to create a members-mode connector on an option removed before the group was locked', async () => {

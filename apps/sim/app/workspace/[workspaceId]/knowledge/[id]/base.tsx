@@ -101,6 +101,7 @@ import {
   kbDocumentSortParams,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -432,6 +433,7 @@ export function KnowledgeBase({
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
+  const canDeleteBase = canDeleteKnowledgeBase(knowledgeBase, userPermissions)
 
   const { data: connectors = EMPTY_CONNECTORS, isLoading: isLoadingConnectors } =
     useConnectorList(id)
@@ -736,7 +738,7 @@ export function KnowledgeBase({
    * Handles deleting the entire knowledge base
    */
   const handleDeleteKnowledgeBase = () => {
-    if (!knowledgeBase) return
+    if (!knowledgeBase || !canDeleteBase) return
 
     deleteKnowledgeBaseMutation(
       { knowledgeBaseId: id },
@@ -981,13 +983,10 @@ export function KnowledgeBase({
                       disabled: !userPermissions.canEdit,
                       onClick: () => setShowTagsModal(true),
                     },
-                    {
-                      label: 'Delete',
-                      icon: Trash,
-                      disabled: !userPermissions.canEdit,
-                      onClick: () => setShowDeleteDialog(true),
-                    },
                   ]
+                : []),
+              ...(canDeleteBase
+                ? [{ label: 'Delete', icon: Trash, onClick: () => setShowDeleteDialog(true) }]
                 : []),
             ],
           },
@@ -1008,6 +1007,7 @@ export function KnowledgeBase({
       kbRename.startRename,
       userPermissions.canEdit,
       userPermissions.isLoading,
+      canDeleteBase,
     ]
   )
 
@@ -1454,13 +1454,14 @@ export function KnowledgeBase({
         chunkingConfig={knowledgeBase?.chunkingConfig}
       />
 
-      {showAddConnectorModal && (
+      {showAddConnectorModal && knowledgeBase && (
         <AddConnectorModal
           open
           onOpenChange={setShowAddConnectorModal}
           onConnectorTypeChange={updateAddConnectorParam}
           knowledgeBaseId={id}
           initialConnectorType={addConnectorType || undefined}
+          isSearchIndex={knowledgeBase?.isSearchIndex}
         />
       )}
 
@@ -1498,6 +1499,7 @@ export function KnowledgeBase({
             workspaceId={workspaceId}
             knowledgeBaseId={id}
             connectors={connectors}
+            isSearchIndex={knowledgeBase?.isSearchIndex}
             isLoading={isLoadingConnectors}
             canEdit={userPermissions.canEdit}
             className='mt-0'

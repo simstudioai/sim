@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
+import { LRUCache } from 'lru-cache'
 import {
   domainGroupId,
   domainMemberWildcard,
@@ -7,9 +9,13 @@ import {
   emailDomain,
   normalizeDomain,
 } from '@/lib/knowledge/access/external-groups'
-import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
+import { canonicalGroupId, userToken } from '@/lib/knowledge/access/tokens'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { drainGooglePagedList } from '@/lib/oauth/google-pagination'
-import { fetchGoogleDriveWithRetry } from '@/connectors/google-drive/google-drive-errors'
+import {
+  fetchGoogleDriveWithRetry,
+  GoogleDriveApiError,
+} from '@/connectors/google-drive/google-drive-errors'
 import type {
   ConnectorDirectory,
   ConnectorDirectoryGroup,
@@ -21,18 +27,20 @@ const logger = createLogger('GoogleDirectory')
 const DIRECTORY_BASE = 'https://admin.googleapis.com/admin/directory/v1'
 const PAGE_SIZE = 200
 
-/** Guards against a directory that keeps paginating; far above any real domain. */
+/** Rejects incomplete listings when the provider exceeds the enumeration budget. */
 const MAX_PAGES = 200
 
 /**
  * How deep nested groups are followed when flattening membership.
  *
  * A directory can nest groups arbitrarily and can contain cycles, so the walk
- * needs both a visited set and a depth bound. Onyx does not recurse at all,
- * which silently drops everyone who is a member only through a subgroup; a
- * bounded walk covers every real directory while still terminating.
+ * needs both a visited set and a depth bound. Exceeding the bound leaves the
+ * membership incomplete, so a truncated result cannot replace existing grants.
  */
 const MAX_GROUP_NESTING_DEPTH = 10
+
+/** Bounds flattened identities and visited groups independently of direct-membership cache eviction. */
+const MAX_FLATTENED_GROUP_ENTRIES = 100_000
 
 /**
  * The Workspace domain an administrator's address belongs to, or undefined
@@ -46,6 +54,48 @@ const MAX_GROUP_NESTING_DEPTH = 10
 export function googleWorkspaceDomain(adminEmail: unknown): string | undefined {
   if (typeof adminEmail !== 'string') return undefined
   return emailDomain(normalizeEmail(adminEmail)) || undefined
+}
+
+/** Probes administrator access without enumerating the directory during setup. */
+export async function validateGoogleDirectoryAccess(
+  accessToken: string,
+  adminEmail: unknown
+): Promise<void> {
+  if (!googleWorkspaceDomain(adminEmail)) {
+    throw new Error(
+      'Enter a Google Workspace administrator in Crawl as to mirror Drive permissions.'
+    )
+  }
+
+  const probe = async (path: string) =>
+    fetchGoogleDriveWithRetry(
+      `${DIRECTORY_BASE}/${path}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
+      VALIDATE_RETRY_OPTIONS
+    )
+
+  try {
+    const groupsResponse = await probe('groups?customer=my_customer&maxResults=1&fields=groups(id)')
+    const groups = (await groupsResponse.json()) as { groups?: { id?: string }[] }
+    await probe('customer/my_customer/domains?fields=domains(domainName)')
+    const groupId = groups.groups?.[0]?.id
+    if (groupId) {
+      await probe(`groups/${encodeURIComponent(groupId)}/members?maxResults=1&fields=members(id)`)
+    }
+  } catch (error) {
+    const guidance =
+      error instanceof GoogleDriveApiError &&
+      (error.status === 401 || error.status === 403) &&
+      !error.rateLimited
+        ? ' The Crawl as account must have permission to read Workspace groups, memberships, and domains. Check its administrator privileges and the service account’s delegated Directory scopes.'
+        : ''
+    throw new Error(
+      `Google Workspace directory access failed: ${getErrorMessage(error)}.${guidance}`,
+      {
+        cause: error,
+      }
+    )
+  }
 }
 
 function directoryFetch(url: string, accessToken: string): Promise<Response> {
@@ -154,11 +204,8 @@ export async function listDomainGroups(accessToken: string): Promise<ConnectorDi
 /**
  * Every person in a group, following nested groups to their members.
  *
- * Onyx reads one level and stops, so a person who belongs only through a
- * subgroup silently gets nothing even though the source grants them access.
- * Nesting is real in large directories, so the walk follows it — bounded by
- * {@link MAX_GROUP_NESTING_DEPTH} and a visited set, because a directory may
- * contain cycles and will happily report one.
+ * The walk is bounded by {@link MAX_GROUP_NESTING_DEPTH} and a visited set
+ * because group memberships can contain cycles.
  *
  * A member whose status is not `ACTIVE` is skipped: a suspended or pending
  * member is one the source is not currently granting access to. A `CUSTOMER`
@@ -170,9 +217,20 @@ async function listGroupMembers(
   customerDomains: readonly string[],
   membersOf: (groupId: string) => Promise<RawMember[]>
 ): Promise<ConnectorDirectoryMembership> {
-  const memberEmails = new Set<string>()
+  const memberTokens = new Set<string>()
   const visited = new Set<string>([group.id])
   let complete = true
+
+  function addEntry(entries: Set<string>, value: string): boolean {
+    if (entries.has(value)) return true
+    if (entries.size >= MAX_FLATTENED_GROUP_ENTRIES) {
+      complete = false
+      logger.warn('Stopped flattening a group at the membership budget', { root: group.id })
+      return false
+    }
+    entries.add(value)
+    return true
+  }
 
   async function walk(groupId: string, depth: number): Promise<void> {
     if (depth > MAX_GROUP_NESTING_DEPTH) {
@@ -186,23 +244,27 @@ async function listGroupMembers(
       const type = member.type?.toUpperCase()
 
       if (type === 'CUSTOMER') {
-        for (const domain of customerDomains) memberEmails.add(domainMemberWildcard(domain))
+        for (const domain of customerDomains) {
+          if (!addEntry(memberTokens, domainMemberWildcard(domain))) return
+        }
         continue
       }
       const email = member.email ? normalizeEmail(member.email) : ''
       if (!email) continue
       if (type === 'GROUP') {
         if (visited.has(email)) continue
-        visited.add(email)
+        if (!addEntry(visited, email)) return
         await walk(email, depth + 1)
+        if (!complete) return
         continue
       }
-      memberEmails.add(email)
+      const token = userToken(email)
+      if (token && !addEntry(memberTokens, token)) return
     }
   }
 
   await walk(group.id, 0)
-  return { group, memberEmails: [...memberEmails], complete }
+  return { group, memberTokens: [...memberTokens], complete }
 }
 
 /**
@@ -215,20 +277,30 @@ export function openGoogleDirectory(
   accessToken: string,
   adminEmail: unknown
 ): ConnectorDirectory | null {
-  /** Direct members per group, so a subgroup nested under many parents is read once. */
-  const directMembers = new Map<string, Promise<RawMember[]>>()
-  const membersOf = (groupId: string): Promise<RawMember[]> => {
-    let pending = directMembers.get(groupId)
-    if (!pending) {
-      pending = listAll<RawMember>(
+  /** Reuse nested groups without retaining an entire enterprise directory in memory. */
+  const directMembers = new LRUCache<string, RawMember[] | Error>({
+    max: 1000,
+    maxSize: 100_000,
+    sizeCalculation: (members) => (members instanceof Error ? 1 : Math.max(1, members.length)),
+  })
+  const membersOf = async (groupId: string): Promise<RawMember[]> => {
+    const cached = directMembers.get(groupId)
+    if (cached instanceof Error) throw cached
+    if (cached) return cached
+    try {
+      const members = await listAll<RawMember>(
         `${DIRECTORY_BASE}/groups/${encodeURIComponent(groupId)}/members`,
         accessToken,
         'members',
         {}
       )
-      directMembers.set(groupId, pending)
+      directMembers.set(groupId, members)
+      return members
+    } catch (error) {
+      const failure = toError(error)
+      directMembers.set(groupId, failure)
+      throw failure
     }
-    return pending
   }
   const tenantId = googleWorkspaceDomain(adminEmail)
   if (!tenantId) return null
@@ -249,7 +321,7 @@ export function openGoogleDirectory(
     listGroupMembers: async (group) => {
       const domain = domainOfGroupId(group.id)
       if (domain) {
-        return { group, memberEmails: [domainMemberWildcard(domain)], complete: true }
+        return { group, memberTokens: [domainMemberWildcard(domain)], complete: true }
       }
       return listGroupMembers(group, await customerDomains(), membersOf)
     },

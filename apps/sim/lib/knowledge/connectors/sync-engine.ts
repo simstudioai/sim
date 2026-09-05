@@ -9,7 +9,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
@@ -17,6 +17,7 @@ import {
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
+  effectiveConnectorSyncIntervalMinutes,
   isContentEngineAccessMode,
   mirrorsSourceAcls,
 } from '@/lib/knowledge/connectors/access-modes'
@@ -26,26 +27,34 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
-import { refreshMirroredDirectory } from '@/lib/knowledge/connectors/external-group-sync'
+import {
+  DIRECTORY_ERROR_PREFIX,
+  refreshMirroredDirectory,
+} from '@/lib/knowledge/connectors/external-group-sync'
+import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import {
   hideUnlistedDocuments,
   mergeMirroredAcls,
   unansweredByListing,
 } from '@/lib/knowledge/connectors/mirrored-acls'
+import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
+  CONNECTOR_SYNC_MAX_DURATION_SECONDS,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
+  assertSyncLeaseHeldInTx,
   buildSyncLockAcquisition,
   createContentSyncLease,
   holdsSyncLockToken,
   LOCKABLE_CONNECTOR_STATUSES,
   RUNNABLE_CONNECTOR_STATUSES,
   SyncLockLostException,
+  type SyncRunLease,
   stillHoldsSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -57,13 +66,7 @@ import {
   ConnectorDeletedException,
   ConnectorSyncCapacityError,
   checkSyncTargetPresence,
-  classifyListing,
-  createSyncRunState,
-  loadOwnedCorpus,
-  processDocOps,
   RETRY_WINDOW_DAYS,
-  reconcileDeletions,
-  runListingPass,
   shouldRunIncrementalSync,
   sweepStuckDocuments,
 } from '@/lib/knowledge/connectors/sync-primitives'
@@ -110,6 +113,7 @@ async function applySourceMirroredAcls(input: {
   externalDocs: readonly ExternalDocument[]
   /** External ids of every live document the connector owns, listed this run or not. */
   ownedExternalIds: readonly (string | null)[]
+  lease?: SyncRunLease
 }): Promise<void> {
   const { connectorId, connectorConfig, externalDocs } = input
 
@@ -139,7 +143,12 @@ async function applySourceMirroredAcls(input: {
    */
   const unlisted = hideUnlistedDocuments(acls, input.ownedExternalIds)
 
-  const written = await persistDocumentAcls(connectorId, acls)
+  const written = input.lease
+    ? await db.transaction(async (tx) => {
+        await assertSyncLeaseHeldInTx(tx, connectorId, input.lease!)
+        return persistDocumentAcls(connectorId, acls, tx)
+      })
+    : await persistDocumentAcls(connectorId, acls)
   logger.info('Mirrored source permissions onto connector documents', {
     connectorId,
     listed,
@@ -282,7 +291,17 @@ export async function completeSuccessfulSync(
   syncLogId: string,
   syncIntervalMinutes: number,
   result: SyncResult,
-  reconciliationHoldNotice: string | null
+  reconciliationHoldNotice: string | null,
+  contentPass?: {
+    complete: boolean
+    checkpoint: {
+      unsafe: boolean
+      contentFailures?: boolean
+      startedAt: string
+      listedCount: number
+      incrementalSince?: string | null
+    }
+  }
 ): Promise<boolean> {
   try {
     return await db.transaction(async (tx) => {
@@ -331,8 +350,19 @@ export async function completeSuccessfulSync(
       const [closedLog] = await tx
         .update(knowledgeConnectorSyncLog)
         .set({
-          status: 'completed',
+          status:
+            contentPass &&
+            (!contentPass.complete ||
+              contentPass.checkpoint.unsafe ||
+              contentPass.checkpoint.contentFailures)
+              ? 'partial'
+              : 'completed',
           completedAt: now,
+          listedCount: contentPass?.complete
+            ? contentPass.checkpoint.incrementalSince
+              ? actualDocCount
+              : contentPass.checkpoint.listedCount
+            : null,
           docsAdded: result.docsAdded,
           docsUpdated: result.docsUpdated,
           docsDeleted: result.docsDeleted,
@@ -355,12 +385,23 @@ export async function completeSuccessfulSync(
           ...buildSyncSuccessUpdate(
             now,
             actualDocCount,
-            calculateNextSyncTime(syncIntervalMinutes),
+            contentPass && !contentPass.complete ? now : calculateNextSyncTime(syncIntervalMinutes),
             reconciliationHoldNotice,
-            result.docsFailed === 0
+            result.docsFailed === 0 &&
+              (!contentPass ||
+                (contentPass.complete &&
+                  !contentPass.checkpoint.unsafe &&
+                  !contentPass.checkpoint.contentFailures))
           ),
           /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
           accessRewritePending: false,
+          ...(contentPass?.complete ? { listingCheckpoint: null } : {}),
+          ...(contentPass?.complete &&
+          !contentPass.checkpoint.unsafe &&
+          !contentPass.checkpoint.contentFailures &&
+          result.docsFailed === 0
+            ? { lastSyncAt: new Date(contentPass.checkpoint.startedAt) }
+            : {}),
         })
         .where(stillHoldsSyncLock(connectorId, syncLogId))
         .returning({ id: knowledgeConnector.id })
@@ -920,8 +961,10 @@ export async function executeSync(
         and(
           eq(document.connectorId, connectorId),
           isNull(document.archivedAt),
-          isNotNull(document.deletedAt),
-          gt(document.deletedAt, retryCutoff)
+          or(
+            and(isNotNull(document.deletedAt), gt(document.deletedAt, retryCutoff)),
+            isNull(document.contentHash)
+          )
         )
       )
       .limit(1)
@@ -959,8 +1002,7 @@ export async function executeSync(
       (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
     )
 
-    /** Resolved once the listing is done; see the mirrored branch after the content pass. */
-    let directoryRefreshed: Promise<void> = Promise.resolve()
+    let directoryRefreshed: Promise<Error | undefined> = Promise.resolve(undefined)
     if (mirrored) {
       /**
        * A switch into this mode hides every document before it flips, and one
@@ -982,8 +1024,8 @@ export async function executeSync(
        * Started before the listing and awaited before the ACLs are written: a
        * group grant this crawl writes must never point at membership nobody
        * has read, and the scheduler's refresh is a cadence, not a guarantee.
-       * The walk overlaps the listing rather than delaying it; it never
-       * throws, so nothing here is left unobserved.
+       * Observe failures immediately while allowing content ingestion to finish.
+       * The terminal sync write below still reports directory failures.
        */
       directoryRefreshed = refreshMirroredDirectory({
         workspaceId: kbOwner.workspaceId,
@@ -991,63 +1033,28 @@ export async function executeSync(
         sourceConfig,
         syncContext,
         accessToken: credentialToken.accessToken,
-      })
+        force:
+          Boolean(options.fullSync) ||
+          connector.consecutiveFailures > 0 ||
+          connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
+      }).then(() => undefined, toError)
     }
 
-    const listing = await runListingPass({
+    const contentPass = await runConnectorContentPass({
       connectorId,
+      connector,
       connectorConfig,
       sourceConfig,
       syncContext,
       lastSyncAt,
-      beforePage: lease.beatIfDue,
+      kbOwner,
+      billingAttribution,
+      result,
+      forceRehydrate,
       getAccessToken: async (pageNum) => {
         if (pageNum > 0) await refreshOAuthToken()
         return credentialToken.accessToken
       },
-    })
-    const externalDocs = listing.documents
-
-    if (!listing.exhausted) {
-      /**
-       * Pagination stopped before source exhaustion (MAX_PAGES or a missing
-       * cursor), so the listing is incomplete. `listingTruncated` blocks
-       * deletion reconciliation absolutely — unlike connector-set
-       * `listingCapped`, it cannot be overridden by a forced fullSync, since
-       * re-running one truncates identically.
-       */
-      syncContext.listingCapped = true
-      syncContext.listingTruncated = true
-      logger.warn(
-        mirrored
-          ? 'Pagination ended before source exhaustion; skipping deletion reconciliation and hiding the unlisted rest of the corpus'
-          : 'Pagination ended before source exhaustion; skipping deletion reconciliation',
-        {
-          connectorId,
-          docsSoFar: externalDocs.length,
-        }
-      )
-    }
-
-    logger.info(`Fetched ${externalDocs.length} documents from ${connectorConfig.name}`, {
-      connectorId,
-    })
-
-    const corpus = await loadOwnedCorpus(connectorId)
-    const state = createSyncRunState(result)
-
-    const pendingOps = classifyListing({ externalDocs, corpus, forceRehydrate, state })
-
-    await processDocOps({
-      connectorId,
-      connector,
-      sourceConfig,
-      kbOwner,
-      billingAttribution,
-      pendingOps,
-      corpus,
-      forceRehydrate,
-      state,
       hydration: {
         beforeHydration: refreshOAuthToken,
         getDocument: (externalId) =>
@@ -1060,38 +1067,41 @@ export async function executeSync(
       },
       lease,
       documentAccess: connector.accessMode,
-    })
-
-    /**
-     * After the content pass, so a document inserted by this run — born hidden
-     * — is present to be made readable, and before reconciliation, so a
-     * revoked grant lands even on a run that removes nothing.
-     */
-    if (mirrored) {
-      await directoryRefreshed
-      await applySourceMirroredAcls({
-        connectorId,
-        connectorConfig,
+      runId: syncLogId,
+      leaseKind: 'content',
+      fingerprint: listingFingerprint({
+        connectorType: connector.connectorType,
+        credentialId: connector.credentialId,
+        encryptedApiKey: connector.encryptedApiKey,
         sourceConfig,
-        syncContext,
-        accessToken: credentialToken.accessToken,
-        externalDocs,
-        ownedExternalIds: corpus.existingDocs.map((doc) => doc.externalId),
-      })
-    }
-
-    const reconciliationHoldNotice = await reconcileDeletions({
-      connectorId,
-      connector,
-      connectorConfig,
-      syncLogId,
-      syncContext,
-      isIncremental,
-      fullSync: options?.fullSync,
-      corpus,
-      state,
-      lease,
+        accessMode: connector.accessMode,
+      }),
+      fullSync: options.fullSync,
+      deadlineAt: syncStartedAt.getTime() + (CONNECTOR_SYNC_MAX_DURATION_SECONDS - 300) * 1000,
+      onPage: mirrored
+        ? async (externalDocs) => {
+            await directoryRefreshed
+            await applySourceMirroredAcls({
+              connectorId,
+              connectorConfig,
+              sourceConfig,
+              syncContext,
+              accessToken: credentialToken.accessToken,
+              externalDocs,
+              ownedExternalIds: [],
+              lease,
+            })
+          }
+        : undefined,
     })
+
+    result.listingIncomplete =
+      !contentPass.complete ||
+      contentPass.checkpoint.unsafe ||
+      contentPass.checkpoint.contentFailures
+    const reconciliationHoldNotice = contentPass.holdNotice
+    const directoryError = await directoryRefreshed
+    if (directoryError) throw directoryError
 
     const postBatchPresence = await checkSyncTargetPresence(connectorId, connector.knowledgeBaseId)
     if (postBatchPresence.connectorDeleted) {
@@ -1115,9 +1125,10 @@ export async function executeSync(
       connectorId,
       connector.knowledgeBaseId,
       syncLogId,
-      connector.syncIntervalMinutes,
+      effectiveConnectorSyncIntervalMinutes(connector.accessMode, connector.syncIntervalMinutes),
       result,
-      reconciliationHoldNotice
+      reconciliationHoldNotice,
+      contentPass
     )
 
     if (!completionLanded) {
@@ -1132,21 +1143,35 @@ export async function executeSync(
     logger.info('Sync completed', { connectorId, ...result })
     return result
   } catch (error) {
+    let connectorDeleted = error instanceof ConnectorDeletedException
     if (error instanceof SyncLockLostException) {
-      /**
-       * Reported as superseded rather than failed, and deliberately writes
-       * nothing: the connector row belongs to whoever reclaimed it, and this
-       * run's own sync-log row was closed by the sweep that did so.
-       */
-      logger.warn('Sync abandoned — lock was reclaimed while this run was executing', {
-        connectorId,
-        syncLogId,
-        ...result,
-      })
-      return markSyncSuperseded(result)
+      /** A checkpoint can discover an archive before the next batch's presence check. */
+      const [ownedArchive] = await db
+        .select({
+          archivedAt: knowledgeConnector.archivedAt,
+          deletedAt: knowledgeConnector.deletedAt,
+        })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            holdsSyncLockToken(connectorId, syncLogId),
+            or(isNotNull(knowledgeConnector.archivedAt), isNotNull(knowledgeConnector.deletedAt))
+          )
+        )
+        .limit(1)
+      connectorDeleted = Boolean(ownedArchive?.archivedAt || ownedArchive?.deletedAt)
+      if (!connectorDeleted) {
+        /** A replacement-owned connector must receive no writes from this run. */
+        logger.warn('Sync abandoned — lock was reclaimed while this run was executing', {
+          connectorId,
+          syncLogId,
+          ...result,
+        })
+        return markSyncSuperseded(result)
+      }
     }
 
-    if (error instanceof ConnectorDeletedException) {
+    if (connectorDeleted) {
       logger.info('Connector deleted during sync, cleaning up', { connectorId })
 
       try {

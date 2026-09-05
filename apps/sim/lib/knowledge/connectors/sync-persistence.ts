@@ -10,12 +10,13 @@ import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import {
   EMPTY_ACL,
-  MAX_ACL_TOKENS,
-  validateAcl,
+  validateMirroredDocumentAcl,
   WORKSPACE_ACL,
 } from '@/lib/knowledge/access/tokens'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
+import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
@@ -32,8 +33,10 @@ function insertedDocumentAcl(access: ConnectorAccessMode): string[] {
   return [...(aclIsDerived(access) ? EMPTY_ACL : WORKSPACE_ACL)]
 }
 
-function updatedDocumentAcl(access: ConnectorAccessMode): { acl?: string[] } {
-  return aclIsDerived(access) ? {} : { acl: [...WORKSPACE_ACL] }
+function updatedDocumentAcl(access: ConnectorAccessMode) {
+  return aclIsDerived(access)
+    ? {}
+    : { acl: [...WORKSPACE_ACL], aclRequirements: [], aclVerifiedAt: null }
 }
 
 /**
@@ -49,11 +52,11 @@ export async function restoreWorkspaceDocumentAcls(
   const workspaceAcl = textArrayLiteral(WORKSPACE_ACL)
   const restored = await executor
     .update(document)
-    .set({ acl: [...WORKSPACE_ACL] })
+    .set({ acl: [...WORKSPACE_ACL], aclRequirements: [], aclVerifiedAt: null })
     .where(
       and(
         eq(document.connectorId, connectorId),
-        sql`${document.acl} <> ${workspaceAcl}`,
+        sql`(${document.acl} <> ${workspaceAcl} OR ${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`,
         exists(
           executor
             .select({ one: sql`1` })
@@ -79,72 +82,66 @@ export async function restoreWorkspaceDocumentAcls(
 const ACL_WRITE_BATCH_SIZE = 500
 
 export interface DocumentAclWriteResult {
-  /** Documents whose stored ACL actually changed. */
+  /** Documents whose ACL or authoritative evidence timestamp was refreshed. */
   updated: number
   /** Documents whose ACL the source could not express; stored as readable by nobody. */
   rejected: number
 }
 
 /**
- * Writes the ACLs an admin-mode crawl mirrored from the source, and nothing
- * else.
- *
- * This deliberately does not go through the document update path. That path
- * sets `processingStatus: 'pending'`, which is the sole trigger of
- * re-embedding — and a permission change with no content change is the entire
- * point of mirroring ACLs, so routing it there would re-embed a corpus every
- * time somebody joined a group. Only `acl` is assigned here; `contentHash`,
- * `processingStatus`, `chunkCount` and the embedding rows are untouched.
- *
- * `IS DISTINCT FROM` keeps a re-run that changes nothing from writing anything,
- * so the pass is cheap to run often — which is what lets permissions sync on a
- * faster clock than content.
- *
- * An ACL the source expressed but we cannot store — malformed, or past
- * {@link MAX_ACL_TOKENS} — is stored as readable by nobody rather than skipped:
- * leaving the previous ACL in place would keep serving a document under
- * permissions we just failed to verify.
+ * Permission-only changes must not trigger re-embedding. Unchanged ACLs still refresh
+ * their evidence timestamp; failed fetches cannot extend it. Malformed or oversized
+ * ACLs are stored as unreadable so the previous grant cannot survive failed verification.
  */
 export async function persistDocumentAcls(
   connectorId: string,
-  acls: ReadonlyMap<string, readonly string[]>,
+  acls: ReadonlyMap<string, MirroredDocumentAcl>,
   executor: DbOrTx = db
 ): Promise<DocumentAclWriteResult> {
-  const byAcl = new Map<string, { acl: string[]; externalIds: string[] }>()
+  const byAcl = new Map<
+    string,
+    { acl: string[]; requirements: string[][]; externalIds: string[] }
+  >()
   let rejected = 0
+  const verifiedAt = new Date()
 
-  for (const [externalId, tokens] of acls) {
-    const validation = validateAcl(tokens)
+  for (const [externalId, value] of acls) {
+    const validation = validateMirroredDocumentAcl(value)
     if (!validation.valid) {
       rejected += 1
       logger.error('Storing a connector document as readable by nobody: unusable ACL', {
         connectorId,
         externalId,
         reason: validation.reason,
-        ...(validation.sample ? { sample: validation.sample } : {}),
-        tokenCount: tokens.length,
       })
     }
     const acl = validation.valid ? validation.acl : [...EMPTY_ACL]
-    const key = acl.join('\n')
+    /**
+     * Keep the primary clause in the conjunctive snapshot too: an old writer
+     * during rolling deployment knows only `acl` and must not erase the space
+     * requirement while leaving this snapshot's verification time intact.
+     */
+    const requirements =
+      validation.valid && validation.requirements.length > 0
+        ? [acl, ...validation.requirements]
+        : []
+    const key = JSON.stringify([acl, requirements])
     const group = byAcl.get(key)
     if (group) group.externalIds.push(externalId)
-    else byAcl.set(key, { acl, externalIds: [externalId] })
+    else byAcl.set(key, { acl, requirements, externalIds: [externalId] })
   }
 
   let updated = 0
-  for (const { acl, externalIds } of byAcl.values()) {
+  for (const { acl, requirements, externalIds } of byAcl.values()) {
     for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
       const rows = await executor
         .update(document)
-        .set({ acl })
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            inArray(document.externalId, batch),
-            sql`${document.acl} IS DISTINCT FROM ${textArrayLiteral(acl)}`
-          )
-        )
+        .set({
+          acl,
+          aclRequirements: requirements,
+          aclVerifiedAt: acl.length > 0 ? verifiedAt : null,
+        })
+        .where(and(eq(document.connectorId, connectorId), inArray(document.externalId, batch)))
         .returning({ id: document.id })
       updated += rows.length
     }
@@ -155,21 +152,11 @@ export async function persistDocumentAcls(
 
 const MAX_SAFE_TITLE_LENGTH = 200
 
-/** Sanitizes a document title for use in S3 storage keys. */
 function sanitizeStorageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
 }
 
-/**
- * Sanitizes a source file's name for a storage key, keeping its extension.
- *
- * `sanitizeStorageTitle` truncates a long title outright, which for a source file
- * would cut the extension off the end — and the extension is what
- * `resolveStoredArtifactExtension` reads to pick a parser. Such a document would
- * still parse correctly by falling back to its display name, but only by luck;
- * preserving the suffix keeps the storage key authoritative for every file rather
- * than for most of them.
- */
+/** Preserve the extension when truncating: parser selection reads the storage key. */
 function sanitizeStorageFileName(fileName: string): string {
   const dotIndex = fileName.lastIndexOf('.')
   if (dotIndex <= 0) return sanitizeStorageTitle(fileName)
@@ -182,18 +169,7 @@ function sanitizeStorageFileName(fileName: string): string {
   return base + extension
 }
 
-/**
- * The bytes to store for a connector document, together with the name and type
- * that describe them.
- *
- * The stored object must declare the format it actually holds, because
- * `resolveStoredArtifactExtension` picks the parser off its storage key. A
- * connector that hands over the source file keeps that file's own name and type,
- * so the shared pipeline parses it exactly as an upload of the same file — which
- * is what routes PDFs to OCR. A connector that extracted text itself stores
- * `.txt`, since that is what the bytes now are; keeping the source extension
- * there would re-parse extracted text as the original binary.
- */
+/** Source files retain their parser format; connector-extracted text must use .txt. */
 function connectorStoredArtifact(extDoc: ExternalDocument): {
   bytes: Buffer
   fileName: string
@@ -287,8 +263,6 @@ function buildSkippedDocumentRow(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-  // Connectors put the source size under either `fileSize` or `size`; accept both
-  // so the skipped failed row shows the real size instead of 0.
   const rawSize = extDoc.metadata?.fileSize ?? extDoc.metadata?.size
   const fileSize =
     typeof rawSize === 'number' && Number.isFinite(rawSize) ? Math.max(0, Math.trunc(rawSize)) : 0
@@ -495,6 +469,76 @@ export async function persistSkippedRetryHashes(
   return missedExternalIds
 }
 
+/** Records a failed source refresh without discarding prior bytes; null hash guarantees a later source retry. */
+export async function persistSourceDocumentFailures(input: {
+  knowledgeBaseId: string
+  connectorId: string
+  connectorType: string
+  documents: readonly ExternalDocument[]
+  failedExternalIds: ReadonlySet<string>
+  priorByExternalId: ReadonlyMap<string, { id: string }>
+  sourceConfig: Record<string, unknown>
+  access: ConnectorAccessMode
+  lease: SyncWriteLease
+}): Promise<void> {
+  const failed = [
+    ...new Map(
+      input.documents
+        .filter((item) => input.failedExternalIds.has(item.externalId))
+        .map((item) => [item.externalId, item])
+    ).values(),
+  ]
+  if (failed.length === 0) return
+  await db.transaction(async (tx) => {
+    if (!(await isKnowledgeBaseActiveInTx(tx, input.knowledgeBaseId)))
+      throw new Error('Knowledge base was deleted')
+    await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
+    const existingIds = failed.flatMap((item) => {
+      const existing = input.priorByExternalId.get(item.externalId)
+      return existing ? [existing.id] : []
+    })
+    for (let offset = 0; offset < existingIds.length; offset += 500) {
+      await tx
+        .update(document)
+        .set({
+          contentHash: null,
+          processingStatus: 'failed',
+          processingError: SOURCE_CONTENT_ERROR,
+          processingQueuedAt: null,
+          processingQueueToken: null,
+          processingDeferredUntil: null,
+          processingCompletedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(document.connectorId, input.connectorId),
+            eq(document.knowledgeBaseId, input.knowledgeBaseId),
+            inArray(document.id, existingIds.slice(offset, offset + 500)),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt)
+          )
+        )
+    }
+    const newItems = failed.filter((item) => !input.priorByExternalId.has(item.externalId))
+    for (let offset = 0; offset < newItems.length; offset += 500) {
+      await tx.insert(document).values(
+        newItems.slice(offset, offset + 500).map((item) => ({
+          ...buildSkippedDocumentRow(
+            input.knowledgeBaseId,
+            input.connectorId,
+            input.connectorType,
+            { ...item, skippedReason: SOURCE_CONTENT_ERROR },
+            input.sourceConfig,
+            input.access
+          ),
+          contentHash: null,
+          processingCompletedAt: new Date(),
+        }))
+      )
+    }
+  })
+}
+
 /**
  * Stores the document's bytes (see {@link connectorStoredArtifact}) and inserts
  * its `pending` row; the caller dispatches processing.
@@ -652,9 +696,11 @@ export async function updateDocument(
           fileUrl,
           storageKey: fileInfo.key,
           fileSize: artifact.bytes.length,
-          // Re-stated on every update: a document first stored as connector-extracted
-          // text and later re-synced as its source file has to stop declaring
-          // `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
+          /**
+           * Re-stated on every update: a document first stored as connector-extracted
+           * text and later re-synced as its source file has to stop declaring
+           * `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
+           */
           mimeType: artifact.mimeType,
           contentHash: extDoc.contentHash,
           sourceUrl: extDoc.sourceUrl ?? null,
@@ -671,10 +717,12 @@ export async function updateDocument(
           processingCompletedAt: null,
           processingError: null,
           uploadedAt: new Date(),
-          // A tombstoned document reappearing with changed content is resurrected
-          // in the same write as its content update — otherwise reconciliation's
-          // separate resurrect step would clear deletedAt while this update, gated
-          // on deletedAt IS NULL, rejects the row and leaves stale content active.
+          /**
+           * A tombstoned document reappearing with changed content is resurrected
+           * in the same write as its content update — otherwise reconciliation's
+           * separate resurrect step would clear deletedAt while this update, gated
+           * on deletedAt IS NULL, rejects the row and leaves stale content active.
+           */
           deletedAt: null,
           ...updatedDocumentAcl(access),
         })

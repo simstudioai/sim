@@ -17,6 +17,19 @@ import {
 import { extractCursor } from '@/connectors/confluence/cursor'
 import { htmlToPlainText } from '@/connectors/utils'
 
+describe('Confluence service-account scopes', () => {
+  it('requests metadata and role reads needed for complete mirrored ACLs', () => {
+    expect(confluenceConnector.auth.mode).toBe('oauth')
+    if (confluenceConnector.auth.mode !== 'oauth') throw new Error('Expected OAuth authentication')
+    expect(confluenceConnector.auth.serviceAccountScopes).toEqual(
+      expect.arrayContaining([
+        'read:content.metadata:confluence',
+        'read:space.permission:confluence',
+      ])
+    )
+  })
+})
+
 describe('escapeCql', () => {
   it.concurrent('returns plain strings unchanged', () => {
     expect(escapeCql('Engineering')).toBe('Engineering')
@@ -57,6 +70,40 @@ describe('buildLastModifiedClause', () => {
     expect(buildLastModifiedClause(new Date(now.getTime() + 60_000), now)).toBe(
       'lastModified >= now("-1m")'
     )
+  })
+})
+
+describe('Confluence rejected credentials', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each(['discovery', 'space', 'pages', 'cql', 'content'] as const)(
+    'preserves authenticated401 at the %s boundary',
+    async (boundary) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('', { status: 401 }))
+      )
+      const config = {
+        domain: 'revocation-fixture.atlassian.net',
+        spaceKey: 'ENG',
+        ...(boundary === 'cql' ? { labelFilter: 'fixture' } : {}),
+      }
+      const context =
+        boundary === 'discovery'
+          ? {}
+          : { cloudId: 'cloud', ...(boundary === 'pages' ? { spaceId: 'space' } : {}) }
+      const request =
+        boundary === 'content'
+          ? confluenceConnector.getDocument('token', config, 'page', context)
+          : confluenceConnector.listDocuments('token', config, undefined, context)
+      const error = await request.catch((error: unknown) => error)
+      expect(confluenceConnector.isCredentialInvalidError?.(error)).toBe(true)
+    }
+  )
+
+  it.each([403, 404, 429, 503])('does not invalidate credentials for status%s', (status) => {
+    const error = Object.assign(new Error('Provider request failed'), { status })
+    expect(confluenceConnector.isCredentialInvalidError?.(error)).toBe(false)
   })
 })
 
@@ -516,14 +563,6 @@ describe('confluence mirrored permissions', () => {
         return jsonResponse({ restrictions: { user: { results: [] }, group: { results: [] } } })
       }
       if (path.endsWith('/ancestors')) return jsonResponse({ results: [] })
-      if (path.endsWith('/rest/api/user/bulk')) {
-        return jsonResponse({
-          results: [
-            { accountId: 'acc-eng', email: 'eng@corp.com' },
-            { accountId: 'acc-hr', email: 'hr@corp.com' },
-          ],
-        })
-      }
       return jsonResponse({ error: `unexpected ${path}` }, 500)
     })
   }
@@ -564,13 +603,14 @@ describe('confluence mirrored permissions', () => {
     )
 
     expect(acls).toEqual({
-      'eng-page': ['u:eng@corp.com'],
-      'hr-post': ['u:hr@corp.com'],
+      'eng-page': ['s:confluence:-:acc-eng'],
+      'hr-post': ['s:confluence:-:acc-hr'],
     })
     /** A blog post has no ancestors and is never asked for them. */
     const asked = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname)
     expect(asked.some((path) => path.includes('/blogposts/hr-post/ancestors'))).toBe(false)
     expect(asked.some((path) => path.includes('/pages/eng-page/ancestors'))).toBe(true)
+    expect(asked.some((path) => path.includes('/user/'))).toBe(false)
   })
 
   it('omits a page whose permissions could not be read and still answers for the rest', async () => {
@@ -590,6 +630,43 @@ describe('confluence mirrored permissions', () => {
       { cloudId: 'cloud-1' }
     )
 
-    expect(acls).toEqual({ 'eng-page': ['u:eng@corp.com'] })
+    expect(acls).toEqual({ 'eng-page': ['s:confluence:-:acc-eng'] })
+  })
+
+  it('loads restrictions above the first ancestor batch even when the page and parent already restrict access', async () => {
+    site()
+    const healthy = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = new URL(String(input)).pathname
+      if (path.endsWith('/pages/eng-page/ancestors'))
+        return jsonResponse({ results: [{ id: 'parent' }] })
+      if (path.endsWith('/pages/parent/ancestors'))
+        return jsonResponse({ results: [{ id: 'grandparent' }] })
+      if (path.endsWith('/ancestors')) return jsonResponse({ results: [] })
+      const match = path.match(/\/content\/([^/]+)\/restriction\/byOperation\/read/)
+      if (match) {
+        return jsonResponse({
+          restrictions: {
+            user: { results: [] },
+            group: { results: [{ id: `group-${match[1]}` }] },
+          },
+        })
+      }
+      return healthy(input, init)
+    })
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: 'ENG' },
+      [page('eng-page', 'ENG')],
+      { cloudId: 'cloud-1' }
+    )
+    expect(acls?.['eng-page']).toEqual({
+      acl: ['s:confluence:-:acc-eng'],
+      requirements: expect.arrayContaining([
+        ['g:confluence:cloud-1:group-eng-page'],
+        ['g:confluence:cloud-1:group-parent'],
+        ['g:confluence:cloud-1:group-grandparent'],
+      ]),
+    })
   })
 })

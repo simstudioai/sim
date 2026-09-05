@@ -151,6 +151,19 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           secret: false,
           multiline: false,
         },
+        {
+          id: 'atlassianProduct',
+          label: 'Product',
+          placeholder: 'jira',
+          required: false,
+          secret: false,
+          multiline: false,
+          options: [
+            { value: 'jira', label: 'Jira' },
+            { value: 'confluence', label: 'Confluence' },
+          ],
+          hint: 'Select the product this token can access. Defaults to Jira.',
+        },
       ],
     }
   }

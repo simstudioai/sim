@@ -31,7 +31,7 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
   },
   listCredentialGroupCredentialReferences: mocks.listCredentials,
   loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
-  loadCredentialGroupCredentialListContext: mocks.loadGroup,
+  loadWorkspaceAccountsCredentialListContext: mocks.loadGroup,
   MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE: 100,
 }))
 
@@ -82,19 +82,18 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const input = { credentialGroupId: 'group-1', limit: 50 }
+const input = { workspaceId: 'workspace-1', limit: 50 }
 
-function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDelegatedPrincipal {
+function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',
     subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
+    workspaceId,
     delegationId: 'delegation-1',
     audience: 'sim:credential-groups',
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId },
     delegationContext: {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
@@ -148,10 +147,19 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 
-  it('rejects executor delegation scoped to another group', async () => {
+  it('requires the workspace accounts container before listing credentials', async () => {
+    mocks.loadGroup.mockResolvedValue(null)
+    await expect(
+      listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadGroup).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
+  })
+
+  it('rejects executor delegation scoped to another workspace', async () => {
     await expect(
       listCredentialGroupCredentials.execute({
-        principal: executorPrincipal('group-2'),
+        principal: executorPrincipal('workspace-2'),
         input,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

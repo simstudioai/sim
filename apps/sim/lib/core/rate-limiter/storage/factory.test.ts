@@ -60,6 +60,21 @@ describe('rate limit storage factory', () => {
     expect(adapter).toEqual({ type: 'redis' })
   })
 
+  it('provider admission refuses a configured Redis outage instead of opening a second budget', () => {
+    mockGetStorageMethod.mockReturnValue('redis')
+    expect(createStorageAdapter()).toEqual({ type: 'db' })
+    expect(() => createStorageAdapter({ requireConfiguredBackend: true })).toThrow(
+      'Configured Redis rate limit storage is unavailable'
+    )
+  })
+
+  it('strict admission uses recovered Redis even when the ordinary fallback adapter is cached', () => {
+    mockGetStorageMethod.mockReturnValue('redis')
+    createStorageAdapter()
+    mockGetRedisClient.mockReturnValue({ ping: vi.fn() } as never)
+    expect(createStorageAdapter({ requireConfiguredBackend: true })).toEqual({ type: 'redis' })
+  })
+
   it('should use DbTokenBucket when storage method is db', () => {
     mockGetStorageMethod.mockReturnValue('db')
 

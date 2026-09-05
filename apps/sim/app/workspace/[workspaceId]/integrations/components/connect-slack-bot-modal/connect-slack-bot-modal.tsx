@@ -7,6 +7,7 @@ import {
   ChipDropdown,
   type ChipDropdownOption,
   ChipInput,
+  ChipModalField,
   Code,
   CopyCodeButton,
   Label,
@@ -19,6 +20,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { SlackIcon } from '@/components/icons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  SLACK_MANAGED_USER_SCOPES,
+  SLACK_SEARCH_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   useCreateWorkspaceCredential,
@@ -125,6 +130,9 @@ export function ConnectSlackBotModal({
   const [appName, setAppName] = useState(initialDisplayName ?? '')
   const [appDescription, setAppDescription] = useState(initialDescription ?? '')
   const [selected, setSelected] = useState<Set<string>>(() => new Set(ALL_CAPABILITIES))
+  const [memberAccess, setMemberAccess] = useState<'search' | 'workflow'>(
+    isReconnect ? 'workflow' : 'search'
+  )
   const [slashCommands, setSlashCommands] = useState<SlackSlashCommandDraft[]>([])
   const [signingSecret, setSigningSecret] = useState('')
   const [botToken, setBotToken] = useState('')
@@ -140,6 +148,7 @@ export function ConnectSlackBotModal({
     setAppName(initialDisplayName ?? '')
     setAppDescription(initialDescription ?? '')
     setSelected(new Set(ALL_CAPABILITIES))
+    setMemberAccess(isReconnect ? 'workflow' : 'search')
     setSlashCommands([])
     setSigningSecret('')
     setBotToken('')
@@ -167,7 +176,10 @@ export function ConnectSlackBotModal({
   const manifestJson = useMemo(() => {
     if (manifestConfigurationError) return ''
     const managedUserAuthorization = selected.has(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id)
-      ? getSlackManagedUserAuthorizationManifestConfig(getBaseUrl())
+      ? getSlackManagedUserAuthorizationManifestConfig(
+          getBaseUrl(),
+          memberAccess === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES
+        )
       : undefined
     const manifest = buildSlackManifest(selected, {
       appName: appName.trim() || DEFAULT_APP_NAME,
@@ -181,7 +193,15 @@ export function ConnectSlackBotModal({
       ...(managedUserAuthorization ? { managedUserAuthorization } : {}),
     })
     return JSON.stringify(manifest, null, 2)
-  }, [manifestConfigurationError, selected, appName, appDescription, slashCommands, requestUrl])
+  }, [
+    manifestConfigurationError,
+    selected,
+    appName,
+    appDescription,
+    slashCommands,
+    requestUrl,
+    memberAccess,
+  ])
 
   const capabilityIds = useMemo(() => [...selected], [selected])
   const setCapabilityIds = useCallback((next: string[]) => setSelected(new Set(next)), [])
@@ -275,6 +295,8 @@ export function ConnectSlackBotModal({
           slashCommandsError={slashCommandsError}
           capabilityIds={capabilityIds}
           onCapabilityIdsChange={setCapabilityIds}
+          memberAccess={memberAccess}
+          onMemberAccessChange={setMemberAccess}
         />
       </Wizard.Step>
       <Wizard.Step title='Create the app in Slack'>
@@ -328,6 +350,8 @@ interface StepConfigureProps {
   slashCommandsError: string | null
   capabilityIds: string[]
   onCapabilityIdsChange: (next: string[]) => void
+  memberAccess: 'search' | 'workflow'
+  onMemberAccessChange: (access: 'search' | 'workflow') => void
 }
 function StepConfigure({
   appName,
@@ -340,6 +364,8 @@ function StepConfigure({
   slashCommandsError,
   capabilityIds,
   onCapabilityIdsChange,
+  memberAccess,
+  onMemberAccessChange,
 }: StepConfigureProps) {
   const allSelected = capabilityIds.length === CUSTOM_BOT_CAPABILITIES.length
 
@@ -386,10 +412,25 @@ function StepConfigure({
         {allSelected && (
           <p className='text-[var(--text-muted)] text-caption'>
             All additional permissions enabled — the bot can read messages, react, access files and
-            users, and people can authorize it through Credential Groups.
+            users, and people can authorize it through Connected accounts.
           </p>
         )}
       </div>
+      {capabilityIds.includes(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id) && (
+        <ChipModalField
+          type='dropdown'
+          title='Member access'
+          value={memberAccess}
+          onChange={(value) => {
+            if (value === 'search' || value === 'workflow') onMemberAccessChange(value)
+          }}
+          options={[
+            { value: 'search', label: 'Search documents' },
+            { value: 'workflow', label: 'Workflow tools' },
+          ]}
+          hint='Choose the same access when configuring this app for member accounts.'
+        />
+      )}
       <SlashCommandsEditor
         commands={slashCommands}
         onChange={onSlashCommandsChange}

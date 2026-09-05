@@ -23,22 +23,15 @@ export interface KnowledgeMemberAccessContext {
 }
 
 /**
- * What permission-aware knowledge this workspace may use.
- *
- * Two answers rather than one, because the two ways a document can be
- * permission-scoped depend on different things. `admin` mode mirrors a source's
- * own ACLs and touches no Credential Group; `members` mode is built entirely
- * out of them. Collapsing both into one gate would let an operator turning off
- * Credential Groups silently revoke every document an administrator crawl had
- * mirrored, from a feature it does not use.
- *
- * Resolved together so the billing lookup happens once, and returned as a pair
- * so a caller cannot check one and act on the other.
+ * Source mirroring and managed identities have independent gates. Mirrored
+ * email and domain grants work without Connected accounts. Provider-subject
+ * grants, including Confluence directory memberships with hidden emails,
+ * also require managed identities to remain available.
  */
 export interface KnowledgeAccessAvailability {
-  /** Source-mirrored ACLs: `admin` connectors, and the `u:`/`g:` tokens that read them. */
+  /** Mirroring source ACLs and resolving their verified email and directory-group grants. */
   sourceMirrored: boolean
-  /** Credential-Group enrollments: `members` connectors, and the `s:` tokens that read them. */
+  /** Managed identities used by member sync and by subject-based source ACLs and groups. */
   memberScoped: boolean
 }
 
@@ -51,11 +44,7 @@ export async function resolveKnowledgeAccessAvailability(
   const ownerBilling =
     context.ownerBilling ?? (await getWorkspaceOwnerSubscriptionAccess(context.workspaceId))
 
-  /**
-   * Both are enterprise features on Sim Cloud. Credential Groups carry that
-   * clause already, so mirroring restates it rather than borrowing a gate whose
-   * other half is about a feature it does not use.
-   */
+  /** Mirroring remains independent of the additional managed-identity feature gate. */
   const sourceMirrored = !isHosted || ownerBilling.isEnterprise
   return {
     sourceMirrored,

@@ -188,6 +188,7 @@ export const knowledgeBaseDataSchema = z
     id: z.string(),
     userId: z.string(),
     name: z.string(),
+    isSearchIndex: z.boolean().optional(),
     description: z.string().nullable(),
     tokenCount: z.number(),
     embeddingModel: z.string(),

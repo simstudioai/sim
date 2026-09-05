@@ -44,6 +44,15 @@ export interface UserAccessScope {
  */
 export type KnowledgeAccessScope = WorkspaceAccessScope | UserAccessScope
 
+/** Source permissions: the indexed OR clause, optionally narrowed by additional OR clauses. */
+export interface SourceDocumentAcl {
+  acl: readonly string[]
+  requirements: readonly (readonly string[])[]
+}
+
+/** Simple sources need only an OR token list; hierarchical sources retain every required clause. */
+export type MirroredDocumentAcl = readonly string[] | SourceDocumentAcl
+
 /**
  * Lazily resolves the scope for one authorized operation. Created by the
  * knowledge context resolvers and attached to the use-case context, so a

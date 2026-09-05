@@ -2,78 +2,25 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import {
-  aclIsDerived,
-  CONNECTOR_ACCESS_MODES,
-  CONTENT_ENGINE_ACCESS_MODES,
-  isConnectorAccessMode,
-  isContentEngineAccessMode,
-  mirrorsSourceAcls,
+  effectiveConnectorSyncIntervalMinutes,
+  MAX_PERMISSION_REFRESH_INTERVAL_MINUTES,
 } from '@/lib/knowledge/connectors/access-modes'
 
-describe('which engine drives a mode', () => {
-  /**
-   * The content engine and the member engine hold mutually exclusive leases, so
-   * a mode claimed by both — or by neither — is a connector that either never
-   * runs or runs twice.
-   */
-  it('assigns every mode to exactly one engine', () => {
-    const contentDriven = CONNECTOR_ACCESS_MODES.filter(isContentEngineAccessMode)
-    expect(contentDriven).toEqual(['workspace', 'admin'])
-    expect(CONNECTOR_ACCESS_MODES.filter((mode) => !isContentEngineAccessMode(mode))).toEqual([
-      'members',
-    ])
+describe('effective source permission refresh cadence', () => {
+  it.each([
+    ['workspace', 1440, 1440],
+    ['members', 1440, 60],
+    ['admin', 1440, 60],
+    ['members', 15, 15],
+    ['admin', 0, 0],
+    ['members', 0, 0],
+  ] as const)('%s with configured %d minutes refreshes after %d', (mode, configured, expected) => {
+    expect(effectiveConnectorSyncIntervalMinutes(mode, configured)).toBe(expected)
   })
 
-  it('drives admin mode with the content engine, since it is one crawl under one credential', () => {
-    expect(isContentEngineAccessMode('admin')).toBe(true)
-    expect(CONTENT_ENGINE_ACCESS_MODES).toContain('admin')
-  })
-
-  it('leaves members mode to the member engine', () => {
-    expect(isContentEngineAccessMode('members')).toBe(false)
-  })
-
-  it('refuses a mode it does not know rather than defaulting one in', () => {
-    expect(isContentEngineAccessMode('something-else')).toBe(false)
-  })
-})
-
-describe('who may read what a sync writes', () => {
-  it('publishes a workspace-mode document to the workspace', () => {
-    expect(aclIsDerived('workspace')).toBe(false)
-  })
-
-  /**
-   * Both derived modes are born hidden, because the pass that knows their ACL —
-   * the observation graph, or the crawl that mirrors source permissions — has
-   * not run yet. Hidden early is recoverable; visible early is not.
-   */
-  it('hides a document whose ACL a later pass owns', () => {
-    expect(aclIsDerived('admin')).toBe(true)
-    expect(aclIsDerived('members')).toBe(true)
-  })
-})
-
-describe('which modes must list the whole corpus every run', () => {
-  /**
-   * A permission change moves no content — re-sharing a file does not touch
-   * its modified time — so an incremental listing cannot carry a revoked grant.
-   * Only a mode that mirrors ACLs pays for a full listing; the others keep the
-   * incremental path.
-   */
-  it('requires a full listing only where ACLs are mirrored from the source', () => {
-    expect(mirrorsSourceAcls('admin')).toBe(true)
-    expect(mirrorsSourceAcls('workspace')).toBe(false)
-    expect(mirrorsSourceAcls('members')).toBe(false)
-    expect(mirrorsSourceAcls('unknown')).toBe(false)
-  })
-})
-
-describe('isConnectorAccessMode', () => {
-  it('accepts exactly the declared modes', () => {
-    for (const mode of CONNECTOR_ACCESS_MODES) expect(isConnectorAccessMode(mode)).toBe(true)
-    expect(isConnectorAccessMode('root')).toBe(false)
-    expect(isConnectorAccessMode('')).toBe(false)
+  it('leaves room for jitter, queue delay, and another crawl before evidence expires', () => {
+    expect(MAX_PERMISSION_REFRESH_INTERVAL_MINUTES * 60_000 * 2).toBeLessThan(SOURCE_ACL_MAX_AGE_MS)
   })
 })

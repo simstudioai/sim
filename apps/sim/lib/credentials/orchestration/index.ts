@@ -35,7 +35,10 @@ import {
   deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
-import type { ServiceAccountFieldId } from '@/lib/credentials/service-account-fields'
+import type {
+  AtlassianProduct,
+  ServiceAccountFieldId,
+} from '@/lib/credentials/service-account-fields'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
@@ -43,6 +46,7 @@ import {
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
@@ -74,6 +78,7 @@ const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
   'botToken',
   'apiToken',
   'domain',
+  'atlassianProduct',
   'clientId',
   'clientSecret',
   'certificateId',
@@ -98,6 +103,7 @@ const GOOGLE_SERVICE_ACCOUNT_KEY_TYPE = 'service_account'
  * (the original flow predates multi-provider support).
  */
 const IDENTITY_DERIVED_DISPLAY_NAME_PROVIDERS: ReadonlySet<string> = new Set([
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   '',
@@ -126,13 +132,12 @@ async function readStoredSecretBlob(credentialId: string): Promise<Record<string
 
 /**
  * A non-secret string field already stored in a service-account blob. Used on
- * reconnect so a selector the modal did not resubmit (the Zoho data center,
- * the Salesforce auth method and run-as username) survives a secret rotation;
+ * reconnect so a selector the modal did not resubmit survives a secret rotation;
  * undefined lets the provider's own default apply.
  */
 function readStoredField(
   blob: Record<string, unknown> | null,
-  field: 'dataCenter' | 'authMethod' | 'username'
+  field: 'dataCenter' | 'authMethod' | 'username' | 'atlassianProduct'
 ): string | undefined {
   const value = blob?.[field]
   return typeof value === 'string' && value ? value : undefined
@@ -185,6 +190,7 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Atlassian service-account secret rotation (reconnect). */
   apiToken?: string
   domain?: string
+  atlassianProduct?: AtlassianProduct
   /** Client-credential service-account secret rotation (reconnect). */
   clientId?: string
   clientSecret?: string
@@ -299,6 +305,9 @@ export async function updateCredentialRecord(
         getClientCredentialAccountDescriptor(providerId)?.defaultAuthMethod
       )
       const needsStoredAuthMethod = params.authMethod === undefined && isMultiGrantProvider
+      const needsStoredAtlassianProduct =
+        providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID &&
+        params.atlassianProduct === undefined
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
 
       // Rotating to a key that belongs to a different principal makes an
@@ -312,7 +321,11 @@ export async function updateCredentialRecord(
 
       // One read + decrypt at most, and only for the providers that can use it.
       const storedBlob =
-        needsStoredDataCenter || needsStoredAuthMethod || needsStoredUsername || needsStoredIdentity
+        needsStoredDataCenter ||
+        needsStoredAuthMethod ||
+        needsStoredUsername ||
+        needsStoredIdentity ||
+        needsStoredAtlassianProduct
           ? await readStoredSecretBlob(params.credential.id)
           : null
 
@@ -357,6 +370,11 @@ export async function updateCredentialRecord(
           botToken: params.botToken,
           apiToken: params.apiToken,
           domain: params.domain,
+          atlassianProduct: needsStoredAtlassianProduct
+            ? readStoredField(storedBlob, 'atlassianProduct') === 'confluence'
+              ? 'confluence'
+              : 'jira'
+            : params.atlassianProduct,
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,

@@ -60,7 +60,6 @@ export interface CredentialGroupTriggerPayload {
 
 interface CredentialGroupTriggerConfig {
   triggerId: typeof CREDENTIAL_GROUP_EVENT_TRIGGER_ID
-  credentialGroupId: string
   eventType: CredentialGroupTriggerEventType
 }
 
@@ -70,13 +69,6 @@ function parseCredentialGroupTriggerConfig(value: unknown): CredentialGroupTrigg
     throw new Error('Credential Group trigger ID is invalid')
   }
   if (
-    typeof value.credentialGroupId !== 'string' ||
-    !value.credentialGroupId.trim() ||
-    value.credentialGroupId !== value.credentialGroupId.trim()
-  ) {
-    throw new Error('Credential Group trigger requires a canonical Credential Group ID')
-  }
-  if (
     typeof value.eventType !== 'string' ||
     !(CREDENTIAL_GROUP_TRIGGER_EVENT_TYPES as readonly string[]).includes(value.eventType)
   ) {
@@ -84,7 +76,6 @@ function parseCredentialGroupTriggerConfig(value: unknown): CredentialGroupTrigg
   }
   return {
     triggerId: CREDENTIAL_GROUP_EVENT_TRIGGER_ID,
-    credentialGroupId: value.credentialGroupId,
     eventType: value.eventType as CredentialGroupTriggerEventType,
   }
 }
@@ -135,9 +126,7 @@ export async function fireCredentialGroupTrigger(
       if (workflow.workspaceId !== event.workspaceId) return false
       if (!allowedWorkflowIds.has(workflow.id)) return false
       const config = parseCredentialGroupTriggerConfig(webhook.providerConfig)
-      return (
-        config.credentialGroupId === event.credentialGroupId && config.eventType === event.event
-      )
+      return config.eventType === event.event
     })
     if (matchingSubscriptions.length === 0) return
 

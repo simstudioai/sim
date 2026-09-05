@@ -7,6 +7,7 @@ export const GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID = 'adminEmail'
 export const GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID = 'openSharing'
 
 export const googleDriveConnectorMeta: ConnectorMeta = {
+  search: true,
   id: 'google_drive',
   name: 'Google Drive',
   description: 'Sync documents from Google Drive',
@@ -18,16 +19,13 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     provider: 'google-drive',
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
     /**
-     * Read-only, and narrower than the interactive scope above: a crawl under
-     * domain-wide delegation reads every file in the domain, so it should never
-     * hold write access. The directory scopes are what let group grants be
-     * resolved to the people in them.
+     * Delegated crawls need read access only. The token acts as the configured
+     * administrator and sees files that account can access; delegation alone
+     * does not discover every user's files. Directory scopes resolve group grants.
      */
     serviceAccountScopes: [
       'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/drive.metadata.readonly',
       'https://www.googleapis.com/auth/admin.directory.group.readonly',
-      'https://www.googleapis.com/auth/admin.directory.user.readonly',
       'https://www.googleapis.com/auth/admin.directory.domain.readonly',
     ],
     serviceAccountSubjectFieldId: GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID,
@@ -35,6 +33,8 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
 
   /** `files.list` under a member's token returns only what that member can open. */
   permissionScopedListing: { capFieldIds: ['maxFiles'] },
+  /** Drive file IDs and exported file bodies are shared across authorized readers. */
+  supportsSeparateContentCredential: true,
 
   /** `files.list` reports each file's own permissions, so one crawl can mirror them. */
   mirrorsSourceAcls: true,
@@ -47,7 +47,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
       required: false,
       placeholder: 'admin@yourcompany.com',
       description:
-        'A Google Workspace administrator the service account acts as. Required to mirror Drive permissions; leave blank when syncing with your own Google account.',
+        'A Google Workspace administrator the service account acts as. Only files this account can access are indexed. Required to mirror Drive permissions; leave blank for your own Google account or files shared directly with the service account.',
     },
     {
       id: GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID,
@@ -72,6 +72,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
       mode: 'basic',
       multi: true,
       placeholder: 'Select one or more folders (optional)',
+      description: 'Includes files in each selected folder and its accessible subfolders.',
       required: false,
     },
     {
@@ -82,6 +83,7 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
       mode: 'advanced',
       multi: true,
       placeholder: 'e.g. 1aBcDeFg…, 2cDeFgHi… (comma-separated for multiple)',
+      description: 'Includes files in each selected folder and its accessible subfolders.',
       required: false,
     },
     {

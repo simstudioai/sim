@@ -74,7 +74,9 @@ export function MemberConnectorsSection({ workspaceId, connectors }: MemberConne
                   ) : undefined
                 }
                 title={name}
-                description={`${connector.knowledgeBaseName} · ${state}`}
+                description={[connector.knowledgeBaseName, connector.sourceDescription, state]
+                  .filter(Boolean)
+                  .join(' · ')}
                 trailing={
                   CONNECTABLE_MEMBERSHIPS.has(connector.viewerMembership) ? (
                     <Button

@@ -6,7 +6,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
-  resolveCredentialGroupContext,
+  resolveWorkspaceAccountsContext,
 } from '@/lib/credential-groups/application/context'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import {
@@ -15,7 +15,7 @@ import {
 } from '@/lib/credential-groups/enrollments'
 
 export interface CreateCredentialGroupInviteLinkInput {
-  credentialGroupId: string
+  workspaceId: string
   email: string
 }
 
@@ -23,7 +23,7 @@ export interface CreateCredentialGroupInviteLinkInput {
 export const createCredentialGroupInviteLink = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.createInviteLink,
   resolveContext: ({ input }: { input: CreateCredentialGroupInviteLinkInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveWorkspaceAccountsContext(input.workspaceId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
   execute: async ({ principal, input, context }) => {
     if (context.status !== 'active') {

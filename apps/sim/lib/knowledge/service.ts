@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
@@ -30,6 +30,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import type {
   ChunkingConfig,
@@ -150,6 +152,7 @@ const KNOWLEDGE_BASE_SORTS = {
 } satisfies Record<V2KnowledgeBaseSortBy, readonly KeysetKey<KnowledgeBaseSortRow>[]>
 
 export interface GetKnowledgeBasesOptions {
+  access?: KnowledgeAccessScope
   /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
   folderId?: string | null
   /** Case-insensitive substring match on the knowledge base name. */
@@ -178,7 +181,8 @@ function knowledgeBaseScopeCondition(scope: KnowledgeBaseScope) {
 async function readKnowledgeBaseRows(
   where: SQL | undefined,
   orderBy: SQL[],
-  limit?: number
+  limit?: number,
+  access?: KnowledgeAccessScope
 ): Promise<
   Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
 > {
@@ -187,6 +191,7 @@ async function readKnowledgeBaseRows(
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
       name: knowledgeBase.name,
+      isSearchIndex: knowledgeBase.isSearchIndex,
       description: knowledgeBase.description,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
@@ -206,7 +211,8 @@ async function readKnowledgeBaseRows(
         eq(document.knowledgeBaseId, knowledgeBase.id),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        access ? knowledgeAccessCondition(access) : undefined
       )
     )
     .where(where)
@@ -323,7 +329,8 @@ async function readWorkspaceKnowledgeBaseRows(
       resumeKeyset(keys, cursorKeys, sortOrder)
     ),
     listOrderBy(keysetColumns(keys), sortOrder),
-    readLimit
+    readLimit,
+    options?.access
   )
 
   return keysetPage(keys, rows, limit)
@@ -391,10 +398,11 @@ export async function getLegacyPersonalKnowledgeBases(
 export async function listWorkspaceAndLegacyKnowledgeBases(
   userId: string,
   workspaceId: string,
-  scope: KnowledgeBaseScope = 'active'
+  scope: KnowledgeBaseScope = 'active',
+  access?: KnowledgeAccessScope
 ): Promise<KnowledgeBaseWithCounts[]> {
   const [workspaceRows, legacyPersonalRows] = await Promise.all([
-    readWorkspaceKnowledgeBaseRows(workspaceId, scope).then((page) => page.data),
+    readWorkspaceKnowledgeBaseRows(workspaceId, scope, { access }).then((page) => page.data),
     readLegacyPersonalKnowledgeBaseRows(userId, scope),
   ])
 
@@ -461,6 +469,7 @@ export async function createAuthorizedKnowledgeBase(
   const newKnowledgeBase = {
     id: kbId,
     name: data.name,
+    isSearchIndex: data.isSearchIndex ?? false,
     description: data.description ?? null,
     workspaceId: data.workspaceId,
     folderId,
@@ -704,7 +713,11 @@ export async function updateKnowledgeBase(
   try {
     destinationUpdatedUsage = await db.transaction(async (tx) => {
       const [currentKb] = await tx
-        .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
+        .select({
+          workspaceId: knowledgeBase.workspaceId,
+          userId: knowledgeBase.userId,
+          isSearchIndex: knowledgeBase.isSearchIndex,
+        })
         .from(knowledgeBase)
         .where(
           and(
@@ -720,6 +733,14 @@ export async function updateKnowledgeBase(
 
       if (!currentKb) {
         throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
+      }
+
+      if (
+        currentKb.isSearchIndex &&
+        updates.workspaceId !== undefined &&
+        updates.workspaceId !== currentKb.workspaceId
+      ) {
+        throw new KnowledgeBasePermissionError('The search index must stay in its workspace')
       }
 
       if (storageMove && (currentKb.workspaceId ?? null) !== storageMove.sourceWorkspaceId) {
@@ -916,6 +937,7 @@ export async function updateKnowledgeBase(
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
       name: knowledgeBase.name,
+      isSearchIndex: knowledgeBase.isSearchIndex,
       description: knowledgeBase.description,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
@@ -999,36 +1021,11 @@ export async function getKnowledgeBaseNames(
 export async function getKnowledgeBaseById(
   knowledgeBaseId: string
 ): Promise<KnowledgeBaseWithCounts | null> {
-  const result = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      description: knowledgeBase.description,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      folderId: knowledgeBase.folderId,
-      docCount: count(document.knowledgeBaseId),
-    })
-    .from(knowledgeBase)
-    .leftJoin(
-      document,
-      and(
-        eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .groupBy(knowledgeBase.id)
-    .limit(1)
+  const result = await readKnowledgeBaseRows(
+    and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)),
+    [],
+    1
+  )
 
   if (result.length === 0) {
     return null
@@ -1049,9 +1046,29 @@ export async function getKnowledgeBaseById(
  * resolves its context does not pay for the connector read.
  */
 export async function attachKnowledgeBaseConnectors(
-  knowledgeBase: KnowledgeBaseWithCounts
+  knowledgeBase: KnowledgeBaseWithCounts,
+  access?: KnowledgeAccessScope
 ): Promise<KnowledgeBaseWithCounts> {
-  const [withConnectors] = await attachConnectorTypes([knowledgeBase])
+  let visible = knowledgeBase
+  if (access) {
+    const [counts] = await db
+      .select({
+        docCount: count(),
+        tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+      })
+      .from(document)
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBase.id),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          knowledgeAccessCondition(access)
+        )
+      )
+    visible = { ...knowledgeBase, docCount: Number(counts.docCount), tokenCount: counts.tokenCount }
+  }
+  const [withConnectors] = await attachConnectorTypes([visible])
   return withConnectors
 }
 
@@ -1066,13 +1083,17 @@ export async function attachKnowledgeBaseConnectors(
 export async function deleteKnowledgeBase(
   knowledgeBaseId: string,
   requestId: string,
-  options?: { archivedAt?: Date; assertedWorkspaceId?: string }
+  options?: { archivedAt?: Date; assertedWorkspaceId?: string; allowSearchIndexDelete?: boolean }
 ): Promise<void> {
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
     const [locked] = await tx
-      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        isSearchIndex: knowledgeBase.isSearchIndex,
+      })
       .from(knowledgeBase)
       .where(
         and(
@@ -1086,6 +1107,9 @@ export async function deleteKnowledgeBase(
       .limit(1)
       .for('update')
     if (!locked) throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
+    if (locked.isSearchIndex && !options?.allowSearchIndexDelete) {
+      throw new KnowledgeBasePermissionError('Only workspace admins can delete the search index')
+    }
 
     await tx
       .update(knowledgeBase)
@@ -1256,6 +1280,12 @@ export async function restoreKnowledgeBase(
       })
       break
     } catch (error: unknown) {
+      if (getPostgresConstraintName(error) === 'kb_workspace_search_index_unique') {
+        throw new OrchestrationError(
+          'conflict',
+          'This workspace already has an active search index'
+        )
+      }
       if (getPostgresErrorCode(error) !== '23505') {
         throw error
       }

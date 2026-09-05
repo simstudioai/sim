@@ -23,14 +23,17 @@ import { useParams } from 'next/navigation'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
+import { derivedAclCapFieldIds } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
   ConnectorAccessField,
   type ConnectorAccessSelection,
+  ConnectorContentCredentialField,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import {
   BROWSE_WITH_HINT,
+  connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
@@ -39,10 +42,6 @@ import type {
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import {
-  derivedAclCapFieldIds,
-  useConnectorMemberGroupOptions,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -82,13 +81,7 @@ const CANONICAL_MODES_KEY = '_canonicalModes'
 
 /** The access a connector row currently has, as the Access field edits it. */
 function currentAccess(connector: ConnectorData): ConnectorAccessSelection {
-  if (connector.accessMode === 'members') {
-    return {
-      accessMode: 'members',
-      credentialGroupId: connector.credentialGroupId ?? undefined,
-      credentialGroupOptionId: connector.credentialGroupOptionId ?? undefined,
-    }
-  }
+  if (connector.accessMode === 'members') return { accessMode: 'members' }
   /**
    * Named rather than folded into the fallback: an unrecognised mode showing as
    * Workspace would tell an admin their documents are visible to everyone when
@@ -96,15 +89,6 @@ function currentAccess(connector: ConnectorData): ConnectorAccessSelection {
    */
   if (connector.accessMode === 'admin') return { accessMode: 'admin' }
   return { accessMode: 'workspace' }
-}
-
-function accessChanged(current: ConnectorAccessSelection, next: ConnectorAccessSelection): boolean {
-  if (current.accessMode !== next.accessMode) return true
-  if (next.accessMode !== 'members') return false
-  return (
-    current.credentialGroupId !== next.credentialGroupId ||
-    current.credentialGroupOptionId !== next.credentialGroupOptionId
-  )
 }
 
 function readPersistedCanonicalModes(
@@ -179,6 +163,7 @@ interface EditConnectorModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   knowledgeBaseId: string
+  isSearchIndex?: boolean
   connector: ConnectorData
 }
 
@@ -186,6 +171,7 @@ export function EditConnectorModal({
   open,
   onOpenChange,
   knowledgeBaseId,
+  isSearchIndex = false,
   connector,
 }: EditConnectorModalProps) {
   const connectorConfig = CONNECTOR_META_REGISTRY[connector.connectorType] ?? null
@@ -194,6 +180,9 @@ export function EditConnectorModal({
   const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => currentAccess(connector))
   const [workspaceCredentialId, setWorkspaceCredentialId] = useState<string | null>(null)
+  const [contentCredentialId, setContentCredentialId] = useState<string | null>(
+    connector.accessMode === 'members' ? connector.credentialId : null
+  )
   const [error, setError] = useState<string | null>(null)
 
   /**
@@ -270,27 +259,35 @@ export function EditConnectorModal({
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const persistedAccess = currentAccess(connector)
+  const searchSourceSupported = !isSearchIndex || connectorConfig?.search === true
+  const searchAccessAllowed = !isSearchIndex || access.accessMode !== 'workspace'
+  const searchSettingsAllowed =
+    searchSourceSupported && (!isSearchIndex || persistedAccess.accessMode !== 'workspace')
+  const searchSetupError = !searchSourceSupported
+    ? 'This source is not supported in Search. Use a separate knowledge base.'
+    : !searchAccessAllowed
+      ? 'Choose Member accounts or Source permissions for Search.'
+      : null
   const showAccessField =
     memberAccessAvailable || mirroredAccessAvailable || persistedAccess.accessMode !== 'workspace'
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
-  const accessDirty = accessChanged(persistedAccess, access)
-  const groupOptions = useConnectorMemberGroupOptions({
-    workspaceId,
-    connectorConfig,
-    enabled: canAdmin && memberAccessAvailable,
-  })
+  const accessModeChanged = persistedAccess.accessMode !== access.accessMode
+  const accessDirty =
+    accessModeChanged ||
+    (access.accessMode === 'members' &&
+      contentCredentialId !== (connector.accessMode === 'members' ? connector.credentialId : null))
   /** Leaving members mode for a mode that syncs with one credential needs that credential. */
   const needsWorkspaceCredential =
+    connectorConfig?.auth.mode === 'oauth' &&
     accessDirty &&
     isContentEngineAccessMode(access.accessMode) &&
     persistedAccess.accessMode === 'members'
   const accessComplete =
-    !accessDirty ||
-    (access.accessMode === 'members'
-      ? !groupOptions.needsChoice || Boolean(access.credentialGroupOptionId)
-      : !needsWorkspaceCredential || Boolean(workspaceCredentialId))
+    searchSourceSupported &&
+    searchAccessAllowed &&
+    (!accessDirty || !needsWorkspaceCredential || Boolean(workspaceCredentialId))
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
     !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
@@ -319,6 +316,7 @@ export function EditConnectorModal({
   ])
 
   const handleSave = () => {
+    if (!searchSettingsAllowed) return
     setError(null)
 
     const updates: { sourceConfig?: Record<string, unknown>; syncIntervalMinutes?: number } = {}
@@ -368,6 +366,7 @@ export function EditConnectorModal({
    * than folded into a settings save that would race the run it starts.
    */
   const handleApplyAccess = () => {
+    if (!searchSourceSupported || !searchAccessAllowed) return
     setError(null)
     updateAccess(
       {
@@ -377,8 +376,7 @@ export function EditConnectorModal({
           access.accessMode === 'members'
             ? {
                 accessMode: 'members',
-                credentialGroupId: access.credentialGroupId,
-                credentialGroupOptionId: access.credentialGroupOptionId,
+                credentialId: contentCredentialId,
               }
             : {
                 accessMode: access.accessMode,
@@ -425,7 +423,6 @@ export function EditConnectorModal({
         {activeTab === 'settings' ? (
           <SettingsTab
             connectorConfig={connectorConfig}
-            persistedAccessMode={persistedAccess.accessMode}
             sourceConfig={sourceConfig}
             credentialId={connector.credentialId}
             canonicalGroups={canonicalGroups}
@@ -437,20 +434,28 @@ export function EditConnectorModal({
             setSyncInterval={setSyncInterval}
             hasMaxAccess={hasMaxAccess}
             isSaving={isSaving}
-            error={error}
+            error={error ?? searchSetupError}
             access={access}
             onAccessChange={setAccess}
             canAdmin={canAdmin}
             showAccessField={showAccessField}
             allowMembers={memberAccessAvailable}
             allowAdmin={mirroredAccessAvailable}
-            groupOptions={groupOptions}
+            allowWorkspace={!isSearchIndex}
             canReenableMemberSync={canReenableMemberSync}
             accessDirty={accessDirty}
+            accessModeChanged={accessModeChanged}
             accessComplete={accessComplete}
             isSwitchingAccess={isSwitchingAccess}
             onApplyAccess={handleApplyAccess}
-            onResetAccess={() => setAccess(currentAccess(connector))}
+            onResetAccess={() => {
+              setAccess(currentAccess(connector))
+              setContentCredentialId(
+                connector.accessMode === 'members' ? connector.credentialId : null
+              )
+            }}
+            contentCredentialId={contentCredentialId}
+            onContentCredentialChange={setContentCredentialId}
             workspaceId={workspaceId}
             needsWorkspaceCredential={needsWorkspaceCredential}
             workspaceCredentialId={workspaceCredentialId}
@@ -468,7 +473,7 @@ export function EditConnectorModal({
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
             /** An open access change is applied by its own control, never folded into Save. */
-            disabled: !hasChanges || accessDirty || isSaving,
+            disabled: !hasChanges || accessDirty || isSaving || !searchSettingsAllowed,
           }}
         />
       )}
@@ -479,7 +484,6 @@ export function EditConnectorModal({
 interface SettingsTabProps {
   connectorConfig: ConnectorMeta | null
   /** The mode the connector is saved in, which the draft `access` may differ from. */
-  persistedAccessMode: ConnectorAccessMode
   sourceConfig: ConfigFieldMap
   credentialId: string | null
   canonicalGroups: Map<string, ConnectorConfigField[]>
@@ -498,9 +502,10 @@ interface SettingsTabProps {
   showAccessField: boolean
   allowMembers: boolean
   allowAdmin: boolean
-  groupOptions: ReturnType<typeof useConnectorMemberGroupOptions>
+  allowWorkspace: boolean
   canReenableMemberSync: boolean
   accessDirty: boolean
+  accessModeChanged: boolean
   accessComplete: boolean
   isSwitchingAccess: boolean
   onApplyAccess: () => void
@@ -508,12 +513,13 @@ interface SettingsTabProps {
   workspaceId: string
   needsWorkspaceCredential: boolean
   workspaceCredentialId: string | null
+  contentCredentialId: string | null
+  onContentCredentialChange: (credentialId: string | null) => void
   onWorkspaceCredentialChange: (credentialId: string) => void
 }
 
 function SettingsTab({
   connectorConfig,
-  persistedAccessMode,
   sourceConfig,
   credentialId,
   canonicalGroups,
@@ -532,9 +538,10 @@ function SettingsTab({
   showAccessField,
   allowMembers,
   allowAdmin,
-  groupOptions,
+  allowWorkspace,
   canReenableMemberSync,
   accessDirty,
+  accessModeChanged,
   accessComplete,
   isSwitchingAccess,
   onApplyAccess,
@@ -542,6 +549,8 @@ function SettingsTab({
   workspaceId,
   needsWorkspaceCredential,
   workspaceCredentialId,
+  contentCredentialId,
+  onContentCredentialChange,
   onWorkspaceCredentialChange,
 }: SettingsTabProps) {
   const providerId =
@@ -549,8 +558,7 @@ function SettingsTab({
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
       : null
   const syncsPerMember = access.accessMode === 'members'
-  /** Staying per member but through a different group. */
-  const isRebind = accessDirty && persistedAccessMode === 'members' && syncsPerMember
+  const isContentCredentialChange = accessDirty && !accessModeChanged
   const { data: rawCredentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
     providerId ?? undefined,
     { enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId), workspaceId }
@@ -569,16 +577,25 @@ function SettingsTab({
 
   return (
     <>
-      {connectorConfig && connectorConfig.auth.mode === 'oauth' && showAccessField && (
+      {syncsPerMember && connectorConfig?.supportsSeparateContentCredential && (
+        <ConnectorContentCredentialField
+          credentialId={contentCredentialId}
+          onChange={onContentCredentialChange}
+          options={credentialOptions}
+          isLoading={credentialsLoading}
+          disabled={isSaving || !canAdmin}
+        />
+      )}
+      {connectorConfig && showAccessField && (
         <ConnectorAccessField
+          workspaceId={workspaceId}
           connectorConfig={connectorConfig}
           value={access}
           onChange={onAccessChange}
           canAdmin={canAdmin}
           allowMembers={allowMembers}
           allowAdmin={allowAdmin}
-          canRebind={persistedAccessMode === 'members'}
-          groupOptions={groupOptions}
+          allowWorkspace={allowWorkspace}
           disabled={isSaving}
           footer={
             canReenableMemberSync ? (
@@ -620,8 +637,8 @@ function SettingsTab({
                   >
                     {isSwitchingAccess
                       ? 'Switching…'
-                      : isRebind
-                        ? 'Change credential group'
+                      : isContentCredentialChange
+                        ? 'Change indexing account'
                         : SWITCH_LABEL[access.accessMode]}
                   </Button>
                   <Button variant='default' size='sm' onClick={onResetAccess} disabled={isSaving}>
@@ -629,8 +646,8 @@ function SettingsTab({
                   </Button>
                 </div>
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
-                  {isRebind
-                    ? 'Members of the previous group lose access; members of the new group are invited to connect.'
+                  {isContentCredentialChange
+                    ? 'The next sync uses this indexing account. Members keep their connected accounts and source permissions.'
                     : SWITCH_NOTICE[access.accessMode]}
                 </p>
               </div>
@@ -666,7 +683,15 @@ function SettingsTab({
         />
       )}
 
-      <ChipModalField type='custom' title='Sync Frequency'>
+      <ChipModalField
+        type='custom'
+        title='Sync Frequency'
+        hint={connectorSyncFrequencyHint(
+          access.accessMode,
+          syncInterval,
+          Boolean(contentCredentialId)
+        )}
+      >
         <ButtonGroup
           value={String(syncInterval)}
           onValueChange={(val) => setSyncInterval(Number(val))}

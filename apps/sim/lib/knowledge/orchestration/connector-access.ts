@@ -10,11 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
-import {
-  aclIsDerived,
-  type ConnectorAccessMode,
-  type ContentEngineAccessMode,
-} from '@/lib/knowledge/connectors/access-modes'
+import { aclIsDerived, type ContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   grantKnowledgeConnectorCredentialAccess,
   revokeKnowledgeConnectorCredentialAccess,
@@ -24,6 +20,7 @@ import {
 import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import { provisionKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-provisioning'
 import {
+  type ConnectorMembersBinding,
   type ConnectorWithoutSecret,
   getKnowledgeConnector,
   type KnowledgeConnectorRow,
@@ -60,13 +57,7 @@ async function loadDispatchMemberSync() {
   return (await import('@/lib/knowledge/connectors/member-queue')).dispatchMemberSync
 }
 
-/** The credential-group binding a members-mode connector needs, as the caller supplied it. */
-export interface KnowledgeConnectorMembersBinding {
-  credentialGroupId: string
-  credentialGroupOptionId: string
-}
-
-export interface ResolvedMembersBinding extends KnowledgeConnectorMembersBinding {
+export interface ResolvedMembersBinding extends ConnectorMembersBinding {
   /** The connector's source config with the listing caps cleared, which members mode stores. */
   sourceConfig: Record<string, unknown>
 }
@@ -79,8 +70,6 @@ export interface ResolvedMembersBinding extends KnowledgeConnectorMembersBinding
 export async function resolveKnowledgeConnectorMembersBinding(input: {
   workspaceId: string
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth' | 'permissionScopedListing' | 'configFields'>
-  /** The option the caller named, or null to sync through the workspace's group for the provider, created if need be. */
-  binding: KnowledgeConnectorMembersBinding | null
   /** The admin acting, recorded as the creator of a provisioned group. */
   actingUserId: string
   sourceConfig: Record<string, unknown>
@@ -97,13 +86,11 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
     )
   }
   const sourceConfig = stripListingCapFields(input.connectorMeta, input.sourceConfig)
-  const binding =
-    input.binding ??
-    (await provisionKnowledgeConnectorMembersBinding({
-      workspaceId: input.workspaceId,
-      connectorMeta: input.connectorMeta,
-      userId: input.actingUserId,
-    }))
+  const binding = await provisionKnowledgeConnectorMembersBinding({
+    workspaceId: input.workspaceId,
+    connectorMeta: input.connectorMeta,
+    userId: input.actingUserId,
+  })
   const group = await loadCredentialGroupCredentialListContext(binding.credentialGroupId)
   if (!group || group.workspaceId !== input.workspaceId) {
     throw new OrchestrationError('validation', 'Credential Group was not found in this workspace')
@@ -189,8 +176,8 @@ async function releaseSwitchLease(
  * that sync as one.
  */
 export type ConnectorAccessTarget =
-  | { accessMode: 'members'; binding: ResolvedMembersBinding }
-  | { accessMode: ContentEngineAccessMode; credentialId: string }
+  | { accessMode: 'members'; binding: ResolvedMembersBinding; credentialId?: string | null }
+  | { accessMode: ContentEngineAccessMode; credentialId: string | null }
 
 export interface PerformUpdateKnowledgeConnectorAccessParams extends KnowledgeOperationContext {
   knowledgeBase: { id: string; name: string; workspaceId: string }
@@ -238,8 +225,8 @@ export async function performUpdateKnowledgeConnectorAccess(
   const unchanged =
     target.accessMode === existing.accessMode &&
     (target.accessMode === 'members'
-      ? target.binding.credentialGroupId === existing.credentialGroupId &&
-        target.binding.credentialGroupOptionId === existing.credentialGroupOptionId
+      ? target.binding.credentialGroupOptionId === existing.credentialGroupOptionId &&
+        (target.credentialId ?? null) === existing.credentialId
       : target.credentialId === existing.credentialId)
   if (unchanged) {
     /**
@@ -298,6 +285,8 @@ export async function performUpdateKnowledgeConnectorAccess(
       .set({
         credentialId: target.credentialId,
         lastSyncAt: null,
+        listingCheckpoint: null,
+        directoryCheckpoint: null,
         nextSyncAt: now,
         updatedAt: now,
       })
@@ -371,7 +360,10 @@ export async function performUpdateKnowledgeConnectorAccess(
             .update(knowledgeConnector)
             .set({
               accessMode: 'members',
-              credentialId: null,
+              credentialId: target.credentialId ?? null,
+              lastSyncAt: null,
+              listingCheckpoint: null,
+              directoryCheckpoint: null,
               credentialGroupId: target.binding.credentialGroupId,
               credentialGroupOptionId: target.binding.credentialGroupOptionId,
               sourceConfig: target.binding.sourceConfig,
@@ -387,24 +379,6 @@ export async function performUpdateKnowledgeConnectorAccess(
             .returning({ id: knowledgeConnector.id })
           if (!row) throw new SwitchLeaseLostError()
         })
-        if (
-          existing.credentialGroupId &&
-          existing.credentialGroupId !== target.binding.credentialGroupId
-        ) {
-          await revokeKnowledgeConnectorCredentialAccess(
-            {
-              workspaceId: kb.workspaceId,
-              credentialGroupId: existing.credentialGroupId,
-              connectorId,
-            },
-            params.userId
-          ).catch((error) => {
-            logger.error(`[${requestId}] Failed to revoke the previous group's grant`, {
-              connectorId,
-              error: getErrorMessage(error),
-            })
-          })
-        }
         const updated = await releaseSwitchLease(connectorId, switchId, previousStatus)
         if (!updated) throw new SwitchLeaseLostError()
         logger.info(`[${requestId}] Switched connector ${connectorId} to members mode`, {
@@ -422,10 +396,7 @@ export async function performUpdateKnowledgeConnectorAccess(
          * move between options of one group puts the previous option back
          * rather than leaving the connector on none.
          */
-        const previousOptionId =
-          existing.credentialGroupId === target.binding.credentialGroupId
-            ? existing.credentialGroupOptionId
-            : null
+        const previousOptionId = existing.credentialGroupOptionId
         await (previousOptionId
           ? grantKnowledgeConnectorCredentialAccess(
               {
@@ -504,6 +475,8 @@ export async function performUpdateKnowledgeConnectorAccess(
            * them.
            */
           lastSyncAt: null,
+          listingCheckpoint: null,
+          directoryCheckpoint: null,
           memberSyncStatus: 'idle',
           memberSyncConsecutiveFailures: 0,
           lastMemberSyncError: null,

@@ -416,7 +416,7 @@ const CONNECTOR_TEXT_EXTENSIONS = [
  * declaration, so a provider that omits or mislabels it cannot strand a PDF on
  * the non-OCR path.
  */
-const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
+export const PIPELINE_PARSED_MIME_TYPES: ReadonlyMap<string, string> = new Map([
   ['pdf', 'application/pdf'],
   ['doc', 'application/msword'],
   ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],

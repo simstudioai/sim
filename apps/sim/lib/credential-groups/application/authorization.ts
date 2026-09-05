@@ -29,6 +29,16 @@ import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 export const CREDENTIAL_GROUP_DELEGATION_AUDIENCE = 'sim:credential-groups'
 
+export const workspaceAccountsSettingsDelegationPolicy = {
+  audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
+  isWithinScope: (principal: Extract<Principal, { kind: 'delegated' }>) =>
+    typeof principal.subjectUserId === 'string' &&
+    principal.subjectUserId.trim().length > 0 &&
+    Object.keys(principal.resourceScope ?? {}).every(
+      (key) => key === 'chatId' || key === 'executionId'
+    ),
+} satisfies WorkspaceDelegationPolicy<WorkspaceAuthorizationContext>
+
 export interface CredentialGroupAuthorizationContext extends WorkspaceAuthorizationContext {
   credentialGroupId: string
 }
@@ -184,14 +194,6 @@ export async function requireCredentialGroupCredentialAccess(
 
 export const credentialGroupDelegationPolicy = {
   audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
-  isWithinScope: (
-    principal: Extract<Principal, { kind: 'delegated' }>,
-    context: CredentialGroupApplicationContext
-  ) => principal.resourceScope?.credentialGroupId === context.credentialGroupId,
-} satisfies WorkspaceDelegationPolicy<CredentialGroupApplicationContext>
-
-export const credentialGroupWorkspaceDelegationPolicy = {
-  audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
   isWithinScope: (principal: Extract<Principal, { kind: 'delegated' }>) =>
-    principal.resourceScope?.credentialGroupId === undefined,
-} satisfies WorkspaceDelegationPolicy<WorkspaceAuthorizationContext>
+    principal.resourceScope === undefined,
+} satisfies WorkspaceDelegationPolicy<CredentialGroupApplicationContext>

@@ -6,17 +6,13 @@ import {
   type ConfluencePrincipal,
   type ConfluenceRestriction,
   confluencePageAcl,
+  confluenceSubjectToken,
 } from '@/lib/knowledge/access/confluence-permissions'
-import { ACCESS_TOKEN_PATTERN } from '@/lib/knowledge/access/tokens'
+import { ACCESS_TOKEN_PATTERN, subjectToken } from '@/lib/knowledge/access/tokens'
 
 const PROVIDER = 'confluence'
 const TENANT = 'cloud-1'
-
-const user = (id: string, email?: string | null): ConfluencePrincipal => ({
-  kind: 'user',
-  id,
-  email,
-})
+const user = (id: string): ConfluencePrincipal => ({ kind: 'user', id })
 const group = (id: string): ConfluencePrincipal => ({ kind: 'group', id })
 
 function acl(
@@ -32,77 +28,66 @@ function acl(
 }
 
 describe('confluencePageAcl', () => {
-  it('falls back to the space when no page in the chain is restricted', () => {
-    expect(acl([user('a', 'Alice@corp.com'), group('g-eng')], [null, null]).acl).toEqual([
+  it('uses native identities without needing email addresses', () => {
+    expect(acl([user('Alice'), group('g-eng')], [null, null]).acl).toEqual([
       `g:${PROVIDER}:${TENANT}:g-eng`,
-      'u:alice@corp.com',
+      's:confluence:-:Alice',
     ])
   })
 
-  /**
-   * A restriction replaces the space's permissions rather than narrowing them.
-   * Space members not on the restriction lose access, which is the point.
-   */
-  it("lets a page's own restriction replace the space's permissions", () => {
-    const result = acl(
-      [user('a', 'alice@corp.com'), user('b', 'bob@corp.com')],
-      [[user('b', 'bob@corp.com')]]
-    )
-
-    expect(result.acl).toEqual(['u:bob@corp.com'])
+  it('requires both the space and the page restriction', () => {
+    const result = acl([user('a'), user('b')], [[user('b')]])
+    expect(result.acl).toEqual(['s:confluence:-:a', 's:confluence:-:b'])
+    expect(result.requirements).toEqual([['s:confluence:-:b']])
   })
 
-  it('takes the closest restricted ancestor when the page itself is unrestricted', () => {
-    const result = acl(
-      [user('a', 'alice@corp.com')],
-      [null, [user('b', 'bob@corp.com')], [user('c', 'carol@corp.com')]]
-    )
-
-    expect(result.acl).toEqual(['u:bob@corp.com'])
+  it('retains every restricted ancestor when the page itself is unrestricted', () => {
+    const result = acl([user('a')], [null, [user('b')], [user('c')]])
+    expect(result.acl).toEqual(['s:confluence:-:a'])
+    expect(result.requirements).toEqual([['s:confluence:-:b'], ['s:confluence:-:c']])
   })
 
-  /**
-   * `null` means "no restriction, inherit"; an empty list means "restricted to
-   * nobody". Collapsing them would publish every deliberately-locked page.
-   */
   it('distinguishes an unrestricted page from one restricted to nobody', () => {
-    expect(acl([user('a', 'alice@corp.com')], [null]).acl).toEqual(['u:alice@corp.com'])
-    expect(acl([user('a', 'alice@corp.com')], [[]]).acl).toEqual(['link'])
+    expect(acl([user('a')], [null]).acl).toEqual(['s:confluence:-:a'])
+    expect(acl([user('a')], [[]]).requirements).toEqual([[]])
   })
 
-  it('identifies a group by its id, which survives a rename', () => {
-    expect(acl([group('g-eng')]).acl).toEqual([`g:${PROVIDER}:${TENANT}:g-eng`])
+  it('keeps group grants scoped to their source site', () => {
+    const one = acl([group('same-group')]).acl
+    const two = confluencePageAcl({
+      spacePrincipals: [group('same-group')],
+      restrictionChain: [],
+      providerId: PROVIDER,
+      tenantId: 'other-cloud',
+    }).acl
+    expect(one).toEqual(['g:confluence:cloud-1:same-group'])
+    expect(two).toEqual(['g:confluence:other-cloud:same-group'])
   })
 
-  describe('a person Confluence will not name', () => {
-    it('drops the grant and reports it rather than guessing', () => {
-      const result = acl([user('a', null), user('b', 'bob@corp.com')])
+  it('matches the global identity verified by Confluence managed OAuth', () => {
+    const credential = {
+      providerId: 'confluence',
+      providerTenantId: null,
+      providerSubjectId: '712020:Alice',
+    }
+    expect(confluenceSubjectToken(credential.providerSubjectId)).toBe(subjectToken(credential))
+    expect(confluenceSubjectToken('712020:Alice')).not.toBe(confluenceSubjectToken('712020:alice'))
+    expect(confluenceSubjectToken('712020:Alice')).not.toBe(
+      subjectToken({ ...credential, providerId: 'jira' })
+    )
+  })
 
-      expect(result.acl).toEqual(['u:bob@corp.com'])
-      expect(result.unattributedUsers).toBe(1)
-    })
-
-    it('hides a page whose every grant was withheld, rather than showing it', () => {
-      const result = acl([user('a', null), user('b', undefined)])
-
-      expect(result.acl).toEqual(['link'])
-      expect(result.unattributedUsers).toBe(2)
-    })
-
-    it('counts only the grant that won, not the ones it replaced', () => {
-      const result = acl([user('a', null), user('b', null)], [[user('c', 'carol@corp.com')]])
-
-      expect(result.acl).toEqual(['u:carol@corp.com'])
-      expect(result.unattributedUsers).toBe(0)
-    })
+  it('refuses a malformed native subject rather than broadening access', () => {
+    expect(() => acl([user('')])).toThrow()
+    expect(() => acl([user('a\nb')])).toThrow()
   })
 
   it('hides a page in a space nobody may read', () => {
     expect(acl([]).acl).toEqual(['link'])
   })
 
-  it('only ever emits tokens the document ACL constraint accepts', () => {
-    const { acl: tokens } = acl([user('a', 'alice@corp.com'), group('g-eng')])
+  it('only emits tokens accepted by the document ACL constraint', () => {
+    const { acl: tokens } = acl([user('712020:Alice'), group('g-eng')])
     for (const token of tokens) expect(token).toMatch(ACCESS_TOKEN_PATTERN)
   })
 })

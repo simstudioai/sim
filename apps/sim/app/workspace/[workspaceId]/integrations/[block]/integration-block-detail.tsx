@@ -225,6 +225,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           onOpenChange={setServiceAccountOpen}
           workspaceId={workspaceId}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          atlassianProduct={oauthService?.providerId === 'confluence' ? 'confluence' : 'jira'}
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
         />

@@ -69,7 +69,10 @@ const emailHeldByAnotherAccount = sql<boolean>`EXISTS (
  * membership nobody has checked since. The age bound is the ratchet: an outage
  * is survivable, an abandoned sync is not.
  */
-async function loadExternalGroupTokens(email: string, workspaceId: string): Promise<string[]> {
+async function loadExternalGroupTokens(
+  memberTokens: readonly string[],
+  workspaceId: string
+): Promise<string[]> {
   /**
    * A query of its own rather than a fourth join on the credential query in
    * `loadUserAccessTokens`:
@@ -91,11 +94,7 @@ async function loadExternalGroupTokens(email: string, workspaceId: string): Prom
     )
     .where(
       and(
-        /** Their own address, and the wildcard standing for everyone at its domain. */
-        inArray(knowledgeExternalGroupMember.email, [
-          email,
-          domainMemberWildcard(emailDomain(email)),
-        ]),
+        inArray(knowledgeExternalGroupMember.subjectToken, [...memberTokens]),
         eq(knowledgeExternalGroup.workspaceId, workspaceId),
         gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
       )
@@ -162,17 +161,15 @@ async function loadUserAccessTokens(
     })
     .from(user)
     .leftJoin(
-      credentialGroupEnrollment,
-      and(
-        eq(credentialGroupEnrollment.email, foldedEmail(user.email)),
-        inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES])
-      )
+      credentialGroup,
+      and(eq(credentialGroup.workspaceId, workspaceId), eq(credentialGroup.status, 'active'))
     )
     .leftJoin(
-      credentialGroup,
+      credentialGroupEnrollment,
       and(
-        eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId),
-        eq(credentialGroup.status, 'active')
+        eq(credentialGroupEnrollment.credentialGroupId, credentialGroup.id),
+        eq(credentialGroupEnrollment.email, foldedEmail(user.email)),
+        inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES])
       )
     )
     .leftJoin(
@@ -228,12 +225,16 @@ async function loadUserAccessTokens(
    * `emailVerified` predicate above is on the same query — so a grant made to
    * whoever really owns it cannot be claimed by someone who merely typed it.
    */
-  const email = availability.sourceMirrored ? rows[0]?.email : undefined
-  if (email) {
+  if (availability.sourceMirrored) {
+    const email = rows[0]?.email
     const own = userToken(email)
     if (own) identityTokens.add(own)
-    for (const token of await loadExternalGroupTokens(email, workspaceId)) {
-      identityTokens.add(token)
+    const groupMemberTokens = [...identityTokens]
+    if (own && email) groupMemberTokens.push(domainMemberWildcard(emailDomain(email)))
+    if (groupMemberTokens.length > 0) {
+      for (const token of await loadExternalGroupTokens(groupMemberTokens, workspaceId)) {
+        identityTokens.add(token)
+      }
     }
   }
 

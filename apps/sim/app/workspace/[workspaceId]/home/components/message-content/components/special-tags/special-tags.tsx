@@ -2435,6 +2435,7 @@ function ServiceAccountConnectDisplay({
             onOpenChange={setOpen}
             workspaceId={workspaceId}
             serviceAccountProviderId={target.serviceAccountProviderId}
+            atlassianProduct={match?.providerId === 'confluence' ? 'confluence' : 'jira'}
             serviceName={target.serviceName}
             serviceIcon={target.serviceIcon}
             credentialId={reconnectCredentialId}

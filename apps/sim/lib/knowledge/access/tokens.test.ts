@@ -6,6 +6,7 @@ import {
   ACCESS_TOKEN_PATTERN,
   groupToken,
   isAccessToken,
+  isIdentityToken,
   MAX_ACL_TOKENS,
   sortAccessTokens,
   subjectToken,
@@ -154,5 +155,26 @@ describe('validateAcl', () => {
       valid: false,
       reason: 'too_many_tokens',
     })
+  })
+})
+
+describe('directory identity tokens', () => {
+  it.each(['u:alice@corp.com', 'u:*@corp.com', 's:confluence:-:557058:MixedCase'])(
+    'accepts %s without changing its identity',
+    (token) => {
+      expect(isIdentityToken(token)).toBe(true)
+    }
+  )
+  it.each([
+    'ws',
+    'pub',
+    'link',
+    'g:confluence:cloud:group',
+    'alice@corp.com',
+    'u:Alice@corp.com',
+    'u: alice@corp.com ',
+    's:confluence:missing',
+  ])('rejects noncanonical member %s', (token) => {
+    expect(isIdentityToken(token)).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
 import { normalizeEmail } from '@sim/utils/string'
-import { WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
+import { type MirroredDocumentAcl, WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 
 /**
  * Shape of one access token, mirroring `doc_acl_token_shape_check` in the
@@ -60,8 +60,37 @@ export function validateAcl(tokens: Iterable<string>): AclValidation {
   return { valid: true, acl }
 }
 
+/** Validates conjunctive source grants without ever accepting a workspace-wide escape token. */
+export function validateMirroredDocumentAcl(
+  value: MirroredDocumentAcl
+):
+  | { valid: true; acl: string[]; requirements: string[][] }
+  | { valid: false; reason: AclRejection | 'workspace_token' | 'too_many_clauses' } {
+  const source = 'acl' in value ? value : { acl: value, requirements: [] }
+  if (source.requirements.length > 256) return { valid: false, reason: 'too_many_clauses' }
+  const clauses: string[][] = []
+  let count = 0
+  for (const tokens of [source.acl, ...source.requirements]) {
+    const validated = validateAcl(tokens)
+    if (!validated.valid) return validated
+    if (validated.acl.includes(WORKSPACE_ACCESS_TOKEN))
+      return { valid: false, reason: 'workspace_token' }
+    count += validated.acl.length
+    if (count > MAX_ACL_TOKENS) return { valid: false, reason: 'too_many_tokens' }
+    clauses.push(validated.acl)
+  }
+  return { valid: true, acl: clauses[0], requirements: clauses.slice(1) }
+}
+
 export function isAccessToken(value: string): boolean {
   return ACCESS_TOKEN_PATTERN.test(value)
+}
+
+/** Directory members are people; document audiences and groups cannot become member identities. */
+export function isIdentityToken(value: string): boolean {
+  if (!isAccessToken(value)) return false
+  if (value.startsWith('s:')) return true
+  return value.startsWith('u:') && userToken(value.slice(2)) === value
 }
 
 export interface SubjectCredential {

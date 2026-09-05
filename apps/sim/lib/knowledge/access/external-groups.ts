@@ -59,7 +59,7 @@ export function domainOfGroupId(groupId: string): string | null {
  * address can never look like it: no provider issues a local part of `*`.
  */
 export function domainMemberWildcard(domain: string): string {
-  return `*@${domain}`
+  return `u:*@${normalizeDomain(domain)}`
 }
 
 /** The domain of a folded address; empty when the address has none. */

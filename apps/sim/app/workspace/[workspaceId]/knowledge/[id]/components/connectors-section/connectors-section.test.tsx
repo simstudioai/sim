@@ -96,7 +96,14 @@ vi.mock('@/connectors/registry', () => ({
     slack: {
       id: 'slack',
       name: 'Slack',
+      configFields: [],
       auth: { mode: 'oauth', provider: 'slack', requiredScopes: ['channels:read'] },
+    },
+    confluence: {
+      id: 'confluence',
+      name: 'Confluence',
+      configFields: [{ id: 'domain' }, { id: 'spaceKey' }],
+      auth: { mode: 'oauth', provider: 'confluence' },
     },
   },
 }))
@@ -176,7 +183,7 @@ function makeConnector(overrides: Partial<ConnectorData> = {}): ConnectorData {
   }
 }
 
-function renderSection(connector: ConnectorData) {
+function renderSection(connector: ConnectorData, additionalConnectors: ConnectorData[] = []) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -186,7 +193,7 @@ function renderSection(connector: ConnectorData) {
       <ConnectorsSection
         workspaceId='workspace-1'
         knowledgeBaseId='knowledge-1'
-        connectors={[connector]}
+        connectors={[connector, ...additionalConnectors]}
         isLoading={false}
         canEdit
       />
@@ -211,6 +218,25 @@ afterEach(() => {
 })
 
 describe('Connector credential reauthorization', () => {
+  it('distinguishes configured sites and spaces without exposing credential fields', () => {
+    const container = renderSection(
+      makeConnector({
+        connectorType: 'confluence',
+        sourceConfig: { domain: 'first.atlassian.net', spaceKey: 'ENG', apiKey: 'private-token' },
+      }),
+      [
+        makeConnector({
+          id: 'connector-2',
+          connectorType: 'confluence',
+          sourceConfig: { domain: 'second.atlassian.net', spaceKey: 'OPS' },
+        }),
+      ]
+    )
+    expect(container.textContent).toContain('first.atlassian.net · ENG')
+    expect(container.textContent).toContain('second.atlassian.net · OPS')
+    expect(container.textContent).not.toContain('private-token')
+  })
+
   it('fails closed when the connector credential cannot be resolved', () => {
     const container = renderSection(makeConnector())
     const reconnectButton = Array.from(container.querySelectorAll('button')).find(
@@ -343,6 +369,14 @@ describe('SyncHistory', () => {
     expect(icons(container)).not.toContain('icon-circle-check')
     expect(container.textContent).toContain('In progress…')
     expect(container.textContent).not.toContain('No changes')
+  })
+
+  it('renders a continued listing as partial with the work already completed', () => {
+    const container = render(makeLog({ status: 'partial', docsAdded: 3 }))
+    expect(icons(container)).toEqual(['icon-triangle-alert'])
+    expect(container.textContent).toContain('Partial')
+    expect(container.textContent).toContain('+3')
+    expect(container.textContent).not.toContain('In progress…')
   })
 
   it('renders a "completed" row as a success with its change counts', () => {

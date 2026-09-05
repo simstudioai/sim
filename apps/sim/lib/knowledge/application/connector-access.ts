@@ -1,9 +1,17 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { isPlainRecord } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import {
+  loadCredentialGroupCredentialListContext,
+  loadWorkspaceAccountsCredentialListContext,
+} from '@/lib/credential-groups/credentials'
+import {
+  requireKnowledgeMemberAccessAvailable,
+  requireSourceMirroredAccessAvailable,
+} from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -13,6 +21,7 @@ import {
   requireConnectorWorkspaceId,
   requireSuccessfulOutcome,
   resolveConnectorCredentialAccessToken,
+  validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -20,7 +29,12 @@ import {
   type ConnectorAccessMode,
   mirrorsSourceAcls,
 } from '@/lib/knowledge/connectors/access-modes'
-import { createViewerConnectorEnrollmentLink } from '@/lib/knowledge/connectors/member-provisioning'
+import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
+import {
+  createViewerConnectorEnrollmentLink,
+  provisionKnowledgeConnectorMembersBinding,
+  sourceIdentityBinding,
+} from '@/lib/knowledge/connectors/member-provisioning'
 import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
 import {
   type ConnectorAccessTarget,
@@ -41,8 +55,8 @@ export interface StartKnowledgeConnectorMemberEnrollmentInput {
 
 /**
  * Hands a workspace member the link that connects their own account to a
- * per-member connector, minted on demand so they never need the invitation
- * email. Only widens what the member themselves can see.
+ * source, for a per-member crawl or to identify them in mirrored ACLs.
+ * This creates no crawler grants and only changes what the member themselves can see.
  */
 export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.enrollConnectorMember,
@@ -59,10 +73,52 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
-    if (connector.accessMode !== 'members' || !connector.credentialGroupId) {
+    await requireKnowledgeMemberAccessAvailable({ workspaceId })
+    const connectorMeta = getConnectorMeta(connector.connectorType)
+    if (!connectorMeta || (context.knowledgeBase.isSearchIndex && !connectorMeta.search)) {
+      throw new OrchestrationError('validation', 'This connector is unavailable for Search')
+    }
+    if (connector.accessMode === 'admin') {
+      await requireSourceMirroredAccessAvailable({ workspaceId })
+      const group = await loadWorkspaceAccountsCredentialListContext(workspaceId)
+      const binding = sourceIdentityBinding(connectorMeta, group)
+      if (!binding) {
+        throw new OrchestrationError(
+          'validation',
+          `Ask a workspace admin to configure ${connectorMeta.name} sign-in in Connected accounts`
+        )
+      }
+      const url = await createViewerConnectorEnrollmentLink({
+        userId,
+        workspaceId,
+        credentialGroupId: binding.credentialGroupId,
+      })
+      return { url }
+    }
+    if (
+      connector.accessMode !== 'members' ||
+      !connector.credentialGroupId ||
+      !connector.credentialGroupOptionId
+    ) {
       throw new OrchestrationError('validation', 'This connector does not sync per member')
     }
-    await requireKnowledgeMemberAccessAvailable({ workspaceId })
+    if (!isPlainRecord(connector.sourceConfig)) {
+      throw new OrchestrationError('validation', 'This connector has invalid source settings')
+    }
+    const group = await loadCredentialGroupCredentialListContext(connector.credentialGroupId)
+    if (!group || group.workspaceId !== workspaceId) {
+      throw new OrchestrationError(
+        'validation',
+        'Connected accounts was not found in this workspace'
+      )
+    }
+    const validation = validateKnowledgeConnectorMembersBinding({
+      connectorMeta,
+      group,
+      credentialGroupOptionId: connector.credentialGroupOptionId,
+      sourceConfig: connector.sourceConfig,
+    })
+    if (!validation.ok) throw new OrchestrationError('validation', validation.message)
     const url = await createViewerConnectorEnrollmentLink({
       userId,
       workspaceId,
@@ -77,10 +133,8 @@ export interface UpdateKnowledgeConnectorAccessInput {
   connectorId: string
   assertedWorkspaceId?: string
   accessMode: ConnectorAccessMode
-  credentialGroupId?: string
-  credentialGroupOptionId?: string
   /** Workspace mode: the credential the connector syncs as from now on. */
-  credentialId?: string
+  credentialId?: string | null
   source?: KnowledgeOperationSource
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
@@ -114,25 +168,56 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
 
+    if (
+      context.knowledgeBase.isSearchIndex &&
+      (!connectorMeta.search || input.accessMode === 'workspace')
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        'Search sources must support per-person access or source permissions'
+      )
+    }
     const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
     let target: ConnectorAccessTarget
     if (input.accessMode === 'members') {
+      const credentialId =
+        input.credentialId === undefined && connector.accessMode === 'members'
+          ? connector.credentialId
+          : (input.credentialId ?? null)
+      if (credentialId && !connectorMeta.supportsSeparateContentCredential) {
+        throw new OrchestrationError(
+          'validation',
+          `${connectorMeta.name} cannot separate content ingestion from member permissions`
+        )
+      }
       target = {
         accessMode: 'members',
+        credentialId,
         binding: await resolveKnowledgeConnectorMembersBinding({
           workspaceId,
           connectorMeta,
-          binding:
-            input.credentialGroupId && input.credentialGroupOptionId
-              ? {
-                  credentialGroupId: input.credentialGroupId,
-                  credentialGroupOptionId: input.credentialGroupOptionId,
-                }
-              : null,
           actingUserId,
           sourceConfig,
         }),
+      }
+      if (credentialId) {
+        await requireUsableCredential({
+          credentialId,
+          connectorMeta,
+          sourceConfig,
+          workspaceId,
+          actingUserId,
+          requestId,
+        })
+        const rejection = await validateConnectorSourceConfig({
+          connector: { ...connector, accessMode: 'members', credentialId },
+          sourceConfig,
+          workspaceId,
+          actingUserId,
+          requestId,
+        })
+        if (rejection) throw new OrchestrationError(rejection.errorCode, rejection.message)
       }
     } else {
       if (mirrorsSourceAcls(input.accessMode)) {
@@ -148,6 +233,26 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           actingUserId,
           requestId,
         }),
+      }
+      const rejection = await validateConnectorSourceConfig({
+        connector: {
+          ...connector,
+          accessMode: target.accessMode,
+          credentialId: target.credentialId,
+        },
+        sourceConfig,
+        workspaceId,
+        actingUserId,
+        requestId,
+      })
+      if (rejection) throw new OrchestrationError(rejection.errorCode, rejection.message)
+      if (input.accessMode === 'admin' && connectorMeta.requiresMemberIdentity) {
+        await requireKnowledgeMemberAccessAvailable({ workspaceId })
+        await provisionKnowledgeConnectorMembersBinding({
+          workspaceId,
+          connectorMeta,
+          userId: actingUserId,
+        })
       }
     }
 
@@ -181,10 +286,6 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
             connectorType: result.connector.connectorType,
             updatedFields: ['accessMode'],
             accessMode: input.accessMode,
-            ...(input.credentialGroupId ? { credentialGroupId: input.credentialGroupId } : {}),
-            ...(input.credentialGroupOptionId
-              ? { credentialGroupOptionId: input.credentialGroupOptionId }
-              : {}),
           },
         }
       : [],
@@ -193,21 +294,23 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
 /**
  * Workspace mode needs a credential the caller may use, of the connector's own
  * provider, and one that yields a token, since the connector syncs as it from
- * then on with no call to the source to catch a mismatch. Only an OAuth
- * connector can change modes: an API-key connector has no account to sync per
- * member.
+ * then on. API-key connectors keep their canonical encrypted key; the shared
+ * source validation verifies it against the target mode before any mutation.
  */
 async function requireUsableCredential(input: {
-  credentialId: string | undefined
+  credentialId: string | null | undefined
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
   sourceConfig: Record<string, unknown>
   workspaceId: string
   actingUserId: string
   requestId: string
-}): Promise<string> {
+}): Promise<string | null> {
   const { auth } = input.connectorMeta
   if (auth.mode !== 'oauth') {
-    throw new OrchestrationError('validation', 'Only OAuth connectors can change access mode')
+    if (input.credentialId) {
+      throw new OrchestrationError('validation', 'API-key connectors use their configured API key')
+    }
+    return null
   }
   if (!input.credentialId) {
     throw new OrchestrationError(

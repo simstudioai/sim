@@ -164,7 +164,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'terminal' && <Terminal />}
       {effectiveSection === 'secrets' && <Secrets />}
       {effectiveSection === 'credential-groups' && (
-        <CredentialGroups workspaceId={hostContext.workspace.id} />
+        <CredentialGroups key={hostContext.workspace.id} workspaceId={hostContext.workspace.id} />
       )}
       {effectiveSection === 'access-control' && organizationId && (
         <AccessControl

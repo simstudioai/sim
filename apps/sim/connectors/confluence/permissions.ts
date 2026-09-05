@@ -1,9 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { chunkArray } from '@sim/utils/helpers'
-import { normalizeEmail } from '@sim/utils/string'
-import type {
-  ConfluencePrincipal,
-  ConfluenceRestriction,
+import {
+  type ConfluencePrincipal,
+  type ConfluenceRestriction,
+  confluenceSubjectToken,
 } from '@/lib/knowledge/access/confluence-permissions'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
@@ -16,8 +15,9 @@ import type {
 const logger = createLogger('ConfluencePermissions')
 
 const PAGE_SIZE = 250
+const GROUP_PAGE_SIZE = 200
 
-/** Guards against a site that keeps paginating; far above any real space. */
+/** Bounds provider pagination, including malformed continuation responses. */
 const MAX_PAGES = 100
 
 function apiBase(cloudId: string): string {
@@ -78,16 +78,20 @@ async function drainV2<T>(url: string, accessToken: string, what: string): Promi
  */
 async function drainV1<T>(url: string, accessToken: string, what: string): Promise<T[]> {
   const items: T[] = []
+  const requestUrl = new URL(url)
+  requestUrl.searchParams.set('limit', String(GROUP_PAGE_SIZE))
   let start = 0
   for (let page = 0; page < MAX_PAGES; page += 1) {
+    requestUrl.searchParams.set('start', String(start))
     const body = await getJson<{
       results?: T[]
       size?: number
       _links?: { next?: string }
-    }>(`${url}?start=${start}&limit=${PAGE_SIZE}`, accessToken)
+    }>(requestUrl.toString(), accessToken)
     const results = body.results ?? []
     items.push(...results)
-    if (!body._links?.next || results.length === 0) return items
+    if (!body._links?.next) return items
+    if (results.length === 0) throw new Error(`Confluence ${what} returned an empty continuation`)
     start += body.size || results.length
   }
   throw new Error(`Confluence ${what} exceeded ${MAX_PAGES} pages`)
@@ -103,24 +107,9 @@ interface SpaceRoleAssignment {
 }
 
 /**
- * Who may read a space.
- *
- * Only `read` on the space itself counts; the same endpoint reports create,
- * delete and administer permissions, and a person who may delete a page they
- * cannot read is not a thing Confluence models — but reading the operation key
- * is how we avoid granting on one.
- *
- * A site on space roles reports the grant against a *role* rather than a
- * person or group, and names who holds each role separately. Every space role
- * includes viewing the space — Confluence will not define one without it — so
- * every assignment of a role is a read grant, and the assignments are the
- * principals.
- *
- * `anonymous` and access-class principals ("all licensed users") are not
- * mapped. A space open to everyone on the site is the Confluence equivalent
- * of an open Drive share and gets the same treatment: not searchable, because
- * a space left open is far more often an oversight than an intention. They are
- * counted so a site whose spaces are all open can be recognised from the log.
+ * Space roles include read access. Their assignments may be flattened into
+ * permission entries or returned separately. Licensed-user and product-admin
+ * classes resolve through Confluence's accessType group filter, never names.
  */
 export async function listSpaceReadPrincipals(
   cloudId: string,
@@ -134,21 +123,35 @@ export async function listSpaceReadPrincipals(
   )
 
   const principals: ConfluencePrincipal[] = []
+  const accessTypes = new Set<'user' | 'admin'>()
   let grantedToRole = false
   let unmapped = 0
+  const addPrincipal = (type: string | undefined, id: string | undefined) => {
+    if (!id) {
+      unmapped += 1
+    } else if (type === 'user' || type === 'group') {
+      principals.push({ kind: type, id })
+    } else if (type === 'access-class') {
+      const accessClass = id.toLowerCase().replaceAll('_', '-')
+      if (accessClass === 'all-licensed-users') {
+        accessTypes.add('user')
+        /** Confluence app admins also have licensed app access. */
+        accessTypes.add('admin')
+      } else if (accessClass === 'all-product-admins') accessTypes.add('admin')
+      else unmapped += 1
+    } else {
+      unmapped += 1
+    }
+  }
   for (const entry of entries) {
     if (entry.operation?.key !== 'read' || entry.operation.targetType !== 'space') continue
     const id = entry.principal?.id
-    const type = entry.principal?.type?.toLowerCase()
+    const type = entry.principal?.type?.toLowerCase().replaceAll('_', '-')
     if (type === 'role') {
       grantedToRole = true
       continue
     }
-    if (!id || (type !== 'user' && type !== 'group')) {
-      unmapped += 1
-      continue
-    }
-    principals.push({ kind: type, id })
+    addPrincipal(type, id)
   }
 
   if (grantedToRole) {
@@ -159,16 +162,26 @@ export async function listSpaceReadPrincipals(
     )
     for (const assignment of assignments) {
       const id = assignment.principal?.principalId
-      const type = assignment.principal?.principalType?.toLowerCase()
-      if (!id) continue
-      if (type === 'user' || type === 'group') principals.push({ kind: type, id })
-      else unmapped += 1
+      const type = assignment.principal?.principalType?.toLowerCase().replaceAll('_', '-')
+      addPrincipal(type, id)
+    }
+  }
+
+  for (const accessType of accessTypes) {
+    const groups = await drainV1<{ id?: string }>(
+      `${apiBase(cloudId)}/rest/api/group?accessType=${accessType}`,
+      accessToken,
+      `${accessType} access groups`
+    )
+    for (const group of groups) {
+      if (!group.id) throw new Error('Confluence access group is missing its id')
+      principals.push({ kind: 'group', id: group.id })
     }
   }
 
   if (unmapped > 0) {
     logger.info(
-      'Confluence space grants to anonymous or access-class principals were not mirrored',
+      'Confluence space grants to anonymous or unsupported principals were not mirrored',
       {
         cloudId,
         spaceId,
@@ -176,12 +189,16 @@ export async function listSpaceReadPrincipals(
       }
     )
   }
-  return principals
+  return [
+    ...new Map(
+      principals.map((principal) => [`${principal.kind}:${principal.id}`, principal])
+    ).values(),
+  ]
 }
 
 interface RestrictionResponse {
   restrictions?: {
-    user?: { results?: { accountId?: string; email?: string | null }[]; size?: number }
+    user?: { results?: { accountId?: string }[]; size?: number }
     group?: { results?: { id?: string }[]; size?: number }
   }
 }
@@ -213,10 +230,12 @@ export async function getReadRestriction(
     const users = body.restrictions?.user?.results ?? []
     const groups = body.restrictions?.group?.results ?? []
     for (const user of users) {
-      if (user.accountId) principals.push({ kind: 'user', id: user.accountId, email: user.email })
+      if (!user.accountId) throw new Error('Confluence read restriction is missing an account id')
+      principals.push({ kind: 'user', id: user.accountId })
     }
     for (const group of groups) {
-      if (group.id) principals.push({ kind: 'group', id: group.id })
+      if (!group.id) throw new Error('Confluence read restriction is missing a group id')
+      principals.push({ kind: 'group', id: group.id })
     }
     if (users.length < PAGE_SIZE && groups.length < PAGE_SIZE) {
       return principals.length === 0 ? null : principals
@@ -226,27 +245,47 @@ export async function getReadRestriction(
 }
 
 /**
- * A page's ancestors, closest parent first — the order the restriction chain is
- * resolved in.
- *
- * The v2 ancestors collection is the one Confluence still serves; the v1
- * content expansion this used to read was removed. It returns root first, so
- * the order is reversed here. Blog posts have no ancestors and are never asked.
+ * Ancestor responses have no cursor: continue from the first returned ancestor
+ * until its own ancestor list is empty. A short response can still be truncated.
+ * Return closest parent first for the restriction chain.
  */
 export async function listAncestorIds(
   cloudId: string,
   accessToken: string,
   pageId: string
 ): Promise<string[]> {
-  const ancestors = await drainV2<{ id?: string }>(
-    `${apiBase(cloudId)}/api/v2/pages/${encodeURIComponent(pageId)}/ancestors`,
-    accessToken,
-    'page ancestors'
-  )
-  return ancestors
-    .map((ancestor) => ancestor.id)
-    .filter((id): id is string => Boolean(id))
-    .reverse()
+  const collections: Record<string, string> = {
+    page: 'pages',
+    folder: 'folders',
+    database: 'databases',
+    embed: 'embeds',
+    whiteboard: 'whiteboards',
+  }
+  const ids: string[] = []
+  const seen = new Set([pageId])
+  let currentId = pageId
+  let collection = 'pages'
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const body = await getJson<{ results?: { id?: string; type?: string }[] }>(
+      `${apiBase(cloudId)}/api/v2/${collection}/${encodeURIComponent(currentId)}/ancestors?limit=${PAGE_SIZE}`,
+      accessToken
+    )
+    if (!Array.isArray(body.results)) throw new Error('Confluence omitted the ancestor list')
+    if (body.results.length === 0) return ids
+    for (const ancestor of [...body.results].reverse()) {
+      if (!ancestor.id || seen.has(ancestor.id)) {
+        throw new Error('Confluence returned an invalid or cyclic ancestor chain')
+      }
+      seen.add(ancestor.id)
+      ids.push(ancestor.id)
+    }
+    const first = body.results[0]
+    currentId = first.id!
+    const nextCollection = collections[first.type ?? 'page']
+    if (!nextCollection) throw new Error('Confluence returned an unsupported ancestor type')
+    collection = nextCollection
+  }
+  throw new Error(`Confluence ancestors exceeded ${MAX_PAGES} pages`)
 }
 
 /** The space a piece of content lives in, for content the listing did not describe. */
@@ -267,60 +306,6 @@ export async function describeContent(
   return null
 }
 
-interface BulkUserEntry {
-  accountId?: string
-  email?: string | null
-}
-
-/**
- * Resolves account ids to email addresses, which is the only identifier a Sim
- * reader can be matched by.
- *
- * Confluence Cloud withholds an address whose owner's profile visibility hides
- * it, and returns the account with a null email rather than failing. Those
- * people cannot be granted access individually, and the same withholding
- * applies when they are reached through a group — so the caller counts them,
- * and a group whose membership cannot be named in full is left on its last
- * complete enumeration rather than replaced.
- */
-export async function resolveUserEmails(
-  cloudId: string,
-  accessToken: string,
-  accountIds: readonly string[]
-): Promise<Map<string, string>> {
-  const emails = new Map<string, string>()
-  const unique = [...new Set(accountIds)]
-  /** `bulk` accepts repeated accountId params; 90 keeps the URL well inside limits. */
-  const BULK_SIZE = 90
-
-  for (const batch of chunkArray(unique, BULK_SIZE)) {
-    const query = new URLSearchParams()
-    for (const accountId of batch) query.append('accountId', accountId)
-
-    try {
-      const body = await getJson<{ results?: BulkUserEntry[] }>(
-        `${apiBase(cloudId)}/rest/api/user/bulk?${query.toString()}`,
-        accessToken
-      )
-      for (const entry of body.results ?? []) {
-        const email = entry.email ? normalizeEmail(entry.email) : ''
-        if (entry.accountId && email) emails.set(entry.accountId, email)
-      }
-    } catch (error) {
-      /**
-       * A batch that fails leaves its people unattributed, which hides the
-       * pages they were named on. Not fatal: the rest of the corpus still
-       * resolves, and the next run retries.
-       */
-      logger.warn('Could not resolve a batch of Confluence account ids to addresses', {
-        cloudId,
-        accountIds: batch.length,
-      })
-    }
-  }
-  return emails
-}
-
 /** Every group on the site, by the id its permissions and restrictions name. */
 async function listSiteGroups(
   cloudId: string,
@@ -338,19 +323,8 @@ async function listSiteGroups(
   return groups
 }
 
-/**
- * The people in one group, as addresses.
- *
- * Confluence groups do not nest, so there is no walk to do — the whole
- * membership is one paginated listing. What it returns is account ids, so the
- * addresses come from the same bulk resolution the ACL path uses.
- *
- * A member whose address the site withholds is reported by leaving the
- * membership incomplete rather than by dropping them quietly: a group is only
- * usable as a grant if we can name everyone in it, and a partial membership
- * that replaced a stored one would revoke whoever was withheld.
- */
-export async function listGroupMemberEmails(
+/** Account IDs remain usable when Confluence profile privacy hides emails. */
+export async function listGroupMemberTokens(
   cloudId: string,
   accessToken: string,
   group: ConnectorDirectoryGroup
@@ -360,14 +334,12 @@ export async function listGroupMemberEmails(
     accessToken,
     'group membership'
   )
-  const accountIds = [...new Set(members.flatMap((m) => (m.accountId ? [m.accountId] : [])))]
-  const emails = await resolveUserEmails(cloudId, accessToken, accountIds)
-
-  return {
-    group,
-    memberEmails: [...new Set(emails.values())],
-    complete: emails.size === accountIds.length,
+  const tokens = new Set<string>()
+  for (const member of members) {
+    if (!member.accountId) throw new Error('Confluence group member is missing an account id')
+    tokens.add(confluenceSubjectToken(member.accountId))
   }
+  return { group, memberTokens: [...tokens], complete: true }
 }
 
 /** The Confluence site as a directory, keyed by its cloud id. */
@@ -380,6 +352,6 @@ export function openConfluenceDirectory(
     providerId,
     tenantId: cloudId,
     listGroups: () => listSiteGroups(cloudId, accessToken),
-    listGroupMembers: (group) => listGroupMemberEmails(cloudId, accessToken, group),
+    listGroupMembers: (group) => listGroupMemberTokens(cloudId, accessToken, group),
   }
 }

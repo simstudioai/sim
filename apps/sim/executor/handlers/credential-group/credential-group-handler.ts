@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { CREDENTIAL_GROUP_DELEGATION_AUDIENCE } from '@/lib/credential-groups/application/authorization'
 import { createCredentialGroupInviteLink } from '@/lib/credential-groups/application/create-invite-link'
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
-import { listCredentialGroupsForWorkflow } from '@/lib/credential-groups/application/list-groups'
 import { listCredentialGroupMcpConnections } from '@/lib/credential-groups/application/list-mcp-connections'
 import {
   CREDENTIAL_GROUP_PEOPLE_STATUSES,
@@ -26,7 +25,6 @@ const CREDENTIAL_GROUP_OPERATION_IDS = [
   'send_invite',
   'get_invite_link',
   'list_people',
-  'list_groups',
 ] as const
 
 type CredentialGroupOperation = (typeof CREDENTIAL_GROUP_OPERATION_IDS)[number]
@@ -101,14 +99,9 @@ export class CredentialGroupBlockHandler implements BlockHandler {
     if (!ctx.executorDelegationOrigin) {
       throw new Error('Credential Group operations require an authenticated workflow execution')
     }
-    const credentialGroupId =
-      operation === 'list_groups'
-        ? undefined
-        : requireString(inputs.credentialGroupId, 'Credential Group')
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: ctx,
       audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
-      ...(credentialGroupId ? { resourceScope: { credentialGroupId } } : {}),
     })
 
     switch (operation) {
@@ -120,7 +113,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         const result = await listCredentialGroupCredentials.execute({
           principal,
           input: {
-            credentialGroupId: credentialGroupId!,
+            workspaceId: ctx.workspaceId,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
             email: parseOptionalString(inputs.email, 'Email'),
@@ -128,7 +121,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           },
         })
         logger.info('Listed Credential Group credentials', {
-          credentialGroupId,
+          workspaceId: ctx.workspaceId,
           count: result.count,
           hasMore: result.hasMore,
         })
@@ -138,7 +131,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         const result = await listCredentialGroupMcpConnections.execute({
           principal,
           input: {
-            credentialGroupId: credentialGroupId!,
+            workspaceId: ctx.workspaceId,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
             email: parseOptionalString(inputs.email, 'Email'),
@@ -146,7 +139,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           },
         })
         logger.info('Listed Credential Group MCP connections', {
-          credentialGroupId,
+          workspaceId: ctx.workspaceId,
           count: result.count,
           hasMore: result.hasMore,
         })
@@ -157,12 +150,12 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         const result = await sendCredentialGroupInvite.execute({
           principal,
           input: {
-            credentialGroupId: credentialGroupId!,
+            workspaceId: ctx.workspaceId,
             email: requireString(inputs.email, 'Email'),
           },
         })
         logger.info('Sent Credential Group invitation', {
-          credentialGroupId,
+          workspaceId: ctx.workspaceId,
           enrollmentId: result.enrollment.id,
         })
         return {
@@ -178,12 +171,12 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         const result = await createCredentialGroupInviteLink.execute({
           principal,
           input: {
-            credentialGroupId: credentialGroupId!,
+            workspaceId: ctx.workspaceId,
             email: requireString(inputs.email, 'Email'),
           },
         })
         logger.info('Generated Credential Group invitation link', {
-          credentialGroupId,
+          workspaceId: ctx.workspaceId,
           enrollmentId: result.enrollment.id,
         })
         return {
@@ -204,7 +197,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         const result = await listCredentialGroupPeople.execute({
           principal,
           input: {
-            credentialGroupId: credentialGroupId!,
+            workspaceId: ctx.workspaceId,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
             email: parseOptionalString(inputs.email, 'Email'),
@@ -212,22 +205,6 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           },
         })
         logger.info('Listed Credential Group people', {
-          credentialGroupId,
-          count: result.count,
-          hasMore: result.hasMore,
-        })
-        return result
-      }
-      case 'list_groups': {
-        const result = await listCredentialGroupsForWorkflow.execute({
-          principal,
-          input: {
-            workspaceId: ctx.workspaceId,
-            limit: parseLimit(inputs.limit),
-            cursor: parseOptionalString(inputs.cursor, 'Cursor'),
-          },
-        })
-        logger.info('Listed Credential Groups', {
           workspaceId: ctx.workspaceId,
           count: result.count,
           hasMore: result.hasMore,

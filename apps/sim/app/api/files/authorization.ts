@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import {
@@ -511,6 +511,9 @@ async function hasActiveKbDocumentForKey(
         isNull(document.archivedAt),
         isNull(document.deletedAt),
         isNull(knowledgeBase.deletedAt),
+        access.kind === 'system'
+          ? undefined
+          : or(isNull(document.connectorId), isNotNull(document.contentHash)),
         knowledgeAccessCondition(access)
       )
     )

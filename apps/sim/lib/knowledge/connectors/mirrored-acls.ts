@@ -1,9 +1,10 @@
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import type { ExternalDocument } from '@/connectors/types'
 
 export interface MirroredAcls {
   /** Every listed document's ACL, keyed by external id; readable by nobody where neither source answered. */
-  acls: Map<string, readonly string[]>
+  acls: Map<string, MirroredDocumentAcl>
   /** Listed documents neither the listing nor the fetch could speak for. */
   unattributed: number
 }
@@ -27,9 +28,9 @@ export function unansweredByListing(externalDocs: readonly ExternalDocument[]): 
  */
 export function mergeMirroredAcls(
   externalDocs: readonly ExternalDocument[],
-  fetched: Readonly<Record<string, readonly string[]>>
+  fetched: Readonly<Record<string, MirroredDocumentAcl>>
 ): MirroredAcls {
-  const acls = new Map<string, readonly string[]>()
+  const acls = new Map<string, MirroredDocumentAcl>()
   let unattributed = 0
   for (const doc of externalDocs) {
     const acl = doc.acl ?? fetched[doc.externalId]
@@ -46,7 +47,7 @@ export function mergeMirroredAcls(
  * document absent from it keeps no ACL this run can vouch for.
  */
 export function hideUnlistedDocuments(
-  acls: Map<string, readonly string[]>,
+  acls: Map<string, MirroredDocumentAcl>,
   ownedExternalIds: readonly (string | null)[]
 ): number {
   let hidden = 0

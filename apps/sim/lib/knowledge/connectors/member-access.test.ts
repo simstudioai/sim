@@ -9,12 +9,14 @@ const mocks = vi.hoisted(() => ({
   loadBinding: vi.fn(),
   listOptionCredentials: vi.fn(),
   resolveManagedOAuthToken: vi.fn(),
+  rejectManagedOAuthToken: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: {
     CREDENTIAL_ACCESSED: 'credential.accessed',
+    CREDENTIAL_UPDATED: 'credential.updated',
     CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
   },
   AuditResourceType: { CREDENTIAL: 'credential', CREDENTIAL_GROUP: 'credential_group' },
@@ -49,6 +51,7 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
 
 vi.mock('@/lib/credentials/managed-oauth', () => ({
   resolveManagedOAuthToken: mocks.resolveManagedOAuthToken,
+  rejectManagedOAuthToken: mocks.rejectManagedOAuthToken,
 }))
 
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
@@ -60,6 +63,7 @@ import {
   KnowledgeConnectorMemberAccessDeniedError,
   listKnowledgeConnectorMemberCredentials,
   mintKnowledgeConnectorMemberToken,
+  rejectKnowledgeConnectorMemberToken,
   revokeKnowledgeConnectorCredentialAccess,
   validateKnowledgeConnectorMembersBinding,
 } from '@/lib/knowledge/connectors/member-access'
@@ -328,6 +332,36 @@ describe('knowledge connector member access', () => {
           }),
         })
       )
+    })
+
+    it('reports provider rejection only under the current connector grant', async () => {
+      mocks.requireResourcePolicy.mockResolvedValue(
+        storedPolicy(2, [
+          { credentialGroupOptionId: 'option-drive', connectorIds: ['connector-1'] },
+        ])
+      )
+      mocks.rejectManagedOAuthToken.mockResolvedValue(true)
+      await expect(
+        rejectKnowledgeConnectorMemberToken({ ...mintInput, rejectedAccessToken: 'token' })
+      ).resolves.toBe(true)
+      expect(mocks.rejectManagedOAuthToken).toHaveBeenCalledWith({
+        credentialId: mintInput.credentialId,
+        workspaceId: mintInput.workspaceId,
+        expectedProviderId: mintInput.expectedProviderId,
+        requiredScopes: mintInput.requiredScopes,
+        rejectedAccessToken: 'token',
+      })
+      expect(mocks.recordAudit).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'credential.updated' })
+      )
+    })
+
+    it('cannot reject a credential when its connector grant has been removed', async () => {
+      mocks.requireResourcePolicy.mockResolvedValue(storedPolicy(2, []))
+      await expect(
+        rejectKnowledgeConnectorMemberToken({ ...mintInput, rejectedAccessToken: 'token' })
+      ).rejects.toBeInstanceOf(KnowledgeConnectorMemberAccessDeniedError)
+      expect(mocks.rejectManagedOAuthToken).not.toHaveBeenCalled()
     })
 
     it('denies a connector the policy does not name', async () => {

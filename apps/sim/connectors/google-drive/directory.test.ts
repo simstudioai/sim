@@ -93,16 +93,11 @@ describe('the membership a directory reports', () => {
 
     await expect(membersOf(GROUP)).resolves.toEqual({
       group: GROUP,
-      memberEmails: ['alice@corp.com', 'bob@corp.com'],
+      memberTokens: ['u:alice@corp.com', 'u:bob@corp.com'],
       complete: true,
     })
   })
 
-  /**
-   * The deviation from Onyx that matters here: they read one level, so a person
-   * who belongs only through a subgroup gets nothing despite the source
-   * granting them access.
-   */
   it('follows nested groups to the people inside them', async () => {
     directory({
       'eng@corp.com': [USER('alice@corp.com'), NESTED('backend@corp.com')],
@@ -110,9 +105,9 @@ describe('the membership a directory reports', () => {
       'platform@corp.com': [USER('carol@corp.com')],
     })
 
-    const { memberEmails, complete } = await membersOf(GROUP)
+    const { memberTokens, complete } = await membersOf(GROUP)
 
-    expect(memberEmails.sort()).toEqual(['alice@corp.com', 'bob@corp.com', 'carol@corp.com'])
+    expect(memberTokens.sort()).toEqual(['u:alice@corp.com', 'u:bob@corp.com', 'u:carol@corp.com'])
     expect(complete).toBe(true)
   })
 
@@ -122,9 +117,9 @@ describe('the membership a directory reports', () => {
       'backend@corp.com': [USER('bob@corp.com'), NESTED('eng@corp.com')],
     })
 
-    const { memberEmails, complete } = await membersOf(GROUP)
+    const { memberTokens, complete } = await membersOf(GROUP)
 
-    expect(memberEmails.sort()).toEqual(['alice@corp.com', 'bob@corp.com'])
+    expect(memberTokens.sort()).toEqual(['u:alice@corp.com', 'u:bob@corp.com'])
     expect(complete).toBe(true)
   })
 
@@ -140,6 +135,66 @@ describe('the membership a directory reports', () => {
     expect(complete).toBe(false)
   })
 
+  it('stops the entire nested traversal when unique flattened members exceed the budget', async () => {
+    const fetchedGroups: string[] = []
+    mockFetch.mockImplementation(async (url: string) => {
+      const parsed = new URL(url)
+      if (parsed.pathname.endsWith('/domains')) return jsonResponse({ domains: [] })
+      const group = decodeURIComponent(parsed.pathname.match(/\/groups\/([^/]+)\/members$/)![1])
+      fetchedGroups.push(group)
+      if (group === GROUP.id)
+        return jsonResponse({
+          members: [
+            NESTED('a@corp.com'),
+            NESTED('b@corp.com'),
+            NESTED('c@corp.com'),
+            NESTED('never@corp.com'),
+          ],
+        })
+      const page = Number(parsed.searchParams.get('pageToken') ?? '0')
+      return jsonResponse({
+        members: Array.from({ length: 200 }, (_, index) =>
+          USER(`${group[0]}${page * 200 + index}@corp.com`)
+        ),
+        ...(page < 199 ? { nextPageToken: String(page + 1) } : {}),
+      })
+    })
+
+    const result = await membersOf(GROUP)
+    expect(result.complete).toBe(false)
+    expect(result.memberTokens).toHaveLength(100_000)
+    expect(fetchedGroups).not.toContain('never@corp.com')
+  })
+
+  it('bounds unique visited groups even when they contain no people', async () => {
+    let groupReads = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      const parsed = new URL(url)
+      if (parsed.pathname.endsWith('/domains')) return jsonResponse({ domains: [] })
+      const group = decodeURIComponent(parsed.pathname.match(/\/groups\/([^/]+)\/members$/)![1])
+      groupReads += 1
+      if (group === GROUP.id) {
+        const page = Number(parsed.searchParams.get('pageToken') ?? '0')
+        return jsonResponse({
+          members: Array.from({ length: 200 }, (_, index) =>
+            NESTED(`branch${page * 200 + index}@corp.com`)
+          ),
+          ...(page < 4 ? { nextPageToken: String(page + 1) } : {}),
+        })
+      }
+      if (group.startsWith('branch'))
+        return jsonResponse({
+          members: Array.from({ length: 100 }, (_, index) => NESTED(`leaf${index}-${group}`)),
+        })
+      return jsonResponse({ members: [] })
+    })
+
+    const result = await membersOf(GROUP)
+    expect(result).toEqual({ group: GROUP, memberTokens: [], complete: false })
+    /** Five root pages account for four requests beyond the unique-group budget. */
+    expect(groupReads).toBe(100_004)
+  }, 15_000)
+
   it('excludes a member the directory does not currently count as active', async () => {
     directory({
       'eng@corp.com': [
@@ -149,7 +204,7 @@ describe('the membership a directory reports', () => {
     })
 
     await expect(membersOf(GROUP)).resolves.toMatchObject({
-      memberEmails: ['alice@corp.com'],
+      memberTokens: ['u:alice@corp.com'],
     })
   })
 
@@ -177,7 +232,7 @@ describe('the membership a directory reports', () => {
     })
 
     await expect(membersOf(GROUP)).resolves.toMatchObject({
-      memberEmails: ['alice@corp.com'],
+      memberTokens: ['u:alice@corp.com'],
       complete: true,
     })
   })
@@ -208,7 +263,7 @@ describe('openGoogleDirectory', () => {
 
     await expect(dir?.listGroupMembers({ id: 'domain:corp.com' })).resolves.toEqual({
       group: { id: 'domain:corp.com' },
-      memberEmails: ['*@corp.com'],
+      memberTokens: ['u:*@corp.com'],
       complete: true,
     })
     expect(mockFetch).not.toHaveBeenCalled()
@@ -218,14 +273,14 @@ describe('openGoogleDirectory', () => {
     directory({ 'all@corp.com': [{ type: 'CUSTOMER', status: 'ACTIVE' }, USER('bob@corp.com')] })
     const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
 
-    const { memberEmails, complete } = await dir!.listGroupMembers({ id: 'all@corp.com' })
+    const { memberTokens, complete } = await dir!.listGroupMembers({ id: 'all@corp.com' })
 
     expect(complete).toBe(true)
-    expect(memberEmails.sort()).toEqual([
-      '*@corp.com',
-      '*@corp.io',
-      '*@sub.corp.com',
-      'bob@corp.com',
+    expect(memberTokens.sort()).toEqual([
+      'u:*@corp.com',
+      'u:*@corp.io',
+      'u:*@sub.corp.com',
+      'u:bob@corp.com',
     ])
   })
 

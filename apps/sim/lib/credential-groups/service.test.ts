@@ -10,25 +10,100 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPolicy } = vi.hoisted(() => ({
+const { mockGetPolicy, mockConfiguration } = vi.hoisted(() => ({
   mockGetPolicy: vi.fn(),
+  mockConfiguration: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/provider-registry', () => ({
   getCredentialGroupProviderAdapter: () => ({ getPolicy: mockGetPolicy }),
 }))
+vi.mock('@/lib/credential-groups/provider-configuration', () => ({
+  decryptCredentialGroupProviderConfiguration: mockConfiguration,
+}))
 
+import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
-  createCredentialGroup,
-  deleteCredentialGroup,
+  ensureWorkspaceAccountsGroup,
+  getCredentialGroup,
   updateCredentialGroup,
 } from '@/lib/credential-groups/service'
+import {
+  SLACK_MANAGED_USER_SCOPES,
+  SLACK_SEARCH_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
 
 describe('Credential Group service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockConfiguration.mockResolvedValue({})
   })
+
+  it.each([
+    {
+      name: 'minimal search ready',
+      required: SLACK_SEARCH_USER_SCOPES,
+      granted: SLACK_SEARCH_USER_SCOPES,
+      expected: 'ready',
+    },
+    {
+      name: 'workflow ready',
+      required: SLACK_MANAGED_USER_SCOPES,
+      granted: SLACK_MANAGED_USER_SCOPES,
+      expected: 'ready',
+    },
+    {
+      name: 'workflow needs additional consent',
+      required: SLACK_MANAGED_USER_SCOPES,
+      granted: SLACK_SEARCH_USER_SCOPES,
+      expected: 'needs_update',
+    },
+    {
+      name: 'search missing history',
+      required: SLACK_SEARCH_USER_SCOPES,
+      granted: SLACK_SEARCH_USER_SCOPES.filter((scope) => scope !== 'groups:history'),
+      expected: 'needs_update',
+    },
+  ])(
+    'projects configuration status from the canonical option policy: $name',
+    async ({ required, granted, expected }) => {
+      const now = new Date('2026-09-04T00:00:00Z')
+      queueTableRows(schemaMock.credentialGroup, [
+        {
+          id: 'group-1',
+          workspaceId: 'workspace-1',
+          name: 'Members',
+          description: null,
+          options: [
+            {
+              id: 'option-1',
+              label: 'Slack',
+              provider: 'slack',
+              slackBotCredentialId: 'bot-1',
+              required: false,
+              status: 'active',
+              requiredScopes: [...required],
+              scopeVersion: credentialGroupScopePolicyVersion([...required]),
+            },
+          ],
+          encryptedProviderConfiguration: 'encrypted',
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ])
+      queueTableRows(schemaMock.mcpServers, [])
+      mockConfiguration.mockResolvedValue({
+        slack: { slackBotCredentialId: 'bot-1', scopes: [...granted] },
+      })
+      const result = await getCredentialGroup('workspace-1', 'group-1')
+      expect(result?.options[0]).toMatchObject({
+        configurationStatus: expected,
+        requiredScopes: [...required],
+      })
+    }
+  )
 
   it('validates provider policy through the active update transaction', async () => {
     const option = {
@@ -79,7 +154,7 @@ describe('Credential Group service', () => {
           },
         ],
       })
-    ).resolves.toMatchObject({ credentialGroup: { id: 'group-1' } })
+    ).resolves.toMatchObject({ id: 'group-1' })
 
     expect(mockGetPolicy).toHaveBeenCalledWith(
       expect.objectContaining({ slackBotCredentialId: 'bot-1' }),
@@ -133,13 +208,10 @@ describe('Credential Group service', () => {
       },
     ])
 
-    await expect(
-      createCredentialGroup('workspace-1', 'user-1', {
-        name: 'Support accounts',
-        description: '',
-        options: [],
-      })
-    ).resolves.toMatchObject({ id: 'group-1', workspaceId: 'workspace-1' })
+    await expect(ensureWorkspaceAccountsGroup('workspace-1', 'user-1')).resolves.toMatchObject({
+      id: 'group-1',
+      workspaceId: 'workspace-1',
+    })
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
   })
 
@@ -160,29 +232,30 @@ describe('Credential Group service', () => {
       },
     ])
 
-    await expect(
-      createCredentialGroup('workspace-1', 'user-1', {
-        name: 'Support accounts',
-        description: '',
-        options: [],
-      })
-    ).rejects.toThrow('Required resource policy is missing')
+    await expect(ensureWorkspaceAccountsGroup('workspace-1', 'user-1')).rejects.toThrow(
+      'Required resource policy is missing'
+    )
   })
 
-  it('deletes the policy and group in one locked transaction', async () => {
-    queueTableRows(schemaMock.credentialGroup, [{ id: 'group-1' }])
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ id: 'policy-1' }])
-      .mockResolvedValueOnce([{ id: 'group-1' }])
-
-    await expect(deleteCredentialGroup('workspace-1', 'group-1')).resolves.toEqual({
-      deleted: true,
-      retiredMcpConnectionIds: [],
-      retiredMcpServerIds: [],
+  it('reuses the existing workspace container without inserting or renaming it', async () => {
+    queueTableRows(schemaMock.credentialGroup, [
+      {
+        id: 'group-1',
+        workspaceId: 'workspace-1',
+        name: 'Existing accounts',
+        description: null,
+        options: [],
+        encryptedProviderConfiguration: null,
+        status: 'active',
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-20T00:00:00.000Z'),
+      },
+    ])
+    await expect(ensureWorkspaceAccountsGroup('workspace-1', 'user-1')).resolves.toMatchObject({
+      id: 'group-1',
+      created: false,
     })
-
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

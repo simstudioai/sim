@@ -3,6 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAvailability, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
@@ -245,7 +246,7 @@ describe('createKnowledgeAccessProvider', () => {
     const [first, second] = await Promise.all([provider.get(), provider.get()])
 
     expect(first).toBe(second)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
   })
 
   it('retries after a failed lookup rather than caching the failure', async () => {
@@ -318,6 +319,27 @@ describe('tokens mirrored from a source directory', () => {
     expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
+  it('matches source groups through an active provider identity when the source hides member emails', async () => {
+    queueSubjects([
+      {
+        email: 'alice@corp.com',
+        providerId: 'confluence',
+        providerTenantId: null,
+        providerSubjectId: '557058:MixedCase',
+      },
+    ])
+    queueGroups([{ providerId: 'confluence', tenantId: 'cloud-A', externalGroupId: 'engineers' }])
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toMatchObject({
+      tokens: [
+        'g:confluence:cloud-A:engineers',
+        'pub',
+        's:confluence:-:557058:MixedCase',
+        'u:alice@corp.com',
+        'ws',
+      ],
+    })
+  })
+
   it('still gives a person their own address when they are in no group', async () => {
     queueSubjects([
       {
@@ -383,12 +405,7 @@ describe('each token family is gated by the feature it depends on', () => {
     resetDbChainMock()
   })
 
-  /**
-   * Admin mode mirrors a source's own ACLs and touches no Credential Group, so
-   * an operator turning Credential Groups off must not silently revoke every
-   * document an administrator crawl mirrored.
-   */
-  it('keeps mirrored grants when Credential Groups are unavailable', async () => {
+  it('keeps verified email groups but excludes subject-derived grants when managed identities are unavailable', async () => {
     mockAvailability.mockResolvedValueOnce({ memberScoped: false, sourceMirrored: true })
     queueTableRows(schemaMock.user, [
       {
@@ -407,6 +424,10 @@ describe('each token family is gated by the feature it depends on', () => {
       userId: 'user-1',
       tokens: ['g:google-drive:corp.com:eng@corp.com', 'pub', 'u:alice@corp.com', 'ws'],
     })
+    expect(inArray).toHaveBeenCalledWith(schemaMock.knowledgeExternalGroupMember.subjectToken, [
+      'u:alice@corp.com',
+      'u:*@corp.com',
+    ])
   })
 
   it('keeps member grants when source mirroring is unavailable', async () => {

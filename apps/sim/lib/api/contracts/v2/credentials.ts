@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  atlassianProductSchema,
   quickBooksOAuthClientConfigSchema,
   workspaceCredentialRoleSchema,
 } from '@/lib/api/contracts/credentials'
@@ -413,6 +414,11 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only provider API token.')
       .meta({ writeOnly: true }),
     domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+    atlassianProduct: atlassianProductSchema
+      .optional()
+      .describe(
+        'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.'
+      ),
     signingSecret: z
       .string()
       .trim()
@@ -662,6 +668,11 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only provider API token.')
     .meta({ writeOnly: true }),
   domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+  atlassianProduct: atlassianProductSchema
+    .optional()
+    .describe(
+      'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.'
+    ),
   signingSecret: z
     .string()
     .trim()

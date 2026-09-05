@@ -2,33 +2,38 @@ import { db } from '@sim/db'
 import {
   knowledgeBase,
   knowledgeConnector,
+  knowledgeExternalDirectory,
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, gte, isNull, notInArray } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
-import { canonicalGroupId } from '@/lib/knowledge/access/tokens'
+import { canonicalGroupId, isIdentityToken } from '@/lib/knowledge/access/tokens'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
   resolveConnectorAccessToken,
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorConfig,
   ConnectorDirectory,
   ConnectorDirectoryGroup,
+  ConnectorDirectoryMembership,
 } from '@/connectors/types'
 
 const logger = createLogger('ExternalGroupSync')
 
 /** Member rows written per statement while replacing a group's membership. */
 const MEMBER_WRITE_BATCH_SIZE = 500
+export const DIRECTORY_ERROR_PREFIX = 'Directory refresh failed: '
 
 interface DirectorySyncResult {
   /** Groups whose membership was replaced from a complete enumeration. */
@@ -37,121 +42,193 @@ interface DirectorySyncResult {
   keptStale: number
   /** Groups the directory no longer has, removed along with their membership. */
   pruned: number
-  /** True when the sync was skipped because the directory was read recently enough. */
+  /** The directory is already complete and fresh, or another worker holds its lease. */
   skipped: boolean
+  error?: Error
+}
+
+/** The lease covers the directory worker's maximum provider wait; every write checks expiry. */
+const DIRECTORY_LEASE_MS = 30 * 60 * 1000
+const GROUP_DELETE_BATCH_SIZE = 500
+
+type DirectoryIdentity = Pick<ConnectorDirectory, 'providerId' | 'tenantId'> & {
+  workspaceId: string
+}
+interface DirectoryLease extends DirectoryIdentity {
+  token: string
+}
+
+function directoryIdentity(identity: DirectoryIdentity) {
+  return and(
+    eq(knowledgeExternalDirectory.workspaceId, identity.workspaceId),
+    eq(knowledgeExternalDirectory.providerId, identity.providerId),
+    eq(knowledgeExternalDirectory.tenantId, identity.tenantId)
+  )
+}
+
+function unexpiredDirectoryLease(lease: DirectoryLease) {
+  return and(
+    directoryIdentity(lease),
+    eq(knowledgeExternalDirectory.syncLockToken, lease.token),
+    gt(
+      knowledgeExternalDirectory.syncLockLeaseAt,
+      sql`clock_timestamp() - ${DIRECTORY_LEASE_MS} * interval '1 millisecond'`
+    )
+  )
+}
+
+/** Short transactions fence every write against both replacement and expiry of its directory lease. */
+async function withDirectoryLease<T>(
+  lease: DirectoryLease,
+  write: (tx: DbTransaction) => Promise<T>
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    const [held] = await tx
+      .update(knowledgeExternalDirectory)
+      .set({ syncLockLeaseAt: sql`clock_timestamp()` })
+      .where(unexpiredDirectoryLease(lease))
+      .returning({ token: knowledgeExternalDirectory.syncLockToken })
+    if (!held) throw new Error('Directory sync lease expired or was replaced')
+    return write(tx)
+  })
+}
+
+async function claimDirectory(
+  identity: DirectoryIdentity,
+  force: boolean
+): Promise<DirectoryLease | null> {
+  await db.insert(knowledgeExternalDirectory).values(identity).onConflictDoNothing()
+  const lease = { ...identity, token: generateId() }
+  const [claimed] = await db
+    .update(knowledgeExternalDirectory)
+    .set({
+      syncLockToken: lease.token,
+      syncLockLeaseAt: sql`clock_timestamp()`,
+      lastStartedAt: sql`clock_timestamp()`,
+    })
+    .where(
+      and(
+        directoryIdentity(identity),
+        or(
+          isNull(knowledgeExternalDirectory.syncLockToken),
+          isNull(knowledgeExternalDirectory.syncLockLeaseAt),
+          lt(
+            knowledgeExternalDirectory.syncLockLeaseAt,
+            sql`clock_timestamp() - ${DIRECTORY_LEASE_MS} * interval '1 millisecond'`
+          )
+        ),
+        force
+          ? undefined
+          : or(
+              isNull(knowledgeExternalDirectory.lastCompleteSyncAt),
+              gt(
+                knowledgeExternalDirectory.lastStartedAt,
+                knowledgeExternalDirectory.lastCompleteSyncAt
+              ),
+              lt(
+                knowledgeExternalDirectory.lastCompleteSyncAt,
+                sql`clock_timestamp() - ${EXTERNAL_GROUP_SYNC_INTERVAL_MS} * interval '1 millisecond'`
+              )
+            )
+      )
+    )
+    .returning({ token: knowledgeExternalDirectory.syncLockToken })
+  return claimed ? lease : null
 }
 
 /**
- * Refreshes the external directory groups of one workspace, for one provider
- * and tenant.
- *
- * The unit of work is a group, not the directory: a group whose membership
- * enumerates completely is replaced, and one that does not is left exactly as
- * it was. That is the whole difference from Onyx, whose group sync marks every
- * row stale, upserts whatever the source returned, and sweeps the rest — clean
- * until the directory half-fails, at which point it revokes access from real
- * members whose rows simply were not returned that run. Here a directory outage
- * costs freshness and nothing else, and
- * `EXTERNAL_GROUP_STALE_AFTER_MS` is what stops that patience becoming
- * permanent.
+ * A directory has one shared writer across all connectors. Completion is recorded
+ * only after the full group listing and every membership are confirmed, including
+ * empty directories. Interrupted passes cannot turn a fresh subset into completion.
  */
 export async function syncExternalDirectoryGroups(input: {
   workspaceId: string
   directory: ConnectorDirectory
+  force?: boolean
 }): Promise<DirectorySyncResult> {
   const { workspaceId, directory } = input
   const { providerId, tenantId } = directory
+  const lease = await claimDirectory({ workspaceId, providerId, tenantId }, Boolean(input.force))
+  if (!lease) return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true }
 
-  if (await directoryReadRecently(workspaceId, providerId, tenantId)) {
-    return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true }
-  }
-
-  const groups = await directory.listGroups()
-  logger.info('Enumerating directory groups', {
-    workspaceId,
-    providerId,
-    tenantId,
-    groups: groups.length,
-  })
-
-  let refreshed = 0
-  let keptStale = 0
-  for (const group of groups) {
-    const groupId = await upsertGroup({ workspaceId, providerId, tenantId, group })
-    try {
-      const membership = await directory.listGroupMembers(group)
-      if (!membership.complete) {
+  try {
+    const groups = await directory.listGroups()
+    logger.info('Enumerating directory groups', {
+      workspaceId,
+      providerId,
+      tenantId,
+      groups: groups.length,
+    })
+    let refreshed = 0
+    let keptStale = 0
+    let firstError: Error | undefined
+    for (const group of groups) {
+      const groupId = await withDirectoryLease(lease, (tx) =>
+        upsertGroup({ workspaceId, providerId, tenantId, group }, tx)
+      )
+      let membership: ConnectorDirectoryMembership
+      try {
+        membership = await directory.listGroupMembers(group)
+      } catch (error) {
+        if (isRateLimitError(error)) throw error
         keptStale += 1
-        logger.warn('Keeping last-known-good membership for a partially enumerated group', {
+        firstError ??= toError(error)
+        logger.warn('Keeping last-known-good membership for a group that failed to enumerate', {
           workspaceId,
           providerId,
           externalGroupId: group.id,
+          error: getErrorMessage(error),
         })
         continue
       }
-      await replaceGroupMembers(groupId, membership.memberEmails)
-      refreshed += 1
-    } catch (error) {
-      keptStale += 1
-      logger.warn('Keeping last-known-good membership for a group that failed to enumerate', {
-        workspaceId,
-        providerId,
-        externalGroupId: group.id,
-        error: getErrorMessage(error),
-      })
-    }
-  }
-
-  const pruned = await pruneRemovedGroups({
-    workspaceId,
-    providerId,
-    tenantId,
-    keep: groups.map((group) => canonicalGroupId(group.id)),
-  })
-
-  return { refreshed, keptStale, pruned, skipped: false }
-}
-
-/**
- * Whether this directory was walked within the sync interval.
- *
- * Keyed off the *most* recently confirmed group: a walk confirms every group
- * it can read, so one confirmed within the interval means the walk ran then.
- * Keying off the least recent would make one group the service account can
- * never read — a permanent 403 — keep the whole directory due forever, and
- * re-walk it every tick. That group still stays on its last-known-good
- * membership and ages out on the read side like any other. No groups at all
- * is a directory that has never been read, not a fresh one.
- */
-async function directoryReadRecently(
-  workspaceId: string,
-  providerId: string,
-  tenantId: string
-): Promise<boolean> {
-  const freshEnough = new Date(Date.now() - EXTERNAL_GROUP_SYNC_INTERVAL_MS)
-  const [recent] = await db
-    .select({ id: knowledgeExternalGroup.id })
-    .from(knowledgeExternalGroup)
-    .where(
-      and(
-        eq(knowledgeExternalGroup.workspaceId, workspaceId),
-        eq(knowledgeExternalGroup.providerId, providerId),
-        eq(knowledgeExternalGroup.tenantId, tenantId),
-        gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
+      if (!membership.complete) {
+        keptStale += 1
+        firstError ??= new Error('A group membership listing was incomplete')
+        continue
+      }
+      await withDirectoryLease(lease, (tx) =>
+        replaceGroupMembers(groupId, membership.memberTokens, tx)
       )
+      refreshed += 1
+    }
+
+    const pruned = await pruneRemovedGroups(
+      lease,
+      groups.map((group) => canonicalGroupId(group.id))
     )
-    .limit(1)
-  return Boolean(recent)
+    await withDirectoryLease(lease, async (tx) => {
+      await tx
+        .update(knowledgeExternalDirectory)
+        .set({
+          ...(keptStale === 0 ? { lastCompleteSyncAt: sql`clock_timestamp()` } : {}),
+          syncLockToken: null,
+          syncLockLeaseAt: null,
+        })
+        .where(directoryIdentity(lease))
+    })
+    return {
+      refreshed,
+      keptStale,
+      pruned,
+      skipped: false,
+      ...(firstError && { error: firstError }),
+    }
+  } finally {
+    await db
+      .update(knowledgeExternalDirectory)
+      .set({ syncLockToken: null, syncLockLeaseAt: null })
+      .where(
+        and(directoryIdentity(lease), eq(knowledgeExternalDirectory.syncLockToken, lease.token))
+      )
+  }
 }
 
-async function upsertGroup(input: {
-  workspaceId: string
-  providerId: string
-  tenantId: string
-  group: ConnectorDirectoryGroup
-}): Promise<string> {
+async function upsertGroup(
+  input: DirectoryIdentity & { group: ConnectorDirectoryGroup },
+  tx: DbTransaction
+): Promise<string> {
   const { workspaceId, providerId, tenantId, group } = input
-  const [row] = await db
+  const [row] = await tx
     .insert(knowledgeExternalGroup)
     .values({
       id: generateId(),
@@ -173,62 +250,60 @@ async function upsertGroup(input: {
   return row.id
 }
 
-/**
- * Replaces a group's membership with a complete enumeration, and marks it
- * confirmed.
- *
- * One transaction, so a reader never sees a group mid-rewrite — briefly empty
- * would mean briefly revoked for everyone in it. `lastSyncedAt` moves only
- * here, on the path that had the whole membership in hand.
- */
-async function replaceGroupMembers(groupId: string, emails: string[]): Promise<void> {
-  const unique = [...new Set(emails)]
-  const now = new Date()
-  await db.transaction(async (tx) => {
+/** Membership replacement and its freshness watermark commit together under the directory lease. */
+async function replaceGroupMembers(
+  groupId: string,
+  memberTokens: string[],
+  tx: DbTransaction
+): Promise<void> {
+  if (memberTokens.some((token) => !isIdentityToken(token))) {
+    throw new Error('Directory membership contains an invalid identity token')
+  }
+  await tx
+    .delete(knowledgeExternalGroupMember)
+    .where(eq(knowledgeExternalGroupMember.groupId, groupId))
+  for (const batch of chunkArray([...new Set(memberTokens)], MEMBER_WRITE_BATCH_SIZE)) {
     await tx
-      .delete(knowledgeExternalGroupMember)
-      .where(eq(knowledgeExternalGroupMember.groupId, groupId))
-
-    for (const batch of chunkArray(unique, MEMBER_WRITE_BATCH_SIZE)) {
-      await tx
-        .insert(knowledgeExternalGroupMember)
-        .values(batch.map((email) => ({ groupId, email })))
-    }
-
-    await tx
-      .update(knowledgeExternalGroup)
-      .set({ lastSyncedAt: now, updatedAt: now })
-      .where(eq(knowledgeExternalGroup.id, groupId))
-  })
+      .insert(knowledgeExternalGroupMember)
+      .values(batch.map((subjectToken) => ({ groupId, subjectToken })))
+  }
+  await tx
+    .update(knowledgeExternalGroup)
+    .set({ lastSyncedAt: sql`clock_timestamp()`, updatedAt: sql`clock_timestamp()` })
+    .where(eq(knowledgeExternalGroup.id, groupId))
 }
 
-/**
- * Removes groups this directory no longer has, cascading their membership.
- *
- * Only ever called with the result of a complete `listGroups`, which every
- * directory implements to throw rather than return a partial page — deleting
- * groups because a listing was truncated would revoke everyone in them.
- */
-async function pruneRemovedGroups(input: {
-  workspaceId: string
-  providerId: string
-  tenantId: string
-  keep: readonly string[]
-}): Promise<number> {
-  const removed = await db
-    .delete(knowledgeExternalGroup)
-    .where(
-      and(
-        eq(knowledgeExternalGroup.workspaceId, input.workspaceId),
-        eq(knowledgeExternalGroup.providerId, input.providerId),
-        eq(knowledgeExternalGroup.tenantId, input.tenantId),
-        ...(input.keep.length > 0
-          ? [notInArray(knowledgeExternalGroup.externalGroupId, [...input.keep])]
-          : [])
+/** Only a complete provider group listing may prune; each bounded deletion rechecks ownership. */
+async function pruneRemovedGroups(lease: DirectoryLease, keep: readonly string[]): Promise<number> {
+  let count = 0
+  while (true) {
+    const removed = await withDirectoryLease(lease, async (tx) => {
+      const rows = await tx
+        .select({ id: knowledgeExternalGroup.id })
+        .from(knowledgeExternalGroup)
+        .where(
+          and(
+            eq(knowledgeExternalGroup.workspaceId, lease.workspaceId),
+            eq(knowledgeExternalGroup.providerId, lease.providerId),
+            eq(knowledgeExternalGroup.tenantId, lease.tenantId),
+            ...(keep.length > 0
+              ? [notInArray(knowledgeExternalGroup.externalGroupId, [...keep])]
+              : [])
+          )
+        )
+        .limit(GROUP_DELETE_BATCH_SIZE)
+      if (rows.length === 0) return 0
+      await tx.delete(knowledgeExternalGroup).where(
+        inArray(
+          knowledgeExternalGroup.id,
+          rows.map((row) => row.id)
+        )
       )
-    )
-    .returning({ id: knowledgeExternalGroup.id })
-  return removed.length
+      return rows.length
+    })
+    count += removed
+    if (removed < GROUP_DELETE_BATCH_SIZE) return count
+  }
 }
 
 /**
@@ -240,9 +315,8 @@ async function pruneRemovedGroups(input: {
  *
  * It is rate-limited on its own clock rather than the connector's, so a
  * frequently-syncing connector does not re-read the whole directory every run.
- * A failure is logged rather than thrown: last-known-good membership is still
- * serving reads, and failing the content sync over it would strand the
- * documents as well as the groups.
+ * Failures retain the last confirmed membership and propagate to the caller's
+ * sync status and retry policy.
  */
 export async function refreshMirroredDirectory(input: {
   workspaceId: string
@@ -250,9 +324,10 @@ export async function refreshMirroredDirectory(input: {
   sourceConfig: Record<string, unknown>
   syncContext: Record<string, unknown>
   accessToken: string
-}): Promise<void> {
+  force?: boolean
+}): Promise<'refreshed' | 'skipped'> {
   const { workspaceId, connectorConfig } = input
-  if (!connectorConfig.openDirectory) return
+  if (!connectorConfig.openDirectory) return 'skipped'
 
   try {
     const directory = await connectorConfig.openDirectory(
@@ -265,20 +340,27 @@ export async function refreshMirroredDirectory(input: {
         workspaceId,
         connector: connectorConfig.id,
       })
-      return
+      return 'skipped'
     }
-    const result = await syncExternalDirectoryGroups({ workspaceId, directory })
+    const result = await syncExternalDirectoryGroups({ workspaceId, directory, force: input.force })
+    if (result.keptStale > 0) {
+      throw new Error(`${result.keptStale} group memberships could not be refreshed`, {
+        cause: result.error,
+      })
+    }
     logger.info('Refreshed mirrored directory groups', {
       workspaceId,
       tenantId: directory.tenantId,
       ...result,
     })
+    return result.skipped ? 'skipped' : 'refreshed'
   } catch (error) {
     logger.error('Directory refresh failed; serving last-known-good group membership', {
       workspaceId,
       connector: connectorConfig.id,
       error: getErrorMessage(error),
     })
+    throw new Error(`${DIRECTORY_ERROR_PREFIX}${getErrorMessage(error)}`, { cause: error })
   }
 }
 
@@ -307,6 +389,8 @@ export async function refreshConnectorDirectory(
       sourceConfig: knowledgeConnector.sourceConfig,
       workspaceId: knowledgeBase.workspaceId,
       knowledgeBaseOwnerId: knowledgeBase.userId,
+      updatedAt: knowledgeConnector.updatedAt,
+      lastSyncError: knowledgeConnector.lastSyncError,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
@@ -343,12 +427,36 @@ export async function refreshConnectorDirectory(
   })
   if (!token) return 'unusable'
 
-  await refreshMirroredDirectory({
-    workspaceId: connector.workspaceId,
-    connectorConfig,
-    sourceConfig,
-    syncContext: syncContextForToken(token),
-    accessToken: token.accessToken,
-  })
-  return 'refreshed'
+  const recordError = async (lastSyncError: string | null) => {
+    await db
+      .update(knowledgeConnector)
+      .set({ lastSyncError, updatedAt: new Date() })
+      .where(
+        and(
+          eq(knowledgeConnector.id, connector.id),
+          eq(knowledgeConnector.updatedAt, connector.updatedAt),
+          isNull(knowledgeConnector.syncLockToken),
+          isNull(knowledgeConnector.memberSyncLockToken),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+  }
+  try {
+    const outcome = await refreshMirroredDirectory({
+      workspaceId: connector.workspaceId,
+      connectorConfig,
+      sourceConfig,
+      syncContext: syncContextForToken(token),
+      accessToken: token.accessToken,
+      force: connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
+    })
+    if (outcome === 'refreshed' && connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX)) {
+      await recordError(null)
+    }
+    return outcome
+  } catch (error) {
+    await recordError(getErrorMessage(error))
+    throw error
+  }
 }

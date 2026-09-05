@@ -38,6 +38,7 @@ import {
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { getBlock } from '@/blocks'
@@ -64,6 +65,7 @@ const logger = createLogger('ConnectorsSection')
 interface ConnectorsSectionProps {
   workspaceId: string
   knowledgeBaseId: string
+  isSearchIndex?: boolean
   connectors: ConnectorData[]
   isLoading: boolean
   canEdit: boolean
@@ -108,6 +110,7 @@ const CONNECTOR_ACTION_BUTTON_CLASSES =
 export function ConnectorsSection({
   workspaceId,
   knowledgeBaseId,
+  isSearchIndex = false,
   connectors,
   isLoading,
   canEdit,
@@ -238,6 +241,7 @@ export function ConnectorsSection({
           open={editingConnector !== null}
           onOpenChange={(val) => !val && setEditingConnector(null)}
           knowledgeBaseId={knowledgeBaseId}
+          isSearchIndex={isSearchIndex}
           connector={editingConnector}
         />
       )}
@@ -308,6 +312,9 @@ function ConnectorCard({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
 
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
+  const sourceDescription = connectorDef
+    ? describeSearchSource(connectorDef, connector.sourceConfig)
+    : ''
   const Icon = connectorDef?.icon
   const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
   /**
@@ -443,6 +450,11 @@ function ConnectorCard({
                 </Badge>
               )}
             </div>
+            {sourceDescription && (
+              <span className='min-w-0 text-[var(--text-muted)] text-xs'>
+                <OverflowText label={sourceDescription} />
+              </span>
+            )}
             <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
               {lastSyncAt && (
                 <span>Last sync: {format(new Date(lastSyncAt), 'MMM d, h:mm a')}</span>
@@ -770,12 +782,14 @@ function ConnectorCard({
  * Rendering it as still running is the failure this state exists to fix; the
  * same TTL already governs the reclaim that takes its lock away.
  */
-type SyncLogState = 'running' | 'interrupted' | 'failed' | 'completed'
+type SyncLogState = 'running' | 'interrupted' | 'failed' | 'completed' | 'partial'
 
 function getSyncLogState(log: SyncLogData, now: number): SyncLogState {
   switch (log.status) {
     case 'completed':
       return 'completed'
+    case 'partial':
+      return 'partial'
     case 'failed':
       return 'failed'
     case 'started': {
@@ -830,7 +844,7 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
             <div className='mt-[1px] shrink-0'>
               {state === 'running' ? (
                 <Loader className='size-3 text-[var(--text-muted)]' animate />
-              ) : state === 'interrupted' ? (
+              ) : state === 'interrupted' || state === 'partial' ? (
                 <TriangleAlert className='size-3 text-[var(--caution)]' />
               ) : state === 'failed' ? (
                 <CircleX className='size-3 text-[var(--text-error)]' />
@@ -844,7 +858,7 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                 <span className='text-[var(--text-muted)]'>
                   {format(new Date(log.startedAt), 'MMM d, h:mm a')}
                 </span>
-                {state === 'completed' && (
+                {(state === 'completed' || state === 'partial') && (
                   <span className='text-[var(--text-muted)]'>
                     {totalChanges > 0 ? (
                       <>
@@ -886,6 +900,7 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                     )}
                   </span>
                 )}
+                {state === 'partial' && <span className='text-[var(--caution)]'>Partial</span>}
                 {state === 'running' && (
                   <span className='text-[var(--text-muted)]'>In progress…</span>
                 )}
@@ -909,6 +924,8 @@ function getMemberSyncLogState(log: MemberSyncLogData, now: number): SyncLogStat
   switch (log.status) {
     case 'completed':
       return 'completed'
+    case 'partial':
+      return 'partial'
     case 'failed':
       return 'failed'
     case 'started': {
@@ -971,7 +988,7 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
                 <div className='mt-[1px] shrink-0'>
                   {state === 'running' ? (
                     <Loader className='size-3 text-[var(--text-muted)]' animate />
-                  ) : state === 'interrupted' ? (
+                  ) : state === 'interrupted' || state === 'partial' ? (
                     <TriangleAlert className='size-3 text-[var(--caution)]' />
                   ) : state === 'failed' ? (
                     <CircleX className='size-3 text-[var(--text-error)]' />
@@ -982,7 +999,7 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
                 <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
                   <div className='flex flex-wrap items-center gap-1.5 text-[var(--text-muted)]'>
                     <span>{format(new Date(log.startedAt), 'MMM d, h:mm a')}</span>
-                    {state === 'completed' && (
+                    {(state === 'completed' || state === 'partial') && (
                       <span>
                         {log.membersCompleted + log.membersIncomplete + log.membersFailed} member
                         {log.membersCompleted + log.membersIncomplete + log.membersFailed === 1
@@ -1014,6 +1031,7 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
                         )}
                       </span>
                     )}
+                    {state === 'partial' && <span className='text-[var(--caution)]'>Partial</span>}
                     {state === 'running' && <span>In progress…</span>}
                     {state === 'interrupted' && (
                       <span className='text-[var(--caution)]'>Interrupted</span>

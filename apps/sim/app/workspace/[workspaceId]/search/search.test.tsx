@@ -5,20 +5,36 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { mockConnect, mockConnectSource, mockFeatures } = vi.hoisted(() => ({
+const {
+  mockConnect,
+  mockConnectSource,
+  mockFeatures,
+  mockExtraSources,
+  mockSearchTerm,
+  mockPrepareSource,
+  mockNavigate,
+  mockSlackAvailable,
+} = vi.hoisted(() => ({
   mockConnect: vi.fn(),
   mockConnectSource: vi.fn(),
   mockFeatures: vi.fn(),
+  mockExtraSources: vi.fn(),
+  mockSearchTerm: vi.fn(),
+  mockPrepareSource: vi.fn(),
+  mockNavigate: vi.fn(),
+  mockSlackAvailable: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
+  usePathname: () => '/workspace/workspace-1/search',
+  useRouter: () => ({ push: mockNavigate }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => ({ features: mockFeatures() }),
 }))
 vi.mock('nuqs', () => ({
-  useQueryState: () => ['', vi.fn()],
+  useQueryState: () => [mockSearchTerm() ?? '', vi.fn()],
 }))
 vi.mock('@/hooks/use-debounced-search-setter', () => ({
   useDebouncedSearchSetter: (write: (value: string) => void) => write,
@@ -29,7 +45,7 @@ vi.mock('@/hooks/queries/workspace', () => ({
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map([
-      ['slack', { state: 'limited', oauthAvailable: false }],
+      ['slack', { oauthAvailable: mockSlackAvailable() ?? false }],
       ['jira', { state: 'available', oauthAvailable: true }],
     ]),
   }),
@@ -41,6 +57,9 @@ vi.mock('@/app/workspace/[workspaceId]/components', () => ({
   IntegrationTabsHeader: () => null,
 }))
 vi.mock('@/blocks', () => ({ getBlock: () => undefined }))
+vi.mock('@/app/workspace/[workspaceId]/search/components/managed-search-sources', () => ({
+  ManagedSearchSources: () => null,
+}))
 vi.mock('@/lib/integrations', () => ({
   blockTypeToIconMap: {},
   resolveCredentialDisplay: () => ({ icon: () => null, blockType: 'confluence', subtitle: 'Sub' }),
@@ -73,6 +92,7 @@ vi.mock('@/lib/sim-search/connectors', () => {
   ) => availability.get(candidate.blockType)?.oauthAvailable ?? true
   return {
     SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
+    MANAGED_SEARCH_CONNECTORS: [],
     canConnectPersonally: (meta: { permissionScopedListing?: unknown }) =>
       Boolean(meta.permissionScopedListing),
     connectorDisplayName: (connectorType: string) => connectorType,
@@ -98,13 +118,16 @@ vi.mock('@/lib/sim-search/connectors', () => {
 })
 
 vi.mock('@/hooks/queries/kb/connectors', () => ({
+  usePrepareSearchSource: () => ({ mutate: mockPrepareSource, isPending: false, error: null }),
   memberConnectorKeys: { list: (workspaceId?: string) => ['member-connectors', workspaceId] },
   useWorkspaceMemberConnectors: () => ({
     isPending: false,
     data: [
+      ...(mockExtraSources() ?? []),
       {
         knowledgeBaseId: 'kb-search',
         knowledgeBaseName: 'Sim Search',
+        knowledgeBaseIsSearchIndex: true,
         connectorId: 'conn-drive',
         connectorType: 'google_drive',
         memberSyncStatus: 'idle',
@@ -123,34 +146,30 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
     ],
   }),
 }))
-vi.mock('@/hooks/use-member-enrollment', async () => {
-  const actual = await vi.importActual<typeof import('@/hooks/use-member-enrollment')>(
-    '@/hooks/use-member-enrollment'
-  )
-  return {
-    CONNECTABLE_MEMBERSHIPS: actual.CONNECTABLE_MEMBERSHIPS,
-    describeMembership: actual.describeMembership,
-    enrollmentActionLabel: actual.enrollmentActionLabel,
-    useMemberEnrollment: () => ({
-      connect: mockConnect,
-      connectSource: mockConnectSource,
-      connectSearchSource: (
-        workspaceId: string,
-        connector: { type: string },
-        connection: { knowledgeBaseId: string; connectorId: string } | undefined
-      ) =>
-        connection
-          ? mockConnect(connection.knowledgeBaseId, connection.connectorId)
-          : mockConnectSource(workspaceId, connector.type),
-      setupConnector: null,
-      closeSetup: () => {},
-      isAwaiting: () => false,
-      isAwaitingSource: () => false,
-      isPending: false,
-      error: null,
-    }),
-  }
-})
+vi.mock('@/hooks/use-member-enrollment', () => ({
+  CONNECTABLE_MEMBERSHIPS: new Set(['needs_reauth', 'invited', 'not_enrolled']),
+  describeMembership: ({ membership }: { membership: string }) =>
+    membership === 'connected' ? null : 'Connect your account to search its documents.',
+  enrollmentActionLabel: () => 'Connect',
+  useMemberEnrollment: () => ({
+    connect: mockConnect,
+    connectSource: mockConnectSource,
+    connectSearchSource: (
+      workspaceId: string,
+      connector: { type: string },
+      connection: { knowledgeBaseId: string; connectorId: string } | undefined
+    ) =>
+      connection
+        ? mockConnect(connection.knowledgeBaseId, connection.connectorId)
+        : mockConnectSource(workspaceId, connector.type),
+    setupConnector: null,
+    closeSetup: () => {},
+    isAwaiting: () => false,
+    isAwaitingSource: () => false,
+    isPending: false,
+    error: null,
+  }),
+}))
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: { google_drive: { name: 'Google Drive', icon: () => null } },
 }))
@@ -186,18 +205,137 @@ afterEach(() => {
   container = null
   mockConnect.mockReset()
   mockConnectSource.mockReset()
+  mockExtraSources.mockReset()
+  mockSearchTerm.mockReset()
+  mockPrepareSource.mockReset()
+  mockNavigate.mockReset()
+  mockSlackAvailable.mockReset()
 })
 
 describe('Search', () => {
+  it('links Slack member sign-in directly to Connected accounts', () => {
+    mockSlackAvailable.mockReturnValue(true)
+    mount()
+    const link = Array.from(container?.querySelectorAll('a') ?? []).find((node) =>
+      node.textContent?.includes('Configure member sign-in')
+    )
+    expect(link?.getAttribute('href')).toBe('/workspace/workspace-1/settings/credential-groups')
+    expect(mockPrepareSource).not.toHaveBeenCalled()
+  })
+
+  it('filters configured sources by their displayed source address', () => {
+    mockExtraSources.mockReturnValue([
+      {
+        knowledgeBaseId: 'kb-search',
+        knowledgeBaseName: 'Sim Search',
+        knowledgeBaseIsSearchIndex: true,
+        connectorId: 'conn-finance',
+        connectorType: 'google_drive',
+        sourceDescription: 'Finance folder',
+        memberSyncStatus: 'idle',
+        viewerMembership: 'not_enrolled',
+        viewerDocumentCount: 0,
+      },
+    ])
+    mockSearchTerm.mockReturnValue('finance')
+    mount()
+    expect(container?.textContent).toContain('Finance folder')
+    expect(container?.textContent).not.toContain('Connected · 12 documents')
+    expect(container?.textContent).not.toContain('Sales')
+  })
+
+  it('shows every configured source and connects the selected source by its exact ID', () => {
+    mockExtraSources.mockReturnValue([
+      {
+        knowledgeBaseId: 'kb-search',
+        knowledgeBaseName: 'Sim Search',
+        knowledgeBaseIsSearchIndex: true,
+        connectorId: 'conn-finance',
+        connectorType: 'google_drive',
+        sourceDescription: 'Finance folder',
+        memberSyncStatus: 'idle',
+        viewerMembership: 'not_enrolled',
+        viewerDocumentCount: 0,
+      },
+    ])
+    mount()
+    const section = Array.from(container?.querySelectorAll('section') ?? []).find((node) =>
+      node.textContent?.includes('Your accounts')
+    )
+    expect(section?.textContent).toContain('Finance folder')
+    expect(section?.textContent).toContain('Connected · 12 documents')
+    const connect = Array.from(section?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === 'Connect'
+    )
+    act(() => connect?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })))
+    expect(mockConnect).toHaveBeenCalledWith('kb-search', 'conn-finance')
+  })
+
   it('shows each source with the viewer’s own connection state', () => {
     mount()
 
-    expect(sectionLabels()).toEqual(['Sim Search Connectors', 'Shared with you'])
+    expect(sectionLabels()).toEqual(['Your accounts', 'Shared with you'])
     const text = container?.textContent ?? ''
     expect(text).toContain('Connected · 12 documents')
     expect(text).toContain('Set up by a workspace admin from a knowledge base.')
-    expect(text).toContain('Slack is unavailable in this deployment')
+    expect(text).not.toContain('Slack')
     expect(text).toContain('Sales')
+  })
+
+  it('hides unavailable providers that have no configured source', () => {
+    mockSearchTerm.mockReturnValue('slack')
+    mount()
+    expect(container?.textContent).not.toContain('Slack')
+    expect(sectionLabels()).not.toContain('Your accounts')
+    expect(buttons().some((button) => button.textContent === 'Connect')).toBe(false)
+  })
+
+  it('keeps configured unavailable sources visible with their source identity', () => {
+    mockExtraSources.mockReturnValue([
+      {
+        knowledgeBaseId: 'kb-search',
+        knowledgeBaseName: 'Sim Search',
+        knowledgeBaseIsSearchIndex: true,
+        connectorId: 'conn-slack',
+        connectorType: 'slack',
+        sourceDescription: 'Support workspace',
+        memberSyncStatus: 'idle',
+        viewerMembership: 'connected',
+        viewerDocumentCount: 5,
+      },
+    ])
+    mockSearchTerm.mockReturnValue('support')
+    mount()
+    expect(container?.textContent).toContain('Slack')
+    expect(container?.textContent).toContain(
+      'Support workspace · Slack is unavailable in this deployment'
+    )
+    expect(buttons().some((button) => button.textContent === 'Connect')).toBe(false)
+  })
+
+  it('keeps a previously configured unsupported source reachable without new enrollment', () => {
+    mockExtraSources.mockReturnValue([
+      {
+        knowledgeBaseId: 'kb-search',
+        knowledgeBaseName: 'Sim Search',
+        knowledgeBaseIsSearchIndex: true,
+        connectorId: 'conn-legacy',
+        connectorType: 'airtable',
+        sourceDescription: 'Legacy finance source',
+        memberSyncStatus: 'idle',
+        viewerMembership: 'not_enrolled',
+        viewerDocumentCount: 0,
+      },
+    ])
+    mockSearchTerm.mockReturnValue('legacy finance')
+    mount()
+    expect(container?.textContent).toContain('Existing sources')
+    expect(container?.textContent).toContain('Legacy finance source')
+    expect(
+      container?.querySelector('a[href="/workspace/workspace-1/knowledge/kb-search"]')?.textContent
+    ).toBe('Manage')
+    expect(buttons().some((button) => button.textContent === 'Connect')).toBe(false)
+    expect(container?.textContent).not.toContain('No connectors found')
   })
 
   it('connects a source nobody has connected yet through its per-member connector', () => {
@@ -216,7 +354,7 @@ describe('Search', () => {
   it('offers no connection while per-member access is unavailable in the workspace', () => {
     mount({ knowledgeMemberAccess: false })
 
-    expect(sectionLabels()).toEqual(['Sim Search Connectors'])
+    expect(sectionLabels()).toEqual(['Your accounts'])
     const text = container?.textContent ?? ''
     expect(text).toContain('Per-member access is not available in this workspace')
     expect(text).not.toContain('Connected · 12 documents')

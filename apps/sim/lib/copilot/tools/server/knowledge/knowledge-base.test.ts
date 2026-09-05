@@ -355,6 +355,7 @@ describe('manage_knowledge_base trusted application delegation', () => {
   })
 
   it('projects query secrets before delegating search and passes only the trusted registry', async () => {
+    const controller = new AbortController()
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'KB_QUERY',
@@ -388,7 +389,7 @@ describe('manage_knowledge_base trusted application delegation', () => {
         operation: 'query',
         args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'private query' },
       },
-      { ...CONTEXT, resolvedSecretTraceRegistry: registry }
+      { ...CONTEXT, resolvedSecretTraceRegistry: registry, abortSignal: controller.signal }
     )
 
     expect(result).toMatchObject({
@@ -402,7 +403,9 @@ describe('manage_knowledge_base trusted application delegation', () => {
       knowledgeBaseIds: [KNOWLEDGE_BASE.id],
       query: '{{KB_QUERY}}',
       topK: 5,
+      surface: 'copilot',
       resultSecretRegistry: registry,
+      signal: controller.signal,
     })
     expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
   })

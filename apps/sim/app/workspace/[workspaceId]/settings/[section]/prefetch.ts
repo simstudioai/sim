@@ -1,36 +1,30 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { listCredentialGroupsContract } from '@/lib/api/contracts/credential-groups'
+import { getWorkspaceAccountsContract } from '@/lib/api/contracts/credential-groups'
 import { internalSessionAuth } from '@/lib/api/server/routes/internal-json-route'
-import { listCredentialGroupSettings } from '@/lib/credential-groups/application/manage-groups'
+import { getWorkspaceAccountsSettings } from '@/lib/credential-groups/application/manage-groups'
 import { prefetchCurrentUserSettings } from '@/lib/settings/prefetch-current-user-settings'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
-  CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
+  WORKSPACE_ACCOUNTS_STALE_TIME,
 } from '@/hooks/queries/utils/credential-group-queries'
 
-/** Prefetches credential groups through the route's authorization and response boundaries. */
-async function prefetchCredentialGroups(
+/** Prefetches workspace accounts through the route's authorization and response boundaries. */
+async function prefetchWorkspaceAccounts(
   queryClient: QueryClient,
   { workspaceId }: SettingsSectionPrefetchContext
 ) {
   return queryClient.prefetchQuery({
-    queryKey: credentialGroupKeys.list(workspaceId),
+    queryKey: credentialGroupKeys.workspace(workspaceId),
     queryFn: async () => {
       const principal = await internalSessionAuth.authenticate()
-      const result = await listCredentialGroupSettings.execute({
+      const result = await getWorkspaceAccountsSettings.execute({
         principal,
         input: { workspaceId },
       })
-      /**
-       * Hydrates the whole response envelope, matching what `fetchCredentialGroupSettings` caches
-       * under this key. Narrowing to the groups array here would seed the shared entry with a
-       * shape its consumers do not read, so every one of them would see an empty list until the
-       * first refetch replaced it.
-       */
-      return listCredentialGroupsContract.response.schema.parse(result)
+      return getWorkspaceAccountsContract.response.schema.parse(result)
     },
-    staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
+    staleTime: WORKSPACE_ACCOUNTS_STALE_TIME,
   })
 }
 
@@ -52,5 +46,5 @@ export const SECTION_PREFETCHERS: Partial<
   general: (queryClient) => prefetchCurrentUserSettings(queryClient),
   billing: (queryClient) => prefetchCurrentUserSettings(queryClient),
   admin: (queryClient) => prefetchCurrentUserSettings(queryClient),
-  'credential-groups': prefetchCredentialGroups,
+  'credential-groups': prefetchWorkspaceAccounts,
 }

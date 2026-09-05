@@ -17,15 +17,7 @@ export type CredentialGroupOptionInput =
 
 export type CredentialGroupOptionUpdateInput = CredentialGroupOptionInput & { id?: string }
 
-export interface CreateCredentialGroupInput {
-  name: string
-  description?: string
-  options: CredentialGroupOptionInput[]
-}
-
 export interface UpdateCredentialGroupInput {
-  name?: string
-  description?: string | null
   options?: CredentialGroupOptionUpdateInput[]
   status?: 'active' | 'disabled'
 }

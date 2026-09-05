@@ -2,6 +2,7 @@ import { ConfluenceIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const confluenceConnectorMeta: ConnectorMeta = {
+  search: true,
   id: 'confluence',
   name: 'Confluence',
   description: 'Sync pages from a Confluence space',
@@ -20,13 +21,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       'search:confluence',
       'offline_access',
     ],
-    /**
-     * Mirroring adds the three reads an ACL needs and nothing else: a space's
-     * permissions, a page's restrictions, and the addresses behind the account
-     * ids both return. `read:confluence-user` is what decides whether a person
-     * can be granted access individually at all — without it every principal is
-     * an opaque account id that no Sim reader can be matched to.
-     */
+    /** Mirroring also reads ancestor restrictions, space roles, and user/group identities. */
     serviceAccountScopes: [
       'read:confluence-content.all',
       'read:page:confluence',
@@ -35,9 +30,10 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       'read:label:confluence',
       'search:confluence',
       'read:confluence-space.summary',
+      'read:content.metadata:confluence',
+      'read:space.permission:confluence',
       'read:confluence-user',
       'read:user:confluence',
-      'read:email-address:confluence',
       'read:group:confluence',
     ],
   },
@@ -61,6 +57,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
    * `getDocumentAcls` exists for.
    */
   mirrorsSourceAcls: true,
+  requiresMemberIdentity: true,
 
   configFields: [
     {

@@ -22,7 +22,7 @@ vi.mock('@/lib/credential-groups/availability', () => ({
 }))
 
 vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadCredentialGroupCredentialListContext: mocks.loadGroup,
+  loadWorkspaceAccountsCredentialListContext: mocks.loadGroup,
 }))
 
 vi.mock('@/lib/credential-groups/mcp-connections', () => ({
@@ -62,19 +62,18 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const input = { credentialGroupId: 'group-1', limit: 50 }
+const input = { workspaceId: 'workspace-1', limit: 50 }
 
-function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDelegatedPrincipal {
+function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',
     subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
+    workspaceId,
     delegationId: 'delegation-1',
     audience: 'sim:credential-groups',
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId },
     delegationContext: {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
@@ -124,10 +123,10 @@ describe('listCredentialGroupMcpConnections', () => {
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 
-  it('rejects executor delegation scoped to another group', async () => {
+  it('rejects executor delegation scoped to another workspace', async () => {
     await expect(
       listCredentialGroupMcpConnections.execute({
-        principal: executorPrincipal('group-2'),
+        principal: executorPrincipal('workspace-2'),
         input,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

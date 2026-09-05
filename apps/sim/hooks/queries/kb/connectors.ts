@@ -32,8 +32,13 @@ import {
   type ViewerConnectorMembership,
   type WorkspaceMemberConnector,
 } from '@/lib/api/contracts/knowledge'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
+import {
+  type ConnectorAccessMode,
+  type PrepareSearchSourceBody,
+  prepareSearchSourceContract,
+} from '@/lib/api/contracts/knowledge/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
+import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 export type {
@@ -387,7 +392,7 @@ async function fetchWorkspaceMemberConnectors(
   return response.data
 }
 
-/** Every per-member connector in the workspace and where the viewer stands with each. */
+/** Workspace sources that let the viewer connect their own account. */
 export function useWorkspaceMemberConnectors(
   workspaceId?: string,
   options?: { enabled?: boolean }
@@ -721,6 +726,22 @@ export function useConnectSimSearchConnector() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.workspaces() })
     },
+  })
+}
+
+export function usePrepareSearchSource() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: PrepareSearchSourceBody) =>
+      (await requestJson(prepareSearchSourceContract, { body })).data,
+    onSuccess: (_data, body) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.workspace(body.workspaceId),
+        }),
+      ]),
   })
 }

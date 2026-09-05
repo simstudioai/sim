@@ -1,3 +1,4 @@
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 
@@ -27,11 +28,6 @@ export type ConnectorAuthConfig =
        * The config field naming the person a service-account credential acts
        * as, through domain-wide delegation.
        *
-       * A service account owns nothing in a Workspace domain, so a crawl under
-       * one sees an empty corpus until it impersonates somebody; the source's
-       * whole content and permission model is only visible through an
-       * administrator's eyes.
-       *
        * The subject belongs to the connector, not the credential. One
        * `google-service-account` credential matches every Google service, so a
        * subject stored on it would silently apply to a workflow reading that
@@ -60,8 +56,8 @@ export interface ConnectorDirectoryGroup {
 
 export interface ConnectorDirectoryMembership {
   group: ConnectorDirectoryGroup
-  /** Case-folded addresses of every person in the group, nesting flattened. */
-  memberEmails: string[]
+  /** Canonical u:email or provider-attested s: identity tokens, with nested groups flattened. */
+  memberTokens: string[]
   /**
    * False when the walk could not be completed. A partial membership must never
    * replace a stored one: cutting a group down to the part that happened to
@@ -163,7 +159,7 @@ export interface ExternalDocument {
    * common case — so an ACL that rode along with the content write would only
    * ever land for documents that happened to be edited.
    */
-  acl?: readonly string[]
+  acl?: MirroredDocumentAcl
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }
@@ -233,6 +229,8 @@ export interface SyncResult {
   }
   /** Expected queue, lifecycle, or lock no-op. Never derived from error text. */
   skipReason?: SyncSkipReason
+  /** The listing or reconciliation has more durable work, or the source was non-authoritative. */
+  listingIncomplete?: boolean
   /** Diagnostic for an actual failed sync. */
   error?: string
 }
@@ -280,6 +278,8 @@ export interface ConnectorConfigField {
  * mirroring the `XBlockMeta` pattern in `blocks/`.
  */
 export interface ConnectorMeta {
+  /** Opts a source into workspace Search after its indexing and permission paths are verified. */
+  search?: true
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */
@@ -336,6 +336,13 @@ export interface ConnectorMeta {
   permissionScopedListing?: { capFieldIds: readonly string[] }
 
   /**
+   * One dedicated credential may supply content while member credentials only
+   * establish visibility. Every credential must use the same external document
+   * identity, and the indexed body must not contain credential-specific content.
+   */
+  supportsSeparateContentCredential?: true
+
+  /**
    * Set when the connector's listing reports each document's own permissions,
    * so one crawl under an administrative credential can mirror the source's
    * access model instead of asking every person to connect their own account.
@@ -349,6 +356,8 @@ export interface ConnectorMeta {
    * for every document it returns.
    */
   mirrorsSourceAcls?: true
+  /** Mirrored ACLs identify people by their own verified OAuth subject instead of email. */
+  requiresMemberIdentity?: true
 }
 
 /**
@@ -411,6 +420,9 @@ export interface ConnectorConfig extends ConnectorMeta {
    */
   isListingScopeUnavailableError?: (error: unknown) => boolean
 
+  /** Explicit provider rejection of the credential itself, rather than a scope or transient failure. */
+  isCredentialInvalidError?: (error: unknown) => boolean
+
   /**
    * Opens a change feed over the caller's view of the source: the cursor from
    * which {@link listChanges} later reports everything they gain, lose, or see
@@ -424,6 +436,9 @@ export interface ConnectorConfig extends ConnectorMeta {
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
   ) => Promise<string>
+
+  /** Whether the change feed completely represents the configured source scope. */
+  supportsChangeFeed?: (sourceConfig: Record<string, unknown>) => boolean
 
   /**
    * Reads the change feed from a cursor. An upsert carries the same stub a
@@ -441,6 +456,8 @@ export interface ConnectorConfig extends ConnectorMeta {
    * must be reopened from a fresh full listing rather than retried.
    */
   isChangeCursorInvalidError?: (error: unknown) => boolean
+  /** Whether a saved full-listing cursor expired and must restart from a new generation. */
+  isListingCursorInvalidError?: (error: unknown) => boolean
 
   /**
    * Opens the external directory whose groups this connector's mirrored ACLs
@@ -451,6 +468,9 @@ export interface ConnectorConfig extends ConnectorMeta {
    * and the tenant is baked into every stored group token, so a wrong guess
    * orphans every ACL already written. It also owns the enumeration, so the
    * sync orchestration stays provider-agnostic.
+   * Permission data must be fetched lazily by listGroups/listGroupMembers,
+   * after the caller acquires the shared directory lease. Opening may resolve
+   * tenant identity but must not cache a permission snapshot from before it.
    */
   openDirectory?: (
     accessToken: string,
@@ -482,7 +502,7 @@ export interface ConnectorConfig extends ConnectorMeta {
     sourceConfig: Record<string, unknown>,
     documents: readonly ExternalDocument[],
     syncContext?: Record<string, unknown>
-  ) => Promise<Record<string, string[]>>
+  ) => Promise<Record<string, MirroredDocumentAcl>>
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */
   mapTags?: (metadata: Record<string, unknown>) => Record<string, unknown>

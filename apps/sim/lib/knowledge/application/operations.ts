@@ -242,9 +242,9 @@ export const knowledgeOperations = {
   listChunks: defineWorkspaceOperation({
     id: 'knowledge.chunks.list',
     minimumRole: 'read',
-    workspaceApiKey: 'deny',
+    workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   readChunk: defineWorkspaceOperation({
     id: 'knowledge.chunks.read',
@@ -398,7 +398,7 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     principalKinds: ['session'],
   }),
-  /** Every per-member connector in the workspace, with where the viewer stands on each. */
+  /** Sources with a personal connection, including identities used by mirrored ACLs. */
   listWorkspaceMemberConnectors: defineWorkspaceOperation({
     id: 'knowledge.connectors.members.list',
     minimumRole: 'read',
@@ -407,8 +407,8 @@ export const knowledgeOperations = {
     principalKinds: ['session'],
   }),
   /**
-   * A workspace member joining a per-member connector: any reader may connect
-   * their own account, which only ever widens what they themselves see.
+   * A workspace reader connecting their own account for a member crawl or a
+   * mirrored-ACL identity. Enrollment never creates crawler access grants.
    */
   enrollConnectorMember: defineWorkspaceOperation({
     id: 'knowledge.connectors.members.enroll',
@@ -426,6 +426,20 @@ export const knowledgeOperations = {
   simSearchConnect: defineWorkspaceOperation({
     id: 'knowledge.simSearch.connect',
     minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
+  readSearchIndex: defineWorkspaceOperation({
+    id: 'knowledge.search.index.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'knowledge.use',
+    principalKinds: HTTP_PRINCIPAL_KINDS,
+  }),
+  prepareSearchSource: defineWorkspaceOperation({
+    id: 'knowledge.search.sources.prepare',
+    minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'knowledge.use',
     principalKinds: ['session'],

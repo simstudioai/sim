@@ -9,7 +9,6 @@ import { refreshConnectorDirectory } from '@/lib/knowledge/connectors/external-g
 
 const logger = createLogger('TriggerKnowledgeConnectorDirectorySync')
 
-/** A full directory walk: one Admin SDK call per group, sequential, on a large domain. */
 const DIRECTORY_SYNC_MAX_DURATION_SECONDS = 30 * 60
 
 export async function executeDirectorySyncJob(payload: unknown) {

@@ -78,6 +78,7 @@ import {
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
 } from '@/lib/embeddings'
+import * as embeddingClient from '@/lib/embeddings/client'
 import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import {
@@ -86,6 +87,14 @@ import {
 } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
+
+const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
+beforeEach(() => {
+  mockEmbeddingCapacity.mockReset().mockResolvedValue(undefined)
+  vi.spyOn(embeddingClient, 'assertKnowledgeEmbeddingCapacity').mockImplementation(
+    mockEmbeddingCapacity
+  )
+})
 
 const PERSISTED_KEY = 'workspace/workspace-1/persisted.pdf'
 const PERSISTED_URL = `/api/files/serve/${encodeURIComponent(PERSISTED_KEY)}?context=workspace`
@@ -197,6 +206,30 @@ describe('knowledge document processing source', () => {
     })
   })
 
+  it.each([
+    { name: 'known quota exhaustion', failure: new EmbeddingQuotaExhaustedError('openai') },
+    { name: 'quota storage failure', failure: new Error('Quota storage unavailable') },
+    { name: 'cancellation', failure: new DOMException('Cancelled', 'AbortError') },
+  ])('avoids source download and OCR on $name', async ({ failure }) => {
+    mockEmbeddingCapacity.mockRejectedValueOnce(failure)
+    await expect(
+      processDocumentAsync('knowledge-base-1', 'document-1', {
+        filename: PERSISTED_CONTEXT.filename,
+        fileUrl: PERSISTED_CONTEXT.fileUrl,
+        fileSize: PERSISTED_CONTEXT.fileSize,
+        mimeType: PERSISTED_CONTEXT.mimeType,
+      })
+    ).rejects.toBe(failure)
+    expect(mockEmbeddingCapacity).toHaveBeenCalledWith({
+      model: PERSISTED_CONTEXT.embeddingModel,
+      dimensions: PERSISTED_CONTEXT.embeddingDimension,
+      workspaceId: PERSISTED_CONTEXT.workspaceId,
+      signal: expect.any(AbortSignal),
+    })
+    expect(mockProcessDocument).not.toHaveBeenCalled()
+    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+  })
+
   it('uses the persisted document source instead of stale queued source fields', async () => {
     await processDocumentAsync('knowledge-base-1', 'document-1', {
       filename: 'stale.pdf',
@@ -221,7 +254,11 @@ describe('knowledge document processing source', () => {
       1024,
       200,
       100,
-      { userId: PERSISTED_CONTEXT.uploadedBy, knowledgeAccess: undefined },
+      {
+        userId: PERSISTED_CONTEXT.uploadedBy,
+        knowledgeAccess: undefined,
+        signal: expect.any(AbortSignal),
+      },
       null,
       undefined,
       undefined
@@ -251,7 +288,11 @@ describe('knowledge document processing source', () => {
       1024,
       200,
       100,
-      { userId: PERSISTED_CONTEXT.uploadedBy, knowledgeAccess: SYSTEM_ACCESS_SCOPE },
+      {
+        userId: PERSISTED_CONTEXT.uploadedBy,
+        knowledgeAccess: SYSTEM_ACCESS_SCOPE,
+        signal: expect.any(AbortSignal),
+      },
       null,
       undefined,
       undefined
@@ -276,7 +317,11 @@ describe('knowledge document processing source', () => {
       1024,
       200,
       100,
-      { userId: PERSISTED_CONTEXT.uploadedBy, knowledgeAccess: undefined },
+      {
+        userId: PERSISTED_CONTEXT.uploadedBy,
+        knowledgeAccess: undefined,
+        signal: expect.any(AbortSignal),
+      },
       null,
       undefined,
       undefined
@@ -966,67 +1011,74 @@ describe('in-process quota continuation dispatch', () => {
     )
   })
 
-  it('preserves a tokenless queue stamp across an accepted quota continuation', async () => {
-    const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
-    const deferredUntil = new Date('2026-08-24T23:00:00.000Z')
-    resetDbChainMock()
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([PERSISTED_CONTEXT])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-    )
-    mockProcessDocument.mockResolvedValue({
-      chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
-      metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
-    })
-    mockGenerateEmbeddings.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
-
-    await expect(
-      processDocumentAsync(
-        'knowledge-base-1',
-        'document-1',
-        {
-          filename: 'report.docx',
-          fileUrl: 'https://example.com/report.docx',
-          fileSize: 1,
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        },
-        {},
-        undefined,
-        'request-1',
-        {
-          chargedAtDispatch: false,
-          processingQueuedAt: originalQueuedAt,
-          scheduleQuotaContinuation: vi.fn().mockResolvedValue(deferredUntil),
-        }
+  it.each(['preflight', 'request'])(
+    'preserves a tokenless queue stamp across an accepted %s quota continuation',
+    async (stage) => {
+      const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
+      const deferredUntil = new Date('2026-08-24T23:00:00.000Z')
+      resetDbChainMock()
+      dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([PERSISTED_CONTEXT])
+        .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
+      mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+      mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+        new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
       )
-    ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
+      mockProcessDocument.mockResolvedValue({
+        chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
+        metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
+      })
+      if (stage === 'preflight')
+        mockEmbeddingCapacity.mockRejectedValueOnce(new EmbeddingQuotaExhaustedError('openai'))
+      mockGenerateEmbeddings.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
 
-    const deferredWrite = dbChainMockFns.set.mock.calls.find(
-      (call) =>
-        (call[0] as Record<string, unknown> | undefined)?.processingDeferredUntil === deferredUntil
-    )
-    expect(deferredWrite?.[0]).toMatchObject({
-      processingStatus: 'pending',
-      processingDeferredUntil: deferredUntil,
-    })
-    expect(deferredWrite?.[0]).not.toHaveProperty('processingQueuedAt')
-    expect(
-      dbChainMockFns.where.mock.calls.some((call) =>
-        hasMockCondition(
-          call[0],
-          (node) =>
-            node.type === 'eq' &&
-            node.left === schemaMock.document.processingQueuedAt &&
-            node.right === originalQueuedAt
+      await expect(
+        processDocumentAsync(
+          'knowledge-base-1',
+          'document-1',
+          {
+            filename: 'report.docx',
+            fileUrl: 'https://example.com/report.docx',
+            fileSize: 1,
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          },
+          {},
+          undefined,
+          'request-1',
+          {
+            chargedAtDispatch: false,
+            processingQueuedAt: originalQueuedAt,
+            scheduleQuotaContinuation: vi.fn().mockResolvedValue(deferredUntil),
+          }
         )
+      ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
+
+      expect(mockProcessDocument).toHaveBeenCalledTimes(stage === 'preflight' ? 0 : 1)
+      const deferredWrite = dbChainMockFns.set.mock.calls.find(
+        (call) =>
+          (call[0] as Record<string, unknown> | undefined)?.processingDeferredUntil ===
+          deferredUntil
       )
-    ).toBe(true)
-  })
+      expect(deferredWrite?.[0]).toMatchObject({
+        processingStatus: 'pending',
+        processingDeferredUntil: deferredUntil,
+      })
+      expect(deferredWrite?.[0]).not.toHaveProperty('processingQueuedAt')
+      expect(
+        dbChainMockFns.where.mock.calls.some((call) =>
+          hasMockCondition(
+            call[0],
+            (node) =>
+              node.type === 'eq' &&
+              node.left === schemaMock.document.processingQueuedAt &&
+              node.right === originalQueuedAt
+          )
+        )
+      ).toBe(true)
+    }
+  )
 
   it('stops automatic retries after the bounded quota continuation chain is exhausted', async () => {
     resetDbChainMock()

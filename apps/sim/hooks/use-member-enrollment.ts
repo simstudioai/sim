@@ -86,6 +86,7 @@ export function describeMembership({
 /** An enrollment tab this surface opened that has not connected yet. */
 interface AwaitingEnrollment {
   since: number
+  tab: Window
   /**
    * The Sim Search source whose connect created the connector, so the source
    * can be told it is awaited before its membership row exists to look it up by.
@@ -141,8 +142,10 @@ export function useMemberEnrollment({
       setAwaitingSince((current) => {
         const next = new Map(
           [...current].filter(
-            ([id, { since }]) =>
-              !connectedRef.current.has(id) && now - since < AWAITING_CONNECTION_TIMEOUT_MS
+            ([id, { since, tab }]) =>
+              !tab.closed &&
+              !connectedRef.current.has(id) &&
+              now - since < AWAITING_CONNECTION_TIMEOUT_MS
           )
         )
         return next.size === current.size ? current : next
@@ -171,10 +174,12 @@ export function useMemberEnrollment({
     setPopupBlocked(false)
     start({
       onSuccess: (url, connectorId, connectorType) => {
+        if (tab.closed) return
         tab.location.href = url
         setAwaitingSince((current) =>
           new Map(current).set(connectorId, {
             since: Date.now(),
+            tab,
             connectorType: connectorType ?? null,
           })
         )

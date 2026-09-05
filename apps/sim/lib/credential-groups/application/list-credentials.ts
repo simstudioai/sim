@@ -4,7 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
-  resolveCredentialGroupContext,
+  resolveWorkspaceAccountsContext,
 } from '@/lib/credential-groups/application/context'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import {
@@ -19,7 +19,7 @@ import {
 } from '@/lib/credential-groups/providers'
 
 export interface ListCredentialGroupCredentialsInput {
-  credentialGroupId: string
+  workspaceId: string
   limit: number
   cursor?: string
   email?: string
@@ -36,7 +36,7 @@ export interface ListCredentialGroupCredentialsResult {
 export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listCredentials,
   resolveContext: ({ input }: { input: ListCredentialGroupCredentialsInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveWorkspaceAccountsContext(input.workspaceId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
   execute: async ({ input, context }): Promise<ListCredentialGroupCredentialsResult> => {
     if (

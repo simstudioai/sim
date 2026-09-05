@@ -155,6 +155,10 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.memberAccessAvailable.mockResolvedValue(true)
+    mocks.provision.mockResolvedValue({
+      credentialGroupId: 'group-1',
+      credentialGroupOptionId: 'option-1',
+    })
   })
 
   it('refuses a connector whose listing is not permission-scoped, before loading anything', async () => {
@@ -163,7 +167,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: { name: 'Slack', auth: { mode: 'oauth' }, configFields: [] } as never,
         actingUserId: 'admin-1',
-        binding: null,
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ code: 'validation' })
@@ -171,7 +174,7 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 
-  it('provisions the group when none is named, then validates it like a named one', async () => {
+  it('resolves and validates the workspace account option for the acting admin', async () => {
     mocks.provision.mockResolvedValue({
       credentialGroupId: 'group-9',
       credentialGroupOptionId: 'option-9',
@@ -183,7 +186,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: null,
         sourceConfig: {},
       })
     ).resolves.toEqual({
@@ -206,7 +208,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ message: 'Per-member access is not available for this workspace' })
@@ -221,7 +222,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ code: 'validation' })
@@ -236,7 +236,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: { maxFiles: '5' },
       })
     ).rejects.toMatchObject({ code: 'validation', message: 'Max Files cannot be set' })
@@ -353,42 +352,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
       expect.objectContaining({ status: 'active', syncLockToken: null })
     )
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
-  })
-
-  it('keeps the lease until the previous group is revoked when moving between groups', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
-    queueGroupRow('option-2')
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-      .mockResolvedValueOnce([
-        { ...MEMBERS_CONNECTOR, credentialGroupId: 'group-2', credentialGroupOptionId: 'option-2' },
-      ])
-
-    const outcome = await switchTo({
-      accessMode: 'members',
-      binding: {
-        credentialGroupId: 'group-2',
-        credentialGroupOptionId: 'option-2',
-        sourceConfig: {},
-      },
-    })
-
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    expect(mocks.revoke).toHaveBeenCalledWith(
-      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
-      'admin-1'
-    )
-    /**
-     * A revoke drops the connector from every option of the group. Released
-     * first, a switch that had re-granted group-1 in between would lose it.
-     */
-    const revokedAt = mocks.revoke.mock.invocationCallOrder[0]
-    const releasedAt = dbChainMockFns.set.mock.invocationCallOrder.at(-1) ?? 0
-    expect(revokedAt).toBeLessThan(releasedAt)
-    expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: 'active', syncLockToken: null })
-    )
   })
 
   it('drops the members, restores workspace access, revokes the grant, flips, and queues a content sync', async () => {

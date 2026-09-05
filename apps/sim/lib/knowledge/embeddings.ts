@@ -174,7 +174,8 @@ export interface GenerateEmbeddingsResult {
 export async function generateEmbeddings(
   texts: string[],
   target: KbEmbeddingTarget,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  signal?: AbortSignal
 ): Promise<GenerateEmbeddingsResult> {
   assertKbEmbeddingModel(target.model, target.dimensions)
 
@@ -184,6 +185,7 @@ export async function generateEmbeddings(
     taskType: 'document',
     dimensions: target.dimensions,
     projectInputs: projectKnowledgeModelInputs,
+    signal,
   })
 
   return {
@@ -199,7 +201,8 @@ export async function generateEmbeddings(
 export async function generateSearchEmbedding(
   query: string,
   target: KbEmbeddingTarget,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  signal?: AbortSignal
 ): Promise<{ embedding: number[]; isBYOK: boolean }> {
   assertKbEmbeddingModel(target.model, target.dimensions)
 
@@ -208,6 +211,7 @@ export async function generateSearchEmbedding(
     workspaceId,
     taskType: 'query',
     dimensions: target.dimensions,
+    signal,
     projectInputs: projectKnowledgeModelInputs,
   })
 

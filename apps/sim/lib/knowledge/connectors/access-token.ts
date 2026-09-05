@@ -73,9 +73,9 @@ export async function resolveConnectorAccessToken(params: {
   requestId: string
   /**
    * Where a service-account credential's impersonation subject lives. Always
-   * passed on a path that has it: a Drive service account crawling without its
-   * subject sees an empty domain, so a token minted that way validates or syncs
-   * against nothing.
+   * passed on a path that has it. Without a subject, a Drive service account
+   * sees files shared with the service account itself, rather than the configured
+   * person's files.
    */
   sourceConfig: Record<string, unknown>
 }): Promise<ConnectorAccessToken | null> {

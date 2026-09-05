@@ -7,11 +7,12 @@ import {
 } from '@/lib/atlassian/discovery'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
-  type ConfluencePrincipal,
   type ConfluenceRestriction,
   confluencePageAcl,
 } from '@/lib/knowledge/access/confluence-permissions'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import {
+  createRetryableHttpError,
   fetchWithRetry,
   type RetryOptions,
   VALIDATE_RETRY_OPTIONS,
@@ -24,7 +25,6 @@ import {
   listAncestorIds,
   listSpaceReadPrincipals,
   openConfluenceDirectory,
-  resolveUserEmails,
 } from '@/connectors/confluence/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
@@ -367,11 +367,9 @@ interface ContentLocation {
  * Resolves who may read each listed page.
  *
  * Confluence reports a page's restrictions only when asked for that page, so
- * unlike Drive this cannot ride along with the listing. Three things are cached
- * for the run: each space's read principals (one call per space), each page's
- * restriction, and every account id's address — an ancestor's restriction is
- * consulted by many of its descendants, and one person is usually named on
- * several pages.
+ * unlike Drive this cannot ride along with the listing. Two things are cached
+ * for the batch: each space's read principals and each page's restriction,
+ * which may be consulted by many descendants.
  *
  * A page falls back to *its own* space's readers, never the union of every
  * configured space: a connector over two spaces must not let a reader of one
@@ -386,7 +384,7 @@ async function resolveConfluenceAcls(
   sourceConfig: Record<string, unknown>,
   documents: readonly ExternalDocument[],
   syncContext?: Record<string, unknown>
-): Promise<Record<string, string[]>> {
+): Promise<Record<string, MirroredDocumentAcl>> {
   const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
   const spaceIdForKey = memoizeAsync((spaceKey: string) =>
@@ -425,16 +423,14 @@ async function resolveConfluenceAcls(
       }
       const own = await readRestriction(externalId)
       /**
-       * A page carrying its own restriction decides on the spot; only an
-       * unrestricted page needs its ancestry, which is the expensive lookup.
+       * Every ancestor restriction still applies when the page has its own.
        * A blog post has no ancestors to inherit from.
        */
       const chain: ConfluenceRestriction[] = [own]
-      if (own === null && location.contentType !== 'blogpost') {
+      if (location.contentType !== 'blogpost') {
         for (const ancestorId of await listAncestorIds(cloudId, accessToken, externalId)) {
           const restriction = await readRestriction(ancestorId)
           chain.push(restriction)
-          if (restriction !== null) break
         }
       }
       await spacePrincipalsFor(location.spaceId)
@@ -449,55 +445,18 @@ async function resolveConfluenceAcls(
     }
   })
 
-  /**
-   * Addresses are resolved once for every account named anywhere and written
-   * onto the principals in place: a space's own principals appear on every page
-   * that inherits them, and each restriction object is shared by every chain
-   * that walked through it.
-   */
-  const accountIds = new Set<string>()
-  /** Every space named by a resolved page settled before that page was recorded. */
-  const principalsBySpace = new Map<string, ConfluencePrincipal[]>()
-  for (const { spaceId, chain } of resolved.values()) {
-    if (!principalsBySpace.has(spaceId)) {
-      principalsBySpace.set(spaceId, await spacePrincipalsFor(spaceId))
-    }
-    for (const restriction of chain) {
-      for (const principal of restriction ?? []) {
-        if (principal.kind === 'user') accountIds.add(principal.id)
-      }
-    }
-  }
-  for (const principals of principalsBySpace.values()) {
-    for (const principal of principals) {
-      if (principal.kind === 'user') accountIds.add(principal.id)
-    }
-  }
-  const emails = await resolveUserEmails(cloudId, accessToken, [...accountIds])
-  const withEmail = (principals: ConfluencePrincipal[]): void => {
-    for (const principal of principals) {
-      /** A restriction sometimes discloses the address itself; a lookup miss must not erase it. */
-      if (principal.kind === 'user') principal.email = emails.get(principal.id) ?? principal.email
-    }
-  }
-  for (const principals of principalsBySpace.values()) withEmail(principals)
-  for (const { chain } of resolved.values()) {
-    for (const restriction of chain) {
-      if (restriction !== null) withEmail(restriction)
-    }
-  }
-
-  const acls: Record<string, string[]> = {}
-  let unattributed = 0
+  const acls: Record<string, MirroredDocumentAcl> = {}
   for (const [externalId, { spaceId, chain }] of resolved) {
     const result = confluencePageAcl({
-      spacePrincipals: principalsBySpace.get(spaceId) ?? [],
+      spacePrincipals: await spacePrincipalsFor(spaceId),
       restrictionChain: chain,
       providerId: CONFLUENCE_ACL_PROVIDER_ID,
       tenantId: cloudId,
     })
-    acls[externalId] = result.acl
-    unattributed += result.unattributedUsers
+    acls[externalId] =
+      result.requirements.length > 0
+        ? { acl: result.acl, requirements: result.requirements }
+        : result.acl
   }
 
   if (unreadable > 0) {
@@ -506,16 +465,12 @@ async function resolveConfluenceAcls(
       unreadable,
     })
   }
-  if (unattributed > 0) {
-    logger.warn('Confluence withheld addresses for some granted users; those grants were dropped', {
-      cloudId,
-      unattributed,
-    })
-  }
   return acls
 }
 
 export const confluenceConnector: ConnectorConfig = {
+  isCredentialInvalidError: (error) =>
+    error instanceof Error && 'status' in error && error.status === 401,
   ...confluenceConnectorMeta,
 
   listDocuments: async (
@@ -634,6 +589,7 @@ export const confluenceConnector: ConnectorConfig = {
         page = await response.json()
         break
       }
+      if (response.status === 401) throw await createRetryableHttpError(response)
       if (response.status !== 404) {
         throw new Error(`Failed to get Confluence content: ${response.status}`)
       }
@@ -785,6 +741,7 @@ async function listDocumentsV2(
   })
 
   if (!response.ok) {
+    if (response.status === 401) throw await createRetryableHttpError(response)
     const errorText = await response.text()
     logger.error(`Failed to list Confluence ${endpoint}`, {
       status: response.status,
@@ -1031,6 +988,7 @@ async function listDocumentsViaCql(
   })
 
   if (!response.ok) {
+    if (response.status === 401) throw await createRetryableHttpError(response)
     const errorText = await response.text()
     logger.error('Failed to search Confluence via CQL', {
       status: response.status,
@@ -1095,6 +1053,7 @@ async function resolveSpaceId(
   })
 
   if (!response.ok) {
+    if (response.status === 401) throw await createRetryableHttpError(response)
     throw new Error(`Failed to resolve space key "${spaceKey}": ${response.status}`)
   }
 

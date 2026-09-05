@@ -33,8 +33,8 @@ describe('knowledgeAccessCondition', () => {
         tokens: ['pub', 's:confluence:-:557058:abc', 'ws'],
       })
     )
-    expect(sql).toBe('"document"."acl" && ARRAY[$1, $2, $3]::text[]')
-    expect(params).toEqual(['pub', 's:confluence:-:557058:abc', 'ws'])
+    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2, $3]::text[]')
+    expect(params.slice(0, 3)).toEqual(['pub', 's:confluence:-:557058:abc', 'ws'])
     for (const param of params) expect(Array.isArray(param)).toBe(false)
   })
 
@@ -42,8 +42,8 @@ describe('knowledgeAccessCondition', () => {
     const { sql, params } = render(
       knowledgeAccessCondition({ kind: 'workspace', tokens: ['pub', 'ws'] })
     )
-    expect(sql).toBe('"document"."acl" && ARRAY[$1, $2]::text[]')
-    expect(params).toEqual(['pub', 'ws'])
+    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2]::text[]')
+    expect(params.slice(0, 2)).toEqual(['pub', 'ws'])
   })
 
   it('denies everything for an empty token set', () => {

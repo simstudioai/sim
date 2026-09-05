@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/documents/service', () => ({ hardDeleteDocuments: vi.fn() }))
@@ -11,7 +11,10 @@ vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: vi.fn() })
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
 import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
-import { persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
+import {
+  persistDocumentAcls,
+  persistSourceDocumentFailures,
+} from '@/lib/knowledge/connectors/sync-persistence'
 
 const CONNECTOR = 'connector-1'
 
@@ -33,20 +36,24 @@ describe('persistDocumentAcls', () => {
   /**
    * The rule this function exists to enforce: an ACL change must not look like
    * a content change. `processingStatus: 'pending'` is the sole trigger of
-   * re-embedding, so assigning anything but `acl` here would re-embed the whole
+   * re-embedding, so assigning content fields here would re-embed the whole
    * corpus every time somebody joined a group.
    */
-  it('assigns the ACL and nothing else, so no document is re-embedded', async () => {
+  it('refreshes only access fields, so no document is re-embedded', async () => {
     queueUpdatedCounts(1)
 
     await persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:alice@corp.com']]]))
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.document)
     expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ acl: ['u:alice@corp.com'] })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      acl: ['u:alice@corp.com'],
+      aclRequirements: [],
+      aclVerifiedAt: expect.any(Date),
+    })
   })
 
-  it('reports how many documents actually changed', async () => {
+  it('reports how many documents received current permission evidence', async () => {
     queueUpdatedCounts(2)
 
     await expect(
@@ -77,8 +84,16 @@ describe('persistDocumentAcls', () => {
     )
 
     expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, { acl: ['u:alice@corp.com'] })
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, { acl: ['u:bob@corp.com'] })
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+      acl: ['u:alice@corp.com'],
+      aclRequirements: [],
+      aclVerifiedAt: expect.any(Date),
+    })
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
+      acl: ['u:bob@corp.com'],
+      aclRequirements: [],
+      aclVerifiedAt: expect.any(Date),
+    })
   })
 
   it('groups ACLs that differ only in order or duplication', async () => {
@@ -95,17 +110,59 @@ describe('persistDocumentAcls', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       acl: ['u:alice@corp.com', 'u:bob@corp.com'],
+      aclRequirements: [],
+      aclVerifiedAt: expect.any(Date),
     })
   })
 
   describe('an ACL we cannot store', () => {
+    it('rejects workspace escape tokens even inside a source restriction', async () => {
+      queueUpdatedCounts(1)
+      const result = await persistDocumentAcls(
+        CONNECTOR,
+        new Map([['file-1', { acl: ['u:alice@corp.com'], requirements: [['ws']] }]])
+      )
+      expect(result).toEqual({ updated: 1, rejected: 1 })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        acl: [],
+        aclRequirements: [],
+        aclVerifiedAt: null,
+      })
+    })
+
+    it('retains an empty restriction and separately persists different clauses', async () => {
+      queueUpdatedCounts(1, 1)
+      await persistDocumentAcls(
+        CONNECTOR,
+        new Map([
+          ['file-1', { acl: ['u:alice@corp.com'], requirements: [[]] }],
+          ['file-2', { acl: ['u:alice@corp.com'], requirements: [['g:confluence:site:team']] }],
+        ])
+      )
+      expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+        acl: ['u:alice@corp.com'],
+        aclRequirements: [['u:alice@corp.com'], []],
+        aclVerifiedAt: expect.any(Date),
+      })
+      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
+        acl: ['u:alice@corp.com'],
+        aclRequirements: [['u:alice@corp.com'], ['g:confluence:site:team']],
+        aclVerifiedAt: expect.any(Date),
+      })
+    })
+
     it('hides a document whose ACL carries a malformed token', async () => {
       queueUpdatedCounts(1)
 
       await expect(
         persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:NOT-FOLDED@corp.com']]]))
       ).resolves.toEqual({ updated: 1, rejected: 1 })
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({ acl: [] })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        acl: [],
+        aclRequirements: [],
+        aclVerifiedAt: null,
+      })
     })
 
     it('hides a document whose ACL exceeds the ceiling', async () => {
@@ -116,7 +173,11 @@ describe('persistDocumentAcls', () => {
         updated: 1,
         rejected: 1,
       })
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({ acl: [] })
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        acl: [],
+        aclRequirements: [],
+        aclVerifiedAt: null,
+      })
     })
 
     it('stores an ACL exactly at the ceiling', async () => {
@@ -149,5 +210,75 @@ describe('persistDocumentAcls', () => {
       rejected: 0,
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('persistSourceDocumentFailures', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  const input = {
+    knowledgeBaseId: 'kb',
+    connectorId: CONNECTOR,
+    connectorType: 'fixture',
+    sourceConfig: {},
+    access: 'members' as const,
+    lease: { stillHeld: () => ({ type: 'lease' }) as never },
+    documents: [
+      {
+        externalId: 'broken',
+        title: 'Broken',
+        content: '',
+        contentDeferred: true,
+        contentHash: 'new-version',
+        mimeType: 'text/plain',
+      },
+    ],
+    failedExternalIds: new Set(['broken']),
+  }
+  function leaseHeld() {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: CONNECTOR }])
+  }
+  it('records new failed downloads as hidden placeholders with no downloadable file or successful hash', async () => {
+    leaseHeld()
+    await persistSourceDocumentFailures({ ...input, priorByExternalId: new Map() })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        externalId: 'broken',
+        processingStatus: 'failed',
+        processingError: expect.stringContaining('Source content'),
+        storageKey: null,
+        fileUrl: '',
+        contentHash: null,
+        acl: [],
+      }),
+    ])
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+  it('invalidates a retained version without deleting its bytes, embeddings, or tombstone', async () => {
+    leaseHeld()
+    await persistSourceDocumentFailures({
+      ...input,
+      priorByExternalId: new Map([['broken', { id: 'old' }]]),
+    })
+    const update = dbChainMockFns.set.mock.calls[0][0]
+    expect(update).toMatchObject({
+      processingStatus: 'failed',
+      contentHash: null,
+      processingQueueToken: null,
+    })
+    expect(update).not.toHaveProperty('storageKey')
+    expect(update).not.toHaveProperty('deletedAt')
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+  it('refuses to commit a failure under a reclaimed lease', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
+    await expect(
+      persistSourceDocumentFailures({ ...input, priorByExternalId: new Map() })
+    ).rejects.toThrow('reclaimed')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
   getUserPermissionConfig: vi.fn(),
   resolveMembersBinding: vi.fn(),
+  provision: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -54,6 +55,16 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 
 vi.mock('@/lib/knowledge/orchestration/connector-access', () => ({
   resolveKnowledgeConnectorMembersBinding: mocks.resolveMembersBinding,
+}))
+vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
+  provisionKnowledgeConnectorMembersBinding: mocks.provision,
+  resolveViewerConnectorMemberships: async () => new Map(),
+}))
+vi.mock('@/lib/knowledge/connectors/mirrored-access', () => ({
+  assertConnectorMirrorsSourceAcls: async () => undefined,
+}))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  requireKnowledgeMemberAccessAvailable: async () => undefined,
 }))
 
 vi.mock('@/lib/knowledge/orchestration/connectors', () => ({
@@ -133,6 +144,32 @@ const delegatedPrincipal = {
 const BILLING = { actorUserId: 'shared-user', workspaceId: 'workspace-a' } as never
 
 describe('knowledge connector application use cases', () => {
+  it('refuses workspace-wide or unreviewed source ingestion into the canonical search index', async () => {
+    mocks.resolveKnowledgeBase.mockResolvedValue({
+      ...crossWorkspaceContext,
+      knowledgeBase: { ...crossWorkspaceContext.knowledgeBase, isSearchIndex: true },
+    })
+    mocks.resolvePermission.mockResolvedValue('admin')
+    for (const [connectorType, accessMode] of [
+      ['confluence', 'workspace'],
+      ['jira', 'members'],
+    ] as const) {
+      await expect(
+        createKnowledgeConnector.execute({
+          principal: { kind: 'session', userId: 'admin', sessionId: 'session' },
+          input: {
+            knowledgeBaseId: 'knowledge-b',
+            connectorType,
+            sourceConfig: {},
+            syncIntervalMinutes: 60,
+            accessMode,
+          },
+        })
+      ).rejects.toThrow('Search sources must support')
+    }
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -343,7 +380,11 @@ describe('knowledge connector application use cases', () => {
       ['read:confluence-content.all'],
       undefined
     )
-    expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('access-token', { space: 'ENG' }, {})
+    expect(mocks.validateConnectorConfig).toHaveBeenCalledWith(
+      'access-token',
+      { space: 'ENG' },
+      { mirrorsSourceAcls: false }
+    )
     expect(mocks.resolveBilling).toHaveBeenCalledWith('workspace-a')
   })
 
@@ -364,7 +405,9 @@ describe('knowledge connector application use cases', () => {
       isAdmin: false,
     })
     mocks.createConnector.mockImplementationOnce(
-      async (input: { resolveAccessToken: (credentialId: string) => Promise<string | null> }) => {
+      async (input: {
+        resolveAccessToken: (credentialId: string) => Promise<{ accessToken: string } | null>
+      }) => {
         const accessToken = await input.resolveAccessToken('credential-1')
         return accessToken
           ? { success: true, connector: sameWorkspaceContext.connector }
@@ -849,8 +892,6 @@ describe('members-mode connector creation', () => {
     sourceConfig: { folderId: ['f-1'] },
     syncIntervalMinutes: 1440,
     accessMode: 'members' as const,
-    credentialGroupId: 'group-1',
-    credentialGroupOptionId: 'option-1',
   }
 
   beforeEach(() => {
@@ -891,7 +932,7 @@ describe('members-mode connector creation', () => {
     expect(mocks.resolveMembersBinding).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: 'workspace-b',
-        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+        actingUserId: 'user-1',
         sourceConfig: membersInput.sourceConfig,
       })
     )
@@ -903,6 +944,23 @@ describe('members-mode connector creation', () => {
         }),
         credentialId: undefined,
       })
+    )
+  })
+
+  it('prepares Confluence sign-in during admin setup without granting member crawler access', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    await createKnowledgeConnector.execute({
+      principal: sessionPrincipal,
+      input: { ...membersInput, connectorType: 'confluence', accessMode: 'admin' },
+    })
+    expect(mocks.provision).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: 'workspace-b',
+      userId: 'user-1',
+      connectorMeta: expect.objectContaining({ requiresMemberIdentity: true }),
+    })
+    expect(mocks.resolveMembersBinding).not.toHaveBeenCalled()
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({ membersBinding: undefined, accessMode: 'admin' })
     )
   })
 })

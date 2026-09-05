@@ -31,6 +31,7 @@ import {
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
+import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 import type {
   FileAttachmentForApi,
   MothershipResource,
@@ -124,6 +125,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
+  const [mode] = useMothershipMode()
+  const isSearch = canSearch && mode === 'search'
   const [microphonePermissionHelpOpen, setMicrophonePermissionHelpOpen] = useState(false)
 
   const [initialValue] = useState(() => {
@@ -673,7 +676,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       onDragOver={handleContainerDragOver}
       onDrop={handleContainerDrop}
     >
-      <AnimatedPlaceholderEffect textareaRef={textareaRef} isInitialView={isInitialView} />
+      {!isSearch && (
+        <AnimatedPlaceholderEffect textareaRef={textareaRef} isInitialView={isInitialView} />
+      )}
 
       <AttachedFilesList
         attachedFiles={files.attachedFiles}
@@ -683,7 +688,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <PromptEditor
         editor={editor}
-        placeholder='Ask Sim to '
+        placeholder={isSearch ? 'Search your documents…' : 'Ask Sim to '}
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
         className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}

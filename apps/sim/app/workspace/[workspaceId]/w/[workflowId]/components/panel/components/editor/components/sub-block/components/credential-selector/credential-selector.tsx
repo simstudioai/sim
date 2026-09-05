@@ -563,6 +563,9 @@ export function CredentialSelector({
           onOpenChange={setShowSetupModal}
           workspaceId={workspaceId}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          atlassianProduct={
+            serviceAccountService?.providerId === 'confluence' ? 'confluence' : 'jira'
+          }
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
           onCreated={(newCredentialId) => {

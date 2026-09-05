@@ -11,6 +11,8 @@
  * `members` — the source is crawled once per credential-group member with that
  * member's own token, and a document's ACL is the set of members whose crawl
  * returned it. Driven by the member engine.
+ * An optional dedicated credential supplies content while members only list
+ * visibility, when the connector guarantees shared document identity and body.
  *
  * `admin` — the source is crawled once under an administrative credential and
  * each document's ACL is mirrored from the source's own permissions. Driven by
@@ -31,8 +33,8 @@ export function isConnectorAccessMode(value: string): value is ConnectorAccessMo
  *
  * `admin` belongs here and `members` does not: an admin-mode connector is
  * structurally a workspace crawl that ends with a different ACL, while a
- * members-mode connector is N crawls plus an observation graph, crawls with
- * its members' credentials, and holds none itself.
+ * members-mode connector owns its observation graph and may optionally run the
+ * same content pass under its member lease with a dedicated credential.
  */
 export const CONTENT_ENGINE_ACCESS_MODES = ['workspace', 'admin'] as const
 
@@ -77,4 +79,17 @@ export function mirrorsSourceAcls(accessMode: string): boolean {
  */
 export function aclIsDerived(accessMode: ConnectorAccessMode): boolean {
   return accessMode !== 'workspace'
+}
+
+/** Automatic permission refresh leaves ample headroom below the 24-hour evidence lifetime. */
+export const MAX_PERMISSION_REFRESH_INTERVAL_MINUTES = 60
+
+/** Configured zero stays manual; source-derived access refreshes at least hourly. */
+export function effectiveConnectorSyncIntervalMinutes(
+  accessMode: ConnectorAccessMode,
+  configuredMinutes: number
+): number {
+  return aclIsDerived(accessMode) && configuredMinutes > 0
+    ? Math.min(configuredMinutes, MAX_PERMISSION_REFRESH_INTERVAL_MINUTES)
+    : configuredMinutes
 }

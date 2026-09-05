@@ -25,6 +25,7 @@ import {
 } from '@/lib/credential-groups/providers'
 import {
   type ResolvedManagedOAuthToken,
+  rejectManagedOAuthToken,
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
 import {
@@ -334,6 +335,50 @@ export async function mintKnowledgeConnectorMemberToken(
     },
   })
   return token
+}
+
+/** Reports a provider-rejected token under the same connector grant required to mint it. */
+export async function rejectKnowledgeConnectorMemberToken(
+  input: MintKnowledgeConnectorMemberTokenInput & {
+    rejectedAccessToken: string
+  }
+): Promise<boolean> {
+  const binding = await loadManagedCredentialGroupBinding(input.credentialId)
+  if (!binding || binding.workspaceId !== input.workspaceId) {
+    throw new KnowledgeConnectorMemberAccessDeniedError(
+      'Managed credential is not enrolled in a Credential Group in this workspace'
+    )
+  }
+  await assertKnowledgeConnectorCredentialAccess({
+    workspaceId: binding.workspaceId,
+    credentialGroupId: binding.credentialGroupId,
+    credentialGroupOptionId: binding.credentialGroupOptionId,
+    connectorId: input.connectorId,
+  })
+  const rejected = await rejectManagedOAuthToken({
+    credentialId: binding.credentialId,
+    workspaceId: binding.workspaceId,
+    expectedProviderId: input.expectedProviderId,
+    requiredScopes: input.requiredScopes,
+    rejectedAccessToken: input.rejectedAccessToken,
+  })
+  if (rejected)
+    recordAudit({
+      workspaceId: binding.workspaceId,
+      actorId: null,
+      actorName: 'Knowledge connector sync',
+      action: AuditAction.CREDENTIAL_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: binding.credentialId,
+      description: 'Marked provider-rejected managed OAuth credential as needing reauthorization',
+      metadata: {
+        provider: input.expectedProviderId,
+        credentialType: 'managed_oauth',
+        connectorId: input.connectorId,
+        runId: input.runId,
+      },
+    })
+  return rejected
 }
 
 export interface ListKnowledgeConnectorMemberCredentialsInput

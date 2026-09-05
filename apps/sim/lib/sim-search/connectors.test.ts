@@ -8,6 +8,15 @@ vi.mock('@/connectors/registry', () => {
   return {
     CONNECTOR_META_REGISTRY: {
       mintlify: { id: 'mintlify', name: 'Mintlify', auth: { mode: 'apiKey' }, icon },
+      unreviewed: {
+        id: 'unreviewed',
+        name: 'Unreviewed',
+        auth: { mode: 'oauth', provider: 'jira' },
+        permissionScopedListing: { capFieldIds: [] },
+        mirrorsSourceAcls: true,
+        configFields: [],
+        icon,
+      },
       jsm: {
         id: 'jsm',
         name: 'Jira Service Management',
@@ -17,6 +26,7 @@ vi.mock('@/connectors/registry', () => {
       },
       jira: {
         id: 'jira',
+        search: true,
         name: 'Jira',
         auth: { mode: 'oauth', provider: 'jira' },
         permissionScopedListing: { capFieldIds: ['maxIssues'] },
@@ -25,6 +35,7 @@ vi.mock('@/connectors/registry', () => {
       },
       google_drive: {
         id: 'google_drive',
+        search: true,
         name: 'Google Drive',
         auth: { mode: 'oauth', provider: 'google-drive' },
         permissionScopedListing: { capFieldIds: ['maxFiles'] },
@@ -85,25 +96,21 @@ vi.mock('@/lib/integrations/credential-display', () => ({
 import {
   canConnectPersonally,
   isSearchConnectorAvailable,
+  MANAGED_SEARCH_CONNECTORS,
   missingSetupFields,
   personalSetupFields,
   SEARCH_CONNECTORS,
 } from '@/lib/sim-search/connectors'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
 describe('SEARCH_CONNECTORS', () => {
-  it('lists OAuth connectors with a registered service, alphabetically', () => {
-    expect(SEARCH_CONNECTORS.map((connector) => connector.type)).toEqual([
-      'gmail',
-      'google_drive',
-      'jira',
-      'jsm',
-      'salesforce',
-    ])
+  it('lists only permission-scoped OAuth connectors, alphabetically', () => {
+    expect(SEARCH_CONNECTORS.map((connector) => connector.type)).toEqual(['google_drive', 'jira'])
   })
 
   it('resolves the provider, scopes, and brand block type per connector', () => {
-    const jsm = SEARCH_CONNECTORS.find((connector) => connector.type === 'jsm')
-    expect(jsm).toMatchObject({
+    const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')
+    expect(jira).toMatchObject({
       providerId: 'jira',
       providerIds: ['jira'],
       requiredScopes: ['jira:read'],
@@ -112,19 +119,22 @@ describe('SEARCH_CONNECTORS', () => {
     })
     const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')
     expect(drive).toMatchObject({ blockType: 'google_drive' })
-    const gmail = SEARCH_CONNECTORS.find((connector) => connector.type === 'gmail')
-    expect(gmail).toMatchObject({ providerId: 'google-email', serviceName: 'Gmail' })
+    expect(SEARCH_CONNECTORS.find((connector) => connector.type === 'jsm')).toBeUndefined()
   })
 })
 
 describe('canConnectPersonally', () => {
+  it('requires explicit Search opt-in independently of connector ACL capabilities', () => {
+    expect(canConnectPersonally(CONNECTOR_META_REGISTRY.unreviewed)).toBe(false)
+    expect(SEARCH_CONNECTORS.some((source) => source.type === 'unreviewed')).toBe(false)
+    expect(MANAGED_SEARCH_CONNECTORS.some((source) => source.type === 'unreviewed')).toBe(false)
+  })
   it('offers personal connection to OAuth sources whose listing is permission-scoped', () => {
     const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')!
     const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
-    const gmail = SEARCH_CONNECTORS.find((connector) => connector.type === 'gmail')!
     expect(canConnectPersonally(drive.meta)).toBe(true)
     expect(canConnectPersonally(jira.meta)).toBe(true)
-    expect(canConnectPersonally(gmail.meta)).toBe(false)
+    expect(canConnectPersonally(CONNECTOR_META_REGISTRY.gmail)).toBe(false)
   })
 })
 
@@ -145,6 +155,22 @@ describe('personalSetupFields', () => {
 })
 
 describe('isSearchConnectorAvailable', () => {
+  it('allows Slack custom-app authorization on limited deployments but respects unavailable states', () => {
+    const sample = SEARCH_CONNECTORS[0]
+    const slack = { ...sample, type: 'slack', blockType: 'slack_v2' }
+    expect(
+      isSearchConnectorAvailable(
+        slack,
+        new Map([['slack_v2', { oauthAvailable: false, state: 'limited' }]])
+      )
+    ).toBe(true)
+    for (const state of ['unavailable', 'misconfigured'] as const) {
+      expect(
+        isSearchConnectorAvailable(slack, new Map([['slack_v2', { oauthAvailable: true, state }]]))
+      ).toBe(false)
+    }
+  })
+
   it('reads the OAuth path of the connector’s block, defaulting to available', () => {
     const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
     expect(isSearchConnectorAvailable(jira, new Map([['jira', { oauthAvailable: false }]]))).toBe(

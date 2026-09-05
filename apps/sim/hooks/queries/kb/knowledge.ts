@@ -1,6 +1,6 @@
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -233,7 +233,6 @@ export function useKnowledgeBasesQuery(
     queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
     enabled: options?.enabled ?? true,
     staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -252,7 +251,6 @@ export function useDocumentQuery(knowledgeBaseId?: string, documentId?: string) 
     queryFn: ({ signal }) => fetchDocument(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -283,7 +281,12 @@ export function useKnowledgeDocumentsQuery(
     queryFn: ({ signal }) => fetchKnowledgeDocuments(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId),
     staleTime: KNOWLEDGE_DOCUMENT_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .documentLists(params.knowledgeBaseId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
     refetchInterval: options?.refetchInterval ?? false,
   })
 }
@@ -310,7 +313,12 @@ export function useKnowledgeChunksQuery(
     queryFn: ({ signal }) => fetchKnowledgeChunks(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId && params.documentId),
     staleTime: KNOWLEDGE_CHUNK_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -371,7 +379,12 @@ export function useDocumentChunkSearchQuery(
       (options?.enabled ?? true) &&
       Boolean(params.knowledgeBaseId && params.documentId && params.search.trim()),
     staleTime: KNOWLEDGE_CHUNK_SEARCH_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -839,7 +852,6 @@ export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
     queryFn: ({ signal }) => fetchTagDefinitions(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -984,7 +996,6 @@ export function useDocumentTagDefinitionsQuery(
       fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -1189,6 +1200,13 @@ export function useWorkspaceKnowledgeSearch(
       ),
     enabled: Boolean(workspaceId) && knowledgeBaseIds.length > 0 && trimmed.length > 0,
     staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
-    placeholderData: keepPreviousData,
+    retry: false,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .search(workspaceId, knowledgeBaseIds, '')
+        .slice(0, -1)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }

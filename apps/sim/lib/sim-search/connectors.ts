@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
   getCanonicalScopesForProvider,
@@ -10,6 +11,12 @@ import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
 /** The workspace knowledge base Sim Search indexes into, one per workspace, created on first connect. */
 export const SIM_SEARCH_KNOWLEDGE_BASE_NAME = 'Sim Search'
+
+/** Administrative setup is offered only for connectors that explicitly implement source ACLs. */
+export const MANAGED_SEARCH_CONNECTORS = Object.entries(CONNECTOR_META_REGISTRY)
+  .filter(([, meta]) => meta.search && meta.mirrorsSourceAcls)
+  .map(([type, meta]) => ({ type, meta }))
+  .sort((a, b) => a.meta.name.localeCompare(b.meta.name))
 
 /**
  * A knowledge-base connector offered on the Sim Search surface: the connector's
@@ -56,6 +63,7 @@ export interface SearchConnector {
  */
 export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONNECTOR_META_REGISTRY)
   .flatMap(([type, meta]): SearchConnector[] => {
+    if (!canConnectPersonally(meta)) return []
     if (meta.auth.mode !== 'oauth') return []
     const service =
       getServiceConfigByServiceId(meta.auth.provider) ??
@@ -84,7 +92,9 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
  * connector an admin sets up from a knowledge base.
  */
 export function canConnectPersonally(meta: ConnectorMeta): boolean {
-  return meta.auth.mode === 'oauth' && meta.permissionScopedListing !== undefined
+  return (
+    meta.search === true && meta.auth.mode === 'oauth' && meta.permissionScopedListing !== undefined
+  )
 }
 
 /**
@@ -122,10 +132,13 @@ export interface SearchConnectorAvailabilityContext {
   canCreate: boolean
 }
 
+type SearchIntegrationAvailability = Pick<IntegrationAvailabilityResponse, 'oauthAvailable'> &
+  Partial<Pick<IntegrationAvailabilityResponse, 'state'>>
+
 /** Why a source cannot be connected on this surface right now; null when it can. */
 export function searchConnectorUnavailableReason(
   connector: SearchConnector,
-  integrationAvailability: ReadonlyMap<string, { oauthAvailable: boolean }>,
+  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
   context: SearchConnectorAvailabilityContext
 ): string | null {
   if (!isSearchConnectorAvailable(connector, integrationAvailability)) {
@@ -139,15 +152,17 @@ export function searchConnectorUnavailableReason(
 }
 
 /**
- * Whether this deployment can connect the connector. The OAuth path
- * specifically: an integration's `state` can read `limited` on a
- * service-account-only deployment, but a connector authenticates with OAuth
- * alone. A connector with no availability entry is assumed connectable.
+ * Slack members authorize through the workspace's custom app. Other sources
+ * use the deployment's OAuth client. The custom-app path remains available on
+ * a limited deployment, matching the Integrations setup surface.
  */
 export function isSearchConnectorAvailable(
   connector: SearchConnector,
-  integrationAvailability: ReadonlyMap<string, { oauthAvailable: boolean }>
+  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>
 ): boolean {
   const availability = integrationAvailability.get(connector.blockType.toLowerCase())
+  if (connector.type === 'slack' && availability?.state) {
+    return availability.state === 'ready' || availability.state === 'limited'
+  }
   return availability ? availability.oauthAvailable : true
 }

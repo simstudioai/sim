@@ -101,6 +101,10 @@ export interface SearchKnowledgeInput {
   }): Promise<ResolvedSecretTraceRegistry | undefined>
   /** Trusted execution provenance sink; never sourced from an HTTP or model payload. */
   resultSecretRegistry?: ResolvedSecretTraceRegistry
+  /** Trusted adapter identity for telemetry; never accepted from a model or HTTP body. */
+  surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api'
+  /** Cancellation from the trusted transport or executor, never a serialized request field. */
+  signal?: AbortSignal
 }
 
 type KnowledgeSearchContext = KnowledgeResourceContext & {
@@ -233,6 +237,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ principal, input }: { principal: Principal; input: SearchKnowledgeInput }) =>
     resolveKnowledgeSearchContext(input, principal),
   async execute({ principal, input, context }) {
+    input.signal?.throwIfAborted()
     const requestId = generateRequestId()
     const hasQuery = Boolean(input.query?.trim())
     const filters = input.tagFilters ?? []
@@ -313,19 +318,27 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       ? await input.prepareModelInputProvenance({ userId, workspaceId: context.workspaceId })
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
-    const queryEmbeddingPromise = hasQuery
-      ? runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
-          generateSearchEmbedding(input.query!, embeddingTarget!, context.workspaceId)
-        )
-      : Promise.resolve(null)
-    /** Resolved alongside the embedding call; both are needed before the first leg runs. */
-    const accessPromise = context.access.get()
-    const searchDefaults = await resolveKnowledgeSearchDefaults({
-      workspaceId: context.workspaceId,
-      /** The signed-in person, if any; never the billing owner or a key's creator. */
-      userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-      requestedMode: input.searchMode,
-    })
+    input.signal?.throwIfAborted()
+    const [queryEmbedding, access, searchDefaults] = await Promise.all([
+      hasQuery
+        ? runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
+            generateSearchEmbedding(
+              input.query!,
+              embeddingTarget!,
+              context.workspaceId,
+              input.signal
+            )
+          )
+        : Promise.resolve(null),
+      context.access.get(),
+      resolveKnowledgeSearchDefaults({
+        workspaceId: context.workspaceId,
+        /** The signed-in person, if any; never the billing owner or a key's creator. */
+        userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+        requestedMode: input.searchMode,
+      }),
+    ])
+    input.signal?.throwIfAborted()
     const useReranker = Boolean(input.rerankerEnabled && hasQuery)
     const candidateTopK = useReranker
       ? input.rerankerInputCount !== undefined
@@ -335,7 +348,6 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           )
         : Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, input.topK * 4)
       : input.topK
-    const access = await accessPromise
     let rows = await executeKnowledgeSearch({
       knowledgeBaseIds,
       topK: candidateTopK,
@@ -345,13 +357,14 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       query: input.query,
       queryVector: hasQuery
         ? {
-            vector: JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null),
+            vector: JSON.stringify(queryEmbedding?.embedding ?? null),
             dimensions: embeddingTarget!.dimensions,
           }
         : undefined,
       structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
     })
 
+    input.signal?.throwIfAborted()
     const registry =
       resultSecretRegistry ??
       (input.prepareModelInputProvenance
@@ -418,6 +431,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
               topN: input.topK,
               workspaceId: context.workspaceId,
               apiKey: input.rerankerApiKey,
+              signal: input.signal,
             }
           )
         )
@@ -436,6 +450,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           rerankerStatus = 'applied'
         }
       } catch (error) {
+        input.signal?.throwIfAborted()
         if (registry?.isPermanentlyIncomplete()) throw error
         logger.warn('Knowledge reranker failed; using vector ordering', {
           error: getErrorMessage(error),
@@ -449,7 +464,6 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       rows = rows.slice(0, input.topK)
     }
 
-    const queryEmbedding = await queryEmbeddingPromise
     let tokenCount = 0
     let baseCost: ReturnType<typeof calculateCost> | null = null
     if (hasQuery) {
@@ -632,12 +646,23 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       resultSecretRegistry: registry,
     }
   },
-  afterSuccess: ({ context, result }) => {
+  afterSuccess: ({ principal, context, input, result }) => {
     PlatformEvents.knowledgeBaseSearched({
       knowledgeBaseId: result.knowledgeBaseId,
+      knowledgeBaseIds: result.knowledgeBaseIds,
+      documentIds: [...new Set(result.results.map((item) => item.documentId))],
+      connectorTypes: [
+        ...new Set(
+          result.results.flatMap((item) => (item.connectorType ? [item.connectorType] : []))
+        ),
+      ],
       resultsCount: result.totalResults,
       workspaceId: context.workspaceId,
+      actorUserId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+      principalKind: principal.kind,
+      delegatedServiceId: principal.kind === 'delegated' ? principal.serviceId : undefined,
       accessScopeKind: result.accessScopeKind,
+      surface: input.surface,
     })
   },
 })
