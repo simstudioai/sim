@@ -38,6 +38,7 @@ import {
 import { ArrowLeft, ArrowRight, Globe, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
+import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
 import { onFocusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import {
   fillBrowserCredential,
@@ -66,6 +67,7 @@ import {
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { faviconUrl } from '@/lib/core/utils/favicon'
+import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopBrowserAppearanceTheme,
   resolveDesktopAppearanceTheme,
@@ -74,6 +76,7 @@ import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
+import { BrowserEmptyState } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-empty-state'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
 import { BrowserPageIssueView } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-issue'
@@ -238,8 +241,8 @@ export function browserPermissionPrompt(request: BrowserPermissionRequest): {
 } {
   if ('tabId' in request) {
     return {
-      title: `Allow this browser task to visit ${request.origin}?`,
-      text: 'Allowing lets the task send requests to and receive data from this origin until the browser task ends. Only the origin is shown here; the full path and query remain hidden.',
+      title: 'Open another website?',
+      text: `This page wants to open ${request.origin}. Allow this destination for the rest of this browser task? Only continue if you trust this website.`,
     }
   }
 
@@ -480,7 +483,16 @@ export function BrowserSession({
     (state) => state.sessions[scopeId]?.sessionAlive ?? true
   )
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
-  const hasPageIssue = Boolean(pageState?.issue)
+  const showEmptyState = Boolean(
+    pageState &&
+      !pageState.loading &&
+      !pageState.issue &&
+      (!pageState.url || pageState.url === 'about:blank')
+  )
+  const hasRendererPage = Boolean(pageState?.issue) || showEmptyState
+  const [importOpen, setImportOpen] = useState(false)
+  const [importVersion, setImportVersion] = useState(0)
+  const canImport = Boolean(getDesktopBridge()?.browserImport?.importFromChrome)
   const mediaPermissionRequest = pageState?.mediaPermissionRequest
   const sitePermissionRequest = pageState?.sitePermissionRequest
   const permissionRequest = sitePermissionRequest ?? mediaPermissionRequest
@@ -636,11 +648,7 @@ export function BrowserSession({
     () =>
       onBrowserToolbarCommand((command) => {
         if (command === 'import') {
-          navigateToSettings({
-            section: 'browser',
-            browserView: 'passwords',
-            browserImport: true,
-          })
+          setImportOpen(true)
           return
         }
         navigateToSettings({ section: 'browser' })
@@ -668,7 +676,7 @@ export function BrowserSession({
     return () => {
       active = false
     }
-  }, [panelVisible])
+  }, [panelVisible, importVersion])
 
   /** Debounced live completions never block the immediate local/search row. */
   useEffect(() => {
@@ -880,7 +888,7 @@ export function BrowserSession({
       reportBrowserPanelBounds(null, null, scopeId)
       return
     }
-    if (hasPageIssue) {
+    if (hasRendererPage) {
       setPanelVisible(true)
       reportBrowserPanelBounds(null, null, scopeId)
       return
@@ -1046,7 +1054,7 @@ export function BrowserSession({
       void geometryOcclusionLease.setDesired(false)
       reportBrowserPanelBounds(null, null, scopeId)
     }
-  }, [hasPageIssue, visible, suspended, scopeId])
+  }, [hasRendererPage, visible, suspended, scopeId])
 
   /**
    * Programmatic focus on a new tab keeps the omnibox ready for typing without
@@ -1073,7 +1081,7 @@ export function BrowserSession({
       void closeOverlay('suggestions')
       return
     }
-    if (hasPageIssue) {
+    if (hasRendererPage) {
       void closeOverlay('suggestions')
       return
     }
@@ -1084,14 +1092,14 @@ export function BrowserSession({
     void closeOverlay('suggestions')
   }, [
     closeOverlay,
-    hasPageIssue,
+    hasRendererPage,
     mediaPermissionRequest,
     requestOverlay,
     sitePermissionRequest,
     suggestions.length,
   ])
 
-  const suggestionsOpen = hasPageIssue
+  const suggestionsOpen = hasRendererPage
     ? suggestions.length > 0
     : shouldOpenUrlSuggestions(activeOverlay, suggestions.length)
 
@@ -1552,13 +1560,8 @@ export function BrowserSession({
               />
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onSelect={afterToolbarClose(() =>
-                  navigateToSettings({
-                    section: 'browser',
-                    browserView: 'passwords',
-                    browserImport: true,
-                  })
-                )}
+                onSelect={afterToolbarClose(() => setImportOpen(true))}
+                disabled={!canImport}
               >
                 Import Passwords
               </DropdownMenuItem>
@@ -1594,6 +1597,7 @@ export function BrowserSession({
             </p>
           </div>
         )}
+        {showEmptyState && <BrowserEmptyState />}
         {pageState?.issue && (
           <BrowserPageIssueView
             issue={pageState.issue}
@@ -1602,6 +1606,11 @@ export function BrowserSession({
           />
         )}
       </div>
+      <BrowserImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={async () => setImportVersion((version) => version + 1)}
+      />
       <BrowserPermissionModal
         request={permissionRequest}
         open={permissionModalOpen}
