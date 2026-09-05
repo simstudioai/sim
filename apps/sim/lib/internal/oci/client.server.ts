@@ -62,6 +62,7 @@ export type OciRetryPolicy = OciSafeRetryPolicy | OciTokenizedRetryPolicy
 
 interface OciRequestBase {
   readonly endpoint: OciPreparedEndpoint
+  /** Exact encoded path; encode each raw parameter once, including any embedded separators. */
   readonly encodedPath: string
   readonly queryPairs?: readonly (readonly [string, string])[]
   readonly headers?: Readonly<Record<string, string>>
@@ -418,7 +419,7 @@ function buildRequestUrl(
     encodedPath.startsWith('//') ||
     encodedPath.includes('//') ||
     /[?#\\\u0000-\u001f\u007f]/.test(encodedPath) ||
-    /%(?:0[0-9a-f]|1[0-9a-f]|2f|5c|7f)/i.test(encodedPath) ||
+    /%(?:0[0-9a-f]|1[0-9a-f]|7f)/i.test(encodedPath) ||
     /%(?![0-9a-f]{2})/i.test(encodedPath)
   ) {
     throw new OciClientError('invalid_request')
