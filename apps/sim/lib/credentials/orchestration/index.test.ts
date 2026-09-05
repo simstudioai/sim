@@ -67,6 +67,13 @@ vi.mock('@/lib/credentials/environment', () => ({
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
   AtlassianValidationError: class AtlassianValidationError extends Error {},
 }))
+vi.mock('@/lib/credentials/oci-api-key-service-account.server', () => ({
+  OciCredentialVerificationError: class OciCredentialVerificationError extends Error {
+    constructor(readonly code: string) {
+      super(code)
+    }
+  },
+}))
 vi.mock('@/lib/credentials/token-service-accounts/errors', () => ({
   TokenServiceAccountValidationError: class TokenServiceAccountValidationError extends Error {},
 }))
@@ -159,6 +166,111 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(result.updatedFields).toContain('displayName')
     expect(result.previousDisplayName).toBe(OLD_EMAIL)
   })
+
+  it('requires the complete OCI tuple and treats an omitted passphrase as clearing it', async () => {
+    mockCredential({
+      providerId: 'oci-api-key-service-account',
+      displayName: 'OCI production signer',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'oci-api-key-service-account',
+      encryptedServiceAccountKey: 'new-oci-cipher',
+      displayName: 'ocid1.user.oc1..replacement',
+      auditMetadata: {
+        principalKind: 'user',
+        principalId: 'ocid1.user.oc1..replacement',
+      },
+      principal: { kind: 'user', id: 'ocid1.user.oc1..replacement' },
+    })
+
+    const { ServiceAccountSecretError } = await import('@/lib/credentials/service-account-secret')
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
+      new ServiceAccountSecretError(
+        'tenancyOcid, userOcid, fingerprint, privateKey, and region are required for OCI API-key credentials'
+      )
+    )
+
+    const incomplete = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      privateKey: 'replacement-key',
+    })
+    expect(incomplete).toMatchObject({
+      success: false,
+      errorCode: 'validation',
+      error: expect.stringContaining('tenancyOcid, userOcid, fingerprint, privateKey, and region'),
+    })
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'oci-api-key-service-account',
+      expect.objectContaining({ privateKey: 'replacement-key' })
+    )
+
+    const complete = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+      userOcid: 'ocid1.user.oc1..replacement',
+      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+      privateKey: 'replacement-key',
+      region: 'us-ashburn-1',
+    })
+    expect(complete.success).toBe(true)
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenLastCalledWith(
+      'oci-api-key-service-account',
+      expect.objectContaining({
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..replacement',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'replacement-key',
+        privateKeyPassphrase: undefined,
+        region: 'us-ashburn-1',
+      })
+    )
+    expect(updatePayload().encryptedServiceAccountKey).toBe('new-oci-cipher')
+  })
+
+  it.each([
+    ['invalid_credentials', 'invalid_credentials', 'OCI rejected the API-key credential'],
+    [
+      'service_unavailable',
+      'provider_unavailable',
+      'OCI is temporarily unavailable for credential verification',
+    ],
+    [
+      'invalid_response',
+      'provider_unavailable',
+      'OCI is temporarily unavailable for credential verification',
+    ],
+  ] as const)(
+    'maps OCI %s rotation failures without changing generic service-account errors',
+    async (code, providerErrorCode, message) => {
+      mockCredential({ providerId: 'oci-api-key-service-account' })
+      const { OciCredentialVerificationError } = await import(
+        '@/lib/credentials/oci-api-key-service-account.server'
+      )
+      mockVerifyAndBuildServiceAccountSecret.mockRejectedValue(
+        new OciCredentialVerificationError(code)
+      )
+
+      const result = await performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..replacement',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'replacement-key',
+        region: 'us-ashburn-1',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: message,
+        providerErrorCode,
+      })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
 
   it('keeps a label the user typed instead of the derived identity', async () => {
     mockCredential({ displayName: 'Prod billing exporter' })
@@ -429,6 +541,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     })
 
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result).not.toHaveProperty('providerErrorCode')
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
@@ -609,6 +722,54 @@ describe('createServiceAccountCredential', () => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
+
+  it.each([
+    ['invalid_credentials', 'invalid_credentials', false, 'OCI rejected the API-key credential'],
+    [
+      'service_unavailable',
+      'provider_unavailable',
+      true,
+      'OCI is temporarily unavailable for credential verification',
+    ],
+    [
+      'invalid_response',
+      'provider_unavailable',
+      true,
+      'OCI is temporarily unavailable for credential verification',
+    ],
+  ] as const)(
+    'maps OCI %s creation failures through the existing provider result contract',
+    async (code, providerErrorCode, providerUnavailable, message) => {
+      const { OciCredentialVerificationError } = await import(
+        '@/lib/credentials/oci-api-key-service-account.server'
+      )
+      mockVerifyAndBuildServiceAccountSecret.mockRejectedValue(
+        new OciCredentialVerificationError(code)
+      )
+
+      const result = await createServiceAccountCredential({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        providerId: 'oci-api-key-service-account',
+        displayName: 'OCI signer',
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..principal',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: 'provider-secret-key',
+        region: 'us-ashburn-1',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: message,
+        providerErrorCode,
+        providerUnavailable,
+      })
+      expect(JSON.stringify(result)).not.toContain('provider-secret-key')
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects an existing service-account source instead of discarding the submitted secret', async () => {
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({

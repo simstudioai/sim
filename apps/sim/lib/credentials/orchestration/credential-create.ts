@@ -13,6 +13,7 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext, requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { getCredentialCreationWorkspaceContext } from '@/lib/credentials/environment'
+import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
 import type { CredentialOrchestrationErrorCode } from '@/lib/credentials/orchestration'
 import {
   ServiceAccountSecretError,
@@ -78,6 +79,11 @@ export interface PerformCreateCredentialParams {
   authMethod?: string
   privateKey?: string
   username?: string
+  tenancyOcid?: string
+  userOcid?: string
+  fingerprint?: string
+  privateKeyPassphrase?: string
+  region?: string
   /**
    * Client-supplied credential id, honored only for `slack-custom-bot`: the
    * setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}` before
@@ -276,6 +282,11 @@ export async function createCredentialRecord(
           authMethod: params.authMethod,
           privateKey: params.privateKey,
           username: params.username,
+          tenancyOcid: params.tenancyOcid,
+          userOcid: params.userOcid,
+          fingerprint: params.fingerprint,
+          privateKeyPassphrase: params.privateKeyPassphrase,
+          region: params.region,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
@@ -527,6 +538,18 @@ export async function createCredentialRecord(
 
     return { success: true, credential: created, created: true, auditMetadata: extraAuditMetadata }
   } catch (error: unknown) {
+    if (error instanceof OciCredentialVerificationError) {
+      const providerUnavailable = error.code !== 'invalid_credentials'
+      const providerErrorCode = providerUnavailable ? 'provider_unavailable' : 'invalid_credentials'
+      logger.warn(`OCI credential rejected: ${error.code}`)
+      return failure(
+        providerUnavailable
+          ? 'OCI is temporarily unavailable for credential verification'
+          : 'OCI rejected the API-key credential',
+        'validation',
+        { providerErrorCode, providerUnavailable }
+      )
+    }
     if (error instanceof AtlassianValidationError) {
       logger.warn(`Atlassian credential rejected: ${error.code}`, {
         code: error.code,

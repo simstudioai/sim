@@ -121,6 +121,10 @@ describe('getAllOAuthServices', () => {
       serviceId: 'gmail',
       authType: 'oauth',
     })
+    expect(getServiceConfigByServiceId('oci')).toMatchObject({
+      authType: 'service_account',
+      serviceAccountProviderId: 'oci-api-key-service-account',
+    })
   })
 })
 

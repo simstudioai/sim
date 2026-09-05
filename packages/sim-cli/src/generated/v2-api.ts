@@ -8297,6 +8297,11 @@ export type UpdateCredentialBody = {
   authMethod?: string
   privateKey?: string
   username?: string
+  tenancyOcid?: string
+  userOcid?: string
+  fingerprint?: string
+  privateKeyPassphrase?: string
+  region?: string
 }
 
 type UpdateCredentialResponseRef0 = {
@@ -14341,6 +14346,11 @@ export const V2_OPERATIONS = {
       authMethod: { kind: 'string', describe: 'Provider authentication method.' },
       privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
       username: { kind: 'string', describe: 'Provider run-as username.' },
+      tenancyOcid: { kind: 'string', describe: 'OCI tenancy OCID.' },
+      userOcid: { kind: 'string', describe: 'OCI user OCID.' },
+      fingerprint: { kind: 'string', describe: 'OCI API-key fingerprint.' },
+      privateKeyPassphrase: { kind: 'string', describe: 'Write-only OCI private-key passphrase.' },
+      region: { kind: 'string', describe: 'OCI home region.' },
     },
   },
   updateCustomTool: {

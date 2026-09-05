@@ -35,6 +35,7 @@ import {
   deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
+import { OciCredentialVerificationError } from '@/lib/credentials/oci-api-key-service-account.server'
 import type { ServiceAccountFieldId } from '@/lib/credentials/service-account-fields'
 import {
   ServiceAccountSecretError,
@@ -82,6 +83,11 @@ const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
   'authMethod',
   'privateKey',
   'username',
+  'tenancyOcid',
+  'userOcid',
+  'fingerprint',
+  'privateKeyPassphrase',
+  'region',
 ]
 
 /**
@@ -194,6 +200,11 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   authMethod?: string
   privateKey?: string
   username?: string
+  tenancyOcid?: string
+  userOcid?: string
+  fingerprint?: string
+  privateKeyPassphrase?: string
+  region?: string
 }
 
 export interface PerformCredentialResult {
@@ -370,6 +381,11 @@ export async function updateCredentialRecord(
             : params.authMethod,
           privateKey: params.privateKey,
           username: needsStoredUsername ? readStoredField(storedBlob, 'username') : params.username,
+          tenancyOcid: params.tenancyOcid,
+          userOcid: params.userOcid,
+          fingerprint: params.fingerprint,
+          privateKeyPassphrase: params.privateKeyPassphrase,
+          region: params.region,
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId
@@ -389,6 +405,17 @@ export async function updateCredentialRecord(
       } catch (error) {
         if (error instanceof ServiceAccountSecretError) {
           return { success: false, error: error.message, errorCode: 'validation' }
+        }
+        if (error instanceof OciCredentialVerificationError) {
+          const providerUnavailable = error.code !== 'invalid_credentials'
+          return {
+            success: false,
+            error: providerUnavailable
+              ? 'OCI is temporarily unavailable for credential verification'
+              : 'OCI rejected the API-key credential',
+            errorCode: 'validation',
+            providerErrorCode: providerUnavailable ? 'provider_unavailable' : 'invalid_credentials',
+          }
         }
         if (error instanceof AtlassianValidationError) {
           // Surface the provider code so the client maps it to the specific

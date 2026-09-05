@@ -288,9 +288,53 @@ describe('POST /api/v2/credentials', () => {
         authMethod: undefined,
         privateKey: undefined,
         username: undefined,
+        tenancyOcid: undefined,
+        userOcid: undefined,
+        fingerprint: undefined,
+        privateKeyPassphrase: undefined,
+        region: undefined,
       },
       request,
     })
+  })
+
+  it('forwards OCI credential fields from the write-only credentials envelope', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/credentials', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        providerId: 'oci-api-key-service-account',
+        credentials: JSON.stringify({
+          tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+          userOcid: 'ocid1.user.oc1..user',
+          fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+          privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+          privateKeyPassphrase: ' exact passphrase ',
+          region: 'us-ashburn-1',
+        }),
+      }),
+    })
+    const response = await POST(request)
+    const body = await response.text()
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: expect.objectContaining({
+        providerId: 'oci-api-key-service-account',
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..user',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+        privateKeyPassphrase: ' exact passphrase ',
+        region: 'us-ashburn-1',
+      }),
+      request,
+    })
+    expect(body).not.toContain('PRIVATE KEY')
+    expect(body).not.toContain('exact passphrase')
   })
 
   it('rejects an unknown service-account provider before the use case', async () => {

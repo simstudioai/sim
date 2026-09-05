@@ -3,10 +3,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  createCredentialBodySchema,
   createCredentialDraftBodySchema,
   updateCredentialByIdBodySchema,
   workspaceCredentialSchema,
 } from '@/lib/api/contracts/credentials'
+import {
+  v2CreateServiceAccountCredentialBodySchema,
+  v2UpdateCredentialBodySchema,
+} from '@/lib/api/contracts/v2/credentials'
 
 const credential = {
   id: 'credential-1',
@@ -90,5 +95,45 @@ describe('createCredentialDraftBodySchema OAuth client configuration', () => {
         oauthClientConfig,
       }).success
     ).toBe(false)
+  })
+})
+
+describe('OCI API-key credential fields', () => {
+  const fields = {
+    tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+    userOcid: 'ocid1.user.oc1..user',
+    fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+    privateKey: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----',
+    privateKeyPassphrase: ' exact passphrase ',
+    region: 'us-ashburn-1',
+  }
+
+  it('accepts the stable web create field names and preserves the passphrase exactly', () => {
+    const parsed = createCredentialBodySchema.parse({
+      workspaceId: '11111111-2222-4333-8444-555555555555',
+      type: 'service_account',
+      providerId: 'oci-api-key-service-account',
+      ...fields,
+    })
+
+    expect(parsed.privateKeyPassphrase).toBe(' exact passphrase ')
+    expect(parsed).toMatchObject(fields)
+  })
+
+  it('accepts the same fields in the V2 write-only envelope', () => {
+    const parsed = v2CreateServiceAccountCredentialBodySchema.parse({
+      workspaceId: '11111111-2222-4333-8444-555555555555',
+      type: 'service_account',
+      providerId: 'oci-api-key-service-account',
+      credentials: JSON.stringify(fields),
+    })
+
+    expect(parsed.credentials).toMatchObject(fields)
+  })
+
+  it('accepts an omitted passphrase on rotation as an unencrypted replacement key', () => {
+    const { privateKeyPassphrase: _omitted, ...replacement } = fields
+    expect(v2UpdateCredentialBodySchema.parse(replacement)).toEqual(replacement)
+    expect(updateCredentialByIdBodySchema.parse(replacement)).toEqual(replacement)
   })
 })
