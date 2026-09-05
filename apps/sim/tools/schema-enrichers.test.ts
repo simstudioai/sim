@@ -183,7 +183,7 @@ describe('enrichKBTagsSchema', () => {
   it('omits the executionId outside an active run', async () => {
     mockListKnowledgeTagsAsExecutor.mockResolvedValue([])
 
-    await enrichKBTagsSchema('kb-1', {
+    const result = await enrichKBTagsSchema('kb-1', {
       userId: 'user-1',
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
@@ -200,6 +200,7 @@ describe('enrichKBTagsSchema', () => {
         executorDelegationOrigin: EXECUTOR_ORIGIN,
       },
     })
+    expect(result).toBeNull()
   })
 
   it.each([

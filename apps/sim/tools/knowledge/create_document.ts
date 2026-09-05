@@ -124,6 +124,7 @@ export const knowledgeCreateDocumentTool: InternalToolConfig<any, KnowledgeCreat
       // Handle multiple documents response
       const uploadCount = documentsCreated.length
       const firstDocument = documentsCreated[0]
+      const documentId = firstDocument?.documentId || firstDocument?.id || ''
 
       return {
         success: true,
@@ -132,8 +133,9 @@ export const knowledgeCreateDocumentTool: InternalToolConfig<any, KnowledgeCreat
             uploadCount > 1
               ? `Successfully created ${uploadCount} documents in knowledge base`
               : `Successfully created document in knowledge base`,
+          documentId,
           data: {
-            documentId: firstDocument?.documentId || firstDocument?.id || '',
+            documentId,
             documentName:
               uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
             type: 'document',
