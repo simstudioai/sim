@@ -188,6 +188,24 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracleEpmEdm.applications': providerSelector([], { search: true, detail: true }),
+  'oracleEpmEdm.dimensions': providerSelector(['applicationId'], {
+    readiness: { all: ['oauthCredential', 'applicationId'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmEdm.views': providerSelector([], { search: true, detail: true }),
+  'oracleEpmEdm.viewpoints': providerSelector(['viewId'], {
+    readiness: { all: ['oauthCredential', 'viewId'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmEdm.nodeTypes': providerSelector(['viewId', 'viewpointId'], {
+    readiness: { all: ['oauthCredential', 'viewId', 'viewpointId'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmEdm.requests': providerSelector([], { search: true, detail: true }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,145 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_enterprise_data_management",
+      "slug": "oracle-epm-enterprise-data-management",
+      "name": "Oracle EPM Enterprise Data Management",
+      "description": "Manage dimensions, viewpoints, nodes, governed requests, validation, and data transfers",
+      "longDescription": "Use a reusable Oracle EPM service account to discover enterprise master data, browse bounded hierarchies, prepare and transition governed requests, inspect subscription-generated request lineage, run validation, and import or export files. Node changes flow through request attachments. Subscription and validation-definition administration are not included. Upload-to-import request workflows are supported; generated attachment jobs return opaque results because Oracle does not document the generated attachment ID needed to chain an import automatically. Oracle job COMPLETED is not a guarantee of business success: inspect job results and validation reports.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_enterprise_data_management",
+      "operations": [
+        {
+          "name": "List Applications",
+          "description": "List applications visible to the EDM credential, with bounded documented metadata."
+        },
+        {
+          "name": "List Dimensions",
+          "description": "List dimensions and bindings from a selected application's documented metadata."
+        },
+        {
+          "name": "List Views",
+          "description": "List EDM views, optionally filtered by one dimension or object status."
+        },
+        {
+          "name": "List Viewpoints",
+          "description": "List viewpoints in a view, optionally filtered by application or dimension."
+        },
+        {
+          "name": "List Node Types",
+          "description": "List node-type references assigned to a viewpoint; this is not an administration API."
+        },
+        {
+          "name": "Get Node Type",
+          "description": "Get a node-type reference and related viewpoints from a viewpoint assignment."
+        },
+        {
+          "name": "List Nodes",
+          "description": "List one bounded flat page of all, top, child, or request-context nodes."
+        },
+        {
+          "name": "Get Node",
+          "description": "Get an EDM node and its documented properties and request validation information."
+        },
+        {
+          "name": "Get Node At Location",
+          "description": "Get a node at its comma-separated ancestor/node UUID location."
+        },
+        {
+          "name": "Browse Hierarchy",
+          "description": "Browse a bounded flat hierarchy preserving shared-node occurrences, with a 5 MiB node-output cap and remaining-frontier diagnostics."
+        },
+        {
+          "name": "Create Request",
+          "description": "Create an interactive EDM request in a selected view."
+        },
+        {
+          "name": "Get Request",
+          "description": "Get request status, ownership, valid transitions, and subscription source relationships."
+        },
+        {
+          "name": "Query Requests",
+          "description": "Query requests using one value per filter and a maximum 90-day time window."
+        },
+        {
+          "name": "Get Request Lineage",
+          "description": "Inspect request lineage and subscription processing relationships."
+        },
+        {
+          "name": "Assign Request",
+          "description": "Assign an EDM request number to a user."
+        },
+        {
+          "name": "Delete Request",
+          "description": "Delete an EDM request when permitted by Oracle."
+        },
+        {
+          "name": "Upload Request Attachment",
+          "description": "Upload one authorized Sim file as an EDM request attachment."
+        },
+        {
+          "name": "Generate Request Attachment",
+          "description": "Generate an Excel request attachment and poll its job; Oracle does not document the generated attachment ID for automatic import chaining."
+        },
+        {
+          "name": "Import Request Attachment",
+          "description": "Import named sheets from a saved request attachment and poll its job."
+        },
+        {
+          "name": "Transition Request",
+          "description": "Perform a documented request workflow action and optionally wait for completion."
+        },
+        {
+          "name": "Get Job Status",
+          "description": "Get the current Oracle EDM job status without waiting."
+        },
+        {
+          "name": "Get Job Result",
+          "description": "Get a documented job-result envelope with an opaque result, or download its result file."
+        },
+        {
+          "name": "Validate Viewpoint",
+          "description": "Validate a viewpoint and retrieve its generated report after job completion."
+        },
+        {
+          "name": "Get Mapping Keys",
+          "description": "Get mapping locations and source/target node-type references for a dimension binding."
+        },
+        {
+          "name": "Export Mappings",
+          "description": "Export dimension mappings to a configured connection or a stored Sim file."
+        },
+        {
+          "name": "Import Dimension",
+          "description": "Import a dimension using an explicit import mode and staged or uploaded file."
+        },
+        {
+          "name": "Load Viewpoint",
+          "description": "Load a viewpoint from a staged or uploaded file using an explicit load mode."
+        },
+        {
+          "name": "Export Dimension",
+          "description": "Export a dimension to a configured connection or a stored Sim file."
+        },
+        {
+          "name": "Incremental Export Dimension",
+          "description": "Export new or updated dimension nodes since a timestamp or a previous export."
+        },
+        {
+          "name": "Extract Dimension Viewpoint",
+          "description": "Run a configured dimension viewpoint extract and retrieve its output."
+        }
+      ],
+      "operationCount": 30,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",
