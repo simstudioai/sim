@@ -12,6 +12,7 @@ import {
   ALL_COMPETITORS,
   buildBottomLine,
   buildComparisonFaqs,
+  getComparisonReviewDate,
   getCompetitorBySlug,
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
@@ -34,11 +35,22 @@ export async function generateStaticParams() {
 function factsToProperties(profile: CompetitorProfile) {
   return COMPARISON_SECTIONS.flatMap((section) => {
     const group = getFactGroup(profile, section.group)
-    return section.rows.map((row) => ({
-      '@type': 'PropertyValue',
-      name: row.label,
-      value: group[row.key]?.value ?? 'Unknown',
-    }))
+    return section.rows.map((row) => {
+      const fact = group[row.key]
+      const qualification =
+        fact?.confidence === 'estimated'
+          ? 'Estimate: '
+          : fact?.confidence === 'unknown'
+            ? 'Unverified: '
+            : ''
+      return {
+        '@type': 'PropertyValue',
+        name: row.label,
+        value: `${qualification}${fact?.value ?? 'Unknown'}`,
+        description: fact?.detail,
+        url: fact?.sources[0]?.url,
+      }
+    })
   })
 }
 
@@ -104,6 +116,7 @@ export default async function ComparisonProviderPage({
   const latestVerified = new Date(
     Math.max(SIM_LATEST_VERIFIED.getTime(), getLatestVerifiedDate(competitor).getTime())
   )
+  const reviewDate = getComparisonReviewDate([simProfile, competitor])
 
   const productComparisonJsonLd = {
     '@context': 'https://schema.org',
@@ -177,16 +190,23 @@ export default async function ComparisonProviderPage({
               Sim is the open-source AI workspace where teams build, deploy, and manage AI agents
               visually, conversationally, or with code. Here is how Sim compares to{' '}
               {competitor.name} on platform architecture, AI capabilities, integrations, pricing,
-              security, and support. Every fact below is sourced and dated, last verified{' '}
-              <time dateTime={latestVerified.toISOString().slice(0, 10)}>
-                {latestVerified.toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                  timeZone: 'UTC',
-                })}
-              </time>
-              .
+              security, and support.{' '}
+              {reviewDate ? (
+                <>
+                  Verified against the cited sources as of{' '}
+                  <time dateTime={reviewDate.toISOString().slice(0, 10)}>
+                    {reviewDate.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                      timeZone: 'UTC',
+                    })}
+                  </time>
+                  .{' '}
+                </>
+              ) : null}
+              Estimates and unverified capabilities are labeled. Plan and deployment restrictions
+              apply as described in the sources.
             </p>
             <p className='sr-only'>
               Sim is an open-source AI workspace for building, deploying, and managing AI agents.

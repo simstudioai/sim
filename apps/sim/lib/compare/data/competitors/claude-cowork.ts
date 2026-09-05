@@ -1,7 +1,7 @@
 import { AnthropicIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched against primary Anthropic/Claude sources on 2026-07-02. */
+/** Reviewed against live primary sources on 2026-09-04; undocumented capabilities remain qualified. */
 export const claudeCoworkProfile: CompetitorProfile = {
   id: 'claude-cowork',
   name: 'Claude Cowork',
@@ -15,1195 +15,1068 @@ export const claudeCoworkProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    "Claude Cowork is Anthropic's autonomous desktop agent, built into the Claude Desktop app. Give it a goal in plain language and it works across your local files, folders, and apps (via connectors, a browser, and direct screen control) to finish a multi-step task end-to-end. It is not a visual workflow builder or automation/integration platform like Sim, n8n, or Zapier. It's a session-based agent that only runs while the desktop app is open and the computer is awake.",
+    "Claude Cowork is Anthropic's conversational agent for completing tasks across files and connected apps. Cloud sessions continue across desktop, web, and mobile; local computer access depends on the Claude Desktop app being online.",
   standoutFeatures: [
     {
-      title: 'Dynamic, runtime tool selection (no pre-wiring)',
-      description:
-        'Claude decides itself at execution time how to reach a given goal: "Tell Claude what you need, not how" — it opens a browser for web tasks and takes over the screen directly only when it has to, rather than a builder where a user pre-wires which tool a step uses.',
-      shortDescription:
-        'Claude decides whether to use the browser or take over the screen at runtime, not pre-wired steps.',
+      title: 'Tools selected during a task',
+      description: 'Claude chooses connected tools as it works toward the requested outcome.',
+      shortDescription: 'Claude chooses tools while working toward a goal.',
       source: {
         url: 'https://claude.com/product/cowork',
-        label: 'Claude Cowork product page (Claude)',
-        asOf: '2026-07-08',
+        label: 'Claude Cowork product page',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Sub-agent coordination for parallel workstreams',
-      description:
-        'Cowork analyzes a request, creates a plan, breaks complex work into subtasks, and coordinates parallel sub-agent workstreams to complete them within a single task session.',
-      shortDescription:
-        'Breaks complex requests into subtasks run by coordinated parallel sub-agents.',
+      title: 'Parallel sub-agent work',
+      description: 'Cowork can divide complex work among coordinated sub-agents.',
+      shortDescription: 'Coordinated sub-agents handle parts of a task in parallel.',
       source: {
         url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        label: 'Get started with Claude Cowork',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Granular per-tool/per-connector action controls',
+      title: 'Connector action controls',
       description:
-        "Enterprise admins can restrict specific actions within an MCP connector organization-wide (e.g. allow Gmail read but block send). Each action is settable to Always allow, Needs approval, or Blocked, layered on top of the underlying service's own permissions.",
-      shortDescription: 'Admins can allow, gate, or block individual connector actions org-wide.',
+        'Team and Enterprise owners can allow, require approval for, or block connector actions. Source-system permissions still apply.',
+      shortDescription: 'Admins can allow, gate, or block connector actions.',
       source: {
         url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        label: 'Use connectors to extend Claude',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'OpenTelemetry-based tool/action observability',
+      title: 'OpenTelemetry monitoring',
       description:
-        'Cowork logs every tool/connector call, file read or edit, skill run, and whether each AI action was approved manually or automatically, using the OpenTelemetry standard. Team/Enterprise plans can export this log to SIEM tools like Splunk or Cribl.',
-      shortDescription:
-        'Streams every tool call and approval decision to SIEM tools like Splunk or Cribl.',
+        'Team and Enterprise organizations can export prompts, tool calls, file access, approvals, and model-request events to an OTel collector.',
+      shortDescription: 'Tool, file, approval, and model events stream to your collector.',
       source: {
-        url: 'https://claude.com/blog/cowork-for-enterprise',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        url: 'https://support.claude.com/en/articles/14477985-monitor-claude-cowork-activity-with-opentelemetry',
+        label: 'Monitor Cowork with OpenTelemetry',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'File-based plugin system bundling skills, connectors, and sub-agents',
+      title: 'Reusable plugins',
       description:
-        'Plugins bundle skills (SKILL.md instruction files), connectors, slash commands, and sub-agents into a single installable package; a built-in Skill Creator tool interviews the user and generates a structured skill file.',
-      shortDescription:
-        'Installable plugins package skills, connectors, commands, and sub-agents together.',
+        'Plugins bundle skills, connectors, and sub-agents; Anthropic supplies templates and a Plugin Create assistant.',
+      shortDescription: 'Install or customize packages of skills, connectors, and sub-agents.',
       source: {
-        url: 'https://claude.com/blog/cowork-plugins',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
+        label: 'Use plugins in Claude',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'No webhook/external-event-triggered automation',
+      title: 'Local access needs an online desktop',
       description:
-        "Task initiation is manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks now run remotely in the cloud on their set cadence, independent of whether the user's computer is awake or the Claude Desktop app is open. There is still no external event/webhook trigger capability — only time-based scheduling.",
-      shortDescription:
-        'Tasks run manually or on a schedule (now remote); no external event/webhook trigger.',
+        'Cloud sessions keep running remotely, but cannot access your computer when the Claude Desktop app is offline.',
+      shortDescription: 'Local files and browser access depend on the desktop connection.',
+      source: {
+        url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
+        label: 'Claude Cowork architecture overview',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Task scheduling has local-file constraints',
+      description:
+        'The scheduling guide describes remote tasks using account files and connectors, with local-only execution for tasks requiring local files or apps.',
+      shortDescription: 'Local dependencies need separate consideration when scheduling.',
       source: {
         url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-08',
+        label: 'Schedule recurring tasks in Claude Cowork',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'No API publishing / callable endpoint deployment',
+      title: 'Session transcript APIs are read-only',
       description:
-        'Cowork has no mechanism to publish or deploy a task as an API endpoint that external systems can call. Unlike a Sim workflow, it is strictly a session inside the Claude apps (web, desktop, and mobile), run manually or on a schedule.',
-      shortDescription: 'Tasks cannot be published as callable API endpoints for external systems.',
+        'Enterprise Compliance API endpoints retrieve both local and remote Cowork transcripts, but neither session endpoint family supports deletion.',
+      shortDescription: 'Transcript retrieval is supported; session deletion APIs are unavailable.',
       source: {
-        url: 'https://claude.com/product/cowork',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-08',
+        url: 'https://platform.claude.com/docs/en/manage-claude/compliance-sessions',
+        label: 'Retrieve session transcripts',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Cowork activity is not captured in audit logs / Compliance API',
+      title: 'Permissions still govern real-world actions',
       description:
-        'Cowork activity does not appear in the Compliance API or standard data exports. OpenTelemetry (Team/Enterprise only) is the only visibility mechanism documented for streaming Cowork events to SIEM/observability tools; Anthropic does not document a way to reconcile it with Compliance API records, so it is not a full audit trail on its own.',
-      shortDescription:
-        'Cowork actions are absent from the Compliance API and standard data exports.',
-      source: {
-        url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'Computer-use has no sandboxing between Claude and the screen',
-      description:
-        "Unlike file operations or code execution, which run in an isolated VM, direct computer-use/screen interaction is not sandboxed. Anthropic documents prompt-injection risk and recommends active supervision, avoiding sensitive data, and caution with the 'Act Without Asking' mode.",
-      shortDescription:
-        'Screen/computer-use actions run unsandboxed, carrying prompt-injection risk.',
+        'Sandbox isolation does not prevent harmful actions through tools you authorize. Anthropic documents prompt-injection risk and recommends limiting access.',
+      shortDescription: 'Authorized tools can affect real files and services.',
       source: {
         url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        label: 'Use Claude Cowork safely',
+        asOf: '2026-09-04',
       },
     },
   ],
   facts: {
     platform: {
       builderType: {
-        value: 'Conversational/prompt-driven autonomous agent (not a visual workflow builder)',
-        detail:
-          'The user describes a goal in natural language in the Cowork tab of Claude Desktop. Claude analyzes the request, creates a plan, and executes across files, apps, and connectors without step-by-step drag-and-drop configuration.',
-        shortValue: 'Conversational agent, not a visual builder',
+        value: 'Conversational task agent',
+        detail: 'Describe an outcome and steer Claude as it works across files and tools.',
+        shortValue: 'Conversational task agent',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.anthropic.com/product/claude-cowork',
-            label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
-        value: 'Low. Designed for non-technical knowledge workers',
-        detail:
-          'Marketed for knowledge workers who need to handle repetitive, multi-step tasks involving files, documents, and data without technical or coding expertise. Interaction is purely natural-language prompts.',
-        shortValue: 'Low. Built for non-technical users',
-        confidence: 'verified',
+        value: 'Natural-language interaction',
+        detail: 'No terminal is required; learning effort depends on the task and connected tools.',
+        shortValue: 'No terminal required',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.anthropic.com/product/claude-cowork',
-            label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       selfHostOption: {
-        value: 'No',
+        value: 'Anthropic-managed cloud; local desktop execution also exists',
         detail:
-          "Cowork is a proprietary application (web, macOS/Windows desktop, and mobile; Linux desktop in beta) that requires a paid Claude plan and connects to Anthropic's cloud. There is no self-hosted or on-prem deployment option.",
-        shortValue: 'No self-hosting option',
-        confidence: 'verified',
+          'Local desktop execution is an application mode, not a documented self-hosted Cowork server distribution.',
+        shortValue: 'Cloud/local desktop; self-hosted server unverified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork',
-            asOf: '2026-07-08',
+            url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
+            label: 'Claude Cowork architecture overview',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
-        value:
-          'Claude Desktop app (macOS, Windows, Linux beta); companion mobile messaging while desktop app stays active',
+        value: 'macOS/Windows desktop, web, and mobile',
         detail:
-          "Tasks execute in an isolated virtual machine on the user's computer. Pro/Max users can message and monitor from a phone while the desktop app remains open.",
-        shortValue: 'Desktop app (Mac/Windows/Linux beta) + mobile',
+          'Cloud sessions are in beta. Enterprise cloud availability requires administrator enablement.',
+        shortValue: 'Desktop, web, and mobile',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13947068-assign-tasks-from-anywhere-in-claude-cowork',
-            label: 'Assign tasks from anywhere in Claude Cowork',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
-        value: 'Plugin marketplace + open-source plugin templates',
-        detail:
-          'Plugins bundle skills, connectors, sub-agents, and slash commands into installable packages. Anthropic provides starter templates and an open-source knowledge-work-plugins repo.',
-        shortValue: 'Plugin marketplace + OSS templates',
-        confidence: 'estimated',
+        value: 'Anthropic plugin templates and custom plugins',
+        detail: 'Plugin Create helps users adapt templates or build a package.',
+        shortValue: 'Plugin templates and customization',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://claude.com/blog/cowork-plugins',
-            label: 'Customize Cowork with plugins',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
+            label: 'Use plugins in Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
-        value: 'Proprietary (closed-source SaaS/desktop product)',
+        value: 'Commercial Claude product',
         detail:
-          'Claude Cowork is a commercial Anthropic product bundled into paid Claude plans. Not open source, unlike Sim.',
-        shortValue: 'Closed-source proprietary product',
-        confidence: 'verified',
-        sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
-        ],
-      },
-      environmentPromotion: {
-        value: 'N/A: no dev/qa/prod concept exists',
-        detail:
-          'Cowork is a single-session desktop agent, not a deployable multi-stage application. There is no environment fork/promote concept.',
-        shortValue: 'No dev/staging/prod concept',
-        confidence: 'verified',
-        sources: [],
-      },
-      versionControlDepth: {
-        value: 'Not documented, no native version control',
-        detail:
-          'Plugins and skills are file-based (SKILL.md and package files), so a user could track them in an external VCS, but there is no built-in versioning, diffing, or rollback for tasks or plugins.',
-        shortValue: 'No native version control',
+          'Cowork is included in paid Claude plans; no open-source Cowork platform license is documented.',
+        shortValue: 'Commercial product; open-source license unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://claude.com/blog/cowork-plugins',
-            label: 'Customize Cowork with plugins',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/pricing',
+            label: 'Claude pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      environmentPromotion: {
+        value: 'Not documented in the reviewed Cowork sources',
+        detail:
+          'Reviewed product documentation does not establish dev/test/production promotion for Cowork tasks.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      versionControlDepth: {
+        value: 'Not documented in the reviewed Cowork sources',
+        detail:
+          'Task-level branching, visual diffs, and deployment rollback are not established by the reviewed documentation.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
+            label: 'Projects in Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
-        value:
-          "No: Claude Cowork sessions run for a single user and cannot be shared with others in real time. There is no live multi-cursor, multi-selection editing of the same Cowork task. The closest feature, 'Shared Workspaces,' lets humans and the agent work on shared cloud files together, but it coordinates through file locking (the agent locks a file while editing, then releases it), not live synced editing.",
-        shortValue: 'No: single-user sessions, file-locking not live co-editing',
-        confidence: 'verified',
+        value: 'Shared projects on Team and Enterprise',
+        detail:
+          'Projects support view/edit access. Live concurrent editing of one task with shared cursors is not documented.',
+        shortValue: 'Shared projects; live task editing unverified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
-            label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://fast.io/resources/claude-cowork-shared-workspace/',
-            label: 'How to Set Up a Claude Cowork Shared Workspace',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
+            label: 'Projects in Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeFileStorage: {
-        value:
-          "No: Claude Cowork works on the user's connected local files/folders (via the Desktop app) and, as of the current beta, can also execute tasks remotely in an isolated environment on Anthropic's servers, saving sessions and files to the user's Claude account; it is not a native cloud file-storage product with its own folder hierarchy, link-based sharing, and deleted-item recovery.",
+        value: 'Cloud files and project workspaces',
         detail:
-          'Cowork has deleted user files with no built-in recovery path, underscoring that this is task/file access rather than a managed storage product.',
-        shortValue: 'No: local files + remote beta execution, no native storage/trash',
-        confidence: 'verified',
+          'Cloud projects persist with the Claude account; local-folder projects remain on that device. Folder sharing and recovery parity are unverified.',
+        shortValue: 'Cloud/local files; recovery controls unverified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/anthropics/claude-code/issues/32637',
-            label: '[BUG] Cowork destroys user files when reorganizing (GitHub issue)',
-            asOf: '2026-07-08',
+            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
+            label: 'Projects in Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataTables: {
-        value:
-          "No: Claude Cowork has no native in-platform spreadsheet/data-table object. It manipulates rows, columns, and formulas inside external files (Excel .xlsx, Google Sheets via connector) on the user's local filesystem or a connected app, not a first-party database-like table stored in the Claude workspace itself.",
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          'Cowork is a desktop file/task agent, not a workflow platform with a persisted data-table primitive.',
-        shortValue: 'No: works on external files, no native table object',
-        confidence: 'estimated',
+          'Cowork creates and works with spreadsheets; a persistent native database-table object is not established.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/12111783-create-and-edit-files-with-claude',
-            label: 'Create and edit files with Claude',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://composio.dev/toolkits/excel/framework/claude-cowork',
-            label: 'How to connect Excel to Claude Cowork',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       richTextEditor: {
-        value:
-          "No: Claude's document surface (Artifacts) is generated and edited by Claude itself. Artifacts remain view-only for the user (only Claude can edit the content), unlike a true inline WYSIWYG editor. Claude for Word is a separate Microsoft Word add-in, not an in-platform rich text editor for documents stored in Claude.",
+        value: 'AI-assisted inline Markdown editing',
         detail:
-          'Anthropic shipped faster inline-edit updates to Artifacts in October 2025, but this is Claude regenerating content, not a user-drivable rich text editor.',
-        shortValue: 'No: Artifacts are Claude-edited, not user WYSIWYG',
+          'Select draft text and request an in-place change with Edit with Claude. Full manual WYSIWYG editing is unverified.',
+        shortValue: 'AI-assisted Markdown; full WYSIWYG unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://unmarkdown.com/blog/claude-artifacts-vs-chatgpt-canvas',
-            label: 'Claude Artifacts vs ChatGPT Canvas vs Gemini Gems',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/14465370-use-claude-for-word',
-            label: 'Use Claude for Word',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       subWorkflows: {
-        value:
-          "No: Claude Cowork has no visual workflow builder and no feature to call one saved task as a reusable step inside another task. Anthropic's scheduled-tasks documentation describes each scheduled task as its own independent Cowork session, with no composition or nesting mechanism.",
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          "Cowork's closest analog is model-driven 'sub-agent coordination', where Claude itself decides to break a single task into parallel sub-agent workstreams at run time. That is not a user-authored, reusable sub-workflow the way a workflow platform lets you call a saved flow as a step with explicit parent-waits-for-child data passing.",
-        shortValue: 'No: no task composition, only same-session sub-agents',
-        confidence: 'estimated',
+          'Sub-agent delegation is documented; invoking one saved task as a typed sub-workflow is not established.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
-          {
-            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
-            label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
-          },
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
-        value:
-          "No: Claude Cowork has no visual workflow builder, so there is no completed workflow to publish as a reusable block. The closest adjacent capability is org-wide Skills sharing: a member enables 'Share with organization' on a Skill (a SKILL.md instruction file, optionally with reference docs/scripts), and it becomes available to everyone in Customize > Skills. Recipients can enable and use a shared Skill but cannot edit its contents.",
+        value: 'Reusable skills and plugins',
         detail:
-          "This does not meet the bar of a published-workflow-as-block. A Skill is read-only prompt/instruction text Claude consults at runtime, not an encapsulated, deployed multi-step workflow with auto-derived inputs, hand-picked named outputs, and a hidden internal implementation that always tracks the source's latest version. Cowork Projects, the closest thing to a saved unit of work, explicitly do not support sharing for members of Team and Enterprise plans; separately, Anthropic notes projects are 'desktop-only and stored locally,' with no cloud sync.",
-        shortValue: 'No: no publish-workflow-as-block feature exists',
-        confidence: 'verified',
+          'These package agent instructions and capabilities; they are not documented as published workflow blocks with generated input/output contracts.',
+        shortValue: 'Skills/plugins; workflow block publishing unverified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13119606-provision-and-manage-skills-for-your-organization',
-            label: 'Provision and manage skills for your organization',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
-            label: 'Organize your tasks with projects in Claude Cowork',
-            asOf: '2026-07-08',
+            url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
+            label: 'Use plugins in Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     aiCapabilities: {
       multiLlmSupport: {
-        value: 'No: Claude models only',
+        value: 'Claude model selection',
         detail:
-          "Cowork runs exclusively on Anthropic's Claude models. Users can specify which Claude model a scheduled task uses, but there is no support for non-Anthropic LLMs.",
-        shortValue: 'Claude models only',
-        confidence: 'verified',
+          'The reviewed Cowork materials document Claude models, without a third-party model-provider selector.',
+        shortValue: 'Claude models; third-party providers unverified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
-            label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/pricing',
+            label: 'Claude pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
-        value: 'Yes',
+        value: 'Agentic planning and execution',
         detail:
-          'Cowork analyzes a request and creates a plan, breaking complex work into subtasks and coordinating parallel sub-agent workstreams. It is built on the same agentic architecture as Claude Code, with extended thinking available.',
-        shortValue: 'Plan-then-execute with sub-agents',
+          'Cowork undertakes multi-step work; this is a task agent rather than a configurable reasoning node.',
+        shortValue: 'Agentic planning and execution',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
-        value: 'Yes: this is the entire interaction model',
-        detail:
-          'There is no visual builder; every task is defined by describing the desired outcome in natural language.',
-        shortValue: 'Natural language is the only interface',
+        value: 'Yes: describe the desired task',
+        detail: 'Natural-language instructions define the work Claude should perform.',
+        shortValue: 'Tasks defined in natural language',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.anthropic.com/product/claude-cowork',
-            label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
           },
         ],
       },
       knowledgeBaseRag: {
-        value: 'Partial: project-scoped memory/files, not a dedicated vector DB/RAG feature',
+        value: 'Project files, context, and memory',
         detail:
-          "Memory is supported within projects but is not retained across standalone Cowork sessions. There is no dedicated knowledge-base/embedding/RAG system comparable to Sim's Knowledge Base module.",
-        shortValue: 'Project memory only, no RAG',
+          'Project memory carries context between related tasks. A configurable embedding/vector-store pipeline is not established.',
+        shortValue: 'Project files/memory; RAG controls unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
+            label: 'Projects in Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
-        value: 'Yes: broad MCP support',
+        value: 'Yes: connectors and custom MCP servers',
         detail:
-          'Cowork connects to external services via connectors built on the Model Context Protocol (remote MCP), managed through a Connectors Directory. A Zoom MCP connector reached GA on April 9, 2026, covering meeting summaries, transcripts, recordings, and scheduling.',
-        shortValue: 'Broad MCP connector support',
+          'Connectors retrieve data and perform actions subject to source-system permissions.',
+        shortValue: 'Connectors and custom MCP',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
-            label: "Use connectors to extend Claude's capabilities",
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://claude.com/blog/cowork-for-enterprise',
-            label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            label: 'Use connectors to extend Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
-        value: 'Safety guardrails, not a formal eval/testing framework',
+        value: 'Safety controls and content safeguards',
         detail:
-          'Protections include RL training against malicious instructions, content classifiers scanning untrusted content for prompt injection, and per-application permission gates. There is no eval-suite/regression-testing feature for tasks.',
-        shortValue: 'Safety guardrails, no eval framework',
-        confidence: 'verified',
+          'Anthropic documents prompt-injection defenses and permissions; a task-evaluation suite is not established here.',
+        shortValue: 'Safety controls; task eval suite unverified',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
             label: 'Use Claude Cowork safely',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
-        value:
-          'Partial: per-action approval for deletions/app access by default; full plan review is opt-in',
+        value: 'Yes: tool approvals and administrator controls',
         detail:
-          "Cowork's default mode is continuous execution without pausing. Explicit permission is still required before permanently deleting files and before accessing each application. Users can opt into 'Ask before acting' mode for a plan-review/step-by-step approval workflow on high-stakes tasks.",
-        shortValue: 'Partial: deletion/app approval by default, plan review opt-in',
+          'Admins can require fresh approval for permission-gated calls and control access to execution without per-call prompts.',
+        shortValue: 'Configurable tool approvals',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
-            label: 'Use Claude Cowork safely',
-            asOf: '2026-07-08',
+            url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
+            label: 'Claude Cowork architecture overview',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
-        value: 'No native image/video generation in Cowork itself',
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          "Cowork creates documents, spreadsheets, and slide decks via direct file operations. Image/video generation requires third-party MCP connectors. Anthropic's separate 'Claude Design' product handles native visual/image generation, not Cowork.",
-        shortValue: 'No native image/video generation',
-        confidence: 'estimated',
+          'The reviewed Cowork documentation does not establish native image, video, or audio generation blocks.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.anthropic.com/news/claude-design-anthropic-labs',
-            label: 'Introducing Claude Design by Anthropic Labs',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
           },
         ],
       },
       dynamicToolUse: {
-        value: 'Yes: Claude selects tools/connectors dynamically at runtime',
-        detail:
-          "Claude picks the fastest path itself: a connector for Slack, Chrome for web research, or the screen to open apps when there's no direct integration. By comparison, Sim's workflow builder lets users configure which tool or connector an agent step uses at build time.",
-        shortValue: 'Picks tools dynamically at runtime',
+        value: 'Yes: Claude selects connected apps when relevant',
+        detail: 'Users need not name a connected app on every request.',
+        shortValue: 'Runtime selection of connected apps',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
+            label: 'Use connectors to extend Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelFallback: {
-        value: 'Unknown',
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          'No documentation describes automatic fallback between Claude models on error/overload for Cowork tasks.',
-        shortValue: 'Not documented',
+          'Automatic failover to another model after a Cowork model error is not established.',
+        shortValue: 'Not publicly documented',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       agentSkills: {
-        value:
-          "Yes: Claude Skills let a builder write a reusable instruction set once (a folder with a SKILL.md file plus optional reference docs, templates, and scripts). Claude automatically pulls in the right skill whenever the context matches, across Claude Code, Claude Desktop, Cowork, and claude.ai. Anthropic also ships a pre-installed 'Skill Creator' tool for building new skills.",
+        value: 'Yes: reusable skills supplied through plugins',
         detail:
-          'Skills with executable code files (Python/bash) only run in Claude Code and Cowork, not in plain claude.ai chat.',
-        shortValue: 'Yes: named, reusable Skills (SKILL.md)',
+          'Skills can be invoked in chat and Cowork; plugin hooks and sub-agents run in Cowork.',
+        shortValue: 'Reusable skills and plugin packages',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
+            label: 'Use plugins in Claude',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      nativeChatDeployment: {
+        value: 'Not documented in the reviewed Cowork sources',
+        detail:
+          'Public deployment of a configured Cowork task as an embeddable chat agent is not established.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      kbChunkVisibility: {
+        value: 'Not documented in the reviewed Cowork sources',
+        detail:
+          'Reviewed project documentation does not establish a retrieval-chunk inspection interface.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
+            label: 'Projects in Claude Cowork',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      parallelExecution: {
+        value: 'Yes: coordinated parallel workstreams',
+        detail:
+          'Claude can split a task among sub-agents; Cowork-specific concurrency limits are not stated.',
+        shortValue: 'Parallel sub-agent workstreams',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://genaiunplugged.substack.com/p/claude-skills-reusable-workflows-code-cowork',
-            label: 'Claude Skills 2.0: Reusable AI Workflows That Save Hours',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      nativeChatDeployment: {
-        value:
-          "No: Claude does not offer a native feature to deploy a configured agent as a standalone public-facing chat surface. Claude Projects can only be shared internally (org-wide 'Public' visibility inside the same organization, not the open internet), and Claude Artifacts can be published/embedded as static interactive content, but neither is a deployable conversational agent endpoint.",
-        detail:
-          'Third parties (e.g. Composio, Social Intents) offer unofficial embeddable widgets wrapping the Claude API, but that is not a native Anthropic feature.',
-        shortValue: 'No: no public agent-chat deployment surface',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.cometapi.com/how-do-i-take-a-claude-project-public-and-publish/',
-            label: 'How do I take a Claude project public and publish',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/9547008-publish-and-share-artifacts',
-            label: 'Publish and share artifacts',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      kbChunkVisibility: {
-        value:
-          "Unknown: Anthropic's developer platform documents sentence-level document chunking for the Citations API (a document is chunked so Claude can cite a specific sentence or span), but there is no evidence of a chunk-level debugging UI for knowledge-base search results inside Claude Cowork or claude.ai for end users.",
-        detail:
-          "Cowork has no distinct 'knowledge base' product module the way Sim does. It draws on local files and connectors instead, so a chunk-inspection view may not exist in this shape.",
-        shortValue: 'Unknown: chunking exists at API level, no product UI found',
-        confidence: 'unknown',
-        sources: [],
-      },
-      parallelExecution: {
-        value:
-          "Yes: Anthropic's help documentation for Claude Cowork states that Claude 'breaks complex work into smaller tasks and coordinates parallel workstreams to complete them' and 'may coordinate multiple sub-agents working simultaneously' for complex tasks, with results synthesized back into one outcome.",
-        detail:
-          "This is model-driven sub-agent fan-out, not a user-authored 'parallel branches' node in a visual builder (Cowork has no visual workflow canvas). The underlying mechanism matches Claude Code's dynamic workflows, which fan work across concurrent subagents (up to 1,000 total, capped at 16 concurrent) and merge results, but Cowork's documentation describes this at a higher, less configurable level.",
-        shortValue: 'Yes: automatic sub-agent parallel workstreams, not user-configurable',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://code.claude.com/docs/en/workflows',
-            label: 'Orchestrate subagents at scale with dynamic workflows',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
-        value:
-          'No: Anthropic documentation does not state that Claude Cowork (or Claude products generally) implements the Agent2Agent (A2A) protocol as an agent-to-agent peer standard.',
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          "Anthropic ran a joint webinar on deploying multi-agent systems using MCP and A2A together with Claude on Google Cloud Vertex AI, but that describes third-party orchestration infrastructure around Claude, not native A2A support built into Cowork or the Claude API. Anthropic's own multi-agent story is MCP for tool/data connections and Managed Agents/sub-agent coordination for delegation, not A2A.",
-        shortValue: 'No: not documented as a native capability',
-        confidence: 'estimated',
+          'The reviewed Cowork integration documentation establishes MCP, not native A2A peer-protocol support.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.anthropic.com/webinars/deploying-multi-agent-systems-using-mcp-and-a2a-with-claude-on-vertex-ai',
-            label: 'Deploying multi-agent systems using MCP and A2A with Claude on Vertex AI',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
+            label: 'Use connectors to extend Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
       loopIteration: {
-        value:
-          "No: Claude Cowork has no visual builder and no dedicated for-each/while loop container that iterates a set of steps over a list or fixed count. Anthropic's documentation describes scheduled tasks re-running on a time cadence (hourly/daily/weekly), not a loop node iterating over items within a single run.",
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          "The closest mechanism is Claude's own model-driven 'parallel workstreams' for breaking one task into concurrent sub-agents, the opposite of sequential per-item iteration and not user-configurable as a loop primitive.",
-        shortValue: 'No: no loop/for-each container, only time-based re-runs',
-        confidence: 'estimated',
+          'A configurable for-each/while workflow container is not established in the reviewed product materials.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
-            label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/product/cowork',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     integrations: {
       integrationCount: {
-        value:
-          "200+ connectors (estimated from Anthropic's own Connectors Directory; Anthropic does not publish an exact figure)",
-        detail:
-          "Anthropic's Connectors Directory lists connectors like Linear, Slack, Google Drive, Google Workspace, and Microsoft 365, but no primary Anthropic page states a total count.",
-        shortValue: '200+ connectors (estimated)',
+        value: 'Connector directory plus custom MCP',
+        detail: 'The reviewed connector guide gives examples but no authoritative total.',
+        shortValue: 'Directory and custom MCP; count unverified',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
-            label: "Use connectors to extend Claude's capabilities",
-            asOf: '2026-07-02',
+            label: 'Use connectors to extend Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
-        value: 'Manual (on-demand) or schedule-based only. No external event/webhook triggers',
+        value: 'User requests and scheduled tasks',
         detail:
-          'Tasks start either by user prompt (desktop or mobile) or on a defined schedule (hourly/daily/weekly/weekdays); scheduled runs require the computer awake and desktop app open. There is no capability to trigger a task from an inbound webhook or other external event.',
-        shortValue: 'Manual or scheduled only, no webhooks',
-        confidence: 'verified',
+          'The guide lists hourly, daily, weekly, weekday, and manual cadences. An inbound task-trigger webhook is unverified.',
+        shortValue: 'Manual/scheduled; inbound webhooks unverified',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
-        value: 'No user-authorable code-step primitive; agent can execute code internally',
+        value: 'Agent-executed code and shell commands',
         detail:
-          'Custom logic is added via plugins that bundle skills (instructions in SKILL.md files), connectors, and sub-agents — not a user-written code block inserted into a task. Shell commands and any code Cowork writes execute inside an isolated Linux VM as part of the agent loop, not as a user-authored step.',
-        shortValue: 'No user-authorable code step',
-        confidence: 'estimated',
+          'Cloud tasks run code in a temporary sandbox; existing local sessions use an isolated Linux VM for code execution.',
+        shortValue: 'Agent-executed code in a sandbox',
+        confidence: 'verified',
         sources: [
-          {
-            url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
-            label: 'Use plugins in Claude',
-            asOf: '2026-07-08',
-          },
           {
             url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
             label: 'Claude Cowork architecture overview',
-            asOf: '2026-07-08',
+            asOf: '2026-09-04',
           },
         ],
       },
       codeSandboxRuntime: {
-        value:
-          'Partial: shell commands and any code Claude writes run in an isolated sandbox (a dedicated Linux VM for local sessions, a per-session temporary sandbox on Anthropic-managed infrastructure for cloud sessions), and within a session Claude can itself install dependencies at run time from approved package managers (npm/registry.npmjs.org, PyPI/files.pythonhosted.org, GitHub, crates.io, Yarn). What an administrator configures is the org-wide network-egress policy rather than the environment: Team and Enterprise organization owners choose, in Organization settings > Capabilities, between network access off (Claude "operates with pre-installed packages only"), package managers only, package managers plus an admin-specified domain allowlist, or all domains except Anthropic\'s legal blocklist.',
+        value: 'Temporary cloud sandboxes or local Linux VMs',
         detail:
-          'The configuration surface is an org-wide network-egress policy plus run-time installs the agent performs itself, not a declared environment: there is no manifest of packages, no OS/system-package list, no preinstalled-CLI selection, and no custom base image or Dockerfile for the sandbox, and Anthropic does not publish the preinstalled package set for Cowork sandboxes. Network settings apply when a session is created, so changing them mid-conversation requires starting a new one.',
-        shortValue: 'Partial: agent installs packages at run time; environment not declarable',
-        confidence: 'verified',
+          'Administrators configure network-access policy. A user-declared Cowork base image or package manifest is not established.',
+        shortValue: 'Sandboxes; custom runtime manifests unverified',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
             label: 'Claude Cowork architecture overview',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/12111783-create-and-edit-files-with-claude',
-            label: 'Create and edit files with Claude (network egress settings)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
-            label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-08-10',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
-        value: 'No',
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          'There is no mechanism to publish or deploy a Cowork task as a callable API endpoint. The product is strictly a desktop/mobile agent session, unlike a deployed Sim workflow.',
-        shortValue: 'No API endpoint deployment',
-        confidence: 'verified',
+          'The reviewed product page does not establish publishing Cowork tasks as callable API endpoints.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://claude.com/product/cowork',
-            label: 'Claude Cowork product page (Claude)',
-            asOf: '2026-07-02',
+            label: 'Claude Cowork product page',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
-        value: 'Partial: file-based plugin/skill authoring, not a dedicated public SDK',
+        value: 'Skills, plugins, and MCP connectors',
         detail:
-          'Skills are plain SKILL.md instruction files. Plugins bundle skills, connectors, slash commands, and sub-agents together, and a built-in Skill Creator tool generates skill files interactively. New connectors are built as standard MCP servers rather than through a Cowork-specific SDK.',
-        shortValue: 'Plugin/skill files, no dedicated SDK',
-        confidence: 'estimated',
+          'Custom plugins can be authored from Anthropic templates and the documented plugin format.',
+        shortValue: 'Plugin authoring and MCP',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://claude.com/blog/cowork-plugins',
-            label: 'Customize Cowork with plugins',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
+            label: 'Use plugins in Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
-        value:
-          "Unknown/Not applicable: Claude Cowork is an MCP client (it consumes remote and custom-connector MCP servers), but there is no evidence Cowork lets a user publish a Cowork session/task or a 'workflow' as a callable MCP server for external tools to consume.",
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          "Cowork is a desktop agent, not a workflow builder with deployable artifacts, so the reverse-direction 'publish as MCP server' concept doesn't map onto it the way it does for Sim.",
-        shortValue: 'N/A: consumes MCP, no evidence of publishing as server',
+          'Consuming MCP connectors is documented; publishing a Cowork task as an MCP server is not established.',
+        shortValue: 'Not publicly documented',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
+            label: 'Use connectors to extend Claude',
+            asOf: '2026-09-04',
+          },
+        ],
       },
     },
     pricing: {
       pricingModel: {
-        value: 'Bundled into Claude subscription plans (no separate Cowork charge)',
-        detail:
-          "Cowork is included at no additional charge on Pro, Max, Team, and Enterprise plans, subject to each plan's overall usage limits.",
-        shortValue: 'Included in Claude subscription plans',
+        value: 'Included with paid Claude plans',
+        detail: 'Usage limits and any additional usage charges depend on the selected plan.',
+        shortValue: 'Subscription with plan-dependent usage',
         confidence: 'verified',
-        sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
-        ],
-      },
-      entryPaidPlan: {
-        value: 'Pro plan. $17/month billed annually ($20/month billed monthly)',
-        detail:
-          'Pro is the lowest-priced individual plan whose feature list explicitly includes Claude Cowork.',
-        shortValue: '$17/mo annual ($20/mo monthly)',
-        confidence: 'verified',
-        sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
-        ],
-      },
-      freeTier: {
-        value: 'Free plan exists but does not include Claude Cowork',
-        detail:
-          "The Free plan's feature list does not mention Cowork; Cowork requires a paid plan (Pro, Max, Team, or Enterprise).",
-        shortValue: 'Free plan excludes Cowork',
-        confidence: 'verified',
-        sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
-        ],
-      },
-      byok: {
-        value: 'Not documented / not applicable',
-        detail:
-          "There is no bring-your-own-API-key or bring-your-own-model option for Cowork. It runs exclusively on Claude models under the user's subscription.",
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-    },
-    security: {
-      soc2: {
-        value: 'Yes (company-wide, not Cowork-specific)',
-        detail:
-          'Anthropic holds SOC 2 Type I and Type II; the detailed report is available under NDA via the Anthropic Trust Portal. There is no Cowork-specific SOC 2 scoping statement.',
-        shortValue: 'Company-wide, not Cowork-specific',
-        confidence: 'estimated',
         sources: [
           {
-            url: 'https://trust.anthropic.com/',
-            label: 'Anthropic Trust Center',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/pricing',
+            label: 'Claude pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
-      dataResidency: {
-        value:
-          'No Cowork-specific residency controls; company-wide default is multi-region processing, US-based storage',
+      entryPaidPlan: {
+        value: 'Pro: $20/month, or $200 billed annually',
         detail:
-          "Anthropic's general policy processes data in the US, Europe, Asia, and Australia by default, with data at rest stored in the US. Guaranteed regional inference is only available via AWS Bedrock, GCP Vertex AI, or Microsoft Foundry deployments of the Claude API. This is not a Cowork feature.",
-        shortValue: 'US storage by default, no regional control',
-        confidence: 'estimated',
+          'The pricing page displays the annual offer as $17/month. Prices exclude applicable taxes.',
+        shortValue: 'Pro: $20 monthly or $200 annually',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://platform.claude.com/docs/en/manage-claude/data-residency',
-            label: 'Data residency - Claude Platform Docs',
-            asOf: '2026-07-08',
+            url: 'https://claude.com/pricing',
+            label: 'Claude pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      freeTier: {
+        value: 'Cowork is not included in Free',
+        detail: 'The pricing comparison explicitly lists Cowork for Pro and Max, not Free.',
+        shortValue: 'Paid plans required',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://claude.com/pricing',
+            label: 'Claude pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      byok: {
+        value: 'Not documented in the reviewed Cowork sources',
+        detail:
+          'A bring-your-own-model API key setting for Cowork is not established in the reviewed plan documentation.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://claude.com/pricing',
+            label: 'Claude pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+    },
+    security: {
+      dataResidency: {
+        value: 'US-only inference on usage-based Enterprise plans',
+        detail:
+          'The setting covers Claude apps. It does not control data storage or third-party connector processing.',
+        shortValue: 'Enterprise US-only inference option',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/15422948-enable-us-only-inference-for-your-organization',
+            label: 'Enable US-only inference',
+            asOf: '2026-09-04',
           },
         ],
       },
       rbac: {
-        value: 'Yes: GA enterprise feature (April 9, 2026)',
+        value: 'Enterprise custom roles and groups',
         detail:
-          'Enterprise/Team admins organize users into groups manually or via SCIM integration with existing identity providers, and assign roles defining which Claude capabilities (including Cowork) members can access.',
-        shortValue: 'GA enterprise RBAC (Apr 2026)',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://claude.com/blog/cowork-for-enterprise',
-            label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      auditLogging: {
-        value:
-          'Limited: not in Compliance API/exports; OpenTelemetry is the primary visibility path',
-        detail:
-          'Cowork activity is not captured in the Compliance API. Team/Enterprise customers can stream tool/file/skill/approval events via OpenTelemetry to SIEM tools, with a shared user identifier allowing correlation with, but not replacing, Compliance API records.',
-        shortValue: 'OTel only, not in Compliance API',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
-            label: 'Use Claude Cowork safely',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise)',
-        detail: 'Company-wide Anthropic certifications, not Cowork-scoped.',
-        shortValue: 'ISO 27001, ISO 42001, HIPAA-ready',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
-            label: 'What Certifications has Anthropic obtained?',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      modelAndToolGovernance: {
-        value: 'Yes: Group Spend Limits and Per-Tool Connector Controls (GA, April 9, 2026)',
-        detail:
-          "Group Spend Limits are per-team/per-group budgets set from the admin console (all paid plans), with the most-restrictive limit across a user's groups applying. Per-Tool Connector Controls let admins restrict specific actions within an MCP connector organization-wide (e.g. Gmail read-only, no send).",
-        shortValue: 'Spend limits + per-tool controls',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://claude.com/blog/cowork-for-enterprise',
-            label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      credentialGovernance: {
-        value:
-          'Yes: On Enterprise plans, custom roles have a dedicated Connectors tab (separate from Capabilities/Permissions). Admins set access per connector, and per tool within a connector, as Always allow / Needs approval / Blocked, so a role can be limited to specific connected credentials rather than every organization connector.',
-        detail:
-          "Applies only to members on the 'Custom' role. User/Admin/Owner roles see every connector enabled org-wide.",
-        shortValue: 'Yes: per-role connector/credential restrictions',
+          'Roles grant capabilities and administrative permissions. Team uses organization-wide Cowork access controls.',
+        shortValue: 'Enterprise custom roles',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13930452-manage-custom-roles-on-enterprise-plans',
             label: 'Manage custom roles on Enterprise plans',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://support.claude.com/en/articles/13930458-set-up-role-based-permissions-on-enterprise-plans',
-            label: 'Set up role-based permissions on Enterprise plans',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
+            label: 'Cowork on Team and Enterprise plans',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      auditLogging: {
+        value: 'Enterprise Compliance API plus Team/Enterprise OTel',
+        detail:
+          'Compliance endpoints retrieve local and remote Cowork session transcripts. OTel provides operational events.',
+        shortValue: 'Session transcripts and operational events',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://platform.claude.com/docs/en/manage-claude/compliance-api',
+            label: 'Claude Compliance API',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/14477985-monitor-claude-cowork-activity-with-opentelemetry',
+            label: 'Monitor Cowork with OpenTelemetry',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      compliance: {
+        value:
+          'Anthropic commercial-product credentials: SOC 2 Type I/II, ISO 27001:2022, ISO/IEC 42001:2023; HIPAA-ready configuration',
+        detail:
+          'These are published commercial-product credentials, not a separate Cowork certification. Confirm product/configuration scope and BAA coverage in Anthropic compliance documents.',
+        shortValue: 'Commercial-product SOC 2 and ISO; scoped HIPAA offering',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
+            label: 'Anthropic compliance credentials',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      modelAndToolGovernance: {
+        value: 'Enterprise model and connector permissions',
+        detail:
+          'Custom roles can restrict models, maximum effort, connectors, and individual tools; organization-wide restrictions also apply.',
+        shortValue: 'Model and per-tool role controls',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13930452-manage-custom-roles-on-enterprise-plans',
+            label: 'Manage custom roles on Enterprise plans',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      credentialGovernance: {
+        value: 'Connector/tool permissions; individual credential ACLs unverified',
+        detail:
+          'Connector authorization inherits source permissions. Per-role control of separately named credential instances is not established.',
+        shortValue: 'Connector controls; credential-instance ACLs unverified',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13930452-manage-custom-roles-on-enterprise-plans',
+            label: 'Manage custom roles on Enterprise plans',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
-            label: "Use connectors to extend Claude's capabilities",
-            asOf: '2026-07-02',
+            label: 'Use connectors to extend Claude',
+            asOf: '2026-09-04',
           },
         ],
       },
       whiteLabeling: {
-        value:
-          "No/Unknown: There is no evidence Anthropic lets an Enterprise customer replace Claude's own product branding (logo, product name, theme colors) inside the Claude Desktop, Cowork, or claude.ai interface itself. Claude Design (launched April 2026) lets Claude produce branded deliverables (documents, decks, landing pages) carrying the customer's brand, but that brands the output, not the vendor's own workspace UI.",
-        shortValue: 'No: brands outputs, not the Claude UI itself',
+        value: 'Organization branding on Team and Enterprise',
+        detail:
+          'Owners can configure company branding in Cowork. Full replacement of Claude product identity is not established.',
+        shortValue: 'Organization branding; full white-label scope unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.anthropic.com/news/claude-design-anthropic-labs',
-            label: 'Introducing Claude Design by Anthropic Labs',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
+            label: 'Cowork on Team and Enterprise plans',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
-        value:
-          "Yes for org-wide Claude data, but this does not cover Cowork: Enterprise plan Owners/Primary Owners can set a custom data retention period (minimum 30 days) for conversation and project data in Organization settings > Data and Privacy, and data is kept indefinitely without customization. Cowork conversation history is stored locally on users' computers, is not subject to this standard retention policy, and cannot be centrally managed or exported by admins; Cowork activity is also not currently captured in the Compliance API.",
+        value: 'Enterprise retention controls, with local-session exceptions',
         detail:
-          "This is an org-wide Claude Enterprise setting, not per-resource-type the way Sim's granular retention is, and it explicitly excludes Cowork. Cowork's local session history sits outside this policy entirely, stored only on-device. No Zero-Data-Retention addendum is described for conversation data.",
-        shortValue: 'Org retention is min 30 days, but Cowork history stays local, unmanaged',
-        confidence: 'verified',
+          'Enterprise conversation/project retention has a 30-day minimum. Local Cowork history remains outside standard retention; session transcript APIs are read-only.',
+        shortValue: 'Enterprise retention; local history exceptions',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://privacy.claude.com/en/articles/10440198-configure-custom-data-retention-controls-for-enterprise-plans',
-            label: 'Configure custom data retention controls for Enterprise plans',
-            asOf: '2026-07-08',
+            label: 'Enterprise data retention controls',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
-            label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-07-08',
+            label: 'Cowork on Team and Enterprise plans',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://platform.claude.com/docs/en/manage-claude/compliance-sessions',
+            label: 'Retrieve session transcripts',
+            asOf: '2026-09-04',
           },
         ],
       },
       piiRedaction: {
-        value:
-          "No/Unknown: Anthropic documentation does not describe a native, automatic PII detection/redaction feature applied to Cowork workflow content or retained logs. Third-party tools (gateway layers, Presidio-based scanners, the 'noirdoc' plugin) exist to add PII scrubbing around Claude, but this is not a built-in platform capability.",
-        shortValue: 'No: no native PII redaction found',
+        value: 'Enterprise inference hooks for custom DLP enforcement',
+        detail:
+          'Beta hooks inspect prompts, tool responses, and uploaded-file text through a customer-hosted allow/deny service. Built-in automatic PII masking is unverified.',
+        shortValue: 'Custom DLP hooks; automatic PII masking unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://mcpmanager.ai/blog/pii-redaction-for-mcp-servers/',
-            label: 'PII Redaction for MCP Servers: 3 Methods to Block Sensitive Data',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/16059458-inference-hooks-overview',
+            label: 'Inference hooks overview',
+            asOf: '2026-09-04',
           },
         ],
       },
       sso: {
-        value:
-          'Yes: Claude Enterprise supports SAML 2.0 single sign-on with identity providers like Okta, Entra ID, Google, OneLogin, JumpCloud, and Duo, plus domain capture (claims your email domain so all logins route through SSO) and automated JIT/SCIM user provisioning and de-provisioning tied to the IdP.',
+        value: 'SSO on Team and Enterprise; SCIM on Enterprise',
         detail:
-          "This is an Enterprise-plan feature covering claude.ai, Claude Desktop, and Cowork logins collectively, not configured separately for Cowork. Anthropic's SSO documentation describes SAML integrations specifically; it does not document OIDC support.",
-        shortValue: 'Yes: SAML SSO + SCIM auto-provisioning',
+          'SSO uses the organization identity provider. Provisioning availability depends on plan.',
+        shortValue: 'SSO; Enterprise SCIM',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13132885-set-up-single-sign-on-sso',
-            label: 'Set up single sign-on (SSO)',
-            asOf: '2026-07-02',
+            label: 'Set up single sign-on',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://support.claude.com/en/articles/10276682-important-considerations-before-enabling-single-sign-on-sso-and-jit-scim-provisioning',
-            label: 'Important considerations before enabling SSO and JIT/SCIM provisioning',
-            asOf: '2026-07-02',
+            url: 'https://claude.com/pricing',
+            label: 'Claude pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       sessionPolicy: {
-        value:
-          'Partial: the setting is available only to "Admins and Owners of Enterprise plans and Console Admins," who can enable a shortened session length of 1, 7, 14, or 28 days (Console Admins get 1, 3, or 7 days), after which "users will need to sign in again after the specified period, even if they\'ve been actively using Claude." This is an absolute lifetime cap from sign-in, not an inactivity timeout, and no idle timeout is documented.',
+        value: 'Enterprise absolute session limit: 1, 7, 14, or 28 days',
         detail:
-          "Because the control is Enterprise/Console-gated, administrators on other plans cannot set a session lifetime at all; with the setting disabled, sessions return to the default behavior of remaining active as long as the user stays active, with no documented idle timeout. Because one session spans all of a user's organizations, the shortest configured duration across them applies. Disabling the setting does not retroactively extend sessions already scheduled to expire.",
-        shortValue: 'Partial: Enterprise/Console only, 1/7/14/28-day absolute cap',
+          'The limit applies despite activity. Across organizations, the shortest setting wins. An administrator-configurable idle timeout is not documented.',
+        shortValue: 'Enterprise absolute session lifetime controls',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13163631-configuring-session-security-settings',
-            label: 'Configuring session security settings',
-            asOf: '2026-08-10',
+            label: 'Session security settings',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
-        value:
-          "Partial: Anthropic maintains first-party catalogs (anthropics/skills, anthropics/knowledge-work-plugins, the 11 plugins bundled into Cowork), but the plugin/skill ecosystem is open by design. Any developer can host a plugin marketplace as a git repo, and users add it via `/plugin marketplace add`, with no Anthropic approval queue or review gate before installation. A third-party security audit has already found malicious entries in that broader ecosystem: Snyk's ToxicSkills research scanned ~3,984 skills on ClawHub and skills.sh (third-party marketplaces that also serve Claude Code users) and confirmed 76 malicious skills, with 1,467 flagged for security issues.",
+        value: 'Curated plugins plus optional Enterprise security scanning',
         detail:
-          "This incident sits in the broader Agent Skills ecosystem across third-party marketplaces, not Anthropic's own first-party catalog, but it shows real, sourced supply-chain risk adjacent to Cowork's installable-skill model. By contrast, every one of Sim's blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable block code without going through Sim's own review.",
-        shortValue: 'Partial: open plugin ecosystem with a documented malicious-skill incident',
+          'Scanning can block malicious uploads/edits but is off by default; exclusions include MCP servers, hooks, existing installs, and specified protected configurations.',
+        shortValue: 'Curated catalogs and optional scanning',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://code.claude.com/docs/en/plugin-marketplaces',
-            label: 'Create and distribute a plugin marketplace',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/anthropics/skills',
-            label: 'anthropics/skills: Public repository for Agent Skills',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/',
-            label: 'Snyk: ToxicSkills - malicious AI agent skills on ClawHub',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/15927065-get-started-with-skill-and-plugin-scanning',
+            label: 'Skill and plugin scanning',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     observability: {
       tracingDepth: {
-        value: 'OpenTelemetry event stream (Team/Enterprise), not block-by-block execution tracing',
+        value: 'OTel events for prompts, tools, files, approvals, and API requests',
         detail:
-          "Cowork emits OTel events for tool/connector calls, file reads/modifications, skills used, and whether each action was approved manually or automatically, compatible with Splunk/Cribl SIEM pipelines. An Analytics API adds per-user activity and skill/connector invocation counts plus DAU/WAU/MAU. This is coarser than a per-block execution trace like Sim's Logs module.",
-        shortValue: 'OTel events, not block-level tracing',
+          'Events include timing, outcomes, token counts, and estimated cost; prompt IDs link related activity.',
+        shortValue: 'Detailed OTel activity events',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://claude.com/blog/cowork-for-enterprise',
-            label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/14477985-monitor-claude-cowork-activity-with-opentelemetry',
+            label: 'Monitor Cowork with OpenTelemetry',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
-        value: 'Durable server-side execution for scheduled tasks',
+        value: 'Cloud work continues without the client',
         detail:
-          "Scheduled tasks in Claude Cowork now run remotely on Anthropic's infrastructure, independent of whether the user's computer is awake or the Desktop app is open — this is durable server-side execution, not client-dependent.",
-        shortValue: 'Server-durable: runs remotely regardless of device state',
-        confidence: 'verified',
+          'This establishes remote execution, not a documented automatic crash-replay or exactly-once recovery guarantee.',
+        shortValue: 'Cloud execution; recovery guarantees unverified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
-            label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-08',
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       failureAlerting: {
-        value: 'Not documented under the current remote-execution model',
+        value: 'Build alerts from exported OTel events',
         detail:
-          'Earlier documentation described a notification only when a scheduled run was skipped due to sleep/closed app, but that premise no longer applies now that scheduled tasks run remotely regardless of device state. The current schedule-recurring-tasks article is silent on failure/retry alerting for task errors, so this behavior should be treated as unverified pending updated Anthropic documentation.',
-        shortValue: 'Not documented; prior skipped-run notification premise is outdated',
-        confidence: 'unknown',
+          'Anthropic documents using existing monitoring pipelines for dashboards and alerts. A native Cowork failure notification guarantee is unverified.',
+        shortValue: 'Alerts through your monitoring pipeline',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
-            label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-08',
+            url: 'https://support.claude.com/en/articles/14477985-monitor-claude-cowork-activity-with-opentelemetry',
+            label: 'Monitor Cowork with OpenTelemetry',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataDrains: {
-        value:
-          "Yes: Claude Enterprise's Compliance API (GET /v1/compliance/activities) gives programmatic, ongoing access to the organization's activity feed and configuration state. Anthropic supports pull-based pipelines that continuously land this data in S3/Azure Blob and feed SIEM tools like Datadog Cloud SIEM. There is also a narrower manual CSV audit-log export in claude.ai org settings.",
+        value: 'OTel streaming and Enterprise Compliance API',
         detail:
-          "This is a general Claude Enterprise platform feature (Compliance API), not a Cowork-specific setting. Cowork's own local session history is not centrally exportable by admins.",
-        shortValue: 'Yes: Compliance API to S3/SIEM (Datadog)',
+          'Operational events stream to a configured collector; compliance endpoints provide programmatic activity and session access.',
+        shortValue: 'OTel stream and Compliance API',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://support.claude.com/en/articles/14477985-monitor-claude-cowork-activity-with-opentelemetry',
+            label: 'Monitor Cowork with OpenTelemetry',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://platform.claude.com/docs/en/manage-claude/compliance-api',
-            label: 'Compliance API - Claude Platform Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.datadoghq.com/blog/cloud-siem-claude-compliance-api-integration/',
-            label: 'Monitor Claude Enterprise activity with Datadog Cloud SIEM',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/15167101-get-started-with-claude-compliance-api-integrations',
-            label: 'Get started with Claude Compliance API integrations',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
-            label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-07-02',
+            label: 'Claude Compliance API',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
-        value:
-          "Yes: Claude Cowork now supports true server-side background execution: remote sessions and scheduled tasks continue running on Anthropic's infrastructure even when the Desktop app is closed or the computer is asleep, except for tasks that require local file or browser access, which still need the app open.",
-        detail:
-          "The phrase 'assign a task and step away' now more closely matches a real cloud job: remote sessions and scheduled/recurring tasks (set up via the /schedule skill) run on their cadence independent of device state. Tasks that need local file system or browser access are the exception and still require the desktop app open on an awake machine.",
-        shortValue:
-          'Yes: remote sessions/tasks run without the app open, with local-access exceptions',
+        value: 'Yes: cloud sessions continue while you step away',
+        detail: 'Local file/browser access still requires an online desktop connection.',
+        shortValue: 'Cloud background execution',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-            label: 'Get started with Claude Cowork (Claude Help Center)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
-            label: 'Schedule recurring tasks in Claude Cowork (Claude Help Center)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.anthropic.com/product/claude-cowork',
-            label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
+            label: 'Use Claude Cowork safely',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
-        value:
-          "Anthropic publishes only relative and structural limit information for Cowork/Claude Code, not fixed absolute numbers: usage is metered on a rolling 5-hour window, which varies by plan (Pro, Max, Team, Enterprise) and was doubled, with the peak-hours limit reduction removed, in Anthropic's May 2026 update. Per-request behavior is concrete: the default API request timeout is 10 minutes (600000ms, configurable via API_TIMEOUT_MS), and transient errors are auto-retried up to 10 times (capped at 15) with exponential backoff before surfacing a failure.",
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          "Anthropic does not publish an exact numeric ceiling for '5-hour window' usage (e.g. a fixed message or token count) or a concurrent-task limit for Cowork specifically, only that limits are plan-dependent and were doubled/loosened in May 2026. The 10-minute request timeout and retry counts come from Claude Code's official error reference, which states it applies across the CLI, Desktop app, and web.",
-        shortValue: '10-min request timeout, rolling 5-hour window',
-        confidence: 'estimated',
+          'Cowork-specific maximum task duration and concurrent-task ceilings are not established. Claude Code retry/timeouts must not be treated as Cowork limits.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://code.claude.com/docs/en/errors',
-            label: 'Error reference: automatic retries and request timeout (Claude Code Docs)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.anthropic.com/news/higher-limits-spacex',
-            label: 'Higher usage limits for Claude and a compute deal with SpaceX (Anthropic)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work',
-            label: 'How do usage and length limits work? (Claude Help Center)',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       partialFailureHandling: {
-        value:
-          "No: Cowork/Claude Code runs as a single sequential agentic conversation rather than a branching workflow. There is no mechanism to route a failed step to a separate error-handling path while the rest of the run continues independently. Anthropic's error reference describes only two outcomes for a failure: transient errors (server 5xx, overload, timeouts, dropped connections) are automatically retried up to 10 times with exponential backoff, and the run continues if a retry succeeds; once retries are exhausted, the error surfaces and the in-flight turn halts, requiring the user to retry the request or use /rewind to step back to an earlier checkpoint and resume manually.",
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          'This is a materially different model from a DAG-style workflow with per-branch try/catch: Cowork has no concept of parallel branches where one can fail into an error handler while sibling branches keep executing. GitHub issues on Cowork task failures corroborate that a hard failure stops the task rather than isolating it to one step.',
-        shortValue: 'No branching error path, retries then halts',
-        confidence: 'verified',
+          'Parallel delegation is documented, but per-branch error routing and recovery semantics are not established for Cowork.',
+        shortValue: 'Not publicly documented',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://code.claude.com/docs/en/errors',
-            label:
-              'Error reference: automatic retries, server errors, and checkpoint recovery (Claude Code Docs)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/anthropics/claude-code/issues/60577',
-            label:
-              'Transient 529 Overloaded API errors abort long-running tasks with no auto-recovery (GitHub issue)',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
+            label: 'Get started with Claude Cowork',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
-        value:
-          "Yes: scheduled tasks execute server-side/remotely on Anthropic's infrastructure, independent of whether the Claude Desktop app is open or the device is awake, per Anthropic's current documentation",
+        value: 'Yes: remote scheduled tasks',
         detail:
-          "Scheduled/recurring tasks now run on their cadence on Anthropic's infrastructure regardless of client device state. Tasks that require local file or browser access remain the exception and still need the desktop app open and the machine awake.",
-        shortValue: 'Yes: runs remotely regardless of desktop app/device state',
+          'Remote tasks run even with the computer asleep or desktop app closed; local-file/app dependencies can require local execution.',
+        shortValue: 'Remote schedules, with local dependency constraints',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-08',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     support: {
       supportChannels: {
-        value:
-          'AI support bot for all tiers; human support (in-app messenger + email escalation) for Pro/Max and Enterprise Owners; no phone or live chat',
+        value: 'Support messenger and email; access varies by plan and role',
         detail:
-          'An AI bot is available to all users via the in-app support messenger. Pro/Max users and Enterprise Owners get full human Product Support access. Anthropic does not offer phone or live chat support.',
-        shortValue: 'AI bot for all, human on paid plans',
+          'Pro/Max and eligible organization contacts can reach human support. Anthropic does not offer phone or live chat support.',
+        shortValue: 'Messenger/email with plan-dependent human support',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/9015913-how-to-get-support',
-            label: 'How to get support',
-            asOf: '2026-07-02',
+            label: 'How to get Claude support',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
-        value: 'Not publicly documented',
+        value: 'Not documented in the reviewed Cowork sources',
         detail:
-          'No published SLA terms exist. Sales-assisted Enterprise plans offer dedicated customer success management but no stated uptime/response-time SLA.',
+          'The reviewed pricing and support documentation does not establish a Cowork-specific contractual uptime or response-time SLA.',
         shortValue: 'Not publicly documented',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/9015913-how-to-get-support',
+            label: 'How to get Claude support',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       community: {
-        value: 'City-based community program + open-source plugin repo (no dedicated forum found)',
-        detail:
-          "Anthropic runs a city-based 'Claude Community' program; an open-source knowledge-work-plugins repo exists for sharing Cowork/Claude Code plugins. There is no dedicated public discussion forum comparable to n8n's or Sim's community forum.",
-        shortValue: 'City meetups + open-source plugin repo',
-        confidence: 'estimated',
+        value: 'Claude Community events, Discord, and Reddit',
+        detail: 'Anthropic links online communities and an ambassador-led events program.',
+        shortValue: 'Events, Discord, and Reddit',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://claude.com/community',
-            label: 'Community | Claude by Anthropic',
-            asOf: '2026-07-02',
+            label: 'Claude Community',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
-        value:
-          'Anthropic. Major frontier AI lab; Cowork research preview Jan 12, 2026 → GA April 9, 2026',
+        value: 'Anthropic product; general availability announced April 9, 2026',
         detail:
-          'Claude Cowork launched January 12, 2026 as a research preview limited to Max plan subscribers; it reached General Availability on April 9, 2026 across all paid plans (Pro, Max, Team, Enterprise) on macOS and Windows, alongside new enterprise controls. Linux support is in beta.',
-        shortValue: 'Anthropic; reached GA April 2026',
+          'The announcement made Cowork available across paid plans with enterprise controls.',
+        shortValue: 'Generally available since April 2026',
         confidence: 'verified',
         sources: [
           {
             url: 'https://claude.com/blog/cowork-for-enterprise',
-            label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            label: 'Cowork general availability and enterprise controls',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
-        value:
-          "Yes: Anthropic Academy (anthropic.skilljar.com) offers a structured set of free, self-paced courses across three tracks (AI Fluency, Product Training, Developer Deep-Dives), each awarding a completion certificate, plus a paid proctored 'Claude Certified Architect' professional certification launched under the Claude Partner Network.",
-        detail:
-          "This is a general Claude/Anthropic learning resource, not Cowork-specific, but it covers Cowork usage (e.g. the 'Introduction to Claude Cowork' course).",
-        shortValue: 'Yes: Anthropic Academy + certification',
+        value: 'Claude Academy',
+        detail: 'Official learning resources cover working and building with Claude.',
+        shortValue: 'Official Claude Academy',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://anthropic.skilljar.com/',
-            label: 'Anthropic Courses (Academy)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://anthropic.skilljar.com/introduction-to-claude-cowork',
-            label: 'Introduction to Claude Cowork course',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.pearsonvue.com/us/en/anthropic.html',
-            label: 'Claude Certification Program by Anthropic - Pearson VUE',
-            asOf: '2026-07-02',
+            url: 'https://academy.claude.com/',
+            label: 'Claude Academy',
+            asOf: '2026-09-04',
           },
         ],
       },

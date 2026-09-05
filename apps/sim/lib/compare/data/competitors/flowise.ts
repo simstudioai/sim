@@ -1,7 +1,7 @@
 import { FlowiseIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against current primary sources on 2026-09-04; uncertainty is labeled. */
 export const flowiseProfile: CompetitorProfile = {
   id: 'flowise',
   name: 'Flowise',
@@ -14,67 +14,63 @@ export const flowiseProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, available self-hosted or as a managed cloud service, and owned by Workday since August 2025.',
+    'Flowise is a visual AI-agent and RAG builder whose official project reached end of life on August 31, 2026; its archived source remains available for self-maintained deployments.',
   standoutFeatures: [
     {
-      title: 'Choice of vector-store backend, with the broadest native text-splitter menu',
+      title: 'Forkable code for self-maintained deployments',
       description:
-        "Flowise's Document Store lets a builder pick from a wide range of vector store backends to upsert into (Pinecone, Weaviate, Milvus, FAISS, and more), and offers the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, and per-chunk editing.",
-      shortDescription:
-        'Pick your own vector-store backend, with the broadest built-in text-splitter menu.',
+        'The Apache-2.0 portions remain available to fork after official end of life. Teams adopting the code now take responsibility for maintenance and updates.',
+      shortDescription: 'Forkable core with operator-owned maintenance after end of life.',
+      source: {
+        url: 'https://flowiseai.com/sunset',
+        label: 'Flowise: Official sunset and end-of-life notice',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Document Store inspection',
+      description:
+        'Document Stores let users preview and refine chunks, configure embeddings and vector storage, and test retrieval before using the data in a flow.',
+      shortDescription: 'Prepare, inspect, and test RAG document chunks.',
       source: {
         url: 'https://docs.flowiseai.com/using-flowise/document-stores',
-        label: 'Flowise Docs: Document Stores',
-        asOf: '2026-07-02',
+        label: 'Flowise: Document Stores',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Built-in dataset-based batch evaluation',
+      title: 'Checkpointed human review',
       description:
-        "Flowise ships an Evaluations feature, available on Flowise Cloud/Enterprise plans (not the open-source self-hosted product), that runs chatflows/agentflows against a saved dataset in one batch, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency across the whole run. Sim's own Evaluator block scores individual calls against user-defined metrics, but has no equivalent golden-dataset batch runner. (Flowise's Agentflow V2 also has a Human Input node for pausing on approve/reject feedback, comparable to Sim's own human-in-the-loop approval block.)",
-      shortDescription:
-        'Built-in dataset-based batch evaluation (Cloud/Enterprise plans) with LLM-judge scoring and pass/fail reporting.',
+        'Agentflow V2 supports Human Input nodes and tool approvals, saving checkpoints so paused runs can resume after a decision and application restart.',
+      shortDescription: 'Human approval with persisted checkpoints.',
       source: {
-        url: 'https://docs.flowiseai.com/using-flowise/evaluations',
-        label: 'Flowise Docs: Evaluations',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'Larger existing open-source community, on the same Apache 2.0 license as Sim',
-      description:
-        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its GitHub repo has roughly 54,000 stars and an active Discord community built up since 2023.',
-      shortDescription:
-        'Same Apache 2.0 license as Sim, but a larger existing community: ~54k GitHub stars, active Discord.',
-      source: {
-        url: 'https://github.com/FlowiseAI/Flowise',
-        label: 'GitHub: FlowiseAI/Flowise',
-        asOf: '2026-07-02',
+        url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+        label: 'Flowise: Agentflow V2',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'Low enterprise-readiness score in third-party benchmarking',
+      title: 'Official project has reached end of life',
       description:
-        'The n8n 2026 AI Agent Development Tools report scored Flowise at 37% on "Enterpriseness," versus 63% on "Codability," citing gaps in security features, authentication mechanisms, and production-grade governance compared to top-performing platforms.',
-      shortDescription:
-        'Scored only 37% on enterprise-readiness in a third-party 2026 vendor report.',
+        'The sunset notice ended feature development on July 29 and official core-team community presence on August 31, 2026. Existing installations require their own maintenance plan.',
+      shortDescription: 'Official development and core-team support have ended.',
       source: {
-        url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-        label: 'n8n: 2026 AI Agent Development Tools report',
-        asOf: '2026-07-02',
+        url: 'https://flowiseai.com/sunset',
+        label: 'Flowise: Official sunset and end-of-life notice',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'No native real-time multiplayer canvas editing',
+      title: 'Commercial service status needs confirmation',
       description:
-        "Flowise's core canvas supports only one user editing a flow at a time, with no built-in real-time co-editing of the same chatflow. A related multi-user/collaboration feature request (GitHub issue #2661) was closed as not planned.",
-      shortDescription: 'No live multi-cursor concurrent editing of the same flow.',
+        'The end-of-life notice does not establish continued commercial sales or support, or a separate Cloud shutdown date. Historical commercial capabilities should be checked against an existing agreement.',
+      shortDescription: 'Legacy Cloud listings do not confirm current service availability.',
       source: {
-        url: 'https://github.com/FlowiseAI/Flowise/issues/2661',
-        label: 'GitHub Issue #2661: Multi User Support (closed, not planned)',
-        asOf: '2026-07-08',
+        url: 'https://flowiseai.com/sunset',
+        label: 'Flowise: Official sunset and end-of-life notice',
+        asOf: '2026-09-04',
       },
     },
   ],
@@ -82,184 +78,193 @@ export const flowiseProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          'Flowise is primarily a drag-and-drop visual canvas for wiring chatflow and agentflow nodes together, supplemented by Custom JS Function nodes for arbitrary code and a Custom Tool node for JS-based tools. There is no natural-language "describe it and I\'ll build it" flow generator.',
-        detail: 'No natural-language workflow generation feature.',
-        shortValue: 'Visual canvas plus custom-code nodes',
-        confidence: 'estimated',
+          'Visual Chatflow and Agentflow canvases connect model, tool, retrieval, and control nodes. Custom JavaScript extends the archived implementation.',
+        shortValue: 'Visual canvas with custom JavaScript',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
-            label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise',
+            label: 'Flowise: Archived source repository',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
         value:
-          'Approachable for non-technical users via templates and drag-and-drop nodes, but real production use (custom tools, external libraries, env vars) requires developer comfort with JavaScript and LangChain concepts.',
-        shortValue: 'Easy to start, technical depth needed for production',
+          'Templates support initial exploration; custom JavaScript, provider credentials, and operating an unmaintained deployment require technical skills. This is an editorial assessment.',
+        shortValue: 'Technical skills needed for self-maintained production use',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
-            label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
+            label: 'Flowise: Custom Tool and dependencies',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       selfHostOption: {
         value:
-          "Yes: Flowise's Community Edition is Apache 2.0 and can be self-hosted, including via Docker, on your own infrastructure.",
-        shortValue: 'Yes, self-hostable via Docker',
+          'Yes: the archived source supports self-hosting, including Docker. Operators must maintain their deployment after official end of life; commercial modules retain separate license terms.',
+        shortValue: 'Yes, archived code; operator maintenance required',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://github.com/FlowiseAI/Flowise',
+            label: 'Flowise: Archived source repository',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
-            label: 'GitHub: Flowise LICENSE.md',
-            asOf: '2026-07-02',
+            label: 'Flowise: Apache-2.0 and Commercial License scope',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
         value:
-          'Flowise offers self-hosted open-source deployment (Docker/npm), a managed multi-tenant Cloud plan, and an Enterprise tier supporting on-premise or air-gapped deployment for regulated industries.',
-        shortValue: 'Self-hosted, cloud, and enterprise on-prem/air-gapped',
+          'Self-hosted Node.js and Docker deployments remain documented. Cloud and commercial deployments were offered, but continued managed-service availability after end of life is not verified.',
+        shortValue: 'Self-hosted code; current managed service status unverified',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://github.com/FlowiseAI/Flowise',
+            label: 'Flowise: Archived source repository',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.flowiseai.com/using-flowise/workspaces',
-            label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
         value:
-          'Yes: Flowise ships a Marketplace of pre-built, production-ready chatflow and agentflow templates (document Q&A/RAG, SQL agents, multi-agent orchestration), filterable by type, framework, and use case, plus support for organizations to save their own custom templates.',
-        shortValue: 'Yes, built-in marketplace of chatflow/agentflow templates',
+          'Yes: archived releases include Marketplace templates; the Custom Tool tutorial starts from an OpenAI Function Agent template. Template availability does not establish ongoing maintenance or production suitability.',
+        shortValue: 'Yes, Marketplace templates in archived releases',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://deepwiki.com/FlowiseAI/Flowise/11.1-marketplace-and-template-flows',
-            label: 'DeepWiki: Marketplace & Template Flows',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
+            label: 'Flowise: Custom Tool and dependencies',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise',
+            label: 'Flowise: Archived source repository',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
         value:
-          "Flowise's Community Edition is licensed under the Apache License, Version 2.0. Paid-tier-only modules ship under a separate Commercial License: RBAC, audit/login-activity logs, and organization workspaces are available on both the Cloud and Enterprise plans, while SSO is restricted to the Enterprise plan only.",
-        shortValue: 'Apache 2.0 (core); RBAC/audit on Cloud+Enterprise, SSO Enterprise-only',
+          'Apache-2.0 applies outside the enterprise directory and explicitly excluded files. Enterprise code uses a Commercial License, and third-party components keep their own licenses.',
+        shortValue: 'Apache-2.0 core; separately licensed commercial modules',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
-            label: 'GitHub: Flowise LICENSE.md',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.flowiseai.com/using-flowise/workspaces',
-            label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.flowiseai.com/configuration/sso',
-            label: 'Flowise Docs: SSO',
-            asOf: '2026-07-08',
+            label: 'Flowise: Apache-2.0 and Commercial License scope',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
         value:
-          "Unknown: no documentation describes forking or cloning a whole project or workspace and promoting it between dev, QA, and production environments. Flowise's version control works at the level of individual chatflow/assistant history snapshots, not whole-environment promotion.",
-        shortValue: 'Unknown / not documented',
+          'Unknown: a native whole-workspace dev/QA/production promotion workflow was not verified.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       versionControlDepth: {
         value:
-          'Yes: Flowise automatically saves a version snapshot every time you save a ChatFlow or Assistant, with a history view to restore prior versions. This is snapshot-and-restore depth, not full diff or branching.',
-        shortValue: 'Snapshot history with restore, no diff/branching shown',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://github.com/FlowiseAI/Flowise/pull/5024',
-            label: 'GitHub PR #5024: Implement version control system for ChatFlows and Assistants',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: shipped automatic flow snapshots and restoration were not verified in the retained release documentation.',
+        shortValue: 'Not verified in reviewed documentation',
+        confidence: 'unknown',
+        sources: [],
       },
       realtimeCollaboration: {
         value:
-          "No: Flowise's canvas supports only one user per session, with no live, multi-cursor editing of the same flow. Cloud/Enterprise multi-user features (workspaces, RBAC) govern access, not concurrent editing.",
-        detail:
-          'No public Flowise GitHub issue specifically tracks multi-cursor/real-time canvas collaboration as a feature request; GitHub issue #2661, sometimes cited for this, is actually a closed request about user authentication, RBAC, and audit trails, not concurrent editing.',
-        shortValue: 'No live multi-user concurrent canvas editing',
-        confidence: 'verified',
+          'Unknown: simultaneous canvas editing with live cursors and synchronized operations was not verified. Commercial workspaces establish access control, not this capability.',
+        shortValue: 'Live collaborative canvas editing unverified',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
-            label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-08',
+            label: 'Flowise: Commercial workspaces and permissions',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeFileStorage: {
         value:
-          "Unknown: no documented general-purpose file storage system with folder hierarchy, link-sharing with access controls, or recovery of deleted items. Flowise's file handling is scoped to per-node uploads and Document Store ingestion, not a standalone file manager.",
-        shortValue: 'Unknown, only per-node file uploads documented',
-        confidence: 'unknown',
-        sources: [],
+          'Partial: Document Stores manage uploaded content, ingestion, and chunks. A general file drive with sharing links, folders, and deleted-item recovery was not verified.',
+        shortValue: 'Document ingestion storage; general file drive unverified',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/document-stores',
+            label: 'Flowise: Document Stores',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       dataTables: {
         value:
-          "Unknown: no native spreadsheet-like data table feature with row/column limits and keyboard navigation is documented. Flowise's structured-data support comes through external database and vector-store connector nodes instead.",
-        shortValue: 'Unknown, not documented as a native feature',
+          'Unknown: a native persistent spreadsheet-style table UI with documented row limits was not verified.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       richTextEditor: {
-        value:
-          'Unknown: no documented inline rich-text/WYSIWYG markdown editor for documents stored in Flowise.',
-        shortValue: 'Unknown, not documented',
+        value: 'Unknown: an in-app rich-text document editor was not verified.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       subWorkflows: {
         value:
-          "Yes: Flowise's Execute Flow node calls another saved Chatflow or Agentflow as a step, passes it input, waits for the child flow to finish, and receives its output back to continue the parent flow.",
-        shortValue: 'Yes, via the Execute Flow node',
+          'Yes: Execute Flow calls a saved Chatflow or Agentflow, passes input and optional overrides, and receives output. It can specify an alternative Flowise base URL and authentication.',
+        shortValue: 'Yes, Execute Flow with optional remote base URL',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
-            label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
-            asOf: '2026-07-02',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
         value:
-          "No: Flowise has no feature for publishing a deployed chatflow/agentflow as a named, encapsulated block that appears in the node palette for other users across an organization. Its closest feature, the Execute Flow node, only lets a flow call another saved flow by name or ID from within the same Flowise instance, passing input and receiving output; the docs describe this as invoking an existing flow, not publishing a version-synced, credential-hidden component into a shared toolbar. Flowise's Custom Tool node is likewise scoped to inline JavaScript written within a single flow, not a published workflow-as-block. There is no documented mechanism that hides a source flow's internal steps/credentials from consumers, restricts a published block via access control/permission groups, or automatically points every consumer at the source flow's latest deployed version.",
-        detail:
-          "This is distinct from Flowise's Execute Flow sub-workflow calling (see subWorkflows above), which is same-instance flow-to-flow composition, not org-wide reuse of a hidden, centrally-updated block by other users.",
-        shortValue: 'No, only same-instance Execute Flow calls; no published org-wide block',
-        confidence: 'estimated',
+          'Partial: saved Custom Tools can be reused by Agent or Tool nodes, and Execute Flow composes saved workflows. A centrally versioned, credential-hidden workflow block in an organization palette was not verified.',
+        shortValue: 'Reusable custom tools and flow calls',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
-            label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
-            asOf: '2026-07-08',
+            url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
+            label: 'Flowise: Tools and MCP',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
-            label: 'Flowise Docs: Custom Tool',
-            asOf: '2026-07-08',
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -267,229 +272,210 @@ export const flowiseProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: Flowise integrates a broad set of LLM providers including OpenAI, Azure OpenAI, AWS Bedrock, Google Vertex AI, Cohere, HuggingFace Inference, Ollama, and Replicate, plus (via its separate Chat Models integrations, e.g. ChatAnthropic) Anthropic Claude models, covering both hosted and self-hosted open-source models.',
-        shortValue: 'Broad support: OpenAI, Azure, Bedrock, Google, Anthropic, Ollama, more',
+          'Yes: documented model integrations include OpenAI, Anthropic, Azure, Bedrock, Google, Ollama, and other providers. Compatibility depends on the archived implementation and provider APIs.',
+        shortValue: 'Multiple hosted and local model integrations',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/integrations/langchain/llms',
-            label: 'Flowise Docs: LLMs',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.flowiseai.com/integrations/langchain/chat-models',
-            label: 'Flowise Docs: Chat Models (incl. ChatAnthropic)',
-            asOf: '2026-07-08',
+            label: 'Flowise: Chat model integrations',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
         value:
-          "Yes: Flowise's Agentflow V2 provides dedicated Agent nodes plus orchestration primitives (Condition, Iteration, Human Input) for multi-step agent reasoning and tool-use loops, distinct from plain data-routing nodes.",
-        shortValue: 'Yes, dedicated Agent/Condition/Iteration nodes in Agentflow V2',
+          'Yes: Agentflow V2 includes LLM-driven Agent nodes that choose configured tools or knowledge sources, alongside deterministic workflow nodes.',
+        shortValue: 'Yes, agent reasoning and tool-use nodes',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
-            label: 'Flowise Docs: Agentflow V2',
-            asOf: '2026-07-02',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
         value:
-          'No: no documented feature lets a user describe an automation in plain language and have Flowise generate or edit the flow automatically. Flowise is primarily a drag-and-drop visual canvas, supplemented by Custom JS Function nodes for arbitrary code, with no natural-language "describe it and I\'ll build it" flow generator.',
-        shortValue: 'No, not documented as a feature',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
-            label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: a native prompt-to-flow builder was not verified in the retained release documentation.',
+        shortValue: 'Not verified in reviewed documentation',
+        confidence: 'unknown',
+        sources: [],
       },
       knowledgeBaseRag: {
         value:
-          "Yes: Flowise's Document Store provides a full RAG pipeline covering document loading (PDF, web pages, Word, etc.), configurable chunking/text-splitting, multiple embedding providers, and upsert into vector stores like Pinecone, Weaviate, Milvus, and FAISS.",
-        detail:
-          "n8n's 2026 report rated Flowise's chunking/splitter options the broadest natively available among evaluated tools.",
-        shortValue: 'Yes, full built-in Document Store RAG pipeline',
+          'Yes: Document Stores cover loaders, chunking, embeddings, vector-store upsertion, and retrieval testing, with APIs to refresh content.',
+        shortValue: 'Yes, Document Store ingestion and retrieval',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/document-stores',
-            label: 'Flowise Docs: Document Stores',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-            label: 'n8n: 2026 AI Agent Development Tools report',
-            asOf: '2026-07-02',
+            label: 'Flowise: Document Stores',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
         value:
-          'Yes: Flowise acts as an MCP client, consuming external MCP servers as tools via Stdio (NPX/Docker) or Streamable HTTP transports, with prebuilt MCP integrations (GitHub, Atlassian Jira, Brave Search) and a Custom MCP node for any server.',
-        shortValue: 'Yes, MCP client consuming external servers as tools',
+          'Yes: Custom MCP connects external servers and imports available actions. Streamable HTTP is recommended; local stdio requires suitable host process/package access.',
+        shortValue: 'Yes, external MCP client with configurable actions',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
-            label: 'Flowise Docs: Tools & MCP',
-            asOf: '2026-07-02',
+            label: 'Flowise: Tools and MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
         value:
-          'Yes: Flowise has a built-in Evaluations feature that runs datasets through chatflows/agentflows and scores outputs with string-match, numeric, or LLM-as-judge evaluators, reporting pass/fail rate, average tokens consumed, and latency. There is no separate, dedicated "guardrail validation" block beyond this.',
-        shortValue: 'Yes, built-in dataset-based evaluation with LLM-judge scoring',
+          'Partial: dataset evaluations are documented for commercial Cloud/Enterprise editions, with text, numeric, and LLM scoring. Integration docs also list moderation nodes; current commercial availability needs confirmation after end of life.',
+        shortValue: 'Commercial evaluations and moderation integrations',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/evaluations',
-            label: 'Flowise Docs: Evaluations',
-            asOf: '2026-07-02',
+            label: 'Flowise: Commercial evaluations',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/integrations/langchain/moderation',
+            label: 'Flowise: Moderation nodes',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
         value:
-          'Yes: Agentflow V2 includes a dedicated Human Input node that pauses execution and resumes only after a human approves or rejects the pending action, with separate output paths for each outcome.',
-        shortValue: 'Yes, dedicated Human Input approve/reject node',
+          'Yes: Human Input and optional agent tool approval pause execution, save a checkpoint, and resume after approval or rejection.',
+        shortValue: 'Yes, checkpointed approval and rejection paths',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/tutorials/human-in-the-loop',
-            label: 'Flowise Docs: Human In The Loop',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
         value:
-          'Partial: Flowise supports speech-to-text nodes and multi-modal image inputs. Image and audio generation can be wired in via custom tools calling providers like Replicate (Stable Diffusion) or ElevenLabs, but the standard node library has no dedicated, built-in image, video, or text-to-speech generation node.',
-        detail:
-          'Community GitHub issues show text-to-speech and native image generation as requested but not shipped as first-class nodes.',
-        shortValue: 'Partial: STT built in, image/TTS via custom tools only',
-        confidence: 'estimated',
+          'Unknown: a comprehensive native image/video/audio generation suite was not verified. Documented image inputs and audio transcription are input-processing features.',
+        shortValue: 'Generation suite unverified; multimodal inputs documented',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/2385',
-            label: 'GitHub Issue #2385: Text To Speech',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/prediction',
+            label: 'Flowise: Prediction API and official SDKs',
+            asOf: '2026-09-04',
           },
         ],
       },
       dynamicToolUse: {
         value:
-          "Yes: Flowise's Agent nodes and Custom MCP integration let an agent dynamically discover and select from a connected pool of tools/actions at inference time, rather than calling only a single pre-wired tool per step.",
-        shortValue: 'Yes, agents can dynamically pick from connected tools/MCP servers',
-        confidence: 'estimated',
+          'Partial: agents choose from configured tools at runtime. Custom MCP refreshes the connected server’s available actions; discovery beyond configured servers was not verified.',
+        shortValue: 'Runtime selection from configured tools and MCP actions',
+        confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
-            label: 'Flowise Docs: Tools & MCP',
-            asOf: '2026-07-02',
+            label: 'Flowise: Tools and MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelFallback: {
         value:
-          'Unknown: no documented automatic retry against a different model or provider on a failed/rate-limited LLM call.',
-        shortValue: 'Unknown, not documented',
+          'Unknown: automatic failover to a different model or provider after a failed call was not verified.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       agentSkills: {
         value:
-          'Unknown: no documented reusable, named prompt/knowledge-snippet feature invoked by reference across multiple agents, distinct from a one-off system prompt or Variables feature.',
-        detail:
-          'Flowise has a general Variables feature (static/runtime key-value), but it is not documented as an agent-skill abstraction.',
-        shortValue: 'Unknown, not documented as a distinct feature',
+          'Unknown: a reusable named skill library loaded by reference across agents was not verified.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       nativeChatDeployment: {
         value:
-          'Yes: a built flow can be deployed as a shareable public chat URL or an embeddable chat widget (popup bubble or full-page, via JS script or React components), plus a REST API endpoint.',
-        shortValue: 'Yes, public chat URL and embeddable widget deployment',
+          'Yes: the archived implementation supports an embedded chat widget connected to a Flowise-hosted flow, alongside the Prediction API. Current vendor hosting is not assumed.',
+        shortValue: 'Yes, chat embed backed by a running Flowise server',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/embed',
-            label: 'Flowise Docs: Embed',
-            asOf: '2026-07-02',
+            label: 'Flowise: Embed and theming',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/prediction',
+            label: 'Flowise: Prediction API and official SDKs',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
         value:
-          'Yes: Flowise\'s Document Store lets users preview and edit individual chunks after ingestion (n8n\'s report calls this "post-processing"). Retrieval and upsertion views show chunk-level detail, not just whole-document results.',
-        shortValue: 'Yes, per-chunk preview and editing in Document Store',
+          'Yes: Document Stores support previewing and editing individual chunks and testing retrieval queries with returned chunks.',
+        shortValue: 'Yes, chunk editing and retrieval-query inspection',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-            label: 'n8n: 2026 AI Agent Development Tools report',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.flowiseai.com/using-flowise/upsertion',
-            label: 'Flowise Docs: Upsertion',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/document-stores',
+            label: 'Flowise: Document Stores',
+            asOf: '2026-09-04',
           },
         ],
       },
       parallelExecution: {
         value:
-          "No: AgentFlow V2 lets users draw a branching canvas layout, but the execution engine processes the queue one node at a time and does not run parallel branches concurrently, per user reports and Flowise's own issue tracker. This causes chat-history and input-inheritance bugs when a canvas is arranged in a parallel shape.",
-        shortValue: 'No, branches in AgentFlow V2 execute sequentially, not concurrently',
-        confidence: 'estimated',
+          'Unknown: native concurrent branch-and-join execution was not verified. The documented Iteration node processes items sequentially; queue workers can run separate predictions concurrently.',
+        shortValue: 'Concurrent branches unverified; workers handle parallel predictions',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/4673',
-            label: 'Flowise GitHub: "Not working parallel Node in AgentFlow 2" (#4673)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/4710',
-            label:
-              'Flowise GitHub: "Parallel Node Execution is causing State Contamination" (#4710)',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
-            label: 'Flowise Docs: Agentflow V2',
-            asOf: '2026-07-02',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
+            label: 'Flowise: Queue workers and concurrency',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
         value:
-          'No: Google A2A (Agent2Agent) protocol support is an open, unimplemented GitHub feature request (opened April 2025). Flowise supports MCP for tool-calling but has no Agent Card or agent-to-agent discovery feature.',
-        shortValue: 'No, A2A support is an open feature request, not implemented',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/4283',
-            label: 'Flowise GitHub: "Support the Google A2A (Agent2Agent) Protocol" (#4283, open)',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: native Agent2Agent protocol endpoints or agent-card discovery were not verified. Multi-agent orchestration is not itself proof of A2A protocol support.',
+        shortValue: 'Not verified in reviewed documentation',
+        confidence: 'unknown',
+        sources: [],
       },
       loopIteration: {
         value:
-          "Yes: Flowise's Agentflow V2 has a dedicated Iteration node that takes an array and executes a nested sub-flow of steps once per item, running sequentially. Its separate Loop node instead jumps backward to re-run an earlier node, a retry cycle rather than a collection iterator.",
-        shortValue: 'Yes, via the Iteration node (separate Loop node is retry-only)',
+          'Yes: Iteration executes nested steps sequentially for each array item. Loop jumps back to an earlier node and has a configurable maximum loop count.',
+        shortValue: 'Yes, sequential iteration and bounded backward loops',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
-            label: 'Flowise Docs: Agentflow V2 (Iteration and Loop nodes)',
-            asOf: '2026-07-02',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -497,118 +483,117 @@ export const flowiseProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          'Flowise documents integration categories across LLMs, vector stores, document loaders, embeddings, tools, and MCP servers (referred to internally as "nodes"), but publishes no exact total node/integration count.',
-        shortValue: 'Broad multi-category node library, exact count unverified',
-        confidence: 'estimated',
+          'The archived integration catalog covers model providers, tools, embeddings, vector stores, loaders, and other node categories. A current exact count was not independently established.',
+        shortValue: 'Broad node categories; exact count not verified',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/integrations',
-            label: 'Flowise Docs: Integrations',
-            asOf: '2026-07-02',
+            label: 'Flowise: Integration categories',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Flowise flows are triggered via the chat widget or public URL, direct REST API prediction calls (/api/v1/prediction/{chatflowId}), and Custom MCP/tool invocations. There is no dedicated cron/schedule trigger or broad library of app-specific event triggers.',
-        shortValue: 'Chat, API/webhook-style prediction calls; no schedule trigger found',
-        confidence: 'estimated',
+          'Chat or form input and Prediction API calls invoke flows. A native scheduler or broad app-event trigger catalog was not verified.',
+        shortValue: 'Chat, form, and Prediction API calls',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://agentsapis.com/flowise-api/',
-            label: 'Flowise API: Complete Developer Guide',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/prediction',
+            label: 'Flowise: Prediction API and official SDKs',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
         value:
-          'Yes: Flowise has a Custom JS Function node for arbitrary JavaScript (async functions, plus built-in and external Node modules) and a Custom Tool node for JS-based agent tools. There is no dedicated Python code-step node.',
-        shortValue: 'Yes, custom JavaScript function/tool nodes; no native Python step found',
+          'Yes: Custom Function and Custom Tool run server-side JavaScript with configured inputs and flow context.',
+        shortValue: 'Yes, JavaScript functions and custom tools',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
-            label: 'Flowise Docs: Custom Tool (JS function support, built-in/external modules)',
-            asOf: '2026-07-08',
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
+            label: 'Flowise: Tools and MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
       codeSandboxRuntime: {
         value:
-          'Partial: self-hosted only and at the image level. The runtime available to Custom JS Function and Custom Tool code is controlled by server environment variables: TOOL_FUNCTION_BUILTIN_DEP (which NodeJS built-in modules code may require, set to crypto,fs in the shipped .env.example and documented as accepting * for all builtins), TOOL_FUNCTION_EXTERNAL_DEP (which npm packages are importable, set to moment,lodash,pg,mysql2,mongodb,ioredis,redis,typeorm,@zilliz/milvus2-sdk-node in the same file), and ALLOW_BUILTIN_DEP, which the docs describe as allowing the project dependencies already bundled with Flowise to be used, illustrated with cheerio and typeorm. Adding an npm package that is not already bundled requires adding it to packages/components, rebuilding Flowise, and restarting the server, so it is a redeploy of your own image rather than a per-step dependency declaration; there is no runtime npm install inside the code node, and no documented way to declare OS-level system packages or preinstalled CLI binaries. Flowise does not document any way for users of the managed Flowise Cloud product to set these server environment variables.',
-        detail:
-          'The Custom Tool docs describe the workflow explicitly: add the package under packages/components with pnpm add, run pnpm build, "then, add the imported libraries to TOOL_FUNCTION_EXTERNAL_DEP environment variable", then restart the application. TOOL_FUNCTION_BUILTIN_DEP is additive rather than a replacement: packages/components/src/utils.ts concatenates it onto a hardcoded defaultAllowBuiltInDep list (assert, buffer, crypto, events, path, querystring, timers, url, zlib), so the shipped crypto,fs value widens that base set rather than defining it; TOOL_FUNCTION_EXTERNAL_DEP is additive in the same way, layered onto a defaultAllowExternalDependencies list of axios and node-fetch. Python is not a supported code-step runtime at all, so the configurable surface is Node-only.',
-        shortValue: 'Self-hosted only: env-var allowlists plus a rebuild; no Cloud control',
+          'Self-hosted operators configure allowed Node.js modules through environment variables. Adding external dependencies may require modifying packages/components, rebuilding, and restarting; host and package controls are deployment responsibilities.',
+        shortValue: 'Operator-configured Node modules; rebuild for additional dependencies',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/configuration/environment-variables',
-            label:
-              'Flowise Docs: Environment Variables (TOOL_FUNCTION_BUILTIN_DEP, TOOL_FUNCTION_EXTERNAL_DEP, ALLOW_BUILTIN_DEP)',
-            asOf: '2026-08-10',
+            label: 'Flowise: Server environment variables',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
-            label: 'Flowise Docs: Custom Tool (adding external npm dependencies)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/server/.env.example',
-            label: 'GitHub: Flowise packages/server/.env.example (shipped dependency allowlists)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/components/src/utils.ts',
-            label:
-              'GitHub: packages/components/src/utils.ts (defaultAllowBuiltInDep, defaultAllowExternalDependencies, additive allowlists)',
-            asOf: '2026-08-10',
+            label: 'Flowise: Custom Tool and dependencies',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
         value:
-          'Yes: any chatflow can be called as a REST API via /api/v1/prediction/{chatflowId}, with client code generated for Python, JavaScript, and cURL, and sessionId support for maintaining conversation context.',
-        shortValue: 'Yes, REST API endpoint per flow with generated client code',
+          'Yes: POST /api/v1/prediction/:id invokes a flow, with streaming, session context, file inputs, and human-input resume supported.',
+        shortValue: 'Yes, Prediction API with streaming and session context',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://agentsapis.com/flowise-api/',
-            label: 'Flowise API: Complete Developer Guide',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/prediction',
+            label: 'Flowise: Prediction API and official SDKs',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Partial: Flowise provides official embed SDKs (a flowise-embed JS package and React BubbleChat/FullPageChat components) and a documented process for building custom nodes to contribute. There is no first-party marketplace for community-built node plugins beyond the flow-template Marketplace.',
-        shortValue: 'Embed SDKs and custom-node dev docs; no plugin marketplace found',
-        confidence: 'estimated',
+          'Yes: official Python and TypeScript/JavaScript prediction SDKs, a chat embed package, and custom-node development instructions remain documented. These belong to the sunset project.',
+        shortValue: 'Python/TypeScript SDKs, embed, and custom nodes',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.npmjs.com/package/flowise-embed',
-            label: 'npm: flowise-embed',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/prediction',
+            label: 'Flowise: Prediction API and official SDKs',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.flowiseai.com/contributing/building-node',
-            label: 'Flowise Docs: Building Node',
-            asOf: '2026-07-02',
+            label: 'Flowise: Building nodes',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
         value:
-          "No: Flowise's documentation covers only consuming external MCP servers as an MCP client. It has no capability for publishing a deployed Flowise flow itself as a callable MCP server for other AI tools.",
-        detail:
-          'Third-party community wrapper packages (e.g. mcp-flowise) expose Flowise chatflows via MCP externally, but this is not native.',
-        shortValue: 'No, cannot publish a flow as an MCP server',
-        confidence: 'verified',
+          'Unknown: native publishing of a Flowise flow as an MCP server was not verified. The retained documentation demonstrates consuming external MCP servers.',
+        shortValue: 'Native flow-to-MCP publishing unverified',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
-            label: 'Flowise Docs: Tools & MCP',
-            asOf: '2026-07-02',
+            label: 'Flowise: Tools and MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -616,221 +601,264 @@ export const flowiseProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Flowise Cloud prices by monthly prediction (execution) volume plus storage tier, with separate paid plans; self-hosting is free aside from your own infrastructure and LLM costs.',
-        shortValue: 'Prediction-volume based tiers (cloud), free self-hosting',
+          'The Apache-2.0 portions can be self-hosted with operator-funded infrastructure and provider usage. Legacy Cloud pricing is prediction/storage based, but current sales and service terms after end of life are unverified.',
+        shortValue: 'Free core; legacy Cloud terms require confirmation',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
+            label: 'Flowise: Apache-2.0 and Commercial License scope',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/',
+            label: 'Flowise: Product and legacy displayed pricing',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'The cheapest paid Cloud plan (Starter) is reported at $35/month, including unlimited flows, 10,000 predictions/month, and 1GB storage.',
-        detail:
-          "Sourced from third-party aggregator coverage; Flowise's own pricing page sits behind a login wall.",
-        shortValue: '$35/month Starter: unlimited flows, 10k predictions, 1GB storage',
-        confidence: 'estimated',
+          'Unknown: current paid service availability is unverified. The website still lists Starter at $35/month, 10,000 monthly predictions and 1GB storage, but that legacy listing is not proof of an active supported offer.',
+        shortValue: 'Legacy $35/month listing; current availability unverified',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com/',
+            label: 'Flowise: Product and legacy displayed pricing',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       freeTier: {
         value:
-          'Yes: a free Cloud plan exists with 2 flows/assistants, 100 predictions per month, and 5MB storage, with community support and Flowise embed branding.',
-        shortValue: 'Yes: 2 flows, 100 predictions/month, 5MB storage',
+          'Yes for the Apache-2.0 source, excluding infrastructure and provider costs. The website’s legacy Free Cloud listing is 2 flows, 100 monthly predictions and 5MB storage; current Cloud availability is unverified.',
+        shortValue: 'Free source; legacy Cloud availability unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
+            label: 'Flowise: Apache-2.0 and Commercial License scope',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/',
+            label: 'Flowise: Product and legacy displayed pricing',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       byok: {
         value:
-          'Yes: users configure their own LLM provider API keys as encrypted credentials within Flowise (self-hosted or cloud), so LLM usage is billed directly by the provider rather than metered by Flowise beyond its own prediction-count limits.',
-        detail: 'Flowise Cloud plans still cap by predictions/month regardless of BYOK.',
-        shortValue: 'Yes, bring your own LLM provider API keys',
-        confidence: 'estimated',
+          'Yes: model credentials are configured in Flowise, with credential encryption controlled by the server secret. Provider usage and any applicable infrastructure or service fees remain separate.',
+        shortValue: 'Yes, user-configured provider credentials',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/configuration/environment-variables',
-            label: 'Flowise Docs: Environment Variables',
-            asOf: '2026-07-02',
+            label: 'Flowise: Server environment variables',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/document-stores',
+            label: 'Flowise: Document Stores',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     security: {
-      soc2: {
-        value:
-          'Unknown: a third-party security-scan aggregator (Nudge Security) lists Flowise as SOC 2 compliant among several other certifications, but Flowise has published no SOC 2 report, badge, or trust page of its own.',
-        detail:
-          'The same third-party source also claims FedRAMP and PCI compliance for a small startup, an atypical combination not corroborated on flowiseai.com.',
-        shortValue: 'No official confirmation found',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataResidency: {
         value:
-          'Yes, indirectly: self-hosting (including on-prem/air-gapped Enterprise deployment) lets an organization fully control data location. There is no dedicated regional-cloud-hosting option for the managed Cloud product.',
-        shortValue: 'Yes via self-hosting/on-prem; no documented regional cloud option',
-        confidence: 'estimated',
+          'Self-hosted operators choose infrastructure and storage locations. External model, vector-store, tool, and MCP calls can still send data elsewhere. Current managed-cloud residency options were not verified.',
+        shortValue: 'Self-host location control; external calls remain relevant',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://github.com/FlowiseAI/Flowise',
+            label: 'Flowise: Archived source repository',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/document-stores',
+            label: 'Flowise: Document Stores',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
+            label: 'Flowise: Tools and MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
       rbac: {
         value:
-          'Yes: Enterprise and Cloud Workspaces support custom roles with granular per-resource permissions (full access vs. view-only). User and Workspace Management resources (Roles, Users, Workspaces, Login Activity) are restricted to Account Admins only.',
-        shortValue: 'Yes, custom roles with granular per-resource permissions (Enterprise/Cloud)',
+          'Yes in documented commercial Workspaces: roles define resource permissions and workspace membership. This is not Apache-core entitlement; current commercial support after end of life needs confirmation.',
+        shortValue: 'Commercial workspace roles; current support requires confirmation',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
-            label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            label: 'Flowise: Commercial workspaces and permissions',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
+            label: 'Flowise: Apache-2.0 and Commercial License scope',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
         value:
-          'Yes: Workspaces (Cloud and Enterprise plans) let Account Admins see every login and logout across all users. The docs do not show a separate detailed action-by-action audit trail beyond this login activity log.',
-        shortValue: 'Yes, login activity log on Cloud and Enterprise plans',
+          'Partial: commercial Workspaces document login and logout activity visible to account administrators. A comprehensive action-by-action audit trail was not verified.',
+        shortValue: 'Commercial login activity; broader audit coverage unverified',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
-            label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            label: 'Flowise: Commercial workspaces and permissions',
+            asOf: '2026-09-04',
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
-          'Unknown: beyond the unconfirmed third-party SOC 2 claim, Flowise has published no HIPAA, ISO 27001, PCI, or FedRAMP certification.',
-        shortValue: 'Unknown, no official certifications published',
+          'Unknown: a Flowise-specific SOC 2 report, ISO 27001 certificate, or other vendor attestation was not verified. Self-hosting alone does not establish compliance.',
+        shortValue: 'Vendor certification coverage unverified',
         confidence: 'unknown',
         sources: [],
       },
       modelAndToolGovernance: {
         value:
-          "Unknown: no documented admin controls restrict which specific LLM providers/models or which tools/integrations a given role may use. Flowise's RBAC governs resource-level (create/edit/delete) permissions, not model/tool allowlists.",
-        shortValue: 'Unknown, RBAC is resource-level not model/tool-specific',
-        confidence: 'unknown',
-        sources: [],
+          'Partial: self-hosted operators can supply a model-list configuration, disable nodes, and configure HTTP/MCP restrictions. Role-specific model/provider allowlists were not verified.',
+        shortValue: 'Server-level model, node, and MCP controls',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/configuration/environment-variables',
+            label: 'Flowise: Server environment variables',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       credentialGovernance: {
         value:
-          "Partial: credentials can be shared across workspaces in Flowise's workspace model, but there is no documented way to restrict which specific stored credential a given role/permission group may use.",
-        shortValue: 'Credentials shareable across workspaces; per-role credential limits unclear',
-        confidence: 'unknown',
+          'Partial: commercial Workspaces support sharing credentials to selected workspaces. Sharing requires the corresponding permission; recipients cannot edit the shared credential.',
+        shortValue: 'Permission-controlled credential sharing between commercial workspaces',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
-            label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            label: 'Flowise: Commercial workspaces and permissions',
+            asOf: '2026-09-04',
           },
         ],
       },
       whiteLabeling: {
         value:
-          'Partial: the free plan includes Flowise\'s own embed branding, and paid plans support customizing the embedded chat widget\'s theme (colors, welcome message, tooltips). Community reports indicate fully removing the "Powered by Flowise" watermark requires workarounds, not a clean built-in option.',
-        shortValue: 'Partial: widget theming yes, full logo/brand removal unclear',
-        confidence: 'estimated',
+          'Partial: the embed supports custom icons, titles, colors, messages, footer settings, CSS, and source modifications. Full-builder organization-wide rebranding was not verified.',
+        shortValue: 'Extensive embed customization; full-builder rebranding unverified',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/FlowiseAI/Flowise/discussions/626',
-            label: 'GitHub Discussion #626: remove the Powered by flowise watermark',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/embed',
+            label: 'Flowise: Embed and theming',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
         value:
-          'Unknown: no documented org-configurable retention windows for execution logs or soft-deleted resources.',
-        shortValue: 'Unknown, not documented',
-        confidence: 'unknown',
-        sources: [],
+          'Partial: self-hosted queue examples expose completed-job age/count cleanup settings. A unified organization policy for execution, audit, and deleted-resource retention was not verified.',
+        shortValue: 'Queue cleanup controls; organization retention policy unverified',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
+            label: 'Flowise: Queue workers and concurrency',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       piiRedaction: {
         value:
-          'Unknown: no documented PII detection/redaction feature for workflow content or logs.',
-        shortValue: 'Unknown, not documented',
+          'Unknown: automatic PII redaction across workflow content and retained logs was not verified. Content moderation is a separate capability.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       sso: {
         value:
-          'Yes, with a caveat: Enterprise-plan SSO supports OIDC via Microsoft Azure/Entra ID, Google, and Auth0, but has no automatic org auto-provisioning. Invited users must be added first before SSO login works.',
-        detail: 'No SAML support documented.',
-        shortValue: 'Yes (OIDC, Enterprise plan), but no auto-provisioning',
+          'Yes in the documented Enterprise edition: Microsoft, Google, and Auth0 SSO require users to be invited with a workspace and role before sign-in. Current commercial availability needs confirmation.',
+        shortValue: 'Enterprise SSO; invitations required',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/configuration/sso',
-            label: 'Flowise Docs: SSO',
-            asOf: '2026-07-02',
+            label: 'Flowise: Enterprise SSO',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       sessionPolicy: {
         value:
-          'Partial: self-hosted server environment variables rather than an admin-console setting. JWT_TOKEN_EXPIRY_IN_MINUTES sets the access-token lifetime and JWT_REFRESH_TOKEN_EXPIRY_IN_MINUTES sets the refresh-token lifetime, which together bound how long a sign-in survives, and EXPIRE_AUTH_TOKENS_ON_RESTART invalidates all tokens on server restart. No idle/inactivity timeout is documented, and Flowise does not document any equivalent control for admins of the managed Flowise Cloud product.',
-        detail:
-          'The shipped .env.example sets JWT_TOKEN_EXPIRY_IN_MINUTES=360 and JWT_REFRESH_TOKEN_EXPIRY_IN_MINUTES=43200 (30 days); the Application authorization docs page instead cites defaults of 60 minutes and 129,600 minutes (90 days), so the documented default differs from the shipped one. Because these are process environment variables, changing them is a deploy-level action for the whole instance, not a per-organization policy an account admin can set from the Workspaces UI.',
-        shortValue: 'Self-hosted JWT expiry env vars; no idle timeout, no documented Cloud control',
+          'Partial: self-hosted server variables configure access- and refresh-token lifetimes and token invalidation on restart. An organization-admin inactivity timeout was not verified.',
+        shortValue: 'Server-configured JWT expiry and restart invalidation',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/configuration/authorization/app-level',
-            label: 'Flowise Docs: Application authorization (JWT expiry and session variables)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/server/.env.example',
-            label: 'GitHub: Flowise packages/server/.env.example (shipped JWT expiry defaults)',
-            asOf: '2026-08-10',
+            label: 'Flowise: Application authentication',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
         value:
-          "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code.",
-        detail:
-          "That PR-review process has not stopped a critical incident in vetted, first-party code: CVE-2025-59528 (CVSS 10.0) was an unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. Patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. By contrast, Sim documents its own thirdPartyVetting fact as every one of its 302 blocks being first-party authored and code-reviewed with no public marketplace for third-party executable code either, so the two products share the same no-open-marketplace posture; the difference is that Flowise's own review pipeline has already shipped one CVSS-10 RCE into a first-party node, which is the concrete cost of that model rather than of an unreviewed community ecosystem.",
-        shortValue:
-          'Yes, PR-reviewed into the core repo, but that pipeline already shipped a CVSS-10 RCE',
+          'The archived code supports custom nodes and external MCP servers. Official development and PR review ended under the sunset plan, so operators must review and maintain any retained or added executable code.',
+        shortValue: 'Archived project; operator review and maintenance required',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/contributing/building-node',
-            label: 'Flowise Docs: Building Node',
-            asOf: '2026-07-02',
+            label: 'Flowise: Building nodes',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/FlowiseAI/Flowise/security/advisories/GHSA-3gcm-f6qx-ff7p',
-            label: 'GitHub Security Advisory GHSA-3gcm-f6qx-ff7p (CVE-2025-59528)',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
+            label: 'Flowise: Tools and MCP',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.csoonline.com/article/4155680/hackers-exploit-a-critical-flowise-flaw-affecting-thousands-of-ai-workflows.html',
-            label:
-              'CSO Online: Hackers exploit a critical Flowise flaw affecting thousands of AI workflows',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -838,95 +866,119 @@ export const flowiseProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Yes: Flowise provides built-in analytics/observability and integrates with third-party tracing tools (Langfuse, Opik) for per-execution, block-level trace views including duration, cost, and token usage, beyond simple aggregate stats.',
-        shortValue:
-          'Yes, per-block trace views via built-in analytics and Langfuse/Opik integration',
+          'Yes: the Langfuse integration traces Flowise interactions from the UI, API, and embeds. Built-in Prometheus/OpenTelemetry monitoring primarily covers aggregate API and runtime metrics.',
+        shortValue: 'External execution traces plus aggregate runtime metrics',
         confidence: 'verified',
         sources: [
           {
             url: 'https://langfuse.com/integrations/no-code/flowise',
-            label: 'Langfuse: Observability and Tracing for Flowise',
-            asOf: '2026-07-02',
+            label: 'Langfuse: Flowise tracing integration',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/monitoring',
+            label: 'Flowise: Prometheus and OpenTelemetry monitoring',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
         value:
-          'Unknown: no documentation describes automatic retries, checkpointing, or replay of a past execution with its original inputs.',
-        shortValue: 'Unknown, not documented',
-        confidence: 'unknown',
-        sources: [],
+          'Partial: Agentflow V2 saves human-input checkpoints and documents resuming them after an application restart. General automatic crash recovery or replay for every node was not verified.',
+        shortValue: 'Persisted human-input checkpoints; broader recovery unverified',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       failureAlerting: {
         value:
-          'Unknown: no documented proactive notification (email/Slack/webhook) when a run fails or crosses a cost/latency threshold, beyond viewing failures in logs/observability tools.',
-        shortValue: 'Unknown, not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      dataDrains: {
-        value:
-          'Partial: Flowise supports exporting execution traces to external observability platforms (Langfuse, Opik) on an ongoing basis, but has no documented way to export raw execution/audit/usage data to generic destinations like S3, BigQuery, or Datadog.',
-        shortValue: 'Partial: trace export to Langfuse/Opik only, no generic data-drain found',
+          'Partial: documented Prometheus/Grafana monitoring can feed externally configured alerting. Native per-run failure or cost-threshold notifications were not verified.',
+        shortValue: 'External monitoring alerts; native run notifications unverified',
         confidence: 'estimated',
         sources: [
           {
+            url: 'https://docs.flowiseai.com/using-flowise/monitoring',
+            label: 'Flowise: Prometheus and OpenTelemetry monitoring',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      dataDrains: {
+        value:
+          'Partial: server logs can stream to S3 or Google Cloud Logging, traces to Langfuse, and metrics to OpenTelemetry collectors with Datadog/Prometheus exporters. A unified audit/usage export service was not verified.',
+        shortValue: 'Log, trace, and metric exports to external destinations',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/configuration/environment-variables',
+            label: 'Flowise: Server environment variables',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://langfuse.com/integrations/no-code/flowise',
-            label: 'Langfuse: Observability and Tracing for Flowise',
-            asOf: '2026-07-02',
+            label: 'Langfuse: Flowise tracing integration',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/monitoring',
+            label: 'Flowise: Prometheus and OpenTelemetry monitoring',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
         value:
-          'Partial: Flowise supports a queue-based execution mode ("Running Flowise using Queue") for scaling background job processing, but the standard /api/v1/prediction endpoint is documented as a synchronous call, with no clear poll-for-result async API pattern.',
-        shortValue: 'Partial: queue mode exists, prediction API is documented as synchronous',
-        confidence: 'estimated',
+          'Partial: queue mode dispatches predictions to workers, but the documented HTTP request waits for the worker’s result. A submit-and-poll job API was not verified.',
+        shortValue: 'Worker queues; HTTP request still waits for completion',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
-            label: 'Flowise Docs: Running Flowise using Queue',
-            asOf: '2026-07-02',
+            label: 'Flowise: Queue workers and concurrency',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Unknown: Flowise publishes no numbers for maximum single-execution duration or concurrency limits, beyond monthly prediction-count caps tied to Cloud pricing tiers.',
-        shortValue: 'Unknown, only monthly prediction caps are published',
-        confidence: 'unknown',
-        sources: [],
-      },
-      partialFailureHandling: {
-        value:
-          'Yes: Agentflow V2\'s conditional branching and Human Input reject-path let a workflow route around a problematic step (e.g. loop back for refinement) rather than only halting entirely, though there is no dedicated "catch/error-handler" node distinct from conditional routing.',
-        shortValue: 'Yes, via conditional branching / reject-loop paths in Agentflow V2',
+          'Self-hosted worker concurrency is configurable with WORKER_CONCURRENCY, and Loop nodes have a maximum iteration setting. No universal wall-clock or supported Cloud concurrency guarantee was verified.',
+        shortValue: 'Configurable worker concurrency and loop caps',
         confidence: 'estimated',
         sources: [
           {
+            url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
+            label: 'Flowise: Queue workers and concurrency',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
-            label: 'Flowise Docs: Agentflow V2',
-            asOf: '2026-07-02',
+            label: 'Flowise: Agentflow V2',
+            asOf: '2026-09-04',
           },
         ],
       },
+      partialFailureHandling: {
+        value:
+          'Unknown: a general exception-catching branch for failed nodes was not verified. Condition routing and human rejection paths do not establish automatic error recovery.',
+        shortValue: 'Not verified in reviewed documentation',
+        confidence: 'unknown',
+        sources: [],
+      },
       unattendedExecution: {
         value:
-          'Yes, for the triggers Flowise has: a chat message, a REST API prediction call, or an MCP tool invocation all execute entirely on the Flowise server (self-hosted or Flowise Cloud), with no dependency on a client device staying open, awake, or connected. Flowise has no dedicated cron/schedule trigger of its own, so a genuinely unattended, time-based run has to come from an external scheduler (e.g. a cron job or another system calling the prediction API) rather than a built-in scheduling engine.',
-        detail:
-          'Once a run is invoked by any supported means, closing the browser tab or disconnecting the calling client has no effect on that run completing server-side; the caveat is only that Flowise itself cannot originate a scheduled run without an outside trigger.',
-        shortValue: 'Yes for triggered runs; no built-in scheduler to originate one unattended',
+          'Server and worker deployments process API-triggered runs without an interactive desktop UI. They must remain running; client-disconnect behavior and built-in scheduling were not verified.',
+        shortValue: 'Server/worker execution; connection and scheduling guarantees unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://agentsapis.com/flowise-api/',
-            label: 'Flowise API: Complete Developer Guide',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
-            label: 'Flowise Docs: Running Flowise using Queue',
-            asOf: '2026-07-02',
+            label: 'Flowise: Queue workers and concurrency',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -934,67 +986,81 @@ export const flowiseProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Flowise offers community support (GitHub, Discord) on free/self-hosted tiers, priority support on the Pro Cloud plan, and personalized/dedicated support on Enterprise.',
-        shortValue: 'Community (free), priority (Pro), dedicated (Enterprise)',
-        confidence: 'estimated',
+          'The sunset notice ends official core-team presence on GitHub and Discord on August 31, 2026. Community-led forks or any separate commercial agreement must be assessed independently.',
+        shortValue: 'Official core-team support ended August 31, 2026',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
         value:
-          'A formal SLA (99.99% uptime) is offered on the Enterprise plan per third-party coverage; no SLA is documented for lower tiers.',
-        detail: 'No official Flowise SLA page confirms this figure.',
-        shortValue: 'Yes, ~99.99% SLA claimed on Enterprise plan',
-        confidence: 'estimated',
+          'Unknown: a current enforceable uptime or support SLA was not verified after the sunset; applicable commitments require a specific agreement.',
+        shortValue: 'Current contractual SLA unverified',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-08',
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       community: {
         value:
-          "Flowise's GitHub repository has approximately 54,000 stars (Apache 2.0 licensed core), with an active Discord community whose exact member count is not published.",
-        shortValue: '~54,000 GitHub stars, active Discord community',
+          'The repository is read-only and shows an actual archival date of August 13, 2026. The sunset notice encourages forks; continued community activity is not a vendor support commitment.',
+        shortValue: 'Archived repository; community-led maintenance encouraged',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise',
-            label: 'GitHub: FlowiseAI/Flowise',
-            asOf: '2026-07-02',
+            label: 'Flowise: Archived source repository',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
         value:
-          'Flowise was founded in April 2023 (Y Combinator-backed), raised approximately $500K in early funding, and was acquired by Workday in August 2025, bringing enterprise backing while keeping the open-source Community Edition intact.',
-        shortValue: 'Founded 2023 (YC), acquired by Workday Aug 2025',
+          'Workday announced its acquisition of Flowise in August 2025. Flowise subsequently announced a wind-down, with official end of life on August 31, 2026.',
+        shortValue: 'Workday acquisition followed by August 2026 end of life',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.prnewswire.com/news-releases/workday-acquires-flowise-bringing-powerful-ai-agent-builder-capabilities-to-the-workday-platform-302530557.html',
-            label: 'PR Newswire: Workday Acquires Flowise',
-            asOf: '2026-07-02',
+            label: 'Workday: Acquisition of Flowise announcement',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
         value:
-          'Flowise runs no official academy or certification program. Third-party platforms (Coursera, Codecademy, Udemy) offer independent Flowise courses and certificates of completion, and Flowise maintains standard docs and YouTube tutorials.',
-        shortValue: 'No official academy; only third-party courses exist',
-        confidence: 'verified',
+          'Official documentation, video tutorials, and recorded webinars remain accessible. A current vendor certification or maintained academy program was not verified after end of life.',
+        shortValue: 'Docs and recordings remain; current certification unverified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.coursera.org/learn/designing-a-customer-support-chatbot-using-flowise',
-            label: 'Coursera: Designing a Customer Support Chatbot Using Flowise',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com/',
+            label: 'Flowise: Product and legacy displayed pricing',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Official sunset and end-of-life notice',
+            asOf: '2026-09-04',
           },
         ],
       },

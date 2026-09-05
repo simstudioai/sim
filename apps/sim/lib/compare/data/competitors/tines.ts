@@ -1,7 +1,7 @@
 import { TinesIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against public primary sources on 2026-09-04; unverified capabilities are labeled. */
 export const tinesProfile: CompetitorProfile = {
   id: 'tines',
   name: 'Tines',
@@ -14,93 +14,95 @@ export const tinesProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Tines is a proprietary workflow automation platform, available cloud-hosted or self-hosted, originally built for security operations. Teams build event-driven "Stories" via a visual no/low-code canvas, natural language, or the API. It recently added native AI agent, MCP, and copilot capabilities.',
+    'Tines offers Stories, a visual workflow platform with AI agents and Workbench, and Tines 3B, a newer code-based platform for AI apps, agents, and automation. Capabilities and pricing below identify which product they cover.',
   standoutFeatures: [
     {
-      title: 'ISO 42001 AI-governance certification',
+      title: 'Stories and 3B development choices',
       description:
-        'Tines announced the "ISO trifecta" on April 14, 2026: ISO 27001, ISO 27701, and ISO 42001, the international standard for AI management systems.',
-      shortDescription: 'Holds ISO 27001, ISO 27701, and ISO 42001 AI-governance certification.',
+        'Stories retains its visual workflow builder, while 3B adds a code-based platform for apps, agents, and automation. Tines says it continues investing in both.',
+      shortDescription: 'Visual Stories and code-based 3B address different building needs.',
+      source: {
+        url: 'https://www.tines.com/blog/whats-new-in-tines-july-2026-edition/',
+        label: 'Tines product updates for July 2026',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: '3B branches and Git',
+      description:
+        'Tines 3B lets builders edit workflow source in a Git repository and push changes from external coding tools.',
+      shortDescription: '3B workflows can be edited through Git.',
+      source: {
+        url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+        label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'ISO security, privacy, and AI governance',
+      description:
+        'Tines publicly reports ISO 27001, ISO 27701, and ISO 42001 certification for its management programs.',
+      shortDescription: 'Published ISO security, privacy, and AI governance certifications.',
       source: {
         url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
-        label: 'Tines achieves the ISO trifecta',
-        asOf: '2026-07-02',
+        label: 'Tines sets the AI governance standard with ISO 42001, 27001, and 27701',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'API-centric integration model',
+      title: 'Structured training and certification',
       description:
-        'Instead of a fixed library of app connectors, Tines is built around a generic HTTP Request action that calls any API directly, trading pre-built connectors for broader reach and more manual setup.',
-      shortDescription:
-        'A generic HTTP Request action reaches any API instead of fixed connectors.',
-      source: {
-        url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
-        label: 'Solving the integrations problem',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Tines University certification ladder',
-      description:
-        'Tines University pairs free foundational courses with instructor-led and self-paced Bootcamps and two certification tiers, Core and Advanced, that builders can share on LinkedIn. Sim Academy is a structured docs section without a formal certification path.',
-      shortDescription: 'Core and Advanced certifications builders can share on LinkedIn.',
+        'Tines offers Core and Advanced Stories certification programs with hands-on learning.',
+      shortDescription: 'Core and Advanced Stories certification programs.',
       source: {
         url: 'https://www.tines.com/get-certified/',
         label: 'Get certified | Tines',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Story version history with diff preview and rollback',
-      description:
-        'Every Story auto-saves versions (on a 5-minute inactivity timer or manually), with a preview mode that highlights exactly what changed between versions and one-click restore.',
-      shortDescription: 'Auto-saved versions with diff preview and one-click rollback.',
-      source: {
-        url: 'https://www.tines.com/docs/stories/story-versioning/',
-        label: 'Story versions docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'No public pricing above the free tier',
-      description:
-        'Business and Enterprise plans have no published dollar pricing. Buyers must contact sales to get a quote, making self-serve cost comparison impossible.',
-      shortDescription: 'Business and Enterprise pricing requires contacting sales.',
+      title: 'Paid pricing requires a quote',
+      description: 'The public 3B pricing page lists paid editions without a general dollar price.',
+      shortDescription: '3B paid editions require a quote.',
       source: {
-        url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-        label: 'Understanding Tines pricing and packaging',
-        asOf: '2026-07-02',
+        url: 'https://www.tines.com/pricing/',
+        label: 'Pricing | Tines',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'No cross-environment (dev/qa/prod) promotion model',
+      title: 'Two distinct products',
       description:
-        'Version control is scoped to a single Story (auto-saved versions, diff, restore), not a fork/branch model for promoting a whole project between environments. The closest analog is in-place "Change Control" approval gating on edits.',
-      shortDescription: 'No dev/qa/prod promotion model, only in-place change approval.',
+        'Stories and 3B have different builders and documentation. Evaluate requirements against the product being purchased.',
+      shortDescription: 'Capabilities should be checked for the selected Tines product.',
       source: {
-        url: 'https://www.tines.com/docs/stories/change-control/',
-        label: 'Change Control docs',
-        asOf: '2026-07-02',
+        url: 'https://www.tines.com/blog/whats-new-in-tines-july-2026-edition/',
+        label: 'Tines product updates for July 2026',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'No documented built-in generative media blocks',
+      title: 'Stories synchronous response deadline',
       description:
-        'Public docs show text-oriented AI features (AI Action, Agents, Workbench) via LLM providers, but no dedicated image, video, or text-to-speech/speech-to-text generation blocks. Those calls would need to go through the generic HTTP Request action against a third-party API.',
-      shortDescription: 'No built-in image, video, or speech generation blocks.',
-      source: { url: 'https://www.tines.com/docs/admin/ai/', label: 'AI docs', asOf: '2026-07-02' },
+        'Stories MCP responses must complete within 30 seconds. The underlying tool may continue after timeout without returning the result to the MCP caller.',
+      shortDescription: 'Stories MCP responses have a 30-second deadline.',
+      source: {
+        url: 'https://www.tines.com/stories/docs/actions/templates/mcp-server/',
+        label: 'MCP server',
+        asOf: '2026-09-04',
+      },
     },
     {
-      title: 'Not open source',
+      title: 'Stories draft execution is temporary',
       description:
-        'Tines is a closed-source commercial SaaS/self-hosted product; the free "Community Edition" is a limited product tier (1 builder, 3 flows, 25,000 monthly events), not an open-source license.',
-      shortDescription: 'Closed-source SaaS with a limited free tier, not an open-source license.',
+        'Change Control drafts stop processing after 30 minutes of inactivity and are not intended for autonomous production execution.',
+      shortDescription: 'Stories drafts do not run indefinitely when unattended.',
       source: {
-        url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-        label: 'Understanding Tines pricing and packaging',
-        asOf: '2026-07-02',
+        url: 'https://www.tines.com/stories/docs/stories/change-control/',
+        label: 'Change Control',
+        asOf: '2026-09-04',
       },
     },
   ],
@@ -108,877 +110,1013 @@ export const tinesProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          "Visual event-driven builder ('Stories') plus 'Workbench,' a natural-language AI copilot for building and editing stories. Workbench absorbed the former 'Story Copilot,' which was renamed 'Workbench for Storyboard' on June 2, 2026.",
-        shortValue: 'Visual Stories canvas plus Workbench AI copilot',
+          'Tines Stories combines a visual event-driven canvas with Workbench assistance. Tines 3B builds code-based workflows through prompts or external coding tools.',
+        shortValue: 'Stories visual canvas; 3B prompts and code',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/platform/',
-            label: 'Tines Platform overview',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/',
+            label: 'Tines Stories | Tines',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/blog/intelligent-workflow-automation/',
-            label: 'Intelligent workflow automation explained',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/workbench-for-stories/',
+            label: "Story copilot is now Workbench | What's new at Tines",
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/whats-new/workbench-for-stories/',
-            label: "Tines What's New",
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
         value:
-          'Moderate. Tines favors direct HTTP/API actions over pre-built app connectors, giving flexibility but requiring more configuration knowledge than typical no-code tools',
-        shortValue: 'Moderate. API-centric, more setup than typical no-code',
+          'Stories supports visual configuration and templates; advanced API work and 3B code workflows still require technical understanding.',
+        shortValue: 'Visual starts; advanced workflows require technical knowledge',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
-            label: 'Solving the integrations problem (API-centric approach)',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/templates/templates/',
+            label: 'Public Templates',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       selfHostOption: {
         value:
-          'Yes: self-hosted deployment available on Business and Enterprise editions, alongside cloud-hosted',
-        shortValue: 'Self-hosted on Business/Enterprise, plus cloud',
+          'Yes: Stories Business and Enterprise support self-hosting in addition to Tines-hosted cloud.',
+        shortValue: 'Yes, commercial self-hosting options',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
+            label: 'Security at Tines | Tines',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Deployment and entitlement should be confirmed for the chosen Tines product and plan.',
       },
       deploymentOptions: {
         value:
-          "Tines-hosted cloud, and self-hosted (customer's own data center/cloud) for Business/Enterprise",
-        shortValue: 'Cloud-hosted or self-hosted (Business/Enterprise)',
+          'Tines-hosted cloud and customer-hosted deployments; Stories Business and Enterprise offer self-hosting.',
+        shortValue: 'Vendor cloud or customer-hosted deployment',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/self-hosted/monitoring-tines/tenant-health-dashboard/',
-            label: 'Self-hosted tenant health dashboard docs',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/security/',
+            label: 'Security at Tines | Tines',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
         value:
-          'Large public "Tines library" of pre-built Story and Action templates across security, IT, HR, and other use cases',
-        shortValue: 'Large public library across security, IT, HR',
+          'Stories has a public library of workflows and action templates; 3B provides an examples gallery.',
+        shortValue: 'Stories library and templates; 3B examples',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.tines.com/library/', label: 'Tines Library', asOf: '2026-07-02' },
+          {
+            url: 'https://www.tines.com/library/',
+            label: 'Home | Stories | Library',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/actions/templates/templates/',
+            label: 'Public Templates',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-09-04',
+          },
         ],
       },
       license: {
         value:
-          'Proprietary, closed-source commercial SaaS product. Offers a permanently free "Community Edition" tier, not an open-source license',
-        shortValue: 'Proprietary SaaS; free Community Edition tier',
+          'Commercial subscription software, with limited rights to use the platform under Tines terms. Free editions are product plans.',
+        shortValue: 'Commercial license; free product editions',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/general-terms-aug-2024/',
+            label: 'Tines General Terms',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
         value:
-          'No dev/qa/prod environment-promotion feature. Tines provides in-place "Change Control" (approval gating on edits to a single Story) and multi-team separation instead of cross-environment promotion of a whole project',
-        shortValue: 'No cross-environment promotion; in-place Change Control only',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.tines.com/docs/stories/change-control/',
-            label: 'Change Control docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/security/',
-            label: 'Security at Tines (Teams-based separation)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      versionControlDepth: {
-        value:
-          'Per-Story version history with auto-saved versions (every 5 min of inactivity or manual snapshot), diff preview between versions, and one-click restore. Scoped to a single Story, not a whole-project branch model',
-        shortValue: 'Per-Story auto-save, diff preview, one-click rollback',
+          'Stories Change Control supports testable drafts, reviews, and pushing changes live. 3B has isolated draft branches and three-way merges into production.',
+        shortValue: 'Stories reviewed drafts; 3B branches and merges',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/stories/story-versioning/',
-            label: 'Story versions docs',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/stories/change-control/',
+            label: 'Change Control',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/blog/story-versioning/',
-            label: 'Introducing Story versioning blog',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/15877997-branches',
+            label: 'Tines 3B branches',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'These are product-specific workflow development models; a universal multi-workspace dev/QA/prod promotion system was not verified.',
+      },
+      versionControlDepth: {
+        value:
+          'Stories offers saved versions, visual change previews, export, cloning, and restore. 3B adds Git-based source and draft-branch merges.',
+        shortValue: 'Version history and restore; 3B Git branches',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/stories/story-versioning/',
+            label: 'Story versions',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/15877997-branches',
+            label: 'Tines 3B branches',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
         value:
-          'No: Tines has no live, concurrent multi-user editing of the same Story canvas (shared cursors, selections, synced changes in real time). Its collaboration model centers on Cases (async, ticket-like collaboration on top of Records) and Send to Story (passing execution between stories), not simultaneous canvas co-editing.',
-        detail:
-          'Story editing follows a draft/versioning model rather than Figma/Google-Docs-style live co-editing. No evidence found of a lock-based alternative.',
-        shortValue: 'No: no live multi-user canvas editing',
+          '3B supports collaboration on the same draft branch with real-time presence indicators. Synchronized shared cursors and selections were not verified.',
+        shortValue: '3B shared draft presence; cursor synchronization unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/docs/records-cases/cases/',
-            label: 'Cases | Docs | Tines',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/docs/stories/send-to-story/',
-            label: 'Send to Story | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/15877997-branches',
+            label: 'Tines 3B branches',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeFileStorage: {
         value:
-          'No: Tines has no native, standalone file storage system with folder hierarchy, link-based sharing with auth options, or deleted-item recovery. File handling is per-feature: any action/tool can return a file to a Workbench user, and Pages can display file-related content, but there is no dedicated file-storage product.',
-        detail:
-          "Workbench file returns are scoped to a single user's chat session, not a shared workspace file store with folders/trash.",
-        shortValue: 'No: no dedicated file storage system',
+          '3B provides persistent shared volumes and a file browser with folder navigation, previews, and downloads. Authenticated share links and deleted-file recovery were not verified.',
+        shortValue: '3B persistent volumes and file browser',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/docs/workbench/',
-            label: 'Workbench | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/16082401-storage',
+            label: 'Tines 3B storage',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Live storage is shared within a space; drafts use isolated storage that is discarded rather than promoted.',
       },
       dataTables: {
         value:
-          'No: Records and Cases is a structured-data feature where record types define fields (text, number, boolean, timestamp, fixed values). Its table view lets you rearrange or filter columns and export to CSV, but lacks spreadsheet-style keyboard navigation (arrow keys, copy-paste across cells) and the row/column limits of a true spreadsheet grid.',
-        detail:
-          'The closest analog, Records/Cases, is a data table by record type with customizable row counts (e.g. up to 50 rows shown), not a general-purpose spreadsheet.',
-        shortValue: 'No: structured records, not spreadsheet grid',
+          'Stories Records stores typed fields and provides filterable tables, charts, and exports. Full spreadsheet-style keyboard editing was not verified.',
+        shortValue: 'Stories Records tables and charts',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/docs/records-cases/records/',
-            label: 'Records | Docs | Tines',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/whats-new/introducing-cases-and-records/',
-            label: 'Introducing cases and records | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/records/',
+            label: 'Records',
+            asOf: '2026-09-04',
           },
         ],
       },
       richTextEditor: {
         value:
-          "Yes: Tines Pages has a rich text page element (renamed from 'paragraph') that supports Markdown formatting, and Markdown is also supported inline within Pages table cells.",
-        detail:
-          'Markdown-based rich text, not a full WYSIWYG document editor, but a genuine inline formatted-text authoring feature within the platform.',
-        shortValue: 'Yes: Markdown-based rich text in Pages',
-        confidence: 'verified',
+          'Stories Pages supports Markdown rich-text elements and Markdown in table cells. A full stored-document WYSIWYG editor was not verified.',
+        shortValue: 'Markdown rich text in Stories Pages',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/whats-new/rich-text-in-pages-with-markdown/',
-            label: "Rich text in pages with Markdown | What's New at Tines",
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/rich-text-in-pages-with-markdown/',
+            label: "Rich text in pages with Markdown | What's new at Tines",
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/whats-new/markdown-support-in-page-table-cells/',
-            label: "Markdown support in page table cells | What's New at Tines",
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/markdown-support-in-page-table-cells/',
+            label: "Markdown support in page table cells | What's new at Tines",
+            asOf: '2026-09-04',
           },
         ],
       },
       subWorkflows: {
         value:
-          "Yes: Tines' Send to Story action lets a parent Story call a separate sub-Story as a reusable step. The sub-story is configured with a webhook input action and a message-only output action; the parent's Send to Story action passes a payload, execution blocks until the sub-story finishes, and the sub-story's output event is returned to the calling action.",
-        detail:
-          'This is synchronous parent-waits-for-child composition with data passed in and returned, distinct from firing an independent story asynchronously via a plain webhook.',
-        shortValue: 'Yes: Send to Story calls a sub-story, waits, returns data',
+          'Yes: Stories Send to Story calls reusable published sub-stories and returns their output to the calling action.',
+        shortValue: 'Yes, published sub-stories return outputs',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/stories/send-to-story/',
-            label: 'Send to Story | Docs | Tines',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/docs/stories/apis/',
-            label: 'Workflows as APIs | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/stories/send-to-story/',
+            label: 'Send to Story',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
         value:
-          "No: Tines has no feature that lets a builder publish a Story as its own named, iconed entry in a shared block toolbar. The closest features are (1) Private/Public Templates, which are scoped to configuring a single action (e.g. a pre-built HTTP Request) with parameterized 'Action inputs' that hide that one action's underlying config, and can be shared team-wide or org-wide; and (2) Send to Story, one generic action type used to call any sub-story via a picker — the caller selects the target sub-story and enters its defined parameters, without needing view/edit access to the sub-story's own actions. Neither meets the bar: templates wrap one action, not a multi-step Story, and Send to Story is a single generic action a builder configures per call site, not a distinct block appearing in the toolbar for each published Story.",
-        detail:
-          "Public docs describe template edits as letting a builder 'optionally replace storyboard actions that use the template in one step,' confirming propagation is a manual, opt-in action rather than always running the source's latest deployed version automatically. Send to Story does genuinely hide a sub-story's internals from a caller without permission on it ('will not be able to view or modify the contents of the story unless you have the relevant permissions'), but it is one generic action configured with a target-story picker each time, not a separate published block per Story.",
-        shortValue:
-          'No: templates are single-action; Send to Story is a generic picker, not a block',
-        confidence: 'verified',
+          'Stories supports reusable private action templates and shared sub-stories with defined inputs; a distinct published toolbar block for every workflow was not verified.',
+        shortValue: 'Private templates and shared sub-stories',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/docs/actions/templates/private-templates/',
-            label: 'Private Templates | Docs | Tines',
-            asOf: '2026-07-08',
+            url: 'https://www.tines.com/stories/docs/actions/templates/private-templates/',
+            label: 'Private Templates',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/templates/templates/',
-            label: 'Public Templates | Docs | Tines',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.tines.com/docs/stories/send-to-story/',
-            label: 'Send to Story | Docs | Tines',
-            asOf: '2026-07-08',
+            url: 'https://www.tines.com/stories/docs/stories/send-to-story/',
+            label: 'Send to Story',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Sub-story callers can be allowed to run a story without permission to view or edit its internals. Private templates are available through toolbar search.',
       },
     },
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: default AI runs on Anthropic Claude via AWS Bedrock (Tines-hosted), and customers can bring their own AI provider/key: OpenAI, Anthropic direct, or a custom AWS Bedrock account with any enabled model',
-        shortValue: 'Bedrock-hosted Claude by default, BYO OpenAI/Anthropic/Bedrock',
+          'Yes: Stories supports multiple enabled providers and compatible custom endpoints. 3B documents OpenAI, Anthropic, Azure OpenAI, and OCI provider connections.',
+        shortValue: 'Multiple providers, with product-specific support',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.tines.com/docs/admin/ai/', label: 'AI docs', asOf: '2026-07-02' },
           {
-            url: 'https://explained.tines.com/en/articles/10371885-use-a-preferred-ai-provider-in-tines',
-            label: 'Use a preferred AI provider in Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/admin/ai/',
+            label: 'AI',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050726-connect-your-ai-provider',
+            label: 'Tines 3B AI providers',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
         value:
-          'Yes: dedicated "Agents" capability for building autonomous/semi-autonomous AI agents and multi-agent orchestration inside workflows (e.g., multi-agent security investigation), separate from the core deterministic Story/Action model',
-        shortValue: 'Dedicated Agents for autonomous multi-agent workflows',
+          'Yes: Stories AI Agent actions perform tool-using reasoning in task or chat mode; 3B also provides agent workflow templates.',
+        shortValue: 'Yes, tool-using agents in Stories and 3B',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/platform/agents/',
-            label: 'Agents | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/platform/ai/',
-            label: 'AI Agents, Copilots & MCP | Tines',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
         value:
-          "Story Copilot and Workbench are now one product. Story Copilot was rebranded 'Workbench for Storyboard' on June 2, 2026, and the same Workbench assistant covers both general chat and in-story building/editing.",
-        shortValue: 'Workbench assistant builds and edits Stories from chat',
+          'Yes: Workbench for Storyboard builds and edits Stories; 3B builds apps and workflows from natural-language prompts.',
+        shortValue: 'Yes, Workbench and 3B prompt-based building',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/platform/ai/',
-            label: 'AI Agents, Copilots & MCP | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/workbench-for-stories/',
+            label: "Story copilot is now Workbench | What's new at Tines",
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/whats-new/workbench-for-stories/',
-            label: "Tines What's New",
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/3b/',
+            label: 'Tines 3B | The AI-native intelligent workflow platform',
+            asOf: '2026-09-04',
           },
         ],
       },
       knowledgeBaseRag: {
         value:
-          'Supports connecting to external knowledge sources (e.g. Notion, Glean, Confluence) for enterprise knowledge/RAG-style context in workflows, rather than a built-in vector database product',
-        shortValue: 'Connects to Notion, Glean, Confluence for context',
+          'External knowledge can be retrieved through configured tools and MCP. A native indexed knowledge-base product with documented chunking was not verified.',
+        shortValue: 'Tool-based retrieval; native indexed KB unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/platform/ai/',
-            label: 'AI Agents, Copilots & MCP | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/workbench/',
+            label: 'Workbench',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
         value:
-          'Yes: native support for both MCP servers and MCP clients, positioned as a governed way to expose Tines actions to AI and to consume external MCP tools',
-        shortValue: 'Native MCP server and client support',
+          'Yes: Stories AI Agent and Workbench can call remote MCP tools, with configurable tool access.',
+        shortValue: 'Yes, remote MCP tools in Stories',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/platform/ai/',
-            label: 'AI Agents, Copilots & MCP | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/workbench/',
+            label: 'Workbench',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
         value:
-          'Governance-oriented controls (policy-aligned MCP access, approvals, oversight), not a dedicated LLM-output evaluation/testing framework. No eval/guardrail product (output scoring, red-teaming) is documented',
-        shortValue: 'Governance controls, no dedicated eval/guardrail product',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.tines.com/platform/ai/',
-            label: 'AI Agents, Copilots & MCP | Tines',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      humanInTheLoop: {
-        value:
-          '"Pages" let a running Story present a web form to a person for input mid-run, used for requester/approver flows. Exact pause/resume and notification mechanics are not publicly documented.',
-        shortValue: '"Pages" collect mid-run input from people',
-        confidence: 'estimated',
-        sources: [
-          { url: 'https://www.tines.com/docs/pages/', label: 'Pages docs', asOf: '2026-07-02' },
-          {
-            url: 'https://www.tines.com/library/stories/1144336/',
-            label: 'Facilitate & approve user requests to specific tools (library story)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      generativeMedia: {
-        value:
-          "No built-in image, video, or TTS/STT generation blocks. Tines' AI surface is text-oriented (AI Action, Agents, Workbench) via LLM providers; media generation requires the generic HTTP Request action against a third-party API.",
-        shortValue: 'No built-in image/video/TTS/STT generation blocks',
-        confidence: 'estimated',
-        sources: [
-          { url: 'https://www.tines.com/docs/admin/ai/', label: 'AI docs', asOf: '2026-07-02' },
-        ],
-      },
-      dynamicToolUse: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      modelFallback: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      agentSkills: {
-        value:
-          "Yes: Tines Workbench supports Agent Skills, an open standard for packaging specialized knowledge or workflows as a SKILL.md file (name, description, instructions) that the AI loads on demand. Skills are created and managed in a team's Skills section alongside credentials and templates, are team-scoped, and toggle per preset for reuse across the team.",
-        detail:
-          'Distinct from Presets (which bundle templates/stories/instructions); Skills specifically are reusable named knowledge snippets loaded on demand.',
-        shortValue: 'Yes: Workbench Agent Skills (SKILL.md)',
+          'Stories AI Agent supports output-schema validation and configurable tools; Workbench can require confirmation for tools. 3B proposes tests while building.',
+        shortValue: 'Output validation, confirmations, and 3B build tests',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/whats-new/workbench-skills/',
-            label: "Workbench skills | What's New at Tines",
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/workbench/',
-            label: 'Workbench | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/workbench/',
+            label: 'Workbench',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/3b/',
+            label: 'Tines 3B | The AI-native intelligent workflow platform',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'A dedicated scored LLM evaluation suite was not verified. These controls do not guarantee factual correctness or prevent every prompt injection.',
+      },
+      humanInTheLoop: {
+        value:
+          'Stories Pages collects human input mid-run for requester/approver flows; Workbench can require confirmation before running a story.',
+        shortValue: 'Stories Pages approvals and Workbench confirmations',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/pages/',
+            label: 'Pages',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/workbench/',
+            label: 'Workbench',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The reviewed sources establish these interaction patterns, not a universal checkpoint/resume guarantee across every action.',
+      },
+      generativeMedia: {
+        value:
+          'Unknown: dedicated native image, video, or speech generation actions were not verified. Provider APIs can be integrated through HTTP actions or 3B code.',
+        shortValue: 'Dedicated media-generation actions unverified',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/actions/types/http-request/',
+            label: 'HTTP Request',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      dynamicToolUse: {
+        value:
+          'Stories agents choose among configured template, sub-story, custom, built-in, and remote MCP tools. Broader unconfigured tool discovery was not verified.',
+        shortValue: 'Agent chooses from configured tool sources',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      modelFallback: {
+        value:
+          'Unknown: automatic failover to a different model or provider was not verified. Provider selection and retry settings are documented.',
+        shortValue: 'Automatic cross-model failover unverified',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/admin/ai/',
+            label: 'AI',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      agentSkills: {
+        value:
+          'Yes: Stories Workbench imports SKILL.md instructions and loads them on demand; 3B also supports named Markdown skills.',
+        shortValue: 'Yes, reusable skills loaded on demand',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/whats-new/workbench-skills/',
+            label: "Workbench skills | What's new at Tines",
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16024521-skills',
+            label: 'Tines 3B skills',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeChatDeployment: {
         value:
-          "Yes: Tines' AI Agent action supports a Chat mode that can be deployed as a public-facing page with an 'Anyone with the link' access option, requiring no Tines login for external users; it supports a configurable URL, theming, an initial message, and idle timeout.",
-        detail:
-          "This is a deployable chat surface built on the AI Agent action rather than a separate 'Chat' module, but it meets the bar of a publicly deployable conversational surface.",
-        shortValue: 'Yes: public AI Agent chat pages',
+          'Yes: Stories AI Agent chat mode can be opened to anyone with its link, with administrator configuration.',
+        shortValue: 'Yes, public-link Stories agent chat',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/whats-new/public-ai-agent-action-chats/',
-            label: '"Anyone with the link" access for AI agent chat | What\'s New at Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/public-ai-agent-action-chats/',
+            label: '"Anyone with the link" access for AI agent chat | What\'s new at Tines',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/types/ai-agent/',
-            label: 'AI Agent | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
-        value:
-          'Unknown: Tines has no documented native knowledge-base feature with chunk-level indexing or a debugging view exposing individual chunk index/content. Its AI Agent action can connect to external knowledge sources (e.g. Notion, Glean, Confluence), but the retrieval/chunk mechanics and any chunk-level visibility in the UI are undocumented.',
-        detail:
-          'Tines leans on external knowledge sources plus its AI Agent action rather than a first-party knowledge base UI with visible chunk debugging.',
-        shortValue: 'Unknown: no documented chunk-level KB view',
+        value: 'Unknown: native indexed knowledge-base chunk inspection was not verified.',
+        shortValue: 'Native KB chunk inspection unverified',
         confidence: 'unknown',
         sources: [],
       },
       parallelExecution: {
         value:
-          'Yes: Tines supports native fan-out/fan-in via its Explode and Implode actions. Explode splits an array into individual events that flow through the rest of the story concurrently while sharing the same story run GUID; Implode recombines those parallel branches back into a single event using that shared GUID plus an item count.',
-        detail:
-          'Explode/Implode is Tines’ dedicated split-and-rejoin mechanism, distinct from a single sequential loop over an array.',
-        shortValue: 'Yes: Explode/Implode fan-out and fan-in actions',
+          'Yes: Stories Explode/Implode splits and recombines events; 3B links can fan out to downstream steps in parallel.',
+        shortValue: 'Yes, Stories split/join and 3B parallel steps',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9361913-do-events-passed-from-an-explode-action-run-in-parallel-or-sequentially',
-            label:
-              'Do events passed from an explode action run in parallel or sequentially? | Tines Explained',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/7228858-using-explode-and-implode',
+            label: 'Using explode and implode',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'Stories does not guarantee that exploded events rejoin in their original order.',
       },
       a2aProtocol: {
-        value:
-          "No documented support. Tines' AI Agent action integrates with the Model Context Protocol (MCP) for connecting to remote tool servers, but no Tines documentation, changelog, or help center article describes support for the Agent2Agent (A2A) protocol or an Agent Card-based peer-to-peer agent discovery mechanism.",
-        detail:
-          'Tines documents MCP tool-calling explicitly. A2A is a distinct, newer standard for agent-to-agent (not agent-to-tool) communication and isn’t mentioned anywhere in Tines’ public docs.',
-        shortValue: 'No documented A2A protocol support',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.tines.com/docs/actions/types/ai-agent/',
-            label: 'AI Agent | Docs | Tines',
-            asOf: '2026-07-02',
-          },
-        ],
+        value: 'Unknown: native Agent2Agent protocol support was not verified.',
+        shortValue: 'A2A support unverified',
+        confidence: 'unknown',
+        sources: [],
       },
       loopIteration: {
         value:
-          'Yes: Tines actions (including Event Transform in message-only mode and Send to Story) support a Loop attribute that points at a list or object field on the incoming event and invokes the action once per element, exposing a LOOP object for the current item on each pass. This is a per-action for-each attribute rather than a visual loop container block, and runs one item at a time rather than concurrently, distinct from the Explode/Implode parallel fan-out mechanism.',
-        detail:
-          'Tines caps a single loop at fewer than 20,000 elements. The dedicated concurrent-fan-out counterpart is Explode/Implode, documented separately as parallelExecution.',
-        shortValue: 'Yes: per-action Loop attribute, for-each over a list',
-        confidence: 'estimated',
+          'Yes: Stories Send to Story supports sequential per-item loops and aggregated outputs; message-only transforms also support looping.',
+        shortValue: 'Yes, action loops with aggregated results',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/university/advanced/looping/',
-            label: 'Looping in Tines | Tines University',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/send-to-story/',
+            label: 'Send to Story',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/types/send-to-story/',
-            label: 'Send to Story | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/event-transformation/message-only/',
+            label: 'Tines Stories message-only loops',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The documented loop size is fewer than 20,000 elements. Message-only loops have a five-minute processing timeout.',
       },
     },
     integrations: {
       integrationCount: {
         value:
-          'Tines does not market a fixed integration count. It is deliberately API-centric (the "HTTP Request" action can call any API) while also offering "1000s of preconfigured Action templates" for tools like Jira, Slack, and CrowdStrike',
-        shortValue: 'API-centric; 1000s of preconfigured Action templates',
+          'Stories uses public/private action templates and generic HTTP requests; 3B connects through APIs and MCP. These are not a comparable fixed app count.',
+        shortValue: 'Action templates, APIs, and MCP',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
-            label: 'Solving the integrations problem',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/templates/templates/',
+            label: 'Public Templates',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/library/tools/',
-            label: 'Tools | Tines library',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/http-request/',
+            label: 'HTTP Request',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/3b/',
+            label: 'Tines 3B | The AI-native intelligent workflow platform',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Webhook actions (unique inbound URL), scheduled/interval runs, Receive Email (IMAP or generated address), and Send-to-Story (synchronous inbound API call)',
-        shortValue: 'Webhook, schedule, email, and Send-to-Story',
+          'Stories supports webhooks, scheduled actions, incoming email, and sub-story calls; 3B main branches support schedules, webhooks, and public routes.',
+        shortValue: 'Webhooks, schedules, email, and sub-workflow calls',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/actions/types/webhook/',
-            label: 'Webhook action docs',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/receive-email/',
+            label: 'Receive Email ',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/whats-new/schedule-with-cron-expressions/',
-            label: 'Schedule with cron expressions',
-            asOf: '2026-07-04',
+            url: 'https://www.tines.com/stories/docs/actions/types/send-to-story/',
+            label: 'Send to Story',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/types/receive-email/',
-            label: 'Receive Email docs',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/schedule-with-cron-expressions/',
+            label: "Schedule with cron expressions | What's new at Tines",
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/types/send-to-story/',
-            label: 'Send to Story docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/15877997-branches',
+            label: 'Tines 3B branches',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
         value:
-          'Yes: the Run Script action executes builder-authored code inline in a workflow (the script must define a `main` function), running in AWS Lambda in the same region as the tenant. It is currently limited to the `python3.13` runtime, so there is no JavaScript or other-language option. Lighter-weight logic is also expressible via built-in "Formulas"/functions without a code action.',
-        shortValue: 'Yes: Run Script action, Python only',
+          'Stories Run Script runs Python; 3B steps support shell, Python, TypeScript on Bun, React interfaces, and agent templates.',
+        shortValue: 'Stories Python; 3B shell, Python, and TypeScript',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/actions/tools/run-script/',
-            label: 'Run script | Docs | Tines',
-            asOf: '2026-08-10',
+            url: 'https://www.tines.com/stories/docs/actions/tools/run-script/',
+            label: 'Run script',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/formulas/functions/',
-            label: 'Functions docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       codeSandboxRuntime: {
         value:
-          'Yes: the Run Script action exposes a Requirements field where builders declare PyPI dependencies "in the format of a requirements.txt file with each requirement separated by a new line" (e.g. numpy==1.25), built at runtime as AWS Lambda layers with a 250MB unzipped package limit. Tines also supports custom runtimes, user-built runtime archives that bundle specific package versions, system libraries, custom Python builds, and extra files such as certificates or config files.',
-        detail:
-          'The runtime is limited to Python (python3.13 on the managed Lambda path); there is no Node/other-language option. Custom runtimes must be built on Amazon Linux 2023 to match Lambda, and are scoped either to Cloud (Lambda) or to Docker, meaning the Tines command runner reached over a tunnel for self-hosted execution. Timeout (10s default, 110s max) and networking mode (Standard, Dedicated, or No networking) are configurable per action.',
-        shortValue: 'Yes: requirements.txt deps plus custom runtimes',
+          'Stories supports PyPI dependencies and custom Python runtimes with system libraries. 3B steps include Dockerfiles and language-specific dependency files.',
+        shortValue: 'Custom runtimes and dependencies; 3B Dockerfiles',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/actions/tools/run-script/',
-            label: 'Run script | Docs | Tines',
-            asOf: '2026-08-10',
+            url: 'https://www.tines.com/stories/docs/actions/tools/run-script/',
+            label: 'Run script',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/tools/run-script/custom-runtimes/',
-            label: 'Custom runtimes | Docs | Tines',
-            asOf: '2026-08-10',
+            url: 'https://www.tines.com/stories/docs/actions/tools/run-script/custom-runtimes/',
+            label: 'Custom runtimes',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
         value:
-          'Yes: "Workflows as APIs": a Story can be exposed via Send-to-Story so external callers can invoke it synchronously and optionally wait for a response',
-        shortValue: 'Stories callable synchronously as APIs',
+          'Yes: Stories exposes workflows through response-enabled webhooks; 3B can publish API routes with an OpenAPI description.',
+        shortValue: 'Yes, Stories webhooks and 3B API routes',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/stories/apis/',
-            label: 'Workflows as APIs docs',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/stories/apis/',
+            label: 'Workflows as APIs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Full REST API (https://<tenant>/api/v1/...) covering Stories, Actions, Cases, audit logs, and more, but no dedicated client SDK or third-party integration marketplace. Extensibility runs through the generic HTTP Request action rather than an SDK/plugin marketplace',
-        shortValue: 'Full REST API; no client SDK or marketplace',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.tines.com/docs/api/welcome/',
-            label: 'API welcome docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/blog/solving-the-integrations-problem/',
-            label: 'Solving the integrations problem',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      mcpPublishing: {
-        value:
-          'Yes: Tines lets you build an MCP server action directly on the storyboard, turning a Story into a callable MCP endpoint for external AI clients (e.g. Claude Desktop). The MCP server action configures which Tools (Public Templates, Private Templates, Send to Story) are exposed, supports HTTP Authorization header or URL-based secret auth, and the build panel provides ready-to-copy configuration for popular MCP clients.',
-        detail:
-          'Confirms the prior signal: any Story can be exposed as an MCP endpoint with configurable access/auth, the reverse direction of ordinary MCP client consumption.',
-        shortValue: 'Yes: publish Stories as MCP servers',
+          'Stories provides a REST API and action templates; 3B offers Git access, a CLI, REST endpoints, and code templates.',
+        shortValue: 'REST and templates; 3B Git and CLI',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/actions/templates/mcp-server/',
-            label: 'MCP server | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/api/welcome/',
+            label: 'Tines Stories: Welcome',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/blog/introducing-mcp-servers/',
-            label: 'New: Building MCP servers on Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/templates/private-templates/',
+            label: 'Private Templates',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://explained.tines.com/en/articles/11931662-how-to-set-up-an-mcp-server-in-tines',
-            label: 'How to set up an MCP server in Tines',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'A general-purpose third-party installable node SDK was not verified.',
+      },
+      mcpPublishing: {
+        value:
+          'Yes: Stories can expose template, sub-story, and custom tools through remote MCP servers built on the storyboard.',
+        shortValue: 'Yes, Stories can publish remote MCP tools',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/actions/templates/mcp-server/',
+            label: 'MCP server',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Tool responses are subject to the documented response-enabled webhook time and concurrency limits.',
       },
     },
     pricing: {
       pricingModel: {
         value:
-          'Tiered platform-fee model (Community / Business / Enterprise) with add-ons to expand capacity (flows, teams, apps, AI credits, tunnels). No self-serve published dollar pricing; Business/Enterprise are "Contact Tines"',
-        shortValue: 'Tiered platform fee; Business/Enterprise are quote-only',
+          'Stories uses Community, Business, and Enterprise packages with capacity and AI-credit add-ons. 3B uses a platform license with Explore and paid editions.',
+        shortValue: 'Product-specific platform plans and usage allowances',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.tines.com/pricing/', label: 'Pricing | Tines', asOf: '2026-07-02' },
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/3b/',
+            label: 'Tines 3B | The AI-native intelligent workflow platform',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-09-04',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'Business Edition. No public price; starts around 30 flows / 1 team / 100 users / 1.5M daily events per the pricing explainer, with self-hosting available',
-        shortValue: 'Business Edition, price on request',
-        confidence: 'estimated',
+          'Stories Business and 3B paid editions require a quote; the public pricing pages do not give a general paid entry price.',
+        shortValue: 'Paid editions require a quote',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-09-04',
           },
         ],
       },
       freeTier: {
         value:
-          'Community Edition is free forever: 1 builder, 3 flows/apps, 1 team, 25,000 monthly events, 50 AI runtime credits/month, unlimited viewers, SSO included',
-        shortValue: 'Community Edition free forever, limited usage',
+          'Stories Community: 1 user, 3 flows, 25,000 monthly events, and 50 monthly AI credits. 3B Explore: unlimited users/spaces/connectors, 3 live workflows, and a one-time $50 AI allowance.',
+        shortValue: 'Separate Stories Community and 3B Explore allowances',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-09-04',
           },
         ],
       },
       byok: {
         value:
-          "Yes, for AI/LLM keys. Customers can bring their own AI provider (OpenAI, Anthropic, or a custom AWS Bedrock account) instead of Tines' default Bedrock-hosted Claude, though the pricing page doesn't use the term BYOK",
-        shortValue: 'Bring your own AI provider key',
+          'Yes: Stories accepts custom AI providers and credentials; 3B supports customer-connected AI providers on its paid offering.',
+        shortValue: 'Yes, product-specific AI provider connections',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/10371885-use-a-preferred-ai-provider-in-tines',
-            label: 'Use a preferred AI provider in Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/admin/ai/',
+            label: 'AI',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050726-connect-your-ai-provider',
+            label: 'Tines 3B AI providers',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Provider charges and platform entitlements remain separate; the reviewed sources do not establish that bringing a key removes all platform charges.',
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II, audited annually',
-        shortValue: 'SOC 2 Type II, audited annually',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataResidency: {
         value:
-          "Cloud-hosted (Tines-managed, AWS-based) or self-hosted in the customer's own data center/region for data-residency requirements; granular data retention controls provided",
-        shortValue: 'Cloud or self-hosted for residency, retention controls',
+          'Cloud and customer-hosted deployments are available. Model-provider, tool, and web-search configuration affects where data is processed.',
+        shortValue: 'Hosting and external providers determine processing locations',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
+            label: 'Security at Tines | Tines',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Stories web-search requests from EU stacks are processed in the EU; other stacks use the US. External tool and custom-provider calls require their own residency assessment.',
       },
       rbac: {
         value:
-          'Yes: Teams-based separation lets admins logically separate users, credentials, resources, and Stories; role-based permissions across the tenant',
-        shortValue: 'Teams-based separation with role permissions',
+          'Stories has team-based separation and roles; custom roles are a plan-dependent Enterprise Tenant Management feature. 3B also includes RBAC.',
+        shortValue: 'Team roles; plan-dependent custom roles; 3B RBAC',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://www.tines.com/stories/docs/admin/user-administration/custom-roles/',
+            label: 'Custom roles',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
+            label: 'Security at Tines | Tines',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/3b/',
+            label: 'Tines 3B | The AI-native intelligent workflow platform',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
         value:
-          'Yes: automatic audit log capturing any data/configuration change in the tenant, accessible via UI and API',
-        shortValue: 'Automatic audit log via UI and API',
+          'Yes: Stories records tenant changes and offers enhanced AI audit entries; 3B logs user activity and supports external destinations.',
+        shortValue: 'Yes, activity and optional detailed AI audit logs',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/admin/audit-logs/',
+            label: 'Audit logs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16051171-monitor-tenant-activity-in-the-audit-logs',
+            label: 'Tines 3B audit logs',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Stories enhanced AI logs include model and tool inputs/outputs when enabled, so retention and access configuration matter.',
+      },
+      compliance: {
+        value:
+          'Tines reports SOC 2 Type II, ISO 27001, ISO 27701, ISO 42001, and TX-RAMP Level 2 for Stories and 3B.',
+        shortValue: 'SOC 2, ISO certifications, and TX-RAMP Level 2',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
+            label: 'Security at Tines | Tines',
+            asOf: '2026-09-04',
           },
-          {
-            url: 'https://www.tines.com/docs/admin/audit-logs/',
-            label: 'Audit logs docs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'ISO 27001, ISO 27701, and ISO 42001 (AI management systems), announced April 14, 2026 as the "ISO trifecta." No HIPAA, PCI, or FedRAMP certification; Tines says self-hosting can help meet regimes like FedRAMP, not that it holds FedRAMP certification',
-        shortValue: 'ISO 27001, 27701, and 42001 certified',
-        confidence: 'verified',
-        sources: [
           {
             url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
-            label: 'Tines achieves the ISO trifecta (27001, 27701, 42001)',
-            asOf: '2026-07-02',
+            label: 'Tines sets the AI governance standard with ISO 42001, 27001, and 27701',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/blog/tines-achieves-tx-ramp-level-2-certification/',
+            label: 'Tines TX-RAMP Level 2 announcement',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The September 3 TX-RAMP announcement explicitly covers both products and says FedRAMP authorization is being pursued. Public claims were checked; underlying report and certificate scopes were not independently audited.',
       },
       modelAndToolGovernance: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'Stories tenant owners can control AI features, enabled models, and provider access by team; tool access is configured on agents and Workbench presets.',
+        shortValue: 'Yes, provider/team controls and configured tool access',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/admin/ai/',
+            label: 'AI',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/docs/workbench/',
+            label: 'Workbench',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       credentialGovernance: {
         value:
-          "Yes: credentials are scoped to Teams by default, and Team Admin/Editor roles control which teams a credential can be shared with. Sensitive settings like Access (where a credential can be used) and Domains (allowed outbound hosts/paths) are restricted to Team Admins or the credential's creator. Custom roles can extend the default viewer/builder/manager roles for finer-grained control.",
-        detail:
-          "Governance operates at the team/role level with per-credential Access and Domain restrictions, not a credential-to-role assignment matrix like Sim's, but reaches a similar outcome.",
-        shortValue: 'Yes: team-scoped credential access rules',
+          'Stories credentials are team-scoped by default, can be shared with selected teams, and support domain restrictions.',
+        shortValue: 'Yes, team sharing and credential domain restrictions',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/credentials/credential-configuration/access/',
-            label: 'Access | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/credentials/credential-configuration/access/',
+            label: 'Access',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/admin/user-administration/custom-roles/',
-            label: 'Custom roles | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/tines-security-best-practices/',
+            label: 'Tines security best practices | Tines',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Credential settings require the relevant management permissions. Running a shared resource need not grant visibility into its secret contents.',
       },
       whiteLabeling: {
         value:
-          'No: branding customization is scoped to Pages (custom logo, background/action colors, light/dark mode, saved Page themes), not the whole workspace or product UI. No evidence of full white-labeling (removing the Tines name/logo tenant-wide) was found.',
-        detail:
-          'Page themes let you brand individual deployed pages differently per audience, which is narrower than workspace-wide white-labeling.',
-        shortValue: 'No: only per-Page branding, not full white-label',
+          'Stories Pages supports customer logos, colors, themes, and page layouts. Complete tenant-wide replacement of vendor branding was not verified.',
+        shortValue: 'Stories page branding; tenant-wide replacement unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/docs/pages/branding-and-style/',
-            label: 'Branding and style | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/pages/branding-and-style/',
+            label: 'Branding and style',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
         value:
-          'No: audit logs have a fixed two-year retention period, with no org-configurable retention window for logs or soft-deleted resources. Self-hosted deployments expose configurable event/rate limits via environment variables, but not data retention windows.',
-        detail:
-          'Org can extend retention indirectly by exporting audit logs to their own S3 bucket, but the in-product retention period itself is not shown as configurable.',
-        shortValue: 'No: fixed 2-year audit log retention',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.tines.com/docs/admin/audit-logs/',
-            label: 'Audit logs | Docs | Tines',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      piiRedaction: {
-        value:
-          'Unknown: no documented built-in detection or redaction of PII (emails, SSNs, etc.) in workflow content or retained logs. Tines markets credential/secret protection and access controls, but not a dedicated PII-scanning/redaction capability.',
-        shortValue: 'Unknown: no documented PII redaction',
-        confidence: 'unknown',
-        sources: [],
-      },
-      sso: {
-        value:
-          'Yes: SSO via SAML or OIDC, configured at the tenant Authentication settings, with certified integrations for Okta, Duo, and CyberArk among others. Docs describe validating the IdP connection and redirecting users to the identity provider on sign-in.',
-        detail:
-          "Public docs describe the IdP handshake and setup steps but do not explicitly detail 'organization auto-provisioning on first login' (JIT provisioning) as a named capability.",
-        shortValue: 'Yes: SAML and OIDC SSO',
+          'Yes: Stories audit retention defaults to two years and can be reduced to 30 days; event/action-log retention can also be configured.',
+        shortValue: 'Yes, configurable audit and event retention',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/admin/single-sign-on/',
-            label: 'Single sign-on | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/admin/audit-logs/',
+            label: 'Audit logs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://saml-doc.okta.com/SAML_Docs/How-to-Configure-SAML-2.0-for-Tines.html',
-            label: 'How to Configure SAML 2.0 for Tines - Okta',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/tines-security-best-practices/',
+            label: 'Tines security best practices | Tines',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Security guidance gives seven days as paid-plan event retention by default, configurable down to one hour. These figures describe Stories rather than every 3B resource.',
+      },
+      piiRedaction: {
+        value:
+          'Stories guidance describes configuring Event Transforms to mask sensitive data before it reaches an agent. A universal automatic PII detector or log-redaction control was not verified.',
+        shortValue: 'Configured masking transforms; universal detector unverified',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.tines.com/blog/building-ai-agents-getting-started/',
+            label: 'Tines Stories agent security guidance',
+            asOf: '2026-09-04',
           },
         ],
       },
+      sso: {
+        value:
+          'Yes: Stories supports SAML/OIDC SSO; users must be invited or JIT provisioning must be enabled to join a tenant.',
+        shortValue: 'Yes, SSO with optional JIT provisioning',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/stories/docs/admin/single-sign-on/',
+            label: 'Single sign-on',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/tines-security-best-practices/',
+            label: 'Tines security best practices | Tines',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-stories-pricing-and-packaging',
+            label: 'Understanding Tines Stories pricing and packaging',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'SSO is listed across Stories plans; JIT provisioning is a separately packaged team feature.',
+      },
       sessionPolicy: {
         value:
-          'Yes: Tines states it "supports the ability for administrators to set a custom session timeout length to adhere to your organization\'s policies." Users are automatically logged out of the Tines UI after a period of inactivity, defaulting to 1 day.',
-        detail:
-          'The documented control is an inactivity timeout with an admin-set length; Tines does not publish a separate absolute session lifetime cap measured from sign-in, nor the permitted range of timeout values or any plan gating on the setting.',
-        shortValue: 'Yes: admin-set session timeout, 1 day default',
+          'Yes: Tines documents administrator-configurable inactivity timeouts, with a one-day default in its Stories security guidance.',
+        shortValue: 'Yes, configurable inactivity timeout',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
-            asOf: '2026-08-10',
+            label: 'Security at Tines | Tines',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.tines.com/tines-security-best-practices/',
-            label: 'Tines security best practices',
-            asOf: '2026-08-10',
+            label: 'Tines security best practices | Tines',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'A separate absolute lifetime cap and product-specific 3B timeout ranges were not verified.',
       },
       thirdPartyVetting: {
         value:
-          "Yes: Tines' executable actions (HTTP Request, webhooks, email, Send to Story, AI Agent, etc.) are a fixed, first-party set built and maintained by Tines, not a plugin/node marketplace. Third-party integrations go through the generic HTTP Request action against that tool's API, or by importing a pre-built 'Story' (a workflow template/JSON config, not installable code) from the community Story Library. No mechanism lets a third party publish executable custom actions/nodes that other tenants install.",
-        detail:
-          "The public Story Library has a 'Community selection' of user-submitted Story templates alongside Tines-authored ones, but these are shareable workflow configurations built from the same fixed first-party action set, not third-party executable plugins with their own code/dependencies (unlike n8n community nodes or a skill/plugin registry). No public vetting process for community Story submissions is documented, and no public security incident involving Tines' Story Library or action set was found.",
-        shortValue: 'Yes: fixed first-party action set, no plugin marketplace',
-        confidence: 'verified',
+          'Stories supplies actions and templates, while customers can add private templates and remote MCP tools; 3B runs authored code and dependencies. Universal vendor vetting of these extensions was not verified.',
+        shortValue: 'Vendor actions plus customer tools and dependencies',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/library',
-            label: 'Story Library | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/templates/private-templates/',
+            label: 'Private Templates',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/',
-            label: 'Actions overview | Docs | Tines',
-            asOf: '2026-07-04',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -986,170 +1124,152 @@ export const tinesProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Each workflow run ("Story run") gets a unique ID and a full, action-by-action event chain viewable in the UI or API. A Tenant Health dashboard (self-hosted) and Story/Action status views surface errors, run volume, and worker capacity, but this isn\'t OpenTelemetry-style distributed tracing by default; Tines\' own documentation includes an official guide showing customers how to wire up their own OpenTelemetry dashboard',
-        shortValue: 'Per-run GUID trace; no built-in OpenTelemetry dashboards',
-        confidence: 'estimated',
+          'Stories shows action/event routes and run timing; AI Agent output includes tool conversation steps and model/token metadata.',
+        shortValue: 'Stories event paths, timings, and AI tool steps',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/stories/story-runs/',
-            label: 'Story runs docs',
-            asOf: '2026-07-08',
+            url: 'https://www.tines.com/stories/docs/stories/story-runs/',
+            label: 'Story runs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/self-hosted/monitoring-tines/tenant-health-dashboard/',
-            label: 'Tenant health dashboard docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://explained.tines.com/en/articles/14120923-opentelemetry-designing-a-dashboard',
-            label: 'OpenTelemetry: Designing a Dashboard (official Tines guide)',
-            asOf: '2026-07-08',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
         value:
-          'HTTP Request actions support configurable automatic retries with "retry on status" behavior, notifying only if the final retry fails. Story version history lets you restore a prior configuration, but no explicit feature to replay a past execution with its original captured inputs is confirmed',
-        shortValue: 'Configurable HTTP retries; no confirmed execution replay',
+          'Stories supports configured HTTP retries with backoff and failure paths. 3B code steps can be configured for retries; whole-run exactly-once recovery was not verified.',
+        shortValue: 'Configured retries and error routing',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/whats-new/http-request-action-retries-without-notification/',
-            label: 'HTTP Request action retries without notification',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/http-request/',
+            label: 'HTTP Request',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/whats-new/better-handling-of-retry-failures/',
-            label: 'Emit event on HTTP request action retry failures',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       failureAlerting: {
         value:
-          'Yes: per-action "log error if" / status-based error conditions can emit events, and action monitoring can notify on errors; retry notifications only fire on final failure (not every retry), reducing noise',
-        shortValue: 'Error-based alerts with de-duped retry notifications',
+          'Yes: Stories notifies on exhausted HTTP retries and supports AI token thresholds that notify or disable an action.',
+        shortValue: 'Yes, failure and AI usage notifications',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/whats-new/new-log-error-if-option/',
-            label: "New 'log error if' option",
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/http-request-action-retries-without-notification/',
+            label: 'Tines Stories: Http request action retries without notification',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/whats-new/http-request-action-retries-without-notification/',
-            label: 'HTTP Request action retries without notification',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/ai-agent/',
+            label: 'AI Agent',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataDrains: {
         value:
-          'No: Tines documents scheduled export of audit logs to Amazon S3 every 15 minutes, but no general-purpose, continuous data-drain feature for execution/workflow data to destinations like BigQuery, Datadog, or generic webhooks.',
-        detail:
-          'The audit-log-to-S3 export is the only continuous export destination found; broader execution-data drains are not documented.',
-        shortValue: 'Partial: audit logs to S3 only',
-        confidence: 'estimated',
+          'Yes: Stories exports audit logs to S3 every 15 minutes; 3B forwards audit logs to configured HTTPS destinations.',
+        shortValue: 'Yes, Stories S3 exports and 3B HTTPS destinations',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/admin/audit-logs/',
-            label: 'Audit logs | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/admin/audit-logs/',
+            label: 'Audit logs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.3b.tines.com/en/articles/16051171-monitor-tenant-activity-in-the-audit-logs',
+            label: 'Tines 3B audit logs',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
         value:
-          'Yes: Tines supports asynchronous execution for Workflows as APIs. Triggering a story via an API request runs it in the background. If an Exit Action produces an event within 30 seconds, the response returns that data immediately. If it takes longer, the API returns an HTTP 504 with a response_url (also given in the X-Tines-Response-Location header) that can be polled later to fetch the eventual result, while the story keeps running regardless of the timeout.',
-        detail:
-          'The 30-second window only affects whether the HTTP response can return data immediately; the underlying story execution is not bound by it and continues in the background.',
-        shortValue: 'Yes, via response_url polling after 30s',
+          'Yes: a Stories response-enabled webhook continues running after the synchronous response timeout and supplies a URL to retrieve a later result.',
+        shortValue: 'Yes, continued runs with later result retrieval',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/stories/apis/',
-            label: 'Tines Docs: Workflows as APIs',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/stories/apis/',
+            label: 'Workflows as APIs',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Tines publishes per-action timeout figures rather than one global run timeout: HTTP Request and AI Agent (LLM) actions default to a 30-second timeout, Run Script actions default to 10 seconds with a 110-second maximum, and MCP server tool responses cannot exceed 30 seconds before the client sees a timeout error. For Workflows as APIs, an Exit Action must emit an event within 30 seconds of the API request or the call returns a 504 Gateway Timeout (story execution continues regardless). Tines also caps the number of simultaneous API requests to a story; when exceeded it returns HTTP 201 Created instead of 200, signaled via the X-Tines-Status and X-Tines-Limit-Reached headers, without publishing an exact numeric concurrency ceiling.',
-        detail:
-          "No single 'max execution time per run' number is published; limits are per action-type. The exact numeric concurrency ceiling for simultaneous story API requests isn't disclosed in public docs, only that exceeding it changes the response status code.",
-        shortValue: '30s per-action timeouts; concurrency capped, unpublished number',
+          'Stories MCP tools have a 30-second response deadline and a tenant-wide cap of 100 concurrent calls, or 1,000 on dedicated tenants, shared with response-enabled webhooks.',
+        shortValue: 'Stories MCP: 30 seconds; 100/1,000 concurrent calls',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/actions/types/http-request/',
-            label: 'Tines Docs: HTTP Request action (30s default timeout, retry_on_status)',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/templates/mcp-server/',
+            label: 'MCP server',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/tools/run-script/',
-            label: 'Tines Docs: Run Script action (10s default, 110s max)',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/tools/run-script/',
+            label: 'Run script',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/types/ai-agent/',
-            label: 'Tines Docs: AI Agent action (30s LLM timeout)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/docs/actions/templates/mcp-server/',
-            label: 'Tines Docs: MCP server (30s tool response cap)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/docs/stories/apis/',
-            label: 'Tines Docs: Workflows as APIs (504 timeout, concurrency 201 status)',
-            asOf: '2026-07-02',
+            url: 'https://docs.3b.tines.com/en/articles/16050928-build-a-workflow-in-your-own-coding-tools',
+            label: 'Build a workflow in your own coding tools | Tines 3B Docs',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The underlying run may continue after the response deadline. Stories Run Script defaults to 10 seconds and supports up to 110 seconds. 3B code-step timeouts range from 1 to 300 seconds and default to 45 seconds; these are step limits, not a universal whole-workflow duration.',
       },
       partialFailureHandling: {
         value:
-          "Yes: Tines lets you connect a dedicated failure path from an action, so any action that errors emits its event down that path to a separate error-handling action instead of halting the whole story. This is configured via the action's context menu ('set failure path') and pairs with retry logic (e.g. HTTP Request actions retry on configured status codes, up to 25 retries with exponential backoff plus jitter) and an emit_failure_event option that fires once retries are exhausted, so downstream actions can react while the rest of the run proceeds.",
-        detail:
-          "Historically a failed HTTP Request action after exhausted retries would stop the story; Tines added error-event emission plus explicit 'failure path' routing so the rest of the story is not forced to halt.",
-        shortValue: 'Yes, dedicated failure paths per action',
+          'Yes: Stories failure paths send actions with error logs to an alternate branch; HTTP actions can emit a failure after retries are exhausted.',
+        shortValue: 'Yes, alternate failure paths',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/whats-new/failure-path-for-actions/',
-            label: "Tines What's New: Failure path for actions",
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/whats-new/failure-path-for-actions/',
+            label: 'Tines Stories: Failure path for actions',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.tines.com/docs/actions/types/http-request/',
-            label: 'Tines Docs: HTTP Request action (retry_on_status, emit_failure_event)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/whats-new/better-handling-of-retry-failures/',
-            label: "Tines What's New: Better handling of retry failures",
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/actions/types/http-request/',
+            label: 'HTTP Request',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
         value:
-          "Yes: standard Stories (webhook, scheduled HTTP Request actions, Receive Email) run entirely server-side on Tines infrastructure, cloud-hosted or self-hosted, with no dependency on a browser tab or desktop client staying open. The one documented exception is a Story explicitly set to 'Workbench' mode, which can only be invoked interactively through Workbench chat and will not fire on its own schedule or accept external webhook events unless switched to a standard or 'Workbench and Send to Story' mode.",
-        detail:
-          'Workbench-only stories are intentionally excluded from license story limits precisely because they cannot run autonomously, confirming that autonomous (non-Workbench) stories are the default, unattended execution model.',
-        shortValue: 'Yes: runs server-side; Workbench-only mode is the one exception',
+          'Yes: live workflows run on schedules and events in the deployed service. Stories drafts stop processing after 30 minutes of inactivity; 3B drafts do not run automatic triggers.',
+        shortValue: 'Yes, live workflows; drafts have execution restrictions',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/docs/actions/types/webhook/',
-            label: 'Webhook | Docs | Tines',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/stories/docs/stories/change-control/',
+            label: 'Change Control',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://explained.tines.com/en/articles/9855926-using-stories-with-workbench',
-            label: 'Using stories with Workbench | Tines Explained',
-            asOf: '2026-07-04',
+            url: 'https://docs.3b.tines.com/en/articles/15877997-branches',
+            label: 'Tines 3B branches',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/stories/whats-new/schedule-with-cron-expressions/',
+            label: "Schedule with cron expressions | What's new at Tines",
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -1157,86 +1277,85 @@ export const tinesProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          '"Dedicated support and training" for Business/Enterprise plans, per the pricing page; specific mechanisms (named CSM/CSE role, SLA terms) are not publicly itemized',
-        detail:
-          'The pricing page lists "Dedicated support and training" as a Business/Enterprise inclusion but does not name a specific role (e.g. Customer Success Manager/Engineer) or publish SLA terms.',
-        shortValue: 'Dedicated support and training for Business/Enterprise',
-        confidence: 'estimated',
+          'Email, web support requests, and in-product chat; paid support coverage depends on the purchased support level.',
+        shortValue: 'Email, web requests, and in-product chat',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/pricing/',
-            label: 'Pricing | Tines',
-            asOf: '2026-07-08',
+            url: 'https://www.tines.com/support-services-policy-feb-2024/',
+            label: 'Tines support services policy',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
-        value: 'Unknown',
-        shortValue: 'Not publicly disclosed',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'The public support policy specifies response targets by priority and support level, and explicitly says first-response times are not guaranteed.',
+        shortValue: 'Support response targets, subject to contract',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/support-services-policy-feb-2024/',
+            label: 'Tines support services policy',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'A generally applicable contractual uptime percentage was not verified in the reviewed sources.',
       },
       community: {
         value:
-          'Public "Tines Library" of shared Story/Action templates, a "Tines University"/bootcamp learning program, and a community Slack referenced in documentation',
-        shortValue: 'Public library, university/bootcamp, community Slack',
+          'Tines provides a community forum, Stories University, and a public workflow library.',
+        shortValue: 'Community, Stories University, and workflow library',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.tines.com/library/', label: 'Tines Library', asOf: '2026-07-02' },
           {
-            url: 'https://www.tines.com/bootcamp-fundamentals/',
-            label: 'Tines Fundamentals Bootcamp Guide',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/university/',
+            label: 'Learn how to build with Tines Stories University | Tines',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.tines.com/library/',
+            label: 'Home | Stories | Library',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
         value:
-          'Founded 2018 (Dublin/Boston) by Eoin Hinchy and Thomas Kinsella; raised ~$272M total across 6 rounds, most recently a $125M Series C (Feb 2025) led by Goldman Sachs at unicorn valuation (~$1.125B); reported headcount roughly 500-550 as of early-to-mid 2026',
-        detail:
-          "No funding round beyond the Feb 2025 Series C is publicly confirmed as of this profile's research date; headcount reflects the most recently reported figures (around 548 employees as of March 2026), not necessarily the current count.",
-        shortValue: 'Founded 2018, ~$272M raised, ~500-550 employees',
-        confidence: 'estimated',
+          'Tines announced a $125 million Series C at a $1.125 billion valuation in February 2025.',
+        shortValue: 'Series C announced February 2025',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.crunchbase.com/organization/tines',
-            label: 'Tines: Crunchbase Company Profile',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.irishtimes.com/business/2026/05/28/tines-doubled-revenue-ahead-of-125m-funding-round/',
-            label: 'Tines doubled revenue ahead of $125m funding round: Irish Times',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://tracxn.com/d/companies/tines/__vhdOz5rrILYCmI2TCvs_islx2OCpdITCseVJD-QhsR0',
-            label: 'Tines: Tracxn Company Profile',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/blog/series-c-fundraise/',
+            label: 'Tines Series C announcement',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'This is a historical financing milestone, not a claim about its present valuation.',
       },
       academy: {
         value:
-          'Yes: Tines offers a structured learning program, Tines University, with free foundational courses (about 30 minutes each), instructor-led and self-paced Bootcamps (fundamentals and advanced), and two certification tiers (Core and Advanced) that builders can share on LinkedIn.',
-        detail:
-          'Available free even on Community Edition; Advanced certification is hands-on labs, roughly 3 hours.',
-        shortValue: 'Yes: University, bootcamps, certifications',
+          'Yes: Stories University has role-based learning paths, with separate Core and Advanced certification programs.',
+        shortValue: 'Yes, University paths and certification programs',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.tines.com/university/',
-            label: 'Tines University',
-            asOf: '2026-07-02',
+            label: 'Learn how to build with Tines Stories University | Tines',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.tines.com/get-certified/',
             label: 'Get certified | Tines',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/bootcamps/',
-            label: 'Tines Bootcamp Series',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
