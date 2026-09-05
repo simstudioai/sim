@@ -783,6 +783,42 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+const ORACLE_EPM_PLATFORM_TOOL_IDS = [
+  'oracle_epm_platform_add_users_to_group',
+  'oracle_epm_platform_assign_role',
+  'oracle_epm_platform_create_groups',
+  'oracle_epm_platform_create_users',
+  'oracle_epm_platform_delete_file',
+  'oracle_epm_platform_delete_groups',
+  'oracle_epm_platform_delete_users',
+  'oracle_epm_platform_download_file',
+  'oracle_epm_platform_export_snapshot',
+  'oracle_epm_platform_get_admin_job_status',
+  'oracle_epm_platform_get_environment_info',
+  'oracle_epm_platform_get_idle_session_timeout',
+  'oracle_epm_platform_get_restricted_data_access',
+  'oracle_epm_platform_get_role_assignments',
+  'oracle_epm_platform_get_snapshot',
+  'oracle_epm_platform_get_upload_virus_scan',
+  'oracle_epm_platform_get_user_group_report',
+  'oracle_epm_platform_import_snapshot',
+  'oracle_epm_platform_list_files',
+  'oracle_epm_platform_list_groups',
+  'oracle_epm_platform_list_migrations',
+  'oracle_epm_platform_list_roles',
+  'oracle_epm_platform_list_users',
+  'oracle_epm_platform_remove_users_from_group',
+  'oracle_epm_platform_rename_snapshot',
+  'oracle_epm_platform_run_daily_maintenance',
+  'oracle_epm_platform_set_idle_session_timeout',
+  'oracle_epm_platform_set_maintenance_window',
+  'oracle_epm_platform_set_restricted_data_access',
+  'oracle_epm_platform_set_upload_virus_scan',
+  'oracle_epm_platform_unassign_role',
+  'oracle_epm_platform_update_users',
+  'oracle_epm_platform_upload_repository_file',
+  'oracle_epm_platform_upload_snapshot',
+] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1427,6 +1463,10 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
+})
+registerFamily(handlerLoaders, ORACLE_EPM_PLATFORM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-platform/execute-tool'))
+    .executeOracleEpmPlatformTool
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool

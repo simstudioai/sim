@@ -1,0 +1,990 @@
+---
+title: Oracle EPM Platform
+description: Administer EPM environments, access, repository files, and migrations
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_platform"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+## Connect an environment
+
+Create an **Oracle EPM Cloud** service-account credential in Sim and select it in this block:
+
+1. Enter the environment's HTTPS **REST Base URL**, such as `https://example.oraclecloud.com`. Do not append `/epmcloud`, `/interop/rest`, or an endpoint. Include a real gateway prefix only when your deployment requires one.
+2. Enter a dedicated integration username and password. Grant only the privileges needed by the selected operations.
+3. Select **Oracle EPM Platform** and an operation. Advanced fields accept manual values and workflow references.
+
+The existing credential provider binds Basic authentication to one environment. This integration does not add an OAuth authorization-code flow or accept a user-supplied destination/status URL. See [Oracle authentication](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/authentication.html).
+
+## Compatibility
+
+Direct tool calls must supply the canonical `oauthCredential` selection. The shared executor does not currently map a `credentialId`-only call into this required field; the block's credential controls already supply it correctly.
+
+“Common” does not mean every operation exists in every product. Oracle's [compatibility matrix](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/all_rest_apis_table.html) distinguishes the following groups:
+
+| Selected operations | Documented product coverage |
+| --- | --- |
+| Environment information, maintenance window/run, restricted data access, upload virus scan, users, groups, roles, and identity reports | Planning, FreeForm, Financial Consolidation and Close, Tax Reporting, Profitability and Cost Management, Enterprise Profitability and Cost Management, Account Reconciliation, Narrative Reporting, and Enterprise Data Management |
+| Get/export/import/rename/upload snapshot; migration history; v2 download API | The same products except Narrative Reporting |
+| List files and delete file | The matrix marks all listed products except Enterprise Data Management |
+| Get Admin Job Status | Follows the originating migration, maintenance, or snapshot-upload operation |
+
+The [idle-timeout references](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/get_idle_session_timeout.html) describe an environment setting but are not individually listed in that matrix; verify availability in your product. [Repository upload](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/upload.html) documents product-specific directories, including Narrative Reporting's `to_be_imported`; the matrix does not separately establish universal coverage for that legacy endpoint.
+
+File/snapshot selectors and this integration's download preflight also require List Files. Consequently, Enterprise Data Management download/selector compatibility is **not established** even though its underlying snapshot API is marked supported. Enter an existing name exactly as List Files returns it; for LCM snapshots this commonly omits `.zip`. Role names and saved export settings are product- or tenant-specific, not hardcoded catalogs.
+
+## Permissions and effects
+
+- **Identity-domain users:** Create, Update, and Delete Users require Identity Domain Administrator plus an application role. These changes affect the identity domain, not only the selected environment. Do not use real users for testing. Create Users is an operator-controlled array because it can contain passwords; passwords and provider error-message echoes are never returned.
+- **Groups and reports:** Use Service Administrator or an application role plus the relevant Access Control - Manage/View privilege. Mutating groups requires Manage; available roles requires Manage. See [group administration](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/lcm_add_a_batch_of_groups_parent.html).
+- **Role assignment/removal:** Application roles require Service Administrator, or Identity Domain Administrator plus an application role. Granular roles require Service Administrator, or an application role plus Access Control - Manage. A user needs the prerequisite application role before receiving a granular role. See [assign roles](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/lcm_assign_role_parent.html) and [remove roles](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/lcm_unassign_role_parent.html).
+- **Environment and migrations:** Follow each action's permission description. Idle timeout and security settings require Service Administrator. Many maintenance/file/migration APIs also allow an application role plus Migrations - Administer; Get Snapshot and migration history require Service Administrator.
+
+Identity batches expose `processed`, `succeeded`, `failed`, and `failedItems`. HTTP success and Oracle `status: 0` do not guarantee every item succeeded. Sim marks partial batches unsuccessful while preserving their structured results. Inspect those results before retrying; never replay a successful subset blindly.
+
+Restricted Data Access controls snapshot submission through Provide Feedback, not general data permissions. [Idle-timeout changes](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/set_idle_session_timeout.html) take effect after daily maintenance; the shorter identity-domain timeout can still apply. Maintenance and imports can disrupt an environment. [Export Snapshot](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/lcm_export_v2.html) repeats the snapshot's previously configured Migration export settings; it does not define a new artifact selection.
+
+## Files and jobs
+
+- Repository uploads accept one authorized Sim `UserFile` up to **100 MiB**.
+- Snapshot uploads accept one ZIP source up to **5 GiB**, transmitted sequentially in chunks of at most **50 MiB** using Oracle's [v1 upload protocol](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/upload_application_snapshot.html). Actual bytes must match declared source size. Existing remote names are not overwritten or deleted after conflicts.
+- Downloads produce one `UserFile` up to **100 MiB**, even when a snapshot upload can be larger. Known size is checked before transfer; actual bytes are always counted. Oversized output fails without truncation or an external-storage bypass. Partial local storage is cleaned up. Only the temporary snapshot download owned by the current operation is deleted; `cleanupComplete: false` means it needs inspection.
+- Snapshot and maintenance starters return immediately, with `jobId` and `jobKind` when asynchronous. Pass both to Get Admin Job Status. It checks once by default; advanced `waitForCompletion` enables a bounded wait of up to 120 seconds, shortened by the workflow deadline and cleanup reserve. Timeout does not cancel the Oracle job.
+
+Selectors use the same listing APIs as tools and may be capped; they are not exhaustive inventories. Advanced manual values remain available. Listings preserve documented nullable metadata and optional expansions. Migration history returns report error/warning counts, not undocumented nested message payloads.
+
+Legacy repository uploads can return a filename-addressed extraction job. For these, `jobId` is a Sim reference of the form `repository:<encoded filename>`, not an Oracle numeric ID; pass it unchanged with `jobKind: snapshot_upload`. The status tool selects a fixed legacy endpoint. V1 snapshot uploads still return numeric IDs. See Oracle's [legacy upload example](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/appendix_postman_upload_snapshot.html) and [Java status helper](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/common_helper_functions_for_java.html).
+
+Delete File preserves the exact repository name, including documented backslash separators. JSON encoding is handled by the integration; do not manually double-escape a name entered in the block. URL-based uploads continue to use the foundation's stricter path rules.
+
+Returned links must satisfy the documented method, relation, origin, route, and version. Malformed or contradictory links in Oracle examples are not repaired or followed. If an environment returns a different contract, provide a sanitized response for investigation. The EPM transport does not automatically replay state-changing requests after uncertain failures. **Leave workflow block-level retries disabled for mutations and partial batches**: explicitly enabled workflow retries are a separate, general execution policy. Inspect job/repository state before retrying.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Use common Oracle EPM administration APIs with a reusable Basic-auth service-account credential. Manage users, groups, roles, security settings, maintenance, repository files, snapshots, and administrative jobs. Operation availability varies by EPM product. Identity-domain user changes affect all environments in that domain. Downloaded output is limited to 100 MiB.
+
+
+
+## Actions
+
+### Oracle EPM Platform Get Environment Info
+
+Read the environment build version, daily maintenance start time, and time zone. Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `environments` | array | Environment build and maintenance settings |
+|   ↳ `buildVersion` | string | Current environment build |
+|   ↳ `maintenanceStartTime` | string | Daily maintenance start time |
+|   ↳ `timeZone` | string | Maintenance time zone when returned |
+
+### Oracle EPM Platform Get Idle Session Timeout
+
+Read the environment idle-session timeout in minutes. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `timeoutMinutes` | number | Idle timeout in minutes |
+
+### Oracle EPM Platform Set Idle Session Timeout
+
+Set the environment idle-session timeout (15–480 minutes). Takes effect after the next daily maintenance. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `timeoutMinutes` | number | Yes | Idle timeout in minutes, integer from 15 to 480 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+
+### Oracle EPM Platform Set Maintenance Window
+
+Set the environment daily maintenance start time. Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `startTime` | string | Yes | Start time from 00:00 through 23:59 \(HH:MM\), optionally followed by a space and a standard time zone such as 14:35 America/Los_Angeles |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+
+### Oracle EPM Platform Run Daily Maintenance
+
+Start daily maintenance now, which can make the environment unavailable. Optionally skip the next scheduled maintenance. Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `skipNext` | boolean | No | Skip the next scheduled daily maintenance; defaults to false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
+| `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
+| `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
+| `tasks` | array | Documented migration task summaries, when returned |
+|   ↳ `name` | string | Task name |
+|   ↳ `source` | string | Source artifact or component |
+|   ↳ `destination` | string | Destination artifact or component |
+
+### Oracle EPM Platform Get Restricted Data Access
+
+Read whether users are prevented from submitting an application snapshot through Provide Feedback. This setting is not an application data-permission report. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `enabled` | boolean | Whether submitting snapshots through Provide Feedback is restricted |
+
+### Oracle EPM Platform Set Restricted Data Access
+
+Control whether application snapshots may be submitted through Provide Feedback. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `enabled` | boolean | Yes | Restrict snapshot submission through Provide Feedback |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+
+### Oracle EPM Platform Get Upload Virus Scan
+
+Read the environment upload virus-scanning setting. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `enabled` | boolean | Whether virus scanning is enabled for file uploads |
+
+### Oracle EPM Platform Set Upload Virus Scan
+
+Enable or disable virus scanning on uploaded files. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `enabled` | boolean | Yes | Enable virus scanning on uploaded files |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+
+### Oracle EPM Platform List Users
+
+List environment users, optionally including their groups and roles. Requires Service Administrator or Access Control - Manage/View with an application role. Oracle documents no pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `userlogin` | string | No | Optional matching user login |
+| `userattribute` | string | No | Match login, first name, last name, or email \(case-insensitive\) |
+| `epmgroups` | boolean | No | Include EPM groups |
+| `idcsgroups` | boolean | No | Include IDCS groups |
+| `granularroles` | boolean | No | Include granular roles |
+| `applicationroles` | boolean | No | Include application roles |
+| `indirect` | boolean | No | Include indirect as well as direct associations |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `users` | array | Environment users and requested associations |
+|   ↳ `userlogin` | string | User login |
+|   ↳ `firstname` | string | First name; may be empty |
+|   ↳ `lastname` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `epmgroups` | array | Requested EPM group memberships |
+|     ↳ `groupname` | string | Group name |
+|     ↳ `description` | string | Group description |
+|     ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
+|   ↳ `idcsgroups` | array | Requested identity-domain group memberships |
+|     ↳ `groupname` | string | Group name |
+|     ↳ `description` | string | Group description |
+|     ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
+|   ↳ `granularroles` | array | Requested granular role assignments |
+|     ↳ `rolename` | string | Product-specific role name |
+|     ↳ `id` | string | Role identifier |
+|   ↳ `applicationroles` | array | Requested application role assignments |
+|     ↳ `rolename` | string | Product-specific role name |
+|     ↳ `id` | string | Role identifier |
+
+### Oracle EPM Platform Create Users
+
+Create users in the identity domain, not just this environment. Requires Identity Domain Administrator and an application role. Password-bearing input is operator-controlled; passwords are never returned. Inspect batch failures.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `users` | array | Yes | Operator-provided users. Omit password for Oracle-assigned passwords; resetpassword is required. First name may be omitted or empty. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform Update Users
+
+Update identity-domain users. Changes affect every environment in that identity domain. Requires Identity Domain Administrator and an application role. Password changes are not supported by this operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `users` | array | Yes | Users with a login and at least one attribute to update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform Delete Users
+
+Remove users from the identity domain, affecting every environment in that domain. Requires Identity Domain Administrator and an application role. Inspect per-user failures.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `users` | array | Yes | Users to process \(1–1,000\); inspect failed and failedItems for partial failures |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform List Groups
+
+List environment groups and optionally members and roles. Requires Service Administrator or Access Control - Manage/View with an application role. No type filter is sent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `groupname` | string | No | Optional matching group name |
+| `members` | boolean | No | Include group and user members |
+| `roles` | boolean | No | Include assigned granular roles |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `groups` | array | Available environment groups |
+|   ↳ `groupname` | string | Group name |
+|   ↳ `description` | string | Group description |
+|   ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
+|   ↳ `identity` | string | Opaque provider identity; not a URL to fetch |
+|   ↳ `members` | object | Requested user and group memberships |
+|     ↳ `users` | array | User members of the group |
+|       ↳ `userlogin` | string | User login |
+|       ↳ `firstname` | string | First name; may be empty |
+|       ↳ `lastname` | string | Last name |
+|       ↳ `email` | string | Email address |
+|     ↳ `groups` | array | Group members of the group |
+|       ↳ `groupname` | string | Group name |
+|       ↳ `description` | string | Group description |
+|       ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
+|   ↳ `roles` | array | Requested granular role assignments |
+|     ↳ `rolename` | string | Product-specific role name |
+|     ↳ `id` | string | Role identifier |
+
+### Oracle EPM Platform Create Groups
+
+Create EPM groups and optionally add existing user/group members. Requires Service Administrator or Access Control - Manage with an application role. Nested member failures are returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `groups` | array | Yes | EPM groups to create |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform Delete Groups
+
+Delete EPM groups. Requires Service Administrator or Access Control - Manage with an application role. Inspect per-group failures.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `groups` | array | Yes | Existing EPM groups to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform Add Users to Group
+
+Add existing users to an EPM group. Requires Service Administrator or Access Control - Manage with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `groupname` | string | Yes | Existing EPM group name |
+| `users` | array | Yes | Users to process \(1–1,000\); inspect failed and failedItems for partial failures |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform Remove Users from Group
+
+Remove users from an EPM group without deleting their identity-domain accounts. Requires Service Administrator or Access Control - Manage with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `groupname` | string | Yes | Existing EPM group name |
+| `users` | array | Yes | Users to process \(1–1,000\); inspect failed and failedItems for partial failures |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform List Roles
+
+List available application and granular roles for this EPM product. Requires Service Administrator or Access Control - Manage with an application role. Role names are product-specific.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `type` | string | No | Optional role type: application or granular; omit for both |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `roles` | array | Available roles |
+|   ↳ `name` | string | Role name used by Assign Role and Unassign Role |
+|   ↳ `id` | string | Provider role identifier |
+
+### Oracle EPM Platform Assign Role
+
+Assign an application or granular role to existing users. Application roles require Service Administrator, or Identity Domain Administrator plus an application role. Granular roles require Service Administrator, or an application role plus Access Control - Manage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `rolename` | string | Yes | Available product-specific application or granular role name |
+| `users` | array | Yes | Users to process \(1–1,000\); inspect failed and failedItems for partial failures |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform Unassign Role
+
+Unassign an application or granular role from users. Application roles require Service Administrator, or Identity Domain Administrator plus an application role. Granular roles require Service Administrator, or an application role plus Access Control - Manage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `rolename` | string | Yes | Available product-specific application or granular role name |
+| `users` | array | Yes | Users to process \(1–1,000\); inspect failed and failedItems for partial failures |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `processed` | number | Records processed; null when Oracle rejects the entire request |
+| `succeeded` | number | Records that succeeded; null when the entire request is rejected |
+| `failed` | number | Records that failed; outer status 0 does not imply this is zero |
+| `partialFailure` | boolean | Whether Oracle accepted the batch but reported item failures |
+| `errorCode` | string | Oracle EPMCSS code for a whole-request failure |
+| `failedItems` | array | Failed item identifiers and error codes; password-bearing provider error messages are not returned |
+|   ↳ `userlogin` | string | Failed user login |
+|   ↳ `groupname` | string | Failed group name |
+|   ↳ `errorcode` | string | Oracle EPMCSS item error code |
+|   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+
+### Oracle EPM Platform Get Role Assignments
+
+Get environment role assignments. A report filtered to one user can lag recent changes; omit userlogin for updated all-user data. Requires Service Administrator or Access Control - Manage/View with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `userlogin` | string | No | Optional matching user login |
+| `userattribute` | string | No | Match login, first name, last name, or email \(case-insensitive\) |
+| `rolename` | string | No | Optional application or granular role name filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `assignments` | array | Users and their role assignments |
+|   ↳ `userlogin` | string | User login |
+|   ↳ `firstname` | string | First name; may be empty |
+|   ↳ `lastname` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `roles` | array | Role assignments for this user |
+|     ↳ `rolename` | string | Assigned role name |
+|     ↳ `roletype` | string | Application or Granular |
+|     ↳ `grantedthroughgroup` | string | Granting group path; empty for direct assignments |
+
+### Oracle EPM Platform Get User Group Report
+
+Report direct and indirect environment group memberships. Requires Service Administrator or Access Control - Manage/View with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `userlogin` | string | No | Optional matching user login |
+| `userattribute` | string | No | Match login, first name, last name, or email \(case-insensitive\) |
+| `groupname` | string | No | Optional group name filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `users` | array | Users and group memberships |
+|   ↳ `userlogin` | string | User login |
+|   ↳ `firstname` | string | First name; may be empty |
+|   ↳ `lastname` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `groups` | array | Group memberships for this user |
+|     ↳ `groupname` | string | Group name |
+|     ↳ `direct` | boolean | True for direct membership; false for indirect membership |
+
+### Oracle EPM Platform List Files
+
+List repository files and Migration snapshots with documented sizes and timestamps. LCM sizes are unavailable. Requires Service Administrator or Migrations - Administer with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `files` | array | Repository files and snapshots |
+|   ↳ `name` | string | Exact repository filename or snapshot name returned by Oracle |
+|   ↳ `type` | string | LCM or EXTERNAL |
+|   ↳ `size` | number | Bytes; null for LCM snapshots |
+|   ↳ `lastModifiedTime` | number | Unix epoch milliseconds; null for LCM snapshots |
+
+### Oracle EPM Platform Delete File
+
+Delete a repository file or snapshot, not a folder. Requires Service Administrator or Migrations - Administer with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `fileName` | string | Yes | Exact repository file or snapshot name, including any repository folders |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+
+### Oracle EPM Platform Upload Repository File
+
+Upload one authorized Sim UserFile of at most 100 MiB to the repository. Existing files are not overwritten. For large snapshots use Upload Snapshot. Requires Service Administrator or Migrations - Administer with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `file` | file | Yes | Canonical uploaded UserFile \(at most 100 MiB\) |
+| `fileName` | string | Yes | New destination file name or repository path; existing files cannot be overwritten |
+| `directory` | string | No | Optional supported destination: inbox, outbox, profitinbox, profitoutbox, a subdirectory of these, or Narrative Reporting to_be_imported |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
+| `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
+| `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
+| `tasks` | array | Documented migration task summaries, when returned |
+|   ↳ `name` | string | Task name |
+|   ↳ `source` | string | Source artifact or component |
+|   ↳ `destination` | string | Destination artifact or component |
+| `fileName` | string | Uploaded destination name |
+| `bytesUploaded` | number | Verified bytes uploaded |
+
+### Oracle EPM Platform Download File
+
+Download a current repository file or snapshot to a Sim UserFile, with a strict 100 MiB output limit. Poll snapshot compression when necessary and clean up the operation-owned temporary download. Requires Service Administrator or Migrations - Administer with an application role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `fileName` | string | Yes | Exact repository file or snapshot name, including any repository folders |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `file` | file | Downloaded UserFile, at most 100 MiB |
+| `cleanupComplete` | boolean | Whether temporary snapshot cleanup succeeded or was unnecessary |
+
+### Oracle EPM Platform Get Snapshot
+
+Read documented snapshot capabilities (export, import, upload, download). Requires Service Administrator. Does not inspect product-specific artifact schemas.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `snapshotName` | string | Yes | Existing Migration snapshot name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `snapshots` | array | Requested snapshot capabilities |
+|   ↳ `name` | string | Snapshot name |
+|   ↳ `type` | string | LCM or EXTERNAL |
+|   ↳ `canExport` | boolean | Whether Oracle permits exporting this snapshot |
+|   ↳ `canImport` | boolean | Whether Oracle permits importing this snapshot |
+|   ↳ `canUpload` | boolean | Whether Oracle permits uploading this snapshot |
+|   ↳ `canDownload` | boolean | Whether Oracle permits downloading this snapshot |
+
+### Oracle EPM Platform Export Snapshot
+
+Repeat an export using the existing snapshot export settings configured in Migration. This does not create arbitrary export definitions. Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `snapshotName` | string | Yes | Existing Migration snapshot name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
+| `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
+| `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
+| `tasks` | array | Documented migration task summaries, when returned |
+|   ↳ `name` | string | Task name |
+|   ↳ `source` | string | Source artifact or component |
+|   ↳ `destination` | string | Destination artifact or component |
+
+### Oracle EPM Platform Import Snapshot
+
+Import a Migration snapshot into this environment. Requires Service Administrator or Migrations - Administer; importing identity-domain users and application roles additionally requires Identity Domain Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `snapshotName` | string | Yes | Existing Migration snapshot name |
+| `importUsers` | boolean | No | Import identity-domain users and application roles; defaults to false |
+| `userPassword` | string | No | Optional operator-controlled password for imported users; omit for unique temporary passwords |
+| `resetPassword` | boolean | No | Require imported users to reset passwords at first login; defaults to true when importing users |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
+| `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
+| `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
+| `tasks` | array | Documented migration task summaries, when returned |
+|   ↳ `name` | string | Task name |
+|   ↳ `source` | string | Source artifact or component |
+|   ↳ `destination` | string | Destination artifact or component |
+
+### Oracle EPM Platform Rename Snapshot
+
+Rename an existing Migration snapshot. Requires Service Administrator or Migrations - Administer. This operation returns its synchronous outcome.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `snapshotName` | string | Yes | Existing Migration snapshot name |
+| `newSnapshotName` | string | Yes | New snapshot name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+
+### Oracle EPM Platform List Migrations
+
+List artifact migration history and per-component error/warning counts. Requires Service Administrator. Status text is provider-defined; nested message payloads are not exposed as untyped JSON.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `migrations` | array | Migration history |
+|   ↳ `action` | string | Migration action |
+|   ↳ `duration` | string | Provider-formatted elapsed duration |
+|   ↳ `status` | string | Provider migration status text |
+|   ↳ `user` | string | User who initiated the migration |
+|   ↳ `snapshot` | string | Migration snapshot name |
+|   ↳ `startTime` | string | Provider-formatted start time; not normalized to UTC |
+|   ↳ `endTime` | string | Provider-formatted end time; not normalized to UTC |
+|   ↳ `report` | array | Component migration summaries; undocumented error details are not returned |
+|     ↳ `destination` | string | Destination component |
+|     ↳ `source` | string | Source component |
+|     ↳ `status` | string | Component migration status text |
+|     ↳ `errorCount` | number | Number of reported errors |
+|     ↳ `warningCount` | number | Number of reported warnings |
+
+### Oracle EPM Platform Upload Snapshot
+
+Upload a Migration snapshot ZIP from an authorized Sim UserFile, up to 5 GiB, in sequential chunks of at most 50 MiB. Existing files are not overwritten. Return the extraction job when asynchronous. Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `file` | file | Yes | Canonical uploaded ZIP UserFile \(at most 5 GiB\) |
+| `snapshotName` | string | Yes | New snapshot upload file name ending in .zip |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
+| `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
+| `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
+| `tasks` | array | Documented migration task summaries, when returned |
+|   ↳ `name` | string | Task name |
+|   ↳ `source` | string | Source artifact or component |
+|   ↳ `destination` | string | Destination artifact or component |
+| `snapshotName` | string | Uploaded snapshot ZIP name |
+| `bytesUploaded` | number | Verified bytes uploaded |
+
+### Oracle EPM Platform Get Admin Job Status
+
+Read an administrative migration, maintenance, or snapshot-upload extraction job. Defaults to one status read. Optional waiting is bounded to two minutes and the remaining execution deadline.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
+| `jobId` | string | Yes | Exact jobId returned by a starter: an Oracle numeric ID or a tagged Sim repository-upload reference |
+| `jobKind` | string | Yes | Job kind: migration, maintenance, or snapshot_upload |
+| `waitForCompletion` | boolean | No | Wait for terminal status within bounded attempts/deadlines; defaults to false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
+| `message` | string | Safe operation summary without provider error text or passwords |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
+| `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
+| `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
+| `tasks` | array | Documented migration task summaries, when returned |
+|   ↳ `name` | string | Task name |
+|   ↳ `source` | string | Source artifact or component |
+|   ↳ `destination` | string | Destination artifact or component |
+
+

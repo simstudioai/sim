@@ -68,6 +68,8 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
+  // EPM Platform follows the same API-key catalog/reusable credential pattern.
+  'oracle-epm-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
@@ -100,6 +102,16 @@ const serviceAccount = (providerId: string) => ({
 })
 
 describe('service-account coverage', () => {
+  it('exposes Oracle EPM Platform credentials with the existing service-account provider', () => {
+    const integration = INTEGRATIONS.find((entry) => entry.type === 'oracle_epm_platform')
+    expect(integration?.authType).toBe('api-key')
+    expect(OAUTH_PROVIDERS['oracle-epm-platform'].services['oracle-epm-platform']).toMatchObject({
+      providerId: 'oracle-epm-platform',
+      serviceAccountProviderId: 'oracle-epm-service-account',
+      authType: 'service_account',
+    })
+  })
+
   it('exposes NetSuite reusable credentials without changing its API-key catalog class', () => {
     const netSuiteIntegration = INTEGRATIONS.find((integration) => integration.type === 'netsuite')
     expect(netSuiteIntegration?.authType).toBe('api-key')
