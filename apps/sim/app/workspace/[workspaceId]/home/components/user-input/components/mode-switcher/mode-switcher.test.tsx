@@ -142,26 +142,26 @@ describe('ModeSwitcher', () => {
     expect(trigger().getAttribute('aria-label')).toBe('Mode: Assistant')
   })
 
-  it.each(['', '?mode=build'])('restores Assistant from the conversation with URL %s', (params) => {
+  it('restores Assistant from a conversation without an explicit URL mode', () => {
     navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
     navigation.chatId = 'existing-chat'
     navigation.requestMode = 'assistant'
-    mount(params)
+    mount()
 
     expect(trigger().getAttribute('aria-label')).toBe('Mode: Assistant')
     expect(mockUrlUpdate).not.toHaveBeenCalled()
   })
 
-  it('does not turn a Build conversation into Assistant through a URL parameter', () => {
+  it('uses the explicit Assistant selection for the next turn in a Build conversation', () => {
     navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
     navigation.chatId = 'existing-chat'
     navigation.requestMode = 'agent'
     mount('?mode=assistant')
 
-    expect(trigger().getAttribute('aria-label')).toBe('Mode: Build')
+    expect(trigger().getAttribute('aria-label')).toBe('Mode: Assistant')
   })
 
-  it('opens a fresh Build chat when leaving a restored Assistant conversation', async () => {
+  it('changes to Build within the restored Assistant conversation', async () => {
     navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
     navigation.chatId = 'existing-chat'
     navigation.requestMode = 'assistant'
@@ -169,8 +169,9 @@ describe('ModeSwitcher', () => {
     openMenu()
     await select(0)
 
-    expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1/home')
-    expect(mockUrlUpdate).not.toHaveBeenCalled()
+    expect(trigger().getAttribute('aria-label')).toBe('Mode: Build')
+    expect(mockPush).not.toHaveBeenCalled()
+    expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.get('mode')).toBe('build')
   })
 
   it('clears the composer and search parameters together when leaving Search', async () => {
@@ -181,7 +182,9 @@ describe('ModeSwitcher', () => {
     expect(trigger().textContent).toBe('Build')
     expect(mockModeChange).toHaveBeenCalledOnce()
     expect(mockUrlUpdate).toHaveBeenCalledOnce()
-    expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe('resource=report')
+    expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe(
+      'mode=build&resource=report'
+    )
     expect(mockUrlUpdate.mock.lastCall?.[0].options).toMatchObject({
       history: 'replace',
       scroll: false,
@@ -192,18 +195,19 @@ describe('ModeSwitcher', () => {
   })
 
   it.each([
-    ['', 2, '/workspace/workspace-1/home?mode=assistant'],
-    ['?mode=assistant', 0, '/workspace/workspace-1/home'],
+    ['', 2, 'assistant'],
+    ['?mode=assistant', 0, 'build'],
+    ['?mode=assistant', 1, 'search'],
   ] as const)(
-    'starts a fresh chat when switching between Build and Assistant',
+    'keeps the current chat when selecting a different mode',
     async (params, index, target) => {
       navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
       mount(params)
       openMenu()
       await select(index)
-      expect(mockPush).toHaveBeenCalledWith(target)
+      expect(mockPush).not.toHaveBeenCalled()
       expect(mockModeChange).toHaveBeenCalledOnce()
-      expect(mockUrlUpdate).not.toHaveBeenCalled()
+      expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.get('mode')).toBe(target)
     }
   )
 

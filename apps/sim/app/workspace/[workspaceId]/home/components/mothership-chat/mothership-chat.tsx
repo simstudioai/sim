@@ -268,7 +268,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   const endsWithCredential = trimmedContent.endsWith('</credential>')
   const trailingCredentials = endsWithCredential ? parseLastCredentialTag(trimmedContent) : null
   const showsCredentialCard = trailingCredentials
-    ? credentialTagHasVisibleCard(trailingCredentials, canEdit)
+    ? credentialTagHasVisibleCard(trailingCredentials, canEdit, message.requestMode ?? requestMode)
     : false
   const questionTag = endsWithQuestion
     ? trimmedContent.slice(trimmedContent.lastIndexOf('<question>'))

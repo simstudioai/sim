@@ -53,7 +53,8 @@ export const authorizePersonalCredential = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, context, input }): Promise<PersonalOAuthCredential> {
     const credentials = await getPersonalOAuthCredentials(
       context.workspaceId,
-      requirePrincipalSubjectUserId(principal)
+      requirePrincipalSubjectUserId(principal),
+      input.credentialId
     )
     const providerIds = providerIdsForService(input.expectedProviderId)
     const credential = credentials.find(

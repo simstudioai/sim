@@ -109,6 +109,8 @@ function buildContext(): CredentialGroupOAuthContext {
 
 function buildAttempt(scopeVersion: number): CredentialGroupOAuthAttempt {
   return {
+    workspaceId: 'workspace-1',
+    email: 'person@example.com',
     state: 'state-1',
     provider: 'google-calendar',
     nonceHash: createHash('sha256').update('nonce-1').digest('hex'),

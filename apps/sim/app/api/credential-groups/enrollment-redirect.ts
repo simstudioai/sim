@@ -20,11 +20,22 @@ export function createCredentialGroupEnrollmentRedirect(
   })
 }
 
-export function createCredentialGroupCompletionRedirect(): NextResponse {
+export type CredentialGroupOAuthFailure =
+  | 'denied'
+  | 'account_mismatch'
+  | 'permissions_required'
+  | 'configuration_changed'
+  | 'rate_limited'
+  | 'unavailable'
+  | 'failed'
+
+export function createCredentialGroupCompletionRedirect(
+  oauth?: CredentialGroupOAuthFailure
+): NextResponse {
   return new NextResponse(null, {
     status: 303,
     headers: {
-      Location: '/credential-groups/complete',
+      Location: `/credential-groups/complete${oauth ? `?oauth=${oauth}` : ''}`,
       ...NO_STORE_REDIRECT_HEADERS,
     },
   })

@@ -1078,7 +1078,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         body.contexts?.length)
     ) {
       return createBadRequestResponse(
-        'Assistant uses the Enterprise Search index. Start a Build chat to use workspace attachments or workflows.'
+        'Assistant uses the Enterprise Search index. Switch to Build to use workspace resources or workflows.'
       )
     }
 
@@ -1229,18 +1229,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.finish('error')
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
-        const previousUserMessage = conversationHistory.find(
-          (entry): entry is { role: 'user'; requestMode?: string } =>
-            typeof entry === 'object' && entry !== null && 'role' in entry && entry.role === 'user'
-        )
-        if (
-          previousUserMessage &&
-          (previousUserMessage.requestMode === 'assistant') !== (body.mode === 'assistant')
-        ) {
-          return createBadRequestResponse(
-            'Start a new chat when switching between Assistant and Build.'
-          )
-        }
       }
 
       /* Record the chat as soon as it is known — the earliest a retry can be
@@ -1308,32 +1296,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             { status: 409 }
           )
         }
-        /** A concurrent first turn may have chosen its mode while this request waited for the lock. */
-        if (conversationHistory.length === 0 && !chatIsNew) {
-          const lockedChat = await resolveOrCreateChat({
-            chatId: actualChatId,
-            userId: authenticatedUserId,
-            ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
-            workspaceId: branch.workspaceId,
-            model: branch.titleModel,
-            type: branch.kind === 'workflow' ? 'copilot' : 'mothership',
-          })
-          const previousUserMessage = lockedChat.conversationHistory.find(
-            (entry): entry is { role: 'user'; requestMode?: string } =>
-              typeof entry === 'object' &&
-              entry !== null &&
-              'role' in entry &&
-              entry.role === 'user'
-          )
-          if (
-            previousUserMessage &&
-            (previousUserMessage.requestMode === 'assistant') !== (body.mode === 'assistant')
-          ) {
-            return createBadRequestResponse(
-              'Start a new chat when switching between Assistant and Build.'
-            )
-          }
-        }
       }
 
       // Stamp request-shape metadata on the root `gen_ai.agent.execute`
@@ -1372,9 +1334,21 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 }
               )
             : Promise.resolve(null)
-      const entitlementsPromise = workspaceId
-        ? computeWorkspaceEntitlements(workspaceId, authenticatedUserId)
-        : Promise.resolve([])
+      const entitlementsPromise =
+        workspaceId && body.mode !== 'assistant'
+          ? computeWorkspaceEntitlements(workspaceId, authenticatedUserId)
+          : Promise.resolve([])
+      const personalCredentialsPromise =
+        workspaceId && body.mode === 'assistant'
+          ? listPersonalCredentials.execute({
+              principal: {
+                kind: 'session',
+                userId: authenticatedUserId,
+                sessionId: session.session.id,
+              },
+              input: { workspaceId },
+            })
+          : Promise.resolve(undefined)
       // Wrap the pre-LLM prep work in spans so the trace waterfall shows
       // where time is going between "request received" and "llm.stream
       // opens". Previously these ran bare under the root and inflated the
@@ -1434,42 +1408,46 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         requestMode: body.mode === 'assistant' ? 'assistant' : 'agent',
         parentOtelContext: activeOtelRoot.context,
       })
-      const [agentContexts, userPermission, entitlements, workspaceSnapshot, , executionContext] =
-        await Promise.all([
-          agentContextsPromise,
-          userPermissionPromise,
-          entitlementsPromise,
-          workspaceContextPromise,
-          persistUserMessagePromise,
-          executionContextPromise,
-        ])
+      const [
+        agentContexts,
+        userPermission,
+        entitlements,
+        workspaceSnapshot,
+        ,
+        executionContext,
+        personalCredentials,
+      ] = await Promise.all([
+        agentContextsPromise,
+        userPermissionPromise,
+        entitlementsPromise,
+        workspaceContextPromise,
+        persistUserMessagePromise,
+        executionContextPromise,
+        personalCredentialsPromise,
+      ])
       // Both halves come from one primary-db fetch (workspace-context.ts):
       // `workspaceContext` is the markdown transition fallback, `vfs` is the
       // typed snapshot Go diffs into baseline+delta messages.
-      const workspaceContext =
-        body.mode === 'assistant' && workspaceId
-          ? JSON.stringify(
-              await listPersonalCredentials.execute({
-                principal: {
-                  kind: 'session',
-                  userId: authenticatedUserId,
-                  sessionId: session.session.id,
-                },
-                input: { workspaceId },
-              })
-            )
-          : workspaceSnapshot?.markdown
+      let workspaceContext = workspaceSnapshot?.markdown
+      if (personalCredentials) {
+        workspaceContext = JSON.stringify({
+          credentials: personalCredentials.credentials.map((credential) => ({
+            id: credential.id,
+            providerId: credential.providerId,
+            displayName: credential.displayName,
+            ...(credential.type === 'personal_token'
+              ? { instanceUrl: credential.instanceUrl }
+              : {}),
+          })),
+        })
+      }
       const vfs = workspaceSnapshot?.snapshot
       const turnContexts = agentContexts
       if (body.mode === 'assistant') executionContext.assistantSearch = body.assistantSearch
 
       executionContext.userPermission = userPermission ?? undefined
 
-      // buildPayload is the last synchronous step before the outbound
-      // Sim → Go HTTP call. It runs per-tool schema generation (subscription
-      // lookup + registry iteration, cached 30s) and file upload tracking
-      // per attachment. Wrapping it so we can see how much of the
-      // "before llm.stream" gap lives here vs elsewhere.
+      /** Trace catalog preparation and attachment tracking before the Sim → Go request. */
       const requestPayload = await withCopilotSpan(
         TraceSpan.CopilotChatBuildPayload,
         {

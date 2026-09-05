@@ -3,7 +3,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 const MCP_OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const MCP_OAUTH_ATTEMPT_VERSION = 1 as const
+const MCP_OAUTH_ATTEMPT_VERSION = 2 as const
 const MCP_OAUTH_STATE_PREFIX = 'mcp_cg_'
 
 const CONSUME_SCRIPT = `
@@ -26,6 +26,8 @@ return #keys
 
 interface StoredCredentialGroupMcpOAuthAttempt {
   version: typeof MCP_OAUTH_ATTEMPT_VERSION
+  workspaceId: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   mcpServerId: string
@@ -36,6 +38,8 @@ interface StoredCredentialGroupMcpOAuthAttempt {
 
 export interface CredentialGroupMcpOAuthAttempt {
   state: string
+  workspaceId: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   mcpServerId: string
@@ -63,6 +67,11 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupMcpOAuth
   const candidate = value as Record<string, unknown>
   return (
     candidate.version === MCP_OAUTH_ATTEMPT_VERSION &&
+    typeof candidate.workspaceId === 'string' &&
+    candidate.workspaceId.length > 0 &&
+    typeof candidate.email === 'string' &&
+    candidate.email.length >= 3 &&
+    candidate.email.length <= 320 &&
     typeof candidate.enrollmentId === 'string' &&
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.mcpServerId === 'string' &&
@@ -78,6 +87,8 @@ export function isCredentialGroupMcpOAuthState(state: string): boolean {
 
 export async function createCredentialGroupMcpOAuthAttempt(params: {
   state: string
+  workspaceId: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   mcpServerId: string
@@ -94,6 +105,8 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   ])
   const attempt: StoredCredentialGroupMcpOAuthAttempt = {
     version: MCP_OAUTH_ATTEMPT_VERSION,
+    workspaceId: params.workspaceId,
+    email: params.email,
     enrollmentId: params.enrollmentId,
     credentialGroupId: params.credentialGroupId,
     mcpServerId: params.mcpServerId,
@@ -130,6 +143,8 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   ])
   return {
     state,
+    workspaceId: parsed.workspaceId,
+    email: parsed.email,
     enrollmentId: parsed.enrollmentId,
     credentialGroupId: parsed.credentialGroupId,
     mcpServerId: parsed.mcpServerId,

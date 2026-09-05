@@ -661,7 +661,6 @@ interface SlackBaseParams {
   authMethod: 'oauth' | 'bot_token'
   accessToken: string
   botToken: string
-  credentialType?: 'oauth' | 'managed_oauth' | 'service_account'
 }
 
 export type SlackAgentSessionStatus = 'active' | 'processing' | 'suspended' | 'closed'

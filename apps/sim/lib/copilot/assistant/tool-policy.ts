@@ -6,6 +6,7 @@ export const ASSISTANT_TOOLS = new Set([
   'search_integration_tools',
   'call_integration_tool',
   'oauth_get_auth_link',
+  'run_function',
 ])
 
 const CREDENTIAL_PARAMS = new Set(['credential', 'credentialId', 'oauthCredential'])

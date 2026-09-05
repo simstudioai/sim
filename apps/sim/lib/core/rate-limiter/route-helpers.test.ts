@@ -25,6 +25,7 @@ vi.mock('@/lib/core/rate-limiter/storage', async () => {
 import {
   enforceIpRateLimit,
   enforceIpRateLimitWithIndependentBackstop,
+  enforceResourceRateLimit,
   enforceUserOrIpRateLimit,
   enforceUserRateLimit,
 } from './route-helpers'
@@ -34,6 +35,80 @@ const consume = mockAdapter.consumeTokens as Mock
 describe('route-helpers rate limiting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('enforceIpRateLimitWithIndependentBackstop', () => {
+    it('scopes the per-IP bucket to a resource without polluting the bucket name', async () => {
+      consume.mockResolvedValueOnce({
+        allowed: true,
+        tokensRemaining: 19,
+        resetAt: new Date(Date.now() + 60_000),
+      })
+
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue('203.0.113.9')
+
+      const result = await enforceIpRateLimitWithIndependentBackstop(
+        'chat-execute',
+        createMockRequest('POST'),
+        { maxTokens: 40, refillRate: 20, refillIntervalMs: 60_000 },
+        'chat-1'
+      )
+
+      expect(result).toBeNull()
+      expect(consume).toHaveBeenCalledWith(
+        'route:chat-execute:resource:chat-1:ip:203.0.113.9',
+        1,
+        expect.anything()
+      )
+    })
+
+    it('keeps the unscoped key shape when no resource is named', async () => {
+      consume.mockResolvedValueOnce({
+        allowed: true,
+        tokensRemaining: 9,
+        resetAt: new Date(Date.now() + 60_000),
+      })
+
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue('203.0.113.9')
+
+      await enforceIpRateLimitWithIndependentBackstop('forget-password', createMockRequest('POST'))
+
+      expect(consume).toHaveBeenCalledWith(
+        'route:forget-password:ip:203.0.113.9',
+        1,
+        expect.anything()
+      )
+    })
+  })
+
+  describe('enforceResourceRateLimit', () => {
+    const config = { maxTokens: 300, refillRate: 300, refillIntervalMs: 60_000 }
+
+    it('keys the bucket on the resource, not on the caller', async () => {
+      consume.mockResolvedValueOnce({
+        allowed: true,
+        tokensRemaining: 299,
+        resetAt: new Date(Date.now() + 60_000),
+      })
+
+      const result = await enforceResourceRateLimit('chat-execute', 'chat-1', config)
+
+      expect(result).toBeNull()
+      expect(consume).toHaveBeenCalledWith('route:chat-execute:resource:chat-1', 1, config)
+    })
+
+    it('returns a 429 with Retry-After when the resource budget is spent', async () => {
+      consume.mockResolvedValueOnce({
+        allowed: false,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 30_000),
+      })
+
+      const result = await enforceResourceRateLimit('chat-execute', 'chat-1', config)
+
+      expect(result?.status).toBe(429)
+      expect(Number(result?.headers.get('Retry-After'))).toBeGreaterThan(0)
+    })
   })
 
   describe('enforceUserRateLimit', () => {

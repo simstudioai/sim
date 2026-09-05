@@ -7,12 +7,16 @@ const mocks = vi.hoisted(() => ({
   permission: vi.fn(),
   decrypt: vi.fn(),
   audit: vi.fn(),
+  enrollment: vi.fn(),
 }))
 vi.mock('@/lib/credentials/application/credential-context', () => ({
   resolveCredentialApplicationContext: mocks.context,
 }))
 vi.mock('@/lib/credentials/access', () => ({ getCredentialActorContext: mocks.access }))
 vi.mock('@/lib/credentials/gitlab-personal-token', () => ({ decryptPersonalToken: mocks.decrypt }))
+vi.mock('@/lib/credentials/personal-tokens', () => ({
+  requirePersonalTokenEnrollment: mocks.enrollment,
+}))
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (p: string | null) => p !== null,
   resolveEffectiveWorkspacePermission: mocks.permission,
@@ -36,6 +40,7 @@ const current = {
   providerSubjectId: '42',
   providerTenantId: 'https://gitlab.example.test',
   encryptedPersonalToken: 'ciphertext',
+  credentialGroupEnrollmentId: 'enrollment',
   revokedAt: null,
   accessTokenExpiresAt: null,
 }
@@ -58,6 +63,7 @@ describe('authorized personal token resolution', () => {
     })
     mocks.permission.mockResolvedValue('read')
     mocks.decrypt.mockResolvedValue('secret')
+    mocks.enrollment.mockResolvedValue(undefined)
   })
   it('resolves the encrypted owner-bound target and emits semantic use audit without the secret', async () => {
     await expect(resolvePersonalToken.execute({ principal, input })).resolves.toEqual({
@@ -96,6 +102,19 @@ describe('authorized personal token resolution', () => {
       'own active personal token'
     )
     expect(mocks.decrypt).not.toHaveBeenCalled()
+  })
+  it('refuses revoked enrollment or disabled group before decryption after approval', async () => {
+    mocks.enrollment.mockRejectedValue(new Error('Connected accounts is disabled'))
+    await expect(resolvePersonalToken.execute({ principal, input })).rejects.toThrow(
+      'Connected accounts'
+    )
+    expect(mocks.enrollment).toHaveBeenCalledWith({
+      workspaceId: 'ws',
+      userId: 'owner',
+      enrollmentId: 'enrollment',
+    })
+    expect(mocks.decrypt).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
   })
   it('refuses revoked workspace access before secret resolution', async () => {
     mocks.permission.mockResolvedValue(null)

@@ -956,7 +956,7 @@ Rename the Slack agent session associated with a thread.
 
 ### Slack List Channels
 
-List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages.
+List accessible public and private Slack channels.
 
 #### Input
 
@@ -964,7 +964,7 @@ List accessible Slack conversations. Credential-group user tokens also return on
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `includePrivate` | boolean | No | Include private channels the bot is a member of \(default: true\) |
+| `includePrivate` | boolean | No | Include private channels the connected account can access \(default: true\) |
 | `excludeArchived` | boolean | No | Exclude archived channels \(default: true\) |
 | `limit` | number | No | Maximum number of channels to return \(default: 100, max: 200\) |
 | `cursor` | string | No | Pagination cursor from a previous response.next_cursor |
@@ -973,7 +973,7 @@ List accessible Slack conversations. Credential-group user tokens also return on
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `channels` | array | Accessible public and private channels, plus direct and group DMs for credential-group user tokens |
+| `channels` | array | Accessible public and private channels |
 |   ↳ `id` | string | Conversation ID \(for example, C123, D123, or G123\) |
 |   ↳ `name` | string | Channel or group-DM name; omitted for one-to-one direct messages |
 |   ↳ `is_channel` | boolean | Whether this is a channel |
@@ -997,8 +997,8 @@ List accessible Slack conversations. Credential-group user tokens also return on
 |   ↳ `is_user_deleted` | boolean | Whether the other participant in a direct message is deactivated |
 |   ↳ `is_open` | boolean | Whether a direct or group-direct-message conversation is open |
 |   ↳ `priority` | number | Slack sidebar sort priority |
-| `ids` | array | Conversation IDs for every returned channel or DM |
-| `names` | array | Names of returned channels and group DMs; one-to-one DMs have no name |
+| `ids` | array | Conversation IDs for every returned channel |
+| `names` | array | Names of returned channels |
 | `count` | number | Total number of conversations returned |
 | `nextCursor` | string | Cursor for the next page; null if no more pages |
 

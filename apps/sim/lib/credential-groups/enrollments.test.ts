@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray, isNull } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { adapter } = vi.hoisted(() => ({
@@ -33,14 +33,18 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
 import {
   completeCredentialGroupEnrollment,
   createCredentialGroupInvitationLink,
+  createCredentialGroupSelfEnrollmentLink,
   deleteCredentialGroupEnrollment,
+  getAuthorizedCredentialGroupOAuthContext,
+  getCredentialGroupMcpOAuthContextForEnrollment,
+  getCredentialGroupOAuthContextForEnrollment,
   listCredentialGroupEnrollments,
   resendCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
 import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
-const MAX_CONNECTION_SUMMARIES = CREDENTIAL_GROUP_PROVIDER_IDS.length * 3
+const MAX_CONNECTION_SUMMARIES = (CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3
 
 /**
  * The invitation fixtures below are dated relative to a fixed point in the enrollment
@@ -110,6 +114,20 @@ describe('listCredentialGroupEnrollments', () => {
     expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(3, MAX_CONNECTION_SUMMARIES + 1)
   })
 
+  it('includes personal GitLab accounts in an enrollment with no OAuth options', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ enrollment: ENROLLMENT }])
+      .mockResolvedValueOnce([
+        { enrollmentId: ENROLLMENT.id, providerId: 'gitlab', status: 'active', count: 2 },
+      ])
+    const result = await listCredentialGroupEnrollments('workspace-1', 'group-1', 50)
+    expect(result.enrollments[0]?.connections).toEqual([
+      { provider: 'gitlab', status: 'active', count: 2 },
+    ])
+    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(3, MAX_CONNECTION_SUMMARIES + 1)
+  })
+
   it('fails fast when a managed credential uses an unsupported provider', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ options: [{ id: 'option-1', status: 'active' }] }])
@@ -162,8 +180,10 @@ describe('listCredentialGroupEnrollments', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ options: [] }])
       .mockResolvedValueOnce([{ enrollment: ENROLLMENT }, { enrollment: remainingEnrollment }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ options: [] }])
       .mockResolvedValueOnce([{ enrollment: remainingEnrollment }])
+      .mockResolvedValueOnce([])
 
     const firstPage = await listCredentialGroupEnrollments('workspace-1', 'group-1', 1, undefined, {
       statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'],
@@ -180,7 +200,7 @@ describe('listCredentialGroupEnrollments', () => {
     expect(firstPage.nextCursor).toEqual(expect.any(String))
     expect(result.enrollments).toHaveLength(1)
     expect(result.enrollments[0]?.id).toBe(remainingEnrollment.id)
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(4)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(6)
     expect(inArray).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.status, [
       'invited',
       'in_progress',
@@ -253,6 +273,64 @@ describe('createCredentialGroupInvitationLink', () => {
       })
     )
     expect(sendEmail).not.toHaveBeenCalled()
+  })
+})
+
+describe('verified self enrollment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const group = {
+    workspaceId: 'workspace-1',
+    workspaceName: 'Workspace',
+    groupId: 'group-1',
+    groupName: 'Connected accounts',
+    groupStatus: 'active',
+    options: [],
+  }
+
+  it('permits a token enrollment in an empty canonical group without sending email', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([group]).mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([ENROLLMENT])
+    const result = await createCredentialGroupSelfEnrollmentLink(
+      'workspace-1',
+      'group-1',
+      ENROLLMENT.email
+    )
+    expect(result.enrollment.id).toBe(ENROLLMENT.id)
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ createdBy: null, email: ENROLLMENT.email })
+    )
+  })
+
+  it('continues to require an account type for external invitations', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([group]).mockResolvedValueOnce([])
+    await expect(
+      createCredentialGroupInvitationLink('workspace-1', 'group-1', 'admin', ENROLLMENT.email)
+    ).rejects.toThrow('Add an account type')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('refuses a disabled group for self enrollment', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...group, groupStatus: 'disabled' }])
+    await expect(
+      createCredentialGroupSelfEnrollmentLink('workspace-1', 'group-1', ENROLLMENT.email)
+    ).rejects.toThrow('disabled')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('does not reactivate access revoked while waiting for the lifecycle lock', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([group])
+      .mockResolvedValueOnce([ENROLLMENT])
+      .mockResolvedValueOnce([{ ...ENROLLMENT, status: 'revoked' }])
+    await expect(
+      createCredentialGroupSelfEnrollmentLink('workspace-1', 'group-1', ENROLLMENT.email)
+    ).rejects.toThrow('Revoked enrollment')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })
 
@@ -437,5 +515,117 @@ describe('completeCredentialGroupEnrollment', () => {
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
     expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.credential)
     expect(adapter.getPolicy).not.toHaveBeenCalled()
+  })
+})
+
+describe('enrollment context for session-authorized or consumed-attempt OAuth', () => {
+  const identity = {
+    workspaceId: 'workspace-1',
+    credentialGroupId: 'group-1',
+    enrollmentId: ENROLLMENT.id,
+    email: ENROLLMENT.email,
+  }
+  const row = {
+    enrollment: {
+      ...ENROLLMENT,
+      invitationTokenHash: 'rotated-hash',
+      invitationExpiresAt: new Date(0),
+    },
+    groupId: 'group-1',
+    groupName: 'Connected accounts',
+    groupStatus: 'active',
+    options: [{ id: 'option-1', provider: 'gmail', status: 'active' }],
+    workspaceId: 'workspace-1',
+    workspaceName: 'Workspace',
+    workspaceOwnerId: 'owner',
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  it('resolves pinned identity after invitation rotation or expiry without looking up the old bearer', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [row])
+    expect(await getCredentialGroupOAuthContextForEnrollment(identity, 'option-1')).toMatchObject({
+      enrollmentId: identity.enrollmentId,
+      workspaceId: identity.workspaceId,
+      email: identity.email,
+      option: { id: 'option-1' },
+    })
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.id, identity.enrollmentId)
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.email, identity.email)
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.id, identity.credentialGroupId)
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.workspaceId, identity.workspaceId)
+    expect(eq).not.toHaveBeenCalledWith(
+      schemaMock.credentialGroupEnrollment.invitationTokenHash,
+      expect.anything()
+    )
+    queueTableRows(schemaMock.credentialGroupEnrollment, [row])
+    expect(
+      await getAuthorizedCredentialGroupOAuthContext(
+        { ...identity, invitationTokenHash: 'old-hash' },
+        'option-1'
+      )
+    ).toBeNull()
+    expect(eq).toHaveBeenCalledWith(
+      schemaMock.credentialGroupEnrollment.invitationTokenHash,
+      'old-hash'
+    )
+  })
+  it.each([
+    { groupStatus: 'disabled' },
+    { enrollment: { ...row.enrollment, status: 'revoked' } },
+    { enrollment: { ...row.enrollment, status: 'delivery_failed' } },
+    { enrollment: { ...row.enrollment, revokedAt: NOW } },
+    { options: [] },
+    { options: [{ id: 'option-1', provider: 'gmail', status: 'disabled' }] },
+  ])('refuses an enrollment or option that is no longer live', async (change) => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [{ ...row, ...change }])
+    expect(await getCredentialGroupOAuthContextForEnrollment(identity, 'option-1')).toBeNull()
+  })
+  it('resolves a consumed MCP attempt against the live linked server without an invitation bearer', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [row])
+    queueTableRows(schemaMock.mcpServers, [
+      {
+        id: 'mcp-server-1',
+        name: 'Fireflies',
+        url: 'https://api.fireflies.ai/mcp',
+        managedConnectorId: 'fireflies',
+      },
+    ])
+    expect(
+      await getCredentialGroupMcpOAuthContextForEnrollment(identity, 'mcp-server-1')
+    ).toMatchObject({
+      enrollmentId: identity.enrollmentId,
+      email: identity.email,
+      server: { id: 'mcp-server-1' },
+    })
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.email, identity.email)
+    expect(eq).toHaveBeenCalledWith(schemaMock.mcpServers.id, 'mcp-server-1')
+    expect(eq).toHaveBeenCalledWith(schemaMock.mcpServers.workspaceId, identity.workspaceId)
+    expect(eq).toHaveBeenCalledWith(
+      schemaMock.mcpServers.credentialGroupId,
+      identity.credentialGroupId
+    )
+    expect(eq).toHaveBeenCalledWith(schemaMock.mcpServers.enabled, true)
+    expect(eq).toHaveBeenCalledWith(schemaMock.mcpServers.authType, 'oauth')
+    expect(isNull).toHaveBeenCalledWith(schemaMock.mcpServers.deletedAt)
+    expect(eq).not.toHaveBeenCalledWith(
+      schemaMock.credentialGroupEnrollment.invitationTokenHash,
+      expect.anything()
+    )
+  })
+  it('denies a consumed MCP attempt after the enrollment is revoked or its linked server is unavailable', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      { ...row, enrollment: { ...row.enrollment, revokedAt: new Date() } },
+    ])
+    expect(
+      await getCredentialGroupMcpOAuthContextForEnrollment(identity, 'mcp-server-1')
+    ).toBeNull()
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.mcpServers)
+    queueTableRows(schemaMock.credentialGroupEnrollment, [row])
+    queueTableRows(schemaMock.mcpServers, [])
+    expect(
+      await getCredentialGroupMcpOAuthContextForEnrollment(identity, 'mcp-server-1')
+    ).toBeNull()
   })
 })

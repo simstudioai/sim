@@ -983,6 +983,7 @@ function MessageContentInner({
                   key={segment.id}
                   content={segment.content}
                   messageId={messageId}
+                  requestMode={requestMode}
                   isStreaming={shouldSmoothTextSegment({
                     isStreaming,
                     segmentIndex: i,

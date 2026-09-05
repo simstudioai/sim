@@ -41,6 +41,13 @@ export const credentialOperations = {
     }),
     'member'
   ),
+  startPersonalConnection: defineWorkspaceOperation({
+    id: 'credentials.personal.connect',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    principalKinds: ['session'],
+  }),
   listPersonal: defineWorkspaceOperation({
     id: 'credentials.personal.list',
     minimumRole: 'read',

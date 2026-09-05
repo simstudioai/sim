@@ -5,6 +5,7 @@ import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { decryptPersonalToken } from '@/lib/credentials/gitlab-personal-token'
+import { requirePersonalTokenEnrollment } from '@/lib/credentials/personal-tokens'
 
 export interface ResolvePersonalTokenInput {
   credentialId: string
@@ -39,6 +40,11 @@ export const resolvePersonalToken = defineAuthorizedCredentialUseCase({
         'Connect your own active personal token for this integration'
       )
     }
+    await requirePersonalTokenEnrollment({
+      workspaceId: context.workspaceId,
+      userId,
+      enrollmentId: current.credentialGroupEnrollmentId,
+    })
     const accessToken = await decryptPersonalToken(current.encryptedPersonalToken, {
       providerId: 'gitlab',
       ownerUserId: userId,

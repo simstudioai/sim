@@ -8,6 +8,11 @@ import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-fa
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
+import {
+  CredentialGroupOAuthError,
+  CredentialGroupProviderConfigurationError,
+} from '@/lib/credential-groups/provider-adapter'
 import { CredentialAccessRequiredError } from '@/lib/credentials/application/authorized-credential-use-case'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
 import {
@@ -61,6 +66,30 @@ export const internalCredentialErrorPolicy = extendInternalErrorPolicy(
       { error: error.message, code: error.providerErrorCode },
       { 'Retry-After': ADMISSION_RETRY_AFTER_SECONDS.toString() }
     )
+  }
+)
+
+/** Presents actionable account setup failures without exposing provider transport errors. */
+export const internalPersonalCredentialConnectionErrorPolicy = extendInternalErrorPolicy(
+  internalCredentialErrorPolicy,
+  (error) => {
+    if (error instanceof CredentialGroupProviderConfigurationError) {
+      return internalErrorResponse(409, {
+        error: 'Ask a workspace admin to configure this integration in Connected accounts',
+      })
+    }
+    const status =
+      error instanceof CredentialGroupOAuthError
+        ? error.statusCode
+        : error instanceof CredentialGroupEnrollmentError
+          ? error.status
+          : null
+    if (status === null || !(error instanceof Error)) return null
+    if (status >= 500)
+      return internalErrorResponse(503, {
+        error: 'Account sign-in is temporarily unavailable. Please try again.',
+      })
+    return internalErrorResponse(status, { error: error.message })
   }
 )
 
