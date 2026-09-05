@@ -188,6 +188,20 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oci_streaming.streamPools': providerSelector(['compartmentId', 'ociRegion'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    sourceFields: { oauthCredential: ['ociCredential'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_streaming.streams': providerSelector(['streamPoolId', 'ociRegion'], {
+    readiness: { all: ['oauthCredential', 'streamPoolId'] },
+    sourceFields: { oauthCredential: ['ociCredential'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
