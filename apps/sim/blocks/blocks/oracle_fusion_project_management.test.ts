@@ -162,7 +162,7 @@ describe('Oracle Project Management block', () => {
       projectName: undefined,
       invoiceId: undefined,
     })
-    expect(JSON.parse(JSON.stringify(result))).not.toHaveProperty('invoiceId')
+    expect(JSON.stringify(result)).not.toContain('"invoiceId"')
     expect(
       map('update_project', { projectId: '101', projectDescription: null }).projectDescription
     ).toBeNull()
