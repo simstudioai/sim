@@ -16180,6 +16180,73 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_functions",
+      "slug": "oci-functions",
+      "name": "OCI Functions",
+      "description": "Invoke and manage Oracle Cloud Functions",
+      "longDescription": "Use a reusable OCI API-key service account to invoke functions synchronously or in detached mode, discover applications and functions, and manage their configuration and existing container image references. Detached acknowledgements do not contain completed results. Image builds, registry uploads, and source deployment are outside this integration.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OracleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_functions",
+      "operations": [
+        {
+          "name": "Invoke",
+          "description": "Invoke an OCI function synchronously, start a detached invocation, or dry-run without executing. Payloads and results are limited to 6 MB. Detached HTTP 202 acknowledges processing and is not a completed result. One provider invocation attempt per tool execution; keep block retries disabled to avoid replay. A lost response can follow successful execution; cancellation ends the wait, not the Oracle execution."
+        },
+        {
+          "name": "List Applications",
+          "description": "List one page of OCI Functions applications in a compartment, with exact filters and continuation-token pagination."
+        },
+        {
+          "name": "Get Application",
+          "description": "Read an OCI Functions application, including configuration, networking, tags, tracing, logging, and image policy."
+        },
+        {
+          "name": "Create Application",
+          "description": "Create an OCI Functions application using existing subnets. Does not create networking or deploy functions."
+        },
+        {
+          "name": "Update Application",
+          "description": "Update documented OCI Functions application settings. Supplied configuration maps replace existing values; omitted fields are unchanged. Does not rename the application or change its subnets."
+        },
+        {
+          "name": "Delete Application",
+          "description": "Delete an OCI Functions application with one API request. Delete contained functions explicitly first; this tool does not perform cascading function deletion."
+        },
+        {
+          "name": "Change Application Compartment",
+          "description": "Move an OCI Functions application to a destination compartment. Oracle checks access for the move; verify destination policies before moving production applications."
+        },
+        {
+          "name": "List Functions",
+          "description": "List one page of OCI functions in an application, with exact filters and continuation-token pagination."
+        },
+        {
+          "name": "Get Function",
+          "description": "Read an OCI function, including its image, configuration, execution timeouts, concurrency, destinations, and invocation endpoint."
+        },
+        {
+          "name": "Create Function",
+          "description": "Create an OCI function from an existing container image. Does not build containers, upload images, or deploy source code."
+        },
+        {
+          "name": "Update Function",
+          "description": "Update an OCI function image, memory, or documented configuration. Supplied maps and nested settings replace existing values; omitted fields are unchanged. Does not build or publish images."
+        },
+        {
+          "name": "Delete Function",
+          "description": "Delete an OCI function, optionally requiring an ETag match. Returns successful HTTP 204 acknowledgement without parsing an empty response body."
+        }
+      ],
+      "operationCount": 12,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "automation"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",
