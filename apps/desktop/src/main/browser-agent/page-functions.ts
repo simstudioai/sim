@@ -50,7 +50,18 @@ declare global {
  * interactive elements carrying numeric ids, walking open shadow roots and
  * same-origin iframes. Rebuilds the element registry as a side effect.
  */
-export function collectSnapshot(startingElementId = 0): unknown {
+export function collectSnapshot(startingElementId = 0, elementId?: number): unknown {
+  const resolver = window.__simAgentResolveElement
+  const scopedRoot =
+    elementId === undefined
+      ? undefined
+      : resolver
+        ? resolver(elementId)?.element
+        : window.__simAgentElements?.[elementId]
+  if (elementId !== undefined) {
+    if (!scopedRoot?.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
+    if (scopedRoot.ownerDocument !== document) return { error: 'framed-snapshot' }
+  }
   const refCap = 300
   const lineCap = 600
   const nodeCap = 12_000
@@ -548,12 +559,12 @@ export function collectSnapshot(startingElementId = 0): unknown {
     )
   }
 
-  const walk = (root: ParentNode, depth: number, suppressTextCoveredBy = ''): void => {
+  const walk = (elements: Iterable<Element>, depth: number, suppressTextCoveredBy = ''): void => {
     if (refCount >= refCap || depth > depthCap) {
       truncated = true
       return
     }
-    for (const el of Array.from(root.children)) {
+    for (const el of elements) {
       visitedNodes++
       if (refCount >= refCap || visitedNodes > nodeCap) {
         truncated = true
@@ -606,21 +617,24 @@ export function collectSnapshot(startingElementId = 0): unknown {
           const innerDoc = (el as HTMLIFrameElement).contentDocument
           if (innerDoc?.body && isVisible(el)) {
             if (!push(`${indent}- iframe:`)) return
-            walk(innerDoc.body, childDepth + 1, coveredText)
+            walk(innerDoc.body.children, childDepth + 1, coveredText)
+          } else if (scopedRoot && !innerDoc && visible) {
+            truncated = true
           }
         } catch {
-          // Cross-origin iframe — not readable.
+          if (scopedRoot && visible) truncated = true
         }
         continue
       }
 
       const shadow = (el as HTMLElement).shadowRoot
-      if (shadow) walk(shadow, childDepth, coveredText)
-      walk(el, childDepth, coveredText)
+      if (shadow) walk(shadow.children, childDepth, coveredText)
+      walk(el.children, childDepth, coveredText)
     }
   }
 
-  if (document.body) walk(document.body, 0)
+  if (scopedRoot) walk([scopedRoot], 0)
+  else if (document.body) walk(document.body.children, 0)
 
   /**
    * React commonly replaces a control's DOM node while preserving its
@@ -629,6 +643,10 @@ export function collectSnapshot(startingElementId = 0): unknown {
    * real stale ref, never permission to click something nearby.
    */
   window.__simAgentResolveElement = (id: number) => {
+    if (scopedRoot && !scopedRoot.isConnected) {
+      window.__simAgentStaleReason = 'the scoped snapshot root left the DOM'
+      return null
+    }
     const locator = locators[id]
     if (!locator) {
       window.__simAgentStaleReason = `id ${id} is not in the current snapshot's registry`
@@ -791,7 +809,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     let candidateCount = 0
     const collect = (root: ParentNode, depth = 0): void => {
       if (depth > depthCap || candidateCount >= nodeCap) return
-      for (const element of Array.from(root.children)) {
+      for (const element of root.children) {
         candidateCount++
         if (candidateCount > nodeCap) return
         reachable.push(element)
@@ -809,7 +827,8 @@ export function collectSnapshot(startingElementId = 0): unknown {
         collect(element, depth + 1)
       }
     }
-    if (document.body) collect(document.body)
+    if (scopedRoot) collect(scopedRoot)
+    else if (document.body) collect(document.body)
 
     const scored = reachable
       .filter((candidate) => identityMatches(candidate) && isCurrentlyVisible(candidate))
@@ -886,6 +905,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     url: cut(window.location.href, 4096),
     title: cut(document.title, 500),
     outline: lines.join('\n'),
+    ...(scopedRoot ? { scoped: true } : {}),
     truncated,
     scrollY: Math.round(window.scrollY),
     pageHeight: Math.round(document.documentElement.scrollHeight),

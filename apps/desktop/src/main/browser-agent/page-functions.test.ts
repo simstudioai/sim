@@ -954,6 +954,87 @@ describe('collectSnapshot', () => {
 })
 
 describe('semantic control state', () => {
+  it('scopes a fresh snapshot to one card without reading sibling geometry', () => {
+    document.body.innerHTML =
+      '<div role="group" tabindex="0" aria-label="Selected card"><button>Save card</button><input type="password" value="private" /></div><button>Outside card</button>'
+    for (const element of document.querySelectorAll('*')) visible(element)
+    const full = outlineOf(collectSnapshot())
+    const oldRootRef = refFor(full, 'Selected card')
+    const outside = document.querySelector('body > button')!
+    const outsideGeometry = vi.spyOn(outside, 'getBoundingClientRect')
+
+    const scoped = runSerialized(collectSnapshot, [100, oldRootRef]) as {
+      scoped: boolean
+      outline: string
+      refIds: number[]
+    }
+    expect(scoped.scoped).toBe(true)
+    expect(scoped.outline).toContain('Selected card')
+    expect(scoped.outline).toContain('Save card')
+    expect(scoped.outline).not.toContain('Outside card')
+    expect(scoped.outline).not.toContain('private')
+    expect(scoped.refIds.every((id) => id >= 100)).toBe(true)
+    expect(window.__simAgentResolveElement?.(oldRootRef)).toBeNull()
+    expect(outsideGeometry).not.toHaveBeenCalled()
+  })
+
+  it('rejects stale or framed snapshot roots without replacing the page registry', () => {
+    const button = document.createElement('button')
+    document.body.append(visible(button))
+    register(button)
+    button.remove()
+    expect(collectSnapshot(10, 0)).toMatchObject({ error: 'stale' })
+    expect(window.__simAgentElements?.[0]).toBe(button)
+
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const child = frame.contentDocument!.createElement('button')
+    frame.contentDocument!.body.append(visible(child))
+    register(child)
+    expect(collectSnapshot(10, 0)).toEqual({ error: 'framed-snapshot' })
+  })
+
+  it('marks unreadable scoped frame content truncated', () => {
+    const root = visible(document.createElement('div'))
+    const frame = visible(document.createElement('iframe'))
+    root.append(frame)
+    document.body.append(root)
+    register(root)
+    Object.defineProperty(frame, 'contentDocument', { value: null })
+    expect(collectSnapshot(10, 0)).toMatchObject({ scoped: true, truncated: true })
+  })
+
+  it('does not recover scoped refs into a different card after the original closes', () => {
+    document.body.innerHTML =
+      '<div tabindex="0" aria-label="Selected card"><button id="save">Save card</button></div>'
+    for (const element of document.querySelectorAll('*')) visible(element)
+    const root = document.querySelector('body > div')!
+    const rootRef = refFor(outlineOf(collectSnapshot()), 'Selected card')
+    const saveRef = refFor(outlineOf(collectSnapshot(10, rootRef)), 'Save card')
+    const replacement = root.cloneNode(true) as HTMLElement
+    for (const element of [replacement, ...replacement.querySelectorAll('*')]) visible(element)
+    root.replaceWith(replacement)
+
+    expect(window.__simAgentResolveElement?.(saveRef)).toBeNull()
+    expect(window.__simAgentStaleReason).toContain('scoped snapshot root')
+  })
+
+  it('keeps scoped snapshots bounded when a selected container is very large', () => {
+    const root = document.createElement('div')
+    root.tabIndex = 0
+    root.setAttribute('aria-label', 'Large card')
+    document.body.append(visible(root))
+    register(root)
+    for (let index = 0; index < 400; index++) {
+      const button = visible(document.createElement('button'))
+      button.textContent = `Action ${index}`
+      root.append(button)
+    }
+    const scoped = collectSnapshot(10, 0) as { refIds: number[]; truncated: boolean }
+    expect(scoped.refIds).toHaveLength(300)
+    expect(scoped.truncated).toBe(true)
+  })
+
   it('distinguishes hidden registered nodes from detached nodes without action recovery', () => {
     const button = visible(document.createElement('button'))
     document.body.append(button)

@@ -819,6 +819,11 @@ export const BrowserFind: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      elementId: {
+        type: 'number',
+        description:
+          'Optional current top-page element id to observe only that element and its subtree, such as a known form, row, or card. Returns scoped: true and fresh refs; all previous snapshot refs are invalidated. Cross-origin frame contents are omitted and mark the result truncated. Framed roots are rejected. Omit for a full-page snapshot or when the previous scope has disappeared.',
+      },
       maxResults: {
         type: 'number',
         description: 'Maximum matches to return (default 20, capped at 50).',
@@ -854,9 +859,16 @@ export const BrowserFind: ToolCatalogEntry = {
         items: { type: 'string' },
       },
       query: { type: 'string', description: 'Literal query that was searched.' },
+      scoped: {
+        type: 'boolean',
+        description: 'Whether observation was limited to the requested element subtree.',
+      },
       title: { type: 'string', description: 'Top-page title when available.' },
       totalMatches: { type: 'number', description: 'Total matches before applying maxResults.' },
-      truncated: { type: 'boolean', description: 'Whether additional matches were omitted.' },
+      truncated: {
+        type: 'boolean',
+        description: 'Whether snapshot coverage or matching results were truncated.',
+      },
       url: { type: 'string', description: 'Top-page URL.' },
     },
     required: ['query', 'matches', 'totalMatches', 'truncated'],
@@ -1535,7 +1547,16 @@ export const BrowserSnapshot: ToolCatalogEntry = {
   name: 'browser_snapshot',
   route: 'client',
   mode: 'async',
-  parameters: { type: 'object', properties: {} },
+  parameters: {
+    type: 'object',
+    properties: {
+      elementId: {
+        type: 'number',
+        description:
+          'Optional current top-page element id to observe only that element and its subtree, such as a known form, row, or card. Returns scoped: true and fresh refs; all previous snapshot refs are invalidated. Cross-origin frame contents are omitted and mark the result truncated. Framed roots are rejected. Omit for a full-page snapshot or when the previous scope has disappeared.',
+      },
+    },
+  },
   resultSchema: {
     type: 'object',
     properties: {
@@ -1559,6 +1580,10 @@ export const BrowserSnapshot: ToolCatalogEntry = {
         description: 'Mounted DOM/frame outline containing model-visible [ref=N] ids.',
       },
       pageHeight: { type: 'number', description: 'Top-page document height.' },
+      scoped: {
+        type: 'boolean',
+        description: 'Whether observation was limited to the requested element subtree.',
+      },
       scrollY: { type: 'number', description: 'Top-page window scroll offset.' },
       title: { type: 'string', description: 'Captured top-page title.' },
       truncated: {

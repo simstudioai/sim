@@ -3257,6 +3257,53 @@ describe('credential protection', () => {
     })
   })
 
+  it.each(['browser_snapshot', 'browser_find'] as const)(
+    'omits an absent scope from the serialized %s page call',
+    async (tool) => {
+      const contents = await openPage()
+      vi.mocked(contents.executeJavaScript).mockClear()
+      await driver.executeTool('chat-test', tool, { query: 'Continue' })
+      const expressions = vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.map(([expression]) => expression)
+        .filter((expression) => isPageCall(expression, 'collectSnapshot'))
+      expect(expressions).toHaveLength(1)
+      expect(expressions[0]).toContain('.apply(null, [1])')
+    }
+  )
+
+  it.each(['browser_snapshot', 'browser_find'] as const)(
+    'passes the current root ref to %s and invalidates previous refs',
+    async (tool) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        collectSnapshot: {
+          url: 'https://example.com/login',
+          title: 'Scoped',
+          scoped: true,
+          outline: '- button "Save" [ref=1]',
+          truncated: false,
+          refIds: [1],
+          refLineIndexes: { 1: 0 },
+          nextElementId: 2,
+        },
+      })
+      const result = await driver.executeTool('chat-test', tool, { elementId: 0, query: 'Save' })
+      expect(result).toMatchObject({ ok: true, result: { scoped: true } })
+      expect(
+        vi
+          .mocked(contents.executeJavaScript)
+          .mock.calls.some(
+            ([expression]) =>
+              isPageCall(expression, 'collectSnapshot') &&
+              expression.includes('.apply(null, [1,0])')
+          )
+      ).toBe(true)
+      const stale = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+      expect(stale).toMatchObject({ ok: false })
+    }
+  )
+
   it.each([
     [1, false, 1],
     [100, false, 50],
@@ -3404,6 +3451,47 @@ describe('credential protection', () => {
       result: { found: true, matched: ['url', 'element'] },
     })
   })
+
+  it.each([true, false])(
+    'polls delayed checkable state without redispatching input (updates=%s)',
+    async (updates) => {
+      const contents = await openPage()
+      let reads = 0
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+        if (isPageCall(expression, 'readCheckableElementState')) {
+          reads++
+          return { checked: updates && reads >= 4, kind: 'input:checkbox' }
+        }
+        if (isPageCall(expression, 'clickElement'))
+          return { dispatched: false, x: 24, y: 48, element: 'Checkbox' }
+        if (isPageCall(expression, 'readPageActionState'))
+          return {
+            url: 'https://example.com/login',
+            title: 'Example',
+            focus: 'body',
+            mutationRevision: 0,
+            dialogs: [],
+            scroll: [0],
+          }
+        if (isPageCall(expression, 'readActiveElementState')) return {}
+      })
+      vi.useFakeTimers()
+      try {
+        const pending = driver.executeTool('chat-test', 'browser_set_checked', {
+          elementId: 0,
+          checked: true,
+        })
+        await vi.advanceTimersByTimeAsync(2000)
+        const result = await pending
+        expect(result.ok).toBe(updates)
+        expect(reads).toBeGreaterThanOrEqual(4)
+        expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(3)
+        if (!updates) expect(result.error).toContain('did not reach the requested checked state')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
 
   it.each(['hidden', 'detached'])(
     'does not treat a failed probe as element state %s',

@@ -90,6 +90,31 @@ export function normalizeBrowserWaitForTimeoutMs(value: unknown): number {
   return Math.min(parsed, BROWSER_WAIT_FOR_MAX_TIMEOUT_MS)
 }
 
+/** Client execution budget, including authorization, native queueing, and result delivery. */
+export function browserToolRendererTimeoutMs(
+  tool: CurrentBrowserToolName,
+  params: Record<string, unknown> = {}
+): number {
+  switch (tool) {
+    case 'browser_navigate':
+    case 'browser_open_url':
+    case 'browser_go_back':
+    case 'browser_go_forward':
+    case 'browser_reload':
+    case 'browser_open_tab':
+    case 'browser_switch_tab':
+      return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
+    case 'browser_wait_for':
+      return (
+        BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
+        normalizeBrowserWaitForTimeoutMs(params.timeoutMs) +
+        BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+      )
+    default:
+      return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
+  }
+}
+
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
 /** Sim appearance preference mirrored into browser-tab media queries. */

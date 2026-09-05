@@ -616,6 +616,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        elementId: {
+          type: 'number',
+          description:
+            'Optional current top-page element id to observe only that element and its subtree, such as a known form, row, or card. Returns scoped: true and fresh refs; all previous snapshot refs are invalidated. Cross-origin frame contents are omitted and mark the result truncated. Framed roots are rejected. Omit for a full-page snapshot or when the previous scope has disappeared.',
+        },
         maxResults: {
           type: 'number',
           description: 'Maximum matches to return (default 20, capped at 50).',
@@ -659,6 +664,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description: 'Literal query that was searched.',
         },
+        scoped: {
+          type: 'boolean',
+          description: 'Whether observation was limited to the requested element subtree.',
+        },
         title: {
           type: 'string',
           description: 'Top-page title when available.',
@@ -669,7 +678,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         truncated: {
           type: 'boolean',
-          description: 'Whether additional matches were omitted.',
+          description: 'Whether snapshot coverage or matching results were truncated.',
         },
         url: {
           type: 'string',
@@ -1457,7 +1466,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   browser_snapshot: {
     parameters: {
       type: 'object',
-      properties: {},
+      properties: {
+        elementId: {
+          type: 'number',
+          description:
+            'Optional current top-page element id to observe only that element and its subtree, such as a known form, row, or card. Returns scoped: true and fresh refs; all previous snapshot refs are invalidated. Cross-origin frame contents are omitted and mark the result truncated. Framed roots are rejected. Omit for a full-page snapshot or when the previous scope has disappeared.',
+        },
+      },
     },
     resultSchema: {
       type: 'object',
@@ -1486,6 +1501,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         pageHeight: {
           type: 'number',
           description: 'Top-page document height.',
+        },
+        scoped: {
+          type: 'boolean',
+          description: 'Whether observation was limited to the requested element subtree.',
         },
         scrollY: {
           type: 'number',

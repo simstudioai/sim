@@ -7,13 +7,7 @@
  * browser and reports the outcome via the confirm endpoint, which wakes the
  * server-side waiter.
  */
-import {
-  BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS,
-  BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
-  BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
-  type BrowserToolName,
-  normalizeBrowserWaitForTimeoutMs,
-} from '@sim/browser-protocol'
+import { type BrowserToolName, browserToolRendererTimeoutMs } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -37,8 +31,6 @@ import {
 import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const logger = createLogger('CopilotBrowserToolExecution')
-
-const DEFAULT_TOOL_TIMEOUT_MS = BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
 
 /**
  * Tools that do not require an existing live page. Most create a new page;
@@ -549,22 +541,7 @@ function isOutcomeUnknownError(error: unknown): boolean {
 
 function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknown>): number | null {
   if (toolName === 'browser_request_takeover') return null
-  if (
-    toolName === 'browser_navigate' ||
-    toolName === 'browser_open_url' ||
-    toolName === 'browser_go_back' ||
-    toolName === 'browser_go_forward' ||
-    toolName === 'browser_reload' ||
-    toolName === 'browser_open_tab' ||
-    toolName === 'browser_switch_tab'
-  ) {
-    return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
-  }
-  if (toolName === 'browser_wait_for') {
-    const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
-    return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + requested + BROWSER_WAIT_FOR_RENDERER_GRACE_MS
-  }
-  return DEFAULT_TOOL_TIMEOUT_MS
+  return browserToolRendererTimeoutMs(toolName, params)
 }
 
 /** Splits a `data:<media type>;base64,<data>` URL into its parts. */

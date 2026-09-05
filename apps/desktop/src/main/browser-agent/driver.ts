@@ -1203,6 +1203,11 @@ function unwrapPageResult(result: unknown): unknown {
         'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
       )
     }
+    if (code === 'framed-snapshot') {
+      throw new ToolError(
+        'Scoped snapshots require a top-page element. Omit elementId to capture framed content.'
+      )
+    }
     if (code === 'no-option') {
       const options = (result as { options?: string[] }).options ?? []
       throw new ToolError(
@@ -1951,11 +1956,20 @@ function validateSnapshotRefs(
  * policy intentionally lacks; password redaction still runs inside every frame
  * before any result crosses back to the driver.
  */
-async function captureSnapshot(contents: WebContents, notAfter?: number): Promise<unknown> {
+async function captureSnapshot(
+  contents: WebContents,
+  notAfter?: number,
+  elementId?: number
+): Promise<unknown> {
   const state = driverScopeState()
   const tab = session.requireAutomationTab()
   if (tab.view.webContents !== contents) {
     throw new ToolError('The active tab changed before the snapshot started. Try again.')
+  }
+  if (elementId !== undefined && pageTargetForElement(contents, elementId) !== contents) {
+    throw new ToolError(
+      'Scoped snapshots require a top-page element. Omit elementId to capture framed content.'
+    )
   }
   invalidateSnapshot(state)
   const captureEpoch = state.snapshotCaptureEpoch
@@ -1977,12 +1991,14 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
   }
 
   const mainStartingElementId = state.nextElementRefId
-  const mainSnapshot = await execInPage(
-    contents,
-    collectSnapshot,
-    [mainStartingElementId],
-    false,
-    notAfter
+  const mainSnapshot = unwrapPageResult(
+    await execInPage(
+      contents,
+      collectSnapshot,
+      elementId === undefined ? [mainStartingElementId] : [mainStartingElementId, elementId],
+      false,
+      notAfter
+    )
   )
   if (!stillCurrent()) {
     throw new ToolError('The tab changed while its snapshot was being captured. Try again.')
@@ -2012,7 +2028,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
   let capturedCrossOriginFrames = 0
   let unreadableCrossOriginFrames = 0
   let hiddenCrossOriginFrames = 0
-  const boundaryFrames = crossOriginBoundaryFrames(contents)
+  const boundaryFrames = elementId === undefined ? crossOriginBoundaryFrames(contents) : []
   const frames = boundaryFrames.slice(0, MAX_CROSS_ORIGIN_SCAN_FRAMES)
   if (boundaryFrames.length > frames.length) truncated = true
 
@@ -2432,7 +2448,7 @@ async function executeToolInner(
     case 'browser_snapshot': {
       const contents = session.requireAutomationTab().view.webContents
       assertCurrentExecution()
-      return await captureSnapshot(contents, executionDeadline)
+      return await captureSnapshot(contents, executionDeadline, num(params, 'elementId'))
     }
 
     case 'browser_find': {
@@ -2441,7 +2457,9 @@ async function executeToolInner(
       const requestedMax = num(params, 'maxResults')
       const maxResults = Math.min(50, Math.max(1, Math.floor(requestedMax ?? 20)))
       const contents = session.requireAutomationTab().view.webContents
-      const snapshot = toRecord(await captureSnapshot(contents, executionDeadline))
+      const snapshot = toRecord(
+        await captureSnapshot(contents, executionDeadline, num(params, 'elementId'))
+      )
       const outline = typeof snapshot.outline === 'string' ? snapshot.outline : ''
       const needle = query.toLowerCase()
       const matches = outline.split('\n').flatMap((line) => {
@@ -2457,6 +2475,7 @@ async function executeToolInner(
         truncated: snapshot.truncated === true || matches.length > maxResults,
         url: snapshot.url,
         title: snapshot.title,
+        ...(snapshot.scoped === true ? { scoped: true } : {}),
       }
     }
 
@@ -3656,16 +3675,31 @@ async function executeToolInner(
           invocationEpoch
         )
       )
-      await sleep(100)
-      const after = toRecord(
-        unwrapPageResult(
-          await execInPage(target, readCheckableElementState, [elementId], false, executionDeadline)
-        )
+      const readbackDeadline = Math.min(
+        Date.now() + SETTLE_GRACE_MS,
+        executionDeadline ?? Number.POSITIVE_INFINITY
       )
-      if (after.checked !== checked) {
-        throw new ToolError(
-          'The control did not retain the requested checked state. Take a fresh browser_snapshot and inspect the page.'
+      let after: Record<string, unknown>
+      for (;;) {
+        assertCurrentExecution()
+        after = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              target,
+              readCheckableElementState,
+              [elementId],
+              false,
+              executionDeadline
+            )
+          )
         )
+        if (after.checked === checked) break
+        if (Date.now() + SETTLE_PROBE_INTERVAL_MS > readbackDeadline) {
+          throw new ToolError(
+            'The control did not reach the requested checked state. Take a fresh browser_snapshot and inspect the page.'
+          )
+        }
+        await sleep(SETTLE_PROBE_INTERVAL_MS)
       }
       return {
         checked,
