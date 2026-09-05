@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { oracleFusionHcmListAbsencesBodySchema } from '@/lib/internal/oracle-fusion-hcm/schema'
+import {
+  oracleFusionHcmListAbsencesBodySchema,
+  oracleFusionHcmUpdateElementEntryValueBodySchema,
+} from '@/lib/internal/oracle-fusion-hcm/schema'
+import { buildSelectorContextFromValues, getSelectorContextSubBlocks } from '@/lib/selectors/context'
+import { parseDependsOn } from '@/lib/workflows/subblocks/visibility'
 import { OracleFusionHcmBlock } from '@/blocks/blocks/oracle_fusion_hcm'
 import {
   oracleFusionHcmGetAbsenceTool,
@@ -23,9 +28,126 @@ import {
   oracleFusionHcmListWorkerDirectReportsTool,
   oracleFusionHcmListWorkerManagersTool,
   oracleFusionHcmListWorkersTool,
+  oracleFusionHcmListPayrollRelationshipsTool,
+  oracleFusionHcmGetPayrollRelationshipTool,
+  oracleFusionHcmListPayrollAssignmentsTool,
+  oracleFusionHcmGetPayrollAssignmentTool,
+  oracleFusionHcmListAssignedPayrollsTool,
+  oracleFusionHcmGetAssignedPayrollTool,
+  oracleFusionHcmCreateAssignedPayrollTool,
+  oracleFusionHcmUpdateAssignedPayrollTool,
+  oracleFusionHcmListPayrollDefinitionsTool,
+  oracleFusionHcmListPayrollTimePeriodsTool,
+  oracleFusionHcmListPayrollElementDefinitionsTool,
+  oracleFusionHcmListPayrollInputValuesTool,
+  oracleFusionHcmListElementEntriesTool,
+  oracleFusionHcmGetElementEntryTool,
+  oracleFusionHcmListElementEntryValuesTool,
+  oracleFusionHcmCreateElementEntryTool,
+  oracleFusionHcmUpdateElementEntryValueTool,
+  oracleFusionHcmListPersonProcessResultsTool,
+  oracleFusionHcmGetPersonProcessResultTool,
+  oracleFusionHcmListPayrollRunResultsTool,
+  oracleFusionHcmListPayrollBalancesTool,
+  oracleFusionHcmListSalariesTool,
+  oracleFusionHcmGetSalaryTool,
+  oracleFusionHcmCreateSalaryTool,
+  oracleFusionHcmCorrectSalaryTool,
+  oracleFusionHcmListSalaryBasesTool,
+  oracleFusionHcmListSalaryComponentsTool,
+  oracleFusionHcmListGradeRateValuesTool,
+  oracleFusionHcmListGoalPlansTool,
+  oracleFusionHcmGetGoalPlanTool,
+  oracleFusionHcmListPerformanceGoalsTool,
+  oracleFusionHcmGetPerformanceGoalTool,
+  oracleFusionHcmListDevelopmentGoalsTool,
+  oracleFusionHcmGetDevelopmentGoalTool,
+  oracleFusionHcmListPerformanceDocumentsTool,
+  oracleFusionHcmGetPerformanceDocumentTool,
+  oracleFusionHcmListPerformanceDocumentRolesTool,
+  oracleFusionHcmListPerformanceDocumentParticipantsTool,
+  oracleFusionHcmListPerformanceDocumentTasksTool,
+  oracleFusionHcmListTalentProfilesTool,
+  oracleFusionHcmGetTalentProfileTool,
+  oracleFusionHcmListTalentProfileSectionsTool,
+  oracleFusionHcmListTalentProfileSkillsTool,
+  oracleFusionHcmListTalentProfileCertificationsTool,
+  oracleFusionHcmListTimeRecordsTool,
+  oracleFusionHcmGetTimeRecordTool,
+  oracleFusionHcmListTimeCardsTool,
+  oracleFusionHcmGetTimeCardTool,
+  oracleFusionHcmListTimeAttributesTool,
+  oracleFusionHcmListTimeAttributeDataSourcesTool,
+  oracleFusionHcmListTimeAttributeCriteriaBindsTool,
+  oracleFusionHcmListTimeAttributeValuesTool,
+  oracleFusionHcmCreateTimeEntryTool,
+  oracleFusionHcmUpdateTimeEntryTool,
+  oracleFusionHcmDeleteTimeEntryTool,
+  oracleFusionHcmGetTimeRecordRequestTool,
+  oracleFusionHcmListTimeRecordRequestEventsTool,
+  oracleFusionHcmListTimeRecordEventMessagesTool,
 } from '@/tools/oracle_fusion_hcm'
+import { validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const tools = [
+  oracleFusionHcmListPayrollRelationshipsTool,
+  oracleFusionHcmGetPayrollRelationshipTool,
+  oracleFusionHcmListPayrollAssignmentsTool,
+  oracleFusionHcmGetPayrollAssignmentTool,
+  oracleFusionHcmListAssignedPayrollsTool,
+  oracleFusionHcmGetAssignedPayrollTool,
+  oracleFusionHcmCreateAssignedPayrollTool,
+  oracleFusionHcmUpdateAssignedPayrollTool,
+  oracleFusionHcmListPayrollDefinitionsTool,
+  oracleFusionHcmListPayrollTimePeriodsTool,
+  oracleFusionHcmListPayrollElementDefinitionsTool,
+  oracleFusionHcmListPayrollInputValuesTool,
+  oracleFusionHcmListElementEntriesTool,
+  oracleFusionHcmGetElementEntryTool,
+  oracleFusionHcmListElementEntryValuesTool,
+  oracleFusionHcmCreateElementEntryTool,
+  oracleFusionHcmUpdateElementEntryValueTool,
+  oracleFusionHcmListPersonProcessResultsTool,
+  oracleFusionHcmGetPersonProcessResultTool,
+  oracleFusionHcmListPayrollRunResultsTool,
+  oracleFusionHcmListPayrollBalancesTool,
+  oracleFusionHcmListSalariesTool,
+  oracleFusionHcmGetSalaryTool,
+  oracleFusionHcmCreateSalaryTool,
+  oracleFusionHcmCorrectSalaryTool,
+  oracleFusionHcmListSalaryBasesTool,
+  oracleFusionHcmListSalaryComponentsTool,
+  oracleFusionHcmListGradeRateValuesTool,
+  oracleFusionHcmListGoalPlansTool,
+  oracleFusionHcmGetGoalPlanTool,
+  oracleFusionHcmListPerformanceGoalsTool,
+  oracleFusionHcmGetPerformanceGoalTool,
+  oracleFusionHcmListDevelopmentGoalsTool,
+  oracleFusionHcmGetDevelopmentGoalTool,
+  oracleFusionHcmListPerformanceDocumentsTool,
+  oracleFusionHcmGetPerformanceDocumentTool,
+  oracleFusionHcmListPerformanceDocumentRolesTool,
+  oracleFusionHcmListPerformanceDocumentParticipantsTool,
+  oracleFusionHcmListPerformanceDocumentTasksTool,
+  oracleFusionHcmListTalentProfilesTool,
+  oracleFusionHcmGetTalentProfileTool,
+  oracleFusionHcmListTalentProfileSectionsTool,
+  oracleFusionHcmListTalentProfileSkillsTool,
+  oracleFusionHcmListTalentProfileCertificationsTool,
+  oracleFusionHcmListTimeRecordsTool,
+  oracleFusionHcmGetTimeRecordTool,
+  oracleFusionHcmListTimeCardsTool,
+  oracleFusionHcmGetTimeCardTool,
+  oracleFusionHcmListTimeAttributesTool,
+  oracleFusionHcmListTimeAttributeDataSourcesTool,
+  oracleFusionHcmListTimeAttributeCriteriaBindsTool,
+  oracleFusionHcmListTimeAttributeValuesTool,
+  oracleFusionHcmCreateTimeEntryTool,
+  oracleFusionHcmUpdateTimeEntryTool,
+  oracleFusionHcmDeleteTimeEntryTool,
+  oracleFusionHcmGetTimeRecordRequestTool,
+  oracleFusionHcmListTimeRecordRequestEventsTool,
+  oracleFusionHcmListTimeRecordEventMessagesTool,
   oracleFusionHcmListWorkersTool,
   oracleFusionHcmGetWorkerTool,
   oracleFusionHcmListWorkerAssignmentsTool,
@@ -47,6 +169,65 @@ const tools = [
 ]
 
 describe('Oracle Fusion HCM tool definitions', () => {
+  it('uses only active canonical payroll context without requiring optional filters', () => {
+    const values = {
+      operation: 'get_payroll_assignment',
+      credential: 'basic-credential',
+      manualCredential: 'manual-credential',
+      payrollRelationshipIdPicker: '1',
+      payrollRelationshipIdInput: '9007199254740993',
+      effectiveDate: '2020-01-01',
+      personPicker: 'dormant-person',
+    }
+    const field = OracleFusionHcmBlock.subBlocks.find((field) => field.id === 'payrollAssignmentIdPicker')
+    if (!field) throw new Error('Missing payroll assignment selector')
+    const dependencies = parseDependsOn(field.dependsOn)
+    expect(dependencies.allFields).toEqual(['oauthCredential', 'payrollRelationshipId'])
+    const context = buildSelectorContextFromValues({
+      selectorKey: 'oracle_fusion_hcm.payrollAssignments',
+      contextConfigs: getSelectorContextSubBlocks(OracleFusionHcmBlock.subBlocks, values),
+      values,
+      dependsOn: dependencies.allDependsOnFields,
+      canonicalModes: { oauthCredential: 'advanced', payrollRelationshipId: 'advanced' },
+    })
+    expect(context).toEqual({ oauthCredential: 'manual-credential', payrollRelationshipId: '9007199254740993', effectiveDate: '2020-01-01' })
+    expect(context).not.toHaveProperty('personId')
+  })
+
+  it('normalizes resolved array inputs while retaining exact IDs and explicit null values', () => {
+    const map = OracleFusionHcmBlock.tools.config.params
+    if (!map) throw new Error('Expected parameter mapping')
+    const result = map({
+      operation: 'create_element_entry',
+      personId: '9223372036854775807',
+      entryValues: '[{"inputValueId":"9223372036854775806","screenEntryValue":null}]',
+      screenEntryValue: null,
+      timeRecordVersion: '2',
+    })
+    expect(result).toMatchObject({ personId: '9223372036854775807', entryValues: [{ inputValueId: '9223372036854775806', screenEntryValue: null }], screenEntryValue: null, timeRecordVersion: 2 })
+    expect(() => map({ operation: 'create_element_entry', entryValues: 'private invalid JSON' })).toThrow('Oracle Fusion HCM array input must be valid JSON')
+    expect(() => map({ operation: 'create_element_entry', entryValues: ' '.repeat(65_537) + '[]' })).toThrow('character limit')
+  })
+  it('preserves explicit null clearing through post-merge validation but rejects an omitted value', () => {
+    const params = {
+      instanceUrl: 'https://example.oraclecloud.com',
+      accessToken: 'token',
+      elementEntryId: '1',
+      elementEntryValueId: '2',
+      effectiveDate: '2026-01-01',
+      rangeMode: 'CORRECTION',
+    }
+    expect(() => validateRequiredParametersAfterMerge(
+      oracleFusionHcmUpdateElementEntryValueTool.id,
+      oracleFusionHcmUpdateElementEntryValueTool,
+      { ...params, screenEntryValue: null }
+    )).not.toThrow()
+    expect(oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse({
+      ...params, screenEntryValue: null,
+    }).success).toBe(true)
+    expect(oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse(params).success).toBe(false)
+  })
+
   it('maps every selectable block operation to its executable tool', () => {
     const options = OracleFusionHcmBlock.subBlocks.find(
       (field) => field.id === 'operation'

@@ -89,3 +89,33 @@ export const internalExecution = {
 export const common = credentials
 export const listCommon = { ...credentials, ...page }
 export const searchable = { ...credentials, ...search, ...effectiveDate, ...page }
+
+export const elementEntryValueItems = {
+  type: 'object',
+  required: ['inputValueId', 'screenEntryValue'],
+  additionalProperties: false,
+  properties: {
+    inputValueId: { type: 'string', pattern: '^[1-9][0-9]{0,18}$', description: 'Exact positive int64 input value ID' },
+    screenEntryValue: { anyOf: [{ type: 'string', maxLength: 60 }, { type: 'null' }] },
+  },
+} as const
+
+export const timeAttributeItems = {
+  type: 'object',
+  required: ['attributeName', 'attributeValue'],
+  additionalProperties: false,
+  properties: {
+    attributeName: { type: 'string', minLength: 1, maxLength: 240 },
+    attributeValue: { type: 'string', maxLength: 150 },
+  },
+} as const
+
+export const finderBindingItems = {
+  type: 'object',
+  required: ['name', 'value'],
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string', pattern: '^[A-Za-z][A-Za-z0-9_]*$', maxLength: 80 },
+    value: { type: 'string', minLength: 1, maxLength: 1024 },
+  },
+} as const

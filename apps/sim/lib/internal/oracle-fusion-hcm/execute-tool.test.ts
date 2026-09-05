@@ -6,6 +6,15 @@ import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/t
 const TEST_ACCESS_TOKEN = 'test-access-token'
 
 const mocks = vi.hoisted(() => ({
+  createAssignedPayroll: vi.fn(),
+  updateAssignedPayroll: vi.fn(),
+  createElementEntry: vi.fn(),
+  updateElementEntryValue: vi.fn(),
+  createSalary: vi.fn(),
+  correctSalary: vi.fn(),
+  createTimeEntry: vi.fn(),
+  updateTimeEntry: vi.fn(),
+  deleteTimeEntry: vi.fn(),
   listWorkers: vi.fn(),
   getWorker: vi.fn(),
   listWorkerAssignments: vi.fn(),
@@ -27,6 +36,15 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/internal/oracle-fusion-hcm/operations', () => ({
+  executeOracleFusionHcmCreateAssignedPayroll: mocks.createAssignedPayroll,
+  executeOracleFusionHcmUpdateAssignedPayroll: mocks.updateAssignedPayroll,
+  executeOracleFusionHcmCreateElementEntry: mocks.createElementEntry,
+  executeOracleFusionHcmUpdateElementEntryValue: mocks.updateElementEntryValue,
+  executeOracleFusionHcmCreateSalary: mocks.createSalary,
+  executeOracleFusionHcmCorrectSalary: mocks.correctSalary,
+  executeOracleFusionHcmCreateTimeEntry: mocks.createTimeEntry,
+  executeOracleFusionHcmUpdateTimeEntry: mocks.updateTimeEntry,
+  executeOracleFusionHcmDeleteTimeEntry: mocks.deleteTimeEntry,
   executeOracleFusionHcmListWorkers: mocks.listWorkers,
   executeOracleFusionHcmGetWorker: mocks.getWorker,
   executeOracleFusionHcmListWorkerAssignments: mocks.listWorkerAssignments,
@@ -64,6 +82,25 @@ function invokeHcmTool(overrides: Partial<InternalToolOperationCall>) {
 }
 
 describe('Oracle Fusion HCM tool dispatch', () => {
+  it('marks ambiguous mutation failures non-retryable without exposing provider details', async () => {
+    mocks.createSalary.mockRejectedValueOnce(new OracleFusionProviderError('Oracle Fusion HCM request timed out', 504))
+    const response = await invokeHcmTool({
+      toolId: 'oracle_fusion_hcm_create_salary',
+      input: { ...auth, assignmentId: '1', salaryBasisId: '2', salaryAmount: 1200, dateFrom: '2026-01-01', dateTo: '4712-12-31' },
+    })
+    expect(response.status).toBe(504)
+    expect(await response.json()).toEqual({ success: false, error: 'Oracle Fusion HCM request timed out', retryable: false })
+    expect(mocks.createSalary).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a time update missing its version before dispatch', async () => {
+    const response = await invokeHcmTool({
+      toolId: 'oracle_fusion_hcm_update_time_entry',
+      input: { ...auth, personNumber: '0007', timeRecordId: '2', measure: 8, referenceDate: '2026-01-01' },
+    })
+    expect(response.status).toBe(400)
+    expect(mocks.updateTimeEntry).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     for (const mock of Object.values(mocks)) {

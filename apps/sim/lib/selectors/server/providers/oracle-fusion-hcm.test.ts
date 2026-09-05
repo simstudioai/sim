@@ -15,6 +15,25 @@ import type {
 const TEST_ACCESS_TOKEN = 'test-access-token'
 
 const mocks = vi.hoisted(() => ({
+  listPayrollRelationships: vi.fn(),
+  getPayrollRelationship: vi.fn(),
+  listPayrollAssignments: vi.fn(),
+  getPayrollAssignment: vi.fn(),
+  listPayrollDefinitions: vi.fn(),
+  listPayrollElementDefinitions: vi.fn(),
+  listElementEntries: vi.fn(),
+  getElementEntry: vi.fn(),
+  listSalaries: vi.fn(),
+  getSalary: vi.fn(),
+  listSalaryBases: vi.fn(),
+  listGoalPlans: vi.fn(),
+  getGoalPlan: vi.fn(),
+  listPerformanceDocuments: vi.fn(),
+  getPerformanceDocument: vi.fn(),
+  listTalentProfiles: vi.fn(),
+  getTalentProfile: vi.fn(),
+  listTimeAttributes: vi.fn(),
+  listTimeAttributeValues: vi.fn(),
   resolveCredentialBundle: vi.fn(),
   listWorkers: vi.fn(),
   getWorker: vi.fn(),
@@ -28,6 +47,25 @@ vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
   resolveSelectorCredentialBundle: mocks.resolveCredentialBundle,
 }))
 vi.mock('@/lib/internal/oracle-fusion-hcm/operations', () => ({
+  executeOracleFusionHcmListPayrollRelationships: mocks.listPayrollRelationships,
+  executeOracleFusionHcmGetPayrollRelationship: mocks.getPayrollRelationship,
+  executeOracleFusionHcmListPayrollAssignments: mocks.listPayrollAssignments,
+  executeOracleFusionHcmGetPayrollAssignment: mocks.getPayrollAssignment,
+  executeOracleFusionHcmListPayrollDefinitions: mocks.listPayrollDefinitions,
+  executeOracleFusionHcmListPayrollElementDefinitions: mocks.listPayrollElementDefinitions,
+  executeOracleFusionHcmListElementEntries: mocks.listElementEntries,
+  executeOracleFusionHcmGetElementEntry: mocks.getElementEntry,
+  executeOracleFusionHcmListSalaries: mocks.listSalaries,
+  executeOracleFusionHcmGetSalary: mocks.getSalary,
+  executeOracleFusionHcmListSalaryBases: mocks.listSalaryBases,
+  executeOracleFusionHcmListGoalPlans: mocks.listGoalPlans,
+  executeOracleFusionHcmGetGoalPlan: mocks.getGoalPlan,
+  executeOracleFusionHcmListPerformanceDocuments: mocks.listPerformanceDocuments,
+  executeOracleFusionHcmGetPerformanceDocument: mocks.getPerformanceDocument,
+  executeOracleFusionHcmListTalentProfiles: mocks.listTalentProfiles,
+  executeOracleFusionHcmGetTalentProfile: mocks.getTalentProfile,
+  executeOracleFusionHcmListTimeAttributes: mocks.listTimeAttributes,
+  executeOracleFusionHcmListTimeAttributeValues: mocks.listTimeAttributeValues,
   executeOracleFusionHcmListWorkers: mocks.listWorkers,
   executeOracleFusionHcmGetWorker: mocks.getWorker,
   executeOracleFusionHcmListWorkerAssignments: mocks.listAssignments,
@@ -174,7 +212,7 @@ describe('Oracle Fusion HCM selectors', () => {
   })
 
   it('declares stored credential-bound, integration-gated, uncached selectors', () => {
-    for (const key of ['workers', 'assignments', 'absences', 'absenceTypes'] as const) {
+    for (const key of ['workers', 'assignments', 'absences', 'absenceTypes', 'payrollRelationships', 'payrollAssignments', 'payrollDefinitions', 'elementDefinitions', 'elementEntries', 'salaries', 'salaryBases', 'goalPlans', 'performanceDocuments', 'talentProfiles', 'timeAttributes', 'payrollTimeTypes'] as const) {
       const manifest = selectorManifest[`oracle_fusion_hcm.${key}`]
       const attachment = oracleFusionHcmSelectorAttachments[`oracle_fusion_hcm.${key}`]
       expect(manifest).toMatchObject({ classification: 'provider-server', staleTime: 0 })
@@ -460,5 +498,72 @@ describe('Oracle Fusion HCM selectors', () => {
     await expect(attachment.execute(input, await prepare(attachment, input))).rejects.toThrow(
       'selector stopped'
     )
+  })
+})
+
+describe('Oracle Fusion HCM expansion selectors', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    mocks.resolveCredentialBundle.mockResolvedValue({ accessToken: TEST_ACCESS_TOKEN, instanceUrl: 'https://acme.fa.ocs.oraclecloud.com' })
+  })
+
+  it('requires payroll parent context before listing assignments', async () => {
+    const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollAssignments']
+    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollAssignments' })
+    await expect(attachment.execute(input, await prepare(attachment, input))).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    expect(mocks.listPayrollAssignments).not.toHaveBeenCalled()
+  })
+
+  it('forwards exact payroll parent/date context and only assignment option metadata', async () => {
+    mocks.listPayrollAssignments.mockResolvedValueOnce({ success: true, output: { payrollAssignments: [{ payrollAssignmentId: '9007199254740993', assignmentId: '9007199254740995', assignmentNumber: 'E7', secretSalary: 1000 }], hasMore: true, nextOffset: 51 } })
+    const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollAssignments']
+    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollAssignments', context: { oauthCredential: 'credential-id', payrollRelationshipId: '9223372036854775807', effectiveDate: '2020-01-01' }, request: { kind: 'list', cursor: '50' } })
+    const result = await attachment.execute(input, await prepare(attachment, input))
+    expect(mocks.listPayrollAssignments).toHaveBeenCalledWith(expect.objectContaining({ payrollRelationshipId: '9223372036854775807', effectiveDate: '2020-01-01', offset: 50, limit: 50 }), undefined)
+    expect(result).toEqual({ kind: 'list', items: [{ id: '9007199254740993', label: 'E7', meta: { assignmentId: '9007199254740995', assignmentNumber: 'E7' } }], nextCursor: '51' })
+    expect(mocks.listWorkers).not.toHaveBeenCalled()
+  })
+
+  it('rejects a salary detail outside the active HR assignment and never returns the amount in options', async () => {
+    const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.salaries']
+    const input = args({ selectorKey: 'oracle_fusion_hcm.salaries', context: { oauthCredential: 'credential-id', assignmentId: '2' }, request: { kind: 'detail', id: '3' } })
+    mocks.getSalary.mockResolvedValueOnce({ success: true, output: { salary: { salaryId: '3', assignmentId: '9', salaryBasisName: 'Annual', salaryAmount: 123456 } } })
+    await expect(attachment.execute(input, await prepare(attachment, input))).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    mocks.getSalary.mockResolvedValueOnce({ success: true, output: { salary: { salaryId: '3', assignmentId: '2', salaryBasisName: 'Annual', dateFrom: '2020-01-01', dateTo: '2020-12-31', salaryAmount: 123456 } } })
+    const result = await attachment.execute(input, await prepare(attachment, input))
+    expect(result).toEqual({ kind: 'detail', item: { id: '3', label: 'Annual · 2020-01-01', meta: { assignmentId: '2', dateFrom: '2020-01-01', dateTo: '2020-12-31' } } })
+    expect(JSON.stringify(result)).not.toContain('123456')
+    expect(mocks.listWorkers).not.toHaveBeenCalled()
+  })
+
+  it('returns null for unknown payroll relationship details without reflecting upstream errors', async () => {
+    mocks.getPayrollRelationship.mockRejectedValueOnce(new OracleFusionProviderError('private record', 404))
+    const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollRelationships']
+    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollRelationships', request: { kind: 'detail', id: '3' } })
+    await expect(attachment.execute(input, await prepare(attachment, input))).resolves.toEqual({ kind: 'detail', item: null })
+  })
+
+  it('uses discovered time data-source IDs and fixed assignment/date binding names', async () => {
+    mocks.listTimeAttributeValues.mockResolvedValueOnce({ success: true, output: { timeAttributeValues: [{ value: 'REG', displayValue: 'Regular' }, { value: null, displayValue: null }], hasMore: false } })
+    const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollTimeTypes']
+    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollTimeTypes', context: { oauthCredential: 'credential-id', assignmentId: '9007199254740993', effectiveDate: '2026-01-01', dataSourceUsageId: '2', timeAttributeUsageId: '3' } })
+    const result = await attachment.execute(input, await prepare(attachment, input))
+    expect(mocks.listTimeAttributeValues).toHaveBeenCalledWith(expect.objectContaining({ dataSourceUsageId: '2', timeAttributeUsageId: '3', bindings: [{ name: 'pAssignmentId', value: '9007199254740993' }, { name: 'pEffectiveDate', value: '2026-01-01' }] }), undefined)
+    expect(result).toEqual({ kind: 'list', items: [{ id: 'REG', label: 'Regular' }] })
+  })
+
+  it('rejects invalid date context and honors cancellation during talent listing', async () => {
+    const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollRelationships']
+    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollRelationships', context: { oauthCredential: 'credential-id', effectiveDate: '2026-02-30' } })
+    await expect(attachment.execute(input, await prepare(attachment, input))).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    expect(mocks.listPayrollRelationships).not.toHaveBeenCalled()
+    const controller = new AbortController()
+    mocks.listTalentProfiles.mockImplementationOnce(async () => {
+      controller.abort(new Error('talent lookup stopped'))
+      throw new Error('private error')
+    })
+    const talent = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.talentProfiles']
+    const talentInput = args({ selectorKey: 'oracle_fusion_hcm.talentProfiles', signal: controller.signal })
+    await expect(talent.execute(talentInput, await prepare(talent, talentInput))).rejects.toThrow('talent lookup stopped')
   })
 })
