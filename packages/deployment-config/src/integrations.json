@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,245 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_sales",
+      "slug": "oracle-fusion-sales",
+      "name": "Oracle Fusion Sales",
+      "description": "Manage sales accounts, contacts, leads, opportunities, activities, and sales teams",
+      "longDescription": "Connect an Oracle Fusion service-account credential to the Sales CRM REST API. Work with accounts, contacts, lead qualification and conversion, opportunities, tasks, appointments, call reports, revenue lines, and relationship teams. Lists return one bounded page. Fusion Service, Oracle B2C Service, triggers, and connectors are not included.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_sales",
+      "operations": [
+        {
+          "name": "List accounts",
+          "description": "List one bounded page of accounts from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "Accept lead",
+          "description": "Accept lead using the Oracle acceptLead action. Returns the Oracle result string, not a record."
+        },
+        {
+          "name": "Add activity assignee",
+          "description": "Add activity assignee in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Add activity contact",
+          "description": "Add activity contact in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Add opportunity contact",
+          "description": "Add opportunity contact in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Add opportunity team member",
+          "description": "Add opportunity team member in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Assign account",
+          "description": "Assign account using the Oracle runAssignment action. Returns the Oracle result string, not a record. Runs configured assignment; change a specific owner with the update tool."
+        },
+        {
+          "name": "Assign lead",
+          "description": "Assign lead using the Oracle runAssignment action. Returns the Oracle result string, not a record. Runs configured assignment; change a specific owner with the update tool."
+        },
+        {
+          "name": "Assign opportunity",
+          "description": "Assign opportunity using the Oracle assignOpportunity action. Returns the Oracle result string, not a record. Runs configured assignment; change a specific owner with the update tool."
+        },
+        {
+          "name": "Convert lead",
+          "description": "Convert lead using the Oracle convertLeadToOpty action. Returns the Oracle result string, not a record. Uses convertLeadToOpty; Oracle does not return the created opportunity identifiers through this action."
+        },
+        {
+          "name": "Create account",
+          "description": "Create account in Oracle Fusion Sales using documented CRM REST fields. Address requirements depend on tenant configuration."
+        },
+        {
+          "name": "Create appointment",
+          "description": "Create appointment in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Create call report",
+          "description": "Create call report in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Create contact",
+          "description": "Create contact in Oracle Fusion Sales using documented CRM REST fields. Provide at least firstName or lastName; address requirements depend on tenant configuration."
+        },
+        {
+          "name": "Create lead",
+          "description": "Create lead in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Create opportunity",
+          "description": "Create opportunity in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Create opportunity revenue",
+          "description": "Create opportunity revenue in Oracle Fusion Sales using documented CRM REST fields. Provide productGroupId or both inventoryItemId and inventoryOrganizationId."
+        },
+        {
+          "name": "Create task",
+          "description": "Create task in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Delete account",
+          "description": "Delete account in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Delete activity",
+          "description": "Delete activity in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Delete contact",
+          "description": "Delete contact in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Delete lead",
+          "description": "Delete lead in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Delete opportunity",
+          "description": "Delete opportunity in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Delete opportunity revenue",
+          "description": "Delete opportunity revenue in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Find duplicate accounts",
+          "description": "Find duplicate accounts using Oracle Data Quality matching. Returns candidate fields and scores without merging records. Results above the integration limit of 1,000 candidates fail explicitly; refine the matching fields."
+        },
+        {
+          "name": "Find duplicate contacts",
+          "description": "Find duplicate contacts using Oracle Data Quality matching. Returns candidate fields and scores without merging records. Results above the integration limit of 1,000 candidates fail explicitly; refine the matching fields."
+        },
+        {
+          "name": "Get account",
+          "description": "Get account in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Get activity",
+          "description": "Get activity in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Get contact",
+          "description": "Get contact in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Get lead",
+          "description": "Get lead in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Get opportunity",
+          "description": "Get opportunity in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Get sales resource",
+          "description": "Get sales resource in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "List activities",
+          "description": "List one bounded page of activities from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List activity assignees",
+          "description": "List one bounded page of activity assignees from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List activity contacts",
+          "description": "List one bounded page of activity contacts from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List contacts",
+          "description": "List one bounded page of contacts from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List leads",
+          "description": "List one bounded page of leads from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List opportunities",
+          "description": "List one bounded page of opportunities from Oracle Fusion Sales. Use q, finder, and pagination to control the result. Oracle defaults may restrict results to open opportunities owned by the current user and the configured close period; use MyOpportunitiesFinder to change that scope."
+        },
+        {
+          "name": "List opportunity contacts",
+          "description": "List one bounded page of opportunity contacts from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List opportunity revenue",
+          "description": "List one bounded page of opportunity revenue from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List opportunity team",
+          "description": "List one bounded page of opportunity team from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "List sales resources",
+          "description": "List one bounded page of sales resources from Oracle Fusion Sales. Use q, finder, and pagination to control the result."
+        },
+        {
+          "name": "Reject lead",
+          "description": "Reject lead using the Oracle rejectLead action. Returns the Oracle result string, not a record."
+        },
+        {
+          "name": "Remove activity assignee",
+          "description": "Remove activity assignee in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Remove activity contact",
+          "description": "Remove activity contact in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Remove opportunity contact",
+          "description": "Remove opportunity contact in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Remove opportunity team member",
+          "description": "Remove opportunity team member in Oracle Fusion Sales. Oracle returns no response body."
+        },
+        {
+          "name": "Update account",
+          "description": "Update account in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Update activity",
+          "description": "Update activity in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Update contact",
+          "description": "Update contact in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Update lead",
+          "description": "Update lead in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Update opportunity",
+          "description": "Update opportunity in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Update opportunity contact",
+          "description": "Update opportunity contact in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Update opportunity revenue",
+          "description": "Update opportunity revenue in Oracle Fusion Sales using documented CRM REST fields."
+        },
+        {
+          "name": "Update opportunity team member",
+          "description": "Update opportunity team member in Oracle Fusion Sales using documented CRM REST fields."
+        }
+      ],
+      "operationCount": 55,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["sales-engagement", "automation"]
     },
     {
       "type": "netsuite",

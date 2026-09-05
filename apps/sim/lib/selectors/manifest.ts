@@ -86,6 +86,105 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  'oracleFusionSales.accounts': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.accountIds': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.contacts': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.contactIds': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.leads': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.leadIds': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.opportunities': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.opportunityIds': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.activities': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.resources': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.owners': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.leadStatuses': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.opportunityStatuses': providerSelector(['businessUnitId'], {
+    readiness: { all: ['oauthCredential', 'businessUnitId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.activityStatuses': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.salesMethods': providerSelector(['businessUnitId'], {
+    readiness: { all: ['oauthCredential', 'businessUnitId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionSales.salesStages': providerSelector(['salesMethodId'], {
+    readiness: { all: ['oauthCredential', 'salesMethodId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },

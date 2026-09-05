@@ -782,6 +782,64 @@ const NETSUITE_TOOL_IDS = [
   'netsuite_upsert_record',
 ] as const
 
+const ORACLE_FUSION_SALES_TOOL_IDS = [
+  'oracle_fusion_sales_accept_lead',
+  'oracle_fusion_sales_add_activity_assignee',
+  'oracle_fusion_sales_add_activity_contact',
+  'oracle_fusion_sales_add_opportunity_contact',
+  'oracle_fusion_sales_add_opportunity_team_member',
+  'oracle_fusion_sales_assign_account',
+  'oracle_fusion_sales_assign_lead',
+  'oracle_fusion_sales_assign_opportunity',
+  'oracle_fusion_sales_convert_lead',
+  'oracle_fusion_sales_create_account',
+  'oracle_fusion_sales_create_appointment',
+  'oracle_fusion_sales_create_call_report',
+  'oracle_fusion_sales_create_contact',
+  'oracle_fusion_sales_create_lead',
+  'oracle_fusion_sales_create_opportunity',
+  'oracle_fusion_sales_create_opportunity_revenue',
+  'oracle_fusion_sales_create_task',
+  'oracle_fusion_sales_delete_account',
+  'oracle_fusion_sales_delete_activity',
+  'oracle_fusion_sales_delete_contact',
+  'oracle_fusion_sales_delete_lead',
+  'oracle_fusion_sales_delete_opportunity',
+  'oracle_fusion_sales_delete_opportunity_revenue',
+  'oracle_fusion_sales_find_duplicate_accounts',
+  'oracle_fusion_sales_find_duplicate_contacts',
+  'oracle_fusion_sales_get_account',
+  'oracle_fusion_sales_get_activity',
+  'oracle_fusion_sales_get_contact',
+  'oracle_fusion_sales_get_lead',
+  'oracle_fusion_sales_get_opportunity',
+  'oracle_fusion_sales_get_sales_resource',
+  'oracle_fusion_sales_list_accounts',
+  'oracle_fusion_sales_list_activities',
+  'oracle_fusion_sales_list_activity_assignees',
+  'oracle_fusion_sales_list_activity_contacts',
+  'oracle_fusion_sales_list_contacts',
+  'oracle_fusion_sales_list_leads',
+  'oracle_fusion_sales_list_opportunities',
+  'oracle_fusion_sales_list_opportunity_contacts',
+  'oracle_fusion_sales_list_opportunity_revenue',
+  'oracle_fusion_sales_list_opportunity_team',
+  'oracle_fusion_sales_list_sales_resources',
+  'oracle_fusion_sales_reject_lead',
+  'oracle_fusion_sales_remove_activity_assignee',
+  'oracle_fusion_sales_remove_activity_contact',
+  'oracle_fusion_sales_remove_opportunity_contact',
+  'oracle_fusion_sales_remove_opportunity_team_member',
+  'oracle_fusion_sales_update_account',
+  'oracle_fusion_sales_update_activity',
+  'oracle_fusion_sales_update_contact',
+  'oracle_fusion_sales_update_lead',
+  'oracle_fusion_sales_update_opportunity',
+  'oracle_fusion_sales_update_opportunity_contact',
+  'oracle_fusion_sales_update_opportunity_revenue',
+  'oracle_fusion_sales_update_opportunity_team_member',
+] as const
+
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
@@ -1427,6 +1485,10 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_SALES_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-sales/execute-tool'))
+    .executeOracleFusionSalesTool
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
