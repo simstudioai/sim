@@ -134,7 +134,7 @@ interface OperationDefinition {
   write?: ProcurementWriteOperation
 }
 
-export const procurementOperations = {
+const procurementOperations = {
   oracle_fusion_procurement_create_draft_purchase_order: {
     kind: 'create',
     resource: 'draftPurchaseOrders',
