@@ -374,16 +374,16 @@
       }
     },
     "app/workspace/[workspaceId]/search/page.tsx": {
-      "modules": 1260,
+      "modules": 1765,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/search/search.tsx": 1114,
-        "apps/sim/blocks/registry.ts": 957,
-        "apps/sim/triggers/index.ts": 524,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/connectors/registry.ts": 66,
-        "apps/sim/blocks/blocks/credential-group.ts": 63,
-        "apps/sim/app/workspace/[workspaceId]/components/index.ts": 58,
-        "apps/sim/stores/workflows/registry/store.ts": 43
+        "apps/sim/triggers/index.ts": 487,
+        "apps/sim/triggers/registry.ts": 485,
+        "apps/sim/blocks/registry.ts": 412,
+        "apps/sim/lib/auth/index.ts": 404,
+        "apps/sim/lib/webhooks/providers/index.ts": 117,
+        "apps/sim/lib/webhooks/providers/registry.ts": 115,
+        "apps/sim/app/workspace/[workspaceId]/search/search.tsx": 112,
+        "apps/sim/connectors/registry.ts": 66
       }
     },
     "app/workspace/[workspaceId]/settings/[section]/error.tsx": {
