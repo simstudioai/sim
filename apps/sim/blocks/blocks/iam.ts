@@ -3,6 +3,16 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IAMBaseResponse } from '@/tools/iam/types'
 
+/**
+ * Raised when `contextEntries` is not a JSON array of context entries.
+ *
+ * A simulation that quietly drops the caller's condition context keys returns a
+ * *wrong* permission answer — `aws:SourceIp` never applies, so a policy that should
+ * have denied reports `allowed`. Rejecting the input is the only safe outcome.
+ */
+const CONTEXT_ENTRIES_SHAPE_ERROR =
+  'Condition Context Keys must be a JSON array of { contextKeyName, contextKeyValues, contextKeyType }'
+
 export const IAMBlock: BlockConfig<IAMBaseResponse> = {
   type: 'iam',
   name: 'AWS IAM',
@@ -407,7 +417,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
         enabled: true,
         prompt:
           'Generate a JSON array of AWS IAM simulation context entries. Each element must have contextKeyName (a full condition context key such as aws:SourceIp), contextKeyValues (an array of strings), and contextKeyType (one of string, stringList, numeric, numericList, boolean, booleanList, ip, ipList, binary, binaryList, date, dateList). Return ONLY the JSON array - no explanations, no extra text.',
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the request conditions to simulate, e.g. "from IP 203.0.113.10"',
       },
     },
@@ -685,12 +695,13 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
                 try {
                   parsed = JSON.parse(contextEntries)
                 } catch {
-                  throw new Error(
-                    'Condition Context Keys must be a JSON array of { contextKeyName, contextKeyValues, contextKeyType }'
-                  )
+                  throw new Error(CONTEXT_ENTRIES_SHAPE_ERROR)
                 }
               }
-              if (Array.isArray(parsed) && parsed.length > 0) result.contextEntries = parsed
+              if (!Array.isArray(parsed)) {
+                throw new Error(CONTEXT_ENTRIES_SHAPE_ERROR)
+              }
+              if (parsed.length > 0) result.contextEntries = parsed
             }
             if (maxItems) {
               const parsed = Number.parseInt(String(maxItems), 10)
