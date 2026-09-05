@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   iamAccessKeyIdentifierSchema,
+  iamAccessKeyStatusSchema,
   iamConnectionShape,
   iamUserName128Schema,
 } from '@/lib/api/contracts/tools/aws/iam-shared'
@@ -13,18 +14,19 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const Schema = z.object({
   ...iamConnectionShape,
-  accessKeyIdToDelete: iamAccessKeyIdentifierSchema,
+  accessKeyIdToUpdate: iamAccessKeyIdentifierSchema,
+  status: iamAccessKeyStatusSchema,
   userName: iamUserName128Schema.optional().nullable(),
 })
 
-export const awsIamDeleteAccessKeyContract = defineRouteContract({
+export const awsIamUpdateAccessKeyContract = defineRouteContract({
   method: 'POST',
-  path: '/api/tools/iam/delete-access-key',
+  path: '/api/tools/iam/update-access-key',
   body: Schema,
   response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
-export type AwsIamDeleteAccessKeyRequest = ContractBodyInput<typeof awsIamDeleteAccessKeyContract>
-export type AwsIamDeleteAccessKeyBody = ContractBody<typeof awsIamDeleteAccessKeyContract>
-export type AwsIamDeleteAccessKeyResponse = ContractJsonResponse<
-  typeof awsIamDeleteAccessKeyContract
+export type AwsIamUpdateAccessKeyRequest = ContractBodyInput<typeof awsIamUpdateAccessKeyContract>
+export type AwsIamUpdateAccessKeyBody = ContractBody<typeof awsIamUpdateAccessKeyContract>
+export type AwsIamUpdateAccessKeyResponse = ContractJsonResponse<
+  typeof awsIamUpdateAccessKeyContract
 >

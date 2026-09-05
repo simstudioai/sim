@@ -31,7 +31,8 @@ export const listPoliciesTool: InternalToolConfig<IAMListPoliciesParams, IAMList
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by scope: All, AWS (AWS-managed), or Local (customer-managed)',
+        description:
+          'Filter by scope. Must be exactly one of: All, AWS (AWS-managed), Local (customer-managed)',
       },
       onlyAttached: {
         type: 'boolean',
@@ -93,7 +94,8 @@ export const listPoliciesTool: InternalToolConfig<IAMListPoliciesParams, IAMList
     outputs: {
       policies: {
         type: 'json',
-        description: 'List of policies with policyName, arn, attachmentCount, and dates',
+        description:
+          'List of policies with policyName, policyId, arn, path, attachmentCount, isAttachable, defaultVersionId, permissionsBoundaryUsageCount, and dates. AWS never returns policy descriptions from ListPolicies — use IAM Get Policy for a description.',
       },
       isTruncated: {
         type: 'boolean',

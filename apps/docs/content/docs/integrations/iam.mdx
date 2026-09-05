@@ -317,7 +317,7 @@ List managed IAM policies
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `scope` | string | No | Filter by scope: All, AWS \(AWS-managed\), or Local \(customer-managed\) |
+| `scope` | string | No | Filter by scope. Must be exactly one of: All, AWS \(AWS-managed\), Local \(customer-managed\) |
 | `onlyAttached` | boolean | No | If true, only return policies attached to an entity |
 | `pathPrefix` | string | No | Path prefix to filter policies |
 | `maxItems` | number | No | Maximum number of policies to return \(1-1000, default 100\) |
@@ -327,10 +327,40 @@ List managed IAM policies
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `policies` | json | List of policies with policyName, arn, attachmentCount, and dates |
+| `policies` | json | List of policies with policyName, policyId, arn, path, attachmentCount, isAttachable, defaultVersionId, permissionsBoundaryUsageCount, and dates. AWS never returns policy descriptions from ListPolicies — use IAM Get Policy for a description. |
 | `isTruncated` | boolean | Whether there are more results available |
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of policies returned |
+
+### IAM Get Policy
+
+Get details about a managed IAM policy, including its description — the field ListPolicies never returns
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `policyArn` | string | Yes | ARN of the managed policy to retrieve \(e.g., arn:aws:iam::aws:policy/ReadOnlyAccess\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policyName` | string | The friendly name of the policy |
+| `policyId` | string | The stable unique ID of the policy |
+| `arn` | string | The ARN of the policy |
+| `path` | string | The path to the policy |
+| `attachmentCount` | number | Number of entities the policy is attached to |
+| `isAttachable` | boolean | Whether the policy can be attached |
+| `createDate` | string | Date the policy was created |
+| `updateDate` | string | Date the policy was last updated |
+| `description` | string | The policy description |
+| `defaultVersionId` | string | The identifier of the default policy version |
+| `permissionsBoundaryUsageCount` | number | Number of entities using the policy as a permissions boundary |
+| `tags` | json | Tags attached to the policy \(key, value pairs\) |
 
 ### IAM Create Access Key
 
@@ -369,6 +399,51 @@ Delete an access key pair for an IAM user
 | `secretAccessKey` | string | Yes | AWS secret access key |
 | `accessKeyIdToDelete` | string | Yes | The access key ID to delete |
 | `userName` | string | No | The IAM user whose key to delete \(defaults to current user\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### IAM List Access Keys
+
+List an IAM user's access key IDs with their status and age — use to find stale keys and to confirm which keys remain after a rotation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | No | The IAM user whose keys to list \(defaults to the calling user if omitted\) |
+| `maxItems` | number | No | Maximum number of access keys to return \(1-1000\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessKeys` | json | Access key metadata: accessKeyId, userName, status \(Active/Inactive\), createDate. The secret access key is never returned by this operation. |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of access keys returned |
+
+### IAM Update Access Key
+
+Activate or deactivate an IAM access key — deactivate an old key and verify nothing breaks before deleting it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `accessKeyIdToUpdate` | string | Yes | The access key ID whose status to change |
+| `status` | string | Yes | The status to set. Must be exactly one of: Active, Inactive. An Inactive key is rejected by AWS but can be reactivated. |
+| `userName` | string | No | The IAM user that owns the key \(defaults to the calling user if omitted\) |
 
 #### Output
 
@@ -503,7 +578,8 @@ Simulate whether a user, role, or group is allowed to perform specific AWS actio
 | `secretAccessKey` | string | Yes | AWS secret access key |
 | `policySourceArn` | string | Yes | ARN of the user, group, or role to simulate \(e.g., arn:aws:iam::123456789012:user/alice\) |
 | `actionNames` | string | Yes | Comma-separated list of AWS actions to simulate \(e.g., s3:GetObject,ec2:DescribeInstances\) |
-| `resourceArns` | string | No | Comma-separated list of resource ARNs to simulate against \(defaults to * if not provided\) |
+| `resourceArns` | string | No | Comma-separated list of resource ARNs to simulate against \(defaults to * if not provided\). Read the per-ARN verdict from resourceSpecificResults, not from evalDecision. |
+| `contextEntries` | array | No | Condition context keys to supply to the simulation. Without these, any policy gated by a Condition simulates as denied with missing context values. |
 | `maxResults` | number | No | Maximum number of simulation results to return \(1-1000\) |
 | `marker` | string | No | Pagination marker from a previous request |
 
@@ -511,7 +587,7 @@ Simulate whether a user, role, or group is allowed to perform specific AWS actio
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `evaluationResults` | json | Simulation results per action: evalActionName, evalResourceName, evalDecision \(allowed/explicitDeny/implicitDeny\), matchedStatements \(sourcePolicyId, sourcePolicyType\), missingContextValues |
+| `evaluationResults` | json | One result per simulated action. evalDecision is the AGGREGATE, most-restrictive decision across every resource ARN, and evalResourceName is the resource-type ARN template \(e.g. an arn:aws:s3:::BUCKET/KEY shape with the bucket and key left as placeholders\), not a customer ARN. For the verdict on an individual ARN read resourceSpecificResults\[\]: evalResourceName, evalResourceDecision \(allowed/explicitDeny/implicitDeny\), matchedStatements, missingContextValues, permissionsBoundaryAllowed. When concrete resource ARNs are supplied, missing context values appear there rather than at the top level. |
 | `isTruncated` | boolean | Whether there are more results available |
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of evaluation results returned |
