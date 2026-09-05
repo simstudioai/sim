@@ -111,13 +111,6 @@ export async function resolveConnectorAccessToken(params: {
 }
 
 /**
- * What a run's `syncContext` is seeded with from the token: the site a
- * service account already knows, so a connector never has to discover with a
- * token that cannot. Every path that opens a connector with a token — the
- * content engine, the directory refresh, config validation — seeds the same
- * way, so a connector behaves identically on all of them.
- */
-/**
  * The user a connector's token resolves under.
  *
  * Token reads are scoped to the account's owner, who is routinely not the
@@ -137,6 +130,13 @@ export async function resolveConnectorTokenUserId(input: {
   return identity.kind === 'oauth' ? identity.userId : input.fallbackUserId
 }
 
+/**
+ * What a run's `syncContext` is seeded with from the token: the site a
+ * service account already knows, so a connector never has to discover with a
+ * token that cannot. Every path that opens a connector with a token — the
+ * content engine, the directory refresh, config validation — seeds the same
+ * way, so a connector behaves identically on all of them.
+ */
 export function syncContextForToken(token: ConnectorAccessToken): Record<string, unknown> {
   return token.cloudId ? { cloudId: token.cloudId } : {}
 }

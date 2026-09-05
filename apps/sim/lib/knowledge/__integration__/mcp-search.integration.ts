@@ -340,14 +340,14 @@ describe('native Search MCP over real HTTP and application boundaries', () => {
     expect(concurrent[2]).toEqual([])
   })
 
-  it('allows workspace-visible content to an actorless key without impersonating its owner', async () => {
+  it('allows public source content to an actorless key without impersonating its owner', async () => {
     const [previous] = await db
       .select({ acl: document.acl, aclRequirements: document.aclRequirements })
       .from(document)
       .where(eq(document.id, documentId))
     await db
       .update(document)
-      .set({ acl: ['ws'], aclRequirements: [] })
+      .set({ acl: ['pub'], aclRequirements: [] })
       .where(eq(document.id, documentId))
     expect((await search(workspaceClient)).length).toBeGreaterThan(0)
     expect(

@@ -197,45 +197,29 @@ export function AddConnectorModal({
     })
   }
 
-  const canSubmit = useMemo(() => {
-    if (!connectorConfig) return false
-    if (
-      isSearchIndex &&
-      (!connectorConfig.search ||
-        access.accessMode === 'workspace' ||
-        (isMembersMode && !memberAccessAvailable) ||
-        (access.accessMode === 'admin' && !mirroredAccessAvailable))
+  const hasRequiredCredential = isApiKeyMode
+    ? isApiKeyOptional || Boolean(apiKeyValue.trim())
+    : isMembersMode || Boolean(effectiveCredentialId)
+  const hasSearchAccess =
+    !isSearchIndex ||
+    Boolean(
+      connectorConfig?.search &&
+        access.accessMode !== 'workspace' &&
+        (!isMembersMode || memberAccessAvailable) &&
+        (access.accessMode !== 'admin' || mirroredAccessAvailable)
     )
-      return false
-    if (isApiKeyMode) {
-      if (!isApiKeyOptional && !apiKeyValue.trim()) return false
-    } else if (isMembersMode) {
-    } else {
-      if (!effectiveCredentialId) return false
-    }
-
-    for (const field of connectorConfig.configFields) {
-      if (!field.required) continue
-      if (!isFieldVisible(field)) continue
-      if (hiddenCapFieldIds.has(field.id)) continue
-      if (!isFieldPopulated(field)) return false
-    }
-    return true
-  }, [
-    connectorConfig,
-    isSearchIndex,
-    access.accessMode,
-    memberAccessAvailable,
-    mirroredAccessAvailable,
-    isApiKeyMode,
-    isMembersMode,
-    hiddenCapFieldIds,
-    isApiKeyOptional,
-    apiKeyValue,
-    effectiveCredentialId,
-    isFieldVisible,
-    isFieldPopulated,
-  ])
+  const canSubmit = Boolean(
+    connectorConfig &&
+      hasRequiredCredential &&
+      hasSearchAccess &&
+      connectorConfig.configFields.every(
+        (field) =>
+          !field.required ||
+          !isFieldVisible(field) ||
+          hiddenCapFieldIds.has(field.id) ||
+          isFieldPopulated(field)
+      )
+  )
 
   const handleSubmit = () => {
     if (!selectedType || !canSubmit) return

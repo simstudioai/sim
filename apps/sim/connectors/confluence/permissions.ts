@@ -227,8 +227,11 @@ export async function getReadRestriction(
       `${apiBase(cloudId)}/rest/api/content/${encodeURIComponent(contentId)}/restriction/byOperation/read?expand=restrictions.user,restrictions.group&start=${page * PAGE_SIZE}&limit=${PAGE_SIZE}`,
       accessToken
     )
-    const users = body.restrictions?.user?.results ?? []
-    const groups = body.restrictions?.group?.results ?? []
+    const users = body?.restrictions?.user?.results
+    const groups = body?.restrictions?.group?.results
+    if (!Array.isArray(users) || !Array.isArray(groups)) {
+      throw new Error('Confluence omitted an expanded read-restriction collection')
+    }
     for (const user of users) {
       if (!user.accountId) throw new Error('Confluence read restriction is missing an account id')
       principals.push({ kind: 'user', id: user.accountId })

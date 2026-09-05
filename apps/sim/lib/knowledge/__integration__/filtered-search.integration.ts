@@ -72,7 +72,7 @@ describe('bounded filtered vector retrieval', () => {
         fileSize: 12,
         mimeType: 'text/plain',
         processingStatus: 'completed',
-        connectorId: ids.connectorId,
+        connectorId: 'workspace' in fixture ? null : ids.connectorId,
         acl:
           'workspace' in fixture
             ? ['ws']

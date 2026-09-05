@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Button,
   Chip,
@@ -208,7 +208,7 @@ export function ConnectSlackBotModal({
 
   const isPending = createCredential.isPending || updateCredential.isPending
 
-  const runCreate = useCallback(async () => {
+  const runCreate = async () => {
     setCreateError(null)
     try {
       if (isReconnect) {
@@ -239,39 +239,19 @@ export function ConnectSlackBotModal({
       setCreateError(getErrorMessage(err, 'Could not connect the Slack bot.'))
       logger.error('Failed to add custom Slack bot credential', err)
     }
-  }, [
-    isReconnect,
-    updateCredential,
-    createCredential,
-    workspaceId,
-    credentialId,
-    signingSecret,
-    botToken,
-    appName,
-    appDescription,
-    onCreated,
-  ])
+  }
 
-  // Create the credential once when the final step is first reached (reachable
-  // only after both secrets are entered). A ref guards against re-firing on
-  // failure — retry is manual via the "Try again" button.
-  const attemptedRef = useRef(false)
-  useEffect(() => {
-    if (step !== DONE_STEP) {
-      attemptedRef.current = false
-      return
-    }
-    if (attemptedRef.current) return
-    attemptedRef.current = true
-    void runCreate()
-  }, [step, runCreate])
+  const handleStepChange = (nextStep: number) => {
+    setStep(nextStep)
+    if (nextStep === DONE_STEP && step !== DONE_STEP) void runCreate()
+  }
 
   return (
     <Wizard
       open={open}
       onOpenChange={onOpenChange}
       currentStep={step}
-      onStepChange={setStep}
+      onStepChange={handleStepChange}
       size='lg'
       icon={SlackIcon}
       title={isReconnect ? 'Reconnect a custom Slack bot' : 'Create a custom Slack bot'}
@@ -370,36 +350,32 @@ function StepConfigure({
   const allSelected = capabilityIds.length === CUSTOM_BOT_CAPABILITIES.length
 
   return (
-    <div className='space-y-4'>
-      <div className='flex flex-col gap-[9px]'>
-        <Label htmlFor='slack-bot-name' className='text-[var(--text-muted)] text-small'>
-          Bot name
-        </Label>
-        <ChipInput
-          id='slack-bot-name'
-          value={appName}
-          onChange={(e) => onAppNameChange(e.target.value)}
-          placeholder={DEFAULT_APP_NAME}
-        />
-      </div>
-      <div className='flex flex-col gap-[9px]'>
-        <Label htmlFor='slack-bot-description' className='text-[var(--text-muted)] text-small'>
-          Description
-        </Label>
-        <ChipInput
-          id='slack-bot-description'
-          value={appDescription}
-          onChange={(e) => onAppDescriptionChange(e.target.value)}
-          placeholder="Optional — shown on the bot's Slack profile"
-          maxLength={140}
-          error={Boolean(descriptionError)}
-        />
-        {descriptionError && (
-          <p className='text-[var(--text-error)] text-caption'>{descriptionError}</p>
-        )}
-      </div>
-      <div className='flex flex-col gap-[9px]'>
-        <Label className='text-[var(--text-muted)] text-small'>Additional permissions</Label>
+    <>
+      <ChipModalField
+        type='input'
+        title='Bot name'
+        value={appName}
+        onChange={onAppNameChange}
+        placeholder={DEFAULT_APP_NAME}
+      />
+      <ChipModalField
+        type='input'
+        title='Description'
+        value={appDescription}
+        onChange={onAppDescriptionChange}
+        placeholder="Optional — shown on the bot's Slack profile"
+        maxLength={140}
+        error={descriptionError}
+      />
+      <ChipModalField
+        type='custom'
+        title='Additional permissions'
+        hint={
+          allSelected
+            ? 'All additional permissions enabled — the bot can read messages, react, access files and users, and people can authorize it through Connected accounts.'
+            : undefined
+        }
+      >
         <ChipDropdown
           multiple
           fullWidth
@@ -409,13 +385,7 @@ function StepConfigure({
           allLabel='No additional permissions'
           showAllOption={false}
         />
-        {allSelected && (
-          <p className='text-[var(--text-muted)] text-caption'>
-            All additional permissions enabled — the bot can read messages, react, access files and
-            users, and people can authorize it through Connected accounts.
-          </p>
-        )}
-      </div>
+      </ChipModalField>
       {capabilityIds.includes(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id) && (
         <ChipModalField
           type='dropdown'
@@ -436,7 +406,7 @@ function StepConfigure({
         onChange={onSlashCommandsChange}
         error={slashCommandsError}
       />
-    </div>
+    </>
   )
 }
 
@@ -462,18 +432,10 @@ function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorP
   }
 
   return (
-    <div className='flex flex-col gap-[9px]'>
-      <div className='flex items-center justify-between gap-2'>
-        <Label className='text-[var(--text-muted)] text-small'>Slash commands (optional)</Label>
-        <Chip
-          className='w-fit'
-          leftIcon={Plus}
-          onClick={addCommand}
-          disabled={commands.length >= 50}
-        >
-          Add
-        </Chip>
-      </div>
+    <ChipModalField type='custom' title='Slash commands (optional)' error={error}>
+      <Chip className='w-fit' leftIcon={Plus} onClick={addCommand} disabled={commands.length >= 50}>
+        Add
+      </Chip>
       {commands.length > 0 && (
         <div className='space-y-2'>
           {commands.map((entry, index) => (
@@ -517,8 +479,7 @@ function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorP
           ))}
         </div>
       )}
-      {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
-    </div>
+    </ChipModalField>
   )
 }
 

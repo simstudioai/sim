@@ -5148,17 +5148,51 @@
           "method": "btree",
           "with": {}
         },
-        "doc_connector_id_idx": {
-          "name": "doc_connector_id_idx",
+        "doc_connector_source_lookup_idx": {
+          "name": "doc_connector_source_lookup_idx",
           "columns": [
             {
               "expression": "connector_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "external_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_connector_reconciliation_idx": {
+          "name": "doc_connector_reconciliation_idx",
+          "columns": [
+            {
+              "expression": "connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "COALESCE(\"source_seen_at\", '-infinity'::timestamp)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"document\".\"user_excluded\" = false AND \"document\".\"archived_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -5233,13 +5267,19 @@
           "method": "btree",
           "with": {}
         },
-        "doc_tag1_idx": {
-          "name": "doc_tag1_idx",
+        "doc_kb_tag1_lower_idx": {
+          "name": "doc_kb_tag1_lower_idx",
           "columns": [
             {
-              "expression": "tag1",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag1\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -5248,13 +5288,19 @@
           "method": "btree",
           "with": {}
         },
-        "doc_tag2_idx": {
-          "name": "doc_tag2_idx",
+        "doc_kb_tag2_lower_idx": {
+          "name": "doc_kb_tag2_lower_idx",
           "columns": [
             {
-              "expression": "tag2",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag2\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -5263,13 +5309,19 @@
           "method": "btree",
           "with": {}
         },
-        "doc_tag3_idx": {
-          "name": "doc_tag3_idx",
+        "doc_kb_tag3_lower_idx": {
+          "name": "doc_kb_tag3_lower_idx",
           "columns": [
             {
-              "expression": "tag3",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag3\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -5278,13 +5330,19 @@
           "method": "btree",
           "with": {}
         },
-        "doc_tag4_idx": {
-          "name": "doc_tag4_idx",
+        "doc_kb_tag4_lower_idx": {
+          "name": "doc_kb_tag4_lower_idx",
           "columns": [
             {
-              "expression": "tag4",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag4\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -5293,13 +5351,19 @@
           "method": "btree",
           "with": {}
         },
-        "doc_tag5_idx": {
-          "name": "doc_tag5_idx",
+        "doc_kb_tag5_lower_idx": {
+          "name": "doc_kb_tag5_lower_idx",
           "columns": [
             {
-              "expression": "tag5",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag5\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -5308,13 +5372,19 @@
           "method": "btree",
           "with": {}
         },
-        "doc_tag6_idx": {
-          "name": "doc_tag6_idx",
+        "doc_kb_tag6_lower_idx": {
+          "name": "doc_kb_tag6_lower_idx",
           "columns": [
             {
-              "expression": "tag6",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag6\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -5323,13 +5393,19 @@
           "method": "btree",
           "with": {}
         },
-        "doc_tag7_idx": {
-          "name": "doc_tag7_idx",
+        "doc_kb_tag7_lower_idx": {
+          "name": "doc_kb_tag7_lower_idx",
           "columns": [
             {
-              "expression": "tag7",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag7\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -6039,13 +6115,19 @@
             "ef_construction": 64
           }
         },
-        "emb_tag1_idx": {
-          "name": "emb_tag1_idx",
+        "emb_kb_tag1_lower_idx": {
+          "name": "emb_kb_tag1_lower_idx",
           "columns": [
             {
-              "expression": "tag1",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag1\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -6054,13 +6136,19 @@
           "method": "btree",
           "with": {}
         },
-        "emb_tag2_idx": {
-          "name": "emb_tag2_idx",
+        "emb_kb_tag2_lower_idx": {
+          "name": "emb_kb_tag2_lower_idx",
           "columns": [
             {
-              "expression": "tag2",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag2\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -6069,13 +6157,19 @@
           "method": "btree",
           "with": {}
         },
-        "emb_tag3_idx": {
-          "name": "emb_tag3_idx",
+        "emb_kb_tag3_lower_idx": {
+          "name": "emb_kb_tag3_lower_idx",
           "columns": [
             {
-              "expression": "tag3",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag3\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -6084,13 +6178,19 @@
           "method": "btree",
           "with": {}
         },
-        "emb_tag4_idx": {
-          "name": "emb_tag4_idx",
+        "emb_kb_tag4_lower_idx": {
+          "name": "emb_kb_tag4_lower_idx",
           "columns": [
             {
-              "expression": "tag4",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag4\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -6099,13 +6199,19 @@
           "method": "btree",
           "with": {}
         },
-        "emb_tag5_idx": {
-          "name": "emb_tag5_idx",
+        "emb_kb_tag5_lower_idx": {
+          "name": "emb_kb_tag5_lower_idx",
           "columns": [
             {
-              "expression": "tag5",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag5\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -6114,13 +6220,19 @@
           "method": "btree",
           "with": {}
         },
-        "emb_tag6_idx": {
-          "name": "emb_tag6_idx",
+        "emb_kb_tag6_lower_idx": {
+          "name": "emb_kb_tag6_lower_idx",
           "columns": [
             {
-              "expression": "tag6",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag6\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -6129,13 +6241,19 @@
           "method": "btree",
           "with": {}
         },
-        "emb_tag7_idx": {
-          "name": "emb_tag7_idx",
+        "emb_kb_tag7_lower_idx": {
+          "name": "emb_kb_tag7_lower_idx",
           "columns": [
             {
-              "expression": "tag7",
+              "expression": "knowledge_base_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"tag7\")",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -8194,6 +8312,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "next_directory_sync_at": {
+          "name": "next_directory_sync_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "consecutive_failures": {
           "name": "consecutive_failures",
           "type": "integer",
@@ -8327,6 +8452,28 @@
           ],
           "isUnique": false,
           "where": "\"knowledge_connector\".\"access_mode\" = 'members' AND \"knowledge_connector\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kc_directory_sync_due_idx": {
+          "name": "kc_directory_sync_due_idx",
+          "columns": [
+            {
+              "expression": "next_directory_sync_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"knowledge_connector\".\"access_mode\" = 'admin' AND \"knowledge_connector\".\"deleted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -151,8 +151,8 @@ try {
     [
       'vitest',
       'run',
-      '--config',
-      'vitest.knowledge-integration.config.ts',
+      '--mode',
+      'integration',
       ...(scale ? ['lib/knowledge/__integration__/scale.integration.ts'] : []),
     ],
     {

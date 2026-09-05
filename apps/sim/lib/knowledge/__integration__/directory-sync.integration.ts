@@ -13,14 +13,20 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { createMockRequest } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
   listGroups: vi.fn(),
   members: vi.fn(),
   listDocuments: vi.fn(),
+  enqueue: vi.fn(async (_type: string, _payload: unknown) => 'job'),
+}))
+vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: () => null }))
+vi.mock('@/lib/core/async-jobs', () => ({
+  getJobQueue: async () => ({ enqueue: fixture.enqueue }),
 }))
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
@@ -55,6 +61,7 @@ import {
   syncExternalDirectoryGroups,
 } from '@/lib/knowledge/connectors/external-group-sync'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
+import { GET as scheduleDirectories } from '@/app/api/knowledge/connectors/directory-sync/route'
 import { executeDirectorySyncJob } from '@/background/knowledge-connector-directory-sync'
 import type { ConnectorDirectory, ConnectorDirectoryGroup } from '@/connectors/types'
 
@@ -94,6 +101,7 @@ describe('directory failure visibility in PostgreSQL', () => {
         lastSyncError: null,
         consecutiveFailures: 0,
         listingCheckpoint: null,
+        nextDirectorySyncAt: new Date(0),
         sourceConfig: {},
         updatedAt: new Date(),
       })
@@ -152,6 +160,74 @@ describe('directory failure visibility in PostgreSQL', () => {
     })
     return { promise, resolve }
   }
+
+  it('advances past the first 200 directories, including microsecond timestamps and competing ticks', async () => {
+    const connectors = Array.from({ length: 201 }, () => ({
+      id: generateId(),
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorType: 'confluence',
+      sourceConfig: {},
+      accessMode: 'admin',
+      nextDirectorySyncAt: sql`'2000-01-01 00:00:00.123456'::timestamp`,
+    }))
+    await db
+      .update(knowledgeConnector)
+      .set({ nextDirectorySyncAt: new Date('2099-01-01') })
+      .where(eq(knowledgeConnector.id, ids.connectorId))
+    await db.insert(knowledgeConnector).values(connectors)
+    fixture.enqueue.mockClear()
+    try {
+      await Promise.all([
+        scheduleDirectories(createMockRequest('GET'), {}),
+        scheduleDirectories(createMockRequest('GET'), {}),
+      ])
+      await scheduleDirectories(createMockRequest('GET'), {})
+      const dispatchedIds = fixture.enqueue.mock.calls.map((call) => {
+        const payload = call[1] as { connectorId: string }
+        return payload.connectorId
+      })
+      expect(dispatchedIds).toHaveLength(201)
+      expect(new Set(dispatchedIds)).toEqual(new Set(connectors.map((row) => row.id)))
+    } finally {
+      await db.delete(knowledgeConnector).where(
+        inArray(
+          knowledgeConnector.id,
+          connectors.map((row) => row.id)
+        )
+      )
+    }
+  })
+
+  it('retries a failed enqueue on the next due tick without repeating it immediately', async () => {
+    const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    fixture.enqueue.mockClear().mockRejectedValueOnce(new Error('Queue unavailable'))
+    try {
+      const first = await scheduleDirectories(createMockRequest('GET'), {})
+      expect(await first.json()).toMatchObject({ failed: 1 })
+      await scheduleDirectories(createMockRequest('GET'), {})
+      expect(fixture.enqueue).toHaveBeenCalledTimes(1)
+      vi.setSystemTime(now + 5 * 60 * 1000)
+      const retry = await scheduleDirectories(createMockRequest('GET'), {})
+      expect(await retry.json()).toMatchObject({ dispatched: 1, failed: 0 })
+      expect(fixture.enqueue).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['paused', 'disabled'])(
+    'does not refresh a connector that became %s after dispatch',
+    async (status) => {
+      await db
+        .update(knowledgeConnector)
+        .set({ status })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      await expect(refreshConnectorDirectory(ids.connectorId, 'stale-job')).resolves.toBe('skipped')
+      expect(fixture.listGroups).not.toHaveBeenCalled()
+    }
+  )
 
   it('lets only one connector fetch a shared directory while its lease is held', async () => {
     const directory = directoryFixture()

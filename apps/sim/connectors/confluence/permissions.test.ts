@@ -315,10 +315,45 @@ describe('getReadRestriction', () => {
     ])
   })
 
+  it.each([
+    {},
+    { restrictions: {} },
+    { restrictions: { user: { results: [] }, group: {} } },
+    { restrictions: { user: {}, group: { results: [] } } },
+    { restrictions: { user: { results: [] }, group: { results: {} } } },
+  ])(
+    'rejects incomplete restriction data rather than inheriting space access: %j',
+    async (body) => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(body))
+      await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow(
+        'expanded read-restriction collection'
+      )
+    }
+  )
+
+  it('rejects an incomplete continuation after reading some restrictions', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          restrictions: {
+            user: { results: Array.from({ length: 250 }, (_, i) => ({ accountId: `user-${i}` })) },
+            group: { results: [] },
+          },
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({}))
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow(
+      'expanded read-restriction collection'
+    )
+  })
+
   it('keeps a withheld address as absent rather than inventing one', async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
-        restrictions: { user: { results: [{ accountId: 'acc-1', email: null }] }, group: {} },
+        restrictions: {
+          user: { results: [{ accountId: 'acc-1', email: null }] },
+          group: { results: [] },
+        },
       })
     )
 

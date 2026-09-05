@@ -66,13 +66,9 @@ export const user = pgTable(
      */
     email: text('email').notNull().unique(),
     /**
-     * Written by a signup plugin that was removed; populated for roughly a
-     * fifth of accounts, with a different normalisation (Gmail dot and tag
-     * stripping) that must never be used for identity. Nothing reads it.
-     *
-     * Kept for one release rather than dropped with its readers: Better Auth
-     * selects every schema column, so dropping it while the previous release
-     * is still serving would break sign-in.
+     * Legacy signup normalization strips Gmail dots and tags and must never be
+     * used for identity. Retained for Better Auth and full-row readers that
+     * still select this column; removal needs a separate projection migration.
      */
     normalizedEmail: text('normalized_email').unique(),
     emailVerified: boolean('email_verified').notNull(),
@@ -4893,6 +4889,7 @@ export const knowledgeConnector = pgTable(
     /** Member account enumeration resumes independently of the content listing. */
     directoryCheckpoint: jsonb('directory_checkpoint').$type<Record<string, unknown>>(),
     nextSyncAt: timestamp('next_sync_at'),
+    nextDirectorySyncAt: timestamp('next_directory_sync_at').notNull().defaultNow(),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     /**
      * Identifies the sync run that currently holds this connector's lock.
@@ -4937,6 +4934,9 @@ export const knowledgeConnector = pgTable(
     memberSyncDueIdx: index('kc_member_sync_due_idx')
       .on(table.memberSyncStatus, table.nextMemberSyncAt)
       .where(sql`${table.accessMode} = 'members' AND ${table.deletedAt} IS NULL`),
+    directorySyncDueIdx: index('kc_directory_sync_due_idx')
+      .on(table.nextDirectorySyncAt, table.id)
+      .where(sql`${table.accessMode} = 'admin' AND ${table.deletedAt} IS NULL`),
     accessModeCheck: check(
       'kc_access_mode_check',
       sql`${table.accessMode} IN ('workspace', 'members', 'admin')`

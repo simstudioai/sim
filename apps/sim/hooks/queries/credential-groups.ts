@@ -138,7 +138,7 @@ export function useEnsureWorkspaceAccounts() {
   return useMutation({
     mutationFn: async ({ workspaceId }: { workspaceId: string }) =>
       requestJson(ensureWorkspaceAccountsContract, { params: { id: workspaceId } }),
-    onSettled: (_data, _error, variables) =>
+    onSuccess: (_data, variables) =>
       Promise.all([
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.workspace(variables.workspaceId),

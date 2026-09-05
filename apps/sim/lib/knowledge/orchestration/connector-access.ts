@@ -273,11 +273,6 @@ export async function performUpdateKnowledgeConnectorAccess(
    * dropped and a sync queued. The write refuses while a sync owns the row,
    * whose terminal write would otherwise put the watermark straight back.
    */
-  /**
-   * Both credential-backed modes change the same way — swap the credential,
-   * keep the documents — so they share this fast path; `members` has no
-   * credential of its own, its members are the credentials.
-   */
   if (target.accessMode !== 'members' && target.accessMode === existing.accessMode) {
     const now = new Date()
     const [updated] = await db

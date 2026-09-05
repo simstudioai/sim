@@ -1,7 +1,7 @@
 /**
  * Opt-in live Drive test against a newly created, harmless fixture folder.
  * Set GOOGLE_DRIVE_LIVE_SERVICE_ACCOUNT_FILE, GOOGLE_DRIVE_LIVE_FOLDER_ID,
- * GOOGLE_DRIVE_LIVE_OWNER_EMAIL and use vitest.knowledge-integration.config.ts.
+ * GOOGLE_DRIVE_LIVE_OWNER_EMAIL and run Vitest with --mode integration.
  * GOOGLE_DRIVE_LIVE_ALLOW_CONTENT_UPDATE=true also edits and restores the fixture.
  * GOOGLE_DRIVE_LIVE_DELEGATED_EMAIL enables the complete delegated ACL and directory pass.
  * The token resolver, provider, sync engine, storage, database and application access

@@ -12,6 +12,7 @@ import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
+import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
 import { canonicalGroupId, isIdentityToken } from '@/lib/knowledge/access/tokens'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
@@ -20,6 +21,7 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
@@ -397,6 +399,7 @@ export async function refreshConnectorDirectory(
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
+        inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
         isNull(knowledgeBase.deletedAt)
@@ -404,6 +407,13 @@ export async function refreshConnectorDirectory(
     )
     .limit(1)
   if (!connector || !mirrorsSourceAcls(connector.accessMode) || !connector.workspaceId) {
+    return 'skipped'
+  }
+
+  if (
+    !(await resolveKnowledgeAccessAvailability({ workspaceId: connector.workspaceId }))
+      .sourceMirrored
+  ) {
     return 'skipped'
   }
 

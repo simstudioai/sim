@@ -33,11 +33,13 @@ export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAcc
       WHERE NOT (required_clause.tokens ?| ${tokens})
     )
     AND (
-      ${document.acl} = ARRAY['ws']::text[]
+      (${document.connectorId} IS NULL AND ${document.acl} = ARRAY['ws']::text[])
       OR EXISTS (
         SELECT 1 FROM ${knowledgeConnector}
         WHERE ${knowledgeConnector.id} = ${document.connectorId}
           AND (
+            (${knowledgeConnector.accessMode} = 'workspace' AND ${document.acl} = ARRAY['ws']::text[])
+            OR (${document.acl} <> ARRAY['ws']::text[] AND (
             (${knowledgeConnector.accessMode} = 'admin' AND ${document.aclVerifiedAt} > ${cutoff})
             OR (${knowledgeConnector.accessMode} = 'members' AND EXISTS (
               SELECT 1 FROM ${knowledgeDocumentObservation}
@@ -48,6 +50,7 @@ export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAcc
                 AND ${knowledgeConnectorMember.status} = 'active'
                 AND ${knowledgeConnectorMember.subjectToken} = ANY(${tokens})
                 AND GREATEST(${knowledgeDocumentObservation.lastSeenAt}, ${knowledgeConnectorMember.memberSyncedThrough}) > ${cutoff}
+            ))
             ))
           )
       )

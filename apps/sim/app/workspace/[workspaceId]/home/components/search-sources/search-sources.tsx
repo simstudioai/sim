@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip, chipContentGap, cn } from '@sim/emcn'
+import { Chip, chipContentGap, cn, OverflowText } from '@sim/emcn'
 import { Loader, Plus } from '@sim/emcn/icons'
 import { groupSearchConnections } from '@/lib/sim-search/connections'
 import {
@@ -111,7 +111,7 @@ function SourceChip({
       }
     >
       <span className={cn('flex items-baseline', chipContentGap)}>
-        <span className='max-w-[280px] truncate'>{name}</span>
+        <OverflowText label={name} className='max-w-[280px]' focusTarget='nearest-interactive' />
         {state && <span className='text-[var(--text-muted)] text-caption'>{state}</span>}
       </span>
     </Chip>

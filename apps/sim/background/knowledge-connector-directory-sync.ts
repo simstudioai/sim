@@ -2,14 +2,14 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import {
   assertDirectorySyncPayload,
+  DIRECTORY_SYNC_CONCURRENCY,
+  DIRECTORY_SYNC_MAX_DURATION_SECONDS,
   DIRECTORY_SYNC_TASK_ID,
   type DirectorySyncPayload,
 } from '@/lib/knowledge/connectors/directory-queue'
 import { refreshConnectorDirectory } from '@/lib/knowledge/connectors/external-group-sync'
 
 const logger = createLogger('TriggerKnowledgeConnectorDirectorySync')
-
-const DIRECTORY_SYNC_MAX_DURATION_SECONDS = 30 * 60
 
 export async function executeDirectorySyncJob(payload: unknown) {
   const { connectorId, requestId } = assertDirectorySyncPayload(payload)
@@ -34,7 +34,7 @@ export const knowledgeConnectorDirectorySync = task({
    * first — the rest see it fresh and skip.
    */
   queue: {
-    concurrencyLimit: 2,
+    concurrencyLimit: DIRECTORY_SYNC_CONCURRENCY,
     name: 'connector-directory-sync-queue',
   },
   run: async (payload: DirectorySyncPayload) => executeDirectorySyncJob(payload),

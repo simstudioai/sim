@@ -4,10 +4,11 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockVerifyCronAuth, mockConnectorRows, mockDispatch } = vi.hoisted(() => ({
+const { mockVerifyCronAuth, mockConnectorRows, mockDispatch, mockClaim } = vi.hoisted(() => ({
   mockVerifyCronAuth: vi.fn(() => null),
   mockConnectorRows: vi.fn(),
   mockDispatch: vi.fn(),
+  mockClaim: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
@@ -16,6 +17,7 @@ vi.mock('@/lib/knowledge/connectors/directory-queue', () => ({
 }))
 vi.mock('@sim/db', () => ({
   db: {
+    update: () => ({ set: () => ({ where: () => ({ returning: () => mockClaim() }) }) }),
     select: () => ({
       from: () => ({
         innerJoin: () => ({
@@ -29,7 +31,7 @@ vi.mock('@sim/db', () => ({
 import { GET } from '@/app/api/knowledge/connectors/directory-sync/route'
 
 function connector(overrides: Record<string, unknown> = {}) {
-  return { id: 'connector-1', ...overrides }
+  return { id: 'connector-1', nextDirectorySyncAt: new Date(0), ...overrides }
 }
 
 async function run() {
@@ -42,6 +44,7 @@ describe('connector directory sync scheduler', () => {
     vi.clearAllMocks()
     mockVerifyCronAuth.mockReturnValue(null)
     mockDispatch.mockResolvedValue(undefined)
+    mockClaim.mockResolvedValue([{ id: 'connector-1' }])
   })
 
   /**
@@ -63,6 +66,13 @@ describe('connector directory sync scheduler', () => {
     mockDispatch.mockRejectedValueOnce(new Error('queue unreachable'))
 
     await expect(run()).resolves.toMatchObject({ dispatched: 1, failed: 1 })
+  })
+
+  it('does not enqueue a connector another scheduler claimed or paused', async () => {
+    mockConnectorRows.mockResolvedValue([connector()])
+    mockClaim.mockResolvedValueOnce([])
+    await expect(run()).resolves.toMatchObject({ considered: 1, dispatched: 0, failed: 0 })
+    expect(mockDispatch).not.toHaveBeenCalled()
   })
 
   it('refuses an unauthenticated tick', async () => {

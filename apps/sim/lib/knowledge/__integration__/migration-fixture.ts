@@ -65,13 +65,10 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
       await client.unsafe(`CREATE INDEX ${prefix}_tag${slot}_idx ON ${table}(tag${slot})`)
     }
   }
-  const migration = (
-    await Promise.all(
-      ['0323_enterprise_search.sql', '0324_search_lookup_indexes.sql'].map((name) =>
-        readFile(new URL(`../../../../../packages/db/migrations/${name}`, import.meta.url), 'utf8')
-      )
-    )
-  ).join('\n--> statement-breakpoint\n')
+  const migration = await readFile(
+    new URL('../../../../../packages/db/migrations/0323_enterprise_search.sql', import.meta.url),
+    'utf8'
+  )
   const statements = migration
     .replaceAll('"public"."workspace"', `"${schemaName}"."workspace"`)
     .replaceAll('"public"."knowledge_external_group"', `"${schemaName}"."knowledge_external_group"`)

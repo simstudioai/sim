@@ -122,7 +122,6 @@ export function useConnectorList(knowledgeBaseId?: string) {
     queryFn: ({ signal }) => fetchConnectors(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: CONNECTOR_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       const connectors = query.state.data
       if (!connectors?.length) return false

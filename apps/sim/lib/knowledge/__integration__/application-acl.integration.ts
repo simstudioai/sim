@@ -14,6 +14,7 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
+  knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
   knowledgeExternalGroup,
@@ -54,6 +55,7 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
@@ -156,6 +158,53 @@ describe('indexed source content through real application access', () => {
     })
     return result.results.map((row) => row.documentId)
   }
+
+  it.each(['workspace', 'admin', 'members'] as const)(
+    'allows a remaining workspace ACL only in workspace mode, not during a %s transition',
+    async (accessMode) => {
+      const [savedConnector] = await db
+        .select({
+          accessMode: knowledgeConnector.accessMode,
+          accessRewritePending: knowledgeConnector.accessRewritePending,
+        })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, connectorId))
+      const [savedDocument] = await db
+        .select({
+          acl: document.acl,
+          aclRequirements: document.aclRequirements,
+          aclVerifiedAt: document.aclVerifiedAt,
+        })
+        .from(document)
+        .where(eq(document.id, documentId))
+      try {
+        await db
+          .update(document)
+          .set({ acl: ['ws'], aclRequirements: [], aclVerifiedAt: new Date() })
+          .where(eq(document.id, documentId))
+        await db
+          .update(knowledgeConnector)
+          .set({ accessMode, accessRewritePending: true })
+          .where(eq(knowledgeConnector.id, connectorId))
+        const visible = await db
+          .select({ id: document.id })
+          .from(document)
+          .where(
+            and(
+              eq(document.id, documentId),
+              knowledgeAccessCondition({ kind: 'workspace', tokens: ['pub', 'ws'] })
+            )
+          )
+        expect(visible.map((row) => row.id)).toEqual(accessMode === 'workspace' ? [documentId] : [])
+      } finally {
+        await db
+          .update(knowledgeConnector)
+          .set(savedConnector)
+          .where(eq(knowledgeConnector.id, connectorId))
+        await db.update(document).set(savedDocument).where(eq(document.id, documentId))
+      }
+    }
+  )
 
   it('indexes once and enforces effective source access for sessions, personal keys, workspace keys and raw files', async () => {
     expect(await search(alice)).toEqual([documentId])

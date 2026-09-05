@@ -25,11 +25,6 @@ export interface DrivePermission {
 /**
  * Whether a source's open shares are searchable in Sim. Off by default, and per
  * connector: an admin turns it on knowing their domain's sharing hygiene.
- *
- * Glean's default, reached through Onyx's mechanism. Glean hides a file shared
- * to the whole domain — or to anyone with the link — from search unless an
- * admin opts in, because in a large domain those shares are usually accidental
- * and their contents are exactly what nobody meant to publish.
  */
 export interface OpenSharingPolicy {
   /** Grant a `domain` share to everyone in that domain. */
@@ -104,9 +99,7 @@ export function driveFileAcl(input: DriveAclInput): string[] {
       case 'anyone': {
         /**
          * `allowFileDiscovery: false` is "anyone with the link", which Drive
-         * excludes from its own search. Treating it as public — as Onyx's file
-         * path does, though its folder path checks the flag — publishes every
-         * document anyone ever pasted a link to.
+         * excludes from its own search.
          */
         if (policy.anyone && isDiscoverable(permission)) tokens.add(PUBLIC_ACCESS_TOKEN)
         break

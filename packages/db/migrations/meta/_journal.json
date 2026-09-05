@@ -2262,13 +2262,6 @@
       "when": 1788581937310,
       "tag": "0323_enterprise_search",
       "breakpoints": true
-    },
-    {
-      "idx": 324,
-      "version": "7",
-      "when": 1788588154008,
-      "tag": "0324_search_lookup_indexes",
-      "breakpoints": true
     }
   ]
 }

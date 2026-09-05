@@ -5,12 +5,17 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorDirectory } from '@/connectors/types'
 
-const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory } = vi.hoisted(() => ({
-  mockResolveTokenUserId: vi.fn(),
-  mockResolveToken: vi.fn(),
-  mockOpenDirectory: vi.fn(),
-}))
+const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory, mockAvailability } =
+  vi.hoisted(() => ({
+    mockResolveTokenUserId: vi.fn(),
+    mockResolveToken: vi.fn(),
+    mockOpenDirectory: vi.fn(),
+    mockAvailability: vi.fn(async () => ({ sourceMirrored: true, memberScoped: true })),
+  }))
 
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  resolveKnowledgeAccessAvailability: mockAvailability,
+}))
 vi.mock('@/lib/knowledge/connectors/access-token', () => ({
   resolveConnectorAccessToken: mockResolveToken,
   resolveConnectorTokenUserId: mockResolveTokenUserId,
@@ -195,6 +200,14 @@ describe('refreshConnectorDirectory', () => {
     expect(mockResolveToken).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'credential-owner' })
     )
+  })
+
+  it('does not resolve credentials after source mirroring is disabled', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
+    mockAvailability.mockResolvedValueOnce({ sourceMirrored: false, memberScoped: false })
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
+    expect(mockResolveTokenUserId).not.toHaveBeenCalled()
+    expect(mockOpenDirectory).not.toHaveBeenCalled()
   })
 
   it('opens the directory with the site the token already knows', async () => {

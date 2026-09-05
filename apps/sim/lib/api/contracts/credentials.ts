@@ -1,9 +1,12 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { getServiceAccountRequiredFields } from '@/lib/credentials/service-account-fields'
+import {
+  ATLASSIAN_PRODUCTS,
+  getServiceAccountRequiredFields,
+} from '@/lib/credentials/service-account-fields'
 import type { OAuthProvider } from '@/lib/oauth/types'
 
-export const atlassianProductSchema = z.enum(['jira', 'confluence'])
+export const atlassianProductSchema = z.enum(ATLASSIAN_PRODUCTS)
 export type AtlassianProduct = z.output<typeof atlassianProductSchema>
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
