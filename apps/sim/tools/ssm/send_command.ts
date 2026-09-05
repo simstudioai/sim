@@ -37,7 +37,7 @@ export const sendCommandTool: InternalToolConfig<SsmSendCommandParams, SsmSendCo
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Managed node IDs to target, as an array of strings (e.g., ["i-0abc123"]). Provide instanceIds or targets',
+        'Managed node IDs to target, as an array of strings (e.g., ["i-0123456789abcdef0"]). Provide instanceIds or targets',
     },
     targets: {
       type: 'json',

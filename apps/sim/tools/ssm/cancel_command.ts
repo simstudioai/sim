@@ -36,11 +36,13 @@ export const cancelCommandTool: InternalToolConfig<
       description: 'ID of the command to cancel, as returned by ssm_send_command',
     },
     instanceIds: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
+      maxItems: 50,
+      items: { type: 'string' },
       description:
-        'Managed node IDs to cancel on, as an array of strings; omit to cancel on every targeted node',
+        'Managed node IDs to cancel on (e.g., ["i-0123456789abcdef0"]); omit to cancel on every targeted node',
     },
   },
 

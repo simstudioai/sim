@@ -214,6 +214,39 @@ describe('executeSsmTool', () => {
     expect(mockOperations.executeSsmGetCommandInvocation).not.toHaveBeenCalled()
   })
 
+  it('rejects a hierarchy path without the leading slash AWS requires', async () => {
+    const response = await executeSsmTool(
+      createRequest({
+        toolId: 'ssm_get_parameters_by_path',
+        input: { ...CONNECTION, path: 'prod/app' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      details: expect.arrayContaining([
+        expect.objectContaining({
+          message: 'path must start with a forward slash (e.g., /prod/app)',
+        }),
+      ]),
+    })
+    expect(mockOperations.executeSsmGetParametersByPath).not.toHaveBeenCalled()
+  })
+
+  it('accepts a hierarchy path that starts with a slash', async () => {
+    mockOperations.executeSsmGetParametersByPath.mockResolvedValue({ parameters: [] })
+
+    const response = await executeSsmTool(
+      createRequest({
+        toolId: 'ssm_get_parameters_by_path',
+        input: { ...CONNECTION, path: '/prod/app' },
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockOperations.executeSsmGetParametersByPath).toHaveBeenCalled()
+  })
+
   it('rejects an unsupported tool id', async () => {
     const response = await executeSsmTool(createRequest({ toolId: 'ssm_not_a_tool' }))
 

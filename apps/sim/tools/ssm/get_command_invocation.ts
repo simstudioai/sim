@@ -42,7 +42,7 @@ export const getCommandInvocationTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Managed node the command ran on (e.g., i-0abc123)',
+      description: 'Managed node the command ran on (e.g., i-0123456789abcdef0)',
     },
     pluginName: {
       type: 'string',
