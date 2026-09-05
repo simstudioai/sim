@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,457 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_financials",
+      "slug": "oracle-fusion-cloud-financials",
+      "name": "Oracle Fusion Cloud Financials",
+      "description": "Read Payables, manage Receivables and Expenses, and inspect General Ledger",
+      "longDescription": "Connect a reusable Oracle Fusion Cloud Financials service account with a Fusion application URL, username, and password for Basic authentication. Read bounded pages and individual Payables invoices, lines, distributions, installments, prepayments, holds, payments, paid invoices, payment process requests, and payment terms with fixed projections. Manage Receivables transactions and employee expense reports using supported writes and named lifecycle actions. Inspect ledgers, journals, and balances, and delete eligible journal batches; journal posting and import are not supported. Payables remains read-only. Permissions and business-unit or employee access are controlled by Oracle; no arbitrary REST operations or credentials are exposed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_financials",
+      "operations": [
+        {
+          "name": "List Payables Invoices",
+          "description": "List one page of Oracle Fusion Payables invoices using a fixed safe projection."
+        },
+        {
+          "name": "Get Payables Invoice",
+          "description": "Get one Oracle Fusion Payables invoice by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Payables Invoice Lines",
+          "description": "List one page of lines for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "Get Payables Invoice Line",
+          "description": "Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key."
+        },
+        {
+          "name": "List Payables Invoice Installments",
+          "description": "List one page of payment installments for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "Get Payables Invoice Installment",
+          "description": "Get one Oracle Fusion Payables invoice installment by its opaque key."
+        },
+        {
+          "name": "List Payables Invoice Distributions",
+          "description": "List one page of accounting distributions for a Payables invoice line."
+        },
+        {
+          "name": "Get Payables Invoice Distribution",
+          "description": "Get one accounting distribution for an Oracle Fusion Payables invoice line."
+        },
+        {
+          "name": "List Payables Applied Prepayments",
+          "description": "List one page of prepayments already applied to a Payables invoice."
+        },
+        {
+          "name": "Get Payables Applied Prepayment",
+          "description": "Get one prepayment already applied to a Payables invoice."
+        },
+        {
+          "name": "List Payables Available Prepayments",
+          "description": "List one page of prepayments available to apply to a Payables invoice."
+        },
+        {
+          "name": "Get Payables Available Prepayment",
+          "description": "Get one prepayment available to apply to a Payables invoice."
+        },
+        {
+          "name": "List Payables Payments",
+          "description": "List one page of Oracle Fusion Payables payments using a fixed safe projection."
+        },
+        {
+          "name": "Get Payables Payment",
+          "description": "Get one Oracle Fusion Payables payment by its CheckId."
+        },
+        {
+          "name": "List Payment-Related Invoices",
+          "description": "List one page of paid invoices related to a Payables payment."
+        },
+        {
+          "name": "Get Payment-Related Invoice",
+          "description": "Get one paid invoice related to an Oracle Fusion Payables payment."
+        },
+        {
+          "name": "List Payment Process Requests",
+          "description": "List one page of Oracle Fusion payment process requests and their statuses."
+        },
+        {
+          "name": "Get Payment Process Request",
+          "description": "Get one Oracle Fusion payment process request and its current status."
+        },
+        {
+          "name": "List Payables Invoice Holds",
+          "description": "List one page of Oracle Fusion Payables invoice holds and release details."
+        },
+        {
+          "name": "Get Payables Invoice Hold",
+          "description": "Get one Oracle Fusion Payables invoice hold and its release details."
+        },
+        {
+          "name": "List Payables Payment Terms",
+          "description": "List one page of Oracle Fusion Payables payment term headers."
+        },
+        {
+          "name": "Get Payables Payment Term",
+          "description": "Get one Oracle Fusion Payables payment term header."
+        },
+        {
+          "name": "List Payables Payment Term Lines",
+          "description": "List one page of calculation lines for a Payables payment term."
+        },
+        {
+          "name": "Get Payables Payment Term Line",
+          "description": "Get one calculation line for an Oracle Fusion Payables payment term."
+        },
+        {
+          "name": "Receivables · List Invoices",
+          "description": "List one page of Oracle Fusion receivables invoices."
+        },
+        {
+          "name": "Receivables · Get Invoice",
+          "description": "Get Oracle Fusion receivables invoice."
+        },
+        {
+          "name": "Receivables · Create Invoice",
+          "description": "Create Oracle Fusion receivables invoice."
+        },
+        {
+          "name": "Receivables · Update Invoice",
+          "description": "Update Oracle Fusion receivables invoice."
+        },
+        {
+          "name": "Receivables · Delete Invoice",
+          "description": "Delete an Oracle Fusion receivables invoice when its current lifecycle state permits deletion."
+        },
+        {
+          "name": "Receivables · Approve Invoice",
+          "description": "Approve a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction."
+        },
+        {
+          "name": "Receivables · Rework Invoice",
+          "description": "Request rework for a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction."
+        },
+        {
+          "name": "Receivables · List Invoice Lines",
+          "description": "List one page of Oracle Fusion receivables invoice lines."
+        },
+        {
+          "name": "Receivables · Get Invoice Line",
+          "description": "Get Oracle Fusion receivables invoice line."
+        },
+        {
+          "name": "Receivables · Create Invoice Line",
+          "description": "Create Oracle Fusion receivables invoice line."
+        },
+        {
+          "name": "Receivables · List Invoice Distributions",
+          "description": "List one page of Oracle Fusion receivables invoice distributions."
+        },
+        {
+          "name": "Receivables · Get Invoice Distribution",
+          "description": "Get Oracle Fusion receivables invoice distribution."
+        },
+        {
+          "name": "Receivables · Create Invoice Distribution",
+          "description": "Create Oracle Fusion receivables invoice distribution."
+        },
+        {
+          "name": "Receivables · List Invoice Installments",
+          "description": "List one page of Oracle Fusion receivables invoice installments."
+        },
+        {
+          "name": "Receivables · Get Invoice Installment",
+          "description": "Get Oracle Fusion receivables invoice installment."
+        },
+        {
+          "name": "Receivables · Update Invoice Installment",
+          "description": "Update Oracle Fusion receivables invoice installment."
+        },
+        {
+          "name": "Receivables · List Credit Memos",
+          "description": "List one page of Oracle Fusion receivables credit memos."
+        },
+        {
+          "name": "Receivables · Get Credit Memo",
+          "description": "Get Oracle Fusion receivables credit memo."
+        },
+        {
+          "name": "Receivables · Create Credit Memo",
+          "description": "Create Oracle Fusion receivables credit memo."
+        },
+        {
+          "name": "Receivables · Update Credit Memo",
+          "description": "Update Oracle Fusion receivables credit memo."
+        },
+        {
+          "name": "Receivables · Approve Credit Memo",
+          "description": "Approve a pending-approval Oracle Fusion receivables credit memo. Returns the action result, not a refreshed transaction."
+        },
+        {
+          "name": "Receivables · Rework Credit Memo",
+          "description": "Request rework for a pending-approval Oracle Fusion receivables credit memo. Returns the action result, not a refreshed transaction."
+        },
+        {
+          "name": "Receivables · List Credit Memo Lines",
+          "description": "List one page of Oracle Fusion receivables credit memo lines."
+        },
+        {
+          "name": "Receivables · Get Credit Memo Line",
+          "description": "Get Oracle Fusion receivables credit memo line."
+        },
+        {
+          "name": "Receivables · Create Credit Memo Line",
+          "description": "Create Oracle Fusion receivables credit memo line."
+        },
+        {
+          "name": "Receivables · List Credit Memo Distributions",
+          "description": "List one page of Oracle Fusion receivables credit memo distributions."
+        },
+        {
+          "name": "Receivables · Get Credit Memo Distribution",
+          "description": "Get Oracle Fusion receivables credit memo distribution."
+        },
+        {
+          "name": "Receivables · Create Credit Memo Distribution",
+          "description": "Create Oracle Fusion receivables credit memo distribution."
+        },
+        {
+          "name": "Receivables · List Receipts",
+          "description": "List one page of Oracle Fusion receivables receipts."
+        },
+        {
+          "name": "Receivables · Get Receipt",
+          "description": "Get Oracle Fusion receivables receipt."
+        },
+        {
+          "name": "Receivables · Create Receipt",
+          "description": "Create Oracle Fusion receivables receipt."
+        },
+        {
+          "name": "Receivables · Update Receipt",
+          "description": "Update Oracle Fusion receivables receipt."
+        },
+        {
+          "name": "Receivables · Delete Receipt",
+          "description": "Delete an Oracle Fusion receivables receipt when its current lifecycle state permits deletion."
+        },
+        {
+          "name": "Receivables · Apply Receipt",
+          "description": "Apply a standard receipt to a Receivables invoice installment. An omitted amount applies the full open transaction balance."
+        },
+        {
+          "name": "Receivables · List Customer Accounts",
+          "description": "List one page of Oracle Fusion receivables customer accounts."
+        },
+        {
+          "name": "Receivables · Get Customer Account",
+          "description": "Get Oracle Fusion receivables customer account."
+        },
+        {
+          "name": "Receivables · List Customer Account Sites",
+          "description": "List one page of Oracle Fusion receivables customer account sites."
+        },
+        {
+          "name": "Receivables · Get Customer Account Site",
+          "description": "Get Oracle Fusion receivables customer account site."
+        },
+        {
+          "name": "Receivables · List Receipt Applications",
+          "description": "List one page of Oracle Fusion receivables receipt applications."
+        },
+        {
+          "name": "Receivables · Get Receipt Application",
+          "description": "Get Oracle Fusion receivables receipt application."
+        },
+        {
+          "name": "Receivables · List Credit Memo Applications",
+          "description": "List one page of Oracle Fusion receivables credit memo applications."
+        },
+        {
+          "name": "Receivables · Get Credit Memo Application",
+          "description": "Get Oracle Fusion receivables credit memo application."
+        },
+        {
+          "name": "Receivables · List Transaction Payment Schedules",
+          "description": "List one page of Oracle Fusion receivables transaction payment schedules."
+        },
+        {
+          "name": "Receivables · Get Transaction Payment Schedule",
+          "description": "Get Oracle Fusion receivables transaction payment schedule."
+        },
+        {
+          "name": "Receivables · List Transaction Adjustments",
+          "description": "List one page of Oracle Fusion receivables transaction adjustments."
+        },
+        {
+          "name": "Receivables · Get Transaction Adjustment",
+          "description": "Get Oracle Fusion receivables transaction adjustment."
+        },
+        {
+          "name": "Expenses · List Expense Reports",
+          "description": "List one bounded page of Oracle Fusion expense reports."
+        },
+        {
+          "name": "Expenses · Get Expense Report",
+          "description": "Get an Oracle Fusion expense report."
+        },
+        {
+          "name": "Expenses · Create Expense Report",
+          "description": "Create an Oracle Fusion expense report."
+        },
+        {
+          "name": "Expenses · Update Expense Report",
+          "description": "Update an Oracle Fusion expense report."
+        },
+        {
+          "name": "Expenses · Submit Expense Report",
+          "description": "Submit an Oracle Fusion expense report. Only result S means submission without errors; other results are returned as business failures."
+        },
+        {
+          "name": "Expenses · Remove Expense Report Cash Advance",
+          "description": "Remove the specified cash advance from an Oracle Fusion expense report. Result Y means removal succeeded; N means it failed."
+        },
+        {
+          "name": "Expenses · List Expense Lines",
+          "description": "List one bounded page of Oracle Fusion expense lines."
+        },
+        {
+          "name": "Expenses · Get Expense Line",
+          "description": "Get an Oracle Fusion expense line."
+        },
+        {
+          "name": "Expenses · Create Expense Line",
+          "description": "Create an Oracle Fusion expense line."
+        },
+        {
+          "name": "Expenses · Update Expense Line",
+          "description": "Update an Oracle Fusion expense line."
+        },
+        {
+          "name": "Expenses · List Expense Distributions",
+          "description": "List one bounded page of Oracle Fusion expense distributions."
+        },
+        {
+          "name": "Expenses · Get Expense Distribution",
+          "description": "Get an Oracle Fusion expense distribution."
+        },
+        {
+          "name": "Expenses · Create Expense Distribution",
+          "description": "Create an Oracle Fusion expense distribution."
+        },
+        {
+          "name": "Expenses · Update Expense Distribution",
+          "description": "Update an Oracle Fusion expense distribution."
+        },
+        {
+          "name": "Expenses · List Expense Itemizations",
+          "description": "List one bounded page of Oracle Fusion expense itemizations."
+        },
+        {
+          "name": "Expenses · Get Expense Itemization",
+          "description": "Get an Oracle Fusion expense itemization."
+        },
+        {
+          "name": "Expenses · Create Expense Itemization",
+          "description": "Create an Oracle Fusion expense itemization."
+        },
+        {
+          "name": "Expenses · Update Expense Itemization",
+          "description": "Update an Oracle Fusion expense itemization."
+        },
+        {
+          "name": "Expenses · List Expense Report Processing Details",
+          "description": "List one bounded page of Oracle Fusion expense report processing details."
+        },
+        {
+          "name": "Expenses · Get Expense Report Processing Detail",
+          "description": "Get an Oracle Fusion expense report processing detail."
+        },
+        {
+          "name": "Expenses · List Expense Report Payments",
+          "description": "List one bounded page of Oracle Fusion expense report payments."
+        },
+        {
+          "name": "Expenses · Get Expense Report Payment",
+          "description": "Get an Oracle Fusion expense report payment."
+        },
+        {
+          "name": "Expenses · List Expense Line Errors",
+          "description": "List one bounded page of Oracle Fusion expense line errors."
+        },
+        {
+          "name": "Expenses · Get Expense Line Error",
+          "description": "Get an Oracle Fusion expense line error."
+        },
+        {
+          "name": "General Ledger · List Ledgers",
+          "description": "List one bounded page of Oracle Fusion gl ledgers."
+        },
+        {
+          "name": "General Ledger · Get Ledger",
+          "description": "Get an Oracle Fusion gl ledger."
+        },
+        {
+          "name": "General Ledger · List Journal Batches",
+          "description": "List one bounded page of Oracle Fusion gl journal batches."
+        },
+        {
+          "name": "General Ledger · Get Journal Batch",
+          "description": "Get an Oracle Fusion gl journal batch."
+        },
+        {
+          "name": "General Ledger · Delete Journal Batch",
+          "description": "Delete an Oracle Fusion GL journal batch when its current lifecycle state permits deletion."
+        },
+        {
+          "name": "General Ledger · List Journal Headers",
+          "description": "List one bounded page of Oracle Fusion gl journal headers."
+        },
+        {
+          "name": "General Ledger · Get Journal Header",
+          "description": "Get an Oracle Fusion gl journal header."
+        },
+        {
+          "name": "General Ledger · List Journal Lines",
+          "description": "List one bounded page of Oracle Fusion gl journal lines."
+        },
+        {
+          "name": "General Ledger · Get Journal Line",
+          "description": "Get an Oracle Fusion gl journal line."
+        },
+        {
+          "name": "General Ledger · List Journal Errors",
+          "description": "List one bounded page of Oracle Fusion gl journal errors."
+        },
+        {
+          "name": "General Ledger · Get Journal Error",
+          "description": "Get an Oracle Fusion gl journal error."
+        },
+        {
+          "name": "General Ledger · List Journal Action Logs",
+          "description": "List one bounded page of Oracle Fusion gl journal action logs."
+        },
+        {
+          "name": "General Ledger · Get Journal Action Log",
+          "description": "Get an Oracle Fusion gl journal action log."
+        },
+        {
+          "name": "General Ledger · List Balances",
+          "description": "List one bounded page of Oracle Fusion gl balances."
+        }
+      ],
+      "operationCount": 108,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics", "payments"]
     },
     {
       "type": "netsuite",

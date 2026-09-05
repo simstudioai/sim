@@ -4,13 +4,37 @@ import { selectorManifest } from '@/lib/selectors/manifest'
 import { serverSelectorRegistry } from '@/lib/selectors/server/registry'
 
 describe('selector manifest', () => {
+  it('keeps Financials selectors credential-only, paginated, and detail-capable', () => {
+    const keys = [
+      'oracleFusionFinancials.invoices',
+      'oracleFusionFinancials.receivablesInvoices',
+      'oracleFusionFinancials.receivablesCreditMemos',
+      'oracleFusionFinancials.receivablesReceipts',
+      'oracleFusionFinancials.receivablesCustomerAccounts',
+      'oracleFusionFinancials.receivablesCustomerAccountSites',
+      'oracleFusionFinancials.expenseReports',
+      'oracleFusionFinancials.glLedgers',
+      'oracleFusionFinancials.glJournalBatches',
+    ] as const
+    for (const key of keys) {
+      expect(selectorManifest[key]).toMatchObject({
+        context: { allowed: ['oauthCredential'], readiness: { all: ['oauthCredential'] } },
+        listMode: 'paginated',
+        supportsDetail: true,
+      })
+      expect(serverSelectorRegistry[key].credential?.serviceIds).toEqual([
+        'oracle_fusion_financials',
+      ])
+    }
+  })
+
   it('keeps the completed migration inventory exhaustive and legacy-free', () => {
     const classifications = Object.values(selectorManifest).map((entry) => entry.classification)
     const count = (classification: (typeof classifications)[number]) =>
       classifications.filter((value) => value === classification).length
 
-    expect(Object.keys(selectorManifest)).toHaveLength(94)
-    expect(count('provider-server')).toBe(82)
+    expect(Object.keys(selectorManifest)).toHaveLength(103)
+    expect(count('provider-server')).toBe(91)
     expect(count('internal-server')).toBe(11)
     expect(count('local')).toBe(1)
     expect(classifications).not.toContain('provider-legacy')
@@ -36,7 +60,7 @@ describe('selector manifest', () => {
     const rawConnectionKeys = providerKeys.filter(
       (key) => !serverSelectorRegistry[key as keyof typeof serverSelectorRegistry].credential
     )
-    expect(providerKeys).toHaveLength(82)
+    expect(providerKeys).toHaveLength(91)
     expect(rawConnectionKeys.sort()).toEqual([
       'cloudwatch.logGroups',
       'cloudwatch.logStreams',
@@ -98,7 +122,7 @@ describe('selector manifest', () => {
       (attachment) => attachment.destination !== 'fixed'
     )
 
-    expect(preparedDestinations).toHaveLength(13)
+    expect(preparedDestinations).toHaveLength(22)
     for (const attachment of preparedDestinations) {
       expect(attachment.destination).toEqual(
         expect.objectContaining({

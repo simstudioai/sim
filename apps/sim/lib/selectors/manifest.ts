@@ -188,6 +188,42 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracleFusionFinancials.receivablesInvoices': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.receivablesCreditMemos': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.receivablesReceipts': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.receivablesCustomerAccounts': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.receivablesCustomerAccountSites': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.expenseReports': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.glLedgers': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.glJournalBatches': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oracleFusionFinancials.invoices': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },

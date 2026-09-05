@@ -1,0 +1,2447 @@
+---
+title: Oracle Fusion Cloud Financials
+description: Read Payables, manage Receivables and Expenses, and inspect General Ledger
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_financials"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a reusable Oracle Fusion Cloud Financials service account with a Fusion application URL, username, and password for Basic authentication. Read bounded pages and individual Payables invoices, lines, distributions, installments, prepayments, holds, payments, paid invoices, payment process requests, and payment terms with fixed projections. Manage Receivables transactions and employee expense reports using supported writes and named lifecycle actions. Inspect ledgers, journals, and balances, and delete eligible journal batches; journal posting and import are not supported. Payables remains read-only. Permissions and business-unit or employee access are controlled by Oracle; no arbitrary REST operations or credentials are exposed.
+
+
+
+## Actions
+
+### Oracle Fusion Financials List Receivables Invoices
+
+List one page of Oracle Fusion receivables invoices.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables invoices in this page |
+
+### Oracle Fusion Financials Get Receivables Invoice
+
+Get Oracle Fusion receivables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoice` | json | Projected receivables invoice |
+
+### Oracle Fusion Financials Create Receivables Invoice
+
+Create Oracle Fusion receivables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `businessUnit` | string | No | Business Unit |
+| `transactionNumber` | string | No | Transaction Number |
+| `transactionDate` | string | No | Transaction Date \(YYYY-MM-DD\) |
+| `accountingDate` | string | No | Accounting Date \(YYYY-MM-DD\) |
+| `billToCustomerName` | string | No | Bill To Customer Name |
+| `billToCustomerNumber` | string | No | Bill To Customer Number |
+| `billToSite` | string | No | Bill To Site |
+| `invoiceCurrencyCode` | string | No | Invoice Currency Code |
+| `invoiceStatus` | string | No | Invoice Status |
+| `paymentTerms` | string | No | Payment Terms |
+| `transactionSource` | string | No | Transaction Source |
+| `transactionType` | string | No | Transaction Type |
+| `comments` | string | No | Comments |
+| `purchaseOrder` | string | No | Purchase Order |
+| `conversionRateType` | string | No | Conversion Rate Type |
+| `conversionRate` | number | No | Conversion Rate |
+| `conversionDate` | string | No | Conversion Date \(YYYY-MM-DD\) |
+| `lines` | json | No | Typed lines to create with the receivables invoice \(at most 1000\). Use Oracle attribute names; exact integer attributes must be strings. |
+| `distributions` | json | No | Typed distributions to create with the receivables invoice \(at most 1000\). Use Oracle attribute names; exact integer attributes must be strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoice` | json | Projected receivables invoice |
+
+### Oracle Fusion Financials Update Receivables Invoice
+
+Update Oracle Fusion receivables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `invoiceStatus` | string | No | Invoice Status |
+| `paymentTerms` | string | No | Payment Terms |
+| `transactionDate` | string | No | Transaction Date \(YYYY-MM-DD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoice` | json | Projected receivables invoice |
+
+### Oracle Fusion Financials Delete Receivables Invoice
+
+Delete an Oracle Fusion receivables invoice when its current lifecycle state permits deletion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the resource was deleted |
+| `id` | string | Deleted resource identifier |
+
+### Oracle Fusion Financials Approve Receivables Invoice
+
+Approve a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `comment` | string | No | Note recorded in the approval audit history |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; success is reported separately |
+
+### Oracle Fusion Financials Rework Receivables Invoice
+
+Request rework for a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `comment` | string | No | Note recorded in the approval audit history |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; success is reported separately |
+
+### Oracle Fusion Financials List Receivables Invoice Lines
+
+List one page of Oracle Fusion receivables invoice lines.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables invoice lines in this page |
+
+### Oracle Fusion Financials Get Receivables Invoice Line
+
+Get Oracle Fusion receivables invoice line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `receivablesInvoiceLineId` | string | Yes | receivables Invoice Line Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoiceLine` | json | Projected receivables invoice line |
+
+### Oracle Fusion Financials Create Receivables Invoice Line
+
+Create Oracle Fusion receivables invoice line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `lineNumber` | number | No | Line Number |
+| `description` | string | No | Description |
+| `itemNumber` | string | No | Item Number |
+| `memoLine` | string | No | Memo Line |
+| `lineAmount` | number | No | Line Amount |
+| `quantity` | number | No | Quantity |
+| `unitSellingPrice` | number | No | Unit Selling Price |
+| `unitOfMeasure` | string | No | Unit Of Measure |
+| `accountingRule` | string | No | Accounting Rule |
+| `accountingRuleDuration` | string | No | Accounting Rule Duration as an exact decimal string |
+| `ruleStartDate` | string | No | Rule Start Date \(YYYY-MM-DD\) |
+| `ruleEndDate` | string | No | Rule End Date \(YYYY-MM-DD\) |
+| `taxClassificationCode` | string | No | Tax Classification Code |
+| `salesOrder` | string | No | Sales Order |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoiceLine` | json | Projected receivables invoice line |
+
+### Oracle Fusion Financials List Receivables Invoice Distributions
+
+List one page of Oracle Fusion receivables invoice distributions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables invoice distributions in this page |
+
+### Oracle Fusion Financials Get Receivables Invoice Distribution
+
+Get Oracle Fusion receivables invoice distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `receivablesInvoiceDistributionId` | string | Yes | receivables Invoice Distribution Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoiceDistribution` | json | Projected receivables invoice distribution |
+
+### Oracle Fusion Financials Create Receivables Invoice Distribution
+
+Create Oracle Fusion receivables invoice distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `accountClass` | string | No | Account Class |
+| `accountCombination` | string | No | Account Combination |
+| `accountedAmount` | number | No | Accounted Amount |
+| `amount` | number | No | Amount |
+| `invoiceLineNumber` | number | No | Invoice Line Number |
+| `detailedTaxLineNumber` | number | No | Detailed Tax Line Number |
+| `percent` | number | No | Percent |
+| `comments` | string | No | Comments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoiceDistribution` | json | Projected receivables invoice distribution |
+
+### Oracle Fusion Financials List Receivables Invoice Installments
+
+List one page of Oracle Fusion receivables invoice installments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables invoice installments in this page |
+
+### Oracle Fusion Financials Get Receivables Invoice Installment
+
+Get Oracle Fusion receivables invoice installment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `receivablesInvoiceInstallmentId` | string | Yes | receivables Invoice Installment Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoiceInstallment` | json | Projected receivables invoice installment |
+
+### Oracle Fusion Financials Update Receivables Invoice Installment
+
+Update Oracle Fusion receivables invoice installment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesInvoiceId` | string | Yes | receivables Invoice Id \(exact decimal resource identifier\) |
+| `receivablesInvoiceInstallmentId` | string | Yes | receivables Invoice Installment Id \(exact decimal resource identifier\) |
+| `installmentDueDate` | string | No | Installment Due Date \(YYYY-MM-DD\) |
+| `originalAmount` | number | No | Original Amount |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesInvoiceInstallment` | json | Projected receivables invoice installment |
+
+### Oracle Fusion Financials List Receivables Credit Memos
+
+List one page of Oracle Fusion receivables credit memos.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables credit memos in this page |
+
+### Oracle Fusion Financials Get Receivables Credit Memo
+
+Get Oracle Fusion receivables credit memo.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemo` | json | Projected receivables credit memo |
+
+### Oracle Fusion Financials Create Receivables Credit Memo
+
+Create Oracle Fusion receivables credit memo.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `businessUnit` | string | Yes | Business Unit |
+| `transactionNumber` | string | Yes | Transaction Number |
+| `transactionDate` | string | Yes | Transaction Date \(YYYY-MM-DD\) |
+| `accountingDate` | string | No | Accounting Date \(YYYY-MM-DD\) |
+| `billToCustomerName` | string | No | Bill To Customer Name |
+| `billToCustomerNumber` | string | No | Bill To Customer Number |
+| `billToSite` | string | No | Bill To Site |
+| `creditMemoCurrency` | string | No | Credit Memo Currency |
+| `creditMemoStatus` | string | No | Credit Memo Status |
+| `creditReason` | string | No | Credit Reason |
+| `freightCreditAmount` | string | No | Freight Credit Amount |
+| `transactionSource` | string | No | Transaction Source |
+| `transactionType` | string | No | Transaction Type |
+| `creditMemoComments` | string | No | Credit Memo Comments |
+| `conversionRate` | number | No | Conversion Rate |
+| `conversionRateType` | string | No | Conversion Rate Type |
+| `conversionRateDate` | string | No | Conversion Rate Date \(YYYY-MM-DD\) |
+| `lines` | json | No | Typed lines to create with the receivables credit memo \(at most 1000\). Use Oracle attribute names; exact integer attributes must be strings. |
+| `distributions` | json | No | Typed distributions to create with the receivables credit memo \(at most 1000\). Use Oracle attribute names; exact integer attributes must be strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemo` | json | Projected receivables credit memo |
+
+### Oracle Fusion Financials Update Receivables Credit Memo
+
+Update Oracle Fusion receivables credit memo.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+| `allowCompletion` | string | No | Allow Completion |
+| `controlCompletionReason` | string | No | Control Completion Reason |
+| `creditMemoStatus` | string | No | Credit Memo Status |
+| `recipientEmail` | string | No | Recipient Email |
+| `transactionType` | string | No | Transaction Type |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemo` | json | Projected receivables credit memo |
+
+### Oracle Fusion Financials Approve Receivables Credit Memo
+
+Approve a pending-approval Oracle Fusion receivables credit memo. Returns the action result, not a refreshed transaction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+| `comment` | string | No | Note recorded in the approval audit history |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; success is reported separately |
+
+### Oracle Fusion Financials Rework Receivables Credit Memo
+
+Request rework for a pending-approval Oracle Fusion receivables credit memo. Returns the action result, not a refreshed transaction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+| `comment` | string | No | Note recorded in the approval audit history |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; success is reported separately |
+
+### Oracle Fusion Financials List Receivables Credit Memo Lines
+
+List one page of Oracle Fusion receivables credit memo lines.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables credit memo lines in this page |
+
+### Oracle Fusion Financials Get Receivables Credit Memo Line
+
+Get Oracle Fusion receivables credit memo line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+| `receivablesCreditMemoLineId` | string | Yes | receivables Credit Memo Line Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemoLine` | json | Projected receivables credit memo line |
+
+### Oracle Fusion Financials Create Receivables Credit Memo Line
+
+Create Oracle Fusion receivables credit memo line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+| `lineNumber` | number | Yes | Line Number |
+| `lineDescription` | string | No | Line Description |
+| `itemNumber` | string | No | Item Number |
+| `memoLine` | string | No | Memo Line |
+| `lineAmountCredit` | number | No | Line Amount Credit |
+| `lineQuantityCredit` | number | No | Line Quantity Credit |
+| `unitSellingPrice` | number | No | Unit Selling Price |
+| `unitOfMeasure` | string | No | Unit Of Measure |
+| `lineCreditReason` | string | No | Line Credit Reason |
+| `lineFreightCreditAmount` | number | No | Line Freight Credit Amount |
+| `taxClassificationCode` | string | No | Tax Classification Code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemoLine` | json | Projected receivables credit memo line |
+
+### Oracle Fusion Financials List Receivables Credit Memo Distributions
+
+List one page of Oracle Fusion receivables credit memo distributions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables credit memo distributions in this page |
+
+### Oracle Fusion Financials Get Receivables Credit Memo Distribution
+
+Get Oracle Fusion receivables credit memo distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+| `receivablesCreditMemoDistributionId` | string | Yes | receivables Credit Memo Distribution Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemoDistribution` | json | Projected receivables credit memo distribution |
+
+### Oracle Fusion Financials Create Receivables Credit Memo Distribution
+
+Create Oracle Fusion receivables credit memo distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCreditMemoId` | string | Yes | receivables Credit Memo Id \(exact decimal resource identifier\) |
+| `accountClass` | string | No | Account Class |
+| `accountCombination` | string | No | Account Combination |
+| `accountedAmount` | number | No | Accounted Amount |
+| `amount` | number | No | Amount |
+| `creditMemoLineNumber` | number | No | Credit Memo Line Number |
+| `detailedTaxLineNumber` | number | No | Detailed Tax Line Number |
+| `percent` | number | No | Percent |
+| `comments` | string | No | Comments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemoDistribution` | json | Projected receivables credit memo distribution |
+
+### Oracle Fusion Financials List Receivables Receipts
+
+List one page of Oracle Fusion receivables receipts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables receipts in this page |
+
+### Oracle Fusion Financials Get Receivables Receipt
+
+Get Oracle Fusion receivables receipt.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesReceiptId` | string | Yes | receivables Receipt Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesReceipt` | json | Projected receivables receipt |
+
+### Oracle Fusion Financials Create Receivables Receipt
+
+Create Oracle Fusion receivables receipt.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `amount` | number | Yes | Amount |
+| `businessUnit` | string | Yes | Business Unit |
+| `currency` | string | Yes | Currency |
+| `receiptDate` | string | Yes | Receipt Date \(YYYY-MM-DD\) |
+| `receiptMethod` | string | Yes | Receipt Method |
+| `receiptNumber` | string | No | Receipt Number |
+| `accountingDate` | string | No | Accounting Date \(YYYY-MM-DD\) |
+| `customerAccountNumber` | string | No | Customer Account Number |
+| `customerName` | string | No | Customer Name |
+| `customerSite` | string | No | Customer Site |
+| `comments` | string | No | Comments |
+| `conversionRate` | number | No | Conversion Rate |
+| `conversionRateType` | string | No | Conversion Rate Type |
+| `conversionDate` | string | No | Conversion Date \(YYYY-MM-DD\) |
+| `maturityDate` | string | No | Maturity Date \(YYYY-MM-DD\) |
+| `structuredPaymentReference` | string | No | Structured Payment Reference |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesReceipt` | json | Projected receivables receipt |
+
+### Oracle Fusion Financials Update Receivables Receipt
+
+Update Oracle Fusion receivables receipt.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesReceiptId` | string | Yes | receivables Receipt Id \(exact decimal resource identifier\) |
+| `amount` | number | No | Amount |
+| `currency` | string | No | Currency |
+| `receiptDate` | string | No | Receipt Date \(YYYY-MM-DD\) |
+| `receiptMethod` | string | No | Receipt Method |
+| `receiptNumber` | string | No | Receipt Number |
+| `accountingDate` | string | No | Accounting Date \(YYYY-MM-DD\) |
+| `customerAccountNumber` | string | No | Customer Account Number |
+| `customerName` | string | No | Customer Name |
+| `customerSite` | string | No | Customer Site |
+| `comments` | string | No | Comments |
+| `conversionRate` | number | No | Conversion Rate |
+| `conversionRateType` | string | No | Conversion Rate Type |
+| `conversionDate` | string | No | Conversion Date \(YYYY-MM-DD\) |
+| `maturityDate` | string | No | Maturity Date \(YYYY-MM-DD\) |
+| `structuredPaymentReference` | string | No | Structured Payment Reference |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesReceipt` | json | Projected receivables receipt |
+
+### Oracle Fusion Financials Delete Receivables Receipt
+
+Delete an Oracle Fusion receivables receipt when its current lifecycle state permits deletion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesReceiptId` | string | Yes | receivables Receipt Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the resource was deleted |
+| `id` | string | Deleted resource identifier |
+
+### Oracle Fusion Financials Apply Receivables Receipt
+
+Apply a standard receipt to a Receivables invoice installment. An omitted amount applies the full open transaction balance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesReceiptId` | string | Yes | receivables Receipt Id \(exact decimal resource identifier\) |
+| `appliedPaymentScheduleId` | string | Yes | Invoice installment identifier as an exact decimal string |
+| `amountApplied` | number | No | Amount to apply; omitted means the full open transaction balance |
+| `calledFrom` | string | No | Caller or process name recorded for audit |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; success is reported separately |
+
+### Oracle Fusion Financials List Receivables Customer Accounts
+
+List one page of Oracle Fusion receivables customer accounts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables customer accounts in this page |
+
+### Oracle Fusion Financials Get Receivables Customer Account
+
+Get Oracle Fusion receivables customer account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCustomerAccount` | json | Projected receivables customer account |
+
+### Oracle Fusion Financials List Receivables Customer Account Sites
+
+List one page of Oracle Fusion receivables customer account sites.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables customer account sites in this page |
+
+### Oracle Fusion Financials Get Receivables Customer Account Site
+
+Get Oracle Fusion receivables customer account site.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCustomerAccountSiteId` | string | Yes | receivables Customer Account Site Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCustomerAccountSite` | json | Projected receivables customer account site |
+
+### Oracle Fusion Financials List Receivables Receipt Applications
+
+List one page of Oracle Fusion receivables receipt applications.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables receipt applications in this page |
+
+### Oracle Fusion Financials Get Receivables Receipt Application
+
+Get Oracle Fusion receivables receipt application.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+| `receivablesReceiptApplicationId` | string | Yes | receivables Receipt Application Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesReceiptApplication` | json | Projected receivables receipt application |
+
+### Oracle Fusion Financials List Receivables Credit Memo Applications
+
+List one page of Oracle Fusion receivables credit memo applications.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables credit memo applications in this page |
+
+### Oracle Fusion Financials Get Receivables Credit Memo Application
+
+Get Oracle Fusion receivables credit memo application.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+| `receivablesCreditMemoApplicationId` | string | Yes | receivables Credit Memo Application Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesCreditMemoApplication` | json | Projected receivables credit memo application |
+
+### Oracle Fusion Financials List Receivables Transaction Payment Schedules
+
+List one page of Oracle Fusion receivables transaction payment schedules.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables transaction payment schedules in this page |
+
+### Oracle Fusion Financials Get Receivables Transaction Payment Schedule
+
+Get Oracle Fusion receivables transaction payment schedule.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+| `receivablesTransactionPaymentScheduleId` | string | Yes | receivables Transaction Payment Schedule Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesTransactionPaymentSchedule` | json | Projected receivables transaction payment schedule |
+
+### Oracle Fusion Financials List Receivables Transaction Adjustments
+
+List one page of Oracle Fusion receivables transaction adjustments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | receivables transaction adjustments in this page |
+
+### Oracle Fusion Financials Get Receivables Transaction Adjustment
+
+Get Oracle Fusion receivables transaction adjustment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `receivablesCustomerAccountId` | string | Yes | receivables Customer Account Id \(exact decimal resource identifier\) |
+| `receivablesTransactionAdjustmentId` | string | Yes | receivables Transaction Adjustment Id \(exact decimal resource identifier\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receivablesTransactionAdjustment` | json | Projected receivables transaction adjustment |
+
+### Oracle Fusion Financials List Expense Reports
+
+List one bounded page of Oracle Fusion expense reports.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expense Reports in this page |
+
+### Oracle Fusion Financials Get Expense Report
+
+Get an Oracle Fusion expense report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseReport` | object | Projected expense report |
+
+### Oracle Fusion Financials Create Expense Report
+
+Create an Oracle Fusion expense report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `orgId` | string | Yes | Org Id as an exact integer string |
+| `personId` | string | No | Person Id as an exact integer string |
+| `assignmentId` | string | No | Assignment Id as an exact integer string |
+| `preparerId` | string | No | Preparer Id as an exact integer string |
+| `purpose` | string | No | Purpose |
+| `expenseReportNumber` | string | No | Expense Report Number |
+| `expenseReportDate` | string | No | Expense Report Date \(YYYY-MM-DD\) |
+| `reimbursementCurrencyCode` | string | No | Reimbursement Currency Code |
+| `exchangeRateType` | string | No | Exchange Rate Type |
+| `paymentMethodCode` | string | No | Payment Method Code |
+| `overrideApproverId` | string | No | Override Approver Id as an exact integer string |
+| `unappliedAdvancesJust` | string | No | Unapplied Advances Just |
+| `unappliedCashAdvReason` | string | No | Unapplied Cash Adv Reason |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseReport` | object | Projected expense report |
+
+### Oracle Fusion Financials Update Expense Report
+
+Update an Oracle Fusion expense report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `orgId` | string | No | Org Id as an exact integer string |
+| `purpose` | string | No | Purpose |
+| `expenseReportDate` | string | No | Expense Report Date \(YYYY-MM-DD\) |
+| `reimbursementCurrencyCode` | string | No | Reimbursement Currency Code |
+| `exchangeRateType` | string | No | Exchange Rate Type |
+| `paymentMethodCode` | string | No | Payment Method Code |
+| `overrideApproverId` | string | No | Override Approver Id as an exact integer string |
+| `unappliedAdvancesJust` | string | No | Unapplied Advances Just |
+| `unappliedCashAdvReason` | string | No | Unapplied Cash Adv Reason |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseReport` | object | Projected expense report |
+
+### Oracle Fusion Financials Submit Expense Report
+
+Submit an Oracle Fusion expense report. Only result S means submission without errors; other results are returned as business failures.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result |
+
+### Oracle Fusion Financials Remove Expense Report Cash Advance
+
+Remove the specified cash advance from an Oracle Fusion expense report. Result Y means removal succeeded; N means it failed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `cashAdvanceNumber` | string | Yes | Number of the specific cash advance to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result |
+
+### Oracle Fusion Financials List Expense Lines
+
+List one bounded page of Oracle Fusion expense lines.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expense Lines in this page |
+
+### Oracle Fusion Financials Get Expense Line
+
+Get an Oracle Fusion expense line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseLine` | object | Projected expense line |
+
+### Oracle Fusion Financials Create Expense Line
+
+Create an Oracle Fusion expense line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `assignmentId` | string | Yes | Assignment Id as an exact integer string |
+| `orgId` | string | Yes | Org Id as an exact integer string |
+| `personId` | string | Yes | Person Id as an exact integer string |
+| `ticketClass` | string | Yes | Ticket Class |
+| `expenseTypeId` | string | No | Expense Type Id as an exact integer string |
+| `expenseTemplateId` | string | No | Expense Template Id as an exact integer string |
+| `description` | string | No | Description |
+| `justification` | string | No | Justification |
+| `receiptAmount` | number | No | Receipt Amount |
+| `receiptCurrencyCode` | string | No | Receipt Currency Code |
+| `receiptDate` | string | No | Receipt Date \(YYYY-MM-DD\) |
+| `merchantName` | string | No | Merchant Name |
+| `startDate` | string | No | Start Date \(YYYY-MM-DD\) |
+| `endDate` | string | No | End Date |
+| `exchangeRate` | number | No | Exchange Rate |
+| `reimbursementCurrencyCode` | string | No | Reimbursement Currency Code |
+| `itemizationParentExpenseId` | string | No | Itemization Parent Expense Id as an exact integer string |
+| `receiptMissingFlag` | boolean | No | Receipt Missing Flag |
+| `location` | string | No | Location |
+| `countryCode` | string | No | Country Code |
+| `expenseCategoryCode` | string | No | Expense Category Code |
+| `expenseSource` | string | No | Expense Source |
+| `numberOfDays` | number | No | Number Of Days |
+| `numberOfAttendees` | number | No | Number Of Attendees |
+| `tripDistance` | number | No | Trip Distance |
+| `distanceUnitCode` | string | No | Distance Unit Code |
+| `ticketClassCode` | string | No | Ticket Class Code |
+| `ticketNumber` | string | No | Ticket Number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseLine` | object | Projected expense line |
+
+### Oracle Fusion Financials Update Expense Line
+
+Update an Oracle Fusion expense line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `assignmentId` | string | No | Assignment Id as an exact integer string |
+| `orgId` | string | No | Org Id as an exact integer string |
+| `personId` | string | No | Person Id as an exact integer string |
+| `ticketClass` | string | No | Ticket Class |
+| `expenseTypeId` | string | No | Expense Type Id as an exact integer string |
+| `expenseTemplateId` | string | No | Expense Template Id as an exact integer string |
+| `description` | string | No | Description |
+| `justification` | string | No | Justification |
+| `receiptAmount` | number | No | Receipt Amount |
+| `receiptCurrencyCode` | string | No | Receipt Currency Code |
+| `receiptDate` | string | No | Receipt Date \(YYYY-MM-DD\) |
+| `merchantName` | string | No | Merchant Name |
+| `startDate` | string | No | Start Date \(YYYY-MM-DD\) |
+| `endDate` | string | No | End Date |
+| `exchangeRate` | number | No | Exchange Rate |
+| `reimbursementCurrencyCode` | string | No | Reimbursement Currency Code |
+| `itemizationParentExpenseId` | string | No | Itemization Parent Expense Id as an exact integer string |
+| `receiptMissingFlag` | boolean | No | Receipt Missing Flag |
+| `location` | string | No | Location |
+| `countryCode` | string | No | Country Code |
+| `expenseCategoryCode` | string | No | Expense Category Code |
+| `expenseSource` | string | No | Expense Source |
+| `numberOfDays` | number | No | Number Of Days |
+| `numberOfAttendees` | number | No | Number Of Attendees |
+| `tripDistance` | number | No | Trip Distance |
+| `distanceUnitCode` | string | No | Distance Unit Code |
+| `ticketClassCode` | string | No | Ticket Class Code |
+| `ticketNumber` | string | No | Ticket Number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseLine` | object | Projected expense line |
+
+### Oracle Fusion Financials List Expense Distributions
+
+List one bounded page of Oracle Fusion expense distributions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expense Distributions in this page |
+
+### Oracle Fusion Financials Get Expense Distribution
+
+Get an Oracle Fusion expense distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `expenseDistributionId` | string | Yes | Expense Distribution Id as an exact decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseDistribution` | object | Projected expense distribution |
+
+### Oracle Fusion Financials Create Expense Distribution
+
+Create an Oracle Fusion expense distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `expenseId` | string | Yes | Expense Id as an exact integer string |
+| `orgId` | string | Yes | Org Id as an exact integer string |
+| `codeCombinationId` | string | No | Code Combination Id as an exact integer string |
+| `company` | string | No | Company |
+| `costCenter` | string | No | Cost Center |
+| `reimbursableAmount` | number | No | Reimbursable Amount |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseDistribution` | object | Projected expense distribution |
+
+### Oracle Fusion Financials Update Expense Distribution
+
+Update an Oracle Fusion expense distribution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `expenseDistributionId` | string | Yes | Expense Distribution Id as an exact decimal string |
+| `expenseId` | string | Yes | Expense Id as an exact integer string |
+| `orgId` | string | Yes | Org Id as an exact integer string |
+| `codeCombinationId` | string | No | Code Combination Id as an exact integer string |
+| `company` | string | No | Company |
+| `costCenter` | string | No | Cost Center |
+| `reimbursableAmount` | number | No | Reimbursable Amount |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseDistribution` | object | Projected expense distribution |
+
+### Oracle Fusion Financials List Expense Itemizations
+
+List one bounded page of Oracle Fusion expense itemizations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expense Itemizations in this page |
+
+### Oracle Fusion Financials Get Expense Itemization
+
+Get an Oracle Fusion expense itemization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `expenseItemizationId` | string | Yes | Expense Itemization Id as an exact decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseItemization` | object | Projected expense itemization |
+
+### Oracle Fusion Financials Create Expense Itemization
+
+Create an Oracle Fusion expense itemization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `assignmentId` | string | No | Assignment Id as an exact integer string |
+| `orgId` | string | No | Org Id as an exact integer string |
+| `personId` | string | No | Person Id as an exact integer string |
+| `expenseTypeId` | string | No | Expense Type Id as an exact integer string |
+| `expenseTemplateId` | string | No | Expense Template Id as an exact integer string |
+| `itemizationParentExpenseId` | string | No | Itemization Parent Expense Id as an exact integer string |
+| `description` | string | No | Description |
+| `justification` | string | No | Justification |
+| `receiptAmount` | number | No | Receipt Amount |
+| `receiptCurrencyCode` | string | No | Receipt Currency Code |
+| `receiptDate` | string | No | Receipt Date \(YYYY-MM-DD\) |
+| `merchantName` | string | No | Merchant Name |
+| `startDate` | string | No | Start Date \(YYYY-MM-DD\) |
+| `endDate` | string | No | End Date |
+| `exchangeRate` | number | No | Exchange Rate |
+| `reimbursementCurrencyCode` | string | No | Reimbursement Currency Code |
+| `receiptMissingFlag` | boolean | No | Receipt Missing Flag |
+| `location` | string | No | Location |
+| `expenseCategoryCode` | string | No | Expense Category Code |
+| `numberOfDays` | number | No | Number Of Days |
+| `numberOfAttendees` | number | No | Number Of Attendees |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseItemization` | object | Projected expense itemization |
+
+### Oracle Fusion Financials Update Expense Itemization
+
+Update an Oracle Fusion expense itemization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `expenseItemizationId` | string | Yes | Expense Itemization Id as an exact decimal string |
+| `assignmentId` | string | No | Assignment Id as an exact integer string |
+| `orgId` | string | No | Org Id as an exact integer string |
+| `personId` | string | No | Person Id as an exact integer string |
+| `expenseTypeId` | string | No | Expense Type Id as an exact integer string |
+| `expenseTemplateId` | string | No | Expense Template Id as an exact integer string |
+| `itemizationParentExpenseId` | string | No | Itemization Parent Expense Id as an exact integer string |
+| `description` | string | No | Description |
+| `justification` | string | No | Justification |
+| `receiptAmount` | number | No | Receipt Amount |
+| `receiptCurrencyCode` | string | No | Receipt Currency Code |
+| `receiptDate` | string | No | Receipt Date \(YYYY-MM-DD\) |
+| `merchantName` | string | No | Merchant Name |
+| `startDate` | string | No | Start Date \(YYYY-MM-DD\) |
+| `endDate` | string | No | End Date |
+| `exchangeRate` | number | No | Exchange Rate |
+| `reimbursementCurrencyCode` | string | No | Reimbursement Currency Code |
+| `receiptMissingFlag` | boolean | No | Receipt Missing Flag |
+| `location` | string | No | Location |
+| `expenseCategoryCode` | string | No | Expense Category Code |
+| `numberOfDays` | number | No | Number Of Days |
+| `numberOfAttendees` | number | No | Number Of Attendees |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseItemization` | object | Projected expense itemization |
+
+### Oracle Fusion Financials List Expense Report Processing Details
+
+List one bounded page of Oracle Fusion expense report processing details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expense Report Processing Details in this page |
+
+### Oracle Fusion Financials Get Expense Report Processing Detail
+
+Get an Oracle Fusion expense report processing detail.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseReportProcessingDetailUniqId` | string | Yes | Expense Report Processing Detail Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseReportProcessingDetail` | object | Projected expense report processing detail |
+
+### Oracle Fusion Financials List Expense Report Payments
+
+List one bounded page of Oracle Fusion expense report payments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expense Report Payments in this page |
+
+### Oracle Fusion Financials Get Expense Report Payment
+
+Get an Oracle Fusion expense report payment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseReportPaymentId` | string | Yes | Expense Report Payment Id as an exact decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseReportPayment` | object | Projected expense report payment |
+
+### Oracle Fusion Financials List Expense Line Errors
+
+List one bounded page of Oracle Fusion expense line errors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Expense Line Errors in this page |
+
+### Oracle Fusion Financials Get Expense Line Error
+
+Get an Oracle Fusion expense line error.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `expenseReportUniqId` | string | Yes | Expense Report Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineUniqId` | string | Yes | Expense Line Uniq Id returned by Oracle; preserve it exactly |
+| `expenseLineErrorSequence` | string | Yes | Expense Line Error Sequence as an exact decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `expenseLineError` | object | Projected expense line error |
+
+### Oracle Fusion Financials List GL Ledgers
+
+List one bounded page of Oracle Fusion gl ledgers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | GL Ledgers in this page |
+
+### Oracle Fusion Financials Get GL Ledger
+
+Get an Oracle Fusion gl ledger.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `glLedgerId` | string | Yes | GL Ledger Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `glLedger` | object | Projected gl ledger |
+
+### Oracle Fusion Financials List GL Journal Batches
+
+List one bounded page of Oracle Fusion gl journal batches.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | GL Journal Batches in this page |
+
+### Oracle Fusion Financials Get GL Journal Batch
+
+Get an Oracle Fusion gl journal batch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `glJournalBatch` | object | Projected gl journal batch |
+
+### Oracle Fusion Financials Delete GL Journal Batch
+
+Delete an Oracle Fusion GL journal batch when its current lifecycle state permits deletion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the resource was deleted |
+| `id` | string | Deleted resource identifier |
+
+### Oracle Fusion Financials List GL Journal Headers
+
+List one bounded page of Oracle Fusion gl journal headers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | GL Journal Headers in this page |
+
+### Oracle Fusion Financials Get GL Journal Header
+
+Get an Oracle Fusion gl journal header.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+| `glJournalHeaderUniqId` | string | Yes | GL Journal Header Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `glJournalHeader` | object | Projected gl journal header |
+
+### Oracle Fusion Financials List GL Journal Lines
+
+List one bounded page of Oracle Fusion gl journal lines.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+| `glJournalHeaderUniqId` | string | Yes | GL Journal Header Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | GL Journal Lines in this page |
+
+### Oracle Fusion Financials Get GL Journal Line
+
+Get an Oracle Fusion gl journal line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+| `glJournalHeaderUniqId` | string | Yes | GL Journal Header Uniq Id returned by Oracle; preserve it exactly |
+| `glJournalLineUniqId` | string | Yes | GL Journal Line Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `glJournalLine` | object | Projected gl journal line |
+
+### Oracle Fusion Financials List GL Journal Errors
+
+List one bounded page of Oracle Fusion gl journal errors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | GL Journal Errors in this page |
+
+### Oracle Fusion Financials Get GL Journal Error
+
+Get an Oracle Fusion gl journal error.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+| `glJournalErrorUniqId` | string | Yes | GL Journal Error Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `glJournalError` | object | Projected gl journal error |
+
+### Oracle Fusion Financials List GL Journal Action Logs
+
+List one bounded page of Oracle Fusion gl journal action logs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | GL Journal Action Logs in this page |
+
+### Oracle Fusion Financials Get GL Journal Action Log
+
+Get an Oracle Fusion gl journal action log.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `glJournalBatchId` | string | Yes | GL Journal Batch Id returned by Oracle; preserve it exactly |
+| `glJournalActionLogUniqId` | string | Yes | GL Journal Action Log Uniq Id returned by Oracle; preserve it exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `glJournalActionLog` | object | Projected gl journal action log |
+
+### Oracle Fusion Financials List GL Balances
+
+List one bounded page of Oracle Fusion gl balances.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | AccountBalanceFinder accepts ledgerName, accountCombination, accountingPeriod, currency, amountType, currencyType, and scenario. AccountGroupBalanceFinder accepts accountGroupName, accountName, accountingPeriod, currency, and ledgerName. |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | GL Balances in this page |
+
+### Oracle Fusion Financials List Payables Invoices
+
+List one page of Oracle Fusion Payables invoices using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables invoices in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice
+
+Get one Oracle Fusion Payables invoice by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | The Payables invoice |
+
+### Oracle Fusion Financials List Payables Invoice Lines
+
+List one page of lines for an Oracle Fusion Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Invoice lines in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice Line
+
+Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceLineUniqId` | string | Yes | Opaque invoice-line key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceLine` | object | The Payables invoice line |
+
+### Oracle Fusion Financials List Payables Invoice Installments
+
+List one page of payment installments for an Oracle Fusion Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Invoice installments in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice Installment
+
+Get one Oracle Fusion Payables invoice installment by its opaque key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceInstallmentUniqId` | string | Yes | Opaque invoice-installment key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceInstallment` | object | The Payables invoice installment |
+
+### Oracle Fusion Financials List Payables Invoice Distributions
+
+List one page of accounting distributions for a Payables invoice line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceLineUniqId` | string | Yes | Opaque invoice-line key returned by Oracle Fusion |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Invoice distributions in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice Distribution
+
+Get one accounting distribution for an Oracle Fusion Payables invoice line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceLineUniqId` | string | Yes | Opaque invoice-line key returned by Oracle Fusion |
+| `invoiceDistributionId` | string | Yes | Oracle InvoiceDistributionId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceDistribution` | object | The Payables invoice distribution |
+
+### Oracle Fusion Financials List Payables Applied Prepayments
+
+List one page of prepayments already applied to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Applied prepayments in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Applied Prepayment
+
+Get one prepayment already applied to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `appliedPrepaymentUniqId` | string | Yes | Opaque applied-prepayment key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appliedPrepayment` | object | The applied prepayment |
+
+### Oracle Fusion Financials List Payables Available Prepayments
+
+List one page of prepayments available to apply to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Available prepayments in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Available Prepayment
+
+Get one prepayment available to apply to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `availablePrepaymentUniqId` | string | Yes | Opaque available-prepayment key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `availablePrepayment` | object | The available prepayment |
+
+### Oracle Fusion Financials List Payables Payments
+
+List one page of Oracle Fusion Payables payments using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables payments in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Payment
+
+Get one Oracle Fusion Payables payment by its CheckId.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `checkId` | string | Yes | Oracle payment CheckId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payment` | object | The Payables payment |
+
+### Oracle Fusion Financials List Payables Payment Related Invoices
+
+List one page of paid invoices related to a Payables payment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `checkId` | string | Yes | Oracle payment CheckId as a decimal string |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payment-related invoices in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Payment Related Invoice
+
+Get one paid invoice related to an Oracle Fusion Payables payment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `checkId` | string | Yes | Oracle payment CheckId as a decimal string |
+| `invoicePaymentId` | string | Yes | Oracle InvoicePaymentId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentRelatedInvoice` | object | The payment-related invoice |
+
+### Oracle Fusion Financials List Payment Process Requests
+
+List one page of Oracle Fusion payment process requests and their statuses.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payment process requests in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payment Process Request
+
+Get one Oracle Fusion payment process request and its current status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `paymentProcessRequestId` | string | Yes | Oracle PaymentProcessRequestId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentProcessRequest` | object | The payment process request |
+
+### Oracle Fusion Financials List Payables Invoice Holds
+
+List one page of Oracle Fusion Payables invoice holds and release details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables invoice holds in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice Hold
+
+Get one Oracle Fusion Payables invoice hold and its release details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `holdId` | string | Yes | Oracle HoldId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceHold` | object | The Payables invoice hold |
+
+### Oracle Fusion Financials List Payables Payment Terms
+
+List one page of Oracle Fusion Payables payment term headers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables payment terms in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Payment Term
+
+Get one Oracle Fusion Payables payment term header.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `termsId` | string | Yes | Oracle termsId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentTerm` | object | The Payables payment term |
+
+### Oracle Fusion Financials List Payables Payment Term Lines
+
+List one page of calculation lines for a Payables payment term.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `termsId` | string | Yes | Oracle termsId as a decimal string |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables payment term lines in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Payment Term Line
+
+Get one calculation line for an Oracle Fusion Payables payment term.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `termsId` | string | Yes | Oracle termsId as a decimal string |
+| `paymentTermLineUniqId` | string | Yes | Opaque payment-term-line key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentTermLine` | object | The Payables payment term line |
+
+
