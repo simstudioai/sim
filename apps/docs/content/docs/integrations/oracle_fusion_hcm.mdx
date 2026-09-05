@@ -1,0 +1,723 @@
+---
+title: Oracle Fusion Cloud HCM
+description: Read workers, absences, reporting lines, and workforce structures
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_hcm"
+  color="#F80000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+The Oracle Fusion Cloud HCM integration is strictly read-only. It builds on Sim's shared Oracle Fusion foundation and uses Oracle's versioned `11.13.18.05` REST resources with REST Framework version 9 to read public worker profiles, assignments, reporting relationships, absences, absence types, and workforce structures.
+
+## Connection setup
+
+1. Create or select a reusable Oracle Fusion integration-user credential. The credential stores the canonical Oracle Fusion application origin and dedicated integration username/password; workflows receive only its credential ID, never the raw values.
+2. The stored application origin is authoritative. Vanity domains, paths, ports, non-HTTPS URLs, and caller-supplied replacement destinations are rejected.
+3. Give the integration user only the data roles and security profiles required for the records the workflow must see. Relevant Oracle grants commonly include **Public Workers Read Only**, **Absences Read Only**, **Absence Types List of Values**, and **Workforce Structures Read Only**. Exact duty-role composition varies by tenant, and data security profiles determine which active or public workers are visible.
+
+Oracle references: [REST API index](https://docs.oracle.com/en/cloud/saas/human-resources/farws/index.html), [Quick Start](https://docs.oracle.com/en/cloud/saas/human-resources/farws/Quick_Start.html), [authorization](https://docs.oracle.com/en/cloud/saas/human-resources/farws/Authorize.html), [collection queries](https://docs.oracle.com/en/cloud/saas/human-resources/farws/Query_a_Collection.html), and [pagination](https://docs.oracle.com/en/cloud/saas/human-resources/farws/Navigate_a_Collection.html).
+
+## Available operations
+
+| Area | Operations |
+| --- | --- |
+| Workers | List Workers; Get Worker |
+| Assignments | List Worker Assignments; Get Worker Assignment |
+| Reporting | List Worker Managers; List Worker Direct Reports |
+| Absence management | List Absences; Get Absence; List Absence Types |
+| Workforce structures | List Jobs; List Job Families; List Departments; List Locations; List Positions; List Business Units; List Legal Employers; List Grades; List Person Types |
+
+List operations return one page. `limit` defaults to 20 and cannot exceed 100; `offset` defaults to 0. Use the returned `hasMore` and `nextOffset` values to request another page deliberately. Search is limited to 200 characters and is converted into resource-specific predicates; raw Oracle `q`, `finder`, `fields`, headers, ordering, and expansion parameters are not accepted.
+
+Absence date filters require an absence type and a complete start/end pair. Get Absence uses Oracle's documented absence-entry finder and requires exactly one matching record.
+
+Public workers and their assignments describe active records as of the current date, not a historical or termination feed. Oracle directs bulk extraction to HCM Extracts and change detection to Atom feeds; these tools are not intended for either use. See [Public Workers](https://docs.oracle.com/en/cloud/saas/human-resources/farws/api-public-workers.html).
+
+Recruiting, payroll, time and labor, talent, writes, and triggers remain separate future scope.
+
+## Data minimization and errors
+
+The integration returns explicit field allowlists. It excludes photos, street addresses, phone numbers, comments, absence reasons, medical or maternity data, certifications, attachments, entitlements, payroll details, audit usernames, budgets, costs, and flexfields. Location catalog records may include non-personal locality fields such as country, city, region, and postal code.
+
+Validation failures are reported before contacting Oracle. The shared Oracle transport pins the credential-bound origin, resolves and validates public DNS, prohibits redirects, preserves large integer identifiers losslessly, and caps every response at 5 MiB. Authentication and authorization failures preserve 401 and 403 semantics; missing resources return 404; exhausted rate limits return 429; malformed or oversized upstream responses return 502; and local request timeouts return 504. These HCM tools issue only GET requests. The shared client allows at most one retry (two attempts total), only for Oracle 429, 503, and 504 responses within its retry budget.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Oracle Fusion Cloud HCM with a reusable, least-privilege integration-user credential. Read public worker profiles, assignments, reporting relationships, absences, absence types, and workforce structures without exposing write operations, raw credentials, or sensitive HR fields.
+
+
+
+## Actions
+
+### List Oracle Fusion HCM Workers
+
+List or safely search public worker profiles.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `workers` | array | Workers |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `knownAs` | string | Known-as name |
+|   ↳ `workEmail` | string | Work email |
+|   ↳ `username` | string | Oracle username |
+
+### Get Oracle Fusion HCM Worker
+
+Get one public worker profile by person ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `worker` | object | Worker |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `knownAs` | string | Known-as name |
+|   ↳ `workEmail` | string | Work email |
+|   ↳ `username` | string | Oracle username |
+
+### List Oracle Fusion HCM Worker Assignments
+
+List assignments for a worker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `assignments` | array | Assignments |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `primaryFlag` | boolean | Primary assignment for worker |
+|   ↳ `primaryAssignmentFlag` | boolean | Primary assignment for work relationship |
+|   ↳ `workerType` | string | Worker type |
+|   ↳ `workerNumber` | string | Worker number |
+|   ↳ `fullPartTime` | string | Full-time or part-time value |
+|   ↳ `legalEmployerName` | string | Legal employer |
+|   ↳ `businessUnitName` | string | Business unit |
+|   ↳ `departmentName` | string | Department |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `positionName` | string | Position name |
+|   ↳ `locationCode` | string | Location code |
+|   ↳ `locationName` | string | Location name |
+|   ↳ `managerName` | string | Manager name |
+
+### Get Oracle Fusion HCM Worker Assignment
+
+Get one assignment for a worker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `assignmentId` | string | Yes | Oracle assignment ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignment` | object | Assignment |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `primaryFlag` | boolean | Primary assignment for worker |
+|   ↳ `primaryAssignmentFlag` | boolean | Primary assignment for work relationship |
+|   ↳ `workerType` | string | Worker type |
+|   ↳ `workerNumber` | string | Worker number |
+|   ↳ `fullPartTime` | string | Full-time or part-time value |
+|   ↳ `legalEmployerName` | string | Legal employer |
+|   ↳ `businessUnitName` | string | Business unit |
+|   ↳ `departmentName` | string | Department |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `positionName` | string | Position name |
+|   ↳ `locationCode` | string | Location code |
+|   ↳ `locationName` | string | Location name |
+|   ↳ `managerName` | string | Manager name |
+
+### List Oracle Fusion HCM Worker Managers
+
+List managers for a worker assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `assignmentId` | string | Yes | Oracle assignment ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `managers` | array | Managers |
+|   ↳ `assignmentSupervisorId` | string | Assignment supervisor ID |
+|   ↳ `managerAssignmentId` | string | Manager assignment ID |
+|   ↳ `managerAssignmentNumber` | string | Manager assignment number |
+|   ↳ `managerAssignmentName` | string | Manager assignment name |
+|   ↳ `managerPersonId` | string | Manager person ID |
+|   ↳ `managerPersonNumber` | string | Manager person number |
+|   ↳ `displayName` | string | Manager display name |
+|   ↳ `firstName` | string | Manager first name |
+|   ↳ `knownAs` | string | Manager known-as name |
+|   ↳ `lastName` | string | Manager last name |
+|   ↳ `managerType` | string | Manager type |
+|   ↳ `managerTypeMeaning` | string | Manager type meaning |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `positionName` | string | Position name |
+|   ↳ `workEmail` | string | Work email |
+
+### List Oracle Fusion HCM Direct Reports
+
+List direct reports for a worker assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `assignmentId` | string | Yes | Oracle assignment ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `directReports` | array | Direct reports |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `knownAs` | string | Known-as name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `relationshipType` | string | Relationship type |
+|   ↳ `relationshipTypeMeaning` | string | Relationship meaning |
+|   ↳ `workerType` | string | Worker type |
+|   ↳ `directReportsCount` | number | Direct report count |
+|   ↳ `allReportsCount` | number | All report count |
+
+### List Oracle Fusion HCM Absences
+
+List a worker’s absences using documented Oracle finders.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `absenceTypeId` | string | No | Optional absence type ID |
+| `startDate` | string | No | Range start date \(YYYY-MM-DD\) |
+| `endDate` | string | No | Range end date \(YYYY-MM-DD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `absences` | array | Absences |
+|   ↳ `absenceId` | string | Absence entry ID |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `absenceTypeId` | string | Absence type ID |
+|   ↳ `absenceType` | string | Absence type |
+|   ↳ `absenceStatusCode` | string | Absence status code |
+|   ↳ `displayStatus` | string | Display status |
+|   ↳ `displayStatusMeaning` | string | Display status meaning |
+|   ↳ `approvalStatusCode` | string | Approval status code |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `startTime` | string | Start time |
+|   ↳ `endDate` | string | End date |
+|   ↳ `endTime` | string | End time |
+|   ↳ `duration` | number | Duration |
+|   ↳ `formattedDuration` | string | Formatted duration |
+|   ↳ `unitOfMeasure` | string | Duration unit |
+|   ↳ `unitOfMeasureMeaning` | string | Duration unit meaning |
+|   ↳ `openEndedFlag` | boolean | Open-ended flag |
+|   ↳ `singleDayFlag` | boolean | Single-day flag |
+|   ↳ `employer` | string | Employer |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### Get Oracle Fusion HCM Absence
+
+Get one absence entry by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `absenceId` | string | Yes | Oracle absence entry ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `absence` | object | Absence |
+|   ↳ `absenceId` | string | Absence entry ID |
+|   ↳ `personId` | string | Person ID |
+|   ↳ `personNumber` | string | Person number |
+|   ↳ `absenceTypeId` | string | Absence type ID |
+|   ↳ `absenceType` | string | Absence type |
+|   ↳ `absenceStatusCode` | string | Absence status code |
+|   ↳ `displayStatus` | string | Display status |
+|   ↳ `displayStatusMeaning` | string | Display status meaning |
+|   ↳ `approvalStatusCode` | string | Approval status code |
+|   ↳ `assignmentId` | string | Assignment ID |
+|   ↳ `assignmentName` | string | Assignment name |
+|   ↳ `assignmentNumber` | string | Assignment number |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `startTime` | string | Start time |
+|   ↳ `endDate` | string | End date |
+|   ↳ `endTime` | string | End time |
+|   ↳ `duration` | number | Duration |
+|   ↳ `formattedDuration` | string | Formatted duration |
+|   ↳ `unitOfMeasure` | string | Duration unit |
+|   ↳ `unitOfMeasureMeaning` | string | Duration unit meaning |
+|   ↳ `openEndedFlag` | boolean | Open-ended flag |
+|   ↳ `singleDayFlag` | boolean | Single-day flag |
+|   ↳ `employer` | string | Employer |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Absence Types
+
+List absence types available to a worker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `personId` | string | Yes | Oracle person ID as a positive decimal string |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `absenceTypes` | array | Absence types |
+|   ↳ `absenceTypeId` | string | Absence type ID |
+|   ↳ `name` | string | Absence type name |
+|   ↳ `nameWithEmployer` | string | Name with employer |
+|   ↳ `description` | string | Description |
+|   ↳ `employerId` | string | Employer ID |
+|   ↳ `employerName` | string | Employer name |
+|   ↳ `durationCalculationBasis` | string | Duration calculation basis |
+|   ↳ `durationUomCode` | string | Duration unit code |
+|   ↳ `durationUomMeaning` | string | Duration unit meaning |
+|   ↳ `displaySequence` | number | Display sequence |
+
+### List Oracle Fusion HCM Jobs
+
+List or search jobs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `jobs` | array | Jobs |
+|   ↳ `jobId` | string | Job ID |
+|   ↳ `jobCode` | string | Job code |
+|   ↳ `name` | string | Job name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `jobFamilyId` | string | Job family ID |
+|   ↳ `jobFunctionCode` | string | Job function code |
+|   ↳ `managerLevel` | string | Manager level |
+|   ↳ `regularTemporary` | string | Regular or temporary |
+|   ↳ `fullPartTime` | string | Full-time or part-time |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Job Families
+
+List or search job families.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `jobFamilies` | array | Job families |
+|   ↳ `jobFamilyId` | string | Job family ID |
+|   ↳ `jobFamilyCode` | string | Job family code |
+|   ↳ `name` | string | Job family name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Departments
+
+List or search departments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `departments` | array | Departments |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `organizationCode` | string | Organization code |
+|   ↳ `name` | string | Department name |
+|   ↳ `classificationCode` | string | Classification code |
+|   ↳ `status` | string | Status |
+|   ↳ `locationId` | string | Location ID |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Locations
+
+List or search work locations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `locations` | array | Locations |
+|   ↳ `locationId` | string | Location ID |
+|   ↳ `locationCode` | string | Location code |
+|   ↳ `name` | string | Location name |
+|   ↳ `description` | string | Location description |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `country` | string | Country |
+|   ↳ `townOrCity` | string | Town or city |
+|   ↳ `region1` | string | Region 1 |
+|   ↳ `region2` | string | Region 2 |
+|   ↳ `region3` | string | Region 3 |
+|   ↳ `postalCode` | string | Postal code |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Positions
+
+List or search positions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `positions` | array | Positions |
+|   ↳ `positionId` | string | Position ID |
+|   ↳ `positionCode` | string | Position code |
+|   ↳ `name` | string | Position name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `positionType` | string | Position type |
+|   ↳ `jobId` | string | Job ID |
+|   ↳ `departmentId` | string | Department ID |
+|   ↳ `locationId` | string | Location ID |
+|   ↳ `businessUnitId` | string | Business unit ID |
+|   ↳ `regularTemporary` | string | Regular or temporary |
+|   ↳ `fullPartTime` | string | Full-time or part-time |
+|   ↳ `hiringStatus` | string | Hiring status |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Business Units
+
+List or search business units.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `businessUnits` | array | Business units |
+|   ↳ `businessUnitId` | string | Business unit ID |
+|   ↳ `name` | string | Business unit name |
+|   ↳ `status` | string | Status |
+
+### List Oracle Fusion HCM Legal Employers
+
+List or search legal employers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `legalEmployers` | array | Legal employers |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `name` | string | Legal employer name |
+|   ↳ `legislationCode` | string | Legislation code |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+
+### List Oracle Fusion HCM Grades
+
+List or search grades.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `effectiveDate` | string | No | Effective date in YYYY-MM-DD format |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `grades` | array | Grades |
+|   ↳ `gradeId` | string | Grade ID |
+|   ↳ `gradeCode` | string | Grade code |
+|   ↳ `name` | string | Grade name |
+|   ↳ `activeStatus` | string | Active status |
+|   ↳ `categoryCode` | string | Category code |
+|   ↳ `setId` | string | Reference data set ID |
+|   ↳ `effectiveStartDate` | string | Effective start date |
+|   ↳ `effectiveEndDate` | string | Effective end date |
+|   ↳ `lastUpdateDate` | string | Last update date |
+
+### List Oracle Fusion HCM Person Types
+
+List or search person types.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion integration-user credential |
+| `search` | string | No | Search text, up to 200 characters |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Page offset used by Oracle |
+| `nextOffset` | number | Next Oracle page offset when another page exists |
+| `totalResults` | number | Estimated total when Oracle provides it |
+| `personTypes` | array | Person types |
+|   ↳ `personTypeId` | string | Person type ID |
+|   ↳ `systemPersonType` | string | System person type |
+|   ↳ `userPersonType` | string | User person type |
+|   ↳ `activeFlag` | boolean | Active flag |
+|   ↳ `defaultFlag` | boolean | Default flag |
+
+

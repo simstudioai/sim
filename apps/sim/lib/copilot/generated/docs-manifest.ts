@@ -243,6 +243,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/onedrive.mdx',
   'integrations/onepassword.mdx',
   'integrations/openai.mdx',
+  'integrations/oracle_fusion_hcm.mdx',
   'integrations/outlook.mdx',
   'integrations/pagerduty.mdx',
   'integrations/parallel_ai.mdx',

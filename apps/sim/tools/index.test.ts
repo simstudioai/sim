@@ -41,6 +41,7 @@ import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { oracleFusionHcmListWorkersTool } from '@/tools/oracle_fusion_hcm'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
@@ -178,6 +179,7 @@ const mockRegistryTools: Record<string, any> = {
   file_fetch: fileFetchTool,
   file_get_content: fileGetContentTool,
   memory_add: memoryAddTool,
+  oracle_fusion_hcm_list_workers: oracleFusionHcmListWorkersTool,
   table_batch_insert_rows: tableBatchInsertRowsTool,
   sts_get_caller_identity: getCallerIdentityTool,
   http_request: {
@@ -1121,6 +1123,80 @@ describe('executeTool Function', () => {
     })
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('binds Oracle Fusion HCM execution to the credential destination and rejects URL spoofing', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'resolved-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      credentialType: 'service_account',
+    })
+
+    const result = await executeTool(
+      'oracle_fusion_hcm_list_workers',
+      {
+        oauthCredential: 'oracle-credential-id',
+        accessToken: 'spoofed-token',
+        instanceUrl: 'https://attacker.example.com',
+        limit: 25,
+      },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      oauthCredential: 'oracle-credential-id',
+      accessToken: 'resolved-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      limit: 25,
+    })
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolId: 'oracle_fusion_hcm_list_workers',
+        input: expect.objectContaining({
+          oauthCredential: 'oracle-credential-id',
+          accessToken: 'resolved-token',
+          instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+          limit: 25,
+        }),
+      })
+    )
+    const operationInput = mockExecuteInternalToolOperation.mock.calls.at(-1)?.[0].input
+    expect(operationInput?.accessToken).not.toBe('spoofed-token')
+    expect(operationInput?.instanceUrl).not.toBe('https://attacker.example.com')
+  })
+
+  it('rejects a non-service-account credential before Oracle Fusion HCM execution', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'oauth-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      credentialType: 'oauth',
+    })
+
+    const result = await executeTool(
+      'oracle_fusion_hcm_list_workers',
+      { oauthCredential: 'wrong-kind-credential' },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'List Oracle Fusion HCM Workers requires a service-account credential',
+    })
+    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
   it('preserves a registered operation failure without turning it into success', async () => {

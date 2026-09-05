@@ -606,6 +606,27 @@ const WORKDAY_TOOL_IDS = [
   'workday_update_worker',
 ] as const
 
+const ORACLE_FUSION_HCM_TOOL_IDS = [
+  'oracle_fusion_hcm_list_workers',
+  'oracle_fusion_hcm_get_worker',
+  'oracle_fusion_hcm_list_worker_assignments',
+  'oracle_fusion_hcm_get_worker_assignment',
+  'oracle_fusion_hcm_list_worker_managers',
+  'oracle_fusion_hcm_list_worker_direct_reports',
+  'oracle_fusion_hcm_list_absences',
+  'oracle_fusion_hcm_get_absence',
+  'oracle_fusion_hcm_list_absence_types',
+  'oracle_fusion_hcm_list_jobs',
+  'oracle_fusion_hcm_list_job_families',
+  'oracle_fusion_hcm_list_departments',
+  'oracle_fusion_hcm_list_locations',
+  'oracle_fusion_hcm_list_positions',
+  'oracle_fusion_hcm_list_business_units',
+  'oracle_fusion_hcm_list_legal_employers',
+  'oracle_fusion_hcm_list_grades',
+  'oracle_fusion_hcm_list_person_types',
+] as const
+
 const AGILOFT_TOOL_IDS = [
   'agiloft_async_status',
   'agiloft_attach_file',
@@ -1382,6 +1403,9 @@ registerFamily(handlerLoaders, TABLE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, WORKDAY_TOOL_IDS, async () => {
   return (await import('@/lib/internal/workday/execute-tool')).executeWorkdayTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_HCM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-hcm/execute-tool')).executeOracleFusionHcmTool
 })
 registerFamily(handlerLoaders, AGILOFT_TOOL_IDS, async () => {
   return (await import('@/lib/internal/agiloft/execute-tool')).executeAgiloftTool
