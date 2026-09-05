@@ -80,6 +80,56 @@ describe('credential group OAuth callback', () => {
     )
   })
 
+  it('restores the exact focused option after a successful Search connection', async () => {
+    mocks.consumeAttempt.mockResolvedValue({ ...attempt, optionId: 'site-two', returnTo: 'search' })
+    const response = await GET(request('state=state-1&code=code-1'), context)
+    expect(response.headers.get('location')).toBe(
+      '/credential-groups/enroll/invitation-token?optionId=site-two&returnTo=search&connected=site-two'
+    )
+    expect(mocks.completeOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: expect.objectContaining({
+          attempt: expect.objectContaining({ optionId: 'site-two' }),
+        }),
+      })
+    )
+  })
+
+  it.each([
+    [new CredentialGroupInvitationUnavailableError(), 'unavailable'],
+    [new CredentialGroupOAuthError('Sign in with your own account', 403), 'account_mismatch'],
+    [new CredentialGroupOAuthError('Missing scopes', 403), 'permissions_required'],
+    [new CredentialGroupOAuthError('Changed settings', 409), 'configuration_changed'],
+    [new Error('Provider failed'), 'failed'],
+  ])('retains Search focus after a rejected provider exchange: %s', async (error, status) => {
+    mocks.consumeAttempt.mockResolvedValue({ ...attempt, returnTo: 'search' })
+    mocks.completeOAuth.mockRejectedValueOnce(error)
+    const response = await GET(request('state=state-1&code=code-1'), context)
+    expect(response.headers.get('location')).toBe(
+      `/credential-groups/enroll/invitation-token?optionId=option-1&returnTo=search&oauth=${status}`
+    )
+  })
+
+  it.each(['denied', 'rate_limited'])(
+    'retains Search focus without exchanging after %s',
+    async (status) => {
+      mocks.consumeAttempt.mockResolvedValue({ ...attempt, returnTo: 'search' })
+      if (status === 'rate_limited')
+        mocks.rateLimit.mockResolvedValue(NextResponse.json({}, { status: 429 }))
+      const response = await GET(
+        request(
+          status === 'denied' ? 'state=state-1&error=access_denied' : 'state=state-1&code=code-1'
+        ),
+        context
+      )
+      expect(response.headers.get('location')).toBe(
+        `/credential-groups/enroll/invitation-token?optionId=option-1&returnTo=search&oauth=${status}`
+      )
+      expect(mocks.completeOAuth).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects standard providers on the custom callback route', async () => {
     const response = await GET(
       new NextRequest(

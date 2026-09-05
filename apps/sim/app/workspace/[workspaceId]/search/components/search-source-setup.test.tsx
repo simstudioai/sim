@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   applyAccess: vi.fn(),
   prepare: vi.fn(),
   createPending: false,
+  updatePending: false,
   accessPending: false,
   basesPending: false,
   basesError: null as Error | null,
@@ -77,7 +78,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useCreateConnector: () => ({ mutate: mocks.create, isPending: mocks.createPending }),
-  useUpdateConnector: () => ({ mutate: mocks.update, isPending: false }),
+  useUpdateConnector: () => ({ mutate: mocks.update, isPending: mocks.updatePending }),
   useUpdateConnectorAccess: () => ({ mutate: mocks.applyAccess, isPending: mocks.accessPending }),
   usePrepareSearchSource: () => ({
     mutate: mocks.prepare,
@@ -238,6 +239,7 @@ beforeEach(() => {
   mocks.canAdmin = true
   mocks.features = { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true }
   mocks.createPending = false
+  mocks.updatePending = false
   mocks.accessPending = false
   mocks.basesPending = false
   mocks.basesError = null
@@ -305,12 +307,31 @@ describe('Search source setup with real connector dialogs', () => {
     }
   )
 
-  it('does not expose the catalog or admin queries to a reader opening a setup URL', async () => {
+  it.each(['?addConnector=gitlab', '?manage-source=site-one', '?manage-source=confluence'])(
+    'does not expose the catalog or admin queries to a reader opening %s',
+    async (searchParams) => {
+      mocks.canAdmin = false
+      await render(setup(), searchParams)
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(mocks.basesQuery).toHaveBeenLastCalledWith('workspace-1', { enabled: false })
+      expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
+      expect(mocks.prepare).not.toHaveBeenCalled()
+    }
+  )
+
+  it('closes source management and disables admin queries when the viewer loses admin access', async () => {
+    mocks.connectors = [
+      { id: 'site-one', connectorType: 'confluence', accessMode: 'admin', status: 'active' },
+    ]
+    await render(setup(), '?manage-source=site-one')
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     mocks.canAdmin = false
-    await render(setup(), '?addConnector=gitlab')
+    mocks.sourceStatus.mockClear()
+    await render(setup(), '?manage-source=site-one')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.basesQuery).toHaveBeenLastCalledWith('workspace-1', { enabled: false })
     expect(mocks.connectorsQuery).toHaveBeenLastCalledWith(undefined)
+    expect(mocks.sourceStatus).not.toHaveBeenCalled()
   })
 
   it('lists each eligible provider once and filters the add-source catalog', async () => {
@@ -762,6 +783,282 @@ describe('member content credentials in real add and edit dialogs', () => {
     ).toHaveLength(0)
     expect(document.body.textContent).not.toContain('Change indexing account')
   })
+})
+
+describe('administrator source prerequisites in real connector dialogs', () => {
+  const adminEmailPlaceholder = 'admin@yourcompany.com'
+  const folderPlaceholder = 'e.g. 1aBcDeFg…, 2cDeFgHi… (comma-separated for multiple)'
+  const driveCredential = {
+    id: 'drive-credential',
+    name: 'Drive indexing account',
+    provider: 'google-drive',
+  }
+
+  beforeEach(() => {
+    mocks.credentials = [driveCredential]
+  })
+
+  it('marks Crawl as required in Drive administrator mode and refuses empty or blank subjects', async () => {
+    await render(
+      <AddConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        initialConnectorType='google_drive'
+        initialAccessMode='admin'
+      />
+    )
+    expect(document.body.textContent).toContain('Crawl as*')
+    expect(button('Connect & Sync')).toBeDisabled()
+    await click(button('Connect & Sync'))
+    expect(mocks.create).not.toHaveBeenCalled()
+    await fill(adminEmailPlaceholder, '   ')
+    expect(button('Connect & Sync')).toBeDisabled()
+
+    await fill(adminEmailPlaceholder, 'admin@example.com')
+    expect(button('Connect & Sync')).toBeEnabled()
+    await click(button('Connect & Sync'))
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorType: 'google_drive',
+        accessMode: 'admin',
+        credentialId: driveCredential.id,
+        sourceConfig: expect.objectContaining({ adminEmail: 'admin@example.com' }),
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it.each(['members', 'workspace'] as const)(
+    'keeps the Drive crawl subject optional in %s mode',
+    async (accessMode) => {
+      await render(
+        <AddConnectorModal
+          open
+          onOpenChange={vi.fn()}
+          knowledgeBaseId='general-kb'
+          initialConnectorType='google_drive'
+          initialAccessMode={accessMode}
+        />
+      )
+      expect(document.body.textContent).toContain('Crawl as')
+      expect(document.body.textContent).not.toContain('Crawl as*')
+      const submit = button(accessMode === 'members' ? 'Create & Invite' : 'Connect & Sync')
+      expect(submit).toBeEnabled()
+      await click(submit)
+      expect(mocks.create.mock.calls[0][0]).toMatchObject({
+        knowledgeBaseId: 'general-kb',
+        connectorType: 'google_drive',
+        accessMode,
+      })
+      expect(mocks.create.mock.calls[0][0].sourceConfig.adminEmail).toBeFalsy()
+    }
+  )
+
+  it('does not let an administrator erase the crawl subject from an existing mirrored Drive source', async () => {
+    await render(
+      <EditConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        connector={connector({
+          connectorType: 'google_drive',
+          accessMode: 'admin',
+          credentialId: driveCredential.id,
+          sourceConfig: { adminEmail: 'admin@example.com', fileType: 'documents' },
+        })}
+      />
+    )
+    expect(document.body.textContent).toContain('Crawl as*')
+    await fill(adminEmailPlaceholder, '')
+    expect(button('Save')).toBeDisabled()
+    await click(button('Save'))
+    expect(mocks.update).not.toHaveBeenCalled()
+    await fill(adminEmailPlaceholder, 'replacement@example.com')
+    expect(button('Save')).toBeEnabled()
+    await click(button('Save'))
+    expect(mocks.update.mock.calls[0][0]).toMatchObject({
+      connectorId: 'connector-1',
+      updates: {
+        sourceConfig: {
+          adminEmail: 'replacement@example.com',
+          fileType: 'documents',
+        },
+      },
+    })
+    expect(mocks.applyAccess).not.toHaveBeenCalled()
+  })
+
+  it('guides a member source back to saving its crawl subject without losing drafts or combining mutations', async () => {
+    const existing = connector({
+      connectorType: 'google_drive',
+      sourceConfig: { folderId: 'original-folder', _canonicalModes: { folderId: 'advanced' } },
+    })
+    await render(
+      <EditConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        connector={existing}
+      />
+    )
+    await fill(folderPlaceholder, 'draft-folder')
+    await click(button('Admin or service account'))
+    expect(document.body.textContent).toContain(
+      'Set Crawl as and save your settings before changing the connection method.'
+    )
+    expect(button('Apply connection method')).toBeDisabled()
+    expect(button('Save')).toBeDisabled()
+    await fill(adminEmailPlaceholder, 'admin@example.com')
+    expect(button('Apply connection method')).toBeDisabled()
+    await click(button('Edit settings'))
+
+    expect(button('Member accounts')).toHaveAttribute('aria-checked', 'true')
+    expect(document.querySelector(`input[placeholder="${folderPlaceholder}"]`)).toHaveValue(
+      'draft-folder'
+    )
+    expect(document.querySelector(`input[placeholder="${adminEmailPlaceholder}"]`)).toHaveValue(
+      'admin@example.com'
+    )
+    expect(button('Save')).toBeEnabled()
+    await click(button('Save'))
+    expect(mocks.update).toHaveBeenCalledOnce()
+    expect(mocks.update.mock.calls[0][0]).toMatchObject({
+      updates: {
+        sourceConfig: {
+          adminEmail: 'admin@example.com',
+          folderId: ['draft-folder'],
+          _canonicalModes: { folderId: 'advanced' },
+        },
+      },
+    })
+    expect(mocks.applyAccess).not.toHaveBeenCalled()
+
+    await render(
+      <EditConnectorModal
+        key='saved-settings'
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        connector={connector({
+          ...existing,
+          sourceConfig: mocks.update.mock.calls[0][0].updates.sourceConfig,
+        })}
+      />
+    )
+    await click(button('Admin or service account'))
+    await chooseCombo('Select the Google Drive account to sync as', driveCredential.name)
+    expect(button('Apply connection method')).toBeEnabled()
+    await click(button('Apply connection method'))
+    expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
+      {
+        knowledgeBaseId: 'kb-search',
+        connectorId: existing.id,
+        access: { accessMode: 'admin', credentialId: driveCredential.id },
+      },
+      expect.any(Object)
+    )
+    expect(mocks.update).toHaveBeenCalledOnce()
+  })
+
+  it('does not offer Confluence administrator access while its member identity feature is unavailable', async () => {
+    mocks.features.knowledgeMemberAccess = false
+    await render(
+      <EditConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        connector={connector({
+          connectorType: 'confluence',
+          sourceConfig: { domain: 'team.atlassian.net', spaceKey: 'ENG' },
+        })}
+      />
+    )
+    expect(document.body.textContent).toContain('Member accounts')
+    expect(
+      Array.from(document.querySelectorAll('button')).some((node) =>
+        ['Admin or service account', 'Apply connection method'].includes(node.textContent ?? '')
+      )
+    ).toBe(false)
+    expect(mocks.applyAccess).not.toHaveBeenCalled()
+  })
+
+  it('blocks an already selected Confluence administrator transition when identity access becomes unavailable', async () => {
+    mocks.credentials = [
+      { id: 'confluence-account', name: 'Confluence indexing account', provider: 'confluence' },
+    ]
+    const existing = connector({
+      connectorType: 'confluence',
+      sourceConfig: { domain: 'team.atlassian.net', spaceKey: 'ENG' },
+    })
+    const modal = (
+      <EditConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        connector={existing}
+      />
+    )
+    await render(modal)
+    await click(button('Admin or service account'))
+    await chooseCombo('Select the Confluence account to sync as', 'Confluence indexing account')
+    expect(button('Apply connection method')).toBeEnabled()
+    mocks.features.knowledgeMemberAccess = false
+    await render(cloneElement(modal))
+    expect(button('Apply connection method')).toBeDisabled()
+    await click(button('Apply connection method'))
+    expect(mocks.applyAccess).not.toHaveBeenCalled()
+  })
+
+  it.each(['creating', 'saving', 'switching access'] as const)(
+    'disables generic source inputs, dropdowns, selectors, and mode toggles while %s',
+    async (phase) => {
+      mocks.createPending = phase === 'creating'
+      mocks.updatePending = phase === 'saving'
+      mocks.accessPending = phase === 'switching access'
+      await render(
+        phase === 'creating' ? (
+          <AddConnectorModal
+            open
+            onOpenChange={vi.fn()}
+            knowledgeBaseId='kb-search'
+            isSearchIndex
+            initialConnectorType='google_drive'
+            initialAccessMode='admin'
+          />
+        ) : (
+          <EditConnectorModal
+            open
+            onOpenChange={vi.fn()}
+            knowledgeBaseId='kb-search'
+            isSearchIndex
+            connector={connector({
+              connectorType: 'google_drive',
+              accessMode: 'admin',
+              credentialId: driveCredential.id,
+              sourceConfig: { adminEmail: 'admin@example.com' },
+            })}
+          />
+        )
+      )
+      expect(document.querySelector(`input[placeholder="${adminEmailPlaceholder}"]`)).toBeDisabled()
+      expect(button('Switch Folders to manual input')).toBeDisabled()
+      const dropdown = Array.from(document.querySelectorAll('[role="combobox"]')).find((node) =>
+        node.textContent?.includes('Select file type')
+      )
+      expect(dropdown).toHaveAttribute('aria-disabled', 'true')
+      const folders = Array.from(document.querySelectorAll('[role="combobox"]')).find((node) =>
+        node.textContent?.includes('Select one or more folders (optional)')
+      )
+      expect(folders).toHaveAttribute('aria-disabled', 'true')
+    }
+  )
 })
 
 describe('canonical Search connector safety', () => {

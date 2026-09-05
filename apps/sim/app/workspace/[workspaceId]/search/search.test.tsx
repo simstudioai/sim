@@ -197,6 +197,67 @@ describe('unified Search sources', () => {
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('kb-search', 'confluence-sales')
   })
 
+  it('offers only the member’s required account actions across mixed source methods', async () => {
+    mocks.sources.push(
+      source({
+        connectorId: 'confluence-central',
+        connectorType: 'confluence',
+        connectionRequired: true,
+        viewerMembership: 'not_enrolled',
+      }),
+      source({
+        connectorId: 'drive-members',
+        accessMode: 'members',
+        connectionRequired: true,
+        viewerMembership: 'connected',
+      }),
+      source({
+        connectorId: 'slack-members',
+        connectorType: 'slack',
+        accessMode: 'members',
+        connectionRequired: true,
+        viewerMembership: 'needs_reauth',
+      })
+    )
+    await render()
+    const actions = Array.from(document.querySelectorAll('button')).map((node) =>
+      node.textContent?.trim()
+    )
+    expect(actions).toEqual(['Connect account', 'Reconnect'])
+    await act(async () => button('Connect account')!.click())
+    await act(async () => button('Reconnect')!.click())
+    expect(mocks.connect.mock.calls).toEqual([
+      ['kb-search', 'confluence-central'],
+      ['kb-search', 'slack-members'],
+    ])
+    expect(mocks.urlUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps central email-based sources usable when managed identities become unavailable', async () => {
+    mocks.features.knowledgeMemberAccess = false
+    mocks.sources.push(
+      source({
+        connectorId: 'confluence-central',
+        connectorType: 'confluence',
+        connectionRequired: true,
+        viewerMembership: 'invited',
+      }),
+      source({
+        connectorId: 'slack-members',
+        connectorType: 'slack',
+        accessMode: 'members',
+        connectionRequired: true,
+        viewerMembership: 'needs_reauth',
+      })
+    )
+    await render()
+    expect(document.body.textContent?.match(/12 searchable documents/g)).toHaveLength(2)
+    expect(document.body.textContent?.match(/Not available in this workspace/g)).toHaveLength(2)
+    expect(button('Connect account')).toBeUndefined()
+    expect(button('Reconnect')).toBeUndefined()
+    expect(mocks.sharedQuery).toHaveBeenLastCalledWith('workspace-1', { enabled: false })
+  })
+
   it('allows admins to add member sources when mirrored access is off', async () => {
     mocks.canAdmin = true
     mocks.features.knowledgeSourceMirroredAccess = false

@@ -34,6 +34,7 @@ interface StoredCredentialGroupOAuthAttempt {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
+  returnTo?: 'search'
   nonceHash: string
   encryptedCodeVerifier?: string
   encryptedInvitationToken: string
@@ -54,6 +55,7 @@ export interface CredentialGroupOAuthAttempt {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
+  returnTo?: 'search'
   codeVerifier?: string
   invitationToken: string
   createdAt: number
@@ -71,6 +73,7 @@ interface CreateCredentialGroupOAuthAttemptParams {
   requiredScopes: string[]
   redirectUri: string
   completionRedirect?: boolean
+  returnTo?: 'search'
   codeVerifier?: string
   invitationToken: string
 }
@@ -112,6 +115,7 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
     typeof candidate.redirectUri === 'string' &&
     (candidate.completionRedirect === undefined ||
       typeof candidate.completionRedirect === 'boolean') &&
+    (candidate.returnTo === undefined || candidate.returnTo === 'search') &&
     typeof candidate.nonceHash === 'string' &&
     (candidate.encryptedCodeVerifier === undefined ||
       typeof candidate.encryptedCodeVerifier === 'string') &&
@@ -144,6 +148,7 @@ export async function createCredentialGroupOAuthAttempt(
     requiredScopes: params.requiredScopes,
     redirectUri: params.redirectUri,
     ...(params.completionRedirect ? { completionRedirect: true } : {}),
+    ...(params.returnTo ? { returnTo: params.returnTo } : {}),
     nonceHash: sha256Hex(nonce),
     ...(encryptedCodeVerifier ? { encryptedCodeVerifier: encryptedCodeVerifier.encrypted } : {}),
     encryptedInvitationToken: encryptedInvitationToken.encrypted,
@@ -196,6 +201,7 @@ export async function consumeCredentialGroupOAuthAttempt(
     requiredScopes: parsed.requiredScopes,
     redirectUri: parsed.redirectUri,
     ...(parsed.completionRedirect ? { completionRedirect: true } : {}),
+    ...(parsed.returnTo ? { returnTo: parsed.returnTo } : {}),
     ...(codeVerifier ? { codeVerifier: codeVerifier.decrypted } : {}),
     invitationToken: invitationToken.decrypted,
     createdAt: parsed.createdAt,

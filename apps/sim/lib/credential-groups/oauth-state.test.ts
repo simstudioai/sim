@@ -138,6 +138,7 @@ describe('credential group OAuth state', () => {
     })
     expect(consumed?.codeVerifier).toBeUndefined()
     expect(consumed?.completionRedirect).toBeUndefined()
+    expect(consumed?.returnTo).toBeUndefined()
     await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
   })
   it('keeps independent connection attempts after another invitation is issued', async () => {
@@ -154,7 +155,7 @@ describe('credential group OAuth state', () => {
       redirectUri: 'https://sim.ai/callback',
       invitationToken: 'first-invitation',
     }
-    const first = await createCredentialGroupOAuthAttempt(params)
+    const first = await createCredentialGroupOAuthAttempt({ ...params, returnTo: 'search' })
     const second = await createCredentialGroupOAuthAttempt({
       ...params,
       optionId: 'option-2',
@@ -167,6 +168,7 @@ describe('credential group OAuth state', () => {
       email: params.email,
       invitationToken: params.invitationToken,
       optionId: 'option-1',
+      returnTo: 'search',
     })
     expect(secondAttempt).toMatchObject({
       workspaceId: params.workspaceId,
@@ -176,6 +178,28 @@ describe('credential group OAuth state', () => {
     })
     expect(credentialGroupOAuthNonceMatches(first.nonce, firstAttempt!.nonceHash)).toBe(true)
     expect(credentialGroupOAuthNonceMatches(first.nonce, secondAttempt!.nonceHash)).toBe(false)
+    expect(secondAttempt?.returnTo).toBeUndefined()
+  })
+
+  it('rejects an arbitrary stored return URL while consuming the state only once', async () => {
+    const created = await createCredentialGroupOAuthAttempt({
+      provider: 'gmail',
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      optionId: 'option-1',
+      authorizationAppId: 'google:app',
+      scopeVersion: 1,
+      requiredScopes: ['openid'],
+      redirectUri: 'https://sim.ai/callback',
+      invitationToken: 'invitation',
+      returnTo: 'search',
+    })
+    const [key, raw] = [...values.entries()][0]
+    values.set(key, JSON.stringify({ ...JSON.parse(raw), returnTo: 'https://external.test' }))
+    await expect(consumeCredentialGroupOAuthAttempt(created.state)).rejects.toThrow('malformed')
+    await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
   })
   it.each(['workspaceId', 'email'])(
     'rejects stored attempts missing the pinned %s and burns them',

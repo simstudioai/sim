@@ -932,16 +932,18 @@ export async function getPublicCredentialGroupEnrollment(
 }
 
 export async function getAuthorizedPublicCredentialGroupEnrollment(
-  identity: PublicCredentialGroupEnrollmentIdentity
+  identity: PublicCredentialGroupEnrollmentIdentity,
+  projection?: { optionId: string }
 ): Promise<PublicCredentialGroupEnrollment | null> {
   const row = await resolveAuthorizedPublicEnrollmentRow(identity)
   if (!row) return null
 
-  return buildPublicCredentialGroupEnrollment(row)
+  return buildPublicCredentialGroupEnrollment(row, projection)
 }
 
 async function buildPublicCredentialGroupEnrollment(
-  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>
+  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>,
+  projection?: { optionId: string }
 ): Promise<PublicCredentialGroupEnrollment> {
   const [connectionRows, linkedMcpServers, mcpConnectionRows] = await Promise.all([
     db
@@ -1001,13 +1003,18 @@ async function buildPublicCredentialGroupEnrollment(
       return [connection.mcpServerId, connection] as const
     })
   )
+  const options = projection
+    ? row.options.filter(
+        (option) => option.id === projection.optionId && option.status === 'active'
+      )
+    : row.options
 
   return {
     inviterName: row.inviterName,
     workspaceName: row.workspaceName,
     credentialGroupName: row.groupName,
     options: await Promise.all(
-      row.options.map(async (option) => {
+      options.map(async (option) => {
         if (!isCredentialGroupProvider(option.provider)) {
           throw new Error(`Unsupported Credential Group provider: ${option.provider}`)
         }
@@ -1053,7 +1060,7 @@ async function buildPublicCredentialGroupEnrollment(
         }
       })
     ),
-    mcpServers: linkedMcpServers.map((server) => {
+    mcpServers: (projection ? [] : linkedMcpServers).map((server) => {
       if (!server.managedConnectorId) {
         throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
       }

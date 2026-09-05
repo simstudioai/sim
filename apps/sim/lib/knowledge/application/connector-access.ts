@@ -78,6 +78,13 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     if (!connectorMeta || (context.knowledgeBase.isSearchIndex && !connectorMeta.search)) {
       throw new OrchestrationError('validation', 'This connector is unavailable for Search')
     }
+    const enrollmentUrl = (invitationLink: string, optionId: string) => {
+      if (!context.knowledgeBase.isSearchIndex) return invitationLink
+      const url = new URL(invitationLink)
+      url.searchParams.set('optionId', optionId)
+      url.searchParams.set('returnTo', 'search')
+      return url.toString()
+    }
     if (connector.accessMode === 'admin') {
       await requireSourceMirroredAccessAvailable({ workspaceId })
       const group = await loadWorkspaceAccountsCredentialListContext(workspaceId)
@@ -93,7 +100,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
         workspaceId,
         credentialGroupId: binding.credentialGroupId,
       })
-      return { url }
+      return { url: enrollmentUrl(url, binding.credentialGroupOptionId) }
     }
     if (
       connector.accessMode !== 'members' ||
@@ -124,7 +131,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
       workspaceId,
       credentialGroupId: connector.credentialGroupId,
     })
-    return { url }
+    return { url: enrollmentUrl(url, connector.credentialGroupOptionId) }
   },
 })
 

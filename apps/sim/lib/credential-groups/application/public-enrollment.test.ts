@@ -138,7 +138,7 @@ describe('public Credential Group enrollment application operations', () => {
   it('revalidates the invitation identity before returning enrollment metadata', async () => {
     const result = await readPublicCredentialGroupEnrollment.execute({ principal, input: {} })
 
-    expect(mocks.getEnrollment).toHaveBeenCalledWith(identity)
+    expect(mocks.getEnrollment).toHaveBeenCalledWith(identity, undefined)
     expect(result).toEqual({
       enrollment: {
         status: 'invited',
@@ -154,6 +154,16 @@ describe('public Credential Group enrollment application operations', () => {
     await expect(
       readPublicCredentialGroupEnrollment.execute({ principal, input: {} })
     ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('projects only the requested option after authenticating the current invitation', async () => {
+    await readPublicCredentialGroupEnrollment.execute({
+      principal,
+      input: { optionId: 'confluence-site-two' },
+    })
+    expect(mocks.getEnrollment).toHaveBeenCalledExactlyOnceWith(identity, {
+      optionId: 'confluence-site-two',
+    })
   })
 
   it('rejects a substituted bearer before creating provider state', async () => {
@@ -174,6 +184,20 @@ describe('public Credential Group enrollment application operations', () => {
 
     expect(mocks.getOAuthContext).toHaveBeenCalledWith(identity, 'option-1')
     expect(result).toEqual({ authorizationUrl: 'https://accounts.example/authorize' })
+  })
+
+  it('keeps the Search return context with the exact authorized OAuth option', async () => {
+    await startPublicCredentialGroupOAuth.execute({
+      principal,
+      input: { invitationToken, optionId: 'option-1', returnTo: 'search' },
+    })
+    expect(mocks.getOAuthContext).toHaveBeenCalledWith(identity, 'option-1')
+    expect(mocks.startOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ option: { id: 'option-1', provider: 'gmail' } }),
+      invitationToken,
+      { returnTo: 'search' }
+    )
+    expect(mocks.completeEnrollment).not.toHaveBeenCalled()
   })
 
   it('rejects a substituted bearer before creating managed MCP state', async () => {

@@ -124,6 +124,39 @@ beforeEach(() => {
 })
 
 describe('source member enrollment', () => {
+  it.each(['admin', 'members'])(
+    'focuses a Search %s source on its exact validated account option',
+    async (accessMode) => {
+      mocks.context.mockResolvedValue({
+        workspaceId: 'workspace',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        knowledgeBaseId: 'kb',
+        connectorId: 'source',
+        knowledgeBase: { id: 'kb', name: 'Search', isSearchIndex: true },
+      })
+      mocks.connector.mockResolvedValue({
+        ...row,
+        connectorType: 'confluence',
+        accessMode,
+        credentialGroupId: 'group',
+        credentialGroupOptionId: 'source-option-two',
+      })
+      mocks.meta.mockReturnValue({ name: 'Confluence', search: true, requiresMemberIdentity: true })
+      mocks.identityBinding.mockReturnValue({
+        credentialGroupId: 'accounts',
+        credentialGroupOptionId: 'identity-option-two',
+      })
+      const { url } = await startKnowledgeConnectorMemberEnrollment.execute({ principal, input })
+      expect(new URL(url).searchParams.get('optionId')).toBe(
+        accessMode === 'admin' ? 'identity-option-two' : 'source-option-two'
+      )
+      expect(new URL(url).searchParams.get('returnTo')).toBe('search')
+      expect(mocks.update).not.toHaveBeenCalled()
+      expect(mocks.provision).not.toHaveBeenCalled()
+    }
+  )
+
   it('lets a reader connect only their identity for a configured mirrored source without creating a crawler binding', async () => {
     mocks.role.mockResolvedValue('read')
     mocks.connector.mockResolvedValue({ ...row, accessMode: 'admin', connectorType: 'confluence' })

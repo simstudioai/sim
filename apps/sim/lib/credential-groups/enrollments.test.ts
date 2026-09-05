@@ -36,11 +36,13 @@ import {
   createCredentialGroupSelfEnrollmentLink,
   deleteCredentialGroupEnrollment,
   getAuthorizedCredentialGroupOAuthContext,
+  getAuthorizedPublicCredentialGroupEnrollment,
   getCredentialGroupMcpOAuthContextForEnrollment,
   getCredentialGroupOAuthContextForEnrollment,
   listCredentialGroupEnrollments,
   resendCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
+import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
@@ -79,6 +81,77 @@ const ENROLLMENT = {
   createdAt: new Date('2026-08-11T12:00:00.000Z'),
   updatedAt: new Date('2026-08-11T12:05:00.000Z'),
 }
+
+describe('focused public enrollment projection', () => {
+  const identity = {
+    workspaceId: 'workspace-1',
+    credentialGroupId: 'group-1',
+    enrollmentId: ENROLLMENT.id,
+    email: ENROLLMENT.email,
+    invitationTokenHash: ENROLLMENT.invitationTokenHash,
+  }
+  const options = [
+    { id: 'first', provider: 'gmail', label: 'First account', status: 'active', required: false },
+    { id: 'second', provider: 'gmail', label: 'Second account', status: 'active', required: false },
+    { id: 'broken-slack', provider: 'slack', label: 'Slack', status: 'active', required: false },
+    {
+      id: 'disabled',
+      provider: 'gmail',
+      label: 'Disabled account',
+      status: 'disabled',
+      required: false,
+    },
+  ]
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      {
+        enrollment: ENROLLMENT,
+        groupId: identity.credentialGroupId,
+        groupName: 'Accounts',
+        groupStatus: 'active',
+        options,
+        workspaceId: identity.workspaceId,
+        workspaceName: 'Workspace',
+        workspaceOwnerId: 'owner',
+        inviterName: 'Admin',
+      },
+    ])
+    adapter.getPolicy.mockImplementation(async (option) => {
+      if (option.provider === 'slack')
+        throw new CredentialGroupProviderConfigurationError('Unconfigured Slack')
+      return {
+        provider: 'gmail',
+        providerId: 'google-email',
+        authorizationAppId: 'google:app',
+        scopeVersion: 1,
+        requiredScopes: ['openid'],
+      }
+    })
+  })
+
+  it('loads only the exact active option policy so unrelated providers cannot block Search enrollment', async () => {
+    const result = await getAuthorizedPublicCredentialGroupEnrollment(identity, {
+      optionId: 'second',
+    })
+    expect(result?.options.map((option) => option.id)).toEqual(['second'])
+    expect(result?.mcpServers).toEqual([])
+    expect(adapter.getPolicy).toHaveBeenCalledExactlyOnceWith(options[1], {
+      workspaceId: identity.workspaceId,
+      credentialGroupId: identity.credentialGroupId,
+    })
+  })
+
+  it.each(['missing', 'disabled'])(
+    'never substitutes another option when %s is requested',
+    async (optionId) => {
+      const result = await getAuthorizedPublicCredentialGroupEnrollment(identity, { optionId })
+      expect(result?.options).toEqual([])
+      expect(adapter.getPolicy).not.toHaveBeenCalled()
+    }
+  )
+})
 
 describe('listCredentialGroupEnrollments', () => {
   beforeEach(() => {

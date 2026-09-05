@@ -102,7 +102,7 @@ const logger = createLogger('CredentialGroupOAuth')
 export async function startCredentialGroupOAuth(
   context: CredentialGroupOAuthContext,
   invitationToken: string,
-  options: { completionRedirect?: boolean } = {}
+  options: { completionRedirect?: boolean; returnTo?: 'search' } = {}
 ): Promise<string> {
   const adapter = getOptionAdapter(context)
   const policy = await assertCurrentPolicy(context, adapter)
@@ -120,6 +120,7 @@ export async function startCredentialGroupOAuth(
     redirectUri: prepared.redirectUri,
     codeVerifier: prepared.codeVerifier,
     completionRedirect: options.completionRedirect,
+    returnTo: options.returnTo,
     invitationToken,
   })
   return await prepared.buildAuthorizationUrl({ state, nonce })

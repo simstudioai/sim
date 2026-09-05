@@ -4,7 +4,21 @@ import {
   findCredentialGroupProviderFromProviderId,
 } from '@/lib/credential-groups/providers'
 import { aclIsDerived } from '@/lib/knowledge/connectors/access-modes'
-import type { ConnectorMeta } from '@/connectors/types'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+
+/** Administrator crawls require the same impersonation subject enforced by the server. */
+export function isConnectorFieldRequired(
+  field: ConnectorConfigField,
+  connectorConfig: ConnectorMeta,
+  accessMode: ConnectorAccessMode
+): boolean {
+  return Boolean(
+    field.required ||
+      (accessMode === 'admin' &&
+        connectorConfig.auth.mode === 'oauth' &&
+        connectorConfig.auth.serviceAccountSubjectFieldId === field.id)
+  )
+}
 
 /** The credential-group provider that collects accounts for this connector, if any. */
 export function connectorMemberProvider(

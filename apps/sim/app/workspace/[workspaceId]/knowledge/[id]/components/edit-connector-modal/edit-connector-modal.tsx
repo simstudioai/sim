@@ -24,7 +24,11 @@ import { useParams } from 'next/navigation'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
-import { derivedAclCapFieldIds } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import {
+  derivedAclCapFieldIds,
+  isConnectorFieldRequired,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
   ConnectorAccessField,
   type ConnectorAccessSelection,
@@ -58,21 +62,16 @@ import {
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useMemberAccessAvailable } from '@/hooks/use-member-access'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('EditConnectorModal')
-
-const SWITCH_LABEL: Record<ConnectorAccessMode, string> = {
-  workspace: 'Switch to workspace access',
-  members: 'Switch to per-member access',
-  admin: 'Switch to mirrored access',
-}
 
 const SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
   workspace: 'Every workspace member can read every synced document once the next sync completes.',
   members:
-    'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.',
+    'Teammates are invited to connect their accounts. Documents become available after their next sync. Item limits are removed.',
   admin:
-    'Documents stay hidden until the next sync mirrors their permissions from the source; listing caps are cleared.',
+    'Documents become available after the next sync updates their source permissions. Item limits are removed.',
 }
 
 /** Keys injected by the sync engine or modal state — not user-editable */
@@ -231,6 +230,7 @@ export function EditConnectorModal({
     canonicalModes,
     canonicalGroups,
     isFieldVisible,
+    isFieldPopulated,
     handleFieldChange,
     toggleCanonicalMode,
     resolveSourceConfig,
@@ -248,6 +248,13 @@ export function EditConnectorModal({
   const isSaving = isSavingSettings || isSwitchingAccess
   const memberAccessAvailable = useMemberAccessAvailable()
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
+  const { integrationAvailability } = usePermissionConfig()
+  const { admin: allowAdmin, members: allowMembers } = connectorConfig
+    ? getConnectorAccessAvailability(connectorConfig, integrationAvailability, {
+        memberAccessAvailable,
+        mirroredAccessAvailable,
+      })
+    : { admin: false, members: false }
   const persistedAccess = currentAccess(connector)
   const searchSourceSupported = !isSearchIndex || connectorConfig?.search === true
   const searchAccessAllowed = !isSearchIndex || access.accessMode !== 'workspace'
@@ -256,7 +263,7 @@ export function EditConnectorModal({
   const searchSetupError = !searchSourceSupported
     ? 'This source is not supported in Search. Use a separate knowledge base.'
     : !searchAccessAllowed
-      ? 'Choose Member accounts or Source permissions for Search.'
+      ? 'Choose Member accounts or Admin or service account for Search.'
       : null
   /** Keep existing permission-scoped settings visible after their feature is disabled. */
   const showAccessField =
@@ -275,14 +282,38 @@ export function EditConnectorModal({
     accessDirty &&
     isContentEngineAccessMode(access.accessMode) &&
     persistedAccess.accessMode === 'members'
+  const missingAdminField =
+    accessDirty && access.accessMode === 'admin'
+      ? connectorConfig?.configFields.find((field) => {
+          const value = connector.sourceConfig[field.id]
+          return (
+            !field.required &&
+            isConnectorFieldRequired(field, connectorConfig, 'admin') &&
+            (typeof value !== 'string' || !value.trim())
+          )
+        })
+      : undefined
+  const accessSetupHint = missingAdminField
+    ? `Set ${missingAdminField.title} and save your settings before changing the connection method.`
+    : undefined
   const accessComplete =
     searchSourceSupported &&
     searchAccessAllowed &&
+    !missingAdminField &&
+    (access.accessMode === 'workspace' ||
+      (access.accessMode === 'members' ? allowMembers : allowAdmin)) &&
     (!accessDirty || !needsWorkspaceCredential || Boolean(workspaceCredentialId))
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
     !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
   const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
+  const settingsComplete = connectorConfig?.configFields.every(
+    (field) =>
+      !isConnectorFieldRequired(field, connectorConfig, persistedAccess.accessMode) ||
+      !isFieldVisible(field) ||
+      hiddenCapFieldIds.has(field.id) ||
+      isFieldPopulated(field)
+  )
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),
@@ -307,7 +338,7 @@ export function EditConnectorModal({
   ])
 
   const handleSave = () => {
-    if (!searchSettingsAllowed) return
+    if (!searchSettingsAllowed || !settingsComplete || accessDirty) return
     setError(null)
 
     const updates: { sourceConfig?: Record<string, unknown>; syncIntervalMinutes?: number } = {}
@@ -357,7 +388,7 @@ export function EditConnectorModal({
    * than folded into a settings save that would race the run it starts.
    */
   const handleApplyAccess = () => {
-    if (!searchSourceSupported || !searchAccessAllowed) return
+    if (!accessComplete) return
     setError(null)
     updateAccess(
       {
@@ -430,13 +461,14 @@ export function EditConnectorModal({
             onAccessChange={setAccess}
             canAdmin={canAdmin}
             showAccessField={showAccessField}
-            allowMembers={memberAccessAvailable}
-            allowAdmin={mirroredAccessAvailable}
+            allowMembers={allowMembers}
+            allowAdmin={allowAdmin}
             allowWorkspace={!isSearchIndex}
             canReenableMemberSync={canReenableMemberSync}
             accessDirty={accessDirty}
             accessModeChanged={accessModeChanged}
             accessComplete={accessComplete}
+            accessSetupHint={accessSetupHint}
             isSwitchingAccess={isSwitchingAccess}
             onApplyAccess={handleApplyAccess}
             onResetAccess={() => {
@@ -464,7 +496,8 @@ export function EditConnectorModal({
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
             /** An open access change is applied by its own control, never folded into Save. */
-            disabled: !hasChanges || accessDirty || isSaving || !searchSettingsAllowed,
+            disabled:
+              !hasChanges || accessDirty || isSaving || !searchSettingsAllowed || !settingsComplete,
           }}
         />
       )}
@@ -498,6 +531,7 @@ interface SettingsTabProps {
   accessDirty: boolean
   accessModeChanged: boolean
   accessComplete: boolean
+  accessSetupHint?: string
   isSwitchingAccess: boolean
   onApplyAccess: () => void
   onResetAccess: () => void
@@ -534,6 +568,7 @@ function SettingsTab({
   accessDirty,
   accessModeChanged,
   accessComplete,
+  accessSetupHint,
   isSwitchingAccess,
   onApplyAccess,
   onResetAccess,
@@ -592,7 +627,11 @@ function SettingsTab({
             canReenableMemberSync ? (
               <div className='flex flex-col gap-2'>
                 <div>
-                  <Chip variant='primary' onClick={onApplyAccess} disabled={isSaving}>
+                  <Chip
+                    variant='primary'
+                    onClick={onApplyAccess}
+                    disabled={!accessComplete || isSaving}
+                  >
                     {isSwitchingAccess ? 'Re-enabling…' : 'Re-enable per-member sync'}
                   </Chip>
                 </div>
@@ -629,16 +668,17 @@ function SettingsTab({
                       ? 'Switching…'
                       : isContentCredentialChange
                         ? 'Change indexing account'
-                        : SWITCH_LABEL[access.accessMode]}
+                        : 'Apply connection method'}
                   </Chip>
                   <Chip onClick={onResetAccess} disabled={isSaving}>
-                    Cancel
+                    {accessSetupHint ? 'Edit settings' : 'Cancel'}
                   </Chip>
                 </div>
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
-                  {isContentCredentialChange
-                    ? 'The next sync uses this indexing account. Members keep their connected accounts and source permissions.'
-                    : SWITCH_NOTICE[access.accessMode]}
+                  {accessSetupHint ??
+                    (isContentCredentialChange
+                      ? 'The next sync uses this indexing account. Members keep their connected accounts and source permissions.'
+                      : SWITCH_NOTICE[access.accessMode])}
                 </p>
               </div>
             ) : undefined
@@ -661,6 +701,7 @@ function SettingsTab({
 
       {connectorConfig && (
         <ConnectorConfigFields
+          accessMode={access.accessMode}
           connectorConfig={connectorConfig}
           sourceConfig={sourceConfig}
           credentialId={selectorCredentialId}

@@ -25,6 +25,7 @@ import {
   getServiceAccountProviderForProviderId,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
@@ -32,7 +33,10 @@ import {
   useServiceAccountConnectTarget,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { derivedAclCapFieldIds } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import {
+  derivedAclCapFieldIds,
+  isConnectorFieldRequired,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
   ConnectorAccessField,
   type ConnectorAccessSelection,
@@ -152,8 +156,13 @@ export function AddConnectorModal({
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
-  const memberIdentityAvailable = !connectorConfig?.requiresMemberIdentity || memberAccessAvailable
-  const allowAdmin = mirroredAccessAvailable && memberIdentityAvailable
+  const { integrationAvailability } = usePermissionConfig()
+  const { admin: allowAdmin, members: allowMembers } = connectorConfig
+    ? getConnectorAccessAvailability(connectorConfig, integrationAvailability, {
+        memberAccessAvailable,
+        mirroredAccessAvailable,
+      })
+    : { admin: false, members: false }
   const needsSlackSetup = selectedType === 'slack' && isMembersMode
   const { data: workspaceAccounts } = useWorkspaceAccounts(
     canAdmin && needsSlackSetup ? workspaceId : undefined
@@ -179,7 +188,6 @@ export function AddConnectorModal({
     [connectorConfig]
   )
 
-  const { integrationAvailability } = usePermissionConfig()
   const serviceAccountProviderId = connectorProviderId
     ? getServiceAccountProviderForProviderId(connectorProviderId)
     : undefined
@@ -282,18 +290,19 @@ export function AddConnectorModal({
     Boolean(
       connectorConfig?.search &&
         access.accessMode !== 'workspace' &&
-        (!isMembersMode || memberAccessAvailable) &&
+        (!isMembersMode || allowMembers) &&
         (access.accessMode !== 'admin' || allowAdmin)
     )
   const canSubmit = Boolean(
     connectorConfig &&
       hasRequiredCredential &&
       hasSearchAccess &&
-      (access.accessMode !== 'admin' || memberIdentityAvailable) &&
+      (access.accessMode !== 'admin' || allowAdmin) &&
+      (!isMembersMode || allowMembers) &&
       !slackSetupRequired &&
       connectorConfig.configFields.every(
         (field) =>
-          !field.required ||
+          !isConnectorFieldRequired(field, connectorConfig, access.accessMode) ||
           !isFieldVisible(field) ||
           hiddenCapFieldIds.has(field.id) ||
           isFieldPopulated(field)
@@ -440,7 +449,7 @@ export function AddConnectorModal({
                   value={access}
                   onChange={setAccess}
                   canAdmin={canAdmin}
-                  allowMembers={memberAccessAvailable}
+                  allowMembers={allowMembers}
                   allowAdmin={allowAdmin}
                   allowWorkspace={!isSearchIndex}
                   disabled={isCreating}
@@ -539,6 +548,7 @@ export function AddConnectorModal({
                   )}
 
                   <ConnectorConfigFields
+                    accessMode={access.accessMode}
                     connectorConfig={connectorConfig}
                     sourceConfig={sourceConfig}
                     credentialId={effectiveCredentialId}

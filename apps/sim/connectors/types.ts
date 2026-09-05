@@ -356,6 +356,8 @@ export interface ConnectorMeta {
    * for every document it returns.
    */
   mirrorsSourceAcls?: true
+  /** Provider prerequisites shown when an administrator configures permission-aware indexing. */
+  adminSetupHint?: string
   /** Mirrored ACLs identify people by their own verified OAuth subject instead of email. */
   requiresMemberIdentity?: true
 }

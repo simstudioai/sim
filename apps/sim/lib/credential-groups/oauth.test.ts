@@ -11,7 +11,8 @@ import {
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { adapter } = vi.hoisted(() => ({
+const { adapter, createAttempt } = vi.hoisted(() => ({
+  createAttempt: vi.fn(),
   adapter: {
     provider: 'gmail' as const,
     requiresRefreshToken: true,
@@ -22,6 +23,10 @@ const { adapter } = vi.hoisted(() => ({
     refreshToken: vi.fn(),
     isTerminalRefreshError: vi.fn(),
   },
+}))
+
+vi.mock('@/lib/credential-groups/oauth-state', () => ({
+  createCredentialGroupOAuthAttempt: createAttempt,
 }))
 
 vi.mock('@/lib/credential-groups/provider-registry', () => ({
@@ -37,7 +42,10 @@ vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
   dispatchMemberSyncsForCredentialOption: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+import {
+  completeCredentialGroupOAuth,
+  startCredentialGroupOAuth,
+} from '@/lib/credential-groups/oauth'
 import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 
 const POLICY = {
@@ -96,6 +104,36 @@ describe('credential group OAuth persistence', () => {
       accessTokenExpiresAt: new Date('2026-08-14T00:00:00Z'),
       refreshTokenExpiresAt: null,
     })
+  })
+
+  it('pins Search return context with the same canonical option, identity and provider policy', async () => {
+    const buildAuthorizationUrl = vi.fn().mockReturnValue('https://provider.test/authorize')
+    adapter.prepareAuthorization.mockResolvedValue({
+      redirectUri: 'https://sim.ai/callback',
+      buildAuthorizationUrl,
+    })
+    createAttempt.mockResolvedValue({ state: 'state', nonce: 'nonce' })
+    await expect(
+      startCredentialGroupOAuth(CONTEXT, 'invitation', { returnTo: 'search' })
+    ).resolves.toBe('https://provider.test/authorize')
+    expect(createAttempt).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        workspaceId: CONTEXT.workspaceId,
+        enrollmentId: CONTEXT.enrollmentId,
+        email: CONTEXT.email,
+        optionId: CONTEXT.option.id,
+        authorizationAppId: POLICY.authorizationAppId,
+        scopeVersion: POLICY.scopeVersion,
+        requiredScopes: POLICY.requiredScopes,
+        returnTo: 'search',
+        invitationToken: 'invitation',
+      })
+    )
+    expect(buildAuthorizationUrl).toHaveBeenCalledExactlyOnceWith({
+      state: 'state',
+      nonce: 'nonce',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('does not reactivate a credential after its enrollment is revoked', async () => {

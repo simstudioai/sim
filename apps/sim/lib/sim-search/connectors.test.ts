@@ -72,6 +72,8 @@ vi.mock('@/lib/oauth', () => {
     jira: { providerId: 'jira', name: 'Jira', icon: () => null },
     'google-drive': { providerId: 'google-drive', name: 'Google Drive', icon: () => null },
     gmail: { providerId: 'google-email', name: 'Gmail', icon: () => null },
+    confluence: { providerId: 'confluence', name: 'Confluence', icon: () => null },
+    slack: { providerId: 'slack', name: 'Slack', icon: () => null },
     salesforce: {
       providerId: 'salesforce',
       name: 'Salesforce',
@@ -90,17 +92,32 @@ vi.mock('@/lib/oauth', () => {
 
 vi.mock('@/lib/integrations/credential-display', () => ({
   getIntegrationsForCredentialProvider: (providerId: string) =>
-    providerId === 'jira' ? [{ type: 'jira' }] : [],
+    providerId === 'jira'
+      ? [{ type: 'jira' }]
+      : providerId === 'slack'
+        ? [{ type: 'slack_v2' }]
+        : [],
+}))
+
+vi.mock('@/lib/credential-groups/providers', () => ({
+  findCredentialGroupProviderFromProviderId: (providerId: string) =>
+    ['google-drive', 'confluence', 'slack', 'jira', 'google-email', 'salesforce'].includes(
+      providerId
+    )
+      ? providerId
+      : null,
 }))
 
 import {
   canConnectPersonally,
+  getConnectorAccessAvailability,
   isSearchConnectorAvailable,
   missingSetupFields,
   personalSetupFields,
   SEARCH_CONNECTORS,
 } from '@/lib/sim-search/connectors'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import type { ConnectorMeta } from '@/connectors/types'
 
 describe('SEARCH_CONNECTORS', () => {
   it('lists only permission-scoped OAuth connectors, alphabetically', () => {
@@ -178,5 +195,154 @@ describe('isSearchConnectorAvailable', () => {
       true
     )
     expect(isSearchConnectorAvailable(jira, new Map())).toBe(true)
+  })
+})
+
+describe('getConnectorAccessAvailability', () => {
+  const enabled = { memberAccessAvailable: true, mirroredAccessAvailable: true }
+  const drive: ConnectorMeta = {
+    id: 'google_drive',
+    name: 'Google Drive',
+    description: '',
+    version: '1.0.0',
+    icon: () => null,
+    auth: { mode: 'oauth', provider: 'google-drive' },
+    configFields: [],
+    mirrorsSourceAcls: true,
+    permissionScopedListing: { capFieldIds: [] },
+  }
+  const confluence: ConnectorMeta = {
+    ...drive,
+    id: 'confluence',
+    name: 'Confluence',
+    auth: { mode: 'oauth', provider: 'confluence' },
+    requiresMemberIdentity: true,
+  }
+
+  it('preserves member and central choices for ordinary KBs without Search opt-in', () => {
+    expect(getConnectorAccessAvailability(drive, new Map(), enabled)).toEqual({
+      admin: true,
+      members: true,
+    })
+  })
+
+  it.each([
+    [false, false, { admin: false, members: false }],
+    [false, true, { admin: true, members: false }],
+    [true, false, { admin: false, members: true }],
+  ])(
+    'respects independent member=%s and central=%s feature gates',
+    (member, mirrored, expected) => {
+      expect(
+        getConnectorAccessAvailability(drive, new Map(), {
+          memberAccessAvailable: member,
+          mirroredAccessAvailable: mirrored,
+        })
+      ).toEqual(expected)
+    }
+  )
+
+  it('keeps Drive central setup available with a service account when OAuth is unavailable', () => {
+    expect(
+      getConnectorAccessAvailability(
+        drive,
+        new Map([['google_drive', { state: 'limited', oauthAvailable: false }]]),
+        enabled
+      )
+    ).toEqual({ admin: true, members: false })
+  })
+
+  it('refuses Confluence central setup on a service-account-only deployment', () => {
+    expect(
+      getConnectorAccessAvailability(
+        confluence,
+        new Map([['confluence', { state: 'limited', oauthAvailable: false }]]),
+        enabled
+      )
+    ).toEqual({ admin: false, members: false })
+  })
+
+  it('refuses Confluence central setup when managed identity features are disabled', () => {
+    expect(
+      getConnectorAccessAvailability(confluence, new Map(), {
+        memberAccessAvailable: false,
+        mirroredAccessAvailable: true,
+      })
+    ).toEqual({ admin: false, members: false })
+  })
+
+  it('allows Confluence central setup once both identity and crawler paths are available', () => {
+    expect(
+      getConnectorAccessAvailability(
+        confluence,
+        new Map([['confluence', { state: 'ready', oauthAvailable: true }]]),
+        enabled
+      )
+    ).toEqual({ admin: true, members: true })
+  })
+
+  it('does not require per-member crawling capability for an identity-only central source', () => {
+    expect(
+      getConnectorAccessAvailability(
+        { ...confluence, permissionScopedListing: undefined },
+        new Map(),
+        enabled
+      )
+    ).toEqual({ admin: true, members: false })
+  })
+
+  it('keeps Slack custom-app setup available under its integration block alias', () => {
+    const slack: ConnectorMeta = {
+      ...drive,
+      id: 'slack',
+      auth: { mode: 'oauth', provider: 'slack' },
+      mirrorsSourceAcls: undefined,
+    }
+    expect(
+      getConnectorAccessAvailability(
+        slack,
+        new Map([['slack_v2', { state: 'limited', oauthAvailable: false }]]),
+        enabled
+      )
+    ).toEqual({ admin: false, members: true })
+  })
+
+  it.each(['unavailable', 'misconfigured'] as const)(
+    'refuses new source methods when deployment state is %s',
+    (state) => {
+      expect(
+        getConnectorAccessAvailability(
+          drive,
+          new Map([['google_drive', { state, oauthAvailable: true }]]),
+          enabled
+        )
+      ).toEqual({ admin: false, members: false })
+    }
+  )
+
+  it('supports the GitLab central token path independently of OAuth or member features', () => {
+    const gitlab: ConnectorMeta = {
+      ...drive,
+      id: 'gitlab',
+      auth: { mode: 'apiKey' },
+      permissionScopedListing: undefined,
+    }
+    expect(
+      getConnectorAccessAvailability(
+        gitlab,
+        new Map([['gitlab', { state: 'ready', oauthAvailable: false }]]),
+        { memberAccessAvailable: false, mirroredAccessAvailable: true }
+      )
+    ).toEqual({ admin: true, members: false })
+  })
+
+  it('does not offer identity-dependent methods for an unknown OAuth service', () => {
+    expect(
+      getConnectorAccessAvailability(
+        { ...confluence, auth: { mode: 'oauth', provider: 'not-a-service' } },
+        new Map(),
+        enabled
+      )
+    ).toEqual({ admin: false, members: false })
   })
 })

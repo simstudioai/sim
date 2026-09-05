@@ -12,6 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -20,6 +21,8 @@ import {
   loadWorkspaceAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
 import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
+import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
+import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
@@ -31,6 +34,7 @@ import {
   isKnowledgeMemberAccessAvailable,
   resolveKnowledgeAccessAvailability,
 } from '@/lib/knowledge/access/availability'
+import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 
@@ -231,8 +235,9 @@ export async function resolveViewerConnectorMemberships(input: {
   workspaceId: string
   connectors: ReadonlyArray<{
     id: string
-    connectorType?: string
+    connectorType: string
     accessMode: string
+    sourceConfig: unknown
     credentialGroupId: string | null
     credentialGroupOptionId: string | null
   }>
@@ -255,26 +260,64 @@ export async function resolveViewerConnectorMemberships(input: {
     )
   )
     return result
-  const identityGroup = availability?.sourceMirrored
-    ? await loadWorkspaceAccountsCredentialListContext(input.workspaceId)
-    : null
+  const hasMemberConnectors = input.connectors.some(
+    (connector) => connector.accessMode === 'members'
+  )
+  if (!hasMemberConnectors && !availability?.sourceMirrored) return result
+  const group = await loadWorkspaceAccountsCredentialListContext(input.workspaceId)
+  if (!group || group.workspaceId !== input.workspaceId || group.status !== 'active') return result
   const memberConnectors = input.connectors.flatMap((connector) => {
+    const meta = getConnectorMeta(connector.connectorType)
     if (
       connector.accessMode === 'members' &&
-      connector.credentialGroupId &&
-      connector.credentialGroupOptionId
+      connector.credentialGroupId === group.credentialGroupId &&
+      connector.credentialGroupOptionId &&
+      meta &&
+      isPlainRecord(connector.sourceConfig)
     ) {
+      const validation = validateKnowledgeConnectorMembersBinding({
+        connectorMeta: meta,
+        group,
+        credentialGroupOptionId: connector.credentialGroupOptionId,
+        sourceConfig: connector.sourceConfig,
+      })
+      if (!validation.ok) return []
       return [{ id: connector.id, credentialGroupOptionId: connector.credentialGroupOptionId }]
     }
     const identity =
-      connector.accessMode === 'admin' && connector.connectorType
-        ? sourceIdentityBinding(getConnectorMeta(connector.connectorType), identityGroup)
+      connector.accessMode === 'admin' && availability?.sourceMirrored
+        ? sourceIdentityBinding(meta, group)
         : null
     return identity
       ? [{ id: connector.id, credentialGroupOptionId: identity.credentialGroupOptionId }]
       : []
   })
   if (memberConnectors.length === 0) return result
+
+  const optionIds = new Set(memberConnectors.map((connector) => connector.credentialGroupOptionId))
+  const readyOptionIds = new Set(
+    (
+      await Promise.all(
+        group.options
+          .filter((option) => optionIds.has(option.id))
+          .map(async (option) => {
+            if (!isCredentialGroupProvider(option.provider)) return null
+            try {
+              await getCredentialGroupProviderAdapter(option.provider).getPolicy(option, {
+                workspaceId: input.workspaceId,
+                credentialGroupId: group.credentialGroupId,
+                credentialGroupOptionId: option.id,
+              })
+              return option.id
+            } catch (error) {
+              if (error instanceof CredentialGroupProviderConfigurationError) return null
+              throw error
+            }
+          })
+      )
+    ).filter((optionId) => optionId !== null)
+  )
+  if (readyOptionIds.size === 0) return result
 
   const [viewer] = await db
     .select({ email: user.email, emailVerified: user.emailVerified })
@@ -302,6 +345,7 @@ export async function resolveViewerConnectorMemberships(input: {
     .where(
       and(
         eq(credentialGroup.workspaceId, input.workspaceId),
+        eq(credentialGroup.id, group.credentialGroupId),
         eq(credentialGroupEnrollment.email, email)
       )
     )
@@ -309,6 +353,7 @@ export async function resolveViewerConnectorMemberships(input: {
   const credentialsByOption = new Map(rows.map((row) => [row.credentialGroupOptionId, row]))
   const enrollmentStatus = rows[0]?.enrollmentStatus ?? null
   for (const connector of memberConnectors) {
+    if (!readyOptionIds.has(connector.credentialGroupOptionId)) continue
     const forOption = credentialsByOption.get(connector.credentialGroupOptionId)
     result.set(
       connector.id,

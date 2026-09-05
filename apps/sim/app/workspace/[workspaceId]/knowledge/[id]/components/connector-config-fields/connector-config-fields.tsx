@@ -2,7 +2,9 @@
 
 import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
 import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
+import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
   ConfigFieldMap,
@@ -11,6 +13,7 @@ import type {
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
 export interface ConnectorConfigFieldsProps {
+  accessMode?: ConnectorAccessMode
   /** Registry definition whose `configFields` drive the rendered rows. */
   connectorConfig: ConnectorMeta
   /** Current values keyed by field ID. */
@@ -27,7 +30,7 @@ export interface ConnectorConfigFieldsProps {
   onFieldChange: (fieldId: string, value: ConfigFieldValue) => void
   /** Swaps a canonical pair between selector and manual input. */
   onToggleCanonicalMode: (canonicalId: string) => void
-  /** Disables selector fields during submission. */
+  /** Disables configuration fields during submission. */
   disabled: boolean
 }
 
@@ -38,6 +41,7 @@ export interface ConnectorConfigFieldsProps {
  * switch stays identical in both flows.
  */
 export function ConnectorConfigFields({
+  accessMode = 'workspace',
   connectorConfig,
   sourceConfig,
   credentialId,
@@ -75,7 +79,9 @@ export function ConnectorConfigFields({
                 <span className='flex items-center gap-1'>
                   <span>
                     {field.title}
-                    {field.required && <span className='ml-0.5'>*</span>}
+                    {isConnectorFieldRequired(field, connectorConfig, accessMode) && (
+                      <span className='ml-0.5'>*</span>
+                    )}
                   </span>
                   {field.description && (
                     <Tooltip.Root>
@@ -83,10 +89,10 @@ export function ConnectorConfigFields({
                         <Button
                           type='button'
                           variant='ghost'
-                          className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                          size='icon'
                           aria-label={`About ${field.title}`}
                         >
-                          <CircleInfo className='size-[12px]' />
+                          <CircleInfo className='size-[14px]' />
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
@@ -98,11 +104,13 @@ export function ConnectorConfigFields({
                     <Tooltip.Trigger asChild>
                       <Button
                         type='button'
-                        variant='ghost'
-                        className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
+                        variant='quiet'
+                        size='icon'
+                        disabled={disabled}
+                        aria-label={`Switch ${field.title} to ${field.mode === 'basic' ? 'manual input' : 'selector'}`}
                         onClick={() => onToggleCanonicalMode(canonicalId)}
                       >
-                        <ArrowLeftRight className='size-[12px]' />
+                        <ArrowLeftRight className='size-[14px]' />
                       </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top'>
@@ -126,6 +134,7 @@ export function ConnectorConfigFields({
               />
             ) : field.type === 'dropdown' && field.options ? (
               <ChipCombobox
+                disabled={disabled}
                 options={field.options.map((opt) => ({
                   label: opt.label,
                   value: opt.id,
@@ -140,6 +149,7 @@ export function ConnectorConfigFields({
               />
             ) : (
               <ChipInput
+                disabled={disabled}
                 value={
                   Array.isArray(sourceConfig[field.id])
                     ? (sourceConfig[field.id] as string[]).join(', ')

@@ -548,10 +548,16 @@ export const slackCredentialGroupConfigurationCallbackContract = defineRouteCont
   response: { mode: 'text' },
 })
 
+export const startCredentialGroupOAuthQuerySchema = z.object({
+  returnTo: z.literal('search').optional(),
+})
+export type StartCredentialGroupOAuthQuery = z.output<typeof startCredentialGroupOAuthQuerySchema>
+
 export const startCredentialGroupOAuthContract = defineRouteContract({
   method: 'GET',
   path: '/api/credential-groups/enroll/[token]/oauth/[optionId]',
   params: startCredentialGroupOAuthParamsSchema,
+  query: startCredentialGroupOAuthQuerySchema,
   response: { mode: 'empty' },
 })
 

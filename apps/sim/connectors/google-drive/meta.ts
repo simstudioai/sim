@@ -38,6 +38,8 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
 
   /** `files.list` reports each file's own permissions, so one crawl can mirror them. */
   mirrorsSourceAcls: true,
+  adminSetupHint:
+    'Use an account with Google Workspace Directory access. Service accounts need domain-wide delegation. Only files the syncing account can access are indexed.',
 
   configFields: [
     {

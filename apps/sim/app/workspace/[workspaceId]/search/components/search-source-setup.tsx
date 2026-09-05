@@ -14,11 +14,7 @@ import { Search } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/auth-client'
-import {
-  canConnectPersonally,
-  isSearchConnectorAvailable,
-  SEARCH_CONNECTORS,
-} from '@/lib/sim-search/connectors'
+import { canConnectPersonally, getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   managedSourceParam,
@@ -110,9 +106,11 @@ export function SearchSourceSetup({
   const initialMode = (type: string) => {
     const meta = CONNECTOR_META_REGISTRY[type]
     if (
-      mirroredAccessAvailable &&
-      meta?.mirrorsSourceAcls &&
-      (!meta.requiresMemberIdentity || memberAccessAvailable)
+      meta &&
+      getConnectorAccessAvailability(meta, integrationAvailability, {
+        memberAccessAvailable,
+        mirroredAccessAvailable,
+      }).admin
     )
       return 'admin' as const
     return 'members' as const
@@ -203,19 +201,12 @@ export function SearchSourceSetup({
             <ChipModalField type='custom' title='Sources'>
               <div className={RESOURCE_LIST_STACK}>
                 {visibleTypes.map(([type, meta]) => {
-                  const personal = SEARCH_CONNECTORS.find((connector) => connector.type === type)
-                  const deployment = integrationAvailability.get(type)
-                  const central =
-                    mirroredAccessAvailable &&
-                    meta.mirrorsSourceAcls &&
-                    (!meta.requiresMemberIdentity || memberAccessAvailable) &&
-                    deployment?.state !== 'unavailable' &&
-                    deployment?.state !== 'misconfigured'
-                  const members =
-                    memberAccessAvailable &&
-                    personal &&
-                    isSearchConnectorAvailable(personal, integrationAvailability)
-                  const available = Boolean(central || members)
+                  const { admin: central, members } = getConnectorAccessAvailability(
+                    meta,
+                    integrationAvailability,
+                    { memberAccessAvailable, mirroredAccessAvailable }
+                  )
+                  const available = central || members
                   return (
                     <SettingsResourceRow
                       key={type}
@@ -225,8 +216,8 @@ export function SearchSourceSetup({
                       description={
                         !available
                           ? 'Not available in this workspace'
-                          : type === 'gitlab'
-                            ? 'Requires a self-managed instance administrator token.'
+                          : central
+                            ? meta.adminSetupHint
                             : undefined
                       }
                       disabled={!available}

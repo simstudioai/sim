@@ -5,6 +5,16 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { getPolicy } = vi.hoisted(() => ({ getPolicy: vi.fn() }))
+
+vi.mock('@/lib/credential-groups/provider-registry', () => ({
+  getCredentialGroupProviderAdapter: () => ({
+    getPolicy,
+    hasRequiredScopes: (granted: string[], required: string[]) =>
+      required.every((scope) => granted.includes(scope)),
+  }),
+}))
+
 vi.mock('@/lib/credential-groups/enrollments', () => ({
   createCredentialGroupInvitationLink: vi.fn(),
   inviteCredentialGroupEnrollment: vi.fn(),
@@ -23,6 +33,7 @@ vi.mock('@/lib/credential-groups/service', () => ({
 
 import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
+import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { ensureWorkspaceAccountsGroup } from '@/lib/credential-groups/service'
 import {
   isKnowledgeMemberAccessAvailable,
@@ -36,6 +47,8 @@ import {
   sourceIdentityBinding,
 } from '@/lib/knowledge/connectors/member-provisioning'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
+import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
+import { slackConnectorMeta } from '@/connectors/slack/meta'
 
 describe('provisionKnowledgeConnectorMembersBinding', () => {
   const slackMeta = { name: 'Slack', auth: { mode: 'oauth' as const, provider: 'slack' } }
@@ -205,16 +218,43 @@ describe('deriveViewerConnectorMembership', () => {
 })
 
 describe('viewer account status within the workspace container', () => {
-  const connectors = ['drive', 'slack', 'confluence'].map((id) => ({
-    id,
+  const metas = [googleDriveConnectorMeta, slackConnectorMeta, confluenceConnectorMeta]
+  const connectors = metas.map((meta) => ({
+    id: meta.id,
+    connectorType: meta.id,
     accessMode: 'members',
+    sourceConfig: {},
     credentialGroupId: 'accounts',
-    credentialGroupOptionId: id,
+    credentialGroupOptionId: meta.id,
   }))
+  const group: CredentialGroupCredentialListContext = {
+    credentialGroupId: 'accounts',
+    workspaceId: 'workspace',
+    name: 'Connected accounts',
+    status: 'active',
+    options: metas.map((meta) => ({
+      id: meta.id,
+      provider: meta.auth.mode === 'oauth' ? meta.auth.provider : '',
+      label: meta.name,
+      status: 'active',
+      authorizationAppId: `${meta.id}-app`,
+      requiredScopes: meta.auth.mode === 'oauth' ? [...(meta.auth.requiredScopes ?? [])] : [],
+      scopeVersion: 1,
+      required: false,
+    })),
+  }
+  const resolve = (sources = connectors) =>
+    resolveViewerConnectorMemberships({
+      userId: 'viewer',
+      workspaceId: 'workspace',
+      connectors: sources,
+    })
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    getPolicy.mockReset().mockResolvedValue(undefined)
     vi.mocked(isKnowledgeMemberAccessAvailable).mockResolvedValue(true)
+    queueTableRows(schemaMock.credentialGroup, [group])
     queueTableRows(schemaMock.user, [{ email: 'viewer@example.com', emailVerified: true }])
   })
 
@@ -222,7 +262,7 @@ describe('viewer account status within the workspace container', () => {
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
         enrollmentStatus: 'completed',
-        credentialGroupOptionId: 'drive',
+        credentialGroupOptionId: 'google_drive',
         managedOauthStatus: 'active',
       },
       {
@@ -237,7 +277,7 @@ describe('viewer account status within the workspace container', () => {
       connectors,
     })
     expect(Object.fromEntries(statuses)).toEqual({
-      drive: 'connected',
+      google_drive: 'connected',
       slack: 'needs_reauth',
       confluence: 'invited',
     })
@@ -247,7 +287,7 @@ describe('viewer account status within the workspace container', () => {
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
         enrollmentStatus: 'revoked',
-        credentialGroupOptionId: 'drive',
+        credentialGroupOptionId: 'google_drive',
         managedOauthStatus: 'active',
       },
     ])
@@ -257,6 +297,91 @@ describe('viewer account status within the workspace container', () => {
       connectors,
     })
     expect([...statuses.values()]).toEqual(['revoked', 'revoked', 'revoked'])
+  })
+
+  it.each([
+    ['disabled group', { ...group, status: 'disabled' }],
+    ['wrong workspace', { ...group, workspaceId: 'another-workspace' }],
+    ['missing group', null],
+  ])('does not offer a connection through a %s', async (_label, current) => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.credentialGroup, current ? [current] : [])
+    expect(await resolve()).toEqual(new Map())
+    expect(getPolicy).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['missing option', []],
+    ['disabled option', [{ ...group.options[0]!, status: 'disabled' }]],
+    ['wrong provider', [{ ...group.options[0]!, provider: 'confluence' }]],
+    ['missing required permissions', [{ ...group.options[0]!, requiredScopes: [] }]],
+  ])('does not offer Drive enrollment through a %s', async (_label, options) => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.credentialGroup, [{ ...group, options }])
+    expect(await resolve([connectors[0]!])).toEqual(new Map())
+    expect(getPolicy).not.toHaveBeenCalled()
+  })
+
+  it('refuses a stale stored group binding instead of borrowing the current workspace group', async () => {
+    expect(await resolve([{ ...connectors[0]!, credentialGroupId: 'previous-accounts' }])).toEqual(
+      new Map()
+    )
+    expect(getPolicy).not.toHaveBeenCalled()
+  })
+
+  it('does not offer enrollment when the source configuration fails the same member-binding validation', async () => {
+    expect(await resolve([{ ...connectors[0]!, sourceConfig: { maxFiles: 10 } }])).toEqual(
+      new Map()
+    )
+    expect(getPolicy).not.toHaveBeenCalled()
+  })
+
+  it('checks provider readiness once per option even when many sources share that option', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [])
+    const sources = [connectors[0]!, { ...connectors[0]!, id: 'another-drive-source' }]
+    expect(await resolve(sources)).toEqual(
+      new Map([
+        ['google_drive', 'not_enrolled'],
+        ['another-drive-source', 'not_enrolled'],
+      ])
+    )
+    expect(getPolicy).toHaveBeenCalledExactlyOnceWith(group.options[0], {
+      workspaceId: 'workspace',
+      credentialGroupId: 'accounts',
+      credentialGroupOptionId: 'google_drive',
+    })
+  })
+
+  it('suppresses an unavailable Slack app while preserving another provider connection', async () => {
+    getPolicy.mockImplementation(async (option: { provider: string }) => {
+      if (option.provider === 'slack') {
+        throw new CredentialGroupProviderConfigurationError('The custom Slack bot is unavailable')
+      }
+    })
+    queueTableRows(schemaMock.credentialGroupEnrollment, [])
+    expect(await resolve()).toEqual(
+      new Map([
+        ['google_drive', 'not_enrolled'],
+        ['confluence', 'not_enrolled'],
+      ])
+    )
+  })
+
+  it('does not disguise a provider configuration read failure as missing admin setup', async () => {
+    getPolicy.mockRejectedValue(new Error('Database unavailable'))
+    await expect(resolve()).rejects.toThrow('Database unavailable')
+  })
+
+  it('still requires a verified email after a live binding has been resolved', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.credentialGroup, [group])
+    queueTableRows(schemaMock.user, [{ email: 'viewer@example.com', emailVerified: false }])
+    queueTableRows(schemaMock.credentialGroupEnrollment, [])
+    expect([...(await resolve()).values()]).toEqual([
+      'unverified_email',
+      'unverified_email',
+      'unverified_email',
+    ])
   })
 })
 
@@ -283,12 +408,14 @@ describe('mirrored source account identity', () => {
     id: 'admin-source',
     connectorType: 'confluence',
     accessMode: 'admin',
+    sourceConfig: {},
     credentialGroupId: null,
     credentialGroupOptionId: null,
   }
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    getPolicy.mockReset().mockResolvedValue(undefined)
     vi.mocked(isKnowledgeMemberAccessAvailable).mockResolvedValue(true)
     vi.mocked(resolveKnowledgeAccessAvailability).mockResolvedValue({
       memberScoped: true,
@@ -353,5 +480,21 @@ describe('mirrored source account identity', () => {
       })
     ).toEqual(new Map())
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('does not offer an identity connection when the configured OAuth client is unavailable', async () => {
+    queueTableRows(schemaMock.credentialGroup, [group])
+    getPolicy.mockRejectedValue(
+      new CredentialGroupProviderConfigurationError(
+        'Managed Confluence authorization is not configured'
+      )
+    )
+    expect(
+      await resolveViewerConnectorMemberships({
+        userId: 'viewer',
+        workspaceId: 'workspace',
+        connectors: [connector],
+      })
+    ).toEqual(new Map())
   })
 })

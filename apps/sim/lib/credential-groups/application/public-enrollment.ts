@@ -112,10 +112,14 @@ interface PublicEnrollmentContext extends PublicCredentialGroupEnrollmentIdentit
 }
 
 async function resolvePublicEnrollmentContext(
-  principal: CredentialGroupEnrollmentPrincipal
+  principal: CredentialGroupEnrollmentPrincipal,
+  optionId?: string
 ): Promise<PublicEnrollmentContext> {
   const identity = identityFromPrincipal(principal)
-  const enrollment = await getAuthorizedPublicCredentialGroupEnrollment(identity)
+  const enrollment = await getAuthorizedPublicCredentialGroupEnrollment(
+    identity,
+    optionId === undefined ? undefined : { optionId }
+  )
   if (!enrollment) throw new OrchestrationError('not_found', 'Invitation is invalid or expired')
   return { ...identity, enrollment }
 }
@@ -123,7 +127,13 @@ async function resolvePublicEnrollmentContext(
 export const readPublicCredentialGroupEnrollment = defineAuthorizedCredentialGroupEnrollmentUseCase(
   {
     operation: credentialGroupEnrollmentOperations.read,
-    resolveContext: ({ principal }) => resolvePublicEnrollmentContext(principal),
+    resolveContext: ({
+      principal,
+      input,
+    }: {
+      principal: CredentialGroupEnrollmentPrincipal
+      input: { optionId?: string }
+    }) => resolvePublicEnrollmentContext(principal, input.optionId),
     async execute({ context }) {
       return { enrollment: context.enrollment }
     },
@@ -154,6 +164,7 @@ export const completePublicCredentialGroupEnrollment =
 interface PublicCredentialGroupOAuthInput {
   invitationToken: string
   optionId: string
+  returnTo?: 'search'
 }
 
 interface PublicCredentialGroupOAuthContext extends PublicCredentialGroupEnrollmentIdentity {
@@ -182,7 +193,9 @@ export const startPublicCredentialGroupOAuth = defineAuthorizedCredentialGroupEn
   async execute({ principal, input, context }) {
     requireInvitationToken(principal, input.invitationToken)
     return {
-      authorizationUrl: await startCredentialGroupOAuth(context.oauth, input.invitationToken),
+      authorizationUrl: await startCredentialGroupOAuth(context.oauth, input.invitationToken, {
+        returnTo: input.returnTo,
+      }),
     }
   },
 })

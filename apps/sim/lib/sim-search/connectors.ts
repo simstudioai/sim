@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
   getCanonicalScopesForProvider,
@@ -129,6 +130,52 @@ export interface SearchConnectorAvailabilityContext {
 type SearchIntegrationAvailability = Pick<IntegrationAvailabilityResponse, 'oauthAvailable'> &
   Partial<Pick<IntegrationAvailabilityResponse, 'state'>>
 
+interface ConnectorAccessAvailabilityContext {
+  memberAccessAvailable: boolean
+  mirroredAccessAvailable: boolean
+}
+
+interface ConnectorAccessAvailability {
+  admin: boolean
+  members: boolean
+}
+
+/** Central sources that identify readers through OAuth still need a usable member sign-in path. */
+export function getConnectorAccessAvailability(
+  meta: ConnectorMeta,
+  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
+  context: ConnectorAccessAvailabilityContext
+): ConnectorAccessAvailability {
+  const service =
+    meta.auth.mode === 'oauth'
+      ? (getServiceConfigByServiceId(meta.auth.provider) ??
+        getServiceConfigByProviderId(meta.auth.provider))
+      : null
+  const blockType = service
+    ? (getIntegrationsForCredentialProvider(service.providerId)[0]?.type ?? meta.id)
+    : meta.id
+  const deployment = integrationAvailability.get(blockType.toLowerCase())
+  const deploymentAvailable =
+    deployment?.state !== 'unavailable' && deployment?.state !== 'misconfigured'
+  const identityAvailable = Boolean(
+    context.memberAccessAvailable &&
+      service &&
+      findCredentialGroupProviderFromProviderId(service.providerId) &&
+      deploymentAvailable &&
+      isSearchConnectorAvailable({ type: meta.id, blockType }, integrationAvailability)
+  )
+
+  return {
+    admin: Boolean(
+      context.mirroredAccessAvailable &&
+        meta.mirrorsSourceAcls &&
+        deploymentAvailable &&
+        (!meta.requiresMemberIdentity || identityAvailable)
+    ),
+    members: Boolean(meta.permissionScopedListing && identityAvailable),
+  }
+}
+
 /** Why a source cannot be connected on this surface right now; null when it can. */
 export function searchConnectorUnavailableReason(
   connector: SearchConnector,
@@ -151,7 +198,7 @@ export function searchConnectorUnavailableReason(
  * a limited deployment, matching the Integrations setup surface.
  */
 export function isSearchConnectorAvailable(
-  connector: SearchConnector,
+  connector: Pick<SearchConnector, 'type' | 'blockType'>,
   integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>
 ): boolean {
   const availability = integrationAvailability.get(connector.blockType.toLowerCase())

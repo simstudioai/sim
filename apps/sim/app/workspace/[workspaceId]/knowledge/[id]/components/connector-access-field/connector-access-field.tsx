@@ -89,7 +89,7 @@ function accessHint(mode: ConnectorAccessMode, connectorConfig: ConnectorMeta): 
     const identityHint = connectorConfig.requiresMemberIdentity
       ? ` Teammates still connect their ${sourceName} accounts to confirm their identity.`
       : ''
-    return `An admin or service account syncs documents and permissions.${identityHint} Each person sees only documents they can open in ${sourceName}.`
+    return `${connectorConfig.adminSetupHint ?? 'An admin or service account syncs documents and permissions.'}${identityHint} Each person sees only documents they can open in ${sourceName}.`
   }
   return 'Everyone in this workspace can search these documents.'
 }
@@ -153,7 +153,11 @@ export function ConnectorAccessField({
       type='custom'
       title='Connection method'
       error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
-      hint={accessHint(value.accessMode, connectorConfig)}
+      hint={
+        canAdmin && !modes.find((entry) => entry.mode === value.accessMode)?.allowed
+          ? 'This connection method is not available in this workspace.'
+          : accessHint(value.accessMode, connectorConfig)
+      }
     >
       <div className='flex flex-col gap-2'>
         {showModeSelector ? (

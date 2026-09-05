@@ -53,10 +53,13 @@ export async function handleCredentialGroupOAuthCallback({
       { status: 400, headers: { 'Cache-Control': 'no-store' } }
     )
   }
+  const focus: Record<string, string> = attempt.returnTo
+    ? { optionId: attempt.optionId, returnTo: attempt.returnTo }
+    : {}
   const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
     attempt.completionRedirect
       ? createCredentialGroupCompletionRedirect(oauth)
-      : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth })
+      : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { ...focus, oauth })
   if (limited) {
     return failureRedirect('rate_limited')
   }
@@ -78,6 +81,7 @@ export async function handleCredentialGroupOAuthCallback({
     return attempt.completionRedirect
       ? createCredentialGroupCompletionRedirect()
       : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+          ...focus,
           connected: attempt.optionId,
         })
   } catch (error) {
