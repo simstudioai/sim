@@ -504,12 +504,10 @@ const MAX_SORT_KEYS = 16
  * it reaches the OpenAPI description of every endpoint taking a predicate.
  */
 const PREDICATE_OPERATOR_GRAMMAR = [
-  'Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`.',
-  'Membership: `in`, `nin` (array operand).',
-  'Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand).',
-  'Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`.',
-  'Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`.',
-  'A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+  'Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`; `in`/`nin` take arrays; `isEmpty`, `isNotEmpty`, `isNull`, and `isNotNull` take no operand.',
+  'Text operators are `contains`, `ncontains`, `startsWith`, `endsWith`, `like`, `nlike`, `ilike`, and `nilike`. Contains variants are case-insensitive and literal; `like`/`nlike` are case-sensitive, while `ilike`/`nilike` are case-insensitive.',
+  '`*` is the only wildcard; `%`, `_`, and backslash are literal.',
+  'For `select` columns, single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names resolve to IDs.',
 ].join(' ')
 
 /**
@@ -611,8 +609,7 @@ const PREDICATE_LEAF_JSON_SCHEMA = {
     op: {
       type: 'string',
       enum: [...FILTER_OPS],
-      description:
-        'Comparison operator. The `TablePredicate` schema description carries the grammar for all of them.',
+      description: PREDICATE_OPERATOR_GRAMMAR,
     },
     value: {
       description:
@@ -671,7 +668,7 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  */
 const PREDICATE_LIMITS_DESCRIPTION = `At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`
 const PREDICATE_NEGATION_DESCRIPTION =
-  'Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.'
+  'The negating operators include nulls and absent cells, multi-select included. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.'
 const PREDICATE_TREE_DESCRIPTION = `Recursive non-empty \`all\`/\`any\` groups containing groups or conditions; the root cannot be a condition. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION}`
 const PREDICATE_INPUT_DESCRIPTION = `One condition or a recursive \`all\`/\`any\` group, normalized to a grouped predicate. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION}`
 
