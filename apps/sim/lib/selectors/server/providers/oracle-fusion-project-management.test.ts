@@ -180,7 +180,9 @@ describe('Oracle Project Management credential-bound selectors', () => {
   it('limits organizations to active project-owning classifications', async () => {
     mocks.json.mockResolvedValue(page([]))
     await execute('oracleFusionProjectManagement.organizations')
-    expect(mocks.json.mock.calls[0][1].query.q).toBe("ClassificationCode='PA_PROJECT_ORG' and Status='A'")
+    expect(mocks.json.mock.calls[0][1].query.q).toBe(
+      "ClassificationCode='PA_PROJECT_ORG' and Status='A'"
+    )
   })
 
   it('escapes provider-side search and preserves the server paging offset', async () => {
@@ -219,7 +221,9 @@ describe('Oracle Project Management credential-bound selectors', () => {
       kind: 'detail',
       item: { id: 'Consulting', label: 'Consulting', meta: { detail: '101' } },
     })
-    expect(mocks.json.mock.calls[0][1].address.relativePath).toBe('projectClassifiedOrganizationsLOV')
+    expect(mocks.json.mock.calls[0][1].address.relativePath).toBe(
+      'projectClassifiedOrganizationsLOV'
+    )
     expect(mocks.json.mock.calls[0][1].query.q).toContain("OrganizationName='Consulting'")
     mocks.json.mockResolvedValueOnce(page([], { limit: 2 }))
     expect(
@@ -239,7 +243,9 @@ describe('Oracle Project Management credential-bound selectors', () => {
     expect(mocks.json).not.toHaveBeenCalled()
     mocks.json.mockResolvedValueOnce(page([{ TaskId: 202, Name: 'Design', TaskNumber: 'T1' }]))
     await execute('oracleFusionProjectManagement.tasks', { context: { projectId: '101' } })
-    expect(mocks.json.mock.calls[0][1].address.relativePath).toBe('projectPlanDetails/101/child/Tasks')
+    expect(mocks.json.mock.calls[0][1].address.relativePath).toBe(
+      'projectPlanDetails/101/child/Tasks'
+    )
     mocks.json.mockResolvedValueOnce(
       page(
         [
@@ -322,7 +328,9 @@ describe('Oracle Project Management credential-bound selectors', () => {
     await expect(execute('oracleFusionProjectManagement.projects')).rejects.toBeInstanceOf(
       SelectorOptionsUnavailableError
     )
-    mocks.json.mockRejectedValueOnce(new OracleFusionProviderError('Safe authentication failure', 401))
+    mocks.json.mockRejectedValueOnce(
+      new OracleFusionProviderError('Safe authentication failure', 401)
+    )
     await expect(execute('oracleFusionProjectManagement.projects')).rejects.toEqual(
       new SelectorConnectionUnavailableError(401)
     )

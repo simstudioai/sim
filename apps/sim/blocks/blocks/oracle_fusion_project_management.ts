@@ -764,18 +764,26 @@ export const OracleFusionProjectManagementBlock: BlockConfig<ProjectManagementRe
       id: 'credential',
       title: 'Oracle Fusion Account',
       type: 'oauth-input',
-      serviceId: 'oracle_fusion_project_management', credentialKind: 'service-account',
-      canonicalParamId: 'oauthCredential', mode: 'basic', required: true,
+      serviceId: 'oracle_fusion_project_management',
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      required: true,
     },
     {
       id: 'manualCredential',
       title: 'Oracle Fusion Account',
       type: 'short-input',
-      canonicalParamId: 'oauthCredential', mode: 'advanced', required: true,
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      required: true,
       placeholder: 'Stored Oracle Fusion credential ID',
     },
     {
-      id: 'operation', title: 'Operation', type: 'dropdown', required: true,
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      required: true,
       value: () => 'oracle_fusion_project_management_list_projects',
       options: [
         { label: 'List Projects', id: 'oracle_fusion_project_management_list_projects' },
@@ -2378,7 +2386,8 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'laborResourceId',
       title: 'Labor Resource ID',
       type: 'short-input',
-      description: 'Labor resource ID as an exact decimal string; provide exactly one resource email or ID',
+      description:
+        'Labor resource ID as an exact decimal string; provide exactly one resource email or ID',
       placeholder: '300100123456789',
       condition: {
         field: 'operation',
@@ -3151,7 +3160,10 @@ Return ONLY the filter expression, without explanations or code fences.`,
       },
       condition: (values) =>
         values?.operation === 'oracle_fusion_project_management_update_project_contract_invoice'
-          ? { field: 'operation', value: 'oracle_fusion_project_management_update_project_contract_invoice' }
+          ? {
+              field: 'operation',
+              value: 'oracle_fusion_project_management_update_project_contract_invoice',
+            }
           : {
               field: 'operation',
               value: 'oracle_fusion_project_management_transition_project_contract_invoice',
@@ -3177,7 +3189,10 @@ Return ONLY the filter expression, without explanations or code fences.`,
       description: 'unrelease Comments (null is accepted by the documented API)',
       condition: (values) =>
         values?.operation === 'oracle_fusion_project_management_update_project_contract_invoice'
-          ? { field: 'operation', value: 'oracle_fusion_project_management_update_project_contract_invoice' }
+          ? {
+              field: 'operation',
+              value: 'oracle_fusion_project_management_update_project_contract_invoice',
+            }
           : {
               field: 'operation',
               value: 'oracle_fusion_project_management_transition_project_contract_invoice',
@@ -3354,8 +3369,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
     },
     orderBy: {
       type: 'string',
-      description:
-        'Documented sort attributes for this collection; use a stable order when paging',
+      description: 'Documented sort attributes for this collection; use a stable order when paging',
     },
     limit: { type: 'number', description: 'One page of 1–1000 items; default 100' },
     offset: {

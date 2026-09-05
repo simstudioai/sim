@@ -190,7 +190,9 @@ describe('Oracle Project Management documented operations', () => {
   it('reads milestones as a task filter and writes them with the milestone flag forced on', async () => {
     mocks.json.mockResolvedValueOnce(page([{ TaskId: 202, MilestoneFlag: true }]))
     await execute('list_milestones', { ...auth, projectId: '101', q: "Name like 'Release%'" })
-    expect(mocks.json.mock.calls[0][1].query.q).toBe("MilestoneFlag=true and (Name like 'Release%')")
+    expect(mocks.json.mock.calls[0][1].query.q).toBe(
+      "MilestoneFlag=true and (Name like 'Release%')"
+    )
     mocks.json.mockResolvedValueOnce({ TaskId: 202, MilestoneFlag: true })
     await execute('create_milestone', {
       ...auth,
@@ -536,20 +538,17 @@ describe('Oracle Project Management documented operations', () => {
       'projectContractInvoices/110',
       '110',
     ],
-  ] as const)(
-    '%s supports empty successful responses',
-    async (operation, params, path, id) => {
-      expect(await execute(operation, { ...auth, ...params })).toEqual({
-        success: true,
-        output: { deleted: true, id },
-      })
-      expect(mocks.empty.mock.calls[0][1]).toEqual({
-        address: { family: 'fscm', relativePath: path },
-        method: 'DELETE',
-      })
-      expect(mocks.json).not.toHaveBeenCalled()
-    }
-  )
+  ] as const)('%s supports empty successful responses', async (operation, params, path, id) => {
+    expect(await execute(operation, { ...auth, ...params })).toEqual({
+      success: true,
+      output: { deleted: true, id },
+    })
+    expect(mocks.empty.mock.calls[0][1]).toEqual({
+      address: { family: 'fscm', relativePath: path },
+      method: 'DELETE',
+    })
+    expect(mocks.json).not.toHaveBeenCalled()
+  })
 
   it.each([
     ['get_project', { projectId: 9007199254740992 }],
@@ -572,14 +571,11 @@ describe('Oracle Project Management documented operations', () => {
       'transition_project_contract_invoice',
       { invoiceId: '110', action: 'approve', unreleaseComments: 'Wrong action' },
     ],
-  ] as const)(
-    'rejects invalid input to %s before any provider call',
-    async (operation, params) => {
-      await expect(execute(operation, { ...auth, ...params })).rejects.toThrow()
-      expect(mocks.json).not.toHaveBeenCalled()
-      expect(mocks.empty).not.toHaveBeenCalled()
-    }
-  )
+  ] as const)('rejects invalid input to %s before any provider call', async (operation, params) => {
+    await expect(execute(operation, { ...auth, ...params })).rejects.toThrow()
+    expect(mocks.json).not.toHaveBeenCalled()
+    expect(mocks.empty).not.toHaveBeenCalled()
+  })
 
   it('does not invent empty resource or action shapes, and marks uncertain mutations non-retryable', async () => {
     mocks.json.mockResolvedValueOnce({ unrelated: 'canary' })
@@ -595,14 +591,16 @@ describe('Oracle Project Management documented operations', () => {
   })
 
   it('preserves safe foundation errors and cancellation without leaking unexpected errors', async () => {
-    mocks.json.mockRejectedValueOnce(new OracleFusionProviderError('Oracle Fusion access denied', 403))
+    mocks.json.mockRejectedValueOnce(
+      new OracleFusionProviderError('Oracle Fusion access denied', 403)
+    )
     expect((await execute('get_project', { ...auth, projectId: '101' })).error).toBe(
       'Oracle Fusion access denied'
     )
     mocks.json.mockRejectedValueOnce(new Error('provider-secret-canary'))
-    expect(JSON.stringify(await execute('get_project', { ...auth, projectId: '101' }))).not.toContain(
-      'provider-secret-canary'
-    )
+    expect(
+      JSON.stringify(await execute('get_project', { ...auth, projectId: '101' }))
+    ).not.toContain('provider-secret-canary')
     const controller = new AbortController()
     mocks.json.mockImplementationOnce(() => {
       controller.abort()
