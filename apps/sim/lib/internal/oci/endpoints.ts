@@ -2,7 +2,7 @@ import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import type { OAuthService } from '@/lib/oauth/types'
 
 export type OciDestinationProvenance = 'static' | 'authenticated-discovery'
-export type OciHostnameTemplate = 'regional' | 'regional-oci'
+export type OciHostnameTemplate = 'regional' | 'regional-oci' | 'region-first-oci'
 
 export interface OciRealm {
   readonly id: string
@@ -216,7 +216,7 @@ function assertServiceName(value: string): void {
 }
 
 function assertHostnameTemplate(value: OciHostnameTemplate): void {
-  if (value !== 'regional' && value !== 'regional-oci') {
+  if (value !== 'regional' && value !== 'regional-oci' && value !== 'region-first-oci') {
     throw new Error('OCI endpoint policy hostname template is invalid')
   }
 }
@@ -295,7 +295,10 @@ export function regionalOciHostname(
   assertServiceName(serviceName)
   assertHostnameTemplate(hostnameTemplate)
   const ociLabel = hostnameTemplate === 'regional-oci' ? '.oci' : ''
-  const hostname = `${serviceName}.${region.id}${ociLabel}.${region.realm.domain}`
+  const hostname =
+    hostnameTemplate === 'region-first-oci'
+      ? `${region.id}.${serviceName}.oci.${region.realm.domain}`
+      : `${serviceName}.${region.id}${ociLabel}.${region.realm.domain}`
   if (hostname.length > MAX_HOSTNAME_LENGTH) {
     throw new Error('OCI endpoint policy hostname is invalid')
   }

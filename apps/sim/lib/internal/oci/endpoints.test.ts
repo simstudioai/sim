@@ -41,6 +41,9 @@ describe('OCI region registry', () => {
       expect(regionalOciHostname('objectstorage', region, 'regional')).toBe(
         `objectstorage.${id}.${region.realm.domain}`
       )
+      expect(regionalOciHostname('functions', region, 'region-first-oci')).toBe(
+        `${id}.functions.oci.${region.realm.domain}`
+      )
     }
   })
 
@@ -60,6 +63,79 @@ describe('OCI region registry', () => {
 
 describe('OCI endpoint policies', () => {
   const region = getOciRegion('us-ashburn-1')
+  const functionsManagementPolicy = createOciStaticEndpointPolicy({
+    serviceId: OCI_SERVICE_ID,
+    serviceName: 'functions',
+    hostnameTemplate: 'regional-oci',
+  })
+  const functionsInvocationPolicy = createOciDiscoveredEndpointPolicy({
+    serviceId: OCI_SERVICE_ID,
+    serviceName: 'functions',
+    hostnameTemplate: 'region-first-oci',
+    responsePolicy: functionsManagementPolicy,
+    source: { kind: 'json', path: ['invokeEndpoint'] },
+  })
+
+  it.each(['us-ashburn-1', 'us-gov-ashburn-1'])(
+    'supports region-first policies and authenticated Functions discovery in %s',
+    (regionId) => {
+      const selectedRegion = getOciRegion(regionId)
+      const hostname = `${regionId}.functions.oci.${selectedRegion.realm.domain}`
+      expect(
+        resolveStaticOciEndpoint(
+          createOciStaticEndpointPolicy({
+            serviceId: OCI_SERVICE_ID,
+            serviceName: 'functions',
+            hostnameTemplate: 'region-first-oci',
+          }),
+          selectedRegion
+        ).origin
+      ).toBe(`https://${hostname}`)
+      expect(
+        resolveDiscoveredOciEndpoint(
+          functionsInvocationPolicy,
+          selectedRegion,
+          `https://resource.${hostname}`
+        )
+      ).toMatchObject({
+        origin: `https://resource.${hostname}`,
+        serviceId: OCI_SERVICE_ID,
+        provenance: 'authenticated-discovery',
+      })
+      expect(Object.isFrozen(functionsInvocationPolicy)).toBe(true)
+      expect(functionsInvocationPolicy.hostnameTemplate).toBe('region-first-oci')
+      expect(functionsInvocationPolicy.allowRegionalHost).toBe(false)
+      expect(
+        resolveDiscoveredOciEndpoint(
+          createOciDiscoveredEndpointPolicy({
+            ...functionsInvocationPolicy,
+            allowRegionalHost: true,
+          }),
+          selectedRegion,
+          `https://${hostname}`
+        ).hostname
+      ).toBe(hostname)
+    }
+  )
+
+  it.each([
+    'https://resource.functions.us-ashburn-1.oci.oraclecloud.com',
+    'https://resource.eu-frankfurt-1.functions.oci.oraclecloud.com',
+    'https://resource.us-ashburn-1.functions.oci.oraclegovcloud.com',
+    'https://resource.us-ashburn-1.database.oci.oraclecloud.com',
+    'https://resource.us-ashburn-1.functions.oci.oraclecloud.com.attacker.example',
+    'https://resourceus-ashburn-1.functions.oci.oraclecloud.com',
+    'https://us-ashburn-1.functions.oci.oraclecloud.com',
+    'http://resource.us-ashburn-1.functions.oci.oraclecloud.com',
+    'https://resource.us-ashburn-1.functions.oci.oraclecloud.com:8443',
+    'https://user:password@resource.us-ashburn-1.functions.oci.oraclecloud.com',
+    'https://resource.us-ashburn-1.functions.oci.oraclecloud.com/path',
+    'https://resource.us-ashburn-1.functions.oci.oraclecloud.com?query=1',
+    'https://resource.us-ashburn-1.functions.oci.oraclecloud.com#fragment',
+    'https://127.0.0.1',
+  ])('rejects invalid Functions invocation origins: %s', (origin) => {
+    expect(() => resolveDiscoveredOciEndpoint(functionsInvocationPolicy, region, origin)).toThrow()
+  })
 
   it('freezes declarative policies and derives exact static origins', () => {
     expect(Object.isFrozen(staticPolicy)).toBe(true)

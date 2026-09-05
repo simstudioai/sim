@@ -773,6 +773,57 @@ describe('credential-bound OCI client', () => {
     expect(mocks.secureFetch).toHaveBeenCalledOnce()
   })
 
+  it('invokes a Functions endpoint discovered through the same client and management policy', async () => {
+    const managementPolicy = createOciStaticEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'functions',
+      hostnameTemplate: 'regional-oci',
+    })
+    const invocationPolicy = createOciDiscoveredEndpointPolicy({
+      serviceId: OCI_SERVICE_ID,
+      serviceName: 'functions',
+      hostnameTemplate: 'region-first-oci',
+      responsePolicy: managementPolicy,
+      source: { kind: 'json', path: ['invokeEndpoint'] },
+    })
+    const invokeOrigin = 'https://fixture.us-ashburn-1.functions.oci.oraclecloud.com'
+    mocks.secureFetch
+      .mockResolvedValueOnce(
+        secureResponse({ body: JSON.stringify({ invokeEndpoint: invokeOrigin }) })
+      )
+      .mockResolvedValueOnce(secureResponse({ body: 'invoked' }))
+    const { client } = await createPreparedClient()
+    const managementEndpoint = await client.prepareStaticEndpoint(managementPolicy)
+    const response = await client.request({
+      endpoint: managementEndpoint,
+      method: 'GET',
+      encodedPath: '/20181201/functions/synthetic-function',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    const invocationEndpoint = await client.prepareDiscoveredEndpoint(invocationPolicy, response)
+    const body = new TextEncoder().encode('{"message":"hello"}')
+    const result = await client.request({
+      endpoint: invocationEndpoint,
+      method: 'POST',
+      encodedPath: '/20181201/functions/synthetic-function/actions/invoke',
+      body,
+      contentType: 'application/json',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect(mocks.secureFetch).toHaveBeenCalledTimes(2)
+    expect(mocks.secureFetch.mock.calls[0][0]).toBe(
+      'https://functions.us-ashburn-1.oci.oraclecloud.com/20181201/functions/synthetic-function'
+    )
+    expect(mocks.secureFetch.mock.calls[1][0]).toBe(
+      `${invokeOrigin}/20181201/functions/synthetic-function/actions/invoke`
+    )
+    expect(mocks.secureFetch.mock.calls[1][2]).toMatchObject({ method: 'POST', body })
+    expect(authorizationFromLastRequest()).toMatch(/^Signature version="1"/)
+    expect(new TextDecoder().decode(result.body)).toBe('invoked')
+  })
+
   it('rejects fabricated and cross-client authenticated discovery responses', async () => {
     const policy = createOciDiscoveredEndpointPolicy({
       serviceId: OCI_SERVICE_ID,
