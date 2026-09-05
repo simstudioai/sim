@@ -841,6 +841,33 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const OCI_STREAMING_TOOL_IDS = [
+  'oci_streaming_change_stream_compartment',
+  'oci_streaming_change_stream_pool_compartment',
+  'oci_streaming_consumer_commit',
+  'oci_streaming_consumer_heartbeat',
+  'oci_streaming_create_cursor',
+  'oci_streaming_create_group_cursor',
+  'oci_streaming_create_stream',
+  'oci_streaming_create_stream_pool',
+  'oci_streaming_delete_stream',
+  'oci_streaming_delete_stream_pool',
+  'oci_streaming_get_group',
+  'oci_streaming_get_messages',
+  'oci_streaming_get_stream',
+  'oci_streaming_get_stream_pool',
+  'oci_streaming_get_work_request',
+  'oci_streaming_list_stream_pools',
+  'oci_streaming_list_streams',
+  'oci_streaming_list_work_request_errors',
+  'oci_streaming_list_work_request_logs',
+  'oci_streaming_list_work_requests',
+  'oci_streaming_put_messages',
+  'oci_streaming_update_group',
+  'oci_streaming_update_stream',
+  'oci_streaming_update_stream_pool',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1524,6 +1551,10 @@ registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
 })
+registerFamily(handlerLoaders, OCI_STREAMING_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-streaming/execute-tool')).executeOciStreamingTool
+})
+
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
 })
