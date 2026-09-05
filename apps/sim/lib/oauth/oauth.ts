@@ -49,6 +49,7 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  QuickBooksIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -80,6 +81,8 @@ import {
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
+import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
+import { QUICKBOOKS_TOKEN_URL } from '@/lib/oauth/quickbooks-constants'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
   SALESFORCE_LOGIN_HOSTS,
@@ -1205,6 +1208,57 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'pipedrive',
   },
+  quickbooks: {
+    name: 'QuickBooks',
+    icon: QuickBooksIcon,
+    services: {
+      quickbooks: {
+        name: 'QuickBooks',
+        description:
+          'Access company data and manage customers, vendors, and items in QuickBooks Online.',
+        providerId: 'quickbooks',
+        icon: QuickBooksIcon,
+        baseProviderIcon: QuickBooksIcon,
+        scopes: ['openid', 'profile', 'email', 'com.intuit.quickbooks.accounting'],
+        clientConfiguration: {
+          redirectPath: '/api/auth/oauth2/callback/quickbooks',
+          fields: [
+            {
+              id: 'clientId',
+              label: 'Client ID',
+              placeholder: 'Enter your Intuit app client ID',
+              secret: false,
+            },
+            {
+              id: 'clientSecret',
+              label: 'Client secret',
+              placeholder: 'Enter your Intuit app client secret',
+              secret: true,
+            },
+            {
+              id: 'environment',
+              label: 'Environment',
+              placeholder: 'Select an Intuit environment',
+              secret: false,
+              options: [
+                { value: 'sandbox', label: 'Sandbox' },
+                { value: 'production', label: 'Production' },
+              ],
+              hint: 'Use the environment that matches the credentials in your Intuit app.',
+            },
+            {
+              id: 'webhookVerifierToken',
+              label: 'Webhook verifier token',
+              placeholder: 'Enter your Intuit app webhook verifier token',
+              secret: true,
+              hint: 'Used only to authenticate QuickBooks webhook triggers for this Intuit app.',
+            },
+          ],
+        },
+      },
+    },
+    defaultService: 'quickbooks',
+  },
   hubspot: {
     name: 'HubSpot',
     icon: HubspotIcon,
@@ -1491,7 +1545,13 @@ function getConfiguredClientCredentials<const TCapabilityId extends OAuthClientC
 /**
  * Get OAuth provider configuration for token refresh
  */
-function getProviderAuthConfig(provider: string): ProviderAuthConfig {
+function getProviderAuthConfig(
+  provider: string,
+  clientOverride?: Pick<QuickBooksOAuthClientConfig, 'clientId' | 'clientSecret'>
+): ProviderAuthConfig {
+  if (clientOverride && provider !== 'quickbooks') {
+    throw new Error(`OAuth client override is not supported for provider ${provider}`)
+  }
   switch (provider) {
     case 'google': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
@@ -1813,6 +1873,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: true,
       }
     }
+    case 'quickbooks': {
+      if (!clientOverride) {
+        throw new Error('QuickBooks OAuth client configuration is missing')
+      }
+      return {
+        tokenEndpoint: QUICKBOOKS_TOKEN_URL,
+        clientId: clientOverride.clientId,
+        clientSecret: clientOverride.clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     case 'hubspot': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'hubspot',
@@ -2085,6 +2157,7 @@ export interface RefreshTokenSuccess {
   accessToken: string
   expiresIn: number
   refreshToken: string
+  refreshTokenExpiresIn?: number
 }
 
 export interface RefreshTokenFailure {
@@ -2199,13 +2272,14 @@ async function refreshInstagramLongLivedToken(
 
 export async function refreshOAuthToken(
   providerId: string,
-  refreshToken: string
+  refreshToken: string,
+  clientOverride?: Pick<QuickBooksOAuthClientConfig, 'clientId' | 'clientSecret'>
 ): Promise<RefreshTokenResult> {
   const exactSecrets = [refreshToken]
   try {
     const provider = getBaseProviderForService(providerId)
 
-    const config = getProviderAuthConfig(provider)
+    const config = getProviderAuthConfig(provider, clientOverride)
     if (config.clientSecret) exactSecrets.push(config.clientSecret)
 
     if (config.refreshStrategy === 'instagram_long_lived') {
@@ -2291,6 +2365,10 @@ export async function refreshOAuthToken(
       logger.warn('Monday token refresh response omitted its rotating refresh token')
       return { ok: false, message: 'Invalid Monday token refresh response' }
     }
+    if (provider === 'quickbooks' && !newRefreshToken) {
+      logger.warn('QuickBooks token refresh response omitted its rotating refresh token')
+      return { ok: false, message: 'Invalid QuickBooks token refresh response' }
+    }
 
     const rawExpiresIn = data.expires_in ?? data.expiresIn
     const parsedExpiresIn =
@@ -2310,6 +2388,18 @@ export async function refreshOAuthToken(
             )
           )
         : (responseExpiresIn ?? 3600)
+
+    const rawRefreshTokenExpiresIn = data.x_refresh_token_expires_in
+    const parsedRefreshTokenExpiresIn =
+      typeof rawRefreshTokenExpiresIn === 'number' || typeof rawRefreshTokenExpiresIn === 'string'
+        ? Number(rawRefreshTokenExpiresIn)
+        : Number.NaN
+    const refreshTokenExpiresIn =
+      provider === 'quickbooks' &&
+      Number.isSafeInteger(parsedRefreshTokenExpiresIn) &&
+      parsedRefreshTokenExpiresIn > 0
+        ? parsedRefreshTokenExpiresIn
+        : undefined
 
     if (!accessToken) {
       // Log only the shape, never `data` itself - on a partial success it can
@@ -2332,6 +2422,7 @@ export async function refreshOAuthToken(
       accessToken,
       expiresIn,
       refreshToken: newRefreshToken ?? refreshToken,
+      ...(refreshTokenExpiresIn ? { refreshTokenExpiresIn } : {}),
     }
   } catch (error) {
     const normalized = toError(error)

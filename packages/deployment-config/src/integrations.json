@@ -18235,6 +18235,360 @@
       "tags": ["data-analytics", "enrichment", "document-processing"]
     },
     {
+      "type": "quickbooks",
+      "slug": "quickbooks",
+      "name": "QuickBooks",
+      "description": "Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.",
+      "bgColor": "#2CA01C",
+      "iconName": "QuickBooksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
+      "operations": [
+        {
+          "name": "Get Company Info",
+          "description": "Get information about the connected QuickBooks Online company"
+        },
+        {
+          "name": "Read Master Data",
+          "description": "List or read one account, class, customer, department, employee, item, or vendor"
+        },
+        {
+          "name": "Create Customer",
+          "description": "Create a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Customer",
+          "description": "Sparse-update a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Create Employee",
+          "description": "Create a non-payroll employee profile in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Employee",
+          "description": "Read, merge, and full-update a non-payroll employee profile"
+        },
+        {
+          "name": "Create Vendor",
+          "description": "Create a vendor in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Vendor",
+          "description": "Read, merge, and full-update a vendor in QuickBooks Online"
+        },
+        {
+          "name": "Create Item",
+          "description": "Create a Service or Non-inventory item in QuickBooks Online"
+        },
+        {
+          "name": "Update Item",
+          "description": "Read, merge, and full-update an item without changing its type"
+        },
+        {
+          "name": "Read Sales Transactions",
+          "description": "List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt"
+        },
+        {
+          "name": "Create Estimate",
+          "description": "Create an estimate with bounded item and description lines"
+        },
+        {
+          "name": "Update Estimate",
+          "description": "Sparse-update an estimate using its current sync token"
+        },
+        {
+          "name": "Create Invoice",
+          "description": "Create an invoice without emailing or collecting payment"
+        },
+        {
+          "name": "Update Invoice",
+          "description": "Sparse-update an invoice using its current sync token"
+        },
+        {
+          "name": "Void Invoice",
+          "description": "Void an invoice after explicit confirmation"
+        },
+        {
+          "name": "Create Sales Receipt",
+          "description": "Create a sales receipt for a completed customer sale"
+        },
+        {
+          "name": "Update Sales Receipt",
+          "description": "Sparse-update a sales receipt using its current sync token"
+        },
+        {
+          "name": "Create Customer Payment",
+          "description": "Record a customer payment with optional bounded invoice allocations"
+        },
+        {
+          "name": "Update Customer Payment",
+          "description": "Read, merge, and full-update a customer payment using its current sync token"
+        },
+        {
+          "name": "Void Customer Payment",
+          "description": "Void a customer payment after explicit confirmation"
+        },
+        {
+          "name": "Create Credit Memo",
+          "description": "Create a customer credit memo with bounded sales lines"
+        },
+        {
+          "name": "Update Credit Memo",
+          "description": "Read, merge, and full-update a credit memo using its current sync token"
+        },
+        {
+          "name": "Create Refund Receipt",
+          "description": "Create a customer refund receipt against a required deposit account"
+        },
+        {
+          "name": "Update Refund Receipt",
+          "description": "Read, merge, and full-update a refund receipt using its current sync token"
+        },
+        {
+          "name": "Read Purchasing Transactions",
+          "description": "List or read one purchase order, bill, bill payment, vendor credit, or purchase"
+        },
+        {
+          "name": "Create Purchase Order",
+          "description": "Create a purchase order with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase Order",
+          "description": "Read, merge, and full-update purchase-order header fields"
+        },
+        {
+          "name": "Create Bill",
+          "description": "Create a vendor bill with optional Purchase Order line links without paying it"
+        },
+        {
+          "name": "Update Bill",
+          "description": "Read, merge, and full-update bill header fields using its current sync token"
+        },
+        {
+          "name": "Create Bill Payment",
+          "description": "Record a check or credit-card payment allocated to one or more bills"
+        },
+        {
+          "name": "Update Bill Payment",
+          "description": "Read, merge, and full-update a BillPayment without changing allocations"
+        },
+        {
+          "name": "Create Vendor Credit",
+          "description": "Create a vendor credit without applying it to a bill"
+        },
+        {
+          "name": "Update Vendor Credit",
+          "description": "Read, merge, and full-update vendor-credit header fields"
+        },
+        {
+          "name": "Create Purchase or Expense",
+          "description": "Record a cash, check, or credit-card purchase with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase or Expense",
+          "description": "Read, merge, and full-update purchase header fields without changing lines"
+        },
+        {
+          "name": "Read Accounting Transactions",
+          "description": "List or read one journal entry, deposit, or transfer"
+        },
+        {
+          "name": "Create Journal Entry",
+          "description": "Post a balanced journal entry after explicit confirmation"
+        },
+        {
+          "name": "Update Journal Entry",
+          "description": "Sparse-update journal-entry header fields after explicit confirmation"
+        },
+        {
+          "name": "Create Deposit",
+          "description": "Create a deposit with bounded account lines"
+        },
+        {
+          "name": "Update Deposit",
+          "description": "Sparse-update deposit header fields using the current sync token and destination account"
+        },
+        {
+          "name": "Run Financial Report",
+          "description": "Run a fixed QuickBooks financial report with verified accountant-focused filters"
+        },
+        {
+          "name": "Email Transaction",
+          "description": "Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery."
+        },
+        {
+          "name": "Download Transaction PDF",
+          "description": "Download a supported QuickBooks transaction as a bounded PDF file"
+        },
+        {
+          "name": "Read Attachments",
+          "description": "List attachment metadata for a fixed QuickBooks entity or read one attachment by ID"
+        },
+        {
+          "name": "Add Attachment",
+          "description": "Attach one supported file or one note to a fixed QuickBooks entity"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a QuickBooks file attachment as a stored Sim file"
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [
+        {
+          "id": "quickbooks_invoice_events",
+          "name": "QuickBooks Invoice Events",
+          "description": "Trigger when selected Invoice events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_customer_events",
+          "name": "QuickBooks Customer Events",
+          "description": "Trigger when selected Customer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_estimate_events",
+          "name": "QuickBooks Estimate Events",
+          "description": "Trigger when selected Estimate events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_payment_events",
+          "name": "QuickBooks Payment Events",
+          "description": "Trigger when selected Payment events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_credit_memo_events",
+          "name": "QuickBooks Credit Memo Events",
+          "description": "Trigger when selected Credit Memo events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_refund_receipt_events",
+          "name": "QuickBooks Refund Receipt Events",
+          "description": "Trigger when selected Refund Receipt events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_sales_receipt_events",
+          "name": "QuickBooks Sales Receipt Events",
+          "description": "Trigger when selected Sales Receipt events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_vendor_events",
+          "name": "QuickBooks Vendor Events",
+          "description": "Trigger when selected Vendor events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_bill_events",
+          "name": "QuickBooks Bill Events",
+          "description": "Trigger when selected Bill events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_bill_payment_events",
+          "name": "QuickBooks Bill Payment Events",
+          "description": "Trigger when selected Bill Payment events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_purchase_order_events",
+          "name": "QuickBooks Purchase Order Events",
+          "description": "Trigger when selected Purchase Order events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_purchase_events",
+          "name": "QuickBooks Purchase Events",
+          "description": "Trigger when selected Purchase events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_vendor_credit_events",
+          "name": "QuickBooks Vendor Credit Events",
+          "description": "Trigger when selected Vendor Credit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_deposit_events",
+          "name": "QuickBooks Deposit Events",
+          "description": "Trigger when selected Deposit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_entry_events",
+          "name": "QuickBooks Journal Entry Events",
+          "description": "Trigger when selected Journal Entry events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_transfer_events",
+          "name": "QuickBooks Transfer Events",
+          "description": "Trigger when selected Transfer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_item_events",
+          "name": "QuickBooks Item Events",
+          "description": "Trigger when selected Item events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_employee_events",
+          "name": "QuickBooks Employee Events",
+          "description": "Trigger when selected Employee events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_time_activity_events",
+          "name": "QuickBooks Time Activity Events",
+          "description": "Trigger when selected Time Activity events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_account_events",
+          "name": "QuickBooks Account Events",
+          "description": "Trigger when selected Account events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_budget_events",
+          "name": "QuickBooks Budget Events",
+          "description": "Trigger when selected Budget events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_class_events",
+          "name": "QuickBooks Class Events",
+          "description": "Trigger when selected Class events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_currency_events",
+          "name": "QuickBooks Currency Events",
+          "description": "Trigger when selected Currency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_department_events",
+          "name": "QuickBooks Department Events",
+          "description": "Trigger when selected Department events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_code_events",
+          "name": "QuickBooks Journal Code Events",
+          "description": "Trigger when selected Journal Code events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_payment_method_events",
+          "name": "QuickBooks Payment Method Events",
+          "description": "Trigger when selected Payment Method events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_preferences_updated",
+          "name": "QuickBooks Preferences Updated",
+          "description": "Trigger when QuickBooks Preferences are updated"
+        },
+        {
+          "id": "quickbooks_tax_agency_events",
+          "name": "QuickBooks Tax Agency Events",
+          "description": "Trigger when selected Tax Agency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_term_events",
+          "name": "QuickBooks Term Events",
+          "description": "Trigger when selected Term events occur in QuickBooks"
+        }
+      ],
+      "triggerCount": 29,
+      "authType": "oauth",
+      "oauthServiceId": "quickbooks",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "automation", "data-analytics"]
+    },
+    {
       "type": "quiver",
       "slug": "quiver",
       "name": "Quiver",

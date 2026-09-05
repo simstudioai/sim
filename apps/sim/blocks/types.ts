@@ -536,6 +536,14 @@ export interface SubBlockConfig {
   // Copyable-text specific: Use webhook URL from webhook management hook
   useWebhookUrl?: boolean
   /**
+   * Displays an app-level provider callback URL whose final segment comes from
+   * a server-derived trigger config field rather than a per-workflow path.
+   */
+  providerWebhookUrl?: {
+    providerPath: string
+    routingKeySubBlockId: string
+  }
+  /**
    * tool-input only: tool categories the consuming block cannot execute. They
    * stay visible in the picker but are greyed out with a tooltip rather than
    * hidden. Block/integration tools always run via `executeTool`, so only the

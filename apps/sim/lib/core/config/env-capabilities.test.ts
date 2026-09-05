@@ -1,4 +1,5 @@
 import integrationsJson from '@sim/deployment-config/integrations.json'
+import { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS } from '@sim/deployment-config/service-account-metadata'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ASYNC_JOBS_CAPABILITY,
@@ -746,9 +747,11 @@ describe('env capabilities', () => {
 
     it('covers every OAuth integration', () => {
       const integrations = integrationsJson.integrations as readonly Integration[]
+      const credentialConfiguredServices = new Set<string>(CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS)
       const uncovered = integrations.flatMap((integration) => {
         if (integration.authType !== 'oauth' || !integration.oauthServiceId) return []
         if (resolveOAuthClientCapabilityId(integration.oauthServiceId)) return []
+        if (credentialConfiguredServices.has(integration.oauthServiceId)) return []
         return [integration.slug]
       })
 

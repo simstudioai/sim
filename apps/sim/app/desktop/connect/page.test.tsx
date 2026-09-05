@@ -60,7 +60,9 @@ describe('DesktopConnectPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     baseUrl.value = 'https://sim.test'
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'user@example.com' } })
+    mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', email: 'user@example.com' },
+    })
   })
 
   it('hands the launcher an absolute complete URL so the callback can read the draft back', async () => {
@@ -143,6 +145,27 @@ describe('DesktopConnectPage', () => {
     )
   })
 
+  it('starts a draft-scoped QuickBooks connect through the server authorize route', async () => {
+    await expect(
+      DesktopConnectPage(
+        pageProps({
+          provider: 'quickbooks',
+          state: VALID_STATE,
+          port: PORT,
+          draftId: 'draft-1',
+        })
+      )
+    ).rejects.toThrow('NEXT_REDIRECT:')
+
+    const authorize = new URL(mockRedirect.mock.calls[0][0])
+    expect(authorize.pathname).toBe('/api/auth/oauth2/authorize')
+    expect(authorize.searchParams.get('draftId')).toBe('draft-1')
+    expect(authorize.searchParams.get('providerId')).toBeNull()
+    expect(authorize.searchParams.get('callbackURL')).toBe(
+      `https://sim.test/desktop/connect/complete?state=${VALID_STATE}&port=${PORT}`
+    )
+  })
+
   it.each(['trello', 'instagram', 'shopify'])(
     'starts %s through its dedicated authorize route in the system browser',
     async (provider) => {
@@ -171,7 +194,12 @@ describe('DesktopConnectPage', () => {
       { provider: 'Google', state: VALID_STATE, port: PORT },
       { provider: 'google-email', state: 'short', port: PORT },
       { provider: 'google-email', state: VALID_STATE },
-      { provider: 'google-email', state: VALID_STATE, port: PORT, draftId: 'bad draft' },
+      {
+        provider: 'google-email',
+        state: VALID_STATE,
+        port: PORT,
+        draftId: 'bad draft',
+      },
     ]
 
     for (const params of invalid) {

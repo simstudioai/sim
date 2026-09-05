@@ -129,4 +129,47 @@ describe('createCredentialConnection', () => {
       displayName: 'Existing Gmail',
     })
   })
+
+  it('requires caller-managed app credentials after resolving a QuickBooks reconnect', async () => {
+    mocks.resolveTarget.mockResolvedValue({
+      provider: { serviceId: 'quickbooks' },
+      providerId: 'quickbooks',
+      credentialId: 'credential-1',
+      displayName: 'Accounting',
+    })
+
+    await expect(
+      createCredentialConnection.execute({
+        principal: personalPrincipal,
+        input: { workspaceId: 'workspace-1', credentialId: 'credential-1' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'QuickBooks OAuth client configuration is required',
+    })
+    expect(mocks.createDraft).not.toHaveBeenCalled()
+  })
+
+  it('rejects QuickBooks app credentials after resolving another provider', async () => {
+    await expect(
+      createCredentialConnection.execute({
+        principal: personalPrincipal,
+        input: {
+          workspaceId: 'workspace-1',
+          providerId: 'google-email',
+          displayName: 'Work Gmail',
+          oauthClientConfig: {
+            clientId: 'client-id',
+            clientSecret: 'client-secret',
+            environment: 'sandbox',
+            webhookVerifierToken: 'verifier-token',
+          },
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'OAuth client configuration is only supported for QuickBooks',
+    })
+    expect(mocks.createDraft).not.toHaveBeenCalled()
+  })
 })

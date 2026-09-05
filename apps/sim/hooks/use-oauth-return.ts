@@ -39,7 +39,10 @@ export interface OAuthResultMessage {
 
 export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAuthResultMessage> {
   if (ctx.reconnect) {
-    return { kind: 'success', text: `"${ctx.displayName}" reconnected successfully.` }
+    return {
+      kind: 'success',
+      text: `"${ctx.displayName}" reconnected successfully.`,
+    }
   }
 
   try {
@@ -84,6 +87,27 @@ export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAut
     kind: 'error',
     text: `We couldn’t verify the "${ctx.displayName}" connection. Try again.`,
   }
+}
+
+export function resolveOAuthCallbackError(
+  callbackUrl: string,
+  ctx: Pick<OAuthReturnContext, 'displayName'>
+): OAuthResultMessage | null {
+  if (!new URL(callbackUrl).searchParams.has('error')) return null
+  return {
+    kind: 'error',
+    text: `The "${ctx.displayName}" connection didn’t finish. Try again.`,
+  }
+}
+
+function consumeOAuthCallbackError(ctx: OAuthReturnContext): OAuthResultMessage | null {
+  const result = resolveOAuthCallbackError(window.location.href, ctx)
+  if (!result) return null
+  const url = new URL(window.location.href)
+  url.searchParams.delete('error')
+  url.searchParams.delete('error_description')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  return result
 }
 
 function showOAuthResultMessage(result: OAuthResultMessage): void {
@@ -161,7 +185,11 @@ async function verifyOAuthChatAttempt(queryClient: QueryClient, attemptId: strin
       // A short retry window covers callback hooks committing just after redirect.
     }
     if (attemptNumber < VERIFY_ATTEMPT_TRIES - 1) {
-      await sleep(backoffWithJitter(attemptNumber + 1, null, { baseMs: VERIFY_BACKOFF_BASE_MS }))
+      await sleep(
+        backoffWithJitter(attemptNumber + 1, null, {
+          baseMs: VERIFY_BACKOFF_BASE_MS,
+        })
+      )
     }
   }
 
@@ -216,6 +244,19 @@ export function useOAuthReturnRouter() {
     }
 
     handledRef.current = true
+    const callbackError = consumeOAuthCallbackError(ctx)
+    if (callbackError) {
+      consumeOAuthReturnContext()
+      showOAuthResultMessage(callbackError)
+      if (ctx.origin === 'workflow') {
+        router.replace(`/workspace/${workspaceId}/w/${ctx.workflowId}`)
+      } else if (ctx.origin === 'kb-connectors') {
+        router.replace(
+          buildKnowledgeBaseOAuthReturnUrl(workspaceId, ctx.knowledgeBaseId, ctx.connectorType)
+        )
+      }
+      return
+    }
 
     if (ctx.origin === 'integrations') {
       consumeOAuthReturnContext()
@@ -239,14 +280,23 @@ export function useOAuthReturnRouter() {
       try {
         sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
       } catch {}
-      const kbUrl = `/workspace/${workspaceId}/knowledge/${ctx.knowledgeBaseId}`
-      const connectorParam = ctx.connectorType
-        ? `?${ADD_CONNECTOR_SEARCH_PARAM}=${encodeURIComponent(ctx.connectorType)}`
-        : ''
-      router.replace(`${kbUrl}${connectorParam}`)
+      router.replace(
+        buildKnowledgeBaseOAuthReturnUrl(workspaceId, ctx.knowledgeBaseId, ctx.connectorType)
+      )
       return
     }
   }, [queryClient, router, workspaceId])
+}
+
+export function buildKnowledgeBaseOAuthReturnUrl(
+  workspaceId: string,
+  knowledgeBaseId: string,
+  connectorType?: string
+): string {
+  const kbUrl = `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`
+  return connectorType
+    ? `${kbUrl}?${ADD_CONNECTOR_SEARCH_PARAM}=${encodeURIComponent(connectorType)}`
+    : kbUrl
 }
 
 /**
@@ -261,6 +311,12 @@ export function useOAuthReturnForWorkflow(workflowId: string) {
     if (ctx.workflowId !== workflowId) return
     consumeOAuthReturnContext()
     if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
+
+    const callbackError = consumeOAuthCallbackError(ctx)
+    if (callbackError) {
+      showOAuthResultMessage(callbackError)
+      return
+    }
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
@@ -282,6 +338,12 @@ export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
     if (ctx.knowledgeBaseId !== knowledgeBaseId) return
     consumeOAuthReturnContext()
     if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
+
+    const callbackError = consumeOAuthCallbackError(ctx)
+    if (callbackError) {
+      showOAuthResultMessage(callbackError)
+      return
+    }
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
@@ -308,8 +370,12 @@ export function useDesktopOAuthConnectListener() {
     if (!bridge?.onOAuthConnectComplete) return
 
     return bridge.onOAuthConnectComplete((result) => {
-      void queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
-      void queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      void queryClient.invalidateQueries({
+        queryKey: oauthConnectionsKeys.connections(),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: workspaceCredentialKeys.all,
+      })
 
       // The app stays open across interleaved connect flows, so an abandoned
       // modal-connect can leave a stale context that would attach to a later
