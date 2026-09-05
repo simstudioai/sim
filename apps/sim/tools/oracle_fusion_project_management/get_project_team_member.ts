@@ -17,7 +17,7 @@ export const oracleFusionProjectManagementGetProjectTeamMemberTool: InternalTool
 > = {
   id: 'oracle_fusion_project_management_get_project_team_member',
   name: 'Oracle Fusion Project Management Get Project Team Member',
-  description: "Get project team member in Oracle Fusion Cloud Project Management.",
+  description: 'Get project team member in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,17 +26,21 @@ export const oracleFusionProjectManagementGetProjectTeamMemberTool: InternalTool
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "project ID as a decimal string",
+      description: 'Project ID as a decimal string',
     },
     teamMemberId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "team Member ID as a decimal string",
+      description: 'Team member ID as a decimal string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    teamMember: { type: 'json', description: 'Documented team Member fields', properties: oracleFusionTeamMemberOutput },
+    teamMember: {
+      type: 'json',
+      description: 'Documented team Member fields',
+      properties: oracleFusionTeamMemberOutput,
+    },
   },
 }

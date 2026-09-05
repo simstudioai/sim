@@ -5,8 +5,8 @@ import type {
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
-  oracleFusionProjectManagementAuthParams,
   oracleFusionAssociationOutput,
+  oracleFusionProjectManagementAuthParams,
 } from '@/tools/oracle_fusion_project_management/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,7 +17,7 @@ export const oracleFusionProjectManagementCreateDeliverableTaskAssociationTool: 
 > = {
   id: 'oracle_fusion_project_management_create_deliverable_task_association',
   name: 'Oracle Fusion Project Management Create Deliverable Task Association',
-  description: "Create deliverable task association in Oracle Fusion Cloud Project Management.",
+  description: 'Create deliverable task association in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,23 +26,28 @@ export const oracleFusionProjectManagementCreateDeliverableTaskAssociationTool: 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "deliverable ID as a decimal string",
+      description: 'Deliverable ID as a decimal string',
     },
     projectId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "project ID as an exact decimal ID string (null is accepted by the documented API)",
+      description:
+        'Project ID as an exact decimal ID string',
     },
     taskId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "task ID as an exact decimal ID string",
+      description: 'Task ID as an exact decimal ID string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    association: { type: 'json', description: 'Documented association fields', properties: oracleFusionAssociationOutput },
+    association: {
+      type: 'json',
+      description: 'Documented association fields',
+      properties: oracleFusionAssociationOutput,
+    },
   },
 }

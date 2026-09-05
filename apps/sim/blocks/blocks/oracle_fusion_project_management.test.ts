@@ -1,8 +1,11 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import { OracleFusionProjectManagementBlock as block, OracleFusionProjectManagementBlockMeta as meta } from '@/blocks/blocks/oracle_fusion_project_management'
 import { NetSuiteIcon } from '@/components/icons'
 import { selectorManifest } from '@/lib/selectors/manifest'
+import {
+  OracleFusionProjectManagementBlock as block,
+  OracleFusionProjectManagementBlockMeta as meta,
+} from '@/blocks/blocks/oracle_fusion_project_management'
 
 const prefix = 'oracle_fusion_project_management_'
 const OPERATIONS = [
@@ -62,30 +65,45 @@ const OPERATIONS = [
 ] as const
 
 function map(operation: string, params: Record<string, unknown> = {}) {
-  return block.tools.config!.params!({ operation: prefix + operation, oauthCredential: 'credential-1', ...params })
+  return block.tools.config!.params!({
+    operation: prefix + operation,
+    oauthCredential: 'credential-1',
+    ...params,
+  })
 }
 
 describe('Oracle Project Management block', () => {
   it('has the complete 53-operation surface, a read-first default, and the established Oracle icon', () => {
     const operation = block.subBlocks.find((field) => field.id === 'operation')!
-    const options = typeof operation.options === 'function' ? operation.options() : operation.options
+    const options =
+      typeof operation.options === 'function' ? operation.options() : operation.options
     expect(options?.map((option) => option.id)).toEqual(OPERATIONS.map((name) => prefix + name))
-    expect(operation.value?.({})).toBe(prefix + 'list_projects')
+    expect(operation.value?.({})).toBe(`${prefix}list_projects`)
     expect(block.icon).toBe(NetSuiteIcon)
     expect(meta.templates).toHaveLength(7)
     expect(meta.skills).toHaveLength(3)
     expect(new Set(block.subBlocks.map((field) => field.id)).size).toBe(block.subBlocks.length)
   })
 
-  it.each(OPERATIONS)('routes %s before resolving numeric or structured workflow references', (operation) => {
-    const toolId = block.tools.config!.tool!({ operation: prefix + operation, projectId: '<project.ProjectId>', limit: '<agent.limit>', planningResources: '<agent.lines>' })
-    expect(toolId).toBe(prefix + operation)
-    expect(block.tools.access).toContain(toolId)
-    expect(block.canvasPresentation?.sentences?.byOperation?.[prefix + operation]).toBeDefined()
-  })
+  it.each(OPERATIONS)(
+    'routes %s before resolving numeric or structured workflow references',
+    (operation) => {
+      const toolId = block.tools.config!.tool!({
+        operation: prefix + operation,
+        projectId: '<project.ProjectId>',
+        limit: '<agent.limit>',
+        planningResources: '<agent.lines>',
+      })
+      expect(toolId).toBe(prefix + operation)
+      expect(block.tools.access).toContain(toolId)
+      expect(block.canvasPresentation?.sentences?.byOperation?.[prefix + operation]).toBeDefined()
+    }
+  )
 
   it('rejects unsupported operations without attempting reference coercion', () => {
-    expect(() => block.tools.config!.tool!({ operation: 'arbitrary', limit: '<agent.limit>' })).toThrow('Unsupported')
+    expect(() =>
+      block.tools.config!.tool!({ operation: 'arbitrary', limit: '<agent.limit>' })
+    ).toThrow('Unsupported')
   })
 
   it.each([
@@ -96,15 +114,28 @@ describe('Oracle Project Management block', () => {
     ['projectRole', 'roles', ['credential']],
     ['deliverableTypeId', 'deliverableTypes', ['credential']],
     ['assignmentId', 'laborAssignments', ['credential', 'projectId', 'taskId']],
-  ] as const)('keeps %s basic/manual inputs canonical and dependency-bound', (field, selector, dependencies) => {
-    const basic = block.subBlocks.find((input) => input.id === field + 'Selector')!
-    const manual = block.subBlocks.find((input) => input.id === field + 'Manual')!
-    expect(basic).toMatchObject({ type: 'project-selector', canonicalParamId: field, mode: 'basic', selectorKey: 'oracleFusionProjectManagement.' + selector, dependsOn: [...dependencies] })
-    expect(manual).toMatchObject({ type: 'short-input', canonicalParamId: field, mode: 'advanced' })
-    expect(basic.required).toEqual(manual.required)
-    expect(basic.condition).toEqual(manual.condition)
-    expect(block.inputs[field]).toBeDefined()
-  })
+  ] as const)(
+    'keeps %s basic/manual inputs canonical and dependency-bound',
+    (field, selector, dependencies) => {
+      const basic = block.subBlocks.find((input) => input.id === `${field}Selector`)!
+      const manual = block.subBlocks.find((input) => input.id === `${field}Manual`)!
+      expect(basic).toMatchObject({
+        type: 'project-selector',
+        canonicalParamId: field,
+        mode: 'basic',
+        selectorKey: `oracleFusionProjectManagement.${selector}`,
+        dependsOn: [...dependencies],
+      })
+      expect(manual).toMatchObject({
+        type: 'short-input',
+        canonicalParamId: field,
+        mode: 'advanced',
+      })
+      expect(basic.required).toEqual(manual.required)
+      expect(basic.condition).toEqual(manual.condition)
+      expect(block.inputs[field]).toBeDefined()
+    }
+  )
 
   it('requires both project and task context for the task-assignment selector', () => {
     expect(selectorManifest['oracleFusionProjectManagement.laborAssignments'].context).toEqual({
@@ -114,22 +145,90 @@ describe('Oracle Project Management block', () => {
   })
 
   it('maps resolved canonical values without numeric ID coercion and clears stale inputs', () => {
-    const result = map('update_task', { projectId: '999999999999999999', taskId: '9007199254740993', physicalPercentComplete: '50', milestoneFlag: 'false', projectName: 'stale', invoiceId: 'stale' })
-    expect(result).toMatchObject({ oauthCredential: 'credential-1', projectId: '999999999999999999', taskId: '9007199254740993', physicalPercentComplete: 50, milestoneFlag: false, projectName: undefined, invoiceId: undefined })
+    const result = map('update_task', {
+      projectId: '999999999999999999',
+      taskId: '9007199254740993',
+      physicalPercentComplete: '50',
+      milestoneFlag: 'false',
+      projectName: 'stale',
+      invoiceId: 'stale',
+    })
+    expect(result).toMatchObject({
+      oauthCredential: 'credential-1',
+      projectId: '999999999999999999',
+      taskId: '9007199254740993',
+      physicalPercentComplete: 50,
+      milestoneFlag: false,
+      projectName: undefined,
+      invoiceId: undefined,
+    })
     expect(JSON.parse(JSON.stringify(result))).not.toHaveProperty('invoiceId')
-    expect(map('update_project', { projectId: '101', projectDescription: null }).projectDescription).toBeNull()
+    expect(
+      map('update_project', { projectId: '101', projectDescription: null }).projectDescription
+    ).toBeNull()
   })
 
   it('keeps task-assignment context out of updates and parses documented budget arrays after resolution', () => {
-    expect(map('update_task_labor_resource_assignment', { projectId: '101', taskId: '202', assignmentId: '707', resourceEmail: 'a@example.test' })).toMatchObject({ taskId: undefined, assignmentId: '707', resourceEmail: 'a@example.test' })
-    const resources = [{ RbsElementId: '999999999999999999', TaskId: '202', PlanningAmounts: [{ Currency: 'USD', Quantity: 2 }] }]
-    expect(map('create_project_budget', { planningResources: JSON.stringify(resources) }).planningResources).toEqual(resources)
+    expect(
+      map('update_task_labor_resource_assignment', {
+        projectId: '101',
+        taskId: '202',
+        assignmentId: '707',
+        resourceEmail: 'a@example.test',
+      })
+    ).toMatchObject({ taskId: undefined, assignmentId: '707', resourceEmail: 'a@example.test' })
+    const resources = [
+      {
+        RbsElementId: '999999999999999999',
+        TaskId: '202',
+        PlanningAmounts: [{ Currency: 'USD', Quantity: 2 }],
+      },
+    ]
+    expect(
+      map('create_project_budget', { planningResources: JSON.stringify(resources) }).planningResources
+    ).toEqual(resources)
   })
 
   it('retains only action-specific invoice inputs when operations or transitions change', () => {
-    const result = map('transition_project_contract_invoice', { invoiceId: '110', action: 'approve', invoiceDate: '2026-09-04', unreleaseComments: 'stale', receivablesNumber: 'stale' })
-    expect(result).toMatchObject({ invoiceId: '110', action: 'approve', invoiceDate: undefined, unreleaseComments: undefined, receivablesNumber: undefined })
-    expect(map('transition_project_contract_invoice', { invoiceId: '110', action: 'release', invoiceDate: '2026-09-04' }).invoiceDate).toBe('2026-09-04')
+    const result = map('transition_project_contract_invoice', {
+      invoiceId: '110',
+      action: 'approve',
+      invoiceDate: '2026-09-04',
+      unreleaseComments: 'stale',
+      receivablesNumber: 'stale',
+    })
+    expect(result).toMatchObject({
+      invoiceId: '110',
+      action: 'approve',
+      invoiceDate: undefined,
+      unreleaseComments: undefined,
+      receivablesNumber: undefined,
+    })
+    expect(
+      map('transition_project_contract_invoice', {
+        invoiceId: '110',
+        action: 'release',
+        invoiceDate: '2026-09-04',
+      }).invoiceDate
+    ).toBe('2026-09-04')
+  })
+
+  it.each([
+    ['invoiceDate', 'release'],
+    ['unreleaseComments', 'unrelease'],
+  ])('shows %s only for its transition or the ordinary invoice update', (id, action) => {
+    const field = block.subBlocks.find((input) => input.id === id)!
+    const condition = field.condition
+    expect(typeof condition).toBe('function')
+    if (typeof condition !== 'function') throw new Error('Expected action-aware condition')
+    expect(condition({ operation: `${prefix}transition_project_contract_invoice` })).toEqual({
+      field: 'operation',
+      value: `${prefix}transition_project_contract_invoice`,
+      and: { field: 'action', value: action },
+    })
+    expect(condition({ operation: `${prefix}update_project_contract_invoice` })).toEqual({
+      field: 'operation',
+      value: `${prefix}update_project_contract_invoice`,
+    })
   })
 })
-

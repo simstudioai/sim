@@ -17,7 +17,7 @@ export const oracleFusionProjectManagementGetProjectTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_project_management_get_project',
   name: 'Oracle Fusion Project Management Get Project',
-  description: "Get project in Oracle Fusion Cloud Project Management.",
+  description: 'Get project in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,11 +26,15 @@ export const oracleFusionProjectManagementGetProjectTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "project ID as a decimal string",
+      description: 'Project ID as a decimal string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    project: { type: 'json', description: 'Documented project fields', properties: oracleFusionProjectOutput },
+    project: {
+      type: 'json',
+      description: 'Documented project fields',
+      properties: oracleFusionProjectOutput,
+    },
   },
 }

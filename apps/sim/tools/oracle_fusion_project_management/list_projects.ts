@@ -17,7 +17,8 @@ export const oracleFusionProjectManagementListProjectsTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_project_management_list_projects',
   name: 'Oracle Fusion Project Management List Projects',
-  description: "List projects in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.",
+  description:
+    'List projects in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,33 +27,34 @@ export const oracleFusionProjectManagementListProjectsTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Optional Oracle q filter using attributes documented for this collection",
+      description: 'Optional oracle q filter using attributes documented for this collection',
     },
     orderBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Oracle sort attributes, for example ProjectId:asc; use a stable order when paging",
+      description:
+        'Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       default: 100,
-      description: "One page of 1–1000 items; default 100",
+      description: 'One page of 1–1000 items; default 100',
     },
     offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       default: 0,
-      description: "Zero-based offset for this page; use nextOffset to continue",
+      description: 'Zero-based offset for this page; use nextOffset to continue',
     },
     totalResults: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: "Include Oracle’s estimated total row count",
+      description: 'Include oracle’s estimated total row count',
     },
   },
   operation: { input: createInternalToolOperationInput },

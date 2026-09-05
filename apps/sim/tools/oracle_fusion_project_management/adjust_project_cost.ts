@@ -16,7 +16,8 @@ export const oracleFusionProjectManagementAdjustProjectCostTool: InternalToolCon
 > = {
   id: 'oracle_fusion_project_management_adjust_project_cost',
   name: 'Oracle Fusion Project Management Adjust Project Cost',
-  description: "Perform a project-cost adjustment using a configured PJC_ADJUSTMENT_TYPE code. Oracle validates which fields and transaction states apply to that adjustment.",
+  description:
+    'Perform a project-cost adjustment using a configured PJC_ADJUSTMENT_TYPE code. Oracle validates which fields and transaction states apply to that adjustment.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -25,83 +26,88 @@ export const oracleFusionProjectManagementAdjustProjectCostTool: InternalToolCon
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Opaque project-cost key returned by list or get; not the numeric CostId",
+      description: 'Opaque project-cost key returned by list or get; not the numeric costId',
     },
     adjustmentTypeCode: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "adjustment Type Code (null is accepted by the documented API)",
+      description: 'Adjustment type code',
     },
     justification: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "justification (null is accepted by the documented API)",
+      description: 'Justification (null is accepted by the documented API)',
     },
     comment: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "comment (null is accepted by the documented API)",
+      description: 'Comment (null is accepted by the documented API)',
     },
     quantity: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: "quantity (null is accepted by the documented API)",
+      description: 'Quantity (null is accepted by the documented API)',
     },
     billableFlag: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: "billable Flag (null is accepted by the documented API)",
+      description: 'Billable flag (null is accepted by the documented API)',
     },
     capitalizableFlag: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: "capitalizable Flag (null is accepted by the documented API)",
+      description: 'Capitalizable flag (null is accepted by the documented API)',
     },
     holdInvoiceFlag: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: "hold Invoice Flag (null is accepted by the documented API)",
+      description: 'Hold invoice flag (null is accepted by the documented API)',
     },
     holdRevenueFlag: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: "hold Revenue Flag (null is accepted by the documented API)",
+      description: 'Hold revenue flag (null is accepted by the documented API)',
     },
     targetProjectId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "target Project ID as an exact decimal ID string (null is accepted by the documented API)",
+      description:
+        'Target project ID as an exact decimal ID string (null is accepted by the documented API)',
     },
     targetTaskId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "target Task ID as an exact decimal ID string (null is accepted by the documented API)",
+      description:
+        'Target task ID as an exact decimal ID string (null is accepted by the documented API)',
     },
     rawCostInTransactionCurrency: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: "raw Cost In Transaction Currency (null is accepted by the documented API)",
+      description: 'Raw cost in transaction currency (null is accepted by the documented API)',
     },
     transactionCurrencyCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "transaction Currency Code (null is accepted by the documented API)",
+      description: 'Transaction currency code (null is accepted by the documented API)',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    result: { type: 'string', description: 'Documented Oracle action result; not a refreshed resource' },
+    result: {
+      type: 'string',
+      description: 'Documented Oracle action result; not a refreshed resource',
+    },
   },
 }

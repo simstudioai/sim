@@ -60,6 +60,10 @@ describe('Oracle Project Management credential-bound selectors', () => {
     mocks.resolveAccount.mockResolvedValueOnce({ credentialType: 'service_account', providerId: 'netsuite-service-account' })
     await expect(prepare(key, input)).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
     await expect(prepare(key, args(key))).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    for (const instanceUrl of [undefined, 'https://unrelated.example.test']) {
+      mocks.bundle.mockResolvedValueOnce({ ...destination, instanceUrl })
+      await expect(prepare(key, input)).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    }
     expect(mocks.json).not.toHaveBeenCalled()
   })
 

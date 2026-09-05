@@ -16192,7 +16192,7 @@
         },
         {
           "name": "Create Project Budget",
-          "description": "Create or copy a project budget version, optionally with resource/amount lines. Financial plan types, resource breakdown structures, currencies, and deferred creation are tenant-configured."
+          "description": "Create or copy a project budget version synchronously, optionally with resource/amount lines. Financial plan types, resource breakdown structures, and currencies are tenant-configured."
         },
         {
           "name": "Update Project Budget",

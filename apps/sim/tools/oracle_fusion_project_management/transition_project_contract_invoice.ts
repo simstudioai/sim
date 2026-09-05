@@ -16,7 +16,8 @@ export const oracleFusionProjectManagementTransitionProjectContractInvoiceTool: 
 > = {
   id: 'oracle_fusion_project_management_transition_project_contract_invoice',
   name: 'Oracle Fusion Project Management Transition Project Contract Invoice',
-  description: "Invoke one fixed, documented project-contract invoice lifecycle action. Release-only fields and unrelease comments apply only to their corresponding action; no automatic transition chaining.",
+  description:
+    'Invoke one fixed, documented project-contract invoice lifecycle action. Release-only fields and unrelease comments apply only to their corresponding action; no automatic transition chaining.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -25,47 +26,51 @@ export const oracleFusionProjectManagementTransitionProjectContractInvoiceTool: 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "invoice ID as a decimal string",
+      description: 'Invoice ID as a decimal string',
     },
     receivablesNumber: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "receivables Number (null is accepted by the documented API)",
+      description: 'Receivables number (null is accepted by the documented API)',
     },
     creditMemoReasonCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "credit Memo Reason Code (null is accepted by the documented API)",
+      description: 'Credit memo reason code (null is accepted by the documented API)',
     },
     invoiceDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "invoice Date (null is accepted by the documented API)",
+      description: 'Invoice date (null is accepted by the documented API)',
     },
     creditMemoReasonMeaning: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "credit Memo Reason Meaning (null is accepted by the documented API)",
+      description: 'Credit memo reason meaning (null is accepted by the documented API)',
     },
     unreleaseComments: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "unrelease Comments (null is accepted by the documented API)",
+      description: 'Unrelease comments (null is accepted by the documented API)',
     },
     action: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Exactly one of submit, approve, reject, release, return_to_draft, unrelease, cancel; Oracle enforces the current invoice status",
+      description:
+        'Exactly one of submit, approve, reject, release, return_to_draft, unrelease, cancel; Oracle enforces the current invoice status',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    result: { type: 'string', description: 'Documented Oracle action result; not a refreshed resource' },
+    result: {
+      type: 'string',
+      description: 'Documented Oracle action result; not a refreshed resource',
+    },
   },
 }

@@ -16,7 +16,7 @@ export const oracleFusionProjectManagementDeleteDeliverableTaskAssociationTool: 
 > = {
   id: 'oracle_fusion_project_management_delete_deliverable_task_association',
   name: 'Oracle Fusion Project Management Delete Deliverable Task Association',
-  description: "Delete deliverable task association in Oracle Fusion Cloud Project Management.",
+  description: 'Delete deliverable task association in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -25,18 +25,21 @@ export const oracleFusionProjectManagementDeleteDeliverableTaskAssociationTool: 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "deliverable ID as a decimal string",
+      description: 'Deliverable ID as a decimal string',
     },
     associationId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "association ID as a decimal string",
+      description: 'Association ID as a decimal string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    deleted: { type: 'boolean', description: 'True after Oracle accepts the deletion with an empty success response' },
+    deleted: {
+      type: 'boolean',
+      description: 'True after Oracle accepts the deletion with an empty success response',
+    },
     id: { type: 'string', description: 'Identifier supplied to this delete operation' },
   },
 }

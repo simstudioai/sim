@@ -3,7 +3,10 @@ import {
   normalizeOracleFusionApplicationOrigin,
   ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { type OracleFusionResolvedCredential, requestOracleFusionJson } from '@/lib/internal/oracle-fusion/client'
+import {
+  type OracleFusionResolvedCredential,
+  requestOracleFusionJson,
+} from '@/lib/internal/oracle-fusion/client'
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
 import { normalizeOracleFusionDecimalIdentifier } from '@/lib/internal/oracle-fusion/identifiers'
 import { parseOracleFusionCollection } from '@/lib/internal/oracle-fusion/protocol'
@@ -41,23 +44,89 @@ type Lookup = {
 // email for resource assignment, IDs for projects/tasks/types. Never substitute PersonId.
 const lookups = {
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projects-get.html
-  'oracleFusionProjectManagement.projects': {"path":"projects","id":"ProjectId","label":"ProjectName","detail":"ProjectNumber","numeric":true,"parents":[]},
+  'oracleFusionProjectManagement.projects': {
+    path: 'projects',
+    id: 'ProjectId',
+    label: 'ProjectName',
+    detail: 'ProjectNumber',
+    numeric: true,
+    parents: [],
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projectplandetails-projectid-child-tasks-get.html
-  'oracleFusionProjectManagement.tasks': {"path":"projectPlanDetails/{projectId}/child/Tasks","id":"TaskId","label":"Name","detail":"TaskNumber","numeric":true,"parents":["projectId"]},
+  'oracleFusionProjectManagement.tasks': {
+    path: 'projectPlanDetails/{projectId}/child/Tasks',
+    id: 'TaskId',
+    label: 'Name',
+    detail: 'TaskNumber',
+    numeric: true,
+    parents: ['projectId'],
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projectclassifiedorganizationslov-get.html
-  'oracleFusionProjectManagement.organizations': {"path":"projectClassifiedOrganizationsLOV","id":"OrganizationName","label":"OrganizationName","detail":"OrganizationId","numeric":false,"parents":[],"filter":"ClassificationCode='PA_PROJECT_ORG' and Status='A'"},
+  'oracleFusionProjectManagement.organizations': {
+    path: 'projectClassifiedOrganizationsLOV',
+    id: 'OrganizationName',
+    label: 'OrganizationName',
+    detail: 'OrganizationId',
+    numeric: false,
+    parents: [],
+    filter: "ClassificationCode='PA_PROJECT_ORG' and Status='A'",
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projectenterpriseresources-get.html
-  'oracleFusionProjectManagement.resources': {"path":"projectEnterpriseResources","id":"ResourceEmail","label":"ResourceDisplayName","detail":"ResourceId","numeric":false,"parents":[]},
+  'oracleFusionProjectManagement.resources': {
+    path: 'projectEnterpriseResources',
+    id: 'ResourceEmail',
+    label: 'ResourceDisplayName',
+    detail: 'ResourceId',
+    numeric: false,
+    parents: [],
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projectroleslov-get.html
-  'oracleFusionProjectManagement.roles': {"path":"projectRolesLOV","id":"ProjectRoleName","label":"ProjectRoleName","detail":"ProjectRoleId","numeric":false,"parents":[]},
+  'oracleFusionProjectManagement.roles': {
+    path: 'projectRolesLOV',
+    id: 'ProjectRoleName',
+    label: 'ProjectRoleName',
+    detail: 'ProjectRoleId',
+    numeric: false,
+    parents: [],
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-deliverabletypeslov-get.html
-  'oracleFusionProjectManagement.deliverableTypes': {"path":"deliverableTypesLOV","id":"DeliverableTypeId","label":"Name","detail":"DeliverableTypeClass","numeric":true,"parents":[],"finder":"findDeliverableTypes","filter":"DisabledFlag=false"},
+  'oracleFusionProjectManagement.deliverableTypes': {
+    path: 'deliverableTypesLOV',
+    id: 'DeliverableTypeId',
+    label: 'Name',
+    detail: 'DeliverableTypeClass',
+    numeric: true,
+    parents: [],
+    finder: 'findDeliverableTypes',
+    filter: 'DisabledFlag=false',
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projectstatuseslov-get.html
-  'oracleFusionProjectManagement.statuses': {"path":"projectStatusesLOV","id":"ProjectStatusCode","label":"ProjectStatusName","detail":"StatusObjectCode","numeric":false,"parents":[]},
+  'oracleFusionProjectManagement.statuses': {
+    path: 'projectStatusesLOV',
+    id: 'ProjectStatusCode',
+    label: 'ProjectStatusName',
+    detail: 'StatusObjectCode',
+    numeric: false,
+    parents: [],
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projects-projectid-child-projectteammembers-get.html
-  'oracleFusionProjectManagement.teamMembers': {"path":"projects/{projectId}/child/ProjectTeamMembers","id":"TeamMemberId","label":"PersonName","detail":"ProjectRole","numeric":true,"parents":["projectId"]},
+  'oracleFusionProjectManagement.teamMembers': {
+    path: 'projects/{projectId}/child/ProjectTeamMembers',
+    id: 'TeamMemberId',
+    label: 'PersonName',
+    detail: 'ProjectRole',
+    numeric: true,
+    parents: ['projectId'],
+  },
   // https://docs.oracle.com/en/cloud/saas/project-management/26c/fapap/op-projectplans-projectid-child-tasklaborresourceassignments-get.html
-  'oracleFusionProjectManagement.laborAssignments': {"path":"projectPlans/{projectId}/child/TaskLaborResourceAssignments","id":"TaskLaborResourceAssignmentId","label":"ResourceName","detail":"ResourceEmail","numeric":true,"parents":["projectId","taskId"]},
+  'oracleFusionProjectManagement.laborAssignments': {
+    path: 'projectPlans/{projectId}/child/TaskLaborResourceAssignments',
+    id: 'TaskLaborResourceAssignmentId',
+    label: 'ResourceName',
+    detail: 'ResourceEmail',
+    numeric: true,
+    parents: ['projectId', 'taskId'],
+  },
 } as const satisfies Record<string, Lookup>
 
 type ProjectManagementSelectorKey = Extract<ServerSelectorKey, keyof typeof lookups>
@@ -75,19 +144,31 @@ function queryString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
 
-async function prepareDestination(args: ExecuteServerSelectorArgs): Promise<OracleFusionResolvedCredential> {
+async function prepareDestination(
+  args: ExecuteServerSelectorArgs
+): Promise<OracleFusionResolvedCredential> {
   args.signal?.throwIfAborted()
   const access = args.credential?.access
-  if (!access?.resolvedCredentialId || access.credentialType !== 'service_account') throw new SelectorConnectionUnavailableError()
+  if (!access?.resolvedCredentialId || access.credentialType !== 'service_account') {
+    throw new SelectorConnectionUnavailableError()
+  }
   const resolved = await resolveOAuthAccountId(access.resolvedCredentialId)
   args.signal?.throwIfAborted()
-  if (resolved?.credentialType !== 'service_account' || resolved.providerId !== ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID) throw new SelectorConnectionUnavailableError()
-  const bundle = await resolveSelectorCredentialBundle({ credential: args.credential, protectedValues: args.protectedValues })
+  if (
+    resolved?.credentialType !== 'service_account' ||
+    resolved.providerId !== ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+  ) {
+    throw new SelectorConnectionUnavailableError()
+  }
+  const bundle = await resolveSelectorCredentialBundle({
+    credential: args.credential,
+    protectedValues: args.protectedValues,
+  })
   args.signal?.throwIfAborted()
   if (!bundle.instanceUrl) throw new SelectorConnectionUnavailableError()
-  try {
-    return { accessToken: bundle.accessToken, instanceUrl: normalizeOracleFusionApplicationOrigin(bundle.instanceUrl) }
-  } catch { throw new SelectorConnectionUnavailableError() }
+  const instanceUrl = normalizeOracleFusionApplicationOrigin(bundle.instanceUrl)
+  if (!instanceUrl) throw new SelectorConnectionUnavailableError()
+  return { accessToken: bundle.accessToken, instanceUrl }
 }
 
 function optionFromRecord(record: unknown, lookup: Lookup, key: string): SafeSelectorOption | null {
@@ -96,22 +177,35 @@ function optionFromRecord(record: unknown, lookup: Lookup, key: string): SafeSel
   // Some enterprise resources have no email and cannot be used by these email-bound inputs.
   if (key === 'oracleFusionProjectManagement.resources' && (rawId === null || rawId === '')) return null
   const id = lookup.numeric ? normalizeOracleFusionDecimalIdentifier(rawId, { maxDigits: 18 }) : rawId
-  if (typeof id !== 'string' || !id.trim() || id.length > 240) throw new SelectorOptionsUnavailableError()
+  if (typeof id !== 'string' || !id.trim() || id.length > 240) {
+    throw new SelectorOptionsUnavailableError()
+  }
   const rawLabel = record[lookup.label]
-  if (rawLabel !== null && rawLabel !== undefined && typeof rawLabel !== 'string') throw new SelectorOptionsUnavailableError()
+  if (rawLabel !== null && rawLabel !== undefined && typeof rawLabel !== 'string') {
+    throw new SelectorOptionsUnavailableError()
+  }
   let label = typeof rawLabel === 'string' && rawLabel.trim() ? rawLabel : id
   const rawDetail = record[lookup.detail]
-  const detail = /Id$/.test(lookup.detail) ? normalizeOracleFusionDecimalIdentifier(rawDetail, { maxDigits: 18 }) : rawDetail
-  if (detail !== null && detail !== undefined && typeof detail !== 'string') throw new SelectorOptionsUnavailableError()
+  const detail = /Id$/.test(lookup.detail)
+    ? normalizeOracleFusionDecimalIdentifier(rawDetail, { maxDigits: 18 })
+    : rawDetail
+  if (detail !== null && detail !== undefined && typeof detail !== 'string') {
+    throw new SelectorOptionsUnavailableError()
+  }
   if (key === 'oracleFusionProjectManagement.statuses') {
     if (typeof detail !== 'string' || !detail) throw new SelectorOptionsUnavailableError()
     label = `${label} (${detail})`
   }
-  if (label.length > 1000 || (typeof detail === 'string' && detail.length > 1000)) throw new SelectorOptionsUnavailableError()
+  if (label.length > 1000 || (typeof detail === 'string' && detail.length > 1000)) {
+    throw new SelectorOptionsUnavailableError()
+  }
   return { id, label, ...(typeof detail === 'string' && detail ? { meta: { detail } } : {}) }
 }
 
-async function executeLookup(args: ExecuteServerSelectorArgs, destination: OracleFusionResolvedCredential) {
+async function executeLookup(
+  args: ExecuteServerSelectorArgs,
+  destination: OracleFusionResolvedCredential
+) {
   args.signal?.throwIfAborted()
   const lookup: Lookup = lookups[args.selectorKey as ProjectManagementSelectorKey]
   if (!lookup) throw new SelectorContextUnavailableError()
@@ -122,39 +216,61 @@ async function executeLookup(args: ExecuteServerSelectorArgs, destination: Oracl
   const detail = args.request.kind === 'detail'
   let offset = 0
   if (args.request.kind === 'detail') {
-    filters.push(`${lookup.id}=${lookup.numeric ? contextId(args.request.id) : queryString(args.request.id)}`)
+    filters.push(
+      `${lookup.id}=${lookup.numeric ? contextId(args.request.id) : queryString(args.request.id)}`
+    )
   } else {
     const cursor = args.request.cursor
     if (cursor !== undefined) {
       if (!/^(0|[1-9]\d{0,9})$/.test(cursor)) throw new SelectorContextUnavailableError()
       offset = Number(cursor)
-      if (!Number.isSafeInteger(offset) || offset >= MAX_SELECTOR_OPTIONS) throw new SelectorContextUnavailableError()
+      if (!Number.isSafeInteger(offset) || offset >= MAX_SELECTOR_OPTIONS) {
+        throw new SelectorContextUnavailableError()
+      }
     }
     const search = args.request.search?.trim()
     if (search) filters.push(`${lookup.label} like ${queryString(`%${search}%`)}`)
   }
   const limit = detail ? 2 : Math.min(PAGE_SIZE, MAX_SELECTOR_OPTIONS - offset)
   try {
-    const body = await requestOracleFusionJson(destination, {
-      address: { family: 'fscm', relativePath: path },
-      query: {
-        limit, offset,
-        fields: [...new Set([lookup.id, lookup.label, lookup.detail])].join(','),
-        onlyData: true,
-        orderBy: `${lookup.id}:asc`,
-        ...(filters.length ? { q: filters.join(' and ') } : {}),
-        ...(lookup.finder ? { finder: lookup.finder } : {}),
+    const body = await requestOracleFusionJson(
+      destination,
+      {
+        address: { family: 'fscm', relativePath: path },
+        query: {
+          limit,
+          offset,
+          fields: [...new Set([lookup.id, lookup.label, lookup.detail])].join(','),
+          onlyData: true,
+          orderBy: `${lookup.id}:asc`,
+          ...(filters.length ? { q: filters.join(' and ') } : {}),
+          ...(lookup.finder ? { finder: lookup.finder } : {}),
+        },
       },
-    }, args.signal)
+      args.signal
+    )
     args.signal?.throwIfAborted()
-    const page = parseOracleFusionCollection(body, (record) => optionFromRecord(record, lookup, args.selectorKey), { expectedOffset: offset, maxItems: limit })
-    const options = [...new Map(page.items.flatMap((item) => item ? [[item.id, item] as const] : [])).values()]
+    const page = parseOracleFusionCollection(
+      body,
+      (record) => optionFromRecord(record, lookup, args.selectorKey),
+      { expectedOffset: offset, maxItems: limit }
+    )
+    const options = [
+      ...new Map(page.items.flatMap((item) => (item ? [[item.id, item] as const] : []))).values(),
+    ]
     if (args.request.kind === 'detail') {
       const requestedId = lookup.numeric ? contextId(args.request.id) : args.request.id
       return detailSelectorResult(options.find((item) => item.id === requestedId) ?? null)
     }
-    const nextCursor = page.hasMore && page.nextOffset < MAX_SELECTOR_OPTIONS ? String(page.nextOffset) : undefined
-    return listSelectorResult(options, nextCursor, page.hasMore && !nextCursor ? { truncated: { reason: 'provider-cap', limit: MAX_SELECTOR_OPTIONS } } : undefined)
+    const nextCursor =
+      page.hasMore && page.nextOffset < MAX_SELECTOR_OPTIONS ? String(page.nextOffset) : undefined
+    return listSelectorResult(
+      options,
+      nextCursor,
+      page.hasMore && !nextCursor
+        ? { truncated: { reason: 'provider-cap', limit: MAX_SELECTOR_OPTIONS } }
+        : undefined
+    )
   } catch (error) {
     args.signal?.throwIfAborted()
     if (error instanceof OracleFusionProviderError) throw selectorProviderStatusError(error.status)
@@ -162,54 +278,66 @@ async function executeLookup(args: ExecuteServerSelectorArgs, destination: Oracl
   }
 }
 
-const credential = { kind: 'stored', field: 'oauthCredential', serviceIds: ['oracle_fusion_project_management'] } as const
+const credential = {
+  kind: 'stored',
+  field: 'oauthCredential',
+  serviceIds: ['oracle_fusion_project_management'],
+} as const
 const integrationBlockTypes = ['oracle_fusion_project_management'] as const
 
 export const oracleFusionProjectManagementSelectorAttachments = {
   'oracleFusionProjectManagement.projects': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.tasks': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.organizations': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.resources': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.roles': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.deliverableTypes': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.statuses': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.teamMembers': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
   'oracleFusionProjectManagement.laborAssignments': definePreparedSelectorAttachment({
-    credential, integrationBlockTypes,
+    credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareDestination },
     execute: executeLookup,
   }),
 } satisfies ServerSelectorAttachmentMap<ProjectManagementSelectorKey>
-

@@ -155,6 +155,18 @@ describe('Oracle Project Management documented operations', () => {
     expect(JSON.parse(sentBody())).toMatchObject({ DeferFinancialPlanCreation: 'N', PlanningAmounts: 'Cost', PlanningResources: [{ TaskId: 202, PlanningAmounts: [{ Currency: 'USD', RawCostAmounts: 125.5, Quantity: 2 }] }] })
   })
 
+  it.each(['Y', null])('rejects deferred or ambiguous budget creation (%s) before sending a request', async (deferFinancialPlanCreation) => {
+    await expect(execute('create_project_budget', {
+      ...auth,
+      projectId: '101',
+      projectName: 'Implementation',
+      projectNumber: 'P1',
+      planVersionName: 'Working',
+      deferFinancialPlanCreation,
+    })).rejects.toThrow('must be N')
+    expect(mocks.json).not.toHaveBeenCalled()
+  })
+
   it('keeps project cost self-link keys distinct from CostId for reads and rate updates', async () => {
     const record = { CostId: '9007199254740993', ExternalBillRate: 125.5, '@context': { links: [{ rel: 'self', href: `${auth.instanceUrl}/fscmRestApi/resources/11.13.18.05/projectCosts/opaque%2Bkey` }] } }
     mocks.json.mockResolvedValueOnce(page([record]))

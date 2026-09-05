@@ -16,7 +16,8 @@ export const oracleFusionProjectManagementDeleteDraftProjectContractInvoiceTool:
 > = {
   id: 'oracle_fusion_project_management_delete_draft_project_contract_invoice',
   name: 'Oracle Fusion Project Management Delete Draft Project Contract Invoice',
-  description: "Delete a standard project contract invoice in draft status. Oracle rejects other invoice states; no preceding transition is performed.",
+  description:
+    'Delete a standard project contract invoice in draft status. Oracle rejects other invoice states; no preceding transition is performed.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -25,12 +26,15 @@ export const oracleFusionProjectManagementDeleteDraftProjectContractInvoiceTool:
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "invoice ID as a decimal string",
+      description: 'Invoice ID as a decimal string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    deleted: { type: 'boolean', description: 'True after Oracle accepts the deletion with an empty success response' },
+    deleted: {
+      type: 'boolean',
+      description: 'True after Oracle accepts the deletion with an empty success response',
+    },
     id: { type: 'string', description: 'Identifier supplied to this delete operation' },
   },
 }

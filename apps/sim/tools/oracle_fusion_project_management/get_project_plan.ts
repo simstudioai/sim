@@ -5,8 +5,8 @@ import type {
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
-  oracleFusionProjectManagementAuthParams,
   oracleFusionPlanOutput,
+  oracleFusionProjectManagementAuthParams,
 } from '@/tools/oracle_fusion_project_management/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,7 +17,8 @@ export const oracleFusionProjectManagementGetProjectPlanTool: InternalToolConfig
 > = {
   id: 'oracle_fusion_project_management_get_project_plan',
   name: 'Oracle Fusion Project Management Get Project Plan',
-  description: "Read a visible project plan using projectPlanDetails; does not require selecting the management-only projectPlans resource.",
+  description:
+    'Read a visible project plan using projectPlanDetails; does not require selecting the management-only projectPlans resource.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,11 +27,15 @@ export const oracleFusionProjectManagementGetProjectPlanTool: InternalToolConfig
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "project ID as a decimal string",
+      description: 'Project ID as a decimal string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    plan: { type: 'json', description: 'Documented plan fields', properties: oracleFusionPlanOutput },
+    plan: {
+      type: 'json',
+      description: 'Documented plan fields',
+      properties: oracleFusionPlanOutput,
+    },
   },
 }

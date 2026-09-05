@@ -17,7 +17,7 @@ export const oracleFusionProjectManagementGetTaskTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_project_management_get_task',
   name: 'Oracle Fusion Project Management Get Task',
-  description: "Get task in Oracle Fusion Cloud Project Management.",
+  description: 'Get task in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,17 +26,21 @@ export const oracleFusionProjectManagementGetTaskTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "project ID as a decimal string",
+      description: 'Project ID as a decimal string',
     },
     taskId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "task ID as a decimal string",
+      description: 'Task ID as a decimal string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    task: { type: 'json', description: 'Documented task fields', properties: oracleFusionTaskOutput },
+    task: {
+      type: 'json',
+      description: 'Documented task fields',
+      properties: oracleFusionTaskOutput,
+    },
   },
 }

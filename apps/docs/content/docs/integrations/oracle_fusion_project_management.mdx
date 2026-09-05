@@ -27,11 +27,11 @@ List projects in Oracle Fusion Cloud Project Management. Returns one bounded pag
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -54,7 +54,7 @@ Get project in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
 
 #### Output
 
@@ -71,18 +71,18 @@ Create project in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectName` | string | Yes | project Name |
-| `projectNumber` | string | No | project Number |
-| `projectDescription` | string | No | project Description \(null is accepted by the documented API\) |
-| `projectStartDate` | string | No | project Start Date |
-| `projectEndDate` | string | No | project End Date \(null is accepted by the documented API\) |
-| `projectStatusCode` | string | No | project Status Code \(null is accepted by the documented API\) |
-| `projectStatusChangeComment` | string | No | project Status Change Comment \(null is accepted by the documented API\) |
-| `projectManagerEmail` | string | No | project Manager Email \(null is accepted by the documented API\) |
-| `organizationName` | string | Yes | organization Name |
-| `projectCurrencyCode` | string | No | project Currency Code |
-| `sourceTemplateId` | string | No | source Template ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `sourceTemplateName` | string | No | source Template Name \(null is accepted by the documented API\) |
+| `projectName` | string | Yes | Project name |
+| `projectNumber` | string | No | Project number |
+| `projectDescription` | string | No | Project description \(null is accepted by the documented API\) |
+| `projectStartDate` | string | No | Project start date |
+| `projectEndDate` | string | No | Project end date \(null is accepted by the documented API\) |
+| `projectStatusCode` | string | No | Project status code \(null is accepted by the documented API\) |
+| `projectStatusChangeComment` | string | No | Project status change comment \(null is accepted by the documented API\) |
+| `projectManagerEmail` | string | No | Project manager email \(null is accepted by the documented API\) |
+| `organizationName` | string | Yes | Organization name |
+| `projectCurrencyCode` | string | No | Project currency code |
+| `sourceTemplateId` | string | No | Source template ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `sourceTemplateName` | string | No | Source template name \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -99,17 +99,17 @@ Update project in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `projectName` | string | No | project Name |
-| `projectNumber` | string | No | project Number |
-| `projectDescription` | string | No | project Description \(null is accepted by the documented API\) |
-| `projectStartDate` | string | No | project Start Date |
-| `projectEndDate` | string | No | project End Date \(null is accepted by the documented API\) |
-| `projectStatusCode` | string | No | project Status Code \(null is accepted by the documented API\) |
-| `projectStatusChangeComment` | string | No | project Status Change Comment \(null is accepted by the documented API\) |
-| `projectManagerEmail` | string | No | project Manager Email \(null is accepted by the documented API\) |
-| `organizationName` | string | No | organization Name |
-| `projectCurrencyCode` | string | No | project Currency Code |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `projectName` | string | No | Project name |
+| `projectNumber` | string | No | Project number |
+| `projectDescription` | string | No | Project description \(null is accepted by the documented API\) |
+| `projectStartDate` | string | No | Project start date |
+| `projectEndDate` | string | No | Project end date \(null is accepted by the documented API\) |
+| `projectStatusCode` | string | No | Project status code \(null is accepted by the documented API\) |
+| `projectStatusChangeComment` | string | No | Project status change comment \(null is accepted by the documented API\) |
+| `projectManagerEmail` | string | No | Project manager email \(null is accepted by the documented API\) |
+| `organizationName` | string | No | Organization name |
+| `projectCurrencyCode` | string | No | Project currency code |
 
 #### Output
 
@@ -126,11 +126,11 @@ Read statuses for projects and other status-enabled business objects. Use Status
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 | `statusObjectCode` | string | No | Tenant status-object code; omit to inspect all status-enabled project business objects |
 
 #### Output
@@ -154,12 +154,12 @@ List project status history in Oracle Fusion Cloud Project Management. Returns o
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -182,11 +182,11 @@ Read one page of project plans visible to the credential through projectPlanDeta
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -209,7 +209,7 @@ Read a visible project plan using projectPlanDetails; does not require selecting
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
 
 #### Output
 
@@ -226,12 +226,12 @@ List tasks in Oracle Fusion Cloud Project Management. Returns one bounded page, 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -254,8 +254,8 @@ Get task in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `taskId` | string | Yes | task ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
 
 #### Output
 
@@ -272,24 +272,24 @@ Create a task using projectPlans management access. Oracle lists task name, numb
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `taskName` | string | Yes | task Name |
-| `taskNumber` | string | Yes | task Number |
-| `taskLevel` | number | Yes | task Level |
-| `description` | string | No | description \(null is accepted by the documented API\) |
-| `parentTaskId` | string | No | parent Task ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `milestoneFlag` | boolean | No | milestone Flag \(null is accepted by the documented API\) |
-| `plannedStartDateTime` | string | No | planned Start Date Time \(null is accepted by the documented API\) |
-| `plannedFinishDateTime` | string | No | planned Finish Date Time \(null is accepted by the documented API\) |
-| `plannedEffort` | number | No | planned Effort \(null is accepted by the documented API\) |
-| `plannedDuration` | number | No | planned Duration \(null is accepted by the documented API\) |
-| `taskStatusCode` | string | No | task Status Code \(null is accepted by the documented API\) |
-| `statusChangeComments` | string | No | status Change Comments \(null is accepted by the documented API\) |
-| `physicalPercentComplete` | number | No | physical Percent Complete \(null is accepted by the documented API\) |
-| `percentComplete` | number | No | percent Complete \(null is accepted by the documented API\) |
-| `actualStartDateTime` | string | No | actual Start Date Time \(null is accepted by the documented API\) |
-| `actualFinishDateTime` | string | No | actual Finish Date Time \(null is accepted by the documented API\) |
-| `actualHours` | number | No | actual Hours \(null is accepted by the documented API\) |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskName` | string | Yes | Task name |
+| `taskNumber` | string | Yes | Task number |
+| `taskLevel` | number | Yes | Task level |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `parentTaskId` | string | No | Parent task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `milestoneFlag` | boolean | No | Milestone flag \(null is accepted by the documented API\) |
+| `plannedStartDateTime` | string | No | Planned start date time \(null is accepted by the documented API\) |
+| `plannedFinishDateTime` | string | No | Planned finish date time \(null is accepted by the documented API\) |
+| `plannedEffort` | number | No | Planned effort \(null is accepted by the documented API\) |
+| `plannedDuration` | number | No | Planned duration \(null is accepted by the documented API\) |
+| `taskStatusCode` | string | No | Task status code \(null is accepted by the documented API\) |
+| `statusChangeComments` | string | No | Status change comments \(null is accepted by the documented API\) |
+| `physicalPercentComplete` | number | No | Physical percent complete \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `actualStartDateTime` | string | No | Actual start date time \(null is accepted by the documented API\) |
+| `actualFinishDateTime` | string | No | Actual finish date time \(null is accepted by the documented API\) |
+| `actualHours` | number | No | Actual hours \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -306,25 +306,25 @@ Update task in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `taskId` | string | Yes | task ID as a decimal string |
-| `taskName` | string | No | task Name |
-| `taskNumber` | string | No | task Number |
-| `taskLevel` | number | No | task Level |
-| `description` | string | No | description \(null is accepted by the documented API\) |
-| `parentTaskId` | string | No | parent Task ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `milestoneFlag` | boolean | No | milestone Flag \(null is accepted by the documented API\) |
-| `plannedStartDateTime` | string | No | planned Start Date Time \(null is accepted by the documented API\) |
-| `plannedFinishDateTime` | string | No | planned Finish Date Time \(null is accepted by the documented API\) |
-| `plannedEffort` | number | No | planned Effort \(null is accepted by the documented API\) |
-| `plannedDuration` | number | No | planned Duration \(null is accepted by the documented API\) |
-| `taskStatusCode` | string | No | task Status Code \(null is accepted by the documented API\) |
-| `statusChangeComments` | string | No | status Change Comments \(null is accepted by the documented API\) |
-| `physicalPercentComplete` | number | No | physical Percent Complete \(null is accepted by the documented API\) |
-| `percentComplete` | number | No | percent Complete \(null is accepted by the documented API\) |
-| `actualStartDateTime` | string | No | actual Start Date Time \(null is accepted by the documented API\) |
-| `actualFinishDateTime` | string | No | actual Finish Date Time \(null is accepted by the documented API\) |
-| `actualHours` | number | No | actual Hours \(null is accepted by the documented API\) |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
+| `taskName` | string | No | Task name |
+| `taskNumber` | string | No | Task number |
+| `taskLevel` | number | No | Task level |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `parentTaskId` | string | No | Parent task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `milestoneFlag` | boolean | No | Milestone flag \(null is accepted by the documented API\) |
+| `plannedStartDateTime` | string | No | Planned start date time \(null is accepted by the documented API\) |
+| `plannedFinishDateTime` | string | No | Planned finish date time \(null is accepted by the documented API\) |
+| `plannedEffort` | number | No | Planned effort \(null is accepted by the documented API\) |
+| `plannedDuration` | number | No | Planned duration \(null is accepted by the documented API\) |
+| `taskStatusCode` | string | No | Task status code \(null is accepted by the documented API\) |
+| `statusChangeComments` | string | No | Status change comments \(null is accepted by the documented API\) |
+| `physicalPercentComplete` | number | No | Physical percent complete \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `actualStartDateTime` | string | No | Actual start date time \(null is accepted by the documented API\) |
+| `actualFinishDateTime` | string | No | Actual finish date time \(null is accepted by the documented API\) |
+| `actualHours` | number | No | Actual hours \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -341,8 +341,8 @@ Delete task in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `taskId` | string | Yes | task ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
 
 #### Output
 
@@ -360,12 +360,12 @@ List project-plan tasks filtered to MilestoneFlag=true.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -388,23 +388,23 @@ Create a task with MilestoneFlag=true using projectPlans management access. Upda
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `taskName` | string | Yes | task Name |
-| `taskNumber` | string | Yes | task Number |
-| `taskLevel` | number | Yes | task Level |
-| `description` | string | No | description \(null is accepted by the documented API\) |
-| `parentTaskId` | string | No | parent Task ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `plannedStartDateTime` | string | No | planned Start Date Time \(null is accepted by the documented API\) |
-| `plannedFinishDateTime` | string | No | planned Finish Date Time \(null is accepted by the documented API\) |
-| `plannedEffort` | number | No | planned Effort \(null is accepted by the documented API\) |
-| `plannedDuration` | number | No | planned Duration \(null is accepted by the documented API\) |
-| `taskStatusCode` | string | No | task Status Code \(null is accepted by the documented API\) |
-| `statusChangeComments` | string | No | status Change Comments \(null is accepted by the documented API\) |
-| `physicalPercentComplete` | number | No | physical Percent Complete \(null is accepted by the documented API\) |
-| `percentComplete` | number | No | percent Complete \(null is accepted by the documented API\) |
-| `actualStartDateTime` | string | No | actual Start Date Time \(null is accepted by the documented API\) |
-| `actualFinishDateTime` | string | No | actual Finish Date Time \(null is accepted by the documented API\) |
-| `actualHours` | number | No | actual Hours \(null is accepted by the documented API\) |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskName` | string | Yes | Task name |
+| `taskNumber` | string | Yes | Task number |
+| `taskLevel` | number | Yes | Task level |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `parentTaskId` | string | No | Parent task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `plannedStartDateTime` | string | No | Planned start date time \(null is accepted by the documented API\) |
+| `plannedFinishDateTime` | string | No | Planned finish date time \(null is accepted by the documented API\) |
+| `plannedEffort` | number | No | Planned effort \(null is accepted by the documented API\) |
+| `plannedDuration` | number | No | Planned duration \(null is accepted by the documented API\) |
+| `taskStatusCode` | string | No | Task status code \(null is accepted by the documented API\) |
+| `statusChangeComments` | string | No | Status change comments \(null is accepted by the documented API\) |
+| `physicalPercentComplete` | number | No | Physical percent complete \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `actualStartDateTime` | string | No | Actual start date time \(null is accepted by the documented API\) |
+| `actualFinishDateTime` | string | No | Actual finish date time \(null is accepted by the documented API\) |
+| `actualHours` | number | No | Actual hours \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -421,13 +421,13 @@ List task status history in Oracle Fusion Cloud Project Management. Returns one 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `taskId` | string | Yes | task ID as a decimal string |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -450,11 +450,11 @@ List deliverables in Oracle Fusion Cloud Project Management. Returns one bounded
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -477,7 +477,7 @@ Get deliverable in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
 
 #### Output
 
@@ -494,14 +494,14 @@ Create deliverable in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableName` | string | Yes | deliverable Name |
-| `shortName` | string | Yes | short Name |
-| `description` | string | No | description \(null is accepted by the documented API\) |
-| `needByDate` | string | No | need By Date \(null is accepted by the documented API\) |
-| `ownerEmail` | string | No | owner Email \(null is accepted by the documented API\) |
-| `deliverablePriorityCode` | string | Yes | deliverable Priority Code |
-| `deliverableStatusCode` | string | Yes | deliverable Status Code |
-| `deliverableTypeId` | string | Yes | deliverable Type ID as an exact decimal ID string |
+| `deliverableName` | string | Yes | Deliverable name |
+| `shortName` | string | Yes | Short name |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `needByDate` | string | No | Need by date \(null is accepted by the documented API\) |
+| `ownerEmail` | string | No | Owner email \(null is accepted by the documented API\) |
+| `deliverablePriorityCode` | string | Yes | Deliverable priority code |
+| `deliverableStatusCode` | string | Yes | Deliverable status code |
+| `deliverableTypeId` | string | Yes | Deliverable type ID as an exact decimal ID string |
 
 #### Output
 
@@ -518,15 +518,15 @@ Update deliverable in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
-| `deliverableName` | string | No | deliverable Name |
-| `shortName` | string | No | short Name |
-| `description` | string | No | description \(null is accepted by the documented API\) |
-| `needByDate` | string | No | need By Date \(null is accepted by the documented API\) |
-| `ownerEmail` | string | No | owner Email \(null is accepted by the documented API\) |
-| `deliverablePriorityCode` | string | No | deliverable Priority Code |
-| `deliverableStatusCode` | string | No | deliverable Status Code |
-| `deliverableTypeId` | string | No | deliverable Type ID as an exact decimal ID string |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `deliverableName` | string | No | Deliverable name |
+| `shortName` | string | No | Short name |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `needByDate` | string | No | Need by date \(null is accepted by the documented API\) |
+| `ownerEmail` | string | No | Owner email \(null is accepted by the documented API\) |
+| `deliverablePriorityCode` | string | No | Deliverable priority code |
+| `deliverableStatusCode` | string | No | Deliverable status code |
+| `deliverableTypeId` | string | No | Deliverable type ID as an exact decimal ID string |
 
 #### Output
 
@@ -543,7 +543,7 @@ Delete deliverable in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
 
 #### Output
 
@@ -561,12 +561,12 @@ List deliverable task associations in Oracle Fusion Cloud Project Management. Re
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -589,8 +589,8 @@ Get deliverable task association in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
-| `associationId` | string | Yes | association ID as a decimal string |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `associationId` | string | Yes | Association ID as a decimal string |
 
 #### Output
 
@@ -607,9 +607,9 @@ Create deliverable task association in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
-| `projectId` | string | Yes | project ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `taskId` | string | Yes | task ID as an exact decimal ID string |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `projectId` | string | Yes | Project ID as an exact decimal ID string |
+| `taskId` | string | Yes | Task ID as an exact decimal ID string |
 
 #### Output
 
@@ -626,10 +626,10 @@ Update deliverable task association in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
-| `associationId` | string | Yes | association ID as a decimal string |
-| `projectId` | string | No | project ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `taskId` | string | No | task ID as an exact decimal ID string |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `associationId` | string | Yes | Association ID as a decimal string |
+| `projectId` | string | No | Project ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `taskId` | string | No | Task ID as an exact decimal ID string |
 
 #### Output
 
@@ -646,8 +646,8 @@ Delete deliverable task association in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `deliverableId` | string | Yes | deliverable ID as a decimal string |
-| `associationId` | string | Yes | association ID as a decimal string |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `associationId` | string | Yes | Association ID as a decimal string |
 
 #### Output
 
@@ -665,12 +665,12 @@ List project team members in Oracle Fusion Cloud Project Management. Returns one
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -693,8 +693,8 @@ Get project team member in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `teamMemberId` | string | Yes | team Member ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `teamMemberId` | string | Yes | Team member ID as a decimal string |
 
 #### Output
 
@@ -711,16 +711,16 @@ Create project team member in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `personEmail` | string | Yes | person Email \(null is accepted by the documented API\) |
-| `projectRole` | string | Yes | project Role \(null is accepted by the documented API\) |
-| `startDate` | string | No | start Date \(null is accepted by the documented API\) |
-| `finishDate` | string | No | finish Date \(null is accepted by the documented API\) |
-| `assignmentTypeCode` | string | No | assignment Type Code \(null is accepted by the documented API\) |
-| `resourceAllocationPercentage` | number | No | resource Allocation Percentage \(null is accepted by the documented API\) |
-| `resourceAssignmentEffortInHours` | number | No | resource Assignment Effort In Hours \(null is accepted by the documented API\) |
-| `billablePercent` | string | No | billable Percent \(null is accepted by the documented API\) |
-| `trackTimeFlag` | boolean | No | track Time Flag \(null is accepted by the documented API\) |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `personEmail` | string | Yes | Person email |
+| `projectRole` | string | Yes | Project role |
+| `startDate` | string | No | Start date \(null is accepted by the documented API\) |
+| `finishDate` | string | No | Finish date \(null is accepted by the documented API\) |
+| `assignmentTypeCode` | string | No | Assignment type code \(null is accepted by the documented API\) |
+| `resourceAllocationPercentage` | number | No | Resource allocation percentage \(null is accepted by the documented API\) |
+| `resourceAssignmentEffortInHours` | number | No | Resource assignment effort in hours \(null is accepted by the documented API\) |
+| `billablePercent` | string | No | Billable percent \(null is accepted by the documented API\) |
+| `trackTimeFlag` | boolean | No | Track time flag \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -737,15 +737,15 @@ Update dates, allocation, billing percentage, or time tracking. Oracle does not 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `teamMemberId` | string | Yes | team Member ID as a decimal string |
-| `startDate` | string | No | start Date \(null is accepted by the documented API\) |
-| `finishDate` | string | No | finish Date \(null is accepted by the documented API\) |
-| `assignmentTypeCode` | string | No | assignment Type Code \(null is accepted by the documented API\) |
-| `resourceAllocationPercentage` | number | No | resource Allocation Percentage \(null is accepted by the documented API\) |
-| `resourceAssignmentEffortInHours` | number | No | resource Assignment Effort In Hours \(null is accepted by the documented API\) |
-| `billablePercent` | string | No | billable Percent \(null is accepted by the documented API\) |
-| `trackTimeFlag` | boolean | No | track Time Flag \(null is accepted by the documented API\) |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `teamMemberId` | string | Yes | Team member ID as a decimal string |
+| `startDate` | string | No | Start date \(null is accepted by the documented API\) |
+| `finishDate` | string | No | Finish date \(null is accepted by the documented API\) |
+| `assignmentTypeCode` | string | No | Assignment type code \(null is accepted by the documented API\) |
+| `resourceAllocationPercentage` | number | No | Resource allocation percentage \(null is accepted by the documented API\) |
+| `resourceAssignmentEffortInHours` | number | No | Resource assignment effort in hours \(null is accepted by the documented API\) |
+| `billablePercent` | string | No | Billable percent \(null is accepted by the documented API\) |
+| `trackTimeFlag` | boolean | No | Track time flag \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -762,8 +762,8 @@ Delete project team member in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `teamMemberId` | string | Yes | team Member ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `teamMemberId` | string | Yes | Team member ID as a decimal string |
 
 #### Output
 
@@ -781,12 +781,12 @@ List task labor resource assignments in Oracle Fusion Cloud Project Management. 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 | `taskId` | string | No | Filter assignments by a task within the selected project |
 
 #### Output
@@ -810,8 +810,8 @@ Get task labor resource assignment in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `assignmentId` | string | Yes | assignment ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `assignmentId` | string | Yes | Assignment ID as a decimal string |
 
 #### Output
 
@@ -828,18 +828,18 @@ Assign a labor resource to a task. Supply exactly one of resourceEmail and labor
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `taskId` | string | Yes | task ID as an exact decimal ID string |
-| `resourceEmail` | string | No | resource Email \(null is accepted by the documented API\) |
-| `laborResourceId` | string | No | labor Resource ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `plannedEffortinHours` | number | No | planned Effort in hours \(null is accepted by the documented API\) |
-| `actualEffortinHours` | number | No | actual Effort in hours \(null is accepted by the documented API\) |
-| `remainingEffortinHours` | number | No | remaining Effort in hours \(null is accepted by the documented API\) |
-| `percentComplete` | number | No | percent Complete \(null is accepted by the documented API\) |
-| `primaryResourceFlag` | boolean | No | primary Resource Flag \(null is accepted by the documented API\) |
-| `resourceAllocation` | number | No | resource Allocation \(null is accepted by the documented API\) |
-| `effectiveBillRate` | number | No | effective Bill Rate \(null is accepted by the documented API\) |
-| `effectiveCostRate` | number | No | effective Cost Rate \(null is accepted by the documented API\) |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as an exact decimal ID string |
+| `resourceEmail` | string | No | Resource email |
+| `laborResourceId` | string | No | Labor resource ID as an exact decimal ID string |
+| `plannedEffortinHours` | number | No | Planned effort in hours \(null is accepted by the documented API\) |
+| `actualEffortinHours` | number | No | Actual effort in hours \(null is accepted by the documented API\) |
+| `remainingEffortinHours` | number | No | Remaining effort in hours \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `primaryResourceFlag` | boolean | No | Primary resource flag \(null is accepted by the documented API\) |
+| `resourceAllocation` | number | No | Resource allocation \(null is accepted by the documented API\) |
+| `effectiveBillRate` | number | No | Effective bill rate \(null is accepted by the documented API\) |
+| `effectiveCostRate` | number | No | Effective cost rate \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -856,18 +856,18 @@ Update an assignment using projectPlans management access. Supply exactly one of
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `assignmentId` | string | Yes | assignment ID as a decimal string |
-| `resourceEmail` | string | No | resource Email \(null is accepted by the documented API\) |
-| `laborResourceId` | string | No | labor Resource ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `plannedEffortinHours` | number | No | planned Effort in hours \(null is accepted by the documented API\) |
-| `actualEffortinHours` | number | No | actual Effort in hours \(null is accepted by the documented API\) |
-| `remainingEffortinHours` | number | No | remaining Effort in hours \(null is accepted by the documented API\) |
-| `percentComplete` | number | No | percent Complete \(null is accepted by the documented API\) |
-| `primaryResourceFlag` | boolean | No | primary Resource Flag \(null is accepted by the documented API\) |
-| `resourceAllocation` | number | No | resource Allocation \(null is accepted by the documented API\) |
-| `effectiveBillRate` | number | No | effective Bill Rate \(null is accepted by the documented API\) |
-| `effectiveCostRate` | number | No | effective Cost Rate \(null is accepted by the documented API\) |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `assignmentId` | string | Yes | Assignment ID as a decimal string |
+| `resourceEmail` | string | No | Resource email |
+| `laborResourceId` | string | No | Labor resource ID as an exact decimal ID string |
+| `plannedEffortinHours` | number | No | Planned effort in hours \(null is accepted by the documented API\) |
+| `actualEffortinHours` | number | No | Actual effort in hours \(null is accepted by the documented API\) |
+| `remainingEffortinHours` | number | No | Remaining effort in hours \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `primaryResourceFlag` | boolean | No | Primary resource flag \(null is accepted by the documented API\) |
+| `resourceAllocation` | number | No | Resource allocation \(null is accepted by the documented API\) |
+| `effectiveBillRate` | number | No | Effective bill rate \(null is accepted by the documented API\) |
+| `effectiveCostRate` | number | No | Effective cost rate \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -884,8 +884,8 @@ Delete task labor resource assignment in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as a decimal string |
-| `assignmentId` | string | Yes | assignment ID as a decimal string |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `assignmentId` | string | Yes | Assignment ID as a decimal string |
 
 #### Output
 
@@ -903,11 +903,11 @@ List project enterprise resources in Oracle Fusion Cloud Project Management. Ret
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 
 #### Output
 
@@ -930,11 +930,11 @@ List project costs in Oracle Fusion Cloud Project Management. Returns one bounde
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 | `projectId` | string | No | Filter by an exact project ID |
 
 #### Output
@@ -958,7 +958,7 @@ Get project cost in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric costId |
 
 #### Output
 
@@ -975,16 +975,16 @@ Update project-cost bill-rate metadata. Use Adjust Project Cost for billable/cap
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
-| `externalBillRate` | number | No | external Bill Rate \(null is accepted by the documented API\) |
-| `externalBillRateCurrency` | string | No | external Bill Rate Currency \(null is accepted by the documented API\) |
-| `externalBillRateSourceName` | string | No | external Bill Rate Source Name \(null is accepted by the documented API\) |
-| `externalBillRateSourceReference` | string | No | external Bill Rate Source Reference \(null is accepted by the documented API\) |
-| `intercompanyBillRate` | number | No | intercompany Bill Rate \(null is accepted by the documented API\) |
-| `intercompanyBillRateCurrency` | string | No | intercompany Bill Rate Currency \(null is accepted by the documented API\) |
-| `intercompanyBillRateSourceName` | string | No | intercompany Bill Rate Source Name \(null is accepted by the documented API\) |
-| `intercompanyBillRateSourceReference` | string | No | intercompany Bill Rate Source Reference \(null is accepted by the documented API\) |
-| `payrollCostedCode` | string | No | payroll Costed Code \(null is accepted by the documented API\) |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric costId |
+| `externalBillRate` | number | No | External bill rate \(null is accepted by the documented API\) |
+| `externalBillRateCurrency` | string | No | External bill rate currency \(null is accepted by the documented API\) |
+| `externalBillRateSourceName` | string | No | External bill rate source name \(null is accepted by the documented API\) |
+| `externalBillRateSourceReference` | string | No | External bill rate source reference \(null is accepted by the documented API\) |
+| `intercompanyBillRate` | number | No | Intercompany bill rate \(null is accepted by the documented API\) |
+| `intercompanyBillRateCurrency` | string | No | Intercompany bill rate currency \(null is accepted by the documented API\) |
+| `intercompanyBillRateSourceName` | string | No | Intercompany bill rate source name \(null is accepted by the documented API\) |
+| `intercompanyBillRateSourceReference` | string | No | Intercompany bill rate source reference \(null is accepted by the documented API\) |
+| `payrollCostedCode` | string | No | Payroll costed code \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -1001,19 +1001,19 @@ Perform a project-cost adjustment using a configured PJC_ADJUSTMENT_TYPE code. O
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
-| `adjustmentTypeCode` | string | Yes | adjustment Type Code \(null is accepted by the documented API\) |
-| `justification` | string | No | justification \(null is accepted by the documented API\) |
-| `comment` | string | No | comment \(null is accepted by the documented API\) |
-| `quantity` | number | No | quantity \(null is accepted by the documented API\) |
-| `billableFlag` | boolean | No | billable Flag \(null is accepted by the documented API\) |
-| `capitalizableFlag` | boolean | No | capitalizable Flag \(null is accepted by the documented API\) |
-| `holdInvoiceFlag` | boolean | No | hold Invoice Flag \(null is accepted by the documented API\) |
-| `holdRevenueFlag` | boolean | No | hold Revenue Flag \(null is accepted by the documented API\) |
-| `targetProjectId` | string | No | target Project ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `targetTaskId` | string | No | target Task ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `rawCostInTransactionCurrency` | number | No | raw Cost In Transaction Currency \(null is accepted by the documented API\) |
-| `transactionCurrencyCode` | string | No | transaction Currency Code \(null is accepted by the documented API\) |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric costId |
+| `adjustmentTypeCode` | string | Yes | Adjustment type code |
+| `justification` | string | No | Justification \(null is accepted by the documented API\) |
+| `comment` | string | No | Comment \(null is accepted by the documented API\) |
+| `quantity` | number | No | Quantity \(null is accepted by the documented API\) |
+| `billableFlag` | boolean | No | Billable flag \(null is accepted by the documented API\) |
+| `capitalizableFlag` | boolean | No | Capitalizable flag \(null is accepted by the documented API\) |
+| `holdInvoiceFlag` | boolean | No | Hold invoice flag \(null is accepted by the documented API\) |
+| `holdRevenueFlag` | boolean | No | Hold revenue flag \(null is accepted by the documented API\) |
+| `targetProjectId` | string | No | Target project ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `targetTaskId` | string | No | Target task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `rawCostInTransactionCurrency` | number | No | Raw cost in transaction currency \(null is accepted by the documented API\) |
+| `transactionCurrencyCode` | string | No | Transaction currency code \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -1030,11 +1030,11 @@ List project budgets in Oracle Fusion Cloud Project Management. Returns one boun
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 | `projectId` | string | No | Filter by an exact project ID |
 
 #### Output
@@ -1058,7 +1058,7 @@ Get project budget in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `planVersionId` | string | Yes | plan Version ID as a decimal string |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
 
 #### Output
 
@@ -1068,30 +1068,30 @@ Get project budget in Oracle Fusion Cloud Project Management.
 
 ### Oracle Fusion Project Management Create Project Budget
 
-Create or copy a project budget version, optionally with resource/amount lines. Financial plan types, resource breakdown structures, currencies, and deferred creation are tenant-configured.
+Create or copy a project budget version synchronously, optionally with resource/amount lines. Financial plan types, resource breakdown structures, and currencies are tenant-configured.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `projectId` | string | Yes | project ID as an exact decimal ID string |
-| `projectName` | string | Yes | project Name |
-| `projectNumber` | string | Yes | project Number |
-| `planVersionName` | string | Yes | plan Version Name |
-| `planVersionDescription` | string | No | plan Version Description \(null is accepted by the documented API\) |
-| `financialPlanType` | string | No | financial Plan Type \(null is accepted by the documented API\) |
-| `planVersionStatus` | string | No | plan Version Status \(null is accepted by the documented API\) |
-| `budgetCreationMethod` | string | No | budget Creation Method \(null is accepted by the documented API\) |
-| `budgetGenerationSource` | string | No | budget Generation Source \(null is accepted by the documented API\) |
-| `planningAmounts` | string | No | planning Amounts \(null is accepted by the documented API\) |
-| `sourcePlanType` | string | No | source Plan Type \(null is accepted by the documented API\) |
-| `sourcePlanVersionId` | string | No | source Plan Version ID as an exact decimal ID string \(null is accepted by the documented API\) |
-| `sourcePlanVersionNumber` | number | No | source Plan Version Number \(null is accepted by the documented API\) |
-| `sourcePlanVersionStatus` | string | No | source Plan Version Status \(null is accepted by the documented API\) |
-| `copyAdjustmentPercentage` | number | No | copy Adjustment Percentage \(null is accepted by the documented API\) |
-| `deferFinancialPlanCreation` | string | No | defer Financial Plan Creation \(null is accepted by the documented API\) |
-| `planningResources` | array | No | Budget lines with RbsElementId and TaskId as strings, and optional PlanningAmounts; no HCM person IDs |
+| `projectId` | string | Yes | Project ID as an exact decimal ID string |
+| `projectName` | string | Yes | Project name |
+| `projectNumber` | string | Yes | Project number |
+| `planVersionName` | string | Yes | Plan version name |
+| `planVersionDescription` | string | No | Plan version description \(null is accepted by the documented API\) |
+| `financialPlanType` | string | No | Financial plan type \(null is accepted by the documented API\) |
+| `planVersionStatus` | string | No | Plan version status \(null is accepted by the documented API\) |
+| `budgetCreationMethod` | string | No | Budget creation method \(null is accepted by the documented API\) |
+| `budgetGenerationSource` | string | No | Budget generation source \(null is accepted by the documented API\) |
+| `planningAmounts` | string | No | Planning amounts \(null is accepted by the documented API\) |
+| `sourcePlanType` | string | No | Source plan type \(null is accepted by the documented API\) |
+| `sourcePlanVersionId` | string | No | Source plan version ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `sourcePlanVersionNumber` | number | No | Source plan version number \(null is accepted by the documented API\) |
+| `sourcePlanVersionStatus` | string | No | Source plan version status \(null is accepted by the documented API\) |
+| `copyAdjustmentPercentage` | number | No | Copy adjustment percentage \(null is accepted by the documented API\) |
+| `deferFinancialPlanCreation` | string | No | Only N is supported: create the budget synchronously and return its version; deferred creation is not supported |
+| `planningResources` | array | No | Budget lines with rbsElementId and taskId as strings, and optional planningAmounts; no HCM person IDs |
 
 #### Output
 
@@ -1108,12 +1108,12 @@ Update project budget in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `planVersionId` | string | Yes | plan Version ID as a decimal string |
-| `planVersionName` | string | No | plan Version Name |
-| `planVersionDescription` | string | No | plan Version Description \(null is accepted by the documented API\) |
-| `financialPlanType` | string | No | financial Plan Type \(null is accepted by the documented API\) |
-| `planVersionStatus` | string | No | plan Version Status \(null is accepted by the documented API\) |
-| `lockedFlag` | boolean | No | locked Flag \(null is accepted by the documented API\) |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+| `planVersionName` | string | No | Plan version name |
+| `planVersionDescription` | string | No | Plan version description \(null is accepted by the documented API\) |
+| `financialPlanType` | string | No | Financial plan type \(null is accepted by the documented API\) |
+| `planVersionStatus` | string | No | Plan version status \(null is accepted by the documented API\) |
+| `lockedFlag` | boolean | No | Locked flag \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -1130,7 +1130,7 @@ Delete project budget in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `planVersionId` | string | Yes | plan Version ID as a decimal string |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
 
 #### Output
 
@@ -1148,12 +1148,12 @@ Adjust project budget in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `planVersionId` | string | Yes | plan Version ID as a decimal string |
-| `adjustmentPercentage` | number | Yes | adjustment Percentage \(null is accepted by the documented API\) |
-| `fromPeriod` | string | No | from Period \(null is accepted by the documented API\) |
-| `adjustmentType` | string | Yes | adjustment Type \(null is accepted by the documented API\) |
-| `toPeriod` | string | No | to Period \(null is accepted by the documented API\) |
-| `createNewWorkingVersion` | string | No | create New Working Version \(null is accepted by the documented API\) |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+| `adjustmentPercentage` | number | Yes | Adjustment percentage |
+| `fromPeriod` | string | No | From period \(null is accepted by the documented API\) |
+| `adjustmentType` | string | Yes | Adjustment type |
+| `toPeriod` | string | No | To period \(null is accepted by the documented API\) |
+| `createNewWorkingVersion` | string | No | Create new working version \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -1170,10 +1170,10 @@ Refresh project budget rates in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `planVersionId` | string | Yes | plan Version ID as a decimal string |
-| `retainRateOverride` | string | No | retain Rate Override \(null is accepted by the documented API\) |
-| `refreshOnlyConversionRates` | string | No | refresh Only Conversion Rates \(null is accepted by the documented API\) |
-| `refreshRatesPeriodForward` | string | No | refresh Rates Period Forward \(null is accepted by the documented API\) |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+| `retainRateOverride` | string | No | Retain rate override \(null is accepted by the documented API\) |
+| `refreshOnlyConversionRates` | string | No | Refresh only conversion rates \(null is accepted by the documented API\) |
+| `refreshRatesPeriodForward` | string | No | Refresh rates period forward \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -1190,11 +1190,11 @@ List project contract invoices in Oracle Fusion Cloud Project Management. Return
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `q` | string | No | Optional Oracle q filter using attributes documented for this collection |
-| `orderBy` | string | No | Oracle sort attributes, for example ProjectId:asc; use a stable order when paging |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
 | `limit` | number | No | One page of 1–1000 items; default 100 |
 | `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
-| `totalResults` | boolean | No | Include Oracle’s estimated total row count |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
 | `projectId` | string | No | Filter by an exact project ID |
 
 #### Output
@@ -1218,7 +1218,7 @@ Get project contract invoice in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `invoiceId` | string | Yes | invoice ID as a decimal string |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
 
 #### Output
 
@@ -1235,11 +1235,11 @@ Update project contract invoice in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `invoiceId` | string | Yes | invoice ID as a decimal string |
-| `invoiceComment` | string | No | invoice Comment \(null is accepted by the documented API\) |
-| `invoiceDate` | string | No | invoice Date \(null is accepted by the documented API\) |
-| `invoiceInstructions` | string | No | invoice Instructions \(null is accepted by the documented API\) |
-| `unreleaseComments` | string | No | unrelease Comments \(null is accepted by the documented API\) |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
+| `invoiceComment` | string | No | Invoice comment \(null is accepted by the documented API\) |
+| `invoiceDate` | string | No | Invoice date \(null is accepted by the documented API\) |
+| `invoiceInstructions` | string | No | Invoice instructions \(null is accepted by the documented API\) |
+| `unreleaseComments` | string | No | Unrelease comments \(null is accepted by the documented API\) |
 
 #### Output
 
@@ -1256,7 +1256,7 @@ Delete a standard project contract invoice in draft status. Oracle rejects other
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `invoiceId` | string | Yes | invoice ID as a decimal string |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
 
 #### Output
 
@@ -1274,12 +1274,12 @@ Invoke one fixed, documented project-contract invoice lifecycle action. Release-
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `invoiceId` | string | Yes | invoice ID as a decimal string |
-| `receivablesNumber` | string | No | receivables Number \(null is accepted by the documented API\) |
-| `creditMemoReasonCode` | string | No | credit Memo Reason Code \(null is accepted by the documented API\) |
-| `invoiceDate` | string | No | invoice Date \(null is accepted by the documented API\) |
-| `creditMemoReasonMeaning` | string | No | credit Memo Reason Meaning \(null is accepted by the documented API\) |
-| `unreleaseComments` | string | No | unrelease Comments \(null is accepted by the documented API\) |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
+| `receivablesNumber` | string | No | Receivables number \(null is accepted by the documented API\) |
+| `creditMemoReasonCode` | string | No | Credit memo reason code \(null is accepted by the documented API\) |
+| `invoiceDate` | string | No | Invoice date \(null is accepted by the documented API\) |
+| `creditMemoReasonMeaning` | string | No | Credit memo reason meaning \(null is accepted by the documented API\) |
+| `unreleaseComments` | string | No | Unrelease comments \(null is accepted by the documented API\) |
 | `action` | string | Yes | Exactly one of submit, approve, reject, release, return_to_draft, unrelease, cancel; Oracle enforces the current invoice status |
 
 #### Output

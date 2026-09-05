@@ -5,8 +5,8 @@ import type {
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
-  oracleFusionProjectManagementAuthParams,
   oracleFusionCostOutput,
+  oracleFusionProjectManagementAuthParams,
 } from '@/tools/oracle_fusion_project_management/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,7 +17,7 @@ export const oracleFusionProjectManagementGetProjectCostTool: InternalToolConfig
 > = {
   id: 'oracle_fusion_project_management_get_project_cost',
   name: 'Oracle Fusion Project Management Get Project Cost',
-  description: "Get project cost in Oracle Fusion Cloud Project Management.",
+  description: 'Get project cost in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,11 +26,15 @@ export const oracleFusionProjectManagementGetProjectCostTool: InternalToolConfig
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Opaque project-cost key returned by list or get; not the numeric CostId",
+      description: 'Opaque project-cost key returned by list or get; not the numeric costId',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    cost: { type: 'json', description: 'Documented cost fields', properties: oracleFusionCostOutput },
+    cost: {
+      type: 'json',
+      description: 'Documented cost fields',
+      properties: oracleFusionCostOutput,
+    },
   },
 }

@@ -5,8 +5,8 @@ import type {
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
-  oracleFusionProjectManagementAuthParams,
   oracleFusionBudgetOutput,
+  oracleFusionProjectManagementAuthParams,
 } from '@/tools/oracle_fusion_project_management/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,7 +17,7 @@ export const oracleFusionProjectManagementUpdateProjectBudgetTool: InternalToolC
 > = {
   id: 'oracle_fusion_project_management_update_project_budget',
   name: 'Oracle Fusion Project Management Update Project Budget',
-  description: "Update project budget in Oracle Fusion Cloud Project Management.",
+  description: 'Update project budget in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,41 +26,45 @@ export const oracleFusionProjectManagementUpdateProjectBudgetTool: InternalToolC
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "plan Version ID as a decimal string",
+      description: 'Plan version ID as a decimal string',
     },
     planVersionName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "plan Version Name",
+      description: 'Plan version name',
     },
     planVersionDescription: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "plan Version Description (null is accepted by the documented API)",
+      description: 'Plan version description (null is accepted by the documented API)',
     },
     financialPlanType: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "financial Plan Type (null is accepted by the documented API)",
+      description: 'Financial plan type (null is accepted by the documented API)',
     },
     planVersionStatus: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "plan Version Status (null is accepted by the documented API)",
+      description: 'Plan version status (null is accepted by the documented API)',
     },
     lockedFlag: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: "locked Flag (null is accepted by the documented API)",
+      description: 'Locked flag (null is accepted by the documented API)',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    budget: { type: 'json', description: 'Documented budget fields', properties: oracleFusionBudgetOutput },
+    budget: {
+      type: 'json',
+      description: 'Documented budget fields',
+      properties: oracleFusionBudgetOutput,
+    },
   },
 }

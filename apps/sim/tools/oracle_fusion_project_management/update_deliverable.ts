@@ -5,8 +5,8 @@ import type {
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
-  oracleFusionProjectManagementAuthParams,
   oracleFusionDeliverableOutput,
+  oracleFusionProjectManagementAuthParams,
 } from '@/tools/oracle_fusion_project_management/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -17,7 +17,7 @@ export const oracleFusionProjectManagementUpdateDeliverableTool: InternalToolCon
 > = {
   id: 'oracle_fusion_project_management_update_deliverable',
   name: 'Oracle Fusion Project Management Update Deliverable',
-  description: "Update deliverable in Oracle Fusion Cloud Project Management.",
+  description: 'Update deliverable in Oracle Fusion Cloud Project Management.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,59 +26,63 @@ export const oracleFusionProjectManagementUpdateDeliverableTool: InternalToolCon
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "deliverable ID as a decimal string",
+      description: 'Deliverable ID as a decimal string',
     },
     deliverableName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "deliverable Name",
+      description: 'Deliverable name',
     },
     shortName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "short Name",
+      description: 'Short name',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "description (null is accepted by the documented API)",
+      description: 'Description (null is accepted by the documented API)',
     },
     needByDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "need By Date (null is accepted by the documented API)",
+      description: 'Need by date (null is accepted by the documented API)',
     },
     ownerEmail: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "owner Email (null is accepted by the documented API)",
+      description: 'Owner email (null is accepted by the documented API)',
     },
     deliverablePriorityCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "deliverable Priority Code",
+      description: 'Deliverable priority code',
     },
     deliverableStatusCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "deliverable Status Code",
+      description: 'Deliverable status code',
     },
     deliverableTypeId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "deliverable Type ID as an exact decimal ID string",
+      description: 'Deliverable type ID as an exact decimal ID string',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    deliverable: { type: 'json', description: 'Documented deliverable fields', properties: oracleFusionDeliverableOutput },
+    deliverable: {
+      type: 'json',
+      description: 'Documented deliverable fields',
+      properties: oracleFusionDeliverableOutput,
+    },
   },
 }

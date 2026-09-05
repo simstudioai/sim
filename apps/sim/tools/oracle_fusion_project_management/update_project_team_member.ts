@@ -17,7 +17,8 @@ export const oracleFusionProjectManagementUpdateProjectTeamMemberTool: InternalT
 > = {
   id: 'oracle_fusion_project_management_update_project_team_member',
   name: 'Oracle Fusion Project Management Update Project Team Member',
-  description: "Update dates, allocation, billing percentage, or time tracking. Oracle does not permit changing the person or project role through this PATCH.",
+  description:
+    'Update dates, allocation, billing percentage, or time tracking. Oracle does not permit changing the person or project role through this PATCH.',
   version: '1.0.0',
   oauth: ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
   params: {
@@ -26,59 +27,63 @@ export const oracleFusionProjectManagementUpdateProjectTeamMemberTool: InternalT
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "project ID as a decimal string",
+      description: 'Project ID as a decimal string',
     },
     teamMemberId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "team Member ID as a decimal string",
+      description: 'Team member ID as a decimal string',
     },
     startDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "start Date (null is accepted by the documented API)",
+      description: 'Start date (null is accepted by the documented API)',
     },
     finishDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "finish Date (null is accepted by the documented API)",
+      description: 'Finish date (null is accepted by the documented API)',
     },
     assignmentTypeCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "assignment Type Code (null is accepted by the documented API)",
+      description: 'Assignment type code (null is accepted by the documented API)',
     },
     resourceAllocationPercentage: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: "resource Allocation Percentage (null is accepted by the documented API)",
+      description: 'Resource allocation percentage (null is accepted by the documented API)',
     },
     resourceAssignmentEffortInHours: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: "resource Assignment Effort In Hours (null is accepted by the documented API)",
+      description: 'Resource assignment effort in hours (null is accepted by the documented API)',
     },
     billablePercent: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "billable Percent (null is accepted by the documented API)",
+      description: 'Billable percent (null is accepted by the documented API)',
     },
     trackTimeFlag: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: "track Time Flag (null is accepted by the documented API)",
+      description: 'Track time flag (null is accepted by the documented API)',
     },
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    teamMember: { type: 'json', description: 'Documented team Member fields', properties: oracleFusionTeamMemberOutput },
+    teamMember: {
+      type: 'json',
+      description: 'Documented team Member fields',
+      properties: oracleFusionTeamMemberOutput,
+    },
   },
 }
