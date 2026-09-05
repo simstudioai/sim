@@ -16,8 +16,18 @@ export const oracleFusionRecruitingUpdateCandidatePhoneTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    candidateNumber: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Candidate number; use the identifier returned by the matching list tool' },
-    phoneId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Phone id; use the identifier returned by the matching list tool' },
+    candidateNumber: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Candidate number; use the identifier returned by the matching list tool',
+    },
+    phoneId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Phone id; use the identifier returned by the matching list tool',
+    },
     body: { type: 'json', required: true, visibility: 'user-or-llm', description: 'Documented Oracle fields: PhoneNumber, CountryCodeNumber, AreaCode, LegislationCode. Int64 IDs must be decimal strings.' },
   },
   outputs: UPDATE_CANDIDATE_PHONE_OUTPUTS,

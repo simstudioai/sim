@@ -40,8 +40,8 @@ import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
-import { oracleFusionRecruitingListCandidatesTool } from '@/tools/oracle_fusion_recruiting/list_candidates'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { oracleFusionRecruitingListCandidatesTool } from '@/tools/oracle_fusion_recruiting/list_candidates'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
@@ -1150,7 +1150,7 @@ describe('executeTool Function', () => {
       }
     )
 
-    expect(result).toMatchObject({
+    expect(result.output).toMatchObject({
       oauthCredential: 'oracle-credential-id',
       accessToken: 'resolved-token',
       instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',

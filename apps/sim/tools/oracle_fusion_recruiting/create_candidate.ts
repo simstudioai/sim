@@ -16,7 +16,13 @@ export const oracleFusionRecruitingCreateCandidateTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    body: { type: 'json', required: true, visibility: 'user-or-llm', description: 'Documented Oracle fields: FirstName, LastName, MiddleNames, Email, KnownAs, Title, Suffix, PreNameAdjunct, PreviousLastName, PreferredLanguage, PreferredTimezone, CampaignOptIn, SourceMedium, SourceName. Int64 IDs must be decimal strings.' },
+    body: {
+      type: 'json',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Documented Oracle fields: FirstName, LastName, MiddleNames, Email, KnownAs, Title, Suffix, PreNameAdjunct, PreviousLastName, PreferredLanguage, PreferredTimezone, CampaignOptIn, SourceMedium, SourceName. Int64 IDs must be decimal strings.',
+    },
   },
   outputs: CREATE_CANDIDATE_OUTPUTS,
 }

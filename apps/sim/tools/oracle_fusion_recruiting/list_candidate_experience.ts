@@ -17,7 +17,12 @@ export const oracleFusionRecruitingListCandidateExperienceTool: InternalToolConf
   params: {
     ...credentials,
     ...page,
-    candidateNumber: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Candidate number; use the identifier returned by the matching list tool' },
+    candidateNumber: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Candidate number; use the identifier returned by the matching list tool',
+    },
   },
   outputs: LIST_CANDIDATE_EXPERIENCE_OUTPUTS,
 }

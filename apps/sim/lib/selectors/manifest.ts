@@ -86,26 +86,6 @@ function internalSelector(
 }
 
 export const selectorManifest = {
-  'oracle_fusion_recruiting.candidates': providerSelector([], {
-    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
-  }),
-  'oracle_fusion_recruiting.phones': providerSelector(['candidateNumber'], {
-    listMode: 'paginated', search: false, detail: true, unknownDetail: true, staleTime: 0,
-    readiness: { all: ['oauthCredential', 'candidateNumber'] },
-  }),
-  'oracle_fusion_recruiting.requisitions': providerSelector([], {
-    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
-  }),
-  'oracle_fusion_recruiting.applications': providerSelector([], {
-    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
-  }),
-  'oracle_fusion_recruiting.offers': providerSelector([], {
-    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
-  }),
-  'oracle_fusion_recruiting.interviewSchedules': providerSelector([], {
-    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
-  }),
-
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },
@@ -264,6 +244,29 @@ export const selectorManifest = {
     sourceFields: { oauthCredential: ['botToken'] },
     listMode: 'paginated',
     detail: true,
+  }),
+  'oracle_fusion_recruiting.candidates': providerSelector([], {
+    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
+  }),
+  'oracle_fusion_recruiting.phones': providerSelector(['candidateNumber'], {
+    listMode: 'paginated',
+    search: false,
+    detail: true,
+    unknownDetail: true,
+    staleTime: 0,
+    readiness: { all: ['oauthCredential', 'candidateNumber'] },
+  }),
+  'oracle_fusion_recruiting.requisitions': providerSelector([], {
+    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
+  }),
+  'oracle_fusion_recruiting.applications': providerSelector([], {
+    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
+  }),
+  'oracle_fusion_recruiting.offers': providerSelector([], {
+    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
+  }),
+  'oracle_fusion_recruiting.interviewSchedules': providerSelector([], {
+    listMode: 'paginated', search: true, detail: true, unknownDetail: true, staleTime: 0,
   }),
   'outlook.folders': providerSelector([], { listMode: 'paginated', detail: true }),
   'outlook.calendars': providerSelector([], { listMode: 'paginated', detail: true }),

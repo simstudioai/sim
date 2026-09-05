@@ -16,8 +16,18 @@ export const oracleFusionRecruitingDeleteCandidatePhoneTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    candidateNumber: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Candidate number; use the identifier returned by the matching list tool' },
-    phoneId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Phone id; use the identifier returned by the matching list tool' },
+    candidateNumber: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Candidate number; use the identifier returned by the matching list tool',
+    },
+    phoneId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Phone id; use the identifier returned by the matching list tool',
+    },
   },
   outputs: DELETE_CANDIDATE_PHONE_OUTPUTS,
 }

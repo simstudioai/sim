@@ -16,7 +16,12 @@ function text(value: unknown): string | null {
 }
 function identifier(value: unknown): string {
   const normalized = normalizeOracleFusionDecimalIdentifier(value, { maxDigits: 19 })
-  if (normalized === undefined || normalized === '0' || BigInt(normalized) > 9_223_372_036_854_775_807n) return invalid()
+  if (
+    normalized === undefined ||
+    normalized === '0' ||
+    BigInt(normalized) > 9_223_372_036_854_775_807n
+  )
+    return invalid()
   return normalized
 }
 function stringIdentifier(value: unknown): string {
@@ -24,10 +29,15 @@ function stringIdentifier(value: unknown): string {
 }
 function integerValue(value: unknown): string | null {
   if (value == null) return null
-  const negative = typeof value === 'number' ? value < 0 : typeof value === 'string' && value.startsWith('-')
-  const magnitude = negative ? typeof value === 'number' ? -value : String(value).slice(1) : value
+  const negative =
+    typeof value === 'number' ? value < 0 : typeof value === 'string' && value.startsWith('-')
+  const magnitude = negative ? (typeof value === 'number' ? -value : String(value).slice(1)) : value
   const normalized = normalizeOracleFusionDecimalIdentifier(magnitude, { maxDigits: 19 })
-  if (normalized === undefined || BigInt(normalized) > (negative ? 9_223_372_036_854_775_808n : 9_223_372_036_854_775_807n)) return invalid()
+  if (
+    normalized === undefined ||
+    BigInt(normalized) > (negative ? 9_223_372_036_854_775_808n : 9_223_372_036_854_775_807n)
+  )
+    return invalid()
   return negative && normalized !== '0' ? `-${normalized}` : normalized
 }
 function optionalIdentifier(value: unknown): string | null {

@@ -16,7 +16,12 @@ export const oracleFusionRecruitingDeleteRequisitionTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    requisitionId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Requisition id; use the identifier returned by the matching list tool' },
+    requisitionId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Requisition id; use the identifier returned by the matching list tool',
+    },
   },
   outputs: DELETE_REQUISITION_OUTPUTS,
 }

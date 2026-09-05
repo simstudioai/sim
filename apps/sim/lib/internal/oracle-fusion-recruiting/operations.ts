@@ -23,7 +23,10 @@ function invalid(message = 'Oracle Fusion Recruiting returned an invalid resourc
 }
 
 function quoteSearch(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/[%_*?]/g, '\\$&').replace(/'/g, "''")
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/[%_*?]/g, '\\$&')
+    .replace(/'/g, "''")
 }
 
 async function list<T>(
@@ -41,17 +44,21 @@ async function list<T>(
     clauses.push(`(${searchFields.map((field) => `${field} LIKE '%${term}%'`).join(' OR ')})`)
   }
   if (query.q) clauses.push(String(query.q))
-  const raw = await requestOracleFusionJson(input, {
-    address: { family: 'hcm', relativePath: path },
-    query: {
-      ...query,
-      fields,
-      onlyData: true,
-      limit: input.limit ?? 20,
-      offset: input.offset ?? 0,
-      ...(clauses.length ? { q: clauses.join(' AND ') } : {}),
+  const raw = await requestOracleFusionJson(
+    input,
+    {
+      address: { family: 'hcm', relativePath: path },
+      query: {
+        ...query,
+        fields,
+        onlyData: true,
+        limit: input.limit ?? 20,
+        offset: input.offset ?? 0,
+        ...(clauses.length ? { q: clauses.join(' AND ') } : {}),
+      },
     },
-  }, signal)
+    signal
+  )
   signal?.throwIfAborted()
   try {
     const result = parseOracleFusionCollection(raw, project, {
@@ -76,22 +83,32 @@ async function lookup<T>(
   identity: (value: T) => string,
   signal?: AbortSignal
 ) {
-  const raw = await requestOracleFusionJson(input, {
-    address: { family: 'hcm', relativePath: path },
-    query: { fields, finder: `PrimaryKey;${keyField}=${id}`, links: 'self', limit: 2, offset: 0 },
-  }, signal)
+  const raw = await requestOracleFusionJson(
+    input,
+    {
+      address: { family: 'hcm', relativePath: path },
+      query: { fields, finder: `PrimaryKey;${keyField}=${id}`, links: 'self', limit: 2, offset: 0 },
+    },
+    signal
+  )
   signal?.throwIfAborted()
   try {
     const page = parseOracleFusionCollection(raw, (item) => ({ raw: item, value: project(item) }), {
-      expectedOffset: 0, maxItems: 2,
+      expectedOffset: 0,
+      maxItems: 2,
     })
     if (!page.items.length && !page.hasMore) {
       throw new OracleFusionProviderError('Oracle Fusion Recruiting resource was not found', 404)
     }
-    if (page.items.length !== 1 || page.hasMore) return invalid('Oracle Fusion Recruiting returned an ambiguous identifier')
+    if (page.items.length !== 1 || page.hasMore)
+      return invalid('Oracle Fusion Recruiting returned an ambiguous identifier')
     const match = page.items[0]
-    if (identity(match.value) !== id) return invalid('Oracle Fusion Recruiting returned a different identifier')
-    const key = extractOracleFusionOpaqueKey(match.raw, input.instanceUrl, { family: 'hcm', relativePath: path })
+    if (identity(match.value) !== id)
+      return invalid('Oracle Fusion Recruiting returned a different identifier')
+    const key = extractOracleFusionOpaqueKey(match.raw, input.instanceUrl, {
+      family: 'hcm',
+      relativePath: path,
+    })
     return { value: match.value, path: `${path}/${encodeOracleFusionPathSegment(key)}` }
   } catch (error) {
     if (error instanceof OracleFusionProviderError) throw error
@@ -108,14 +125,20 @@ async function get<T>(
   id: string,
   signal?: AbortSignal
 ) {
-  const raw = await requestOracleFusionJson(input, {
-    address: { family: 'hcm', relativePath: path }, query: { fields, links: 'self' },
-  }, signal)
+  const raw = await requestOracleFusionJson(
+    input,
+    {
+      address: { family: 'hcm', relativePath: path },
+      query: { fields, links: 'self' },
+    },
+    signal
+  )
   signal?.throwIfAborted()
   try {
     validateOracleFusionSelfLink(raw, input.instanceUrl, { family: 'hcm', relativePath: path })
     const value = project(raw)
-    if (identity(value) !== id) return invalid('Oracle Fusion Recruiting returned a different identifier')
+    if (identity(value) !== id)
+      return invalid('Oracle Fusion Recruiting returned a different identifier')
     return value
   } catch (error) {
     if (error instanceof OracleFusionProviderError) throw error
@@ -127,9 +150,10 @@ function writeBody(body: Record<string, unknown>, integerFields: readonly string
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined) continue
-    result[key] = typeof value === 'string' && integerFields.includes(key)
-      ? oracleFusionExactInteger(value)
-      : value
+    result[key] =
+      typeof value === 'string' && integerFields.includes(key)
+        ? oracleFusionExactInteger(value)
+        : value
   }
   return result
 }
@@ -142,20 +166,32 @@ async function mutate<T>(
   project: (value: unknown) => T,
   signal?: AbortSignal
 ) {
-  const raw = await requestOracleFusionJson(input, {
-    address: { family: 'hcm', relativePath: path }, method, body, mediaType: 'application/json',
-  }, signal)
+  const raw = await requestOracleFusionJson(
+    input,
+    {
+      address: { family: 'hcm', relativePath: path },
+      method,
+      body,
+      mediaType: 'application/json',
+    },
+    signal
+  )
   signal?.throwIfAborted()
   return project(raw)
 }
 
-const CANDIDATE_FIELDS = 'CandidateNumber,PersonId,DisplayName,FullName,FirstName,LastName,MiddleNames,Email,CandidateType,PreferredLanguage,PreferredTimezone,CreationDate,LastUpdateDate'
+const CANDIDATE_FIELDS =
+  'CandidateNumber,PersonId,DisplayName,FullName,FirstName,LastName,MiddleNames,Email,CandidateType,PreferredLanguage,PreferredTimezone,CreationDate,LastUpdateDate'
 const PHONE_FIELDS = 'PhoneId,PhoneNumber,CountryCodeNumber,AreaCode,LegislationCode,PhoneType'
-const EDUCATION_FIELDS = 'EducationId,DegreeName,Major,Minor,EducationalEstablishment,StartDate,EndDate,GraduatedFlag'
-const EXPERIENCE_FIELDS = 'PreviousEmploymentId,EmployerName,JobTitle,StartDate,EndDate,CurrentJobFlag,Department'
+const EDUCATION_FIELDS =
+  'EducationId,DegreeName,Major,Minor,EducationalEstablishment,StartDate,EndDate,GraduatedFlag'
+const EXPERIENCE_FIELDS =
+  'PreviousEmploymentId,EmployerName,JobTitle,StartDate,EndDate,CurrentJobFlag,Department'
 const SKILL_FIELDS = 'SkillId,Skill,Description,YearsOfExperience,DateAchieved,Speciality'
-const ATTACHMENT_FIELDS = 'AttachedDocumentId,FileName,Title,Description,UploadedFileContentType,UploadedFileLength,CategoryName,CreationDate,LastUpdateDate'
-const REQUISITION_FIELDS = 'RequisitionId,RequisitionNumber,Title,RecruitingType,PhaseId,PhaseName,StateId,StateName,HiringManagerId,RecruiterId,PrimaryLocationId,BusinessUnitId,DepartmentId,JobId,NumberOfOpenings,UnlimitedOpenings,CreationDate,LastUpdateDate'
+const ATTACHMENT_FIELDS =
+  'AttachedDocumentId,FileName,Title,Description,UploadedFileContentType,UploadedFileLength,CategoryName,CreationDate,LastUpdateDate'
+const REQUISITION_FIELDS =
+  'RequisitionId,RequisitionNumber,Title,RecruitingType,PhaseId,PhaseName,StateId,StateName,HiringManagerId,RecruiterId,PrimaryLocationId,BusinessUnitId,DepartmentId,JobId,NumberOfOpenings,UnlimitedOpenings,CreationDate,LastUpdateDate'
 const POSTING_FIELDS = 'PublishedJobId,PostingStatus,Visibility,StartDate,EndDate,TimeZone'
 const APPLICATION_FIELDS = 'JobApplicationId,CandidateName,CandidatePersonId,RequisitionId,RequisitionNumber,PhaseId,PhaseName,StateId,StateName,ConfirmedFlag,DisqualifiedFlag,InternalFlag,JobApplicationDate,LastUpdateDate'
 const OFFER_FIELDS = 'OfferId,OfferName,JobApplicationId,CandidatePersonId,RequisitionId,PhaseId,PhaseName,StateId,StateName,HireDate,ExpirationDate,LastUpdateDate'

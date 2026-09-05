@@ -16,7 +16,12 @@ export const oracleFusionRecruitingGetInterviewScheduleTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    scheduleId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Schedule id; use the identifier returned by the matching list tool' },
+    scheduleId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Schedule id; use the identifier returned by the matching list tool',
+    },
   },
   outputs: GET_INTERVIEW_SCHEDULE_OUTPUTS,
 }

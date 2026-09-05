@@ -17,7 +17,12 @@ export const oracleFusionRecruitingListRequisitionPostingsTool: InternalToolConf
   params: {
     ...credentials,
     ...page,
-    requisitionId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Requisition id; use the identifier returned by the matching list tool' },
+    requisitionId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Requisition id; use the identifier returned by the matching list tool',
+    },
   },
   outputs: LIST_REQUISITION_POSTINGS_OUTPUTS,
 }

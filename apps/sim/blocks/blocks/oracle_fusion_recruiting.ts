@@ -1,17 +1,18 @@
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { AuthMode, IntegrationType } from '@/blocks/types'
 import { NetSuiteIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const OracleFusionRecruitingBlock: BlockConfig = {
   type: 'oracle_fusion_recruiting',
   name: 'Oracle Fusion Recruiting',
-  description: 'Manage candidates and requisitions, and read applications, offers, and recruiting lookups',
-  longDescription: 'Use a saved Oracle Fusion integration-user credential to manage candidates, candidate phones, and job requisitions. Read candidate education, experience, skills, attachment metadata, published jobs, applications, offers, interview schedule lookups, requisition templates, and recruiting representatives. Lists return one bounded page. Interview schedules contain lookup metadata, not appointments. Oracle privileges and data security govern access; use a dedicated least-privilege integration user. Write bodies accept only the documented scalar fields listed by each tool; nested child mutations and custom fields are not supported.',
+  description:
+    'Manage candidates and requisitions, and read applications, offers, and recruiting lookups',
+  longDescription:
+    'Use a saved Oracle Fusion integration-user credential to manage candidates, candidate phones, and job requisitions. Read candidate education, experience, skills, attachment metadata, published jobs, applications, offers, interview schedule lookups, requisition templates, and recruiting representatives. Lists return one bounded page. Interview schedules contain lookup metadata, not appointments. Oracle privileges and data security govern access; use a dedicated least-privilege integration user. Write bodies accept only the documented scalar fields listed by each tool; nested child mutations and custom fields are not supported.',
   docsLink: 'https://docs.sim.ai/integrations/oracle_fusion_recruiting',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: ['automation'],
   authMode: AuthMode.ApiKey,
   bgColor: '#F80000',
   icon: NetSuiteIcon,
@@ -20,27 +21,125 @@ export const OracleFusionRecruitingBlock: BlockConfig = {
     sentences: {
       byOperation: {
         list_candidates: ['List candidates'],
-        get_candidate: [{ text: 'Get candidate for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
+        get_candidate: [
+          {
+            text: 'Get candidate for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
         create_candidate: ['Create candidate'],
-        update_candidate: [{ text: 'Update candidate for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
-        delete_candidate: [{ text: 'Delete candidate for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
-        list_candidate_phones: [{ text: 'List candidate phones for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
-        get_candidate_phone: [{ text: 'Get candidate phone for', field: ['phoneIdPicker', 'phoneIdInput'], core: true }],
-        create_candidate_phone: [{ text: 'Create candidate phone for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
-        update_candidate_phone: [{ text: 'Update candidate phone for', field: ['phoneIdPicker', 'phoneIdInput'], core: true }],
-        delete_candidate_phone: [{ text: 'Delete candidate phone for', field: ['phoneIdPicker', 'phoneIdInput'], core: true }],
-        list_candidate_education: [{ text: 'List candidate education for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
-        list_candidate_experience: [{ text: 'List candidate experience for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
-        list_candidate_skills: [{ text: 'List candidate skills for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
-        list_candidate_attachments: [{ text: 'List candidate attachments for', field: ['candidateNumberPicker', 'candidateNumberInput'], core: true }],
+        update_candidate: [
+          {
+            text: 'Update candidate for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
+        delete_candidate: [
+          {
+            text: 'Delete candidate for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
+        list_candidate_phones: [
+          {
+            text: 'List candidate phones for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
+        get_candidate_phone: [
+          { text: 'Get candidate phone for', field: ['phoneIdPicker', 'phoneIdInput'], core: true },
+        ],
+        create_candidate_phone: [
+          {
+            text: 'Create candidate phone for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
+        update_candidate_phone: [
+          {
+            text: 'Update candidate phone for',
+            field: ['phoneIdPicker', 'phoneIdInput'],
+            core: true,
+          },
+        ],
+        delete_candidate_phone: [
+          {
+            text: 'Delete candidate phone for',
+            field: ['phoneIdPicker', 'phoneIdInput'],
+            core: true,
+          },
+        ],
+        list_candidate_education: [
+          {
+            text: 'List candidate education for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
+        list_candidate_experience: [
+          {
+            text: 'List candidate experience for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
+        list_candidate_skills: [
+          {
+            text: 'List candidate skills for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
+        list_candidate_attachments: [
+          {
+            text: 'List candidate attachments for',
+            field: ['candidateNumberPicker', 'candidateNumberInput'],
+            core: true,
+          },
+        ],
         list_requisitions: ['List requisitions'],
-        get_requisition: [{ text: 'Get requisition for', field: ['requisitionIdPicker', 'requisitionIdInput'], core: true }],
+        get_requisition: [
+          {
+            text: 'Get requisition for',
+            field: ['requisitionIdPicker', 'requisitionIdInput'],
+            core: true,
+          },
+        ],
         create_requisition: ['Create requisition'],
-        update_requisition: [{ text: 'Update requisition for', field: ['requisitionIdPicker', 'requisitionIdInput'], core: true }],
-        delete_requisition: [{ text: 'Delete requisition for', field: ['requisitionIdPicker', 'requisitionIdInput'], core: true }],
-        list_requisition_postings: [{ text: 'List requisition postings for', field: ['requisitionIdPicker', 'requisitionIdInput'], core: true }],
+        update_requisition: [
+          {
+            text: 'Update requisition for',
+            field: ['requisitionIdPicker', 'requisitionIdInput'],
+            core: true,
+          },
+        ],
+        delete_requisition: [
+          {
+            text: 'Delete requisition for',
+            field: ['requisitionIdPicker', 'requisitionIdInput'],
+            core: true,
+          },
+        ],
+        list_requisition_postings: [
+          {
+            text: 'List requisition postings for',
+            field: ['requisitionIdPicker', 'requisitionIdInput'],
+            core: true,
+          },
+        ],
         list_applications: ['List applications'],
-        get_application: [{ text: 'Get application for', field: ['applicationIdPicker', 'applicationIdInput'], core: true }],
+        get_application: [
+          {
+            text: 'Get application for',
+            field: ['applicationIdPicker', 'applicationIdInput'],
+            core: true,
+          },
+        ],
         list_offers: ['List offers'],
         get_offer: [{ text: 'Get offer for', field: ['offerIdPicker', 'offerIdInput'], core: true }],
         list_interview_schedules: ['List interview schedules'],

@@ -70,8 +70,10 @@ vi.mock('@/lib/internal/oracle-fusion-recruiting/operations', () => ({
 const auth = { instanceUrl: 'https://example.fa.ocs.oraclecloud.com', accessToken: 'test-token' }
 function invoke(overrides: Partial<InternalToolOperationCall> = {}) {
   return executeOracleFusionRecruitingTool({
-    toolId: 'oracle_fusion_recruiting_list_candidates', input: auth,
-    headers: new Headers(), requestId: 'test-request',
+    toolId: 'oracle_fusion_recruiting_list_candidates',
+    input: auth,
+    headers: new Headers(),
+    requestId: 'test-request',
     context: { workflowId: 'workflow-1', workspaceId: 'workspace-1', userId: 'user-1' },
     ...overrides,
   })
@@ -83,35 +85,74 @@ describe('Recruiting dispatch', () => {
   })
   it.each([
     ['list_candidates', mocks.list_candidates, {}],
-    ['get_candidate', mocks.get_candidate, {"candidateNumber": "1"}],
-    ['create_candidate', mocks.create_candidate, {"body": {"FirstName": "Taylor"}}],
-    ['update_candidate', mocks.update_candidate, {"candidateNumber": "1", "body": {"FirstName": "Taylor"}}],
-    ['delete_candidate', mocks.delete_candidate, {"candidateNumber": "1"}],
-    ['list_candidate_phones', mocks.list_candidate_phones, {"candidateNumber": "1"}],
-    ['get_candidate_phone', mocks.get_candidate_phone, {"candidateNumber": "1", "phoneId": "1"}],
-    ['create_candidate_phone', mocks.create_candidate_phone, {"candidateNumber": "1", "body": {"PhoneNumber": "5550100"}}],
-    ['update_candidate_phone', mocks.update_candidate_phone, {"candidateNumber": "1", "phoneId": "1", "body": {"PhoneNumber": "5550100"}}],
-    ['delete_candidate_phone', mocks.delete_candidate_phone, {"candidateNumber": "1", "phoneId": "1"}],
-    ['list_candidate_education', mocks.list_candidate_education, {"candidateNumber": "1"}],
-    ['list_candidate_experience', mocks.list_candidate_experience, {"candidateNumber": "1"}],
-    ['list_candidate_skills', mocks.list_candidate_skills, {"candidateNumber": "1"}],
-    ['list_candidate_attachments', mocks.list_candidate_attachments, {"candidateNumber": "1"}],
+    ['get_candidate', mocks.get_candidate, { candidateNumber: '1' }],
+    ['create_candidate', mocks.create_candidate, { body: { FirstName: 'Taylor' } }],
+    [
+      'update_candidate',
+      mocks.update_candidate,
+      { candidateNumber: '1', body: { FirstName: 'Taylor' } },
+    ],
+    ['delete_candidate', mocks.delete_candidate, { candidateNumber: '1' }],
+    ['list_candidate_phones', mocks.list_candidate_phones, { candidateNumber: '1' }],
+    ['get_candidate_phone', mocks.get_candidate_phone, { candidateNumber: '1', phoneId: '1' }],
+    [
+      'create_candidate_phone',
+      mocks.create_candidate_phone,
+      { candidateNumber: '1', body: { PhoneNumber: '5550100' } },
+    ],
+    [
+      'update_candidate_phone',
+      mocks.update_candidate_phone,
+      { candidateNumber: '1', phoneId: '1', body: { PhoneNumber: '5550100' } },
+    ],
+    [
+      'delete_candidate_phone',
+      mocks.delete_candidate_phone,
+      { candidateNumber: '1', phoneId: '1' },
+    ],
+    ['list_candidate_education', mocks.list_candidate_education, { candidateNumber: '1' }],
+    ['list_candidate_experience', mocks.list_candidate_experience, { candidateNumber: '1' }],
+    ['list_candidate_skills', mocks.list_candidate_skills, { candidateNumber: '1' }],
+    ['list_candidate_attachments', mocks.list_candidate_attachments, { candidateNumber: '1' }],
     ['list_requisitions', mocks.list_requisitions, {}],
-    ['get_requisition', mocks.get_requisition, {"requisitionId": "1"}],
-    ['create_requisition', mocks.create_requisition, {"body": {"Title": "Engineer", "RecruitingType": "ORA_PROFESSIONAL", "HiringManagerId": "9007199254740993", "RecruiterId": "2", "PrimaryLocationId": "3", "PhaseId": "1", "StateId": "21", "UnlimitedOpenings": "N", "NumberOfOpenings": 1}}],
-    ['update_requisition', mocks.update_requisition, {"requisitionId": "1", "body": {"Title": "Engineer"}}],
-    ['delete_requisition', mocks.delete_requisition, {"requisitionId": "1"}],
-    ['list_requisition_postings', mocks.list_requisition_postings, {"requisitionId": "1"}],
+    ['get_requisition', mocks.get_requisition, { requisitionId: '1' }],
+    [
+      'create_requisition',
+      mocks.create_requisition,
+      {
+        body: {
+          Title: 'Engineer',
+          RecruitingType: 'ORA_PROFESSIONAL',
+          HiringManagerId: '9007199254740993',
+          RecruiterId: '2',
+          PrimaryLocationId: '3',
+          PhaseId: '1',
+          StateId: '21',
+          UnlimitedOpenings: 'N',
+          NumberOfOpenings: 1,
+        },
+      },
+    ],
+    [
+      'update_requisition',
+      mocks.update_requisition,
+      { requisitionId: '1', body: { Title: 'Engineer' } },
+    ],
+    ['delete_requisition', mocks.delete_requisition, { requisitionId: '1' }],
+    ['list_requisition_postings', mocks.list_requisition_postings, { requisitionId: '1' }],
     ['list_applications', mocks.list_applications, {}],
-    ['get_application', mocks.get_application, {"applicationId": "1"}],
+    ['get_application', mocks.get_application, { applicationId: '1' }],
     ['list_offers', mocks.list_offers, {}],
-    ['get_offer', mocks.get_offer, {"offerId": "1"}],
+    ['get_offer', mocks.get_offer, { offerId: '1' }],
     ['list_interview_schedules', mocks.list_interview_schedules, {}],
-    ['get_interview_schedule', mocks.get_interview_schedule, {"scheduleId": "1"}],
+    ['get_interview_schedule', mocks.get_interview_schedule, { scheduleId: '1' }],
     ['list_requisition_templates', mocks.list_requisition_templates, {}],
     ['list_recruiting_representatives', mocks.list_recruiting_representatives, {}],
   ])('dispatches %s', async (action, operation, input) => {
-    const response = await invoke({ toolId: `oracle_fusion_recruiting_${action}`, input: { ...auth, ...input } })
+    const response = await invoke({
+      toolId: `oracle_fusion_recruiting_${action}`,
+      input: { ...auth, ...input },
+    })
     expect(response.status).toBe(200)
     expect(operation).toHaveBeenCalledOnce()
   })
@@ -120,7 +161,9 @@ describe('Recruiting dispatch', () => {
     expect(mocks.list_candidates).not.toHaveBeenCalled()
   })
   it.each([401, 403, 404, 429, 502, 504])('preserves safe provider status %s', async (status) => {
-    mocks.list_candidates.mockRejectedValue(new OracleFusionProviderError('Provider unavailable', status))
+    mocks.list_candidates.mockRejectedValue(
+      new OracleFusionProviderError('Provider unavailable', status)
+    )
     expect((await invoke()).status).toBe(status)
   })
   it('does not expose unknown internal exceptions', async () => {

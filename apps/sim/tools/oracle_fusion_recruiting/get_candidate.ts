@@ -16,7 +16,12 @@ export const oracleFusionRecruitingGetCandidateTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    candidateNumber: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Candidate number; use the identifier returned by the matching list tool' },
+    candidateNumber: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Candidate number; use the identifier returned by the matching list tool',
+    },
   },
   outputs: GET_CANDIDATE_OUTPUTS,
 }

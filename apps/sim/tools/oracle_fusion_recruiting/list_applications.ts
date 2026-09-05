@@ -18,7 +18,12 @@ export const oracleFusionRecruitingListApplicationsTool: InternalToolConfig<
     ...credentials,
     ...page,
     ...search,
-    requisitionId: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Filter by requisition ID as a positive decimal string' },
+    requisitionId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by requisition ID as a positive decimal string',
+    },
   },
   outputs: LIST_APPLICATIONS_OUTPUTS,
 }

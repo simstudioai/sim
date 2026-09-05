@@ -16,7 +16,12 @@ export const oracleFusionRecruitingGetApplicationTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    applicationId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Application id; use the identifier returned by the matching list tool' },
+    applicationId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Application id; use the identifier returned by the matching list tool',
+    },
   },
   outputs: GET_APPLICATION_OUTPUTS,
 }

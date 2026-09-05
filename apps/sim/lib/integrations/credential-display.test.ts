@@ -112,11 +112,18 @@ describe('service-account coverage', () => {
   })
 
   it('registers Recruiting on the existing Fusion credential family', () => {
-    expect(INTEGRATIONS.find((integration) => integration.type === 'oracle_fusion_recruiting')?.authType).toBe('api-key')
+    expect(
+      INTEGRATIONS.find((integration) => integration.type === 'oracle_fusion_recruiting')?.authType
+    ).toBe('api-key')
     expect(OAUTH_PROVIDERS.oracle_fusion.services.oracle_fusion_recruiting).toMatchObject({
-      providerId: 'oracle_fusion_recruiting', serviceAccountProviderId: 'oracle-fusion-service-account', authType: 'service_account',
+      providerId: 'oracle_fusion_recruiting',
+      serviceAccountProviderId: 'oracle-fusion-service-account',
+      authType: 'service_account',
     })
-    expect(credentialProviderMatchesService('oracle-fusion-service-account', 'oracle_fusion_recruiting')).toBe(true)
+    expect(credentialProviderMatchesService(
+        'oracle-fusion-service-account',
+        OAUTH_PROVIDERS.oracle_fusion.services.oracle_fusion_recruiting
+      )).toBe(true)
   })
 
   it('pins the table to exactly the registered service-account provider ids', () => {

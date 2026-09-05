@@ -3373,15 +3373,15 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
-  oracleFusionRecruitingCreateCandidateTool,
   oracleFusionRecruitingCreateCandidatePhoneTool,
+  oracleFusionRecruitingCreateCandidateTool,
   oracleFusionRecruitingCreateRequisitionTool,
-  oracleFusionRecruitingDeleteCandidateTool,
   oracleFusionRecruitingDeleteCandidatePhoneTool,
+  oracleFusionRecruitingDeleteCandidateTool,
   oracleFusionRecruitingDeleteRequisitionTool,
   oracleFusionRecruitingGetApplicationTool,
-  oracleFusionRecruitingGetCandidateTool,
   oracleFusionRecruitingGetCandidatePhoneTool,
+  oracleFusionRecruitingGetCandidateTool,
   oracleFusionRecruitingGetInterviewScheduleTool,
   oracleFusionRecruitingGetOfferTool,
   oracleFusionRecruitingGetRequisitionTool,
@@ -3396,10 +3396,10 @@ import {
   oracleFusionRecruitingListOffersTool,
   oracleFusionRecruitingListRecruitingRepresentativesTool,
   oracleFusionRecruitingListRequisitionPostingsTool,
-  oracleFusionRecruitingListRequisitionTemplatesTool,
   oracleFusionRecruitingListRequisitionsTool,
-  oracleFusionRecruitingUpdateCandidateTool,
+  oracleFusionRecruitingListRequisitionTemplatesTool,
   oracleFusionRecruitingUpdateCandidatePhoneTool,
+  oracleFusionRecruitingUpdateCandidateTool,
   oracleFusionRecruitingUpdateRequisitionTool,
 } from '@/tools/oracle_fusion_recruiting'
 import {
@@ -9866,17 +9866,24 @@ export const tools: Record<string, ExecutableToolConfig> = {
   oracle_fusion_recruiting_get_offer: oracleFusionRecruitingGetOfferTool,
   oracle_fusion_recruiting_get_requisition: oracleFusionRecruitingGetRequisitionTool,
   oracle_fusion_recruiting_list_applications: oracleFusionRecruitingListApplicationsTool,
-  oracle_fusion_recruiting_list_candidate_attachments: oracleFusionRecruitingListCandidateAttachmentsTool,
-  oracle_fusion_recruiting_list_candidate_education: oracleFusionRecruitingListCandidateEducationTool,
-  oracle_fusion_recruiting_list_candidate_experience: oracleFusionRecruitingListCandidateExperienceTool,
+  oracle_fusion_recruiting_list_candidate_attachments:
+    oracleFusionRecruitingListCandidateAttachmentsTool,
+  oracle_fusion_recruiting_list_candidate_education:
+    oracleFusionRecruitingListCandidateEducationTool,
+  oracle_fusion_recruiting_list_candidate_experience:
+    oracleFusionRecruitingListCandidateExperienceTool,
   oracle_fusion_recruiting_list_candidate_phones: oracleFusionRecruitingListCandidatePhonesTool,
   oracle_fusion_recruiting_list_candidate_skills: oracleFusionRecruitingListCandidateSkillsTool,
   oracle_fusion_recruiting_list_candidates: oracleFusionRecruitingListCandidatesTool,
-  oracle_fusion_recruiting_list_interview_schedules: oracleFusionRecruitingListInterviewSchedulesTool,
+  oracle_fusion_recruiting_list_interview_schedules:
+    oracleFusionRecruitingListInterviewSchedulesTool,
   oracle_fusion_recruiting_list_offers: oracleFusionRecruitingListOffersTool,
-  oracle_fusion_recruiting_list_recruiting_representatives: oracleFusionRecruitingListRecruitingRepresentativesTool,
-  oracle_fusion_recruiting_list_requisition_postings: oracleFusionRecruitingListRequisitionPostingsTool,
-  oracle_fusion_recruiting_list_requisition_templates: oracleFusionRecruitingListRequisitionTemplatesTool,
+  oracle_fusion_recruiting_list_recruiting_representatives:
+    oracleFusionRecruitingListRecruitingRepresentativesTool,
+  oracle_fusion_recruiting_list_requisition_postings:
+    oracleFusionRecruitingListRequisitionPostingsTool,
+  oracle_fusion_recruiting_list_requisition_templates:
+    oracleFusionRecruitingListRequisitionTemplatesTool,
   oracle_fusion_recruiting_list_requisitions: oracleFusionRecruitingListRequisitionsTool,
   oracle_fusion_recruiting_update_candidate: oracleFusionRecruitingUpdateCandidateTool,
   oracle_fusion_recruiting_update_candidate_phone: oracleFusionRecruitingUpdateCandidatePhoneTool,

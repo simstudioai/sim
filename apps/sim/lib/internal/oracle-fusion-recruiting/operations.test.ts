@@ -19,62 +19,143 @@ function item(path: string, fields: Record<string, unknown>) {
 function page(items: unknown[], extra: Record<string, unknown> = {}) {
   return { items, count: items.length, limit: 20, offset: 0, hasMore: false, ...extra }
 }
-function candidate() { return item('recruitingCandidates', { CandidateNumber: '1' }) }
-function requisition() { return item('recruitingJobRequisitions', { RequisitionId: '1' }) }
+function candidate() {
+  return item('recruitingCandidates', { CandidateNumber: '1' })
+}
+function requisition() {
+  return item('recruitingJobRequisitions', { RequisitionId: '1' })
+}
 
 describe('Recruiting provider operations', () => {
-  beforeEach(() => { vi.resetAllMocks() })
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
   it('lists candidate records through recruitingCandidates', async () => {
     mocks.json.mockResolvedValueOnce(page([{ CandidateNumber: '1', secretField: 'not-output' }]))
     const result = await operations.executeListCandidates({ ...auth, ...{} })
-    expect(mocks.json).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ address: { family: 'hcm', relativePath: 'recruitingCandidates' }, query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }) }), undefined)
+    expect(mocks.json).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        address: { family: 'hcm', relativePath: 'recruitingCandidates' },
+        query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }),
+      }),
+      undefined
+    )
     expect(result.output.candidates[0]).toMatchObject({ candidateNumber: '1' })
     expect(result.output.candidates[0]).not.toHaveProperty('secretField')
   })
   it('lists phone records through candidatePhones', async () => {
     mocks.json.mockResolvedValueOnce(page([candidate()]))
     mocks.json.mockResolvedValueOnce(page([{ PhoneId: '1', secretField: 'not-output' }]))
-    const result = await operations.executeListCandidatePhones({ ...auth, ...{"candidateNumber": "1"} })
-    expect(mocks.json).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ address: { family: 'hcm', relativePath: 'recruitingCandidates/opaque-key/child/candidatePhones' }, query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }) }), undefined)
+    const result = await operations.executeListCandidatePhones({
+      ...auth,
+      ...{ candidateNumber: '1' },
+    })
+    expect(mocks.json).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        address: {
+          family: 'hcm',
+          relativePath: 'recruitingCandidates/opaque-key/child/candidatePhones',
+        },
+        query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }),
+      }),
+      undefined
+    )
     expect(result.output.phones[0]).toMatchObject({ phoneId: '1' })
     expect(result.output.phones[0]).not.toHaveProperty('secretField')
   })
   it('lists education records through education', async () => {
     mocks.json.mockResolvedValueOnce(page([candidate()]))
     mocks.json.mockResolvedValueOnce(page([{ EducationId: '1', secretField: 'not-output' }]))
-    const result = await operations.executeListCandidateEducation({ ...auth, ...{"candidateNumber": "1"} })
-    expect(mocks.json).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ address: { family: 'hcm', relativePath: 'recruitingCandidates/opaque-key/child/education' }, query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }) }), undefined)
+    const result = await operations.executeListCandidateEducation({
+      ...auth,
+      ...{ candidateNumber: '1' },
+    })
+    expect(mocks.json).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        address: { family: 'hcm', relativePath: 'recruitingCandidates/opaque-key/child/education' },
+        query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }),
+      }),
+      undefined
+    )
     expect(result.output.education[0]).toMatchObject({ educationId: '1' })
     expect(result.output.education[0]).not.toHaveProperty('secretField')
   })
   it('lists experience records through experience', async () => {
     mocks.json.mockResolvedValueOnce(page([candidate()]))
-    mocks.json.mockResolvedValueOnce(page([{ PreviousEmploymentId: '1', secretField: 'not-output' }]))
-    const result = await operations.executeListCandidateExperience({ ...auth, ...{"candidateNumber": "1"} })
-    expect(mocks.json).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ address: { family: 'hcm', relativePath: 'recruitingCandidates/opaque-key/child/experience' }, query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }) }), undefined)
+    mocks.json.mockResolvedValueOnce(
+      page([{ PreviousEmploymentId: '1', secretField: 'not-output' }])
+    )
+    const result = await operations.executeListCandidateExperience({
+      ...auth,
+      ...{ candidateNumber: '1' },
+    })
+    expect(mocks.json).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        address: {
+          family: 'hcm',
+          relativePath: 'recruitingCandidates/opaque-key/child/experience',
+        },
+        query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }),
+      }),
+      undefined
+    )
     expect(result.output.experience[0]).toMatchObject({ previousEmploymentId: '1' })
     expect(result.output.experience[0]).not.toHaveProperty('secretField')
   })
   it('lists skill records through skills', async () => {
     mocks.json.mockResolvedValueOnce(page([candidate()]))
     mocks.json.mockResolvedValueOnce(page([{ SkillId: '1', secretField: 'not-output' }]))
-    const result = await operations.executeListCandidateSkills({ ...auth, ...{"candidateNumber": "1"} })
-    expect(mocks.json).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ address: { family: 'hcm', relativePath: 'recruitingCandidates/opaque-key/child/skills' }, query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }) }), undefined)
+    const result = await operations.executeListCandidateSkills({
+      ...auth,
+      ...{ candidateNumber: '1' },
+    })
+    expect(mocks.json).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        address: { family: 'hcm', relativePath: 'recruitingCandidates/opaque-key/child/skills' },
+        query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }),
+      }),
+      undefined
+    )
     expect(result.output.skills[0]).toMatchObject({ skillId: '1' })
     expect(result.output.skills[0]).not.toHaveProperty('secretField')
   })
   it('lists attachment records through attachments', async () => {
     mocks.json.mockResolvedValueOnce(page([candidate()]))
     mocks.json.mockResolvedValueOnce(page([{ AttachedDocumentId: '1', secretField: 'not-output' }]))
-    const result = await operations.executeListCandidateAttachments({ ...auth, ...{"candidateNumber": "1"} })
-    expect(mocks.json).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ address: { family: 'hcm', relativePath: 'recruitingCandidates/opaque-key/child/attachments' }, query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }) }), undefined)
+    const result = await operations.executeListCandidateAttachments({
+      ...auth,
+      ...{ candidateNumber: '1' },
+    })
+    expect(mocks.json).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        address: {
+          family: 'hcm',
+          relativePath: 'recruitingCandidates/opaque-key/child/attachments',
+        },
+        query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }),
+      }),
+      undefined
+    )
     expect(result.output.attachments[0]).toMatchObject({ attachedDocumentId: '1' })
     expect(result.output.attachments[0]).not.toHaveProperty('secretField')
   })
   it('lists requisition records through recruitingJobRequisitions', async () => {
     mocks.json.mockResolvedValueOnce(page([{ RequisitionId: '1', secretField: 'not-output' }]))
     const result = await operations.executeListRequisitions({ ...auth, ...{} })
-    expect(mocks.json).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ address: { family: 'hcm', relativePath: 'recruitingJobRequisitions' }, query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }) }), undefined)
+    expect(mocks.json).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        address: { family: 'hcm', relativePath: 'recruitingJobRequisitions' },
+        query: expect.objectContaining({ limit: 20, offset: 0, onlyData: true }),
+      }),
+      undefined
+    )
     expect(result.output.requisitions[0]).toMatchObject({ requisitionId: '1' })
     expect(result.output.requisitions[0]).not.toHaveProperty('secretField')
   })
@@ -200,4 +281,160 @@ describe('Recruiting provider operations', () => {
     expect(mocks.json).toHaveBeenCalledOnce()
     expect(mocks.json.mock.calls[0][2]).toBe(controller.signal)
   })
+  it.each([
+    [operations.executeListCandidates, ['FullName', 'LastName']],
+    [operations.executeListRequisitions, ['RequisitionNumber', 'Title']],
+    [operations.executeListApplications, ['CandidateName', 'RequisitionNumber']],
+    [operations.executeListOffers, ['OfferName']],
+    [operations.executeListInterviewSchedules, ['ScheduleTitle']],
+    [operations.executeListRequisitionTemplates, ['Name', 'Title']],
+    [operations.executeListRecruitingRepresentatives, ['DisplayName', 'PersonNumber']],
+  ])('escapes literal searches for %s', async (operation, fields) => {
+    mocks.json.mockResolvedValue(page([]))
+    await operation({ ...auth, search: String.raw`O'Brien%_*?\slash` })
+    const literal = String.raw`O''Brien\%\_\*\?\\slash`
+    const expected = `(${fields.map((field) => `${field} LIKE '%${literal}%'`).join(' OR ')})`
+    expect(mocks.json.mock.calls[0][1].query.q).toBe(expected)
+  })
+
+  it.each([operations.executeListApplications, operations.executeListOffers])(
+    'combines requisition filtering with the complete search disjunction for %s',
+    async (operation) => {
+      mocks.json.mockResolvedValue(page([]))
+      await operation({ ...auth, search: 'Taylor', requisitionId: '9007199254740993' })
+      const query = mocks.json.mock.calls[0][1].query.q
+      expect(query).toMatch(/^\(.+\) AND RequisitionId=9007199254740993$/)
+      mocks.json.mockClear()
+      await operation({ ...auth, requisitionId: '9007199254740993' })
+      expect(mocks.json.mock.calls[0][1].query.q).toBe('RequisitionId=9007199254740993')
+    }
+  )
+
+  it.each([
+    [operations.executeGetRequisition, 'recruitingJobRequisitions', 'RequisitionId'],
+    [operations.executeGetApplication, 'recruitingJobApplications', 'JobApplicationId'],
+    [operations.executeGetInterviewSchedule, 'recruitingInterviewSchedulesLOV', 'ScheduleId'],
+  ])('resolves the documented primary key before fetching %s', async (operation, path, key) => {
+    const input = { ...auth, requisitionId: '1', applicationId: '1', scheduleId: '1' }
+    const resource = item(path, { [key]: '1' })
+    mocks.json.mockResolvedValueOnce(page([resource])).mockResolvedValueOnce(resource)
+    await operation(input)
+    expect(mocks.json.mock.calls[0][1].query.finder).toBe(`PrimaryKey;${key}=1`)
+    expect(mocks.json.mock.calls[1][1]).toMatchObject({
+      address: { family: 'hcm', relativePath: `${path}/opaque-key` },
+      query: { links: 'self' },
+    })
+    expect(mocks.json).toHaveBeenCalledTimes(2)
+  })
+
+  it('gets a phone only after resolving both parent and child identities', async () => {
+    const path = 'recruitingCandidates/opaque-key/child/candidatePhones'
+    const phone = item(path, { PhoneId: '2' })
+    mocks.json
+      .mockResolvedValueOnce(page([candidate()]))
+      .mockResolvedValueOnce(page([phone]))
+      .mockResolvedValueOnce(phone)
+    const result = await operations.executeGetCandidatePhone({
+      ...auth,
+      candidateNumber: '1',
+      phoneId: '2',
+    })
+    expect(result.output.phone.phoneId).toBe('2')
+    expect(mocks.json.mock.calls[1][1].query.finder).toBe('PrimaryKey;PhoneId=2')
+    expect(mocks.json.mock.calls[2][1].address.relativePath).toBe(`${path}/opaque-key`)
+  })
+
+  it('creates a candidate with the documented JSON media type and one write', async () => {
+    mocks.json.mockResolvedValue(candidate())
+    const result = await operations.executeCreateCandidate({
+      ...auth,
+      body: { FirstName: 'Taylor', Email: null },
+    })
+    expect(result.output.candidate.candidateNumber).toBe('1')
+    expect(mocks.json).toHaveBeenCalledExactlyOnceWith(
+      auth,
+      {
+        address: { family: 'hcm', relativePath: 'recruitingCandidates' },
+        method: 'POST',
+        mediaType: 'application/json',
+        body: { FirstName: 'Taylor', Email: null },
+      },
+      undefined
+    )
+  })
+
+  it.each([
+    [operations.executeCreateCandidatePhone, 'POST'],
+    [operations.executeUpdateCandidatePhone, 'PATCH'],
+  ])('uses the resolved parent and documented phone body for %s', async (operation, method) => {
+    const path = 'recruitingCandidates/opaque-key/child/candidatePhones'
+    const phone = item(path, { PhoneId: '2' })
+    mocks.json.mockResolvedValueOnce(page([candidate()]))
+    if (method === 'PATCH') mocks.json.mockResolvedValueOnce(page([phone]))
+    mocks.json.mockResolvedValueOnce(phone)
+    const input = {
+      ...auth,
+      candidateNumber: '1',
+      phoneId: '2',
+      body: { PhoneNumber: '5550100', AreaCode: null, LegislationCode: undefined },
+    }
+    const result = await operation(input)
+    expect(result.output.phone.phoneId).toBe('2')
+    expect(mocks.json.mock.calls.at(-1)?.[1]).toEqual({
+      address: { family: 'hcm', relativePath: method === 'PATCH' ? `${path}/opaque-key` : path },
+      method,
+      mediaType: 'application/json',
+      body: { PhoneNumber: '5550100', AreaCode: null },
+    })
+    expect(mocks.json).toHaveBeenCalledTimes(method === 'PATCH' ? 3 : 2)
+  })
+
+  it('updates requisitions with exact IDs and preserves nullable fields', async () => {
+    mocks.json.mockResolvedValueOnce(page([requisition()])).mockResolvedValueOnce(requisition())
+    await operations.executeUpdateRequisition({
+      ...auth,
+      requisitionId: '1',
+      body: { HiringManagerId: '9007199254740993', DepartmentId: null, Title: undefined },
+    })
+    const request = mocks.json.mock.calls[1][1]
+    expect(request).toMatchObject({
+      address: { family: 'hcm', relativePath: 'recruitingJobRequisitions/opaque-key' },
+      method: 'PATCH',
+      mediaType: 'application/json',
+    })
+    expect(serializeOracleFusionJsonBody(request.body)).toBe(
+      '{"HiringManagerId":9007199254740993,"DepartmentId":null}'
+    )
+  })
+
+  it.each([
+    [operations.executeDeleteCandidate, 'recruitingCandidates', candidate],
+    [operations.executeDeleteRequisition, 'recruitingJobRequisitions', requisition],
+  ])('accepts an empty successful delete for %s', async (operation, path, resource) => {
+    mocks.json.mockResolvedValue(page([resource()]))
+    mocks.empty.mockResolvedValue(undefined)
+    const input = { ...auth, candidateNumber: '1', requisitionId: '1' }
+    expect((await operation(input)).output).toEqual({ deleted: true })
+    expect(mocks.empty).toHaveBeenCalledExactlyOnceWith(
+      input,
+      { address: { family: 'hcm', relativePath: `${path}/opaque-key` }, method: 'DELETE' },
+      undefined
+    )
+  })
+
+  it.each([
+    page([]),
+    page([item('recruitingJobOffers', { OfferId: '2' })]),
+    page([
+      item('recruitingJobOffers', { OfferId: '1' }),
+      item('recruitingJobOffers', { OfferId: '1' }),
+    ]),
+  ])('rejects non-exact offer finder results', async (raw) => {
+    mocks.json.mockResolvedValue(raw)
+    await expect(operations.executeGetOffer({ ...auth, offerId: '1' })).rejects.toBeInstanceOf(
+      OracleFusionProviderError
+    )
+    expect(mocks.json).toHaveBeenCalledOnce()
+  })
+
 })

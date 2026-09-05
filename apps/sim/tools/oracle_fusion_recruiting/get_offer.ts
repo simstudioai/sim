@@ -16,7 +16,12 @@ export const oracleFusionRecruitingGetOfferTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    offerId: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Offer id; use the identifier returned by the matching list tool' },
+    offerId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Offer id; use the identifier returned by the matching list tool',
+    },
   },
   outputs: GET_OFFER_OUTPUTS,
 }

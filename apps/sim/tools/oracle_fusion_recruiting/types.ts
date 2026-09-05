@@ -175,7 +175,10 @@ const representativeProperties = {
   workEmailAddress: { type: 'string', description: 'Work Email Address', nullable: true },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListCandidatesParams = Omit<Schemas.ListCandidatesInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListCandidatesParams = Omit<
+  Schemas.ListCandidatesInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -189,7 +192,10 @@ export const LIST_CANDIDATES_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingGetCandidateParams = Omit<Schemas.GetCandidateInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingGetCandidateParams = Omit<
+  Schemas.GetCandidateInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -202,7 +208,10 @@ export const GET_CANDIDATE_OUTPUTS = {
   candidate: { type: 'json', description: 'Returned candidate', properties: candidateProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingCreateCandidateParams = Omit<Schemas.CreateCandidateInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingCreateCandidateParams = Omit<
+  Schemas.CreateCandidateInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -215,7 +224,10 @@ export const CREATE_CANDIDATE_OUTPUTS = {
   candidate: { type: 'json', description: 'Returned candidate', properties: candidateProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingUpdateCandidateParams = Omit<Schemas.UpdateCandidateInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingUpdateCandidateParams = Omit<
+  Schemas.UpdateCandidateInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -228,7 +240,10 @@ export const UPDATE_CANDIDATE_OUTPUTS = {
   candidate: { type: 'json', description: 'Returned candidate', properties: candidateProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingDeleteCandidateParams = Omit<Schemas.DeleteCandidateInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingDeleteCandidateParams = Omit<
+  Schemas.DeleteCandidateInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -241,7 +256,10 @@ export const DELETE_CANDIDATE_OUTPUTS = {
   deleted: { type: 'boolean', description: 'Whether Oracle confirmed the deletion' },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListCandidatePhonesParams = Omit<Schemas.ListCandidatePhonesInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListCandidatePhonesParams = Omit<
+  Schemas.ListCandidatePhonesInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -255,7 +273,10 @@ export const LIST_CANDIDATE_PHONES_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingGetCandidatePhoneParams = Omit<Schemas.GetCandidatePhoneInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingGetCandidatePhoneParams = Omit<
+  Schemas.GetCandidatePhoneInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -268,7 +289,10 @@ export const GET_CANDIDATE_PHONE_OUTPUTS = {
   phone: { type: 'json', description: 'Returned phone', properties: phoneProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingCreateCandidatePhoneParams = Omit<Schemas.CreateCandidatePhoneInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingCreateCandidatePhoneParams = Omit<
+  Schemas.CreateCandidatePhoneInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -281,7 +305,10 @@ export const CREATE_CANDIDATE_PHONE_OUTPUTS = {
   phone: { type: 'json', description: 'Returned phone', properties: phoneProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingUpdateCandidatePhoneParams = Omit<Schemas.UpdateCandidatePhoneInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingUpdateCandidatePhoneParams = Omit<
+  Schemas.UpdateCandidatePhoneInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -294,7 +321,10 @@ export const UPDATE_CANDIDATE_PHONE_OUTPUTS = {
   phone: { type: 'json', description: 'Returned phone', properties: phoneProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingDeleteCandidatePhoneParams = Omit<Schemas.DeleteCandidatePhoneInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingDeleteCandidatePhoneParams = Omit<
+  Schemas.DeleteCandidatePhoneInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -307,7 +337,10 @@ export const DELETE_CANDIDATE_PHONE_OUTPUTS = {
   deleted: { type: 'boolean', description: 'Whether Oracle confirmed the deletion' },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListCandidateEducationParams = Omit<Schemas.ListCandidateEducationInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListCandidateEducationParams = Omit<
+  Schemas.ListCandidateEducationInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -321,7 +354,10 @@ export const LIST_CANDIDATE_EDUCATION_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListCandidateExperienceParams = Omit<Schemas.ListCandidateExperienceInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListCandidateExperienceParams = Omit<
+  Schemas.ListCandidateExperienceInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -335,7 +371,10 @@ export const LIST_CANDIDATE_EXPERIENCE_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListCandidateSkillsParams = Omit<Schemas.ListCandidateSkillsInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListCandidateSkillsParams = Omit<
+  Schemas.ListCandidateSkillsInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -349,7 +388,10 @@ export const LIST_CANDIDATE_SKILLS_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListCandidateAttachmentsParams = Omit<Schemas.ListCandidateAttachmentsInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListCandidateAttachmentsParams = Omit<
+  Schemas.ListCandidateAttachmentsInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -363,7 +405,10 @@ export const LIST_CANDIDATE_ATTACHMENTS_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListRequisitionsParams = Omit<Schemas.ListRequisitionsInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListRequisitionsParams = Omit<
+  Schemas.ListRequisitionsInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -377,7 +422,10 @@ export const LIST_REQUISITIONS_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingGetRequisitionParams = Omit<Schemas.GetRequisitionInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingGetRequisitionParams = Omit<
+  Schemas.GetRequisitionInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -390,7 +438,10 @@ export const GET_REQUISITION_OUTPUTS = {
   requisition: { type: 'json', description: 'Returned requisition', properties: requisitionProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingCreateRequisitionParams = Omit<Schemas.CreateRequisitionInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingCreateRequisitionParams = Omit<
+  Schemas.CreateRequisitionInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -403,7 +454,10 @@ export const CREATE_REQUISITION_OUTPUTS = {
   requisition: { type: 'json', description: 'Returned requisition', properties: requisitionProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingUpdateRequisitionParams = Omit<Schemas.UpdateRequisitionInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingUpdateRequisitionParams = Omit<
+  Schemas.UpdateRequisitionInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -416,7 +470,10 @@ export const UPDATE_REQUISITION_OUTPUTS = {
   requisition: { type: 'json', description: 'Returned requisition', properties: requisitionProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingDeleteRequisitionParams = Omit<Schemas.DeleteRequisitionInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingDeleteRequisitionParams = Omit<
+  Schemas.DeleteRequisitionInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -429,7 +486,10 @@ export const DELETE_REQUISITION_OUTPUTS = {
   deleted: { type: 'boolean', description: 'Whether Oracle confirmed the deletion' },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListRequisitionPostingsParams = Omit<Schemas.ListRequisitionPostingsInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListRequisitionPostingsParams = Omit<
+  Schemas.ListRequisitionPostingsInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -443,7 +503,10 @@ export const LIST_REQUISITION_POSTINGS_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListApplicationsParams = Omit<Schemas.ListApplicationsInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListApplicationsParams = Omit<
+  Schemas.ListApplicationsInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -457,7 +520,10 @@ export const LIST_APPLICATIONS_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingGetApplicationParams = Omit<Schemas.GetApplicationInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingGetApplicationParams = Omit<
+  Schemas.GetApplicationInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -470,7 +536,10 @@ export const GET_APPLICATION_OUTPUTS = {
   application: { type: 'json', description: 'Returned application', properties: applicationProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListOffersParams = Omit<Schemas.ListOffersInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListOffersParams = Omit<
+  Schemas.ListOffersInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -484,7 +553,10 @@ export const LIST_OFFERS_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingGetOfferParams = Omit<Schemas.GetOfferInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingGetOfferParams = Omit<
+  Schemas.GetOfferInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -497,7 +569,10 @@ export const GET_OFFER_OUTPUTS = {
   offer: { type: 'json', description: 'Returned offer', properties: offerProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListInterviewSchedulesParams = Omit<Schemas.ListInterviewSchedulesInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListInterviewSchedulesParams = Omit<
+  Schemas.ListInterviewSchedulesInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -511,7 +586,10 @@ export const LIST_INTERVIEW_SCHEDULES_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingGetInterviewScheduleParams = Omit<Schemas.GetInterviewScheduleInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingGetInterviewScheduleParams = Omit<
+  Schemas.GetInterviewScheduleInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -524,7 +602,10 @@ export const GET_INTERVIEW_SCHEDULE_OUTPUTS = {
   interviewSchedule: { type: 'json', description: 'Returned interview schedule', properties: interviewScheduleProperties },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListRequisitionTemplatesParams = Omit<Schemas.ListRequisitionTemplatesInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListRequisitionTemplatesParams = Omit<
+  Schemas.ListRequisitionTemplatesInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -538,7 +619,10 @@ export const LIST_REQUISITION_TEMPLATES_OUTPUTS = {
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionRecruitingListRecruitingRepresentativesParams = Omit<Schemas.ListRecruitingRepresentativesInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionRecruitingListRecruitingRepresentativesParams = Omit<
+  Schemas.ListRecruitingRepresentativesInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
