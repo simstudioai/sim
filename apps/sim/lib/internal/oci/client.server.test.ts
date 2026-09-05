@@ -372,6 +372,60 @@ describe('credential-bound OCI client', () => {
     })
   })
 
+  it.each([
+    'reports%2Fdaily.csv',
+    'reports%2fdaily%5cfile.csv',
+    '%2Freports%2F%2Fdaily.csv',
+    '%2F',
+    '%5Creports%5Cdaily.csv',
+    'reports%2F..%2Fdaily.csv',
+    'reports%2F%E2%98%83%20caf%C3%A9.csv',
+    'literal%252F%255C%2500.csv',
+    'what%3Fpart%231.txt',
+  ])('preserves and signs an encoded object name exactly: %s', async (encodedName) => {
+    const { client } = await createPreparedClient()
+    const endpoint = await client.prepareStaticEndpoint(
+      createOciStaticEndpointPolicy({
+        serviceId: OCI_SERVICE_ID,
+        serviceName: 'objectstorage',
+        hostnameTemplate: 'regional',
+      })
+    )
+    const encodedPath = `/n/synthetic_namespace/b/synthetic_bucket/o/${encodedName}`
+    const target = `${encodedPath}?versionId=v%2F1`
+    await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath,
+      queryPairs: [['versionId', 'v/1']],
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect(mocks.secureFetch).toHaveBeenCalledOnce()
+    const [url, , options] = mocks.secureFetch.mock.calls[0] as [
+      string,
+      string,
+      { headers: Record<string, string> },
+    ]
+    const hostname = 'objectstorage.us-ashburn-1.oraclecloud.com'
+    expect(url).toBe(`https://${hostname}${target}`)
+    const signature = options.headers.authorization.match(/signature="([^"]+)"/)?.[1]
+    expect(signature).toBeDefined()
+    const signingString = [
+      `x-date: ${options.headers['x-date']}`,
+      `(request-target): get ${target}`,
+      `host: ${hostname}`,
+    ].join('\n')
+    expect(
+      verify(
+        'RSA-SHA256',
+        Buffer.from(signingString, 'utf8'),
+        createPublicKey(PRIVATE_KEY),
+        Buffer.from(signature ?? '', 'base64')
+      )
+    ).toBe(true)
+  })
+
   it.each(['GET', 'HEAD', 'DELETE'] as const)('rejects bodies for %s', async (method) => {
     const { client, endpoint } = await createPreparedClient()
     await expect(
@@ -437,13 +491,23 @@ describe('credential-bound OCI client', () => {
     '//host/path',
     '/double//slash',
     '/query?x=1',
+    '/fragment#value',
     '/back\\slash',
-    '/encoded%2Fslash',
-    '/encoded%5Cbackslash',
     '/encoded%00control',
     '/encoded%1fcontrol',
     '/encoded%7Fcontrol',
     '/bad%2',
+    '/bad%GG',
+    '/raw\0control',
+    '/raw\u007fcontrol',
+    '/raw\ncontrol',
+    '/raw\tcontrol',
+    '/raw space',
+    '/raw\ud800surrogate',
+    '/a/../b',
+    '/a/./b',
+    '/a/%2e%2e/b',
+    '/a/%2E/b',
   ])('rejects ambiguous encoded paths: %s', async (encodedPath) => {
     const { client, endpoint } = await createPreparedClient()
     await expect(
@@ -455,6 +519,8 @@ describe('credential-bound OCI client', () => {
         maxResponseBytes: 1024,
       })
     ).rejects.toMatchObject({ code: 'invalid_request' })
+    expect(mocks.validateUrl).not.toHaveBeenCalled()
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
   })
 
   it('rejects signing-controlled headers', async () => {
