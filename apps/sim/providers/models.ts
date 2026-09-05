@@ -45,6 +45,8 @@ export interface ModelCapabilities {
     max: number
   }
   toolUsageControl?: boolean
+  /** Whether tools can be forced. Defaults to toolUsageControl when omitted. */
+  forcedToolUse?: boolean
   computerUse?: boolean
   nativeStructuredOutputs?: boolean
   /** Maximum supported output tokens for this model */
@@ -914,6 +916,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-09-04',
         },
         capabilities: {
+          forcedToolUse: false,
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
           promptCaching: { minimumCacheableTokens: 512 },
@@ -4479,6 +4482,20 @@ export function getMaxTemperature(modelId: string): number | undefined {
 
 export function supportsToolUsageControl(providerId: string): boolean {
   return getProvidersWithToolUsageControl().includes(providerId)
+}
+
+/** Whether the model accepts forced tool choice, including uncataloged Claude aliases. */
+export function supportsForcedToolUse(modelId: string): boolean {
+  const capabilities = getModelCapabilities(modelId)
+  if (capabilities?.forcedToolUse !== undefined) return capabilities.forcedToolUse
+
+  /** Preserve the restriction for date-suffixed and reseller IDs outside the catalog. */
+  const normalizedModel = modelId.toLowerCase()
+  if (normalizedModel.includes('fable-5-1') || normalizedModel.includes('mythos-5-1')) {
+    return false
+  }
+
+  return capabilities?.toolUsageControl ?? false
 }
 
 export function updateOllamaModels(models: string[]): void {

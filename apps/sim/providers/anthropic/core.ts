@@ -21,6 +21,7 @@ import {
 import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
+  supportsForcedToolUse,
   supportsNativeStructuredOutputs,
   supportsTemperature,
 } from '@/providers/models'
@@ -153,17 +154,6 @@ function supportsAdaptiveThinking(modelId: string): boolean {
     normalizedModel.includes('sonnet-4-6') ||
     normalizedModel.includes('sonnet-4.6')
   )
-}
-
-/**
- * Claude Fable 5.1 and Claude Mythos 5.1 reject forced tool use: a `tool_choice` of
- * type `tool` or `any` returns a 400 (`tool_choice: type "tool" and "any" are not
- * supported for this model.`). Thinking is always on for these models, so a forced
- * call would skip it. The request is sent with the default `auto` instead.
- */
-function rejectsForcedToolChoice(modelId: string): boolean {
-  const normalizedModel = modelId.toLowerCase()
-  return normalizedModel.includes('fable-5-1') || normalizedModel.includes('mythos-5-1')
 }
 
 /**
@@ -428,7 +418,7 @@ export async function executeAnthropicProviderRequest(
     } else if (toolChoice === 'none') {
       payload.tool_choice = { type: 'none' }
     } else if (toolChoice !== 'auto') {
-      if (rejectsForcedToolChoice(request.model)) {
+      if (!supportsForcedToolUse(request.model)) {
         logger.warn(
           `Model ${modelId} rejects forced tool_choice; sending tool "${toolChoice.name}" with tool_choice auto`
         )

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
   getHostedModels,
+  getModelCapabilities,
   getModelPricing,
   getModelsWithPromptCaching,
   getPromptCachingMinimumTokens,
@@ -13,6 +14,7 @@ import {
   isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
+  supportsForcedToolUse,
   updateFireworksModels,
 } from '@/providers/models'
 import { supportsPromptCaching } from '@/providers/utils'
@@ -58,6 +60,35 @@ describe('catalog featured model metadata', () => {
       expect(featuredModels.length).toBeLessThanOrEqual(1)
       expect(featuredModels.every((model) => model.sunset === undefined)).toBe(true)
     }
+  })
+})
+
+describe('forced tool use capability', () => {
+  it('keeps Auto and None support when a model disables Force', () => {
+    expect(getModelCapabilities('claude-fable-5-1')).toMatchObject({
+      toolUsageControl: true,
+      forcedToolUse: false,
+    })
+  })
+
+  it.each([
+    'claude-fable-5-1',
+    'CLAUDE-FABLE-5-1-20260901',
+    'azure-anthropic/claude-fable-5-1',
+    'claude-mythos-5-1',
+  ])('disables forced tool use for %s', (model) => {
+    expect(supportsForcedToolUse(model)).toBe(false)
+  })
+
+  it.each(['claude-sonnet-5', 'claude-fable-5', 'claude-opus-5', 'gpt-5.5'])(
+    'inherits provider tool-control support for %s',
+    (model) => {
+      expect(supportsForcedToolUse(model)).toBe(true)
+    }
+  )
+
+  it('does not enable Force for an unknown model without tool-control capabilities', () => {
+    expect(supportsForcedToolUse('unknown-model')).toBe(false)
   })
 })
 
