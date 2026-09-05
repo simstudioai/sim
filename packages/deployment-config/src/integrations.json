@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,161 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_platform",
+      "slug": "oracle-epm-platform",
+      "name": "Oracle EPM Platform",
+      "description": "Administer EPM environments, access, repository files, and migrations",
+      "longDescription": "Use common Oracle EPM administration APIs with a reusable Basic-auth service-account credential. Manage users, groups, roles, security settings, maintenance, repository files, snapshots, and administrative jobs. Operation availability varies by EPM product. Identity-domain user changes affect all environments in that domain. Downloaded output is limited to 100 MiB.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_platform",
+      "operations": [
+        {
+          "name": "Get Environment Info",
+          "description": "Read the environment build version, daily maintenance start time, and time zone. Requires Service Administrator or Migrations - Administer."
+        },
+        {
+          "name": "Get Idle Session Timeout",
+          "description": "Read the environment idle-session timeout in minutes. Requires Service Administrator."
+        },
+        {
+          "name": "Set Idle Session Timeout",
+          "description": "Set the environment idle-session timeout (15–480 minutes). Takes effect after the next daily maintenance. Requires Service Administrator."
+        },
+        {
+          "name": "Set Maintenance Window",
+          "description": "Set the environment daily maintenance start time. Requires Service Administrator or Migrations - Administer."
+        },
+        {
+          "name": "Run Daily Maintenance",
+          "description": "Start daily maintenance now, which can make the environment unavailable. Optionally skip the next scheduled maintenance. Requires Service Administrator or Migrations - Administer."
+        },
+        {
+          "name": "Get Restricted Data Access",
+          "description": "Read whether users are prevented from submitting an application snapshot through Provide Feedback. This setting is not an application data-permission report. Requires Service Administrator."
+        },
+        {
+          "name": "Set Restricted Data Access",
+          "description": "Control whether application snapshots may be submitted through Provide Feedback. Requires Service Administrator."
+        },
+        {
+          "name": "Get Upload Virus Scan",
+          "description": "Read the environment upload virus-scanning setting. Requires Service Administrator."
+        },
+        {
+          "name": "Set Upload Virus Scan",
+          "description": "Enable or disable virus scanning on uploaded files. Requires Service Administrator."
+        },
+        {
+          "name": "List Users",
+          "description": "List environment users, optionally including their groups and roles. Requires Service Administrator or Access Control - Manage/View with an application role. Oracle documents no pagination."
+        },
+        {
+          "name": "Create Users",
+          "description": "Create users in the identity domain, not just this environment. Requires Identity Domain Administrator and an application role. Password-bearing input is operator-controlled; passwords are never returned. Inspect batch failures."
+        },
+        {
+          "name": "Update Users",
+          "description": "Update identity-domain users. Changes affect every environment in that identity domain. Requires Identity Domain Administrator and an application role. Password changes are not supported by this operation."
+        },
+        {
+          "name": "Delete Users",
+          "description": "Remove users from the identity domain, affecting every environment in that domain. Requires Identity Domain Administrator and an application role. Inspect per-user failures."
+        },
+        {
+          "name": "List Groups",
+          "description": "List environment groups and optionally members and roles. Requires Service Administrator or Access Control - Manage/View with an application role. No type filter is sent."
+        },
+        {
+          "name": "Create Groups",
+          "description": "Create EPM groups and optionally add existing user/group members. Requires Service Administrator or Access Control - Manage with an application role. Nested member failures are returned."
+        },
+        {
+          "name": "Delete Groups",
+          "description": "Delete EPM groups. Requires Service Administrator or Access Control - Manage with an application role. Inspect per-group failures."
+        },
+        {
+          "name": "Add Users to Group",
+          "description": "Add existing users to an EPM group. Requires Service Administrator or Access Control - Manage with an application role."
+        },
+        {
+          "name": "Remove Users from Group",
+          "description": "Remove users from an EPM group without deleting their identity-domain accounts. Requires Service Administrator or Access Control - Manage with an application role."
+        },
+        {
+          "name": "List Roles",
+          "description": "List available application and granular roles for this EPM product. Requires Service Administrator or Access Control - Manage with an application role. Role names are product-specific."
+        },
+        {
+          "name": "Assign Role",
+          "description": "Assign an application or granular role to existing users. Application roles require Service Administrator, or Identity Domain Administrator plus an application role. Granular roles require Service Administrator, or an application role plus Access Control - Manage."
+        },
+        {
+          "name": "Unassign Role",
+          "description": "Unassign an application or granular role from users. Application roles require Service Administrator, or Identity Domain Administrator plus an application role. Granular roles require Service Administrator, or an application role plus Access Control - Manage."
+        },
+        {
+          "name": "Get Role Assignments",
+          "description": "Get environment role assignments. A report filtered to one user can lag recent changes; omit userlogin for updated all-user data. Requires Service Administrator or Access Control - Manage/View with an application role."
+        },
+        {
+          "name": "Get User Group Report",
+          "description": "Report direct and indirect environment group memberships. Requires Service Administrator or Access Control - Manage/View with an application role."
+        },
+        {
+          "name": "List Files",
+          "description": "List repository files and Migration snapshots with documented sizes and timestamps. LCM sizes are unavailable. Requires Service Administrator or Migrations - Administer with an application role."
+        },
+        {
+          "name": "Delete File",
+          "description": "Delete a repository file or snapshot, not a folder. Requires Service Administrator or Migrations - Administer with an application role."
+        },
+        {
+          "name": "Upload Repository File",
+          "description": "Upload one authorized Sim UserFile of at most 100 MiB to the repository. Existing files are not overwritten. For large snapshots use Upload Snapshot. Requires Service Administrator or Migrations - Administer with an application role."
+        },
+        {
+          "name": "Download File",
+          "description": "Download a current repository file or snapshot to a Sim UserFile, with a strict 100 MiB output limit. Poll snapshot compression when necessary and clean up the operation-owned temporary download. Requires Service Administrator or Migrations - Administer with an application role."
+        },
+        {
+          "name": "Get Snapshot",
+          "description": "Read documented snapshot capabilities (export, import, upload, download). Requires Service Administrator. Does not inspect product-specific artifact schemas."
+        },
+        {
+          "name": "Export Snapshot",
+          "description": "Repeat an export using the existing snapshot export settings configured in Migration. This does not create arbitrary export definitions. Requires Service Administrator or Migrations - Administer."
+        },
+        {
+          "name": "Import Snapshot",
+          "description": "Import a Migration snapshot into this environment. Requires Service Administrator or Migrations - Administer; importing identity-domain users and application roles additionally requires Identity Domain Administrator."
+        },
+        {
+          "name": "Rename Snapshot",
+          "description": "Rename an existing Migration snapshot. Requires Service Administrator or Migrations - Administer. This operation returns its synchronous outcome."
+        },
+        {
+          "name": "List Migrations",
+          "description": "List artifact migration history and per-component error/warning counts. Requires Service Administrator. Status text is provider-defined; nested message payloads are not exposed as untyped JSON."
+        },
+        {
+          "name": "Upload Snapshot",
+          "description": "Upload a Migration snapshot ZIP from an authorized Sim UserFile, up to 5 GiB, in sequential chunks of at most 50 MiB. Existing files are not overwritten. Return the extraction job when asynchronous. Requires Service Administrator or Migrations - Administer."
+        },
+        {
+          "name": "Get Admin Job Status",
+          "description": "Read an administrative migration, maintenance, or snapshot-upload extraction job. Defaults to one status read. Optional waiting is bounded to two minutes and the remaining execution deadline."
+        }
+      ],
+      "operationCount": 34,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["security", "automation", "monitoring"]
     },
     {
       "type": "netsuite",
