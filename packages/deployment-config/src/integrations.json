@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,145 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_service",
+      "slug": "oracle-fusion-service",
+      "name": "Oracle Fusion Service",
+      "description": "Manage Fusion Service requests, routing, and support context",
+      "longDescription": "Connect a stored Oracle Fusion service account to the Sales and Fusion Service ADF REST API (crmRestApi, 11.13.18.05). Manage service requests, status transitions, queue assignment, contacts, and team memberships. Read customer accounts, contacts, agent resources, business units, messages, internal notes, and interaction references. Directory records remain read-only. This is not Oracle B2C Service and does not implement Fusion Sales workflows. Message/note writes, sending email, attachments, and knowledge endpoints are not supported.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_service",
+      "operations": [
+        {
+          "name": "List Service Requests",
+          "description": "Read one page of Oracle Fusion Service service requests."
+        },
+        {
+          "name": "Get Service Request",
+          "description": "Read one Oracle Fusion Service service request."
+        },
+        {
+          "name": "List Accounts",
+          "description": "Read one page of Oracle Fusion Service accounts. Customer master is read-only in this integration."
+        },
+        {
+          "name": "Get Account",
+          "description": "Read one Oracle Fusion Service account. Customer master is read-only in this integration."
+        },
+        {
+          "name": "List Contacts",
+          "description": "Read one page of Oracle Fusion Service contacts. Customer master is read-only in this integration."
+        },
+        {
+          "name": "Get Contact",
+          "description": "Read one Oracle Fusion Service contact. Customer master is read-only in this integration."
+        },
+        {
+          "name": "List Queues",
+          "description": "Read one page of Oracle Fusion Service queues."
+        },
+        {
+          "name": "Get Queue",
+          "description": "Read one Oracle Fusion Service queue."
+        },
+        {
+          "name": "List Resources",
+          "description": "Read one page of Oracle Fusion Service resources."
+        },
+        {
+          "name": "Get Resource",
+          "description": "Read one Oracle Fusion Service resource."
+        },
+        {
+          "name": "List Service Business Units",
+          "description": "Read one page of Oracle Fusion Service service business units."
+        },
+        {
+          "name": "Get Service Business Unit",
+          "description": "Read one Oracle Fusion Service service business unit."
+        },
+        {
+          "name": "List Service Request Statuses",
+          "description": "Read one page of Oracle Fusion Service service request statuses. Returns enabled tenant status codes using Oracle's service-request status finder."
+        },
+        {
+          "name": "List Service Request Contacts",
+          "description": "Read one page of Oracle Fusion Service service request contacts."
+        },
+        {
+          "name": "Get Service Request Contact",
+          "description": "Read one Oracle Fusion Service service request contact."
+        },
+        {
+          "name": "List Service Request Resources",
+          "description": "Read one page of Oracle Fusion Service service request resources."
+        },
+        {
+          "name": "Get Service Request Resource",
+          "description": "Read one Oracle Fusion Service service request resource."
+        },
+        {
+          "name": "List Service Request Messages",
+          "description": "Read one page of Oracle Fusion Service service request messages. Includes message and internal-note content exactly as returned by Oracle, without encoding conversion."
+        },
+        {
+          "name": "Get Service Request Message",
+          "description": "Read one Oracle Fusion Service service request message. Includes message and internal-note content exactly as returned by Oracle, without encoding conversion."
+        },
+        {
+          "name": "List Service Request Interactions",
+          "description": "Read one page of Oracle Fusion Service service request interactions."
+        },
+        {
+          "name": "Get Service Request Interaction",
+          "description": "Read one Oracle Fusion Service service request interaction."
+        },
+        {
+          "name": "Create Service Request",
+          "description": "Create a Fusion Service request with a title and service business unit. Customer and routing references use exact decimal IDs."
+        },
+        {
+          "name": "Update Service Request",
+          "description": "Update a Fusion Service request description, customer references, severity, or channel. Use the dedicated tools for status transitions and assignment."
+        },
+        {
+          "name": "Transition Service Request Status",
+          "description": "Change a Fusion Service request to a tenant-defined status, optionally recording resolution details. Oracle enforces transition permissions and rules."
+        },
+        {
+          "name": "Assign Service Request",
+          "description": "Assign a Fusion Service request to a queue, an agent resource, or both. Resource PartyId maps to AssigneeResourceId."
+        },
+        {
+          "name": "Run Queue Assignment",
+          "description": "Run Oracle automatic queue assignment for one service request. Returns Oracle's documented string result without interpreting it."
+        },
+        {
+          "name": "Add Service Request Contact",
+          "description": "Add an existing contact as a service request member. This does not create or modify the customer-master contact."
+        },
+        {
+          "name": "Remove Service Request Contact",
+          "description": "Remove a service request contact membership by MemberId. This does not delete the customer-master contact."
+        },
+        {
+          "name": "Add Service Request Resource",
+          "description": "Add an existing resource to a service request team using its PartyId. This does not create an agent."
+        },
+        {
+          "name": "Remove Service Request Resource",
+          "description": "Remove a resource membership from a service request team by MemberId. This does not delete the agent."
+        }
+      ],
+      "operationCount": 30,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "support",
+      "tags": ["customer-support", "ticketing", "automation"]
     },
     {
       "type": "netsuite",

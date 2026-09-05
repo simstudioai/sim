@@ -3373,6 +3373,38 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleFusionServiceAddServiceRequestContactTool,
+  oracleFusionServiceAddServiceRequestResourceTool,
+  oracleFusionServiceAssignServiceRequestTool,
+  oracleFusionServiceCreateServiceRequestTool,
+  oracleFusionServiceGetAccountTool,
+  oracleFusionServiceGetContactTool,
+  oracleFusionServiceGetQueueTool,
+  oracleFusionServiceGetResourceTool,
+  oracleFusionServiceGetServiceBusinessUnitTool,
+  oracleFusionServiceGetServiceRequestContactTool,
+  oracleFusionServiceGetServiceRequestInteractionTool,
+  oracleFusionServiceGetServiceRequestMessageTool,
+  oracleFusionServiceGetServiceRequestResourceTool,
+  oracleFusionServiceGetServiceRequestTool,
+  oracleFusionServiceListAccountsTool,
+  oracleFusionServiceListContactsTool,
+  oracleFusionServiceListQueuesTool,
+  oracleFusionServiceListResourcesTool,
+  oracleFusionServiceListServiceBusinessUnitsTool,
+  oracleFusionServiceListServiceRequestContactsTool,
+  oracleFusionServiceListServiceRequestInteractionsTool,
+  oracleFusionServiceListServiceRequestMessagesTool,
+  oracleFusionServiceListServiceRequestResourcesTool,
+  oracleFusionServiceListServiceRequestStatusesTool,
+  oracleFusionServiceListServiceRequestsTool,
+  oracleFusionServiceRemoveServiceRequestContactTool,
+  oracleFusionServiceRemoveServiceRequestResourceTool,
+  oracleFusionServiceRunQueueAssignmentTool,
+  oracleFusionServiceTransitionServiceRequestStatusTool,
+  oracleFusionServiceUpdateServiceRequestTool,
+} from '@/tools/oracle_fusion_service'
+import {
   outlookCalendarCreateEventTool,
   outlookCalendarDeleteEventTool,
   outlookCalendarGetEventTool,
@@ -9822,6 +9854,51 @@ export const tools: Record<string, ExecutableToolConfig> = {
   microsoft_teams_list_teams: microsoftTeamsListTeamsTool,
   microsoft_teams_list_chats: microsoftTeamsListChatsTool,
   microsoft_teams_list_channels: microsoftTeamsListChannelsTool,
+  oracle_fusion_service_list_service_requests: oracleFusionServiceListServiceRequestsTool,
+  oracle_fusion_service_get_service_request: oracleFusionServiceGetServiceRequestTool,
+  oracle_fusion_service_list_accounts: oracleFusionServiceListAccountsTool,
+  oracle_fusion_service_get_account: oracleFusionServiceGetAccountTool,
+  oracle_fusion_service_list_contacts: oracleFusionServiceListContactsTool,
+  oracle_fusion_service_get_contact: oracleFusionServiceGetContactTool,
+  oracle_fusion_service_list_queues: oracleFusionServiceListQueuesTool,
+  oracle_fusion_service_get_queue: oracleFusionServiceGetQueueTool,
+  oracle_fusion_service_list_resources: oracleFusionServiceListResourcesTool,
+  oracle_fusion_service_get_resource: oracleFusionServiceGetResourceTool,
+  oracle_fusion_service_list_service_business_units:
+    oracleFusionServiceListServiceBusinessUnitsTool,
+  oracle_fusion_service_get_service_business_unit: oracleFusionServiceGetServiceBusinessUnitTool,
+  oracle_fusion_service_list_service_request_statuses:
+    oracleFusionServiceListServiceRequestStatusesTool,
+  oracle_fusion_service_list_service_request_contacts:
+    oracleFusionServiceListServiceRequestContactsTool,
+  oracle_fusion_service_get_service_request_contact:
+    oracleFusionServiceGetServiceRequestContactTool,
+  oracle_fusion_service_list_service_request_resources:
+    oracleFusionServiceListServiceRequestResourcesTool,
+  oracle_fusion_service_get_service_request_resource:
+    oracleFusionServiceGetServiceRequestResourceTool,
+  oracle_fusion_service_list_service_request_messages:
+    oracleFusionServiceListServiceRequestMessagesTool,
+  oracle_fusion_service_get_service_request_message:
+    oracleFusionServiceGetServiceRequestMessageTool,
+  oracle_fusion_service_list_service_request_interactions:
+    oracleFusionServiceListServiceRequestInteractionsTool,
+  oracle_fusion_service_get_service_request_interaction:
+    oracleFusionServiceGetServiceRequestInteractionTool,
+  oracle_fusion_service_create_service_request: oracleFusionServiceCreateServiceRequestTool,
+  oracle_fusion_service_update_service_request: oracleFusionServiceUpdateServiceRequestTool,
+  oracle_fusion_service_transition_service_request_status:
+    oracleFusionServiceTransitionServiceRequestStatusTool,
+  oracle_fusion_service_assign_service_request: oracleFusionServiceAssignServiceRequestTool,
+  oracle_fusion_service_run_queue_assignment: oracleFusionServiceRunQueueAssignmentTool,
+  oracle_fusion_service_add_service_request_contact:
+    oracleFusionServiceAddServiceRequestContactTool,
+  oracle_fusion_service_remove_service_request_contact:
+    oracleFusionServiceRemoveServiceRequestContactTool,
+  oracle_fusion_service_add_service_request_resource:
+    oracleFusionServiceAddServiceRequestResourceTool,
+  oracle_fusion_service_remove_service_request_resource:
+    oracleFusionServiceRemoveServiceRequestResourceTool,
   outlook_read: outlookReadTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,

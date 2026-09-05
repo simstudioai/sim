@@ -752,6 +752,39 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const ORACLE_FUSION_SERVICE_TOOL_IDS = [
+  'oracle_fusion_service_list_service_requests',
+  'oracle_fusion_service_get_service_request',
+  'oracle_fusion_service_list_accounts',
+  'oracle_fusion_service_get_account',
+  'oracle_fusion_service_list_contacts',
+  'oracle_fusion_service_get_contact',
+  'oracle_fusion_service_list_queues',
+  'oracle_fusion_service_get_queue',
+  'oracle_fusion_service_list_resources',
+  'oracle_fusion_service_get_resource',
+  'oracle_fusion_service_list_service_business_units',
+  'oracle_fusion_service_get_service_business_unit',
+  'oracle_fusion_service_list_service_request_statuses',
+  'oracle_fusion_service_list_service_request_contacts',
+  'oracle_fusion_service_get_service_request_contact',
+  'oracle_fusion_service_list_service_request_resources',
+  'oracle_fusion_service_get_service_request_resource',
+  'oracle_fusion_service_list_service_request_messages',
+  'oracle_fusion_service_get_service_request_message',
+  'oracle_fusion_service_list_service_request_interactions',
+  'oracle_fusion_service_get_service_request_interaction',
+  'oracle_fusion_service_create_service_request',
+  'oracle_fusion_service_update_service_request',
+  'oracle_fusion_service_transition_service_request_status',
+  'oracle_fusion_service_assign_service_request',
+  'oracle_fusion_service_run_queue_assignment',
+  'oracle_fusion_service_add_service_request_contact',
+  'oracle_fusion_service_remove_service_request_contact',
+  'oracle_fusion_service_add_service_request_resource',
+  'oracle_fusion_service_remove_service_request_resource',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1282,6 +1315,11 @@ function registerFamily(
 }
 
 const handlerLoaders = new Map<string, InternalToolOperationHandlerLoader>()
+
+registerFamily(handlerLoaders, ORACLE_FUSION_SERVICE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-service/execute-tool'))
+    .executeOracleFusionServiceTool
+})
 
 registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
   return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool

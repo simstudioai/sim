@@ -1,0 +1,682 @@
+---
+title: Oracle Fusion Service
+description: Manage Fusion Service requests, routing, and support context
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_service"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a stored Oracle Fusion service account to the Sales and Fusion Service ADF REST API (crmRestApi, 11.13.18.05). Manage service requests, status transitions, queue assignment, contacts, and team memberships. Read customer accounts, contacts, agent resources, business units, messages, internal notes, and interaction references. Directory records remain read-only. This is not Oracle B2C Service and does not implement Fusion Sales workflows. Message/note writes, sending email, attachments, and knowledge endpoints are not supported.
+
+
+
+## Actions
+
+### Oracle Fusion Service List Service Requests
+
+Read one page of Oracle Fusion Service service requests.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Service Request
+
+Read one Oracle Fusion Service service request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Accounts
+
+Read one page of Oracle Fusion Service accounts. Customer master is read-only in this integration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Account
+
+Read one Oracle Fusion Service account. Customer master is read-only in this integration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `partyNumber` | string | Yes | Directory PartyNumber, not the numeric PartyId returned by assignment selectors. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Contacts
+
+Read one page of Oracle Fusion Service contacts. Customer master is read-only in this integration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Contact
+
+Read one Oracle Fusion Service contact. Customer master is read-only in this integration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `partyNumber` | string | Yes | Directory PartyNumber, not the numeric PartyId returned by assignment selectors. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Queues
+
+Read one page of Oracle Fusion Service queues.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Queue
+
+Read one Oracle Fusion Service queue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `queueId` | string | Yes | QueueId as an exact decimal string. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Resources
+
+Read one page of Oracle Fusion Service resources.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Resource
+
+Read one Oracle Fusion Service resource.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `partyNumber` | string | Yes | Directory PartyNumber, not the numeric PartyId returned by assignment selectors. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Service Business Units
+
+Read one page of Oracle Fusion Service service business units.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Service Business Unit
+
+Read one Oracle Fusion Service service business unit.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `businessUnitId` | string | Yes | Service business unit BUOrgId as an exact decimal string. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Service Request Statuses
+
+Read one page of Oracle Fusion Service service request statuses. Returns enabled tenant status codes using Oracle's service-request status finder.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service List Service Request Contacts
+
+Read one page of Oracle Fusion Service service request contacts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Service Request Contact
+
+Read one Oracle Fusion Service service request contact.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `memberId` | string | Yes | Service request child MemberId, not the contact or resource PartyId. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Service Request Resources
+
+Read one page of Oracle Fusion Service service request resources.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Service Request Resource
+
+Read one Oracle Fusion Service service request resource.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `memberId` | string | Yes | Service request child MemberId, not the contact or resource PartyId. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Service Request Messages
+
+Read one page of Oracle Fusion Service service request messages. Includes message and internal-note content exactly as returned by Oracle, without encoding conversion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Service Request Message
+
+Read one Oracle Fusion Service service request message. Includes message and internal-note content exactly as returned by Oracle, without encoding conversion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `messageId` | string | Yes | Service request MessageId as an exact decimal string. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service List Service Request Interactions
+
+Read one page of Oracle Fusion Service service request interactions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `q` | string | No | Oracle ADF q filter using documented fields of this resource. |
+| `orderBy` | string | No | Oracle orderBy expression using documented fields of this resource. |
+| `limit` | number | No | Page size, 1–100 \(default 50\). |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `totalResults` | boolean | No | Request Oracle estimated totalResults \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of documented Oracle records. |
+| `count` | number | Records in this page. |
+| `hasMore` | boolean | Whether another page is available. |
+| `limit` | number | Oracle page limit. |
+| `offset` | number | Oracle page offset. |
+| `totalResults` | number | Oracle estimated matching record count when requested. |
+| `nextOffset` | number | Offset for the next page; absent on the final page. |
+
+### Oracle Fusion Service Get Service Request Interaction
+
+Read one Oracle Fusion Service service request interaction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `referenceId` | string | Yes | Service request interaction ReferenceId, not InteractionId. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service Create Service Request
+
+Create a Fusion Service request with a title and service business unit. Customer and routing references use exact decimal IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `title` | string | Yes | Service request title, up to 400 characters. |
+| `businessUnitId` | string | Yes | Service business unit BUOrgId as an exact decimal string. |
+| `problemDescription` | string | No | Problem description, up to 1000 characters. |
+| `accountPartyId` | string | No | Customer account PartyId as an exact decimal string. |
+| `contactPartyId` | string | No | Contact PartyId as an exact decimal string. |
+| `severityCode` | string | No | Tenant severity code from ORA_SVC_SR_SEVERITY_CD. |
+| `channelTypeCode` | string | No | Tenant channel code from ORA_SVC_CHANNEL_TYPE_CD. |
+| `statusCode` | string | No | Tenant service request status LookupCode. Oracle enforces valid transitions. |
+| `queueId` | string | No | QueueId as an exact decimal string. |
+| `resourcePartyId` | string | No | Agent resource PartyId, not ResourceProfileId. Sent as AssigneeResourceId or child ObjectId. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service Update Service Request
+
+Update a Fusion Service request description, customer references, severity, or channel. Use the dedicated tools for status transitions and assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `title` | string | No | Service request title, up to 400 characters. |
+| `problemDescription` | string | No | Problem description, up to 1000 characters. |
+| `accountPartyId` | string | No | Customer account PartyId as an exact decimal string. |
+| `contactPartyId` | string | No | Contact PartyId as an exact decimal string. |
+| `severityCode` | string | No | Tenant severity code from ORA_SVC_SR_SEVERITY_CD. |
+| `channelTypeCode` | string | No | Tenant channel code from ORA_SVC_CHANNEL_TYPE_CD. |
+| `ifMatch` | string | No | Optional Oracle ETag for conditional PATCH or DELETE \(If-Match\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service Transition Service Request Status
+
+Change a Fusion Service request to a tenant-defined status, optionally recording resolution details. Oracle enforces transition permissions and rules.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `statusCode` | string | Yes | Tenant service request status LookupCode. Oracle enforces valid transitions. |
+| `resolveDescription` | string | No | Resolution description, up to 1000 characters. |
+| `resolveOutcomeCode` | string | No | Tenant service request resolution outcome code. |
+| `resolutionCode` | string | No | Tenant resolution code from ORA_SVC_SR_RESOLUTION_CD. |
+| `ifMatch` | string | No | Optional Oracle ETag for conditional PATCH or DELETE \(If-Match\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service Assign Service Request
+
+Assign a Fusion Service request to a queue, an agent resource, or both. Resource PartyId maps to AssigneeResourceId.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `queueId` | string | No | QueueId as an exact decimal string. |
+| `resourcePartyId` | string | No | Agent resource PartyId, not ResourceProfileId. Sent as AssigneeResourceId or child ObjectId. |
+| `ifMatch` | string | No | Optional Oracle ETag for conditional PATCH or DELETE \(If-Match\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service Run Queue Assignment
+
+Run Oracle automatic queue assignment for one service request. Returns Oracle's documented string result without interpreting it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `overrideQueue` | boolean | No | Allow automatic assignment to override the existing queue. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle queue assignment result. |
+
+### Oracle Fusion Service Add Service Request Contact
+
+Add an existing contact as a service request member. This does not create or modify the customer-master contact.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `contactPartyId` | string | Yes | Contact PartyId as an exact decimal string. |
+| `accessLevelCode` | string | No | Service request contact access-level code. |
+| `relationTypeCode` | string | No | Service request contact relationship code. |
+| `primaryContact` | boolean | No | Whether this member is the primary service request contact. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service Remove Service Request Contact
+
+Remove a service request contact membership by MemberId. This does not delete the customer-master contact.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `memberId` | string | Yes | Service request child MemberId, not the contact or resource PartyId. |
+| `ifMatch` | string | No | Optional Oracle ETag for conditional PATCH or DELETE \(If-Match\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the membership was removed. |
+
+### Oracle Fusion Service Add Service Request Resource
+
+Add an existing resource to a service request team using its PartyId. This does not create an agent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `resourcePartyId` | string | Yes | Agent resource PartyId, not ResourceProfileId. Sent as AssigneeResourceId or child ObjectId. |
+| `owner` | boolean | No | Whether this team member is the service request owner. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Documented Oracle resource fields. |
+
+### Oracle Fusion Service Remove Service Request Resource
+
+Remove a resource membership from a service request team by MemberId. This does not delete the agent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Stored Oracle Fusion service-account credential. |
+| `srNumber` | string | Yes | Service request number \(SrNumber\), not the numeric SrId. |
+| `memberId` | string | Yes | Service request child MemberId, not the contact or resource PartyId. |
+| `ifMatch` | string | No | Optional Oracle ETag for conditional PATCH or DELETE \(If-Match\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the membership was removed. |
+
+

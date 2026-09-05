@@ -978,6 +978,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracle_fusion_service: {
+    name: 'Oracle Fusion Service',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_service: {
+        name: 'Oracle Fusion Service',
+        description: 'Manage Fusion Service requests, routing, and support context.',
+        providerId: 'oracle_fusion_service',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_service',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
