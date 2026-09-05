@@ -79,6 +79,11 @@ function executionsPerMinute(perMinute: number): TokenBucketConfig {
  * The floor is deliberately shared by all plans for now. Sizing the slice to
  * the *payer's* own plan needs the subscription, which `preprocessExecution`
  * resolves a few lines after this runs, not here.
+ *
+ * A configured rate of `1` is the one value where this lands equal to the plan
+ * rather than under it, because no positive integer is below 1. It is inert:
+ * a workspace allowed one execution per minute has no capacity left to starve,
+ * and the two buckets then exhaust together rather than one masking the other.
  */
 const CHAT_EXECUTION_RATE_PER_MINUTE = Math.max(
   1,
