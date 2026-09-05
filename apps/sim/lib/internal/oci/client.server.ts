@@ -67,6 +67,7 @@ interface OciRequestBase {
   readonly headers?: Readonly<Record<string, string>>
   readonly timeoutMs: number
   readonly maxResponseBytes: number
+  /** Additional allowlisted headers; `opc-meta-*` selects bounded object metadata. */
   readonly responseHeaders?: readonly string[]
   readonly signal?: AbortSignal
 }
@@ -165,14 +166,33 @@ const SIGNING_CONTROLLED_HEADERS: ReadonlySet<string> = new Set([
   'x-content-sha256',
 ])
 const RESPONSE_HEADER_ALLOWLIST: ReadonlySet<string> = new Set([
+  'archival-state',
+  'cache-control',
+  'content-disposition',
+  'content-encoding',
+  'content-language',
+  'content-length',
+  'content-md5',
   'content-type',
   'etag',
+  'is-delete-marker',
+  'last-modified',
   'location',
+  'opc-content-md5',
+  'opc-multipart-md5',
+  'opc-next-cursor',
   'opc-next-page',
   'opc-request-id',
   'opc-work-request-id',
   'retry-after',
+  'storage-tier',
+  'time-of-archival',
+  'version-id',
 ])
+const OBJECT_METADATA_HEADER_PREFIX = 'opc-meta-'
+const OBJECT_METADATA_HEADER_SELECTOR = 'opc-meta-*'
+const MAX_OBJECT_METADATA_HEADERS = 4096
+const MAX_OBJECT_METADATA_HEADER_BYTES = 64 * 1024
 const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([429, 500, 502, 503, 504])
 const RETRYABLE_TRANSPORT_CODES: ReadonlySet<string> = new Set([
   'ECONNRESET',
@@ -526,7 +546,11 @@ function validateRequest(request: OciRequest): {
     throw new OciClientError('invalid_request')
   }
   for (const name of request.responseHeaders ?? []) {
-    if (typeof name !== 'string' || !RESPONSE_HEADER_ALLOWLIST.has(name.toLowerCase())) {
+    if (
+      typeof name !== 'string' ||
+      (!RESPONSE_HEADER_ALLOWLIST.has(name.toLowerCase()) &&
+        name.toLowerCase() !== OBJECT_METADATA_HEADER_SELECTOR)
+    ) {
       throw new OciClientError('invalid_request')
     }
   }
@@ -586,13 +610,36 @@ function selectedResponseHeaders(
   response: SecureFetchResponse,
   requested: readonly string[]
 ): Readonly<Record<string, string>> {
-  const selected = new Set(['content-type', 'etag', 'opc-request-id', ...requested.map(String)])
+  const selected = new Set([
+    'content-type',
+    'etag',
+    'opc-request-id',
+    ...requested.map((name) => name.toLowerCase()),
+  ])
   const result: Record<string, string> = {}
   for (const name of selected) {
-    const normalized = name.toLowerCase()
-    if (!RESPONSE_HEADER_ALLOWLIST.has(normalized)) continue
-    const value = response.headers.get(normalized)
-    if (value !== null) result[normalized] = value
+    if (!RESPONSE_HEADER_ALLOWLIST.has(name)) continue
+    const value = response.headers.get(name)
+    if (value !== null) result[name] = value
+  }
+  if (selected.has(OBJECT_METADATA_HEADER_SELECTOR)) {
+    let count = 0
+    let bytes = 0
+    for (const [name, value] of response.headers) {
+      const normalized = name.toLowerCase()
+      if (
+        !normalized.startsWith(OBJECT_METADATA_HEADER_PREFIX) ||
+        normalized.length === OBJECT_METADATA_HEADER_PREFIX.length
+      ) {
+        continue
+      }
+      count += 1
+      bytes += Buffer.byteLength(normalized, 'utf8') + Buffer.byteLength(value, 'utf8')
+      if (count > MAX_OBJECT_METADATA_HEADERS || bytes > MAX_OBJECT_METADATA_HEADER_BYTES) {
+        throw new OciClientError('response_too_large')
+      }
+      result[normalized] = value
+    }
   }
   return Object.freeze(result)
 }
