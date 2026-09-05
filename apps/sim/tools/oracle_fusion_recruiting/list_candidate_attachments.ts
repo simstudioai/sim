@@ -12,7 +12,8 @@ export const oracleFusionRecruitingListCandidateAttachmentsTool: InternalToolCon
 > = {
   id: 'oracle_fusion_recruiting_list_candidate_attachments',
   name: 'List Candidate Attachments',
-  description: 'List candidate attachments. Returns metadata only; does not download file contents.',
+  description:
+    'List candidate attachments. Returns metadata only; does not download file contents.',
   ...internalExecution,
   params: {
     ...credentials,

@@ -9,11 +9,15 @@ export const credentials = {
     description: 'Saved Oracle Fusion integration-user credential',
   },
   accessToken: {
-    type: 'string', required: false, visibility: 'hidden',
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
     description: 'Opaque Basic credential injected by the executor',
   },
   instanceUrl: {
-    type: 'string', required: false, visibility: 'hidden',
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
     description: 'Authoritative Oracle Fusion application origin injected by the executor',
   },
 } satisfies ToolConfig['params']

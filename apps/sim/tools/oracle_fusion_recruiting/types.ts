@@ -16,7 +16,11 @@ const pageOutputs = {
   limit: { type: 'number', description: 'Page size reported by Oracle' },
   offset: { type: 'number', description: 'Offset of this page' },
   nextOffset: { type: 'number', description: 'Offset for the next page', optional: true },
-  totalResults: { type: 'number', description: 'Estimated total, when returned by Oracle', optional: true },
+  totalResults: {
+    type: 'number',
+    description: 'Estimated total, when returned by Oracle',
+    optional: true,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 const candidateProperties = {
@@ -49,7 +53,11 @@ const educationProperties = {
   degreeName: { type: 'string', description: 'Degree Name', nullable: true },
   major: { type: 'string', description: 'Major', nullable: true },
   minor: { type: 'string', description: 'Minor', nullable: true },
-  educationalEstablishment: { type: 'string', description: 'Educational Establishment', nullable: true },
+  educationalEstablishment: {
+    type: 'string',
+    description: 'Educational Establishment',
+    nullable: true,
+  },
   startDate: { type: 'string', description: 'Start Date', nullable: true },
   endDate: { type: 'string', description: 'End Date', nullable: true },
   graduatedFlag: { type: 'boolean', description: 'Graduated Flag', nullable: true },
@@ -79,7 +87,11 @@ const attachmentProperties = {
   fileName: { type: 'string', description: 'File Name', nullable: true },
   title: { type: 'string', description: 'Title', nullable: true },
   description: { type: 'string', description: 'Description', nullable: true },
-  uploadedFileContentType: { type: 'string', description: 'Uploaded File Content Type', nullable: true },
+  uploadedFileContentType: {
+    type: 'string',
+    description: 'Uploaded File Content Type',
+    nullable: true,
+  },
   uploadedFileLength: { type: 'number', description: 'Uploaded File Length', nullable: true },
   categoryName: { type: 'string', description: 'Category Name', nullable: true },
   creationDate: { type: 'string', description: 'Creation Date', nullable: true },
@@ -163,7 +175,11 @@ const requisitionTemplateProperties = {
   requisitionNumber: { type: 'string', description: 'Requisition Number', nullable: true },
   name: { type: 'string', description: 'Name', nullable: true },
   title: { type: 'string', description: 'Title', nullable: true },
-  requisitionNameWithNumber: { type: 'string', description: 'Requisition Name With Number', nullable: true },
+  requisitionNameWithNumber: {
+    type: 'string',
+    description: 'Requisition Name With Number',
+    nullable: true,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 const representativeProperties = {
@@ -188,7 +204,11 @@ export interface OracleFusionRecruitingListCandidatesResponse {
   output: PageOutput & { candidates: Schemas.Candidate[] }
 }
 export const LIST_CANDIDATES_OUTPUTS = {
-  candidates: { type: 'array', description: 'Returned candidate records', items: { type: 'object', properties: candidateProperties } },
+  candidates: {
+    type: 'array',
+    description: 'Returned candidate records',
+    items: { type: 'object', properties: candidateProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -269,7 +289,11 @@ export interface OracleFusionRecruitingListCandidatePhonesResponse {
   output: PageOutput & { phones: Schemas.Phone[] }
 }
 export const LIST_CANDIDATE_PHONES_OUTPUTS = {
-  phones: { type: 'array', description: 'Returned phone records', items: { type: 'object', properties: phoneProperties } },
+  phones: {
+    type: 'array',
+    description: 'Returned phone records',
+    items: { type: 'object', properties: phoneProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -350,7 +374,11 @@ export interface OracleFusionRecruitingListCandidateEducationResponse {
   output: PageOutput & { education: Schemas.Education[] }
 }
 export const LIST_CANDIDATE_EDUCATION_OUTPUTS = {
-  education: { type: 'array', description: 'Returned education records', items: { type: 'object', properties: educationProperties } },
+  education: {
+    type: 'array',
+    description: 'Returned education records',
+    items: { type: 'object', properties: educationProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -367,7 +395,11 @@ export interface OracleFusionRecruitingListCandidateExperienceResponse {
   output: PageOutput & { experience: Schemas.Experience[] }
 }
 export const LIST_CANDIDATE_EXPERIENCE_OUTPUTS = {
-  experience: { type: 'array', description: 'Returned experience records', items: { type: 'object', properties: experienceProperties } },
+  experience: {
+    type: 'array',
+    description: 'Returned experience records',
+    items: { type: 'object', properties: experienceProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -384,7 +416,11 @@ export interface OracleFusionRecruitingListCandidateSkillsResponse {
   output: PageOutput & { skills: Schemas.Skill[] }
 }
 export const LIST_CANDIDATE_SKILLS_OUTPUTS = {
-  skills: { type: 'array', description: 'Returned skill records', items: { type: 'object', properties: skillProperties } },
+  skills: {
+    type: 'array',
+    description: 'Returned skill records',
+    items: { type: 'object', properties: skillProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -401,7 +437,11 @@ export interface OracleFusionRecruitingListCandidateAttachmentsResponse {
   output: PageOutput & { attachments: Schemas.Attachment[] }
 }
 export const LIST_CANDIDATE_ATTACHMENTS_OUTPUTS = {
-  attachments: { type: 'array', description: 'Returned attachment records', items: { type: 'object', properties: attachmentProperties } },
+  attachments: {
+    type: 'array',
+    description: 'Returned attachment records',
+    items: { type: 'object', properties: attachmentProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -418,7 +458,11 @@ export interface OracleFusionRecruitingListRequisitionsResponse {
   output: PageOutput & { requisitions: Schemas.Requisition[] }
 }
 export const LIST_REQUISITIONS_OUTPUTS = {
-  requisitions: { type: 'array', description: 'Returned requisition records', items: { type: 'object', properties: requisitionProperties } },
+  requisitions: {
+    type: 'array',
+    description: 'Returned requisition records',
+    items: { type: 'object', properties: requisitionProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -435,7 +479,11 @@ export interface OracleFusionRecruitingGetRequisitionResponse {
   output: { requisition: Schemas.Requisition }
 }
 export const GET_REQUISITION_OUTPUTS = {
-  requisition: { type: 'json', description: 'Returned requisition', properties: requisitionProperties },
+  requisition: {
+    type: 'json',
+    description: 'Returned requisition',
+    properties: requisitionProperties,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type OracleFusionRecruitingCreateRequisitionParams = Omit<
@@ -451,7 +499,11 @@ export interface OracleFusionRecruitingCreateRequisitionResponse {
   output: { requisition: Schemas.Requisition }
 }
 export const CREATE_REQUISITION_OUTPUTS = {
-  requisition: { type: 'json', description: 'Returned requisition', properties: requisitionProperties },
+  requisition: {
+    type: 'json',
+    description: 'Returned requisition',
+    properties: requisitionProperties,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type OracleFusionRecruitingUpdateRequisitionParams = Omit<
@@ -467,7 +519,11 @@ export interface OracleFusionRecruitingUpdateRequisitionResponse {
   output: { requisition: Schemas.Requisition }
 }
 export const UPDATE_REQUISITION_OUTPUTS = {
-  requisition: { type: 'json', description: 'Returned requisition', properties: requisitionProperties },
+  requisition: {
+    type: 'json',
+    description: 'Returned requisition',
+    properties: requisitionProperties,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type OracleFusionRecruitingDeleteRequisitionParams = Omit<
@@ -499,7 +555,11 @@ export interface OracleFusionRecruitingListRequisitionPostingsResponse {
   output: PageOutput & { postings: Schemas.Posting[] }
 }
 export const LIST_REQUISITION_POSTINGS_OUTPUTS = {
-  postings: { type: 'array', description: 'Returned posting records', items: { type: 'object', properties: postingProperties } },
+  postings: {
+    type: 'array',
+    description: 'Returned posting records',
+    items: { type: 'object', properties: postingProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -516,7 +576,11 @@ export interface OracleFusionRecruitingListApplicationsResponse {
   output: PageOutput & { applications: Schemas.Application[] }
 }
 export const LIST_APPLICATIONS_OUTPUTS = {
-  applications: { type: 'array', description: 'Returned application records', items: { type: 'object', properties: applicationProperties } },
+  applications: {
+    type: 'array',
+    description: 'Returned application records',
+    items: { type: 'object', properties: applicationProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -533,7 +597,11 @@ export interface OracleFusionRecruitingGetApplicationResponse {
   output: { application: Schemas.Application }
 }
 export const GET_APPLICATION_OUTPUTS = {
-  application: { type: 'json', description: 'Returned application', properties: applicationProperties },
+  application: {
+    type: 'json',
+    description: 'Returned application',
+    properties: applicationProperties,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type OracleFusionRecruitingListOffersParams = Omit<
@@ -549,7 +617,11 @@ export interface OracleFusionRecruitingListOffersResponse {
   output: PageOutput & { offers: Schemas.Offer[] }
 }
 export const LIST_OFFERS_OUTPUTS = {
-  offers: { type: 'array', description: 'Returned offer records', items: { type: 'object', properties: offerProperties } },
+  offers: {
+    type: 'array',
+    description: 'Returned offer records',
+    items: { type: 'object', properties: offerProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -582,7 +654,11 @@ export interface OracleFusionRecruitingListInterviewSchedulesResponse {
   output: PageOutput & { interviewSchedules: Schemas.InterviewSchedule[] }
 }
 export const LIST_INTERVIEW_SCHEDULES_OUTPUTS = {
-  interviewSchedules: { type: 'array', description: 'Returned interview schedule records', items: { type: 'object', properties: interviewScheduleProperties } },
+  interviewSchedules: {
+    type: 'array',
+    description: 'Returned interview schedule records',
+    items: { type: 'object', properties: interviewScheduleProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -599,7 +675,11 @@ export interface OracleFusionRecruitingGetInterviewScheduleResponse {
   output: { interviewSchedule: Schemas.InterviewSchedule }
 }
 export const GET_INTERVIEW_SCHEDULE_OUTPUTS = {
-  interviewSchedule: { type: 'json', description: 'Returned interview schedule', properties: interviewScheduleProperties },
+  interviewSchedule: {
+    type: 'json',
+    description: 'Returned interview schedule',
+    properties: interviewScheduleProperties,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type OracleFusionRecruitingListRequisitionTemplatesParams = Omit<
@@ -615,7 +695,11 @@ export interface OracleFusionRecruitingListRequisitionTemplatesResponse {
   output: PageOutput & { requisitionTemplates: Schemas.RequisitionTemplate[] }
 }
 export const LIST_REQUISITION_TEMPLATES_OUTPUTS = {
-  requisitionTemplates: { type: 'array', description: 'Returned requisition template records', items: { type: 'object', properties: requisitionTemplateProperties } },
+  requisitionTemplates: {
+    type: 'array',
+    description: 'Returned requisition template records',
+    items: { type: 'object', properties: requisitionTemplateProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
 
@@ -632,7 +716,10 @@ export interface OracleFusionRecruitingListRecruitingRepresentativesResponse {
   output: PageOutput & { representatives: Schemas.Representative[] }
 }
 export const LIST_RECRUITING_REPRESENTATIVES_OUTPUTS = {
-  representatives: { type: 'array', description: 'Returned representative records', items: { type: 'object', properties: representativeProperties } },
+  representatives: {
+    type: 'array',
+    description: 'Returned representative records',
+    items: { type: 'object', properties: representativeProperties },
+  },
   ...pageOutputs,
 } satisfies Record<string, ToolOutputProperty>
-

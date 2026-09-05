@@ -12,7 +12,8 @@ export const oracleFusionRecruitingGetInterviewScheduleTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_recruiting_get_interview_schedule',
   name: 'Get Interview Schedule',
-  description: 'Get interview schedule. Returns schedule lookup metadata, not interview appointments.',
+  description:
+    'Get interview schedule. Returns schedule lookup metadata, not interview appointments.',
   ...internalExecution,
   params: {
     ...credentials,

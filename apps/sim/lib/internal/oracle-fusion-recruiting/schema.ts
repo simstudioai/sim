@@ -521,4 +521,3 @@ export const listRecruitingRepresentativesSchema = baseSchema.extend({
   search: searchSchema,
 })
 export type ListRecruitingRepresentativesInput = z.infer<typeof listRecruitingRepresentativesSchema>
-

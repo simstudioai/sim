@@ -1,4 +1,9 @@
-import { credentials, internalExecution, page, search } from '@/tools/oracle_fusion_recruiting/common'
+import {
+  credentials,
+  internalExecution,
+  page,
+  search,
+} from '@/tools/oracle_fusion_recruiting/common'
 import {
   LIST_INTERVIEW_SCHEDULES_OUTPUTS,
   type OracleFusionRecruitingListInterviewSchedulesParams,
@@ -12,7 +17,8 @@ export const oracleFusionRecruitingListInterviewSchedulesTool: InternalToolConfi
 > = {
   id: 'oracle_fusion_recruiting_list_interview_schedules',
   name: 'List Interview Schedules',
-  description: 'List interview schedules. Returns schedule lookup metadata, not interview appointments.',
+  description:
+    'List interview schedules. Returns schedule lookup metadata, not interview appointments.',
   ...internalExecution,
   params: {
     ...credentials,

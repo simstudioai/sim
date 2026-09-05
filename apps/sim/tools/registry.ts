@@ -5784,7 +5784,6 @@ import {
 
 // Registry of all available tools
 export const tools: Record<string, ExecutableToolConfig> = {
-
   a2a_cancel_task: a2aCancelTaskTool,
   a2a_get_agent_card: a2aGetAgentCardTool,
   a2a_get_task: a2aGetTaskTool,

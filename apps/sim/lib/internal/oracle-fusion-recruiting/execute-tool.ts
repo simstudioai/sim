@@ -211,6 +211,9 @@ export const executeOracleFusionRecruitingTool: InternalToolOperationHandler = a
         signal
       )
     default:
-      return Response.json({ success: false, error: 'Unsupported Oracle Fusion Recruiting tool' }, { status: 400 })
+      return Response.json(
+        { success: false, error: 'Unsupported Oracle Fusion Recruiting tool' },
+        { status: 400 }
+      )
   }
 }

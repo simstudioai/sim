@@ -246,4 +246,3 @@ export function projectRepresentative(value: unknown): Schemas.Representative {
     workEmailAddress: text(item.WorkEmailAddress),
   }
 }
-

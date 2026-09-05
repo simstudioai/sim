@@ -120,10 +120,12 @@ describe('service-account coverage', () => {
       serviceAccountProviderId: 'oracle-fusion-service-account',
       authType: 'service_account',
     })
-    expect(credentialProviderMatchesService(
+    expect(
+      credentialProviderMatchesService(
         'oracle-fusion-service-account',
         OAUTH_PROVIDERS.oracle_fusion.services.oracle_fusion_recruiting
-      )).toBe(true)
+      )
+    ).toBe(true)
   })
 
   it('pins the table to exactly the registered service-account provider ids', () => {

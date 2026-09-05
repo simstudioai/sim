@@ -16,7 +16,13 @@ export const oracleFusionRecruitingCreateRequisitionTool: InternalToolConfig<
   ...internalExecution,
   params: {
     ...credentials,
-    body: { type: 'json', required: true, visibility: 'user-or-llm', description: 'Documented Oracle fields: Title, RequisitionNumber, RecruitingType, HiringManagerId, RecruiterId, PrimaryLocationId, PhaseId, StateId, UnlimitedOpenings, NumberOfOpenings, TemplateId, HiringManagerAssignmentId, RecruiterAssignmentId, BusinessUnitId, DepartmentId, JobId, JobFamilyId, PositionId, GradeId, LegalEmployerId, OrganizationId, PrimaryWorkLocationId, CandidateSelectionProcessId, WorkerType, JobType, FullTimeOrPartTime, RegularOrTemporary, WorkplaceTypeCode, BusinessJustification, ExternalContactName, ExternalContactEmail, InternalContactName, InternalContactEmail. Int64 IDs must be decimal strings. Required: HiringManagerId, PhaseId, PrimaryLocationId, RecruiterId, RecruitingType, StateId, Title, UnlimitedOpenings.' },
+    body: {
+      type: 'json',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Documented Oracle fields: Title, RequisitionNumber, RecruitingType, HiringManagerId, RecruiterId, PrimaryLocationId, PhaseId, StateId, UnlimitedOpenings, NumberOfOpenings, TemplateId, HiringManagerAssignmentId, RecruiterAssignmentId, BusinessUnitId, DepartmentId, JobId, JobFamilyId, PositionId, GradeId, LegalEmployerId, OrganizationId, PrimaryWorkLocationId, CandidateSelectionProcessId, WorkerType, JobType, FullTimeOrPartTime, RegularOrTemporary, WorkplaceTypeCode, BusinessJustification, ExternalContactName, ExternalContactEmail, InternalContactName, InternalContactEmail. Int64 IDs must be decimal strings. Required: HiringManagerId, PhaseId, PrimaryLocationId, RecruiterId, RecruitingType, StateId, Title, UnlimitedOpenings.',
+    },
   },
   outputs: CREATE_REQUISITION_OUTPUTS,
 }

@@ -23,7 +23,7 @@ export { oracleFusionRecruitingListRecruitingRepresentativesTool } from '@/tools
 export { oracleFusionRecruitingListRequisitionPostingsTool } from '@/tools/oracle_fusion_recruiting/list_requisition_postings'
 export { oracleFusionRecruitingListRequisitionTemplatesTool } from '@/tools/oracle_fusion_recruiting/list_requisition_templates'
 export { oracleFusionRecruitingListRequisitionsTool } from '@/tools/oracle_fusion_recruiting/list_requisitions'
+export * from '@/tools/oracle_fusion_recruiting/types'
 export { oracleFusionRecruitingUpdateCandidateTool } from '@/tools/oracle_fusion_recruiting/update_candidate'
 export { oracleFusionRecruitingUpdateCandidatePhoneTool } from '@/tools/oracle_fusion_recruiting/update_candidate_phone'
 export { oracleFusionRecruitingUpdateRequisitionTool } from '@/tools/oracle_fusion_recruiting/update_requisition'
-export * from '@/tools/oracle_fusion_recruiting/types'

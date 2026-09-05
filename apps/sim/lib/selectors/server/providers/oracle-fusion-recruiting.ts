@@ -76,7 +76,9 @@ const integrationBlockTypes = ['oracle_fusion_recruiting'] as const
 
 export const oracleFusionRecruitingSelectorAttachments = {
   'oracle_fusion_recruiting.candidates': definePreparedSelectorAttachment({
-    credential, destination, integrationBlockTypes,
+    credential,
+    destination,
+    integrationBlockTypes,
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
@@ -110,13 +112,20 @@ export const oracleFusionRecruitingSelectorAttachments = {
         )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
   }),
   'oracle_fusion_recruiting.phones': definePreparedSelectorAttachment({
-    credential, destination, integrationBlockTypes,
+    credential,
+    destination,
+    integrationBlockTypes,
     async execute(args, prepared) {
       if (!prepared.candidateNumber) throw new SelectorContextUnavailableError()
       const parent = { candidateNumber: prepared.candidateNumber }
@@ -152,67 +161,114 @@ export const oracleFusionRecruitingSelectorAttachments = {
         )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
   }),
   'oracle_fusion_recruiting.requisitions': definePreparedSelectorAttachment({
-    credential, destination, integrationBlockTypes,
+    credential,
+    destination,
+    integrationBlockTypes,
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id, false)
-          const result = await operations.executeGetRequisition({ ...prepared, requisitionId: id }, args.signal)
+          const result = await operations.executeGetRequisition(
+            { ...prepared, requisitionId: id },
+            args.signal
+          )
           const item = result.output.requisition
           if (item.requisitionId !== id) throw new SelectorOptionsUnavailableError()
           return detailSelectorResult({ id, label: item.title || id })
         }
-        const result = await operations.executeListRequisitions({
-          ...prepared, limit: 50, offset: parseOffset(args.request.cursor),
-          search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
-        }, args.signal)
+        const result = await operations.executeListRequisitions(
+          {
+            ...prepared,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
+          },
+          args.signal
+        )
         const output = result.output
-        if (output.hasMore && output.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(output.requisitions.map((item) => ({
-          id: item.requisitionId, label: item.title || item.requisitionId,
-        })), output.hasMore ? String(output.nextOffset) : undefined)
+        if (output.hasMore && output.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
+        return listSelectorResult(
+          output.requisitions.map((item) => ({
+            id: item.requisitionId,
+            label: item.title || item.requisitionId,
+          })),
+          output.hasMore ? String(output.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
   }),
   'oracle_fusion_recruiting.applications': definePreparedSelectorAttachment({
-    credential, destination, integrationBlockTypes,
+    credential,
+    destination,
+    integrationBlockTypes,
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id, false)
-          const result = await operations.executeGetApplication({ ...prepared, applicationId: id }, args.signal)
+          const result = await operations.executeGetApplication(
+            { ...prepared, applicationId: id },
+            args.signal
+          )
           const item = result.output.application
           if (item.jobApplicationId !== id) throw new SelectorOptionsUnavailableError()
           return detailSelectorResult({ id, label: item.candidateName || id })
         }
-        const result = await operations.executeListApplications({
-          ...prepared, limit: 50, offset: parseOffset(args.request.cursor),
-          search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
-        }, args.signal)
+        const result = await operations.executeListApplications(
+          {
+            ...prepared,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
+          },
+          args.signal
+        )
         const output = result.output
-        if (output.hasMore && output.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(output.applications.map((item) => ({
-          id: item.jobApplicationId, label: item.candidateName || item.jobApplicationId,
-        })), output.hasMore ? String(output.nextOffset) : undefined)
+        if (output.hasMore && output.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
+        return listSelectorResult(
+          output.applications.map((item) => ({
+            id: item.jobApplicationId,
+            label: item.candidateName || item.jobApplicationId,
+          })),
+          output.hasMore ? String(output.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
   }),
   'oracle_fusion_recruiting.offers': definePreparedSelectorAttachment({
-    credential, destination, integrationBlockTypes,
+    credential,
+    destination,
+    integrationBlockTypes,
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
@@ -222,45 +278,80 @@ export const oracleFusionRecruitingSelectorAttachments = {
           if (item.offerId !== id) throw new SelectorOptionsUnavailableError()
           return detailSelectorResult({ id, label: item.offerName || id })
         }
-        const result = await operations.executeListOffers({
-          ...prepared, limit: 50, offset: parseOffset(args.request.cursor),
-          search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
-        }, args.signal)
+        const result = await operations.executeListOffers(
+          {
+            ...prepared,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
+          },
+          args.signal
+        )
         const output = result.output
-        if (output.hasMore && output.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(output.offers.map((item) => ({
-          id: item.offerId, label: item.offerName || item.offerId,
-        })), output.hasMore ? String(output.nextOffset) : undefined)
+        if (output.hasMore && output.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
+        return listSelectorResult(
+          output.offers.map((item) => ({
+            id: item.offerId,
+            label: item.offerName || item.offerId,
+          })),
+          output.hasMore ? String(output.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },
   }),
   'oracle_fusion_recruiting.interviewSchedules': definePreparedSelectorAttachment({
-    credential, destination, integrationBlockTypes,
+    credential,
+    destination,
+    integrationBlockTypes,
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
           const id = parseId(args.request.id, false)
-          const result = await operations.executeGetInterviewSchedule({ ...prepared, scheduleId: id }, args.signal)
+          const result = await operations.executeGetInterviewSchedule(
+            { ...prepared, scheduleId: id },
+            args.signal
+          )
           const item = result.output.interviewSchedule
           if (item.scheduleId !== id) throw new SelectorOptionsUnavailableError()
           return detailSelectorResult({ id, label: item.scheduleTitle || id })
         }
-        const result = await operations.executeListInterviewSchedules({
-          ...prepared, limit: 50, offset: parseOffset(args.request.cursor),
-          search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
-        }, args.signal)
+        const result = await operations.executeListInterviewSchedules(
+          {
+            ...prepared,
+            limit: 50,
+            offset: parseOffset(args.request.cursor),
+            search: args.request.search ? truncate(args.request.search, 200, '') : undefined,
+          },
+          args.signal
+        )
         const output = result.output
-        if (output.hasMore && output.nextOffset === undefined) throw new SelectorOptionsUnavailableError()
-        return listSelectorResult(output.interviewSchedules.map((item) => ({
-          id: item.scheduleId, label: item.scheduleTitle || item.scheduleId,
-        })), output.hasMore ? String(output.nextOffset) : undefined)
+        if (output.hasMore && output.nextOffset === undefined)
+          throw new SelectorOptionsUnavailableError()
+        return listSelectorResult(
+          output.interviewSchedules.map((item) => ({
+            id: item.scheduleId,
+            label: item.scheduleTitle || item.scheduleId,
+          })),
+          output.hasMore ? String(output.nextOffset) : undefined
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && error instanceof OracleFusionProviderError && error.status === 404) return detailSelectorResult(null)
+        if (
+          args.request.kind === 'detail' &&
+          error instanceof OracleFusionProviderError &&
+          error.status === 404
+        )
+          return detailSelectorResult(null)
         publicError(error)
       }
     },

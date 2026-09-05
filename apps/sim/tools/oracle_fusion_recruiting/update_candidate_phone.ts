@@ -1,8 +1,8 @@
 import { credentials, internalExecution } from '@/tools/oracle_fusion_recruiting/common'
 import {
-  UPDATE_CANDIDATE_PHONE_OUTPUTS,
   type OracleFusionRecruitingUpdateCandidatePhoneParams,
   type OracleFusionRecruitingUpdateCandidatePhoneResponse,
+  UPDATE_CANDIDATE_PHONE_OUTPUTS,
 } from '@/tools/oracle_fusion_recruiting/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -28,7 +28,13 @@ export const oracleFusionRecruitingUpdateCandidatePhoneTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Phone id; use the identifier returned by the matching list tool',
     },
-    body: { type: 'json', required: true, visibility: 'user-or-llm', description: 'Documented Oracle fields: PhoneNumber, CountryCodeNumber, AreaCode, LegislationCode. Int64 IDs must be decimal strings.' },
+    body: {
+      type: 'json',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Documented Oracle fields: PhoneNumber, CountryCodeNumber, AreaCode, LegislationCode. Int64 IDs must be decimal strings.',
+    },
   },
   outputs: UPDATE_CANDIDATE_PHONE_OUTPUTS,
 }
