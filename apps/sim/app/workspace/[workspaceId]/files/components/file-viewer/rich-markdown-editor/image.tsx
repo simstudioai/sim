@@ -135,6 +135,7 @@ export function ResizableImageView({
   // stored value is stale (e.g. left over after the file's content was replaced) — so it wins once
   // available; stored metadata only reserves the box pre-load. Equal in the common case, so no shift.
   const intrinsicDimensions = measuredDimensions ?? storedDimensions
+  const hasPixelHeight = committedHeight !== undefined && PIXEL_SIZE.test(committedHeight)
   const authoredDimensions =
     committedWidth &&
     committedHeight &&
@@ -150,7 +151,7 @@ export function ResizableImageView({
     dragWidth !== null
       ? `${dragWidth}px`
       : (committedWidth ??
-        (intrinsicDimensions
+        (intrinsicDimensions && (!committedHeight || hasPixelHeight)
           ? committedHeight
             ? `calc(${committedHeight} * ${intrinsicDimensions.width / intrinsicDimensions.height})`
             : `${intrinsicDimensions.width}px`
@@ -161,8 +162,11 @@ export function ResizableImageView({
   const imageStyle: CSSProperties = {
     width: displayWidth,
     height:
-      dragWidth === null && committedWidth && !authoredDimensions ? committedHeight : undefined,
-    maxHeight: dragWidth === null && !committedWidth ? committedHeight : undefined,
+      dragWidth === null && !authoredDimensions && (committedWidth || !hasPixelHeight)
+        ? committedHeight
+        : undefined,
+    maxHeight:
+      dragWidth === null && !committedWidth && hasPixelHeight ? committedHeight : undefined,
     aspectRatio: displayDimensions
       ? `${displayDimensions.width} / ${displayDimensions.height}`
       : undefined,
