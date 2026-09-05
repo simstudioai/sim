@@ -1205,6 +1205,22 @@ describe('executeBrowserToolOnClient', () => {
     expect(reported.note).toContain('could not be encoded')
   })
 
+  it('preserves cropped screenshot offsets and explains coordinate conversion', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({
+      dataUrl: 'data:image/jpeg;base64,/9j/4AAQ',
+      clip: { x: 20, y: 30, width: 200, height: 100 },
+      scale: 2,
+    })
+    executeBrowserToolOnClient(nextToolCallId(), 'browser_screenshot', { elementId: 0 })
+    await flush()
+
+    const reported = mockReportCompletion.mock.calls[0][3]
+    expect(reported.clip).toEqual({ x: 20, y: 30, width: 200, height: 100 })
+    expect(reported.scale).toBe(2)
+    expect(reported.content).toContain('cssX = clip.x + imageX / scale')
+    expect(reported.content).toContain('cssY = clip.y + imageY / scale')
+  })
+
   it('gives restored-tab switching the renderer navigation budget', async () => {
     mockExecuteBrowserTool.mockResolvedValue({ tabId: '2', url: 'https://example.com' })
     const toolCallId = nextToolCallId()
