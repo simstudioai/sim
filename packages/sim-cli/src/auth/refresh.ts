@@ -63,7 +63,7 @@ export async function refreshStoredOAuth(
     } catch (error) {
       if (error instanceof OAuthTokenError && error.oauthError === 'invalid_grant') {
         throw new SimApiError(
-          `Your Sim login has expired or was revoked. Run sim logout --profile ${profile.authProfile}, then sim login --profile ${profile.authProfile}.`,
+          `Your Sim login expired, was revoked, or detected refresh-token reuse. Run sim logout --profile ${profile.authProfile}, then sim login --profile ${profile.authProfile}.`,
           401
         )
       }

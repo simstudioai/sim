@@ -445,6 +445,15 @@ export interface SimClientOptions {
  */
 const REFRESH_AHEAD_MS = 5 * 60 * 1000
 
+/** Reads the OAuth error parameter from Sim's Bearer challenge. */
+function bearerChallengeError(header: string | null): string | null {
+  if (!header?.trimStart().toLowerCase().startsWith('bearer')) return null
+  const match = /(?:^|,)\s*error\s*=\s*(?:"([^"]*)"|([^,\s]+))/i.exec(
+    header.replace(/^\s*Bearer\s*/i, '')
+  )
+  return match?.[1] ?? match?.[2] ?? null
+}
+
 export class SimClient {
   private oauth: StoredOAuthCredential | null
   private refreshing: Promise<StoredOAuthCredential> | null = null
@@ -461,7 +470,7 @@ export class SimClient {
     if (this.oauth) return { kind: 'oauth', oauth: this.oauth }
     if (auth === 'optional') return undefined
     throw new SimApiError(
-      `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.name}`,
+      `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.authProfile}`,
       0
     )
   }
@@ -610,7 +619,7 @@ export class SimClient {
       response.status === 401 &&
       credential?.kind === 'oauth' &&
       !retriedAfterRefresh &&
-      /\binvalid_token\b/.test(response.headers.get('www-authenticate') ?? '')
+      bearerChallengeError(response.headers.get('www-authenticate')) === 'invalid_token'
     ) {
       await response.body?.cancel()
       await this.refreshOAuth(credential.oauth)
@@ -621,10 +630,10 @@ export class SimClient {
       const raw = await response.text()
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
       if (response.status === 401) {
-        error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }
       if (namesKeyScopeRefusal(error)) {
-        error.message = `${error.message} — this operation needs a personal API key: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
       }
       throw error
     }

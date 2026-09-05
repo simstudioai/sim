@@ -1,5 +1,5 @@
 {
-  "id": "fe125f60-bf7f-41e4-934b-22b28e2443fd",
+  "id": "da36288c-6d30-4956-bc1d-5157d2131d85",
   "prevId": "db628744-c7d5-4412-b5d0-44cb6ed4368f",
   "version": "7",
   "dialect": "postgresql",
@@ -10785,6 +10785,18 @@
           "type": "text[]",
           "primaryKey": false,
           "notNull": true
+        },
+        "family_id": {
+          "name": "family_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generation": {
+          "name": "generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -10882,6 +10894,15 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "oauth_refresh_token_family_id_oauth_token_family_id_fk": {
+          "name": "oauth_refresh_token_family_id_oauth_token_family_id_fk",
+          "tableFrom": "oauth_refresh_token",
+          "tableTo": "oauth_token_family",
+          "columnsFrom": ["family_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -10890,10 +10911,212 @@
           "name": "oauth_refresh_token_token_unique",
           "nullsNotDistinct": false,
           "columns": ["token"]
+        },
+        "oauth_refresh_token_family_generation_unique": {
+          "name": "oauth_refresh_token_family_generation_unique",
+          "nullsNotDistinct": false,
+          "columns": ["family_id", "generation"]
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "oauth_refresh_token_generation_check": {
+          "name": "oauth_refresh_token_generation_check",
+          "value": "\"oauth_refresh_token\".\"generation\" BETWEEN 0 AND 1000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.oauth_token_family": {
+      "name": "oauth_token_family",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference_id": {
+          "name": "reference_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consent_id": {
+          "name": "consent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_generation": {
+          "name": "current_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "oauth_token_family_client_id_idx": {
+          "name": "oauth_token_family_client_id_idx",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauth_token_family_session_id_idx": {
+          "name": "oauth_token_family_session_id_idx",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauth_token_family_user_client_idx": {
+          "name": "oauth_token_family_user_client_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauth_token_family_consent_id_idx": {
+          "name": "oauth_token_family_consent_id_idx",
+          "columns": [
+            {
+              "expression": "consent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauth_token_family_expires_at_idx": {
+          "name": "oauth_token_family_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "oauth_token_family_client_id_oauth_client_client_id_fk": {
+          "name": "oauth_token_family_client_id_oauth_client_client_id_fk",
+          "tableFrom": "oauth_token_family",
+          "tableTo": "oauth_client",
+          "columnsFrom": ["client_id"],
+          "columnsTo": ["client_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "oauth_token_family_session_id_session_id_fk": {
+          "name": "oauth_token_family_session_id_session_id_fk",
+          "tableFrom": "oauth_token_family",
+          "tableTo": "session",
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "oauth_token_family_user_id_user_id_fk": {
+          "name": "oauth_token_family_user_id_user_id_fk",
+          "tableFrom": "oauth_token_family",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "oauth_token_family_consent_id_oauth_consent_id_fk": {
+          "name": "oauth_token_family_consent_id_oauth_consent_id_fk",
+          "tableFrom": "oauth_token_family",
+          "tableTo": "oauth_consent",
+          "columnsFrom": ["consent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "oauth_token_family_generation_check": {
+          "name": "oauth_token_family_generation_check",
+          "value": "\"oauth_token_family\".\"current_generation\" BETWEEN 0 AND 1000"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.organization": {

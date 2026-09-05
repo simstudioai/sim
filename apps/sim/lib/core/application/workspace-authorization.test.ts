@@ -651,7 +651,7 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
       userId: 'user-1',
       clientId: 'sim-cli',
       tokenId: 'token-1',
-      scopes: ['openid', 'api:read', 'api:write'],
+      scopes: ['offline_access', 'api:read', 'api:write'],
       expiresAt: new Date('2099-01-01T00:00:00.000Z'),
       ...overrides,
     }
@@ -679,7 +679,7 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
 
   it('refuses a token carrying neither API scope before touching the workspace', async () => {
     const failure = await authorizeWorkspaceOperation(
-      token({ scopes: ['openid', 'profile'] }),
+      token({ scopes: ['offline_access'] }),
       readOperation,
       context
     ).catch((error) => error)
@@ -699,7 +699,7 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
   it('leaves the write decision to the surface, admitting a read-only token on a write operation', async () => {
     await expect(
       authorizeWorkspaceOperation(
-        token({ scopes: ['openid', 'api:read'] }),
+        token({ scopes: ['offline_access', 'api:read'] }),
         oauthWriteOperation,
         context
       )
@@ -709,7 +709,7 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
   it('lets api:write satisfy a read operation', async () => {
     await expect(
       authorizeWorkspaceOperation(
-        token({ scopes: ['openid', 'api:write'] }),
+        token({ scopes: ['offline_access', 'api:write'] }),
         readOperation,
         context
       )

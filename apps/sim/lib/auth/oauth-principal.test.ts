@@ -18,7 +18,7 @@ const principal: OAuthAccessTokenPrincipal = {
   userId: 'user-1',
   clientId: 'sim-cli',
   tokenId: 'token-1',
-  scopes: ['openid', 'api:read'],
+  scopes: ['offline_access', 'api:read'],
   expiresAt: new Date('2027-01-01T00:00:00.000Z'),
 }
 
@@ -41,9 +41,7 @@ describe('oauth_access_token principal', () => {
 
   it('round-trips through the execution serialization carrying only the token id', () => {
     const serialized = serializePrincipal(principal)
-    // The exact key set, not a `toMatchObject` subset: the point of the
-    // assertion is that nothing beyond these six fields crosses into an
-    // execution payload, and a subset match would pass however many were added.
+    /** Exact keys ensure no additional principal state crosses the execution boundary. */
     expect(Object.keys(serialized.principal as object).sort()).toEqual([
       'clientId',
       'expiresAt',

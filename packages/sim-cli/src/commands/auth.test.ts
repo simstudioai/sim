@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   listAuthenticationDependents: vi.fn<() => string[]>(() => []),
   listProfiles: vi.fn<() => string[]>(() => []),
   request: vi.fn(),
+  readConfigProfile: vi.fn<() => Record<string, string>>(() => ({})),
   readCredentialsProfile: vi.fn<() => Record<string, string>>(() => ({})),
   discoverOAuthProvider: vi.fn(
     async () => 'unavailable' as 'available' | 'unavailable' | 'unreachable'
@@ -24,11 +25,21 @@ const mocks = vi.hoisted(() => ({
   revokeToken: vi.fn(async () => undefined),
   grantsWriteAccess: vi.fn((scope: string) => scope.split(' ').includes('api:write')),
   resolveAuthenticationProfileName: vi.fn((profile: string) => profile),
-  pollForKey: vi.fn(async () => ({
+  withCredentialsLock: vi.fn((work: () => Promise<unknown>) => work()),
+  pollForKey: vi.fn<
+    () => Promise<{
+      id?: string
+      apiKey: string
+      scope: 'platform' | 'copilot'
+      workspaceBound?: boolean
+      workspaceId?: string
+    }>
+  >(async () => ({
+    id: 'key-id',
     apiKey: 'sim-key',
-    scope: 'platform' as 'platform' | 'copilot',
+    scope: 'platform',
     workspaceBound: false,
-    workspaceId: 'ws_1' as string | undefined,
+    workspaceId: 'ws_1',
   })),
   profileFrom: vi.fn(() => ({
     name: 'default',
@@ -97,6 +108,7 @@ vi.mock('../config/index', async () => ({
   listAuthenticationDependents: mocks.listAuthenticationDependents,
   listProfiles: mocks.listProfiles,
   readCredentialsProfile: mocks.readCredentialsProfile,
+  readConfigProfile: mocks.readConfigProfile,
   oauthIssuerForEndpoint: (endpoint: string) => `${endpoint}/api/auth`,
   /**
    * Derived from the section mock so a test that seeds `{ api_key }` or the
@@ -122,9 +134,9 @@ vi.mock('../config/index', async () => ({
   resolveAuthenticationProfileName: mocks.resolveAuthenticationProfileName,
   writeConfigProfile: mocks.writeConfigProfile,
   writeCredentialsProfile: mocks.writeCredentialsProfile,
-  // Pass-through: the real lock is exercised in profile.test.ts; here it only
-  // has to not swallow the writes these tests assert on.
-  withCredentialsLock: <T>(work: () => Promise<T>) => work(),
+  /** The real lock is exercised in profile.test.ts; command tests preserve observable writes. */
+  withCredentialsLock: mocks.withCredentialsLock,
+  withProfileLoginLease: <T>(_profile: string, work: () => Promise<T>) => work(),
 }))
 vi.mock('../context', () => ({
   globalsOf: (command: Command) => command.optsWithGlobals(),
@@ -169,10 +181,15 @@ async function logout(...args: string[]): Promise<void> {
   await root.parseAsync(['node', 'sim', 'logout', ...args])
 }
 
+beforeEach(() => {
+  mocks.withCredentialsLock.mockImplementation((work) => work())
+})
+
 describe('login command', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.listProfiles.mockReturnValue([])
+    mocks.readConfigProfile.mockReturnValue({})
     mocks.readCredentialsProfile.mockReturnValue({})
     mocks.resolveAuthenticationProfileName.mockImplementation((profile) => profile)
     mocks.profileFrom.mockReturnValue({
@@ -189,6 +206,7 @@ describe('login command', () => {
       },
     })
     mocks.pollForKey.mockResolvedValue({
+      id: 'key-id',
       apiKey: 'sim-key',
       scope: 'platform',
       workspaceBound: false,
@@ -305,9 +323,7 @@ describe('login command', () => {
     expect(mocks.createAuthRequest).toHaveBeenCalledOnce()
   })
 
-  it('writes the endpoint before the key, so a failed write cannot strand one', async () => {
-    // A key on disk with no endpoint beside it falls back to the default host
-    // on the next command, which would send a self-hosted key elsewhere.
+  it('clears the previous key before changing its endpoint', async () => {
     setInteractive(false)
     const order: string[] = []
     mocks.writeConfigProfile.mockImplementation(() => {
@@ -319,7 +335,31 @@ describe('login command', () => {
 
     await login()
 
-    expect(order).toEqual(['config', 'credentials'])
+    expect(order).toEqual(['credentials', 'config', 'credentials'])
+  })
+
+  it('restores settings and reports a minted handoff key when credential storage fails', async () => {
+    setInteractive(false)
+    mocks.writeCredentialsProfile
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw new Error('credentials disk full')
+      })
+
+    await expect(login()).rejects.toThrow('credentials disk full')
+
+    expect(mocks.writeConfigProfile).toHaveBeenNthCalledWith(1, 'default', {
+      endpoint: 'https://sim.ai',
+      workspace: 'ws_1',
+    })
+    expect(mocks.writeConfigProfile).toHaveBeenNthCalledWith(2, 'default', {
+      endpoint: null,
+      workspace: null,
+    })
+    expect(mocks.writeCredentialsProfile).toHaveBeenLastCalledWith('default', null)
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+      'API key key-id was created but could not be stored safely'
+    )
   })
 
   it('stores nothing when the server answers with an unstorable workspace id', async () => {
@@ -490,6 +530,61 @@ describe('profiles command', () => {
       workspace: 'ws_acme',
     })
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it('refuses to create a dangling alias when logout wins the credential lock', async () => {
+    mocks.withCredentialsLock.mockImplementationOnce(async (work) => {
+      mocks.readCredentialsProfile.mockReturnValue({})
+      return work()
+    })
+
+    await expect(profiles('add', 'acme', '--workspace', 'ws_acme')).rejects.toThrow(
+      'the active login is not stored'
+    )
+
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
+  it('refuses to bind a workspace selected with a credential replaced before commit', async () => {
+    mocks.withCredentialsLock.mockImplementationOnce(async (work) => {
+      mocks.readCredentialsProfile.mockReturnValue({ api_key: 'replacement-key' })
+      return work()
+    })
+
+    await expect(profiles('add', 'acme', '--workspace', 'ws_acme')).rejects.toThrow(
+      'changed while the workspace was being selected'
+    )
+
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
+  it('accepts a normal OAuth refresh while selecting the workspace', async () => {
+    const initial = {
+      access_token: 'sim_oat_initial',
+      refresh_token: 'sim_ort_initial',
+      token_expires_at: '1800000000000',
+      oauth_issuer: 'https://sim.ai/api/auth',
+      oauth_login_id: 'stable-login',
+      oauth_scope: 'offline_access api:read api:write',
+    }
+    const refreshed = {
+      ...initial,
+      access_token: 'sim_oat_refreshed',
+      refresh_token: 'sim_ort_refreshed',
+      token_expires_at: '1800003600000',
+    }
+    mocks.readCredentialsProfile.mockReturnValue(initial)
+    mocks.request.mockImplementationOnce(async () => {
+      mocks.readCredentialsProfile.mockReturnValue(refreshed)
+      return { data: { id: 'ws_acme', name: 'Acme', memberCount: 3 } }
+    })
+
+    await profiles('add', 'acme', '--workspace', 'ws_acme')
+
+    expect(mocks.writeConfigProfile).toHaveBeenCalledWith('acme', {
+      auth_profile: 'default',
+      workspace: 'ws_acme',
+    })
   })
 
   it('does not write a profile when the active key cannot reach the workspace', async () => {
@@ -835,7 +930,7 @@ describe('logout command', () => {
   it('does not remove a key through a shared workspace profile', async () => {
     mocks.resolveAuthenticationProfileName.mockReturnValue('default')
 
-    await expect(logout()).rejects.toThrow(
+    await expect(logout('--profile', 'acme')).rejects.toThrow(
       'Log out of the authentication profile instead: sim logout --profile default'
     )
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
@@ -857,6 +952,19 @@ describe('logout command', () => {
     await expect(logout('--all', '--profile', 'default')).rejects.toThrow(
       'Cannot remove authentication profile "default" because it is used by: acme, beta.'
     )
+    expect(mocks.deleteProfile).not.toHaveBeenCalled()
+  })
+
+  it('rechecks dependents after taking the lock before removing an authentication profile', async () => {
+    mocks.withCredentialsLock.mockImplementationOnce(async (work) => {
+      mocks.listAuthenticationDependents.mockReturnValue(['acme'])
+      return work()
+    })
+
+    await expect(logout('--all', '--profile', 'default')).rejects.toThrow(
+      'Cannot remove authentication profile "default" because it is used by: acme.'
+    )
+
     expect(mocks.deleteProfile).not.toHaveBeenCalled()
   })
 })
@@ -1081,11 +1189,13 @@ describe('login command — OAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.listProfiles.mockReturnValue([])
+    mocks.readConfigProfile.mockReturnValue({})
     mocks.readCredentialsProfile.mockReturnValue({})
     mocks.resolveAuthenticationProfileName.mockImplementation((profile) => profile)
     mocks.discoverOAuthProvider.mockResolvedValue('available')
     mocks.isLikelyRemoteSession.mockReturnValue(false)
     mocks.pollForKey.mockResolvedValue({
+      id: 'key-id',
       apiKey: 'sim-key',
       scope: 'platform',
       workspaceBound: false,
@@ -1137,6 +1247,109 @@ describe('login command — OAuth', () => {
         scope: 'offline_access api:read api:write',
       },
     })
+  })
+
+  it('keeps a concurrently stored login and revokes the family it could not commit', async () => {
+    setInteractive(false)
+    mocks.readCredentialsProfile
+      .mockReturnValueOnce({})
+      .mockReturnValueOnce({})
+      .mockReturnValueOnce({
+        access_token: 'sim_oat_newer',
+        refresh_token: 'sim_ort_newer',
+        token_expires_at: '1800000000001',
+        oauth_issuer: 'https://sim.ai/api/auth',
+        oauth_login_id: 'newer-login',
+        oauth_scope: 'offline_access api:read',
+      })
+
+    await expect(login()).rejects.toThrow('changed while sign-in was open')
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+    expect(mocks.revokeToken).toHaveBeenCalledWith('https://sim.ai', 'sim_ort_refresh')
+  })
+
+  it('keeps a concurrently added authentication-profile link', async () => {
+    setInteractive(false)
+    mocks.readConfigProfile
+      .mockReturnValueOnce({})
+      .mockReturnValueOnce({})
+      .mockReturnValueOnce({ auth_profile: 'default' })
+
+    await expect(login()).rejects.toThrow('changed while sign-in was open')
+
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+    expect(mocks.revokeToken).toHaveBeenCalledWith('https://sim.ai', 'sim_ort_refresh')
+  })
+
+  it('best-effort revokes a newly issued family when local persistence fails', async () => {
+    setInteractive(false)
+    mocks.writeCredentialsProfile.mockImplementationOnce(() => {
+      throw new Error('disk full')
+    })
+
+    await expect(login()).rejects.toThrow('disk full')
+    expect(mocks.revokeToken).toHaveBeenCalledWith('https://sim.ai', 'sim_ort_refresh')
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
+  it('clears the previous credential before changing its endpoint', async () => {
+    setInteractive(false)
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'previous-key' })
+    const order: string[] = []
+    mocks.writeConfigProfile.mockImplementation(() => {
+      order.push('config')
+    })
+    mocks.writeCredentialsProfile.mockImplementation((_profile, credential) => {
+      order.push(credential ? 'credential' : 'clear')
+    })
+
+    await login('--yes')
+
+    expect(order).toEqual(['clear', 'config', 'credential'])
+  })
+
+  it('restores the previous credential when endpoint persistence fails', async () => {
+    setInteractive(false)
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'previous-key' })
+    mocks.writeConfigProfile.mockImplementationOnce(() => {
+      throw new Error('config disk full')
+    })
+
+    await expect(login('--yes')).rejects.toThrow('config disk full')
+
+    expect(mocks.writeCredentialsProfile).toHaveBeenNthCalledWith(1, 'default', null)
+    expect(mocks.writeCredentialsProfile).toHaveBeenNthCalledWith(2, 'default', {
+      kind: 'api_key',
+      apiKey: 'previous-key',
+    })
+    expect(mocks.writeConfigProfile).toHaveBeenNthCalledWith(2, 'default', { endpoint: null })
+    expect(mocks.revokeToken).toHaveBeenCalledWith('https://sim.ai', 'sim_ort_refresh')
+  })
+
+  it('restores the previous endpoint and credential when OAuth storage fails', async () => {
+    setInteractive(false)
+    mocks.readConfigProfile.mockReturnValue({ endpoint: 'https://old.example' })
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'previous-key' })
+    mocks.writeCredentialsProfile
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw new Error('credentials disk full')
+      })
+
+    await expect(login('--yes')).rejects.toThrow('credentials disk full')
+
+    expect(mocks.writeConfigProfile).toHaveBeenNthCalledWith(1, 'default', {
+      endpoint: 'https://sim.ai',
+    })
+    expect(mocks.writeConfigProfile).toHaveBeenNthCalledWith(2, 'default', {
+      endpoint: 'https://old.example',
+    })
+    expect(mocks.writeCredentialsProfile).toHaveBeenLastCalledWith('default', {
+      kind: 'api_key',
+      apiKey: 'previous-key',
+    })
+    expect(mocks.revokeToken).toHaveBeenCalledWith('https://sim.ai', 'sim_ort_refresh')
   })
 
   it('asks only for the read scope under --read-only', async () => {
@@ -1266,5 +1479,59 @@ describe('logout command — OAuth', () => {
     expect(mocks.writeCredentialsProfile).toHaveBeenCalledWith('acme', null)
     const output = vi.mocked(console.log).mock.calls.flat().join('\n')
     expect(output).toContain('Could not revoke the login')
+  })
+
+  it('revokes against the stored issuer even when the configured endpoint changed', async () => {
+    mocks.readCredentialsProfile.mockReturnValue({
+      access_token: 'sim_oat_a',
+      refresh_token: 'sim_ort_r',
+      token_expires_at: '1',
+      oauth_issuer: 'https://original.example/api/auth',
+      oauth_login_id: 'login-1',
+      oauth_scope: 'offline_access api:read',
+    })
+    mocks.profileFrom.mockImplementation(() => {
+      throw new ProfileConfigError('issuer mismatch')
+    })
+
+    await logout('--profile', 'acme')
+
+    expect(mocks.profileFrom).not.toHaveBeenCalled()
+    expect(mocks.revokeToken).toHaveBeenCalledWith('https://original.example', 'sim_ort_r')
+    expect(mocks.writeCredentialsProfile).toHaveBeenCalledWith('acme', null)
+  })
+
+  it('does not contact or print credentials embedded in a hand-edited issuer', async () => {
+    mocks.readCredentialsProfile.mockReturnValue({
+      access_token: 'sim_oat_a',
+      refresh_token: 'sim_ort_r',
+      token_expires_at: '1',
+      oauth_issuer: 'https://user:password@example.com/api/auth',
+      oauth_login_id: 'login-1',
+      oauth_scope: 'offline_access api:read',
+    })
+
+    await logout('--profile', 'acme')
+
+    expect(mocks.revokeToken).not.toHaveBeenCalled()
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).not.toContain('user')
+    expect(output).not.toContain('password')
+    expect(output).toContain('https://example.com/api/auth')
+  })
+
+  it('removes terminal controls from an invalid stored issuer error', async () => {
+    mocks.readCredentialsProfile.mockReturnValue({
+      access_token: 'sim_oat_a',
+      refresh_token: 'sim_ort_r',
+      token_expires_at: '1',
+      oauth_issuer: 'bad\u001b[31m-issuer',
+      oauth_login_id: 'login-1',
+      oauth_scope: 'offline_access api:read',
+    })
+
+    await logout('--profile', 'acme')
+
+    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).not.toContain('\u001b')
   })
 })

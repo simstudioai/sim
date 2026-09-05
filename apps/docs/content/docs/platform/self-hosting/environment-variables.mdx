@@ -127,7 +127,7 @@ Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_A
 
 | Variable | Description |
 | --- | --- |
-| `OAUTH_PROVIDER_ENABLED` | Set to `false` to switch off Sim's own OAuth 2.1 provider. On by default when authentication is enabled. `DISABLE_AUTH=true` also forces it off. With it off, the CLI signs in through the pairing-code handoff instead. See [Authentication](/platform/self-hosting/authentication#sign-in-with-sim) |
+| `OAUTH_PROVIDER_ENABLED` | Set to `true` in a second rollout after the migration is applied and every older app instance is drained. Unset/false uses the CLI pairing-code handoff. `DISABLE_AUTH=true` always forces it off. See [Authentication](/platform/self-hosting/authentication#sign-in-with-sim) |
 
 ## Integration Credentials
 

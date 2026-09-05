@@ -104,7 +104,7 @@ describe('GET /api/v2/files/[fileId]/share', () => {
 
   it('authenticates and rate-limits before parsing or executing', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
+      new MockV2ApiKeyUnauthenticatedError('API key or OAuth access token required')
     )
 
     const response = await callGet()

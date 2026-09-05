@@ -31,13 +31,12 @@ Waiting for you to approve in the browser…
   No default workspace. Set one with: sim configure --set-workspace <id>
 ```
 
-This is OAuth 2.1 with PKCE and a loopback redirect, the same flow the AWS, Google
-Cloud, and Cloudflare CLIs use. The browser only ever carries a one-time code;
+This is the OAuth 2.0 authorization-code flow with PKCE and a loopback redirect,
+aligned with current OAuth security guidance. The browser only ever carries a one-time code;
 the tokens are exchanged over the terminal's own connection and written to
 `~/.sim/credentials` with `0600` permissions. Access tokens last an hour and are
-renewed automatically from a refresh token, so you sign in once and stay signed
-in until you log out, revoke the login, or go thirty days without using it. If
-it expires, run `sim logout` before signing in again.
+renewed automatically from a refresh token. The complete login has a fixed
+30-day lifetime; after it expires, run `sim logout`, then sign in again.
 
 <Callout type="warn">
 Only approve a consent page you reached by running `sim login` yourself. A
@@ -50,7 +49,7 @@ your login.
 | `--no-browser` | Print the URL instead of opening a browser |
 | `--browserless` | Use the pairing-code handoff instead (see below) |
 | `--read-only` | Ask only for permission to read, never to change anything |
-| `--callback-port <port>` | Pin the local port the browser returns to, for a container or SSH session that forwards a fixed one |
+| `--callback-port <port>` | Pin the loopback callback port, primarily for an SSH session that forwards the same fixed port |
 | `--scope <scope>` | Key space for the pairing-code handoff. Only `copilot` changes anything, and it forces that flow |
 | `-y, --yes` | Overwrite an existing API-key profile without prompting |
 
@@ -92,14 +91,15 @@ the provider switched off; the CLI detects that and falls back on its own.
 `--read-only` and `--callback-port` belong to the browser login and have no
 meaning here, so combining either with the handoff stops the login rather than
 storing a credential you did not ask for. If your SSH session forwards a port
-back to your machine, pass `--callback-port <port>` on its own: naming the port
-tells the CLI the loopback redirect does reach you, and it runs the browser
-login instead of the handoff.
+from the remote loopback interface to the browser's machine, pass that same
+`--callback-port <port>` on its own. An ordinary container port publication
+cannot reach a listener bound to the container's own loopback interface; use
+`--browserless` there.
 
 ### Picking a workspace
 
-A login carries the full authority of your account across every workspace you
-belong to, so the profile's `workspace` setting only decides the default target.
+A normal login can act across every workspace you belong to; `--read-only`
+limits it to read operations. The profile's `workspace` setting only decides the default target.
 Set it after signing in, or pass `--workspace` per command:
 
 ```bash
@@ -147,12 +147,11 @@ sim logout           # sign out of Sim and remove the stored login
 sim logout --all     # remove the profile entirely, including its settings
 ```
 
-For an OAuth login, `sim logout` revokes the current refresh token and its paired
-access token before removing them from disk, so the login cannot renew. An
-access token copied before an earlier rotation can remain valid until its
-one-hour expiry. For an immediate whole-app cutoff, revoke the grant under
-**Settings → Authorized apps**; that removes every access and refresh token for
-the app.
+For an OAuth login, `sim logout` revokes that login's complete token family
+before removing it from disk, including access tokens issued before earlier
+rotations. Other machines that ran their own `sim login` remain signed in. To
+cut off every independent login for the client, revoke the grant under
+**Settings → Authorized apps**.
 
 A workspace profile that shares authentication cannot remove the shared login.
 Remove only that local profile with `sim logout --all --profile <name>`, or log
@@ -238,10 +237,9 @@ Save it to avoid repeating the flag:
 sim configure --set-endpoint http://localhost:3000 --profile local
 ```
 
-A self-hosted deployment offers OAuth sign-in by default when authentication is
-enabled. Set `OAUTH_PROVIDER_ENABLED=false` on the server to switch it off;
-`DISABLE_AUTH=true` also forces it off. In either case the CLI uses the
-pairing-code handoff.
+A self-hosted deployment offers OAuth sign-in when
+`OAUTH_PROVIDER_ENABLED=true` and authentication is enabled. Leave it unset to
+use the pairing-code handoff; `DISABLE_AUTH=true` also forces OAuth off.
 
 ## Where the login is stored
 
@@ -266,6 +264,13 @@ A profile holds one login. A stored API key can be replaced after confirmation
 or with `--yes`; a live OAuth login must be revoked with `sim logout` before
 signing in again. Several `sim` commands running at once share one renewal, so
 a parallel shell loop cannot sign itself out.
+
+Run `sim login` separately on each machine. Copying `~/.sim/credentials` copies
+one single-use refresh-token family; simultaneous use from both copies is
+treated as token replay and revokes that login. If a refresh response is lost
+because the process or connection stops, the CLI does not retry the consumed
+token: run `sim logout`, then `sim login` again. This fail-closed behavior keeps
+a copied token from surviving an ambiguous refresh.
 
 ## Organization audit logs
 

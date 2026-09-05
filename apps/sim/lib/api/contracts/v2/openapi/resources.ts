@@ -224,6 +224,11 @@ const TOOL_EXECUTION_EXAMPLE = {
   error: null,
 } as const
 
+const SANDBOX_ADMIN_PLAN_NOTE =
+  'Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`.'
+const SANDBOX_BUILD_BUDGET_NOTE =
+  'Creates and updates share a write budget; bursts return `429` with `Retry-After`.'
+
 const TOOL_DETAIL_EXAMPLE = {
   ...TOOL_SUMMARY_EXAMPLE,
   params: {
@@ -395,13 +400,6 @@ const SANDBOX_EXAMPLE = {
   createdAt: '2026-06-01T09:14:00.000Z',
   updatedAt: '2026-06-20T14:02:11.000Z',
 } as const
-
-const SANDBOX_ADMIN_PLAN_NOTE =
-  'Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`.'
-
-/** Creates and updates only: deleting builds nothing and is never refused on budget. */
-const SANDBOX_BUILD_BUDGET_NOTE =
-  'Creates and updates in a workspace share one write budget, whatever the install strategy, and a burst is refused with `429` and a `Retry-After` header.'
 
 const CREDENTIAL_EXAMPLE = {
   id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
@@ -787,7 +785,7 @@ const declaredRoutes = [
     resourceOperation('MCP Servers', {
       operationId: 'listMcpServerTools',
       summary: 'List MCP Server Tools',
-      description: `Connect to a registered MCP server and return the tools it exposes. This read has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\`. ${HEAD_MIRRORS_GET} Discovery is bounded at 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a stored OAuth grant that no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, which only a human reauthorizing in Sim can clear. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Return up to 1,000 tools and 5 MB with \`nextCursor: null\`, opening a connection and updating connection metadata. ${HEAD_MIRRORS_GET} Unavailable servers return \`503\`; invalid OAuth returns \`409\` with \`error.details.code: MCP_SERVER_REAUTHORIZATION_REQUIRED\` and requires human reauthorization. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Tools exposed by the MCP server.' },
     }),
@@ -1259,7 +1257,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'createSandbox',
       summary: 'Create Sandbox',
-      description: `Create a sandbox. The name must be unique within the workspace. Where the deployment prebuilds dependency images, the build is scheduled and reported through \`buildStatus\`; a deployment that installs at run time, or a sandbox with nothing to install, has no build and reports \`buildStatus: null\`. A dependency or system-package entry the builder cannot accept is a \`400\` whose \`error.details\` names the field and the offending entries. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a uniquely named sandbox. Prebuild deployments schedule an image build reported by \`buildStatus\`; runtime-install deployments or empty specs report \`buildStatus: null\`. Invalid dependency or system-package entries return \`400\` with field details. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         description:
@@ -1329,7 +1327,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'updateSandbox',
       summary: 'Update Sandbox',
-      description: `Update the supplied sandbox fields. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Where the deployment prebuilds dependency images, a changed spec is rebuilt and re-sending an unchanged spec after a failed build retries it; a deployment that installs at run time, or a spec with nothing to install, has no build and reports \`buildStatus: null\`. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Update supplied fields; omissions preserve values, lists replace whole lists, and names remain unique. Prebuild deployments rebuild changed specs, while resending an unchanged failed spec retries it; runtime-install or empty specs report \`buildStatus: null\`. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated sandbox.' },
     }),
@@ -1371,7 +1369,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'deleteSandbox',
       summary: 'Delete Sandbox',
-      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Where the deployment prebuilds dependency images, the sandbox's image is released once nothing else shares it; a runtime-install deployment, or a spec with nothing to install, had no image and nothing is released. ${SANDBOX_ADMIN_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Delete a sandbox. Function blocks still selecting it fail closed until reconfigured. A prebuilt image is released when no sandbox shares it; runtime-install and empty specs have no image to release. ${SANDBOX_ADMIN_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The sandbox was deleted.' },
     }),
@@ -1499,7 +1497,7 @@ const declaredRoutes = [
     resourceOperation('Credentials', {
       operationId: 'createCredentialConnection',
       summary: 'Create Credential Connection',
-      description: `Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL in a browser, sign in as the personal API-key owner, complete provider authorization, then refresh the credentials list. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL, sign in as the authenticated user, complete provider authorization, then refresh the credentials list. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'A short-lived browser authorization URL.' },
     }),
@@ -1581,7 +1579,7 @@ const declaredRoutes = [
     resourceOperation('Secrets', {
       operationId: 'setSecret',
       summary: 'Set Secret',
-      description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. Omit \`value\` on a workspace secret to update \`description\` and \`unredacted\` alone: the stored value is left untouched and is never re-encrypted, and because a metadata-only write cannot create a secret it answers \`404\` when the named secret does not exist. A personal secret always requires \`value\`, having no other writable field. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or replace a workspace or personal secret. Values are encrypted at rest, write-only, and never returned. For an existing workspace secret, omit \`value\` to update only \`description\` or \`unredacted\`; the value remains untouched. This metadata-only form cannot create a secret and returns \`404\` when absent. Personal secrets always require \`value\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
@@ -1693,7 +1691,7 @@ const declaredRoutes = [
     resourceOperation('MCP Servers', {
       operationId: 'listWorkflowMcpServers',
       summary: 'List Workflow MCP Servers',
-      description: `List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from \`GET /api/v2/mcp-servers\` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes; those names are gathered under a 2,000-tool budget shared across the page, so on a page of unusually large servers the trailing entries can list fewer names than they publish. Read one server's full inventory with \`GET /api/v2/workflow-mcp-servers/{serverId}/tools\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List servers that publish deployed workflows to outside MCP clients; \`GET /api/v2/mcp-servers\` instead lists external servers Sim calls. Entries include client endpoints and tool names. A page shares a 2,000-name budget, so trailing servers may show partial inventories; read a server's tools endpoint for its full set. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of published MCP servers.' },
     }),
@@ -1877,7 +1875,7 @@ const declaredRoutes = [
     resourceOperation('Credentials', {
       operationId: 'updateCredential',
       summary: 'Update Credential',
-      description: `Rotate a service-account credential's secret material, or rename it. Send only the fields to change: an omitted field is left unchanged, and \`description: null\` clears the stored description. Secret fields are write-only and are never returned, and only a service-account credential has any: sending one for a credential of another type answers \`400\` rather than dropping it. The provider re-verifies replacement secret material before it replaces the stored secret, so a rejected secret leaves the stored one untouched and answers \`400\` with the provider's code in \`error.details.providerErrorCode\`; a provider that cannot be reached answers \`503\`. The credential ID is preserved, so every workflow, deployment, paused run, knowledge connector, and webhook that references it keeps working — which disconnecting and re-creating does not. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Rename a service-account credential or rotate its write-only secret fields. Omissions preserve values; \`description: null\` clears the description. Secret fields sent for another credential type return \`400\`. The provider verifies replacements before storage: rejection leaves the old secret intact and returns \`400\` with \`providerErrorCode\`; provider outages return \`503\`. The preserved credential ID keeps all references working. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated credential without secret material.' },
     }),
@@ -2031,7 +2029,7 @@ const declaredRoutes = [
     resourceOperation('Catalog', {
       operationId: 'executeTool',
       summary: 'Run Tool',
-      description: `Run one built-in tool and return what it produced. Supply \`input\` using the parameter ids \`GET /api/v2/tools/{toolId}\` publishes; Sim resolves the credential named by \`credentialId\`, injects a hosted API key for the tools it supplies one for, and substitutes environment-variable references, so the request carries arguments rather than secrets. A parameter the tool marks \`user-only\` also accepts \`{{VAR_NAME}}\` as its whole value, resolved server-side against the workspace environment; every other value is sent verbatim, so a literal secret passes through untouched. A tool that runs and refuses is a \`200\` carrying \`status: "failed"\` and the reason — the error envelope is reserved for failures of this API, not of the third party. A tool the workspace's visible blocks do not expose answers \`404\` identically to one that does not exist; one whose integration the workspace does not permit answers \`403\` with \`error.details.code\` \`INTEGRATION_NOT_ALLOWED\`. Hosted-key spend this call incurs is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Run a built-in tool using published parameter IDs. Sim resolves \`credentialId\`, hosted keys, and whole-value \`{{VAR_NAME}}\` references for \`user-only\` parameters; other values pass through verbatim. Third-party refusal returns \`200\` with \`status: "failed"\`; the error envelope covers API failures. Hidden or missing tools return \`404\`; disallowed integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. Hosted-key use is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The outcome of the tool call.' },
     }),
@@ -2070,7 +2068,7 @@ const declaredRoutes = [
     resourceOperation('Catalog', {
       operationId: 'listConnectorTypes',
       summary: 'List Connector Types',
-      description: `List every knowledge-base connector type and the source configuration each accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with \`multi: true\` stores a \`string[]\` rather than a \`string\`, and a \`canonicalParamId\` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by \`canonicalParamId\` rather than by the field's own \`id\`. ${FULL_SET_LIST}`,
+      description: `List connector types and accepted source configuration. A field with \`multi: true\` stores \`string[]\`. \`canonicalParamId\` links picker and manual fields that write the same key; send exactly one, keyed by \`canonicalParamId\` rather than its own \`id\`. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The connector-type catalog.' },
     }),

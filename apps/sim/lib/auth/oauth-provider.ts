@@ -1,5 +1,5 @@
 /**
- * Constants shared by every side of Sim's OAuth 2.1 provider: the Better Auth
+ * Constants shared by every side of Sim's OAuth 2.0 provider: the Better Auth
  * plugin configuration, the consent page, the bearer-token verifier, and the
  * "Authorized apps" settings surface.
  */
@@ -19,21 +19,7 @@ export const OAUTH_REFRESH_TOKEN_PREFIX = 'sim_ort_'
 export const OAUTH_API_READ_SCOPE = 'api:read'
 export const OAUTH_API_WRITE_SCOPE = 'api:write'
 
-export const OAUTH_SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'offline_access',
-  OAUTH_API_READ_SCOPE,
-  OAUTH_API_WRITE_SCOPE,
-] as const
-
-/** Public clients can call Sim's API but cannot receive an ID token without JWT signing. */
-export const OAUTH_PUBLIC_CLIENT_SCOPES = [
-  'offline_access',
-  OAUTH_API_READ_SCOPE,
-  OAUTH_API_WRITE_SCOPE,
-] as const
+export const OAUTH_SCOPES = ['offline_access', OAUTH_API_READ_SCOPE, OAUTH_API_WRITE_SCOPE] as const
 
 export type OAuthScope = (typeof OAUTH_SCOPES)[number]
 
@@ -47,15 +33,14 @@ export type OAuthScope = (typeof OAUTH_SCOPES)[number]
  */
 export const OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60
 export const OAUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+/** Bounds replay evidence for one login even if a client refreshes excessively. */
+export const OAUTH_TOKEN_FAMILY_MAX_GENERATION = 1_000
 /** How long an authorization code stays redeemable — the plugin's default. */
 export const OAUTH_CODE_TTL_SECONDS = 10 * 60
 export type OAuthApiScope = typeof OAUTH_API_READ_SCOPE | typeof OAUTH_API_WRITE_SCOPE
 
 /** One plain-English line per scope, rendered on the consent page. */
 export const OAUTH_SCOPE_DESCRIPTIONS: Record<OAuthScope, string> = {
-  openid: 'Confirm who you are',
-  profile: 'See your name and profile picture',
-  email: 'See your email address',
   offline_access: 'Stay signed in without asking again',
   [OAUTH_API_READ_SCOPE]: 'Read your workspaces, workflows, files, tables, and logs',
   [OAUTH_API_WRITE_SCOPE]: 'Read, create, change, run, and delete resources in your workspaces',
@@ -78,7 +63,7 @@ export function visibleOAuthScopes(granted: readonly string[]): OAuthScope[] {
 export function summarizeOAuthAccess(granted: readonly string[]): string {
   if (granted.includes(OAUTH_API_WRITE_SCOPE)) return 'Full access to your workspaces'
   if (granted.includes(OAUTH_API_READ_SCOPE)) return 'Read-only access to your workspaces'
-  return 'Sign in only'
+  return 'No API access'
 }
 
 /**

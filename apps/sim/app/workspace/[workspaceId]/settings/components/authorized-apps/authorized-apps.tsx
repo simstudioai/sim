@@ -42,8 +42,7 @@ export function AuthorizedApps() {
     revoke.mutate(app.clientId, {
       onSuccess: () => toast.success(`Revoked ${app.name}`),
       onError: (error) => toast.error(getErrorMessage(error, 'Failed to revoke access')),
-      // Closed on settle rather than on click, so the modal's own pending
-      // state is what the person sees while a destructive action runs.
+      /** Keep the modal open so its pending state remains visible through the mutation. */
       onSettled: () => setPendingRevoke(null),
     })
   }

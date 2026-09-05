@@ -8,26 +8,18 @@ import { v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import { filesAuditOpenApiDocument } from '@/lib/api/contracts/v2/openapi/files-audit'
 import { knowledgeOpenApiDocument } from '@/lib/api/contracts/v2/openapi/knowledge'
 import { ERROR_RESPONSES } from '@/lib/api/contracts/v2/openapi/shared'
-import { v2ErrorResponseSchema } from '@/lib/api/contracts/v2/shared'
+import { v2ForbiddenDetailCodeSchema } from '@/lib/api/contracts/v2/shared'
 import { v2CreateTableViewContract, v2QueryRowsBodySchema } from '@/lib/api/contracts/v2/tables'
 import { v2GetWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
+import { FORBIDDEN_DETAIL_CODES } from '@/lib/core/application/forbidden'
 
 /**
  * The cross-cutting promises that no single resource family owns, and that
  * therefore have nowhere else to be asserted.
  */
 describe('v2 403 cause codes', () => {
-  it("publishes every code on the error envelope's details field", () => {
-    const details = v2ErrorResponseSchema.shape.error.shape.details
-    const published = details.description ?? ''
-    for (const code of FORBIDDEN_DETAIL_CODES) {
-      expect(published).toContain(code)
-      expect(published).toContain(FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code])
-    }
+  it('publishes every actionable code as a structural enum', () => {
+    expect(v2ForbiddenDetailCodeSchema.options).toEqual([...FORBIDDEN_DETAIL_CODES])
   })
 
   it('tells a client the codes live on error.details.code', () => {

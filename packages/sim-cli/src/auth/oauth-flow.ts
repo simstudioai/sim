@@ -29,12 +29,8 @@ export const OAUTH_CLIENT_ID = 'sim-cli'
  * Everything the CLI does, and nothing more: renew itself, and read and change
  * workspace resources.
  *
- * The identity scopes (`openid`, `profile`, `email`) are deliberately absent.
- * Sim issues opaque access tokens, and the provider returns no `id_token` at
- * all to a public client with no secret — so `openid` could never be honoured
- * for this client, and the CLI reads no profile or email either. Asking for
- * them would put three permissions on the consent card that this app does not
- * use and, for `openid`, structurally cannot.
+ * Sim's provider deliberately exposes OAuth API authorization rather than an
+ * OpenID Connect identity surface, so the CLI requests no identity claims.
  */
 export const OAUTH_SCOPES_FULL = ['offline_access', 'api:read', 'api:write'] as const
 
@@ -242,9 +238,7 @@ async function readTokens(
   if (!response.ok || typeof body.error === 'string') {
     throw new OAuthTokenError(
       typeof body.error === 'string' ? body.error : 'server_error',
-      // The description is whatever the endpoint sent, so it goes through the
-      // same redaction every other quoted remote value does: a value carrying
-      // control characters would otherwise write its own lines to the terminal.
+      /** Remote descriptions are redacted before they reach the terminal. */
       typeof body.error_description === 'string' ? redact(body.error_description) : undefined,
       response.status
     )
@@ -324,9 +318,10 @@ export async function exchangeCode(
 
 /**
  * Trades a refresh token for a new pair. The server rotates: the token used
- * here is dead afterwards, and presenting it again invalidates every token the
- * CLI holds for this account — which is why callers serialize refreshes
- * through the credentials lock before reaching this.
+ * here is dead afterwards, and presenting it again invalidates every access
+ * and refresh token from this login. Other independently authorized CLI
+ * logins remain active. Callers serialize local refreshes through the
+ * credentials lock before reaching this.
  */
 export async function refreshTokens(
   endpoint: string,
@@ -345,9 +340,10 @@ export async function refreshTokens(
 }
 
 /**
- * Revokes a refresh token server-side, which also kills the access tokens it
- * issued. RFC 7009 answers 200 for an unknown token, so this only fails when
- * the server cannot be reached or refuses the client.
+ * Revokes a refresh token server-side, which also kills every access and
+ * refresh token in that login family. RFC 7009 answers 200 for an unknown
+ * token, so this only fails when the server cannot be reached or refuses the
+ * client.
  */
 export async function revokeToken(endpoint: string, token: string): Promise<void> {
   const response = await postToken(
@@ -381,7 +377,7 @@ interface LoopbackResult {
  * `127.0.0.1` rather than `localhost`, as RFC 8252 §7.3 recommends: the name
  * can resolve to a non-loopback interface, and the server registers the IP
  * literal. Port 0 lets the OS pick, which the server accepts for any loopback
- * port; `--callback-port` pins it for a container whose port must be forwarded.
+ * port; `--callback-port` pins it when an SSH tunnel forwards that same port.
  */
 function listenForCallback(
   server: Server,
@@ -397,10 +393,7 @@ function listenForCallback(
       clearTimeout(timer)
       signal?.removeEventListener('abort', onAbort)
       server.close()
-      // `close()` only stops accepting. The browser sends `Connection:
-      // keep-alive`, so without this the socket holds the event loop open for
-      // Node's 5s `keepAliveTimeout` and `sim login` sits there, already
-      // finished, after printing its success line.
+      /** Close keep-alive sockets so a finished login does not wait for Node's timeout. */
       server.closeAllConnections()
       if (outcome.ok) resolve(outcome.value)
       else reject(outcome.error)
@@ -507,8 +500,7 @@ export async function loginWithBrowser(
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', (cause) => {
-      // The ordinary outcome of `--callback-port` naming a port that is taken
-      // or privileged, so it is explained rather than thrown as a stack trace.
+      /** A pinned port may already be occupied or privileged, so report an actionable error. */
       reject(
         new SimApiError(
           `Could not listen on the sign-in callback port: ${cause.message}. Pick another --callback-port.`,

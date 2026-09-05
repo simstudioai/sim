@@ -4,6 +4,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeOAuth2Contract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
+import { oauthAuthorizationErrorResponse } from '@/lib/auth/oauth-authorization-error'
+import { validateOAuthPkceAuthorizationRequest } from '@/lib/auth/oauth-protocol-request'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { isOAuthProviderEnabled } from '@/lib/core/config/env-flags'
@@ -33,19 +35,14 @@ const OAUTH_AUTHORIZE_PARAMETERS = new Set([
   'code_challenge_method',
   'nonce',
   'prompt',
+  'resource',
 ])
 
-/** OAuth authorization parameters are single-valued. */
-function rejectRepeatedOAuthAuthorizeParameter(request: NextRequest): NextResponse | null {
+/** Returns the first ambiguous OAuth authorization parameter. */
+function repeatedOAuthAuthorizeParameter(request: NextRequest): string | null {
   for (const name of OAUTH_AUTHORIZE_PARAMETERS) {
     if (request.nextUrl.searchParams.getAll(name).length <= 1) continue
-    return NextResponse.json(
-      {
-        error: 'invalid_request',
-        error_description: `OAuth parameter ${name} appears more than once.`,
-      },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
-    )
+    return name
   }
   return null
 }
@@ -55,14 +52,15 @@ function rejectRepeatedOAuthAuthorizeParameter(request: NextRequest): NextRespon
  * authorize request — rather than a user linking an external account.
  *
  * This route sits on the same path Better Auth mounts the provider's authorize
- * endpoint, so the catch-all never sees it. A `client_id` is the unambiguous
- * provider discriminator: connector links never send it, and extra connector
- * parameters on a provider request must not reroute signed-in users into the
- * credential-linking flow. Whether the id is registered is the plugin's
- * decision.
+ * endpoint, so the catch-all never sees it. Connector links use only the
+ * contract's draft/provider/workspace fields; any provider-specific parameter
+ * keeps even a malformed OAuth request out of the credential-linking flow.
  */
 function isOAuthProviderAuthorize(request: NextRequest): boolean {
-  return request.nextUrl.searchParams.has('client_id')
+  for (const name of OAUTH_AUTHORIZE_PARAMETERS) {
+    if (request.nextUrl.searchParams.has(name)) return true
+  }
+  return false
 }
 
 /**
@@ -74,8 +72,62 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!isOAuthProviderEnabled) {
       return NextResponse.json({ error: 'OAuth provider is not enabled' }, { status: 404 })
     }
-    const repeatedParameter = rejectRepeatedOAuthAuthorizeParameter(request)
-    if (repeatedParameter) return repeatedParameter
+    const repeatedParameter = repeatedOAuthAuthorizeParameter(request)
+    if (repeatedParameter) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        `OAuth parameter ${repeatedParameter} appears more than once.`
+      )
+    }
+    const params = request.nextUrl.searchParams
+    if (!params.has('client_id')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The client_id parameter is required.'
+      )
+    }
+    if (!params.has('redirect_uri')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The redirect_uri parameter is required.'
+      )
+    }
+    if (params.has('resource')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The resource parameter is not supported.'
+      )
+    }
+    if (params.has('request_uri')) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The request_uri parameter is not supported.'
+      )
+    }
+    const responseType = params.get('response_type')
+    if (!responseType) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'The response_type parameter is required.'
+      )
+    }
+    if (responseType !== 'code') {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'unsupported_response_type',
+        'Only the code response type is supported.'
+      )
+    }
+    const pkceError = validateOAuthPkceAuthorizationRequest(params)
+    if (pkceError) {
+      return oauthAuthorizationErrorResponse(request, 'invalid_request', pkceError)
+    }
     return betterAuthGET(request)
   }
 

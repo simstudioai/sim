@@ -26,6 +26,7 @@ export {
   type StoredOAuthCredential,
   validateProfileName,
   withCredentialsLock,
+  withProfileLoginLease,
   writeConfigProfile,
   writeCredentialsProfile,
 } from './profile'

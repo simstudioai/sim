@@ -7,8 +7,13 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
+import {
+  APIError,
+  createAuthMiddleware,
+  getOAuthState,
+  getSessionFromCtx,
+  setShouldSkipSessionRefresh,
+} from 'better-auth/api'
 import { deleteSessionCookie, setSessionCookie } from 'better-auth/cookies'
 import { nextCookies } from 'better-auth/next-js'
 import {
@@ -52,9 +57,9 @@ import {
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
-import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
@@ -242,13 +247,7 @@ export const auth = betterAuth({
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
     ...additionalTrustedOrigins,
   ].filter(Boolean),
-  database: (options: BetterAuthOptions) =>
-    guardSubscriptionPlanWrites(
-      drizzleAdapter(db, {
-        provider: 'pg',
-        schema,
-      })(options)
-    ),
+  database: (options: BetterAuthOptions) => createSimAuthAdapter(options),
   session: {
     cookieCache: {
       enabled: true,
@@ -951,6 +950,14 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       /**
+       * Better Auth 1.6.27 re-enters OAuth authorization when its own session
+       * refresh sets a cookie, issuing a second code that is never returned.
+       * Suppressing sliding renewal only for this request prevents the orphan;
+       * the next ordinary session request can still renew the same session.
+       */
+      if (ctx.path === '/oauth2/authorize') await setShouldSkipSessionRefresh(true)
+
+      /**
        * Restrict the unauthenticated sign-in endpoints to first-party login
        * providers. Better Auth registers every generic-OAuth integration
        * connector as a social provider, so without this guard `microsoft-ad`,
@@ -1299,14 +1306,15 @@ export const auth = betterAuth({
       config: buildConnectorProviders(),
     }),
     /**
-     * Sim as an OAuth 2.1 authorization server (auth-code + PKCE, refresh
+     * Sim as an OAuth 2.0 authorization server (auth-code + PKCE, refresh
      * rotation). Tokens are opaque and stored hashed, so revoking an app in
-     * settings takes effect on the next request. `sim logout` revokes the
-     * current refresh/access pair; access tokens issued before an earlier
-     * rotation remain valid until their one-hour expiry. `disableJwtPlugin`
-     * keeps the JWKS machinery out until a third-party resource server needs
-     * it. Clients are DB rows only (the CLI is seeded by migration, the rest
-     * are admin-created), so both registration paths stay closed.
+     * settings takes effect on the next request. `sim logout` deletes the
+     * stable family for that login, including access tokens issued before an
+     * earlier rotation. This is an OAuth API-authorization surface, not an
+     * OpenID Connect identity provider; `disableJwtPlugin` keeps JWT/JWKS and
+     * ID-token semantics out of the advertised protocol. Clients are DB rows
+     * only (the CLI is seeded by migration, the rest are admin-created), so
+     * both registration paths stay closed.
      */
     ...(isOAuthProviderEnabled
       ? [
@@ -1340,19 +1348,15 @@ export const auth = betterAuth({
             clientPrivileges: () => false,
             /**
              * Opaque access tokens let Settings revoke every token for an app
-             * on the next request. `sim logout` revokes only the access token
-             * paired with the current refresh token; an access token from an
-             * earlier rotation can remain valid until it expires. A JWT would
-             * stay valid until it lapsed regardless of either database delete.
+             * on the next request and let `sim logout` revoke one independent
+             * login family, including access tokens from earlier rotations. A
+             * JWT would remain valid until it lapsed regardless of the delete.
              *
-             * The cost is that client secrets are stored reversibly: with no
-             * JWKS, the plugin signs ID tokens with the client secret and so
-             * has to be able to read it back. `storeClientSecret` is left at
-             * the plugin's default of `encrypted` for that reason — setting it
-             * to `hashed` here is refused at construction, which would take
-             * the whole app down on boot. Secrets are encrypted under
-             * `BETTER_AUTH_SECRET`; `create-oauth-client.ts` writes them the
-             * same way.
+             * Better Auth requires reversibly encrypted client secrets in its
+             * disabled-JWT mode; selecting `hashed` is refused at provider
+             * construction. `storeClientSecret` therefore stays at the
+             * plugin's `encrypted` default, under `BETTER_AUTH_SECRET`, and
+             * `create-oauth-client.ts` writes secrets the same way.
              */
             disableJwtPlugin: true,
             storeTokens: { hash: hashOAuthToken },

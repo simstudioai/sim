@@ -22,6 +22,7 @@ import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
 type JsonObject = Record<string, unknown>
 
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete'])
+const MAX_DESCRIPTION_WORDS = 80
 
 const DOCUMENTS = [
   workflowsOpenApiDocument,
@@ -67,6 +68,26 @@ function operations(spec: JsonObject): JsonObject[] {
     }
   }
   return result
+}
+
+function oversizedDescriptions(value: unknown, location: string, out: string[]): void {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => oversizedDescriptions(item, `${location}[${index}]`, out))
+    return
+  }
+
+  for (const [key, nested] of Object.entries(value as JsonObject)) {
+    const nestedLocation = `${location}.${key}`
+    if (key === 'description' && typeof nested === 'string') {
+      const wordCount = nested.trim() ? nested.trim().split(/\s+/).length : 0
+      if (wordCount > MAX_DESCRIPTION_WORDS) {
+        out.push(`${nestedLocation} (${wordCount} words)`)
+      }
+      continue
+    }
+    oversizedDescriptions(nested, nestedLocation, out)
+  }
 }
 
 function isStructuredObject(schema: JsonObject): boolean {
@@ -152,6 +173,15 @@ function anonymousTopLevelResponseObjects(spec: JsonObject): string[] {
 }
 
 describe('generated OpenAPI documents', () => {
+  it('keeps every description concise without padding simple fields', () => {
+    const outliers: string[] = []
+    for (const document of DOCUMENTS) {
+      oversizedDescriptions(generatedDocument(document), document.output, outliers)
+    }
+
+    expect(outliers).toEqual([])
+  })
+
   it('covers the complete public v2 operation surface with canonical errors', () => {
     const outputs = DOCUMENTS.map((document) => document.output)
     expect(new Set(outputs).size).toBe(DOCUMENTS.length)

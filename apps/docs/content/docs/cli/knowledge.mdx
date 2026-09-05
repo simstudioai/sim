@@ -15,7 +15,7 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 ```
 
-Index files the workspace already stores (personal API key required)
+Index files the workspace already stores (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -43,7 +43,7 @@ Index files the workspace already stores (personal API key required)
 sim knowledge tags save <knowledgeBaseId> [options]
 ```
 
-Declare the tag definitions a knowledge base needs (personal API key required)
+Declare the tag definitions a knowledge base needs (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -71,7 +71,7 @@ Declare the tag definitions a knowledge base needs (personal API key required)
 sim knowledge tags create <knowledgeBaseId> [options]
 ```
 
-Create Tag (personal API key required)
+Create Tag (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -101,7 +101,7 @@ Create Tag (personal API key required)
 sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
 ```
 
-Delete Tag (personal API key required)
+Delete Tag (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -130,7 +130,7 @@ Delete Tag (personal API key required)
 sim knowledge tags cleanup <knowledgeBaseId> [options]
 ```
 
-Remove tag definitions no document still uses (personal API key required)
+Remove tag definitions no document still uses (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -160,7 +160,7 @@ Remove tag definitions no document still uses (personal API key required)
 sim knowledge tags next-slot <knowledgeBaseId> [options]
 ```
 
-Show which tag slot a create would take for a field type (personal API key required)
+Show which tag slot a create would take for a field type (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -204,7 +204,7 @@ sim knowledge tags list <knowledgeBaseId>
 sim knowledge tags usage <knowledgeBaseId>
 ```
 
-Show how many documents and chunks carry each tag (personal API key required)
+Show how many documents and chunks carry each tag (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -222,7 +222,7 @@ Show how many documents and chunks carry each tag (personal API key required)
 sim knowledge tags update <knowledgeBaseId> <tagId> [options]
 ```
 
-Update Tag (personal API key required)
+Update Tag (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -252,7 +252,7 @@ Update Tag (personal API key required)
 sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 ```
 
-Enable, disable, or delete many chunks at once (personal API key required)
+Enable, disable, or delete many chunks at once (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -283,7 +283,7 @@ Enable, disable, or delete many chunks at once (personal API key required)
 sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
 ```
 
-Create Chunk (personal API key required)
+Create Chunk (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -314,7 +314,7 @@ Create Chunk (personal API key required)
 sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
 ```
 
-Delete Chunk (personal API key required)
+Delete Chunk (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -344,7 +344,7 @@ Delete Chunk (personal API key required)
 sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
 ```
 
-Get Chunk (personal API key required)
+Get Chunk (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -364,7 +364,7 @@ Get Chunk (personal API key required)
 sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
 ```
 
-List Chunks (personal API key required)
+List Chunks (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -397,7 +397,7 @@ List Chunks (personal API key required)
 sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
 ```
 
-Update Chunk (personal API key required)
+Update Chunk (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -429,7 +429,7 @@ Update Chunk (personal API key required)
 sim knowledge documents batch-update <knowledgeBaseId> [options]
 ```
 
-Enable or disable every matching document (personal API key required)
+Enable or disable every matching document (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -535,7 +535,7 @@ sim knowledge documents list <knowledgeBaseId> [options]
 sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 ```
 
-Update Document (personal API key required)
+Update Document (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -636,7 +636,7 @@ sim knowledge create [options]
 sim knowledge connectors create <knowledgeBaseId> [options]
 ```
 
-Create Knowledge Connector (personal API key required)
+Create Knowledge Connector (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -668,7 +668,7 @@ Create Knowledge Connector (personal API key required)
 sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 ```
 
-Delete Knowledge Connector (personal API key required)
+Delete Knowledge Connector (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -699,7 +699,7 @@ Delete Knowledge Connector (personal API key required)
 sim knowledge connectors get <knowledgeBaseId> <connectorId>
 ```
 
-Get Knowledge Connector (personal API key required)
+Get Knowledge Connector (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -718,7 +718,7 @@ Get Knowledge Connector (personal API key required)
 sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options]
 ```
 
-List Knowledge Connector Documents (personal API key required)
+List Knowledge Connector Documents (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -749,7 +749,7 @@ List Knowledge Connector Documents (personal API key required)
 sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
 ```
 
-Update Knowledge Connector Documents (personal API key required)
+Update Knowledge Connector Documents (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -779,7 +779,7 @@ Update Knowledge Connector Documents (personal API key required)
 sim knowledge connectors list <knowledgeBaseId> [options]
 ```
 
-List Knowledge Connectors (personal API key required)
+List Knowledge Connectors (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -809,7 +809,7 @@ List Knowledge Connectors (personal API key required)
 sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
 ```
 
-Queue a knowledge connector synchronization (personal API key required)
+Queue a knowledge connector synchronization (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -839,7 +839,7 @@ Queue a knowledge connector synchronization (personal API key required)
 sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
 ```
 
-Update Knowledge Connector (personal API key required)
+Update Knowledge Connector (OAuth login or personal API key required)
 
 **Arguments**
 

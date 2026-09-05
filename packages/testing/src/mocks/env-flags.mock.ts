@@ -81,7 +81,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
-  // An opt-out flag, like `isChatEnabled`: on unless OAUTH_PROVIDER_ENABLED is falsy.
+  /** OAuth-aware route behavior is available unless a suite overrides it. */
   isOAuthProviderEnabled: true,
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,

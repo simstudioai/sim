@@ -16,6 +16,11 @@ export const dynamic = 'force-dynamic'
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
 const SAFE_ORGANIZATION_POST_PATHS = new Set(['organization/check-slug', 'organization/set-active'])
 const OAUTH_CALLBACK_PATH_PREFIX = 'oauth2/callback/'
+const UNSUPPORTED_OIDC_PATHS = new Set([
+  '.well-known/openid-configuration',
+  'oauth2/end-session',
+  'oauth2/userinfo',
+])
 
 /**
  * SAML protocol endpoints the IdP posts to (`saml2/callback/:id`,
@@ -34,12 +39,10 @@ const OAUTH_PROVIDER_PROTOCOL_POST_PATHS = new Set([
   'oauth2/consent',
   'oauth2/continue',
   'oauth2/revoke',
-  'oauth2/introspect',
-  'oauth2/userinfo',
   'oauth2/public-client-prelogin',
 ])
 
-const OAUTH_FORM_POST_PATHS = new Set(['oauth2/token', 'oauth2/revoke', 'oauth2/introspect'])
+const OAUTH_FORM_POST_PATHS = new Set(['oauth2/token', 'oauth2/revoke'])
 
 /**
  * Rejects ambiguous OAuth form requests before Better Auth parses them.
@@ -158,8 +161,17 @@ function isBlockedOAuthProviderMutationPath(path: string): boolean {
   return !OAUTH_PROVIDER_PROTOCOL_POST_PATHS.has(path)
 }
 
+/** Sim exposes OAuth API authorization, not an OpenID Connect identity provider. */
+function unsupportedOidcResponse(): NextResponse {
+  return NextResponse.json(
+    { error: 'OpenID Connect is not available.' },
+    { status: 404, headers: { 'Cache-Control': 'no-store' } }
+  )
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const path = getAuthPath(request)
+  if (UNSUPPORTED_OIDC_PATHS.has(path)) return unsupportedOidcResponse()
   const credentialGroupProviderId = getCredentialGroupCallbackProviderId(request, path)
 
   if (credentialGroupProviderId) {
@@ -198,6 +210,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const path = getAuthPath(request)
+  if (UNSUPPORTED_OIDC_PATHS.has(path)) return unsupportedOidcResponse()
 
   const ambiguousOAuthForm = await rejectAmbiguousOAuthForm(request, path)
   if (ambiguousOAuthForm) return ambiguousOAuthForm

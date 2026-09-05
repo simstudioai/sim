@@ -1139,7 +1139,7 @@ const declaredRoutes = [
       operationId: 'addWorkspaceFilesToKnowledgeBase',
       summary: 'Index Workspace Files',
       description:
-        'Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` for its current state. ' +
+        'Index stored workspace files without re-uploading bytes. Each reference is authorized independently; unreadable, unsupported, or over-100 MB files appear in `failed` while valid files are queued. This partial outcome returns `200`, not multi-status. Queued documents begin as `pending`; the response carries identities only, so read each document endpoint for current processing state. ' +
         WORKSPACE_API_KEY_DENIED,
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
       success: {

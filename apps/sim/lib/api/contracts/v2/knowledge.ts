@@ -946,7 +946,7 @@ export const v2KnowledgeSearchBodySchema = z
       )
       .optional()
       .describe(
-        `Structured tag filters, at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching \`GET /api/v2/knowledge/{knowledgeBaseId}/documents\`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`.`
+        `Up to ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.`
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
       'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'

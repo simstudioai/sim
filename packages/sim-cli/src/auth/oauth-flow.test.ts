@@ -159,7 +159,7 @@ describe('loginWithBrowser', () => {
         for (const [key, value] of Object.entries(outcome(authorize.searchParams, state))) {
           redirectUri.searchParams.set(key, value)
         }
-        // Node's real HTTP client, not the stubbed fetch, so the listener is exercised.
+        /** Node's real HTTP client, not the stubbed fetch, exercises the listener. */
         void import('node:http').then(({ get }) => {
           get(redirectUri, (response) => response.resume())
         })

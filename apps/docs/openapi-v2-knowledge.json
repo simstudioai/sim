@@ -1437,7 +1437,7 @@
       "post": {
         "operationId": "createKnowledgeTag",
         "summary": "Create Tag",
-        "description": "Define one tag on a knowledge base; use `PUT` on this path to declare several at once. Define a tag here, write its `tagSlot` on a document with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`, then filter by its `displayName` on the document list or on search. Omit `tagSlot` to take the next free slot for the field type; a field type with no free slot left is a `400` naming it, since the remedy is a different type or a deleted definition rather than a retry. A `tagSlot` already taken, or a `displayName` already defined on this knowledge base, is a `409` naming which of the two to change. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Define one tag; use `PUT` on this path for several. Write its `tagSlot` on documents, then filter by `displayName`. Omitting `tagSlot` selects the next free slot; exhaustion returns `400`. An occupied slot or duplicate display name returns `409` naming the conflict. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1520,7 +1520,7 @@
       "put": {
         "operationId": "bulkSaveKnowledgeTagDefinitions",
         "summary": "Bulk Save Tag Definitions",
-        "description": "Declare, in one request, several of the knowledge base's tag definitions. `POST` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in `originalDisplayName`; that is the only form that edits one in place. Without it the entry is a create, and a requested `tagSlot` another name already holds is refused in `errors` — it is neither overwritten nor relocated to a different slot, so an explicitly requested slot always means that slot or an error. A create whose `displayName` already exists is refused in `errors`. Per-definition failures are reported in `errors` and still answer `200`. This writes the vocabulary, not one document's tag values — set those with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Declare multiple tag definitions while leaving unspecified slots unchanged. Updating requires the current name in `originalDisplayName`; otherwise the entry creates a tag. Occupied explicit slots and duplicate display names appear in per-definition `errors`, never overwrite or relocate data, and still return `200`. This writes the vocabulary, not document tag values; set those through the document update endpoint. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1600,7 +1600,7 @@
       "delete": {
         "operationId": "deleteKnowledgeTagDefinitions",
         "summary": "Delete Tag Definitions",
-        "description": "Remove tag definitions from the knowledge base. `unused` defaults to `true`, which removes only the definitions no document still carries a value for — the recoverable half, since a definition with nothing behind it can simply be redefined. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. Delete one definition at a time with `DELETE /api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Remove tag definitions. `unused` defaults to `true`, deleting only definitions with no document values, which can be recreated safely. `unused=false` deletes every definition and irreversibly clears its slot from all documents and chunks. Use `DELETE /api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}` to delete one definition. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3147,7 +3147,7 @@
       "post": {
         "operationId": "addWorkspaceFilesToKnowledgeBase",
         "summary": "Index Workspace Files",
-        "description": "Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` for its current state. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Index stored workspace files without re-uploading bytes. Each reference is authorized independently; unreadable, unsupported, or over-100 MB files appear in `failed` while valid files are queued. This partial outcome returns `200`, not multi-status. Queued documents begin as `pending`; the response carries identities only, so read each document endpoint for current processing state. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3393,7 +3393,7 @@
       "post": {
         "operationId": "createKnowledgeChunk",
         "summary": "Create Chunk",
-        "description": "Append a chunk to a document. The text is embedded before the response returns, so the chunk is searchable immediately, and it inherits the document's tag values and the next `chunkIndex`. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Append a chunk, embedding it before the response so it is immediately searchable. It inherits the document's tags and next `chunkIndex`. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3484,7 +3484,7 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeChunks",
         "summary": "Bulk Update Chunks",
-        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is reported in `errors` rather than failing the request. `processed` counts the chunks the operation matched, not the chunks it changed. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Enable, disable, or delete multiple chunks in one best-effort request. Unknown chunk IDs appear in `errors` without failing the request; `processed` counts matched chunks, not changes. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3677,7 +3677,7 @@
       "patch": {
         "operationId": "updateKnowledgeChunk",
         "summary": "Update Chunk",
-        "description": "Correct a chunk's text or take it out of search. Changing `content` re-embeds the chunk and re-derives the document's token and character counts, so the correction reaches search immediately; disabling keeps the chunk indexed. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Correct chunk text or disable it from search. Changing `content` re-embeds immediately and recalculates document token and character counts; disabling retains the index. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3782,7 +3782,7 @@
       "delete": {
         "operationId": "deleteKnowledgeChunk",
         "summary": "Delete Chunk",
-        "description": "Permanently remove one chunk and subtract it from the document's counts. Deleting does not renumber the remaining chunks, so `chunkIndex` values stay stable but become non-contiguous. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Permanently remove one chunk and subtract it from document counts. Remaining `chunkIndex` values stay stable and may become non-contiguous. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3884,7 +3884,7 @@
       "patch": {
         "operationId": "updateKnowledgeTag",
         "summary": "Update Tag",
-        "description": "Rename a tag, or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A tag's slot is fixed for its lifetime and each slot holds one kind of value, so `fieldType` can only change to another type valid for the slot the tag already occupies — anything else is a `400`, and the way to get a tag of that type is to create one. A name another tag on this knowledge base already holds is a `409`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Rename a tag or change its slot-compatible `fieldType`. Renaming changes read and filter names without moving the slot or its values. Slots are fixed for a tag's lifetime; an incompatible type returns `400` and requires creating a new tag. A duplicate display name returns `409`. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -4493,6 +4493,48 @@
       }
     },
     "schemas": {
+      "V2ActionableForbiddenDetails": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/V2ForbiddenDetailCode"
+          }
+        },
+        "required": ["code"],
+        "additionalProperties": {
+          "description": "Additional context for this refusal."
+        },
+        "title": "Actionable forbidden details",
+        "description": "Machine-readable cause and optional context for an actionable `403` response."
+      },
+      "V2ForbiddenDetailCode": {
+        "type": "string",
+        "enum": [
+          "INSUFFICIENT_WORKSPACE_ROLE",
+          "PERSONAL_API_KEYS_DISABLED",
+          "WORKSPACE_KEY_OPERATION_NOT_PERMITTED",
+          "PRINCIPAL_KIND_NOT_PERMITTED",
+          "ORGANIZATION_MEMBERSHIP_REQUIRED",
+          "ORGANIZATION_ADMIN_REQUIRED",
+          "ENTERPRISE_PLAN_REQUIRED",
+          "ORGANIZATION_PLAN_REQUIRED",
+          "AUDIT_LOGS_DISABLED",
+          "SKILL_EDITOR_ACCESS_REQUIRED",
+          "SECRET_ADMIN_ACCESS_REQUIRED",
+          "WORKSPACE_RESOURCE_LIMIT_REACHED",
+          "PUBLIC_SHARING_NOT_ALLOWED",
+          "CREDENTIAL_ADMIN_ACCESS_REQUIRED",
+          "MCP_SERVER_URL_NOT_ALLOWED",
+          "WORKSPACE_PLAN_CAPABILITY_REQUIRED",
+          "CHAT_AUTH_MODE_NOT_PERMITTED",
+          "CONNECTOR_MANAGED_RESOURCE_READ_ONLY",
+          "PERMISSION_GROUP_CAPABILITY_BLOCKED",
+          "INTEGRATION_NOT_ALLOWED",
+          "INSUFFICIENT_SCOPE"
+        ],
+        "title": "Forbidden detail code",
+        "description": "Stable cause code for an actionable `403` response."
+      },
       "V2Error": {
         "type": "object",
         "properties": {
@@ -4508,7 +4550,15 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.\n- `PERMISSION_GROUP_CAPABILITY_BLOCKED` — The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.\n- `INTEGRATION_NOT_ALLOWED` — The integration this request names is outside the workspace's allowed set. An organization admin controls the permission group's integration allowlist, and a self-hosted deployment can narrow it further with ALLOWED_INTEGRATIONS.\n- `INSUFFICIENT_SCOPE` — The OAuth access token was not granted the scope this operation needs. The `WWW-Authenticate` header names the scope; authorize the app again requesting it."
+                "description": "Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.",
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/V2ActionableForbiddenDetails"
+                  },
+                  {
+                    "description": "Other structured context defined by the specific error."
+                  }
+                ]
               }
             },
             "required": ["code", "message"],
@@ -6144,7 +6194,7 @@
             "maximum": 100
           },
           "tagFilters": {
-            "description": "Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{knowledgeBaseId}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.",
+            "description": "Up to 10 filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.",
             "maxItems": 10,
             "type": "array",
             "items": {
@@ -6693,7 +6743,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON."
+            "description": "Signed URL to which the file bytes are uploaded. Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML."
           },
           "headers": {
             "type": "object",
@@ -6898,7 +6948,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON.\n\nYou do not need to retain the `ETag` each part upload returns. Unlike a raw S3 multipart flow, completion takes no request body: Sim lists the uploaded parts from the provider itself and reads their entity tags there, so `POST .../complete` only has to happen after every part has been sent."
+            "description": "Signed URL for this upload part. Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML. Do not retain part `ETag` values; after every part succeeds, call the completion endpoint without a request body."
           },
           "headers": {
             "type": "object",

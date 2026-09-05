@@ -6,9 +6,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   delete: vi.fn(),
+  transaction: vi.fn(),
+  txSelect: vi.fn(),
+  txDelete: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: { select: mocks.select, delete: mocks.delete } }))
+vi.mock('@sim/db', () => ({
+  db: {
+    select: mocks.select,
+    delete: mocks.delete,
+    transaction: mocks.transaction,
+  },
+}))
 
 import {
   OAUTH_TOKEN_RETENTION_DAYS,
@@ -25,6 +34,7 @@ function selectChain(rows: unknown[], captured: unknown[]) {
   }
   chain.orderBy = () => chain
   chain.limit = () => chain
+  chain.for = () => chain
   chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(rows).then(resolve)
   return chain
 }
@@ -32,26 +42,56 @@ function selectChain(rows: unknown[], captured: unknown[]) {
 describe('runCleanupOAuthTokens', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.transaction.mockImplementation((work) =>
+      work({ select: mocks.txSelect, delete: mocks.txDelete })
+    )
+    mocks.txSelect.mockImplementation(() => selectChain([], []))
   })
 
   it('deletes exactly the expired rows it selected, and reports both counts', async () => {
     const deletedFrom: unknown[] = []
     mocks.select
-      .mockReturnValueOnce(selectChain([{ id: 'r1' }, { id: 'r2' }], []))
+      .mockReturnValueOnce(
+        selectChain(
+          [
+            {
+              id: 'r1',
+              clientId: 'client-1',
+              sessionId: null,
+              userId: 'user-1',
+              consentId: null,
+            },
+            {
+              id: 'r2',
+              clientId: 'client-1',
+              sessionId: null,
+              userId: 'user-1',
+              consentId: null,
+            },
+          ],
+          []
+        )
+      )
       .mockReturnValueOnce(selectChain([{ id: 'a1' }], []))
-    const returned = [[{ id: 'r1' }, { id: 'r2' }], [{ id: 'a1' }]]
+    mocks.txDelete.mockImplementation((table: unknown) => ({
+      where: (clause: unknown) => {
+        deletedFrom.push([table, clause])
+        return { returning: () => Promise.resolve([{ id: 'r1' }, { id: 'r2' }]) }
+      },
+    }))
     mocks.delete.mockImplementation((table: unknown) => ({
       where: (clause: unknown) => {
         deletedFrom.push([table, clause])
-        return { returning: () => Promise.resolve(returned.shift() ?? []) }
+        return { returning: () => Promise.resolve([{ id: 'a1' }]) }
       },
     }))
 
     await expect(runCleanupOAuthTokens()).resolves.toEqual({
-      refreshTokens: 2,
+      tokenFamilies: 2,
       accessTokens: 1,
     })
     expect(deletedFrom).toHaveLength(2)
+    expect(mocks.transaction).toHaveBeenCalledOnce()
   })
 
   /**
@@ -62,7 +102,7 @@ describe('runCleanupOAuthTokens', () => {
     mocks.select.mockReturnValueOnce(selectChain([], [])).mockReturnValueOnce(selectChain([], []))
 
     await expect(runCleanupOAuthTokens()).resolves.toEqual({
-      refreshTokens: 0,
+      tokenFamilies: 0,
       accessTokens: 0,
     })
     expect(mocks.delete).not.toHaveBeenCalled()

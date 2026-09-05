@@ -90,7 +90,9 @@ describe('v2 401 authentication challenge', () => {
   const EXPECTED_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key", Bearer realm="Sim API"'
 
   const challenge = () =>
-    v2Error('UNAUTHORIZED', 'API key required').headers.get('WWW-Authenticate')
+    v2Error('UNAUTHORIZED', 'API key or OAuth access token required').headers.get(
+      'WWW-Authenticate'
+    )
 
   it('sends a challenge on 401', () => {
     const response = v2Error('UNAUTHORIZED', 'Invalid API key')

@@ -66,7 +66,7 @@ describe('request headers reaching the CLI as flags', () => {
  * and this recomputes the expected set, so a generator holding a stale copy of
  * it goes red instead of silently unmarking a family.
  */
-function personalKeyMarkers(): string[] {
+function workspaceKeyDenialMarkers(): string[] {
   const source = readFileSync(
     path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/shared.ts'),
     'utf8'
@@ -96,20 +96,22 @@ describe('operations that refuse a workspace API key', () => {
    * pinned pair stayed green.
    */
   it('emits the marker for every operation the specs say refuses one', () => {
-    const marked = [...loadSummaries(personalKeyMarkers()).values()].filter(
-      (doc) => doc.personalKeyOnly
+    const marked = [...loadSummaries(workspaceKeyDenialMarkers()).values()].filter(
+      (doc) => doc.workspaceKeyUnsupported
     )
     expect(marked.length).toBeGreaterThan(0)
-    expect(generatedSource().match(/personalKeyOnly: true/g)?.length ?? 0).toBe(marked.length)
+    expect(generatedSource().match(/workspaceKeyUnsupported: true/g)?.length ?? 0).toBe(
+      marked.length
+    )
   })
 
   it('marks restricted operations and leaves workspace-key-capable siblings alone', () => {
     const source = generatedSource()
     for (const name of ['listMcpServerTools', 'listSecrets', 'undeployWorkflow']) {
-      expect(generatedEntry(source, name)).toContain('personalKeyOnly: true')
+      expect(generatedEntry(source, name)).toContain('workspaceKeyUnsupported: true')
     }
     for (const name of ['listMcpServers', 'getMcpServer', 'listWorkflows']) {
-      expect(generatedEntry(source, name)).not.toContain('personalKeyOnly')
+      expect(generatedEntry(source, name)).not.toContain('workspaceKeyUnsupported')
     }
   })
 })

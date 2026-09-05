@@ -671,17 +671,9 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  */
 const PREDICATE_LIMITS_DESCRIPTION = `At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`
 const PREDICATE_NEGATION_DESCRIPTION =
-  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`.'
-const PREDICATE_TREE_DESCRIPTION = [
-  `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. ${PREDICATE_LIMITS_DESCRIPTION}`,
-  PREDICATE_NEGATION_DESCRIPTION,
-  PREDICATE_OPERATOR_GRAMMAR,
-].join(' ')
-const PREDICATE_INPUT_DESCRIPTION = [
-  `A single \`{ field, op, value }\` condition or a recursive \`all\`/\`any\` group; either form is normalized to a grouped predicate after validation. ${PREDICATE_LIMITS_DESCRIPTION}`,
-  PREDICATE_NEGATION_DESCRIPTION,
-  PREDICATE_OPERATOR_GRAMMAR,
-].join(' ')
+  'Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.'
+const PREDICATE_TREE_DESCRIPTION = `Recursive non-empty \`all\`/\`any\` groups containing groups or conditions; the root cannot be a condition. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION}`
+const PREDICATE_INPUT_DESCRIPTION = `One condition or a recursive \`all\`/\`any\` group, normalized to a grouped predicate. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION}`
 
 /**
  * The canonical grouped predicate schema for dual-grammar boundaries. Keeping

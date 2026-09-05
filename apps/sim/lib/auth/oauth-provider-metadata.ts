@@ -20,11 +20,16 @@ const DISCOVERY_HEADERS = {
  */
 export async function getOAuthProviderMetadata() {
   const metadata = await auth.api.getOAuthServerConfig()
+  const {
+    introspection_endpoint: _introspectionEndpoint,
+    introspection_endpoint_auth_methods_supported: _introspectionAuthMethods,
+    ...supportedMetadata
+  } = metadata
   const publicClientAuthMethods = (methods: string[] | undefined) => [
     ...new Set([...(methods ?? []), 'none']),
   ]
   return {
-    ...metadata,
+    ...supportedMetadata,
     token_endpoint_auth_methods_supported: publicClientAuthMethods(
       metadata.token_endpoint_auth_methods_supported
     ),

@@ -201,5 +201,5 @@ export async function authenticateV2ApiKey(
   if (credential.malformedOAuthBearer) {
     throw new V2ApiKeyUnauthenticatedError('Invalid access token', 'bearer')
   }
-  throw new V2ApiKeyUnauthenticatedError('API key required')
+  throw new V2ApiKeyUnauthenticatedError('API key or OAuth access token required')
 }

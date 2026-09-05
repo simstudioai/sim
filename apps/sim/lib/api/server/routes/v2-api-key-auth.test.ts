@@ -296,6 +296,7 @@ describe('v2 bearer token authentication', () => {
     )
     expect(missing).toBeInstanceOf(V2ApiKeyUnauthenticatedError)
     expect(missing.challenge).toBe('api_key')
+    expect(missing.message).toBe('API key or OAuth access token required')
   })
 
   it('refuses a token whose client was disabled', async () => {

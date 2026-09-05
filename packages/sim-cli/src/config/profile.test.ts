@@ -26,6 +26,7 @@ import {
   resolveProfile,
   validateProfileName,
   withCredentialsLock,
+  withProfileLoginLease,
   writeConfigProfile,
   writeCredentialsProfile,
 } from './profile'
@@ -720,11 +721,27 @@ describe('OAuth logins in the credentials file', () => {
   it('reclaims a lock left behind by a process that died holding it', async () => {
     const lockPath = `${credentialsPath()}.lock`
     mkdirSync(lockPath, { mode: 0o700 })
-    // Older than the 30s stale window, so the holder is presumed gone.
+    /** Older than the 30-second stale window, so the holder is presumed gone. */
     const dead = new Date(Date.now() - 60_000)
     utimesSync(lockPath, dead, dead)
 
     await expect(withCredentialsLock(async () => 'ran')).resolves.toBe('ran')
     expect(existsSync(lockPath)).toBe(false)
+  })
+
+  it('refuses a second interactive login lease for the same profile', async () => {
+    let releaseFirst!: () => void
+    const first = withProfileLoginLease(
+      'default',
+      () => new Promise<void>((resolve) => (releaseFirst = resolve))
+    )
+    await sleep(10)
+
+    await expect(withProfileLoginLease('default', async () => undefined)).rejects.toThrow(
+      'Another sim login is already in progress for profile "default".'
+    )
+
+    releaseFirst()
+    await first
   })
 })

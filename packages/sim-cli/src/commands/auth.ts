@@ -34,12 +34,15 @@ import {
   oauthIssuerForEndpoint,
   ProfileConfigError,
   type ResolvedProfile,
+  readConfigProfile,
   readStoredCredential,
   resolveAuthenticationProfileName,
   type SettingSource,
+  type StoredCredential,
   type StoredOAuthCredential,
   validateProfileName,
   withCredentialsLock,
+  withProfileLoginLease,
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
@@ -171,6 +174,79 @@ function requireStorableCredential(value: unknown): void {
   }
 }
 
+/** Compares the credential snapshot taken before an interactive login began. */
+function sameStoredCredential(
+  current: StoredCredential | null,
+  expected: StoredCredential | null
+): boolean {
+  if (!current || !expected) return current === expected
+  if (current.kind !== expected.kind) return false
+  if (current.kind === 'api_key' && expected.kind === 'api_key') {
+    return current.apiKey === expected.apiKey
+  }
+  if (current.kind !== 'oauth' || expected.kind !== 'oauth') return false
+  return (
+    current.oauth.accessToken === expected.oauth.accessToken &&
+    current.oauth.refreshToken === expected.oauth.refreshToken &&
+    current.oauth.expiresAt === expected.oauth.expiresAt &&
+    current.oauth.issuer === expected.oauth.issuer &&
+    current.oauth.loginId === expected.oauth.loginId &&
+    current.oauth.scope === expected.oauth.scope
+  )
+}
+
+/** Whether two snapshots identify the same stored login across a normal OAuth refresh. */
+function sameStoredAuthentication(
+  current: StoredCredential | null,
+  expected: StoredCredential | null
+): boolean {
+  if (current?.kind === 'oauth' && expected?.kind === 'oauth') {
+    return (
+      current.oauth.loginId === expected.oauth.loginId &&
+      current.oauth.issuer === expected.oauth.issuer
+    )
+  }
+  return sameStoredCredential(current, expected)
+}
+
+interface LoginProfileSnapshot {
+  credential: StoredCredential | null
+  authProfile: string | null
+  endpoint: string | null
+  workspace: string | null
+}
+
+function readLoginProfileSnapshot(profileName: string): LoginProfileSnapshot {
+  const config = readConfigProfile(profileName)
+  return {
+    credential: readStoredCredential(profileName),
+    authProfile: config.auth_profile ?? null,
+    endpoint: config.endpoint ?? null,
+    workspace: config.workspace ?? null,
+  }
+}
+
+function sameLoginProfileSnapshot(
+  current: LoginProfileSnapshot,
+  expected: LoginProfileSnapshot
+): boolean {
+  return (
+    sameStoredCredential(current.credential, expected.credential) &&
+    current.authProfile === expected.authProfile &&
+    current.endpoint === expected.endpoint &&
+    current.workspace === expected.workspace
+  )
+}
+
+function assertLoginProfileUnchanged(profileName: string, expected: LoginProfileSnapshot): void {
+  if (!sameLoginProfileSnapshot(readLoginProfileSnapshot(profileName), expected)) {
+    throw new SimApiError(
+      `Profile "${redact(profileName)}" changed while sign-in was open. Its newer settings and login were kept.`,
+      0
+    )
+  }
+}
+
 function requireStoredAuthentication(profile: ResolvedProfile): string {
   const authProfile = resolveAuthenticationProfileName(profile.name)
   if (profile.sources.credential !== 'credentials' || !readStoredCredential(authProfile)) {
@@ -256,18 +332,31 @@ function addProfileCommand(): Command {
 
       const { client, profile } = clientFrom(command)
       const authProfile = requireStoredAuthentication(profile)
+      const credential = readStoredCredential(authProfile)
       const workspaceId = globalsOf(command).workspace
       const workspace = workspaceId
         ? await getWorkspaceById(client, workspaceId)
         : await chooseWorkspace(client)
+      const normalizedWorkspaceId = normalizeWorkspaceId(workspace.id, 'the workspace response')
 
-      writeConfigProfile(profileName, {
-        auth_profile: authProfile,
-        // Server-supplied, exactly like the login response's workspace id, so it
-        // is checked the same way: the writer would refuse an unstorable one
-        // anyway, but with a message about the file format rather than the
-        // response that produced it.
-        workspace: normalizeWorkspaceId(workspace.id, 'the workspace response'),
+      await withCredentialsLock(async () => {
+        validateNewProfileName(profileName)
+        const currentProfile = profileFrom(command)
+        const currentAuthProfile = requireStoredAuthentication(currentProfile)
+        if (
+          currentAuthProfile !== authProfile ||
+          currentProfile.endpoint !== profile.endpoint ||
+          !sameStoredAuthentication(readStoredCredential(currentAuthProfile), credential)
+        ) {
+          throw new SimApiError(
+            `Profile "${redact(profile.name)}" changed while the workspace was being selected. Its newer settings and login were kept.`,
+            0
+          )
+        }
+        writeConfigProfile(profileName, {
+          auth_profile: authProfile,
+          workspace: normalizedWorkspaceId,
+        })
       })
 
       console.log(chalk.green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
@@ -351,7 +440,8 @@ function parseCallbackPort(value: string | undefined): number | undefined {
 async function loginWithOAuth(
   profile: ResolvedProfile,
   options: LoginOptions,
-  callbackPort: number | undefined
+  callbackPort: number | undefined,
+  expected: LoginProfileSnapshot
 ): Promise<void> {
   console.log(
     `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
@@ -367,23 +457,56 @@ async function loginWithOAuth(
     },
   })
 
-  requireStorableCredential(tokens.accessToken)
-  requireStorableCredential(tokens.refreshToken)
+  try {
+    requireStorableCredential(tokens.accessToken)
+    requireStorableCredential(tokens.refreshToken)
 
-  await withCredentialsLock(async () => {
-    writeConfigProfile(profile.name, { endpoint: profile.endpoint })
-    writeCredentialsProfile(profile.name, {
-      kind: 'oauth',
-      oauth: {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        expiresAt: tokens.expiresAt,
-        issuer: oauthIssuerForEndpoint(profile.endpoint),
-        loginId: randomBytes(16).toString('base64url'),
-        scope: tokens.scope,
-      },
+    await withCredentialsLock(async () => {
+      assertLoginProfileUnchanged(profile.name, expected)
+      const credential: StoredCredential = {
+        kind: 'oauth',
+        oauth: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresAt: tokens.expiresAt,
+          issuer: oauthIssuerForEndpoint(profile.endpoint),
+          loginId: randomBytes(16).toString('base64url'),
+          scope: tokens.scope,
+        },
+      }
+      writeCredentialsProfile(profile.name, null)
+      try {
+        writeConfigProfile(profile.name, { endpoint: profile.endpoint })
+        writeCredentialsProfile(profile.name, credential)
+      } catch (error) {
+        try {
+          writeConfigProfile(profile.name, { endpoint: expected.endpoint })
+          writeCredentialsProfile(profile.name, expected.credential)
+        } catch (rollbackError) {
+          try {
+            writeCredentialsProfile(profile.name, null)
+          } catch {}
+          console.log(
+            chalk.yellow(
+              `Could not restore the previous profile safely (${safeOneLine(getErrorMessage(rollbackError))}). Its local login was cleared to avoid using it against the wrong endpoint. The new server login will still be revoked.`
+            )
+          )
+        }
+        throw error
+      }
     })
-  })
+  } catch (error) {
+    try {
+      await revokeToken(profile.endpoint, tokens.refreshToken)
+    } catch (revocationError) {
+      console.log(
+        chalk.yellow(
+          `Could not revoke the uncommitted login (${safeOneLine(getErrorMessage(revocationError))}). Revoke Sim CLI in Settings → Authorized apps.`
+        )
+      )
+    }
+    throw error
+  }
 
   console.log(chalk.green(`\n✓ Logged in. Login stored in ${credentialsPath()}`))
   /**
@@ -423,8 +546,7 @@ export function loginCommand(): Command {
     .option('--callback-port <port>', 'Pin the local port the browser returns to')
     .option('-y, --yes', 'Overwrite an existing API-key profile without prompting')
     .action(async (options: LoginOptions, command: Command) => {
-      // `login --profile x` is how a profile comes into existence, so the name
-      // is allowed to be one resolution would otherwise reject as unknown.
+      /** Login may name the profile it is about to create. */
       const profile = profileFrom(command, { allowUnknownProfile: true })
       const authProfile = resolveAuthenticationProfileName(profile.name)
 
@@ -440,7 +562,8 @@ export function loginCommand(): Command {
       }
       const scope = options.scope as CliAuthScope
 
-      const storedCredential = readStoredCredential(profile.name)
+      const snapshot = readLoginProfileSnapshot(profile.name)
+      const storedCredential = snapshot.credential
       if (storedCredential?.kind === 'oauth') {
         throw new SimApiError(
           `Profile "${redact(profile.name)}" already has an OAuth login. Run sim logout --profile ${redact(profile.name)} before signing in again.`,
@@ -455,14 +578,10 @@ export function loginCommand(): Command {
         }
       }
 
-      // Parsed before either flow runs, so a malformed port is reported as
-      // itself rather than after a browser has already opened.
+      /** Validate a pinned port before opening a browser or starting either flow. */
       const callbackPort = parseCallbackPort(options.callbackPort)
 
-      if ((await chooseLoginFlow(profile, options, scope)) === 'oauth') {
-        await loginWithOAuth(profile, options, callbackPort)
-        return
-      }
+      const loginFlow = await chooseLoginFlow(profile, options, scope)
       /**
        * Neither flag has a meaning in the handoff: it mints a permanent,
        * full-power API key on the server and never opens a local listener.
@@ -470,19 +589,28 @@ export function loginCommand(): Command {
        * what was asked for, so the whole login stops here rather than storing a
        * credential the person did not agree to.
        */
-      if (options.readOnly) {
-        throw new SimApiError(
-          'The pairing-code handoff cannot issue a read-only login; it mints a full API key. Drop --read-only, or sign in through the browser.',
-          0
-        )
+      if (loginFlow === 'handoff') {
+        if (options.readOnly) {
+          throw new SimApiError(
+            'The pairing-code handoff cannot issue a read-only login; it mints a full API key. Drop --read-only, or sign in through the browser.',
+            0
+          )
+        }
+        if (callbackPort !== undefined) {
+          throw new SimApiError(
+            'The pairing-code handoff has no local callback, so --callback-port does not apply. Drop it, or sign in through the browser.',
+            0
+          )
+        }
       }
-      if (callbackPort !== undefined) {
-        throw new SimApiError(
-          'The pairing-code handoff has no local callback, so --callback-port does not apply. Drop it, or sign in through the browser.',
-          0
-        )
-      }
-      await loginWithHandoff(profile, options, scope)
+      await withProfileLoginLease(profile.name, async () => {
+        assertLoginProfileUnchanged(profile.name, snapshot)
+        if (loginFlow === 'oauth') {
+          await loginWithOAuth(profile, options, callbackPort, snapshot)
+          return
+        }
+        await loginWithHandoff(profile, options, scope, snapshot)
+      })
     })
 }
 
@@ -490,7 +618,8 @@ export function loginCommand(): Command {
 async function loginWithHandoff(
   profile: ResolvedProfile,
   options: LoginOptions,
-  scope: CliAuthScope
+  scope: CliAuthScope,
+  expected: LoginProfileSnapshot
 ): Promise<void> {
   const auth = createAuthRequest()
   const url = buildApprovalUrl(profile.endpoint, auth, scope, profile.workspaceId ?? undefined)
@@ -506,45 +635,58 @@ async function loginWithHandoff(
   console.log(chalk.dim('\nWaiting for approval…'))
 
   const key = await pollForKey(profile.endpoint, auth)
+  try {
+    if (key.scope !== scope) {
+      throw new SimApiError(
+        `Server issued a ${key.scope} key but this profile needs a ${scope} key. Update the Sim deployment, or run: sim login --scope ${key.scope}`,
+        0
+      )
+    }
 
-  if (key.scope !== scope) {
-    // The approval, not the request, decides the scope. Storing a copilot
-    // key where a platform key belongs would fail every later call with an
-    // unexplained 401, so refuse now with the reason.
-    throw new SimApiError(
-      `Server issued a ${key.scope} key but this profile needs a ${scope} key. Update the Sim deployment, or run: sim login --scope ${key.scope}`,
-      0
+    const settings: Record<string, string | null> = {
+      endpoint: profile.endpoint,
+      workspace:
+        key.workspaceId == null
+          ? null
+          : normalizeWorkspaceId(key.workspaceId, 'the login response'),
+    }
+    requireStorableCredential(key.apiKey)
+
+    await withCredentialsLock(async () => {
+      assertLoginProfileUnchanged(profile.name, expected)
+      writeCredentialsProfile(profile.name, null)
+      try {
+        writeConfigProfile(profile.name, settings)
+        writeCredentialsProfile(profile.name, { kind: 'api_key', apiKey: key.apiKey })
+      } catch (error) {
+        try {
+          writeConfigProfile(profile.name, {
+            endpoint: expected.endpoint,
+            workspace: expected.workspace,
+          })
+          writeCredentialsProfile(profile.name, expected.credential)
+        } catch (rollbackError) {
+          try {
+            writeCredentialsProfile(profile.name, null)
+          } catch {}
+          console.log(
+            chalk.yellow(
+              `Could not restore the previous profile safely (${safeOneLine(getErrorMessage(rollbackError))}). Its local login was cleared to avoid using it against the wrong endpoint.`
+            )
+          )
+        }
+        throw error
+      }
+    })
+  } catch (error) {
+    const keyId = typeof key.id === 'string' && key.id ? safeOneLine(key.id) : 'unknown'
+    console.log(
+      chalk.yellow(
+        `API key ${keyId} was created but could not be stored safely. Revoke it in Settings → API keys.`
+      )
     )
+    throw error
   }
-
-  // The workspace picked in the browser becomes the profile's default,
-  // whether or not the key is scoped to it. The user chose it by name —
-  // making them look up its id afterwards would waste the one moment the
-  // answer was already on screen. It arrives off the wire, so it is
-  // checked before either file is touched.
-  //
-  // Absence is the whole of "no workspace" here, and it is a legitimate
-  // outcome — a personal key with nothing selected in the browser. A
-  // *present* value is a workspace id, so every one of them goes to
-  // `normalizeWorkspaceId` to be accepted or refused by name. Testing
-  // truthiness instead let an empty string through the absent branch, so
-  // a malformed response was quietly stored as "no workspace" rather than
-  // reported.
-  const settings: Record<string, string | null> = {
-    endpoint: profile.endpoint,
-    workspace:
-      key.workspaceId == null ? null : normalizeWorkspaceId(key.workspaceId, 'the login response'),
-  }
-  requireStorableCredential(key.apiKey)
-
-  // Config before credentials: the endpoint decides where the key is sent
-  // later. Storing the key first and then failing on the settings left a
-  // key on disk with no endpoint beside it, so the next command fell back
-  // to the default host — sending a self-hosted key somewhere else.
-  await withCredentialsLock(async () => {
-    writeConfigProfile(profile.name, settings)
-    writeCredentialsProfile(profile.name, { kind: 'api_key', apiKey: key.apiKey })
-  })
 
   console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
   if (key.workspaceBound && key.workspaceId) {
@@ -565,24 +707,39 @@ async function loginWithHandoff(
 }
 
 /**
- * Ends an OAuth login's ability to renew before forgetting it locally. Better
- * Auth also removes the access token paired with this refresh token; an access
- * token copied before an earlier rotation can remain valid until its one-hour
- * expiry, so Settings → Authorized apps remains the immediate whole-app kill
- * switch. An unreachable server must not stop someone clearing their machine,
- * but it is said out loud so nobody assumes revocation succeeded.
+ * Revokes the complete server-side token family before forgetting it locally.
+ * Settings → Authorized apps is broader: it revokes every independent login
+ * for the client. An unreachable server must not stop someone clearing their
+ * machine, but it is said out loud so nobody assumes revocation succeeded.
  */
-async function revokeStoredOAuth(
-  endpoint: string,
-  credential: StoredOAuthCredential
-): Promise<void> {
+async function revokeStoredOAuth(credential: StoredOAuthCredential): Promise<void> {
+  let displayEndpoint = safeOneLine(redact(credential.issuer))
   try {
+    const issuer = new URL(credential.issuer)
+    const displayIssuer = new URL(issuer)
+    displayIssuer.username = ''
+    displayIssuer.password = ''
+    displayEndpoint = safeOneLine(displayIssuer.toString())
+    if (
+      FORBIDDEN_IN_VALUE.test(credential.issuer) ||
+      (issuer.protocol !== 'http:' && issuer.protocol !== 'https:') ||
+      issuer.username ||
+      issuer.password ||
+      issuer.search ||
+      issuer.hash ||
+      !issuer.pathname.endsWith('/api/auth')
+    ) {
+      throw new Error('stored issuer is invalid')
+    }
+    issuer.pathname = issuer.pathname.slice(0, -'/api/auth'.length) || '/'
+    const endpoint = issuer.toString().replace(/\/$/, '')
+    displayEndpoint = safeOneLine(endpoint)
     await revokeToken(endpoint, credential.refreshToken)
-    console.log(chalk.dim('  Signed out of Sim; the login can no longer be renewed.'))
+    console.log(chalk.dim('  Signed out of Sim; every token from this login was revoked.'))
   } catch (error) {
     console.log(
       chalk.yellow(
-        `  Could not revoke the login on ${endpoint} (${safeOneLine(getErrorMessage(error))}). Revoke it in Settings → Authorized apps.`
+        `  Could not revoke the login on ${displayEndpoint} (${safeOneLine(getErrorMessage(error))}). Revoke it in Settings → Authorized apps.`
       )
     )
   }
@@ -595,18 +752,17 @@ export function logoutCommand(): Command {
     .action(async (options: { all?: boolean }, command: Command) => {
       if (options.all) {
         const profileName = selectedProfileName(command)
-        const dependents = listAuthenticationDependents(profileName)
-        if (dependents.length > 0) {
-          throw new SimApiError(
-            `Cannot remove authentication profile "${redact(profileName)}" because it is used by: ${dependents.map(redact).join(', ')}. Remove those profiles first.`,
-            0
-          )
-        }
-        const endpoint = profileFrom(command).endpoint
         const { removed, credential } = await withCredentialsLock(async () => {
+          const dependents = listAuthenticationDependents(profileName)
+          if (dependents.length > 0) {
+            throw new SimApiError(
+              `Cannot remove authentication profile "${redact(profileName)}" because it is used by: ${dependents.map(redact).join(', ')}. Remove those profiles first.`,
+              0
+            )
+          }
           const credential = readStoredCredential(profileName)
           if (credential?.kind === 'oauth') {
-            await revokeStoredOAuth(endpoint, credential.oauth)
+            await revokeStoredOAuth(credential.oauth)
           }
           return { removed: deleteProfile(profileName), credential }
         })
@@ -623,35 +779,34 @@ export function logoutCommand(): Command {
         return
       }
 
-      const profile = profileFrom(command)
-      const authProfile = resolveAuthenticationProfileName(profile.name)
-      if (authProfile !== profile.name) {
+      const profileName = selectedProfileName(command)
+      const authProfile = resolveAuthenticationProfileName(profileName)
+      if (authProfile !== profileName) {
         throw new SimApiError(
-          `Profile "${redact(profile.name)}" shares authentication with "${redact(authProfile)}". Log out of the authentication profile instead: sim logout --profile ${redact(authProfile)}`,
+          `Profile "${redact(profileName)}" shares authentication with "${redact(authProfile)}". Log out of the authentication profile instead: sim logout --profile ${redact(authProfile)}`,
           0
         )
       }
 
       const credential = await withCredentialsLock(async () => {
-        const credential = readStoredCredential(profile.name)
+        const credential = readStoredCredential(profileName)
         if (!credential) return null
         if (credential.kind === 'oauth') {
-          await revokeStoredOAuth(profile.endpoint, credential.oauth)
+          await revokeStoredOAuth(credential.oauth)
         }
-        writeCredentialsProfile(profile.name, null)
+        writeCredentialsProfile(profileName, null)
         return credential
       })
       if (!credential) {
-        console.log(chalk.dim(`No stored login for profile "${safeOneLine(profile.name)}".`))
+        console.log(chalk.dim(`No stored login for profile "${safeOneLine(profileName)}".`))
         return
       }
 
       console.log(
-        chalk.green(`✓ Removed the stored login for profile "${safeOneLine(profile.name)}".`)
+        chalk.green(`✓ Removed the stored login for profile "${safeOneLine(profileName)}".`)
       )
       if (credential.kind === 'api_key') {
-        // The key still exists server-side; leaving that unsaid invites the
-        // assumption that logging out revoked it.
+        /** Local API-key removal cannot revoke the server-side key. */
         console.log(
           chalk.dim('  The key itself is still active — revoke it in Settings → API keys.')
         )

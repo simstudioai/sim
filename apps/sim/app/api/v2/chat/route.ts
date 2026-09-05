@@ -171,8 +171,8 @@ function buildChatResultPayload(
  * POST /api/v2/chat
  *
  * One conversational turn against the same headless execution path as the Sim
- * Chat block (`/api/mothership/execute`), authenticated with a personal API key
- * instead of the executor's internal JWT. JSON callers get one final response;
+ * Chat block (`/api/mothership/execute`), authenticated with an OAuth access
+ * token or personal API key instead of the executor's internal JWT. JSON callers get one final response;
  * NDJSON callers (`Accept: application/x-ndjson`) get heartbeats and incremental
  * `chunk` events followed by a `final` event, so long-running turns do not look
  * idle to intermediaries.
@@ -212,11 +212,11 @@ export const POST = withRouteHandler(
       const userPermission = workspaceAccess.permission
 
       /**
-       * permission-group-enforced: personal_api_key.use — this route only ever
-       * runs for a personal API key, and `admitV2Request` authenticates one
-       * without authorizing it, so the funnel's personal-key policy has to be
-       * repeated here or the same key `authorizeWorkspaceOperation` refuses
-       * still starts a chat turn.
+       * permission-group-enforced: personal_api_key.use — this route runs for a
+       * user-held credential, and `admitV2Request` authenticates one without
+       * authorizing it, so the funnel's user-credential policy has to be repeated
+       * here or the same principal `authorizeWorkspaceOperation` refuses still
+       * starts a chat turn.
        *
        * Both halves, because they combine with AND: the workspace column is the
        * coarse switch every workspace has, and the group key narrows it further

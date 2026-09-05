@@ -9,7 +9,6 @@ export {
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application/authorized-workspace-use-case'
 export {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
   FORBIDDEN_DETAIL_CODES,
   type ForbiddenDetailCode,
   ForbiddenOperationError,

@@ -621,7 +621,7 @@ export const env = createEnv({
     /** Comma-separated proxy IPs/CIDRs skipped while resolving the forwarded client chain. */
     AUTH_TRUSTED_PROXIES:                  z.string().optional(),
 
-    // Sim as an OAuth 2.1 provider (CLI sign-in, connected apps). On unless set to false.
+    /** Sim's OAuth provider remains an explicit opt-in for rollout safety. */
     OAUTH_PROVIDER_ENABLED:                z.boolean().optional(),
 
     // SSO Configuration (for script-based registration)

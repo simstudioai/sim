@@ -3953,7 +3953,7 @@ export const ssoDomain = pgTable(
 )
 
 /**
- * OAuth 2.1 provider tables (Better Auth `@better-auth/oauth-provider`).
+ * OAuth 2.0 provider tables (Better Auth `@better-auth/oauth-provider`).
  *
  * Sim is the authorization server: a registered client (the Sim CLI, or an
  * admin-created third-party app) sends a user through `/api/auth/oauth2/authorize`,
@@ -4001,7 +4001,64 @@ export const oauthClient = pgTable(
   })
 )
 
-/** A rotating refresh token; `revoked` is set when it is rotated or revoked. */
+/** The scopes a user has granted a client; deleted when the user revokes the app. */
+export const oauthConsent = pgTable(
+  'oauth_consent',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    scopes: text('scopes').array().notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_consent_client_id_idx').on(table.clientId),
+    /** One grant per user, client, and reference, including nullable dimensions. */
+    userClientUnique: unique('oauth_consent_user_client_reference_unique')
+      .on(table.userId, table.clientId, table.referenceId)
+      .nullsNotDistinct(),
+  })
+)
+
+/**
+ * One independently revocable login. Every rotating refresh token belongs to
+ * a stable family so replay and logout can atomically remove all descendants.
+ */
+export const oauthTokenFamily = pgTable(
+  'oauth_token_family',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    consentId: text('consent_id').references(() => oauthConsent.id, { onDelete: 'cascade' }),
+    currentGeneration: integer('current_generation').notNull().default(0),
+    createdAt: timestamp('created_at').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('oauth_token_family_client_id_idx').on(table.clientId),
+    sessionIdIdx: index('oauth_token_family_session_id_idx').on(table.sessionId),
+    userClientIdx: index('oauth_token_family_user_client_idx').on(table.userId, table.clientId),
+    consentIdIdx: index('oauth_token_family_consent_id_idx').on(table.consentId),
+    expiresAtIdx: index('oauth_token_family_expires_at_idx').on(table.expiresAt),
+    generationCheck: check(
+      'oauth_token_family_generation_check',
+      sql`${table.currentGeneration} BETWEEN 0 AND 1000`
+    ),
+  })
+)
+
+/** A member of a rotating refresh-token family. */
 export const oauthRefreshToken = pgTable(
   'oauth_refresh_token',
   {
@@ -4020,6 +4077,10 @@ export const oauthRefreshToken = pgTable(
     revoked: timestamp('revoked'),
     authTime: timestamp('auth_time'),
     scopes: text('scopes').array().notNull(),
+    familyId: text('family_id')
+      .notNull()
+      .references(() => oauthTokenFamily.id, { onDelete: 'cascade' }),
+    generation: integer('generation').notNull(),
   },
   (table) => ({
     clientIdIdx: index('oauth_refresh_token_client_id_idx').on(table.clientId),
@@ -4027,6 +4088,14 @@ export const oauthRefreshToken = pgTable(
     userClientIdx: index('oauth_refresh_token_user_client_idx').on(table.userId, table.clientId),
     /** Drives the cleanup pass; nothing else reads tokens by expiry. */
     expiresAtIdx: index('oauth_refresh_token_expires_at_idx').on(table.expiresAt),
+    familyGenerationUnique: unique('oauth_refresh_token_family_generation_unique').on(
+      table.familyId,
+      table.generation
+    ),
+    generationCheck: check(
+      'oauth_refresh_token_generation_check',
+      sql`${table.generation} BETWEEN 0 AND 1000`
+    ),
   })
 )
 
@@ -4056,37 +4125,6 @@ export const oauthAccessToken = pgTable(
     userClientIdx: index('oauth_access_token_user_client_idx').on(table.userId, table.clientId),
     /** Drives the cleanup pass; nothing else reads tokens by expiry. */
     expiresAtIdx: index('oauth_access_token_expires_at_idx').on(table.expiresAt),
-  })
-)
-
-/** The scopes a user has granted a client; deleted when the user revokes the app. */
-export const oauthConsent = pgTable(
-  'oauth_consent',
-  {
-    id: text('id').primaryKey(),
-    clientId: text('client_id')
-      .notNull()
-      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    referenceId: text('reference_id'),
-    scopes: text('scopes').array().notNull(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-  },
-  (table) => ({
-    clientIdIdx: index('oauth_consent_client_id_idx').on(table.clientId),
-    /**
-     * One grant per (user, client, reference). The migration's insert trigger
-     * serializes and converts the plugin's non-atomic read-then-create into an
-     * upsert; this constraint remains the final integrity backstop.
-     *
-     * `nullsNotDistinct` because both `user_id` and `reference_id` are
-     * nullable, and Postgres treats NULLs as distinct by default — which would
-     * let exactly the duplicates this exists to prevent through.
-     */
-    userClientUnique: unique('oauth_consent_user_client_reference_unique')
-      .on(table.userId, table.clientId, table.referenceId)
-      .nullsNotDistinct(),
   })
 )
 

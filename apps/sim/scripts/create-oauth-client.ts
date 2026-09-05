@@ -27,12 +27,10 @@
  * A confidential client's secret is generated here, encrypted the way the
  * provider stores it, and printed exactly once.
  *
- * Encrypted rather than hashed because the provider issues opaque access
- * tokens (`disableJwtPlugin`), which leaves the client secret as the key an ID
- * token is signed with — so the server has to read it back. `symmetricEncrypt`
- * under `BETTER_AUTH_SECRET` is exactly what the plugin's own client creation
- * does; writing a hash here produced a row no client could ever authenticate
- * against.
+ * Better Auth requires reversibly encrypted client secrets whenever its JWT
+ * plugin is disabled. `symmetricEncrypt` under `BETTER_AUTH_SECRET` matches
+ * the provider's own client creation path, so token-endpoint authentication
+ * can read and compare the secret.
  */
 
 import { randomBytes } from 'node:crypto'
@@ -43,7 +41,7 @@ import { symmetricEncrypt } from 'better-auth/crypto'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { OAUTH_PUBLIC_CLIENT_SCOPES, OAUTH_SCOPES } from '@/lib/auth/oauth-provider'
+import { OAUTH_SCOPES } from '@/lib/auth/oauth-provider'
 
 /**
  * Read from the provider's own list rather than copied, and every requested
@@ -115,14 +113,6 @@ export async function main(): Promise<void> {
       `Unknown scope(s): ${unknownScopes.join(', ')}. Sim's provider declares: ${DEFAULT_SCOPES.join(', ')}`
     )
   }
-  const unsupportedPublicScopes = scopes.filter(
-    (scope) => !(OAUTH_PUBLIC_CLIENT_SCOPES as readonly string[]).includes(scope)
-  )
-  if (isPublic && unsupportedPublicScopes.length > 0) {
-    throw new Error(
-      `Public clients cannot request identity scope(s) ${unsupportedPublicScopes.join(', ')} while JWT signing is disabled. Use a confidential client, or request only: ${OAUTH_PUBLIC_CLIENT_SCOPES.join(', ')}`
-    )
-  }
   const secret = isPublic ? null : randomBytes(32).toString('base64url')
   const storedSecret = secret
     ? await symmetricEncrypt({ key: requireEnv('BETTER_AUTH_SECRET'), data: secret })
@@ -150,6 +140,7 @@ export async function main(): Promise<void> {
     }
 
     const now = new Date()
+    const tokenEndpointAuthMethod = isPublic ? 'none' : 'client_secret_basic'
     const clientUri = process.env.OAUTH_CLIENT_URI?.trim() || null
     const logoUri = process.env.OAUTH_CLIENT_LOGO_URI?.trim() || null
     if (clientUri) assertTerminalSafe('OAUTH_CLIENT_URI', clientUri)
@@ -166,7 +157,7 @@ export async function main(): Promise<void> {
       skipConsent: false,
       public: isPublic,
       type: isPublic ? 'native' : 'web',
-      tokenEndpointAuthMethod: isPublic ? 'none' : 'client_secret_post',
+      tokenEndpointAuthMethod,
       requirePKCE: true,
       grantTypes: ['authorization_code', 'refresh_token'],
       responseTypes: ['code'],
@@ -180,6 +171,7 @@ export async function main(): Promise<void> {
       `Created OAuth client "${name}"`,
       `  client_id:     ${clientId}`,
       `  type:          ${isPublic ? 'public (PKCE only)' : 'confidential'}`,
+      `  token_auth:    ${tokenEndpointAuthMethod}`,
       `  redirect_uris: ${redirectUris.join(', ')}`,
       `  scopes:        ${scopes.join(' ')}`,
     ]

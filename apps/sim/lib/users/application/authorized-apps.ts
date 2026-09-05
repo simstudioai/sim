@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { oauthAccessToken, oauthClient, oauthConsent, oauthRefreshToken } from '@sim/db/schema'
+import { oauthAccessToken, oauthClient, oauthConsent } from '@sim/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import type { AuthorizedApp } from '@/lib/api/contracts/user'
 import type { OperationUseCase } from '@/lib/core/application'
@@ -79,9 +79,6 @@ export const revokeAuthorizedAppUseCase: OperationUseCase<
       await tx
         .delete(oauthConsent)
         .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, clientId)))
-      await tx
-        .delete(oauthRefreshToken)
-        .where(and(eq(oauthRefreshToken.userId, userId), eq(oauthRefreshToken.clientId, clientId)))
       await tx
         .delete(oauthAccessToken)
         .where(and(eq(oauthAccessToken.userId, userId), eq(oauthAccessToken.clientId, clientId)))

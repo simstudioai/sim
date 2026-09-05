@@ -366,7 +366,7 @@ export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCurs
  * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
  */
 export const HEAD_MIRRORS_GET =
-  'A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.'
+  '`HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only.'
 
 /**
  * Appended where the skipped payload headers are the ones a caller is most
@@ -378,7 +378,7 @@ export const HEAD_MIRRORS_GET =
  * `headSafe: false` exists to skip.
  */
 export const HEAD_OMITS_PAYLOAD_HEADERS =
-  'In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.'
+  '`HEAD` omits `Content-Length`; use file metadata to size downloads.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.
@@ -424,7 +424,7 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * cannot drift into two paraphrases of one window.
  */
 export const RUN_RETENTION =
-  "Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override."
+  'Expired runs are hard-deleted and simply absent. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.'
 
 /**
  * Response headers a binary download declares on top of the common set. Shared

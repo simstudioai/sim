@@ -18,10 +18,11 @@ function row(overrides: Record<string, unknown> = {}) {
     id: 'token-1',
     userId: 'user-1',
     clientId: 'sim-cli',
-    scopes: ['openid', 'api:read'],
+    scopes: ['offline_access', 'api:read'],
     expiresAt: new Date(Date.now() + 60_000),
     clientDisabled: false,
     userBanned: false,
+    userBanExpires: null,
     userExists: 'user-1',
     ...overrides,
   }
@@ -78,7 +79,7 @@ describe('verifyOAuthAccessToken', () => {
       userId: 'user-1',
       clientId: 'sim-cli',
       tokenId: 'token-1',
-      scopes: ['openid', 'api:read'],
+      scopes: ['offline_access', 'api:read'],
       expiresAt: expect.any(Date),
     })
     expect(dbChainMockFns.where).toHaveBeenCalledOnce()
@@ -105,6 +106,11 @@ describe('verifyOAuthAccessToken', () => {
 
     queueTableRows(schemaMock.oauthAccessToken, [row({ userBanned: true })])
     expect(await reason('sim_oat_x')).toBe('user_banned')
+
+    queueTableRows(schemaMock.oauthAccessToken, [
+      row({ userBanned: true, userBanExpires: new Date(Date.now() - 1) }),
+    ])
+    await expect(verifyOAuthAccessToken('sim_oat_x')).resolves.toMatchObject({ userId: 'user-1' })
   })
 
   it('propagates a store failure rather than reporting an invalid token', async () => {

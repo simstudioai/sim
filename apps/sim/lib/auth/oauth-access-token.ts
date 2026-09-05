@@ -4,6 +4,7 @@ import { oauthAccessToken, oauthClient, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { eq } from 'drizzle-orm'
+import { isBanActive } from '@/lib/auth/ban'
 import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
 
 const logger = createLogger('OAuthAccessToken')
@@ -88,6 +89,7 @@ export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccess
       expiresAt: oauthAccessToken.expiresAt,
       clientDisabled: oauthClient.disabled,
       userBanned: user.banned,
+      userBanExpires: user.banExpires,
       userExists: user.id,
     })
     .from(oauthAccessToken)
@@ -100,7 +102,9 @@ export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccess
   if (row.expiresAt <= new Date()) throw new InvalidOAuthAccessTokenError('expired')
   if (row.clientDisabled) throw new InvalidOAuthAccessTokenError('client_disabled')
   if (!row.userId || !row.userExists) throw new InvalidOAuthAccessTokenError('user_missing')
-  if (row.userBanned) throw new InvalidOAuthAccessTokenError('user_banned')
+  if (isBanActive({ banned: row.userBanned, banExpires: row.userBanExpires })) {
+    throw new InvalidOAuthAccessTokenError('user_banned')
+  }
 
   logger.debug('Authenticated OAuth access token', { tokenId: row.id, clientId: row.clientId })
   return {

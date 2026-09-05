@@ -10,6 +10,16 @@ import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
  */
 const SIGNED_QUERY_PARAMS = new Set(['sig', 'exp', 'ba_iat', 'ba_param', 'ba_pl'])
 
+/** Removes prompts completed by the login/signup hop while preserving later consent prompts. */
+function consumeInteractivePrompt(params: URLSearchParams): boolean {
+  const prompts = (params.get('prompt') ?? '').split(/\s+/).filter(Boolean)
+  const requiresLogin = prompts.includes('login')
+  const remaining = prompts.filter((prompt) => prompt !== 'login' && prompt !== 'create')
+  if (remaining.length > 0) params.set('prompt', remaining.join(' '))
+  else params.delete('prompt')
+  return requiresLogin
+}
+
 /**
  * The OAuth provider's `loginPage`: where a signed-out user lands when a client
  * starts `/api/auth/oauth2/authorize`.
@@ -27,21 +37,23 @@ const SIGNED_QUERY_PARAMS = new Set(['sig', 'exp', 'ba_iat', 'ba_param', 'ba_pl'
  * that can succeed.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  // Gated like the consent page: with the provider off, the authorize URL this
-  // builds is a JSON 404, so bouncing someone through signup to reach it would
-  // land them on a raw error body having just created an account.
+  /** Avoid sending a newly signed-in user to a disabled provider's JSON 404. */
   if (!isOAuthProviderEnabled) {
     return NextResponse.redirect(new URL('/', request.nextUrl.origin), 302)
   }
 
   const params = new URLSearchParams(request.nextUrl.search)
   for (const name of SIGNED_QUERY_PARAMS) params.delete(name)
+  const requiresLogin = consumeInteractivePrompt(params)
 
   const authorizeUrl = `/api/auth/oauth2/authorize?${params.toString()}`
-  const destination = buildAuthCrossLink(isRegistrationDisabled ? '/login' : '/signup', {
-    callbackUrl: authorizeUrl,
-    isInviteFlow: false,
-  })
+  const destination = buildAuthCrossLink(
+    isRegistrationDisabled || requiresLogin ? '/login' : '/signup',
+    {
+      callbackUrl: authorizeUrl,
+      isInviteFlow: false,
+    }
+  )
 
   return NextResponse.redirect(new URL(destination, request.nextUrl.origin), 302)
 })

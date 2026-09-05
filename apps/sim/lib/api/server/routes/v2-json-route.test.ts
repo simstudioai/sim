@@ -232,14 +232,14 @@ describe('defineV2JsonRoute', () => {
 
   it('renders invalid credentials as 401 without continuing admission', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
+      new MockV2ApiKeyUnauthenticatedError('API key or OAuth access token required')
     )
 
     const response = await createHandler()(request())
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({
-      error: { code: 'UNAUTHORIZED', message: 'API key required' },
+      error: { code: 'UNAUTHORIZED', message: 'API key or OAuth access token required' },
     })
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
   })

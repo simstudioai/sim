@@ -275,9 +275,9 @@ export interface CommandSpec {
    * A page-envelope field that qualifies the whole list, stated once for the
    * human formats.
    *
-   * `billing logs` answers a different question depending on the kind of API
-   * key that asked — a personal key sees the caller's own events, a workspace
-   * key the whole workspace ledger — and the response says which. The value
+   * `billing logs` answers a different question depending on the credential —
+   * an OAuth login or personal key sees the caller's own events, while a
+   * workspace key sees the whole workspace ledger. The response says which. The value
    * belongs to the query rather than to any row, so it is not a column; it goes
    * to stderr so that a `--output text` consumer cutting tab-separated fields
    * still reads only rows. `json` and `yaml` print the unwrapped `data` array

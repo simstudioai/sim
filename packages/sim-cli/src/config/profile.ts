@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createHash } from 'node:crypto'
 import {
   chmodSync,
   existsSync,
@@ -192,29 +193,23 @@ function readIni(path: string): IniDocument {
 
 function writeIni(path: string, doc: IniDocument, secret: boolean): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  if (!secret) {
-    writeFileSync(path, serializeIni(doc), { mode: 0o644 })
-    return
-  }
-
   /**
-   * Written to a fresh 0600 file and renamed into place, so a credential never
-   * exists at a wider mode even for an instant: `writeFileSync`'s `mode` only
-   * applies when it creates the file, so writing over an existing 0644 file
-   * (one made by a hand `touch`, or by a version of this that predates the
-   * mode) left the tokens readable until the `chmod` landed. The rename is
-   * atomic, so a reader also never sees a half-written file.
+   * Written to a fresh file and renamed into place, so readers never observe a
+   * partial profile. Credentials are additionally forced to 0600 before the
+   * rename, including when a hand-created temporary path had wider permissions.
    */
-  const temporary = `${path}.${process.pid}.tmp`
+  const temporary = `${path}.${process.pid}.${temporaryFileSequence++}.tmp`
   try {
-    writeFileSync(temporary, serializeIni(doc), { mode: 0o600 })
-    chmodSync(temporary, 0o600)
+    writeFileSync(temporary, serializeIni(doc), { mode: secret ? 0o600 : 0o644 })
+    if (secret) chmodSync(temporary, 0o600)
     renameSync(temporary, path)
   } catch (error) {
     rmSync(temporary, { force: true })
     throw error
   }
 }
+
+let temporaryFileSequence = 0
 
 export function readConfigProfile(profile: string): Record<string, string> {
   return getSection(readIni(configPath()), configSectionName(profile)) ?? {}
@@ -493,6 +488,39 @@ const CREDENTIALS_LOCK_POLL_MS = 50
  */
 const heldLock = new AsyncLocalStorage<true>()
 
+/** Prevents two interactive sign-ins from minting credentials for one profile concurrently. */
+export async function withProfileLoginLease<T>(
+  profile: string,
+  work: () => Promise<T>
+): Promise<T> {
+  const digest = createHash('sha256').update(profile, 'utf8').digest('hex')
+  const path = `${credentialsPath()}.login-${digest}`
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+
+  let release: (() => Promise<void>) | undefined
+  try {
+    release = await lock(path, {
+      realpath: false,
+      stale: CREDENTIALS_LOCK_STALE_MS,
+      update: CREDENTIALS_LOCK_STALE_MS / 3,
+      retries: 0,
+    })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ELOCKED') {
+      throw new ProfileConfigError(
+        `Another sim login is already in progress for profile "${redact(profile)}".`
+      )
+    }
+    throw error
+  }
+
+  try {
+    return await work()
+  } finally {
+    await release()
+  }
+}
+
 export async function withCredentialsLock<T>(work: () => Promise<T>): Promise<T> {
   if (heldLock.getStore()) return work()
 
@@ -530,13 +558,13 @@ export async function withCredentialsLock<T>(work: () => Promise<T>): Promise<T>
 
 /** Drops the profile from both files. Returns whether anything was removed. */
 export function deleteProfile(profile: string): { config: boolean; credentials: boolean } {
-  const configDoc = readIni(configPath())
-  const config = removeSection(configDoc, configSectionName(profile))
-  if (config) writeIni(configPath(), configDoc, false)
-
   const credentialsDoc = readIni(credentialsPath())
   const credentials = removeSection(credentialsDoc, profile)
   if (credentials) writeIni(credentialsPath(), credentialsDoc, true)
+
+  const configDoc = readIni(configPath())
+  const config = removeSection(configDoc, configSectionName(profile))
+  if (config) writeIni(configPath(), configDoc, false)
 
   return { config, credentials }
 }
@@ -708,9 +736,7 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     [
       ['flag', overrides.apiKey],
       ['env', process.env.SIM_API_KEY],
-      // A stored OAuth login outranks a stored key — a write of either clears
-      // the other, so both present means a hand-edited file, and the login is
-      // the one `sim login` would have left.
+      /** Prefer the OAuth login if a hand-edited section contains both credential kinds. */
       ['credentials', storedOAuth ? null : credentials.api_key],
     ],
     null,

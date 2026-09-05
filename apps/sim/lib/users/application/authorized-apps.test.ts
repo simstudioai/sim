@@ -123,7 +123,6 @@ describe('authorized apps', () => {
      */
     expect(deleted.map(([table]) => table)).toEqual([
       schemaMock.oauthConsent,
-      schemaMock.oauthRefreshToken,
       schemaMock.oauthAccessToken,
     ])
     expect(mocks.recordAudit).toHaveBeenCalledWith(

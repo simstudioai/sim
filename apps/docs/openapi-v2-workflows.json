@@ -277,7 +277,7 @@
       "get": {
         "operationId": "getWorkflowState",
         "summary": "Get Workflow State",
-        "description": "Get the editable draft graph of a workflow: blocks, edges, the loop and parallel containers derived from them, and variables. This is the pollable read — it records no audit event, and `HEAD` mirrors `GET`. The payload is **unsanitized**: it carries workspace-scoped `credentialId`, `knowledgeBaseId`, and `tableId` values verbatim, so it is not portable to another workspace. Use `GET /workflows/{workflowId}/export` for a portable, sanitized copy — and note that export is not a read-modify-write source, because sanitizing it drops every credential binding. Unknown members are stripped, so what this returns is exactly the set of keys `PUT /workflows/{workflowId}/state` accepts.",
+        "description": "Get the editable draft graph: blocks, edges, derived loop and parallel containers, and variables. This pollable read records no audit event, and `HEAD` mirrors `GET`. The unsanitized payload includes workspace-scoped credential, knowledge-base, and table ids, so it is not portable. Use `export` for a sanitized copy, but not for read-modify-write because credential bindings are removed. Returned keys exactly match what `PUT /workflows/{workflowId}/state` accepts.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -341,7 +341,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace Workflow State",
-        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with `409` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Only `needsRedeployment` differs: it describes the state before the write.",
+        "description": "Atomically replace the editable draft graph. Concurrent writes are row-locked and last-write-wins; no partial state is stored. `loops` and `parallels` are recomputed from `blocks`; omitted `variables` remain unchanged. Foreign ids return `409`. This leaves deployment unchanged and marks the draft for redeployment; lint is advisory. `dryRun=true` runs the same validation, lint, and conflict checks without persistence, audit, or notification; `needsRedeployment` reflects pre-write state. Workspace keys are rejected; use personal keys or OAuth.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -440,7 +440,7 @@
       "post": {
         "operationId": "applyWorkflowOperations",
         "summary": "Apply Workflow Operations",
-        "description": "Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: \"OPERATIONS_NOT_APPLIED\"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\nA `block_id` you supply on an `add` or `insert_into_subflow` is only a label unless it is already a UUID: the engine mints one and returns the pairing in `mintedBlockIds`. References between operations in the same batch are remapped for you, so `triage` can be wired up in the same call it is created in — but a later request must use the minted id. Send your own UUIDs when you want an id you chose to survive across requests.\n\nOperation `params` is an open object because the accepted inputs come from the block registry, not from this contract — see the per-operation schemas for the envelope: `inputs` keyed by sub-block id, with `retry`, `triggerMode` and `advancedMode` beside it rather than inside it, and `connections` keyed by source handle. `GET /blocks/{blockId}` publishes the inputs a given block type accepts. The Agent block’s `inputs.tools` value is the important exception to that open catalog shape: it is published here as the named `AgentToolInput` union, covering catalog integrations, workspace custom tools, and MCP tools.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{workflowId}/state`, this changes only the draft; deploy to publish it. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Only `needsRedeployment` differs: it describes the state before the write.",
+        "description": "Apply graph edits and optional block enablement in one atomic write. Failed operations appear in `skipped`; `deferred` edges resolve when targets exist and must not be retried. With `atomic`, any skip or dropped input returns `409` with `OPERATIONS_NOT_APPLIED` and persists nothing. Non-UUID labels are minted and same-batch references remapped in `mintedBlockIds`. Lint is advisory. `dryRun=true` runs the same checks without persistence, audit, or notification. This changes only the draft. Workspace keys are rejected; use personal keys or OAuth.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1446,7 +1446,7 @@
       "post": {
         "operationId": "revertWorkflowVersion",
         "summary": "Revert Workflow To Version",
-        "description": "Overwrite the editable draft with the graph pinned by a deployment version, discarding every unsaved edit. This is the most destructive operation in the deployment family and it does **not** change what is live — to move production, use `activate` or `rollback`, both of which leave the draft alone. Pass `active` as the version to discard draft edits and return to the live graph. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Overwrite the editable draft with a deployment version, irreversibly discarding unsaved edits. This does not change the live version; use `activate` or `rollback` for production, both of which leave the draft unchanged. Pass `active` to reset the draft to the live graph. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1555,7 +1555,7 @@
       "get": {
         "operationId": "getWorkflowDeployment",
         "summary": "Get Workflow Deployment",
-        "description": "Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes `needsRedeployment` and `isPublicApi`.\n\n`isPublicApi` is the security-relevant one: while it is `true` the deployed workflow executes without an API key, so anyone holding the execution URL can run it — and consume the workspace’s billed usage — anonymously. It is set through `PATCH /workflows/{workflowId}/deployment`, and this read is the only way to audit whether it is on.\n\nNot to be confused with `/workflows/{workflowId}/deployments/chat`, which is the hosted chat the workflow is published as. This path governs whether the workflow is executable at all; that one governs one surface it is served on. A workflow can be deployed with no chat, and removing its chat leaves it deployed and executable.",
+        "description": "Read the live version, latest deployment attempt and readiness, draft drift (`needsRedeployment`), and `isPublicApi`. When `isPublicApi` is true, anyone with the execution URL can run and consume billed usage without an API key; change it with `PATCH /workflows/{workflowId}/deployment`. `/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1619,7 +1619,7 @@
       "patch": {
         "operationId": "updateWorkflowPublicApi",
         "summary": "Update Workflow Public API Access",
-        "description": "Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with `403` and `PUBLIC_SHARING_NOT_ALLOWED`. Not to be confused with `/workflows/{workflowId}/deployments/chat`, which is the hosted chat the workflow is published as. This path governs whether the workflow is executable at all; that one governs one surface it is served on. A workflow can be deployed with no chat, and removing its chat leaves it deployed and executable. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with `403` and `PUBLIC_SHARING_NOT_ALLOWED`. `/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1950,7 +1950,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Export a portable, secret-sanitized workflow; workspace-scoped bindings must be selected again after import. Exporting records an audit event. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -2094,7 +2094,7 @@
       "get": {
         "operationId": "listChatDeployments",
         "summary": "List Chat Deployments",
-        "description": "List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment.\n\nThis is the only chat path not addressed under a workflow, and deliberately so: every chat is a singleton of the workflow it publishes, but \"what does this workspace serve\" is a question no per-workflow path can answer. Filter by `workflowId` to resolve one workflow's chat without holding its id.\n\nEntries are deliberately narrower than the singleton read: `allowedEmails`, `hasPassword`, and `customizations` are available only from `GET /api/v2/workflows/{workflowId}/deployments/chat`, which requires workspace `admin`. That is what keeps this list callable at workspace `read` and by a workspace API key. A stored password is never returned by either.",
+        "description": "List hosted chats in a workspace with opaque cursor pagination. Filter by `workflowId` to resolve one workflow’s singleton chat. Each item includes its public URL, whose identifier is a path segment, but omits `allowedEmails`, `hasPassword`, and `customizations`; read those through the admin-only singleton endpoint. This list requires workspace read access and accepts workspace API keys. Stored passwords are never returned.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -2229,7 +2229,7 @@
       "get": {
         "operationId": "getWorkflowChatDeployment",
         "summary": "Get Workflow Chat Deployment",
-        "description": "Read the hosted chat a workflow is published as. Answers `404` when the workflow publishes no chat. Not to be confused with `/workflows/{workflowId}/deployment` (singular), which is the workflow's own API deployment — its live version and whether the draft has drifted. That path governs whether the workflow is executable at all; this one governs the hosted chat it is served on. The chat is a singleton of its workflow, so it has no id of its own in any path and no separate create verb: `PUT` is create-or-replace and is the only write. The stored password is never returned — `hasPassword` reports only whether one is set. This carries the visitor gate — `authType`, `hasPassword`, and the `allowedEmails` allow-list — so it requires workspace `admin`, unlike the workspace-wide list. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Read a workflow’s singleton hosted chat, or return `404` when none exists. `/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path. The password is never returned; `hasPassword` reports its presence. Visitor-gate fields (`authType`, `hasPassword`, and `allowedEmails`) require workspace admin access. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -2293,7 +2293,7 @@
       "put": {
         "operationId": "replaceWorkflowChatDeployment",
         "summary": "Create or Replace Workflow Chat Deployment",
-        "description": "Publish a workflow as a hosted chat, or replace the chat it already publishes. Not to be confused with `/workflows/{workflowId}/deployment` (singular), which is the workflow's own API deployment — its live version and whether the draft has drifted. That path governs whether the workflow is executable at all; this one governs the hosted chat it is served on. The chat is a singleton of its workflow, so it has no id of its own in any path and no separate create verb: `PUT` is create-or-replace and is the only write.\n\n**Replace, not merge.** The chat ends up as exactly what the body describes: an omitted optional field takes its platform default rather than whatever the previous chat carried, so sending the same body twice leaves the same result. `password` is therefore required whenever `authType` is `\"password\"` and rejected otherwise — it is write-only and never readable back, so carrying one over implicitly is the one place a replace would quietly stop meaning replace. `allowedEmails` follows the same rule: required and non-empty for `\"email\"` and `\"sso\"`, rejected for the modes that admit no allow-list. `customizations` is the one documented exception: it merges per field, so an omitted `imageUrl` keeps the stored one rather than clearing it, and customization keys this surface does not declare do not survive the write. That behaviour is shared with the in-app editor and the Copilot deploy tool, which both send partial objects.\n\nThis also deploys the workflow, because a chat serves the live version: a draft that has drifted is republished as part of the call. Two conditions answer `409` — an `identifier` another live chat already holds, and a workflow deployment attempt still preparing, which the caller can retry once it becomes active. `authType: \"public\"` leaves the chat open to anyone holding the URL. A workspace API key is rejected with `403`; use a personal API key or an appropriately scoped OAuth token.",
+        "description": "Create or replace hosted chat. Omitted fields reset to defaults except per-field `customizations`. `password` is write-only and required for password auth; `allowedEmails` is required and non-empty for email or SSO. This also deploys the draft. A duplicate identifier or pending deployment returns `409`; public auth exposes the URL. `/workflows/{workflowId}/deployment` controls API execution; this singleton path controls hosted chat. `PUT` creates or replaces it without a chat-id path. Workspace keys are rejected; use personal keys or OAuth.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -2446,7 +2446,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute Workflow",
-        "description": "Execute the active deployment by default, or select manual execution of the current saved workflow state with `run.source: \"manual\"`. Manual runs require a personal API key or OAuth token with current write access and support synchronous or Server-Sent Event execution only; workspace keys, anonymous public access, and async manual runs are rejected. A manual run can enter through one runnable trigger (including external integration/webhook triggers) or resume at a named block from the exact same-workflow run identified by `sourceRunId`; the server loads that run's persisted snapshot, which is never accepted from the request. Omit a trigger block id only when the saved workflow has exactly one runnable trigger. Public deployed workflows permit anonymous synchronous and streaming execution, while asynchronous deployed execution requires an API credential. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
+        "description": "Execute the deployment, or use `run.source: \"manual\"` for draft state. Manual runs require a personal key or OAuth write access; workspace keys, anonymous callers, and async mode are rejected. Start at a runnable trigger, or resume from `sourceRunId` using the same-workflow snapshot. Public deployments allow anonymous sync or streaming; async requires credentials. Sync timeouts return `200` with failed status and `TIMEOUT`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -2603,7 +2603,7 @@
       "get": {
         "operationId": "listWorkflowRunsV2",
         "summary": "List Workflow Runs",
-        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
+        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Expired runs are hard-deleted and simply absent. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -2751,7 +2751,7 @@
       "get": {
         "operationId": "getWorkflowRunV2",
         "summary": "Get Workflow Run",
-        "description": "Get current workflow run state, optionally including final and block outputs. With `includeOutput`, `files` lists the files the run produced, each with a `downloadPath`; add `includeFileBase64` to inline their bytes, which answers `413` naming the download path when a single file, or the run's inlined total, exceeds the 16 MiB ceiling. Because inlining reads object storage, this `GET` is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.",
+        "description": "Get current run state with optional final and block outputs. With `includeOutput`, `files` includes download paths; `includeFileBase64` reads object storage to inline bytes and returns `413` with the download path when one file or the total exceeds 16 MiB. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -2878,7 +2878,7 @@
       "get": {
         "operationId": "downloadWorkflowRunFileV2",
         "summary": "Download Workflow Run File",
-        "description": "Download one file a run produced. The run resource reports the files a run emitted; address one of them by its `id` here. Run output carries `/api/files/serve/...` URLs that reject API keys, so this is the byte path out of a run for an API-key caller. Execution objects are not retained indefinitely, so a `404` for a file an older run produced is expected rather than a fault. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.",
+        "description": "Download one run-produced file by id. Downloads record an audit event. Expired runs are hard-deleted and simply absent. Retention is 30 days from run start on Free, unbounded on Pro and Team, and configured per organization on Enterprise with an optional workspace override. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -3905,6 +3905,48 @@
       }
     },
     "schemas": {
+      "V2ActionableForbiddenDetails": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/V2ForbiddenDetailCode"
+          }
+        },
+        "required": ["code"],
+        "additionalProperties": {
+          "description": "Additional context for this refusal."
+        },
+        "title": "Actionable forbidden details",
+        "description": "Machine-readable cause and optional context for an actionable `403` response."
+      },
+      "V2ForbiddenDetailCode": {
+        "type": "string",
+        "enum": [
+          "INSUFFICIENT_WORKSPACE_ROLE",
+          "PERSONAL_API_KEYS_DISABLED",
+          "WORKSPACE_KEY_OPERATION_NOT_PERMITTED",
+          "PRINCIPAL_KIND_NOT_PERMITTED",
+          "ORGANIZATION_MEMBERSHIP_REQUIRED",
+          "ORGANIZATION_ADMIN_REQUIRED",
+          "ENTERPRISE_PLAN_REQUIRED",
+          "ORGANIZATION_PLAN_REQUIRED",
+          "AUDIT_LOGS_DISABLED",
+          "SKILL_EDITOR_ACCESS_REQUIRED",
+          "SECRET_ADMIN_ACCESS_REQUIRED",
+          "WORKSPACE_RESOURCE_LIMIT_REACHED",
+          "PUBLIC_SHARING_NOT_ALLOWED",
+          "CREDENTIAL_ADMIN_ACCESS_REQUIRED",
+          "MCP_SERVER_URL_NOT_ALLOWED",
+          "WORKSPACE_PLAN_CAPABILITY_REQUIRED",
+          "CHAT_AUTH_MODE_NOT_PERMITTED",
+          "CONNECTOR_MANAGED_RESOURCE_READ_ONLY",
+          "PERMISSION_GROUP_CAPABILITY_BLOCKED",
+          "INTEGRATION_NOT_ALLOWED",
+          "INSUFFICIENT_SCOPE"
+        ],
+        "title": "Forbidden detail code",
+        "description": "Stable cause code for an actionable `403` response."
+      },
       "V2Error": {
         "type": "object",
         "properties": {
@@ -3920,7 +3962,15 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.\n- `PERMISSION_GROUP_CAPABILITY_BLOCKED` — The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.\n- `INTEGRATION_NOT_ALLOWED` — The integration this request names is outside the workspace's allowed set. An organization admin controls the permission group's integration allowlist, and a self-hosted deployment can narrow it further with ALLOWED_INTEGRATIONS.\n- `INSUFFICIENT_SCOPE` — The OAuth access token was not granted the scope this operation needs. The `WWW-Authenticate` header names the scope; authorize the app again requesting it."
+                "description": "Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.",
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/V2ActionableForbiddenDetails"
+                  },
+                  {
+                    "description": "Other structured context defined by the specific error."
+                  }
+                ]
               }
             },
             "required": ["code", "message"],
@@ -5882,7 +5932,7 @@
               "type": "string",
               "description": "The id the block was actually given."
             },
-            "description": "The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive."
+            "description": "Minted block ids keyed by requested `block_id`, present only when they differ. References within this batch are remapped automatically; later requests must use the minted id. Supply a UUID when the requested id must survive unchanged."
           },
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
@@ -6016,7 +6066,7 @@
                 "additionalProperties": {
                   "description": "One block-specific input or connection descriptor."
                 },
-                "description": "Block type and name, plus any block-specific configuration. Beyond `type` and `name` the accepted keys are `inputs`, `connections`, `retry`, `triggerMode`, and `advancedMode`. `inputs` carries the block's own configuration keyed by sub-block id, for example `inputs: { model: \"gpt-4o\", systemPrompt: \"...\" }` — never wrapped in `subBlocks`. Block-level settings sit beside `inputs`, never inside it: `retry`, `triggerMode`, `advancedMode`. `connections` is keyed by source handle and each value is a target block id, `{ block, handle }`, or an array of either; `success` is accepted as an alias for the `source` handle."
+                "description": "Block `type`, `name`, and optional `inputs`, `connections`, `retry`, `triggerMode`, or `advancedMode`. `inputs` maps sub-block ids directly to values, never through `subBlocks`. Keep `retry`, `triggerMode`, and `advancedMode` beside `inputs`. `connections` maps source handles to target ids, `{ block, handle }`, or arrays; `success` aliases `source`."
               }
             },
             "required": ["operation_type", "block_id", "params"],
@@ -6081,7 +6131,7 @@
                     }
                   }
                 ],
-                "description": "Fields to change on the target block. Send only what changes. Accepted keys: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, `retry`, `triggerMode`, `advancedMode`. `inputs` carries the block's own configuration keyed by sub-block id, for example `inputs: { model: \"gpt-4o\", systemPrompt: \"...\" }` — never wrapped in `subBlocks`. Block-level settings sit beside `inputs`, never inside it: `retry`, `triggerMode`, `advancedMode`. `connections` is keyed by source handle and each value is a target block id, `{ block, handle }`, or an array of either; `success` is accepted as an alias for the `source` handle. Re-sending `connections` replaces that block's outgoing edges, so use `removeEdges` — `[{ targetBlockId, sourceHandle? }]`, `sourceHandle` defaulting to `source` — to drop one edge without restating the rest."
+                "description": "Patch only supplied fields: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, `retry`, `triggerMode`, and `advancedMode`. `inputs` maps sub-block ids directly to values, never through `subBlocks`. Keep `retry`, `triggerMode`, and `advancedMode` beside `inputs`. `connections` maps source handles to target ids, `{ block, handle }`, or arrays; `success` aliases `source`. Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges."
               }
             },
             "required": ["operation_type", "block_id", "params"],
@@ -6166,7 +6216,7 @@
                 "additionalProperties": {
                   "description": "One block-specific input or connection descriptor."
                 },
-                "description": "Container, block type and name, plus any block-specific configuration. Takes the same keys as an `add`: `inputs`, `connections`, `retry`, `triggerMode`, `advancedMode`. `inputs` carries the block's own configuration keyed by sub-block id, for example `inputs: { model: \"gpt-4o\", systemPrompt: \"...\" }` — never wrapped in `subBlocks`. Block-level settings sit beside `inputs`, never inside it: `retry`, `triggerMode`, `advancedMode`. `connections` is keyed by source handle and each value is a target block id, `{ block, handle }`, or an array of either; `success` is accepted as an alias for the `source` handle."
+                "description": "Container, block `type`, `name`, and the same optional fields as `add`. `inputs` maps sub-block ids directly to values, never through `subBlocks`. Keep `retry`, `triggerMode`, and `advancedMode` beside `inputs`. `connections` maps source handles to target ids, `{ block, handle }`, or arrays; `success` aliases `source`."
               }
             },
             "required": ["operation_type", "block_id", "params"],
@@ -9280,7 +9330,7 @@
             }
           },
           "run": {
-            "description": "Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires a personal API key with write access and supports synchronous or streamed runs only.",
+            "description": "Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.",
             "oneOf": [
               {
                 "type": "object",
@@ -9358,7 +9408,7 @@
           },
           "async": {
             "default": false,
-            "description": "Queue the run and return a 202 receipt when true. Requires an API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).",
+            "description": "Queue the run and return a 202 receipt when true. Requires an OAuth access token or API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).",
             "type": "boolean"
           },
           "executionTimeoutSeconds": {

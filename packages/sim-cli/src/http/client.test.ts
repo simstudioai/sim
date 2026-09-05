@@ -505,7 +505,7 @@ describe('request identity', () => {
   })
 })
 
-describe('personal-key-only operations', () => {
+describe('workspace-key refusals', () => {
   it('appends the remedy, keyed off the code the API actually nests', async () => {
     // The envelope this asserts is the one staging returns: `error.code` is the
     // status class, and the actionable code rides in `error.details.code`.
@@ -528,7 +528,7 @@ describe('personal-key-only operations', () => {
 
     await expect(client().request('/api/v2/secrets')).rejects.toMatchObject({
       message:
-        'Workspace API key cannot perform this operation — this operation needs a personal API key: sim login --profile default',
+        'Workspace API key cannot perform this operation — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile default',
       code: 'FORBIDDEN',
     })
   })
@@ -557,7 +557,7 @@ describe('personal-key-only operations', () => {
 
     await expect(client().request('/api/v2/audit-logs')).rejects.toMatchObject({
       message:
-        'Principal kind workspace_api_key cannot perform operation audit_logs.list — this operation needs a personal API key: sim login --profile default',
+        'Principal kind workspace_api_key cannot perform operation audit_logs.list — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile default',
     })
   })
 
@@ -1119,12 +1119,16 @@ describe('destructive operations are gated', () => {
 describe('OAuth bearer credentials', () => {
   const NOW = 1_700_000_000_000
 
-  function oauthClient(expiresAt: number, refreshOAuth = vi.fn()) {
+  function oauthClient(
+    expiresAt: number,
+    refreshOAuth = vi.fn(),
+    names = { name: 'default', authProfile: 'default' }
+  ) {
     const client = new SimClient(
       {
-        name: 'default',
+        name: names.name,
         endpoint: 'https://sim.example',
-        authProfile: 'default',
+        authProfile: names.authProfile,
         apiKey: null,
         oauth: {
           accessToken: 'sim_oat_live',
@@ -1241,6 +1245,42 @@ describe('OAuth bearer credentials', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
+  it('does not refresh when invalid_token appears only in the challenge description', async () => {
+    vi.useFakeTimers({ now: NOW })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonReply(
+          401,
+          { error: { code: 'FORBIDDEN', message: 'Scope refused' } },
+          {
+            'www-authenticate':
+              'Bearer realm="Sim API", error="insufficient_scope", error_description="not an invalid_token failure"',
+          }
+        )
+      )
+    )
+    const refresh = vi.fn()
+    const { client } = oauthClient(NOW + 60 * 60 * 1000, refresh)
+
+    await expect(client.request('/api/v2/meta')).rejects.toThrow('Scope refused')
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('directs a workspace alias to its authentication profile after a 401', async () => {
+    vi.useFakeTimers({ now: NOW })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonReply(401, { error: { message: 'Login rejected' } }))
+    )
+    const { client } = oauthClient(NOW + 60 * 60 * 1000, vi.fn(), {
+      name: 'workspace-alias',
+      authProfile: 'default',
+    })
+
+    await expect(client.request('/api/v2/meta')).rejects.toThrow('sim login --profile default')
+  })
+
   it('prefers an explicit API key over the stored login', async () => {
     vi.useFakeTimers({ now: NOW })
     const fetchMock = vi.fn(async () => jsonReply(200, { data: {} }))
@@ -1250,9 +1290,7 @@ describe('OAuth bearer credentials', () => {
       endpoint: 'https://sim.example',
       authProfile: 'default',
       apiKey: 'sim_from_env',
-      // A live stored login sits alongside it, which is the whole point: with
-      // `oauth: null` there is nothing for the key to be preferred over and the
-      // assertion passes no matter which branch the client takes.
+      /** Keep a live stored login present so the explicit-key precedence is observable. */
       oauth: {
         accessToken: 'sim_oat_live',
         refreshToken: 'sim_ort_live',

@@ -731,7 +731,7 @@
       "get": {
         "operationId": "readFileText",
         "summary": "Read File Text",
-        "description": "Return a file's text content, parsed out of the stored bytes. This reads the file; it writes nothing — `POST /api/v2/files/{fileId}/unzip` is the endpoint that unzips an archive into the workspace. Answers `400` for a type no parser supports, naming the raw-bytes download as the escape hatch, and `413` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers `409` and is worth retrying. **`degraded: true` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy `.doc` and `.ppt` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. `truncated` separately reports that a parser limit stopped extraction early.",
+        "description": "Extract text from stored file bytes without modifying the file; use `POST /api/v2/files/{fileId}/unzip` to unpack archives. Unsupported types return `400` and point to raw-byte download; generated documents still compiling return `409`, and files above the extraction ceiling return `413`. `degraded: true` means extraction was incomplete or synthesized from raw bytes and is not authoritative; legacy `.doc` and `.ppt` extraction may return this best-effort result. `truncated` means a parser limit stopped extraction.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -852,7 +852,7 @@
       "get": {
         "operationId": "bulkDownloadFiles",
         "summary": "Bulk Download Files",
-        "description": "Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. Each parameter accepts at most 100 entries — the same ceiling the resolved selection is held to — and the resolved file count and total bytes are checked again, so an over-broad selection answers `400` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.",
+        "description": "Stream files as a zip. Provide comma-separated file IDs and folder paths; folders expand recursively, and unmatched paths are rejected. Each parameter and the resolved selection allow at most 100 entries, with bytes bounded. Oversized selections return `400`; downloads record an audit event. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -948,7 +948,7 @@
       "post": {
         "operationId": "unzipFile",
         "summary": "Unzip File",
-        "description": "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. This writes new workspace files; it does not read anything out of the archive into the response — `GET /api/v2/files/{fileId}/text` is the endpoint that returns a file's text. The unpacked files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Unzipping is slow: an archive near the size ceiling can run for minutes. Only one unzip of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and runs that outrun their time budget, answer `413`.",
+        "description": "Unzip a `.zip` archive into a new sibling folder, creating workspace files and returning only counts and the destination path. Use `GET /api/v2/files/{fileId}/text` to read text; page `GET /api/v2/files?folderPath=...` to inspect unpacked files. Large archives can take minutes. Only one unzip per archive may run; concurrent attempts return `409`. Archives above the size ceiling or operations exceeding their time budget return `413`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1035,7 +1035,7 @@
       "get": {
         "operationId": "downloadFile",
         "summary": "Download File",
-        "description": "Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it answers `409` while that artifact is still compiling and `413` if it renders past the size ceiling. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.",
+        "description": "Download current file bytes. Generated documents use compiled artifacts, returning `409` while compiling and `413` above the rendered-size ceiling. Downloading records an audit event. `HEAD` skips the effect but uses `GET` authorization, returning the corresponding `400`, `401`, `403`, or `404`, or an empty `200` with no payload headers; it confirms access only. `HEAD` omits `Content-Length`; use file metadata to size downloads.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1953,7 +1953,7 @@
       "patch": {
         "operationId": "editFileContent",
         "summary": "Edit File Content",
-        "description": "Change part of a text file in place, leaving the rest untouched. `PUT` on this path replaces the whole file; this is the partial counterpart. `search_replace` matches exact text and requires one match unless `replaceAll` is true. `replace_between`, `insert_after`, and `delete_between` match complete lines after trimming surrounding whitespace, so edits remain stable when unrelated changes move the target to another line. Anchored replacement preserves both boundary lines; insertion preserves its anchor; deletion removes the start anchor and preserves the end anchor. Use `occurrence` when an anchor line repeats. Only files whose stored bytes are UTF-8 text can be edited: a PDF or DOCX answers `400`. A concurrent write answers `409`, and retrying means re-reading first.",
+        "description": "Modify part of a text file; `PUT` on this path replaces the whole file. `search_replace` requires one exact match unless `replaceAll` is true. The anchored modes match trimmed complete lines: replacement preserves both boundaries, insertion preserves its anchor, and deletion removes the start but preserves the end. Use `occurrence` for repeated anchors. Non-UTF-8 files return `400`. Concurrent writes return `409`; re-read before retrying.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2125,7 +2125,7 @@
       "get": {
         "operationId": "searchFileContent",
         "summary": "Search File Content",
-        "description": "Search the indexed text of active workspace files and return each matching line with its file id and line number. `folderPaths` confines the search to one or more folder trees, which also narrows the reported coverage, so `complete` and `indexStatus` describe the folders searched rather than the whole workspace. Coverage matters: the index is built asynchronously, so when `complete` is `false` a term that was not found is **unknown rather than absent**, and acting on the absence risks creating a duplicate of something already stored. `truncated` separately reports that more matches exist beyond `maxResults`.",
+        "description": "Search indexed text in active workspace files and return matching lines with file IDs and line numbers. `folderPaths` limits both results and the coverage reported by `complete` and `indexStatus`. Because indexing is asynchronous, a missing term is unknown rather than absent when `complete` is false. `truncated` means additional matches exist beyond `maxResults`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -3091,6 +3091,48 @@
       }
     },
     "schemas": {
+      "V2ActionableForbiddenDetails": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/V2ForbiddenDetailCode"
+          }
+        },
+        "required": ["code"],
+        "additionalProperties": {
+          "description": "Additional context for this refusal."
+        },
+        "title": "Actionable forbidden details",
+        "description": "Machine-readable cause and optional context for an actionable `403` response."
+      },
+      "V2ForbiddenDetailCode": {
+        "type": "string",
+        "enum": [
+          "INSUFFICIENT_WORKSPACE_ROLE",
+          "PERSONAL_API_KEYS_DISABLED",
+          "WORKSPACE_KEY_OPERATION_NOT_PERMITTED",
+          "PRINCIPAL_KIND_NOT_PERMITTED",
+          "ORGANIZATION_MEMBERSHIP_REQUIRED",
+          "ORGANIZATION_ADMIN_REQUIRED",
+          "ENTERPRISE_PLAN_REQUIRED",
+          "ORGANIZATION_PLAN_REQUIRED",
+          "AUDIT_LOGS_DISABLED",
+          "SKILL_EDITOR_ACCESS_REQUIRED",
+          "SECRET_ADMIN_ACCESS_REQUIRED",
+          "WORKSPACE_RESOURCE_LIMIT_REACHED",
+          "PUBLIC_SHARING_NOT_ALLOWED",
+          "CREDENTIAL_ADMIN_ACCESS_REQUIRED",
+          "MCP_SERVER_URL_NOT_ALLOWED",
+          "WORKSPACE_PLAN_CAPABILITY_REQUIRED",
+          "CHAT_AUTH_MODE_NOT_PERMITTED",
+          "CONNECTOR_MANAGED_RESOURCE_READ_ONLY",
+          "PERMISSION_GROUP_CAPABILITY_BLOCKED",
+          "INTEGRATION_NOT_ALLOWED",
+          "INSUFFICIENT_SCOPE"
+        ],
+        "title": "Forbidden detail code",
+        "description": "Stable cause code for an actionable `403` response."
+      },
       "V2Error": {
         "type": "object",
         "properties": {
@@ -3106,7 +3148,15 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.\n- `PERMISSION_GROUP_CAPABILITY_BLOCKED` — The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.\n- `INTEGRATION_NOT_ALLOWED` — The integration this request names is outside the workspace's allowed set. An organization admin controls the permission group's integration allowlist, and a self-hosted deployment can narrow it further with ALLOWED_INTEGRATIONS.\n- `INSUFFICIENT_SCOPE` — The OAuth access token was not granted the scope this operation needs. The `WWW-Authenticate` header names the scope; authorize the app again requesting it."
+                "description": "Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.",
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/V2ActionableForbiddenDetails"
+                  },
+                  {
+                    "description": "Other structured context defined by the specific error."
+                  }
+                ]
               }
             },
             "required": ["code", "message"],
@@ -3423,7 +3473,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON."
+            "description": "Signed URL to which the file bytes are uploaded. Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML."
           },
           "headers": {
             "type": "object",
@@ -3577,7 +3627,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON.\n\nYou do not need to retain the `ETag` each part upload returns. Unlike a raw S3 multipart flow, completion takes no request body: Sim lists the uploaded parts from the provider itself and reads their entity tags there, so `POST .../complete` only has to happen after every part has been sent."
+            "description": "Signed URL for this upload part. Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML. Do not retain part `ETag` values; after every part succeeds, call the completion endpoint without a request body."
           },
           "headers": {
             "type": "object",

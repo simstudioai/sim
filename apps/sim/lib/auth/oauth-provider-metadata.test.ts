@@ -46,8 +46,11 @@ describe('OAuth provider metadata', () => {
       authorization_endpoint: 'https://sim.test/api/auth/oauth2/authorize',
       token_endpoint: 'https://sim.test/api/auth/oauth2/token',
       revocation_endpoint: 'https://sim.test/api/auth/oauth2/revoke',
+      introspection_endpoint: 'https://sim.test/api/auth/oauth2/introspect',
+      introspection_endpoint_auth_methods_supported: ['client_secret_post'],
       token_endpoint_auth_methods_supported: ['client_secret_post'],
       revocation_endpoint_auth_methods_supported: ['none', 'client_secret_post'],
+      scopes_supported: ['offline_access', 'api:read', 'api:write'],
     })
   })
 
@@ -71,6 +74,11 @@ describe('OAuth provider metadata', () => {
       'none',
       'client_secret_post',
     ])
+    expect(metadata.introspection_endpoint).toBeUndefined()
+    expect(metadata.introspection_endpoint_auth_methods_supported).toBeUndefined()
+    expect(metadata.scopes_supported).toEqual(['offline_access', 'api:read', 'api:write'])
+    expect(metadata.userinfo_endpoint).toBeUndefined()
+    expect(metadata.jwks_uri).toBeUndefined()
   })
 
   it.each(routes)(
