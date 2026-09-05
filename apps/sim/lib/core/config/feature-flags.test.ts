@@ -13,6 +13,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
     TABLE_ROW_TTL: undefined as boolean | undefined,
+    AGENT_TOOL_PERMISSION_MODE: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
   },
@@ -80,6 +81,7 @@ describe('getFeatureFlags', () => {
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
     expect(flags['tables-v2-api']).toEqual({ enabled: false })
     expect(flags['table-row-ttl']).toEqual({ enabled: false })
+    expect(flags['agent-tool-permission-mode']).toEqual({ enabled: false })
     expect(flags['credential-groups']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -274,6 +276,32 @@ describe('tables-v2-api flag', () => {
   it('global enabled turns it on for everyone', async () => {
     withAppConfig({ 'tables-v2-api': { enabled: true } })
     expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
+  })
+})
+
+describe('agent-tool-permission-mode flag', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isAppConfigEnabled: false })
+    envRef.AGENT_TOOL_PERMISSION_MODE = undefined
+  })
+
+  it('defaults off and uses the global fallback switch off AppConfig', async () => {
+    expect(await isFeatureEnabled('agent-tool-permission-mode')).toBe(false)
+
+    envRef.AGENT_TOOL_PERMISSION_MODE = true
+    expect(await isFeatureEnabled('agent-tool-permission-mode')).toBe(true)
+
+    envRef.AGENT_TOOL_PERMISSION_MODE = false
+    expect(await isFeatureEnabled('agent-tool-permission-mode')).toBe(false)
+  })
+
+  it.each([true, false])('uses the global AppConfig value %s over the fallback', async (value) => {
+    envRef.AGENT_TOOL_PERMISSION_MODE = !value
+    withAppConfig({ 'agent-tool-permission-mode': { enabled: value } })
+
+    expect(await isFeatureEnabled('agent-tool-permission-mode')).toBe(value)
+    expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
   })
 })
 

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
-import { sortObjectKeysDeep } from '@sim/utils/object'
+import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
 import {
   type BlockRetryConfig,
   normalizeBlockRetryTries,
@@ -24,6 +24,10 @@ import {
   buildDefaultCanonicalModes,
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
+import {
+  AGENT_TOOL_USAGE_CONTROL_CANONICAL_ID,
+  buildAgentToolUsageControlCanonicalKey,
+} from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -277,7 +281,10 @@ export function createBlockFromParams(
 }
 
 export function updateCanonicalModesForInputs(
-  block: { data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> } },
+  block: {
+    data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> }
+    subBlocks?: Record<string, { value?: unknown }>
+  },
   inputKeys: string[],
   blockConfig: BlockConfig
 ): void {
@@ -308,6 +315,39 @@ export function updateCanonicalModesForInputs(
     if (!block.data.canonicalModes) block.data.canonicalModes = {}
     Object.assign(block.data.canonicalModes, canonicalModeUpdates)
   }
+
+  if (blockConfig.type === 'agent' && inputKeys.includes('tools')) {
+    updateAgentToolUsageControlCanonicalModes(block, block.subBlocks?.tools?.value)
+  }
+}
+
+function updateAgentToolUsageControlCanonicalModes(
+  block: { data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> } },
+  tools: unknown
+): void {
+  if (!Array.isArray(tools)) return
+
+  const previousCanonicalModes = block.data?.canonicalModes ?? {}
+  const canonicalModes = { ...previousCanonicalModes }
+  for (const key of Object.keys(canonicalModes)) {
+    if (key.endsWith(`:${AGENT_TOOL_USAGE_CONTROL_CANONICAL_ID}`)) delete canonicalModes[key]
+  }
+
+  tools.forEach((tool, toolIndex) => {
+    if (!isRecordLike(tool)) return
+    const hasFixedValue = tool.usageControl !== undefined
+    const hasExpression = tool.usageControlExpression !== undefined
+    const canonicalKey = buildAgentToolUsageControlCanonicalKey(toolIndex)
+    const preserveAdvancedMode =
+      hasFixedValue && hasExpression && previousCanonicalModes[canonicalKey] === 'advanced'
+
+    if ((hasExpression && !hasFixedValue) || preserveAdvancedMode) {
+      canonicalModes[canonicalKey] = 'advanced'
+    }
+  })
+
+  if (!block.data) block.data = {}
+  block.data.canonicalModes = canonicalModes
 }
 
 /**
@@ -321,7 +361,9 @@ export function normalizeTools(tools: any[]): any[] {
         return {
           type: tool.type,
           customToolId: tool.customToolId,
-          usageControl: tool.usageControl || 'auto',
+          usageControl:
+            tool.usageControl || (tool.usageControlExpression === undefined ? 'auto' : undefined),
+          usageControlExpression: tool.usageControlExpression,
           isExpanded: tool.isExpanded ?? true,
         }
       }

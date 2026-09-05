@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useContext } from 'react'
 
 export interface WorkspaceFeatureFlags {
+  'agent-tool-permission-mode': boolean
   'table-row-ttl': boolean
 }
 

@@ -17,6 +17,7 @@ describe('v2AgentToolInputSchema', () => {
         type: 'cloudwatch',
         operation: 'describe_alarm_history',
         usageControl: 'auto',
+        usageControlExpression: '<route.toolMode>',
         params: { region: 'us-east-1' },
       },
       {

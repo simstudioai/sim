@@ -63,6 +63,8 @@ export interface ToolInput {
   params?: Record<string, any>
   timeout?: number
   usageControl?: 'auto' | 'force' | 'none'
+  /** Resolved value from the variable-capable tool mode input. */
+  usageControlExpression?: unknown
   operation?: string
   /** Database ID for custom tools (new reference format) */
   customToolId?: string

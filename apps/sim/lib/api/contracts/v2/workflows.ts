@@ -2644,6 +2644,13 @@ const v2AgentToolUsageControlSchema = z
     'When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`.'
   )
 
+const v2AgentToolUsageControlExpressionSchema = z
+  .string()
+  .max(2048, 'Agent tool mode expression must be at most 2048 characters')
+  .describe(
+    'Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time.'
+  )
+
 const v2AgentToolParamsSchema = z
   .record(z.string(), z.unknown().describe('One tool parameter value.'))
   .describe(
@@ -2675,6 +2682,7 @@ export const v2AgentIntegrationToolSchema = z
         'Operation id from `GET /api/v2/blocks/{blockId}`. Required when the block exposes multiple operations; it may differ from the underlying tool id.'
       ),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
     params: v2AgentToolParamsSchema.optional(),
   })
   .catchall(
@@ -2707,6 +2715,7 @@ const v2AgentCustomToolReferenceSchema = z
       .max(255, 'Agent customToolId must be at most 255 characters')
       .describe('Custom tool id returned by `GET /api/v2/custom-tools`.'),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
   })
   .catchall(
     z
@@ -2743,6 +2752,7 @@ const v2AgentInlineCustomToolSchema = z
       .describe('Inline OpenAI-style function declaration.'),
     code: z.string().describe('Inline tool implementation executed by the Function runtime.'),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
   })
   .catchall(
     z
@@ -2803,6 +2813,7 @@ export const v2AgentMcpToolSchema = z
         'MCP server and tool identity plus any tool arguments fixed by the workflow author.'
       ),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
   })
   .catchall(
     z.unknown().describe('Forward-compatible MCP tool metadata preserved by the workflow editor.')
@@ -2838,6 +2849,7 @@ export const v2AgentMcpServerAdvancedSchema = z
       .strict()
       .describe('Server identity for discovering and invoking every available MCP tool.'),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
   })
   .catchall(
     z.unknown().describe('Forward-compatible MCP server metadata preserved by the workflow editor.')

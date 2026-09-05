@@ -27,6 +27,7 @@ export interface StoredTool {
   code?: string
   operation?: string
   usageControl?: 'auto' | 'force' | 'none'
+  usageControlExpression?: string
 }
 
 export interface ParsedStoredTool extends Omit<StoredTool, 'params'> {
@@ -59,6 +60,10 @@ export function parseStoredToolInputValue(value: unknown): ParsedStoredTool[] {
           record.usageControl === 'force' ||
           record.usageControl === 'none'
             ? record.usageControl
+            : undefined,
+        usageControlExpression:
+          typeof record.usageControlExpression === 'string'
+            ? record.usageControlExpression
             : undefined,
         isExpanded: typeof record.isExpanded === 'boolean' ? record.isExpanded : undefined,
         schema: isRecordLike(record.schema) ? (record.schema as StoredToolSchema) : undefined,

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -46,25 +47,32 @@ export default async function WorkspaceLayout({
   }
 
   const activeOrganizationId = getActiveOrganizationId(session)
-  const [cookieStore, initialOrgSettings, , tableRowTtlEnabled] = await Promise.all([
-    cookies(),
-    hostContext.hostOrganizationId
-      ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
-      : Promise.resolve(null),
-    prefetchWorkspaceSidebar(
-      queryClient,
-      workspaceId,
-      session.user.id,
-      hostContext,
-      activeOrganizationId
-    ),
-    isTableRowTtlEnabled(),
-  ])
+  const [cookieStore, initialOrgSettings, , tableRowTtlEnabled, agentToolPermissionModeEnabled] =
+    await Promise.all([
+      cookies(),
+      hostContext.hostOrganizationId
+        ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
+        : Promise.resolve(null),
+      prefetchWorkspaceSidebar(
+        queryClient,
+        workspaceId,
+        session.user.id,
+        hostContext,
+        activeOrganizationId
+      ),
+      isTableRowTtlEnabled(),
+      isFeatureEnabled('agent-tool-permission-mode'),
+    ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <FeatureFlagsProvider flags={{ 'table-row-ttl': tableRowTtlEnabled }}>
+      <FeatureFlagsProvider
+        flags={{
+          'table-row-ttl': tableRowTtlEnabled,
+          'agent-tool-permission-mode': agentToolPermissionModeEnabled,
+        }}
+      >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
           <BrandingProvider
             hostOrganizationId={hostContext.hostOrganizationId}
