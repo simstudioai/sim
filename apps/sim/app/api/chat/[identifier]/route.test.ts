@@ -378,12 +378,12 @@ describe('Chat Identifier API Route', () => {
         expect(mockEnforceIpRateLimit).toHaveBeenCalledWith(
           'chat-execute:chat-id',
           req,
-          expect.objectContaining({ refillRate: 30, refillIntervalMs: 60_000 })
+          expect.objectContaining({ refillIntervalMs: 60_000 })
         )
         expect(mockEnforceResourceRateLimit).toHaveBeenCalledWith(
           'chat-execute',
           'chat-id',
-          expect.objectContaining({ refillRate: 60, refillIntervalMs: 60_000 })
+          expect.objectContaining({ refillIntervalMs: 60_000 })
         )
       })
 
@@ -397,20 +397,37 @@ describe('Chat Identifier API Route', () => {
       })
 
       /**
-       * A chat execution debits the workspace `sync` counter that the owner's
-       * API, webhook and scheduled runs share. A per-deployment ceiling at or
-       * above the plan's own rate would never refuse before that shared counter
-       * was drained, which is the availability half of the attack.
+       * The invariant the ceiling exists to hold. A chat execution debits the
+       * workspace `sync` counter the owner's API, webhook and scheduled runs
+       * share, so a ceiling at or above a plan's own rate never refuses before
+       * that shared counter is drained — the availability half of the attack.
+       * Asserted against every plan, including free, and on burst as well as
+       * sustained rate, since either one reaching the plan bucket first is the
+       * same hole.
        */
-      it('stays below the cheapest paid plan sync rate', async () => {
+      it.each(Object.keys(RATE_LIMITS))(
+        'stays under the %s plan sync budget it debits',
+        async (plan) => {
+          const req = createMockNextRequest('POST', { input: 'hello' })
+
+          await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
+
+          const planBucket = RATE_LIMITS[plan as keyof typeof RATE_LIMITS].sync
+          const [, , config] = mockEnforceResourceRateLimit.mock.calls[0]
+          expect(config.refillRate).toBeLessThan(planBucket.refillRate)
+          expect(config.maxTokens).toBeLessThan(planBucket.maxTokens)
+        }
+      )
+
+      /** One host must not be able to take the whole deployment's allowance. */
+      it('holds the per-IP bucket under the per-deployment one', async () => {
         const req = createMockNextRequest('POST', { input: 'hello' })
 
         await POST(req, { params: Promise.resolve({ identifier: 'test-chat' }) })
 
-        const [, , config] = mockEnforceResourceRateLimit.mock.calls[0]
-        expect(config.refillRate).toBeLessThan(RATE_LIMITS.pro.sync.refillRate)
-        expect(config.refillRate).toBeLessThan(RATE_LIMITS.team.sync.refillRate)
-        expect(config.refillRate).toBeLessThan(RATE_LIMITS.enterprise.sync.refillRate)
+        const [, , ipConfig] = mockEnforceIpRateLimit.mock.calls[0]
+        const [, , deploymentConfig] = mockEnforceResourceRateLimit.mock.calls[0]
+        expect(ipConfig.refillRate).toBeLessThan(deploymentConfig.refillRate)
       })
 
       it('leaves the gate-configuration fetch unmetered', async () => {

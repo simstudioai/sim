@@ -14,6 +14,7 @@ import {
   enforceResourceRateLimit,
   type TokenBucketConfig,
 } from '@/lib/core/rate-limiter'
+import { RATE_LIMITS } from '@/lib/core/rate-limiter/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -60,31 +61,44 @@ function executionsPerMinute(perMinute: number): TokenBucketConfig {
 }
 
 /**
- * Executions one client IP may drive against a single deployed chat.
- *
- * A deployed chat runs the owner's workflow on the owner's plan bucket, credit
- * balance and concurrency reservation for whoever holds the link, so every
- * ceiling on that path belongs to the payer and none of them bound the caller.
- * Half the per-deployment rate, so one host cannot monopolize the deployment's
- * whole allowance, and still far above human chat cadence — a burst of 60 then
- * one message every two seconds — so shared NAT does not cost a real audience
- * its session.
- */
-const CHAT_EXECUTION_IP_LIMIT = executionsPerMinute(30)
-
-/**
  * What one deployed chat may spend of its owner's workspace allowance.
  *
- * This has to sit *below* the owner's plan bucket to do its job. A chat
- * execution debits the workspace `sync` counter — 50/min on free, 150 on pro,
- * 300 on team, 600 on enterprise — which is the same counter the owner's API,
- * webhook and scheduled runs draw from. A ceiling above it would let a flood
- * empty that shared counter before this bucket ever refused, which is how a
+ * A chat execution debits the workspace `sync` counter, which is the same
+ * counter the owner's API, webhook and scheduled runs draw from. So this
+ * ceiling only does its job while it sits *below* that counter: above it, a
+ * flood empties the shared budget before this bucket ever refuses, and the
  * billing attack becomes an availability attack on unrelated production
- * workloads. At 60/min a public chat can spend at most a fraction of even the
- * cheapest paid plan and the owner's other triggers keep their headroom.
+ * workloads.
+ *
+ * Derived from the plan table rather than picked, because no fixed number holds
+ * that invariant — the rates differ per plan and every one is operator
+ * overridable through `RATE_LIMIT_*_SYNC`. A fraction of the smallest
+ * configured rate keeps a public chat under the shared budget on every plan and
+ * cannot drift if one of those defaults changes.
+ *
+ * The floor is deliberately shared by all plans for now. Sizing the slice to
+ * the *payer's* own plan needs the subscription, which `preprocessExecution`
+ * resolves a few lines after this runs, not here.
  */
-const CHAT_EXECUTION_LIMIT = executionsPerMinute(60)
+const CHAT_EXECUTION_RATE_PER_MINUTE = Math.max(
+  1,
+  Math.floor(Math.min(...Object.values(RATE_LIMITS).map((plan) => plan.sync.refillRate)) * 0.8)
+)
+
+const CHAT_EXECUTION_LIMIT = executionsPerMinute(CHAT_EXECUTION_RATE_PER_MINUTE)
+
+/**
+ * Executions one client IP may drive against a single deployed chat.
+ *
+ * Half the per-deployment rate, so a single source can never consume the whole
+ * allowance and leave the rest of the audience with none. It is above one
+ * person's chat cadence but not above a busy office behind one NAT — which
+ * costs little in practice, since traffic that heavy from one address would
+ * meet the per-deployment ceiling moments later anyway.
+ */
+const CHAT_EXECUTION_IP_LIMIT = executionsPerMinute(
+  Math.max(1, Math.floor(CHAT_EXECUTION_RATE_PER_MINUTE / 2))
+)
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
