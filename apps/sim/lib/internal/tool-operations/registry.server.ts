@@ -213,6 +213,26 @@ const CLOUDTRAIL_TOOL_IDS = [
   'cloudtrail_start_query',
 ] as const
 
+const OCI_MONITORING_TOOL_IDS = [
+  'oci_monitoring_create_alarm',
+  'oci_monitoring_create_alarm_suppression',
+  'oci_monitoring_delete_alarm',
+  'oci_monitoring_delete_alarm_suppression',
+  'oci_monitoring_get_alarm',
+  'oci_monitoring_get_alarm_history',
+  'oci_monitoring_get_alarm_suppression',
+  'oci_monitoring_list_alarm_suppressions',
+  'oci_monitoring_list_alarms',
+  'oci_monitoring_list_alarms_status',
+  'oci_monitoring_list_metrics',
+  'oci_monitoring_post_metric_data',
+  'oci_monitoring_remove_alarm_suppression',
+  'oci_monitoring_retrieve_dimension_states',
+  'oci_monitoring_summarize_alarm_suppression_history',
+  'oci_monitoring_summarize_metrics_data',
+  'oci_monitoring_update_alarm',
+] as const
+
 const CLOUDWATCH_TOOL_IDS = [
   'cloudwatch_describe_alarm_history',
   'cloudwatch_describe_alarms',
@@ -1412,6 +1432,9 @@ registerFamily(handlerLoaders, TEXTRACT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, CLOUDWATCH_TOOL_IDS, async () => {
   return (await import('@/lib/internal/cloudwatch/execute-tool')).executeCloudwatchTool
+})
+registerFamily(handlerLoaders, OCI_MONITORING_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-monitoring/execute-tool')).executeOciMonitoringTool
 })
 registerFamily(handlerLoaders, CLOUDTRAIL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/cloudtrail/execute-tool')).executeCloudtrailTool

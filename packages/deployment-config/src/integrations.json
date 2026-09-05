@@ -16180,6 +16180,93 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_monitoring",
+      "slug": "oci-monitoring",
+      "name": "OCI Monitoring",
+      "description": "Discover and query metrics, publish custom metrics, and manage OCI alarms",
+      "longDescription": "Connect a reusable OCI API signing-key credential to discover metrics, run MQL queries, publish custom metrics, and manage alarms and maintenance suppressions. Reads and histories return one bounded page; queries expose explicit stream and datapoint budgets. Alarm destinations reference existing Notifications topics or Streaming streams. IAM policies must grant the selected operations in the alarm and metric compartments; creating and updating alarms also require metric-read access. Use the separate OCI Logging integration for logs.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_monitoring",
+      "operations": [
+        {
+          "name": "List Metrics",
+          "description": "Discover metric definitions and namespaces"
+        },
+        {
+          "name": "Query Metrics",
+          "description": "Query and aggregate metric time series with MQL"
+        },
+        {
+          "name": "Publish Metrics",
+          "description": "Publish custom metric datapoints in one bounded request"
+        },
+        {
+          "name": "List Alarms",
+          "description": "List alarm definitions in a compartment"
+        },
+        {
+          "name": "List Alarm Statuses",
+          "description": "List current aggregate alarm statuses"
+        },
+        {
+          "name": "Get Alarm",
+          "description": "Get an alarm configuration and ETag"
+        },
+        {
+          "name": "Get Alarm History",
+          "description": "Get paginated alarm state and rule history"
+        },
+        {
+          "name": "Get Dimension States",
+          "description": "Inspect the status of individual metric streams in an alarm"
+        },
+        {
+          "name": "Create Alarm",
+          "description": "Create a metric alarm using existing notification destinations"
+        },
+        {
+          "name": "Update Alarm",
+          "description": "Update supplied alarm fields using an optional ETag"
+        },
+        {
+          "name": "Delete Alarm",
+          "description": "Delete an alarm using an optional ETag"
+        },
+        {
+          "name": "Create Alarm Suppression",
+          "description": "Schedule alarm-wide or dimension-specific suppression"
+        },
+        {
+          "name": "List Alarm Suppressions",
+          "description": "List suppressions affecting an alarm"
+        },
+        {
+          "name": "Get Alarm Suppression",
+          "description": "Get a suppression configuration and ETag"
+        },
+        {
+          "name": "Delete Alarm Suppression",
+          "description": "Delete one alarm suppression resource"
+        },
+        {
+          "name": "Get Suppression History",
+          "description": "Get alarm-wide and dimension-specific suppression history"
+        },
+        {
+          "name": "Remove Alarm Suppression",
+          "description": "Remove the existing suppression attached to an alarm"
+        }
+      ],
+      "operationCount": 17,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "cloud", "incident-management"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",
