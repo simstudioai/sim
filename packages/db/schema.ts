@@ -4437,7 +4437,6 @@ export const credential = pgTable(
         AND account_id IS NULL
         AND env_key IS NULL
         AND env_owner_user_id IS NULL
-        AND credential_group_enrollment_id IS NULL
         AND authorization_app_id IS NULL
         AND encrypted_oauth_token_set IS NULL
         AND encrypted_service_account_key IS NULL

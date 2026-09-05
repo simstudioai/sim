@@ -245,7 +245,9 @@ describe('search composer transitions', () => {
       expect(textarea().value).toBe(QUEUED_MESSAGE.content)
       expect(container?.querySelector('output')?.textContent).not.toContain('build:budget')
       expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe(
-        requestMode === 'assistant' ? 'mode=assistant&resource=report' : 'resource=report'
+        requestMode === 'assistant'
+          ? 'mode=assistant&resource=report'
+          : 'mode=build&resource=report'
       )
       await clickButton('Send')
       expect(mockSubmit).toHaveBeenCalledWith(

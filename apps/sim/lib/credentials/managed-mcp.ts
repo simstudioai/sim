@@ -205,6 +205,8 @@ export async function loadManagedMcpRuntimeCredential(
 }
 
 export async function persistManagedMcpCredential(params: {
+  credentialGroupId: string
+  email: string
   enrollmentId: string
   workspaceId: string
   mcpServerId: string
@@ -223,6 +225,7 @@ export async function persistManagedMcpCredential(params: {
     const [source] = await tx
       .select({
         enrollmentStatus: credentialGroupEnrollment.status,
+        enrollmentRevokedAt: credentialGroupEnrollment.revokedAt,
         credentialGroupId: credentialGroupEnrollment.credentialGroupId,
         groupStatus: credentialGroup.status,
         linkedCredentialGroupId: mcpServers.credentialGroupId,
@@ -237,6 +240,8 @@ export async function persistManagedMcpCredential(params: {
       .where(
         and(
           eq(credentialGroupEnrollment.id, params.enrollmentId),
+          eq(credentialGroupEnrollment.credentialGroupId, params.credentialGroupId),
+          eq(credentialGroupEnrollment.email, params.email),
           eq(credentialGroup.workspaceId, params.workspaceId),
           eq(mcpServers.workspaceId, params.workspaceId),
           eq(mcpServers.authType, 'oauth'),
@@ -250,6 +255,7 @@ export async function persistManagedMcpCredential(params: {
       !source ||
       !source.managedConnectorId ||
       source.groupStatus !== 'active' ||
+      source.enrollmentRevokedAt ||
       !['invited', 'in_progress', 'completed'].includes(source.enrollmentStatus) ||
       source.linkedCredentialGroupId !== source.credentialGroupId
     ) {
@@ -316,6 +322,8 @@ export async function persistManagedMcpCredential(params: {
       .where(
         and(
           eq(credentialGroupEnrollment.id, params.enrollmentId),
+          eq(credentialGroupEnrollment.credentialGroupId, params.credentialGroupId),
+          eq(credentialGroupEnrollment.email, params.email),
           ne(credentialGroupEnrollment.status, 'revoked')
         )
       )

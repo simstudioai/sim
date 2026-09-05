@@ -8,6 +8,7 @@ import {
   loadCredentialGroupCredentialListContext,
   loadWorkspaceAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
+import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
 import {
   requireKnowledgeMemberAccessAvailable,
   requireSourceMirroredAccessAvailable,
@@ -31,7 +32,6 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
 import {
-  createViewerConnectorEnrollmentLink,
   provisionKnowledgeConnectorMembersBinding,
   sourceIdentityBinding,
 } from '@/lib/knowledge/connectors/member-provisioning'
@@ -88,7 +88,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
           `Ask a workspace admin to configure ${connectorMeta.name} sign-in in Connected accounts`
         )
       }
-      const url = await createViewerConnectorEnrollmentLink({
+      const { invitationLink: url } = await createViewerCredentialGroupEnrollment({
         userId,
         workspaceId,
         credentialGroupId: binding.credentialGroupId,
@@ -119,7 +119,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
       sourceConfig: connector.sourceConfig,
     })
     if (!validation.ok) throw new OrchestrationError('validation', validation.message)
-    const url = await createViewerConnectorEnrollmentLink({
+    const { invitationLink: url } = await createViewerCredentialGroupEnrollment({
       userId,
       workspaceId,
       credentialGroupId: connector.credentialGroupId,

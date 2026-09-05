@@ -61,8 +61,13 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
 vi.mock('@/lib/knowledge/connectors/member-access', () => ({
   validateKnowledgeConnectorMembersBinding: mocks.validateBinding,
 }))
+vi.mock('@/lib/credential-groups/self-enrollment', () => ({
+  createViewerCredentialGroupEnrollment: async (...args: unknown[]) => ({
+    invitationLink: await mocks.enrollment(...args),
+  }),
+}))
+
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  createViewerConnectorEnrollmentLink: mocks.enrollment,
   sourceIdentityBinding: mocks.identityBinding,
   provisionKnowledgeConnectorMembersBinding: mocks.provision,
 }))

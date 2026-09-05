@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ATLASSIAN_PRODUCTS,
@@ -586,5 +587,42 @@ export const leaveCredentialMembershipContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({ success: z.literal(true) }),
+  },
+})
+
+export const personalCredentialSchema = z.object({
+  id: z.string().min(1).max(255),
+  providerId: z.string().min(1).max(100),
+  displayName: z.string(),
+  type: z.enum(['oauth', 'managed_oauth', 'personal_token']),
+  updatedAt: z.string().datetime(),
+  connectedAt: z.string().datetime(),
+  instanceUrl: z.string().url().optional(),
+})
+export type PersonalCredential = z.output<typeof personalCredentialSchema>
+
+export const listPersonalCredentialsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/credentials/personal',
+  query: z.object({ workspaceId: workspaceIdSchema }),
+  response: { mode: 'json', schema: z.object({ credentials: z.array(personalCredentialSchema) }) },
+})
+
+export const startPersonalCredentialConnectionBodySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  providerId: z.string().trim().min(1, 'Provider is required').max(100),
+  credentialId: z.string().min(1, 'Credential ID must not be empty').max(255).optional(),
+})
+export type StartPersonalCredentialConnectionBody = z.input<
+  typeof startPersonalCredentialConnectionBodySchema
+>
+
+export const startPersonalCredentialConnectionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/credentials/personal/connect',
+  body: startPersonalCredentialConnectionBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ url: z.string().url(), providerId: z.string().min(1).max(100) }),
   },
 })

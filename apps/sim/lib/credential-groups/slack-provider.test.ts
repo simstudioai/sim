@@ -104,6 +104,8 @@ describe('Slack member scope policy', () => {
         attempt: {
           state: 'state',
           provider: 'slack',
+          workspaceId: 'workspace-1',
+          email: 'person@example.com',
           nonceHash: 'nonce-hash',
           enrollmentId: current.enrollmentId,
           credentialGroupId: current.credentialGroupId,

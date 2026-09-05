@@ -2,7 +2,14 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { internalCredentialErrorPolicy } from '@/lib/credentials/api/route-policies'
+import {
+  CredentialGroupOAuthError,
+  CredentialGroupProviderConfigurationError,
+} from '@/lib/credential-groups/provider-adapter'
+import {
+  internalCredentialErrorPolicy,
+  internalPersonalCredentialConnectionErrorPolicy,
+} from '@/lib/credentials/api/route-policies'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
 import {
   OAuthDisconnectConfigurationError,
@@ -86,5 +93,37 @@ describe('internalCredentialErrorPolicy', () => {
 
   it('defers anything that is not a provider failure to the base policy', () => {
     expect(project(new Error('unrelated'))).toBeNull()
+  })
+})
+
+describe('personal account connection errors', () => {
+  it('keeps account setup instructions actionable', () => {
+    const response = internalPersonalCredentialConnectionErrorPolicy.project(
+      new CredentialGroupProviderConfigurationError('private configuration detail')
+    )
+    expect(response).toMatchObject({
+      status: 409,
+      body: { error: 'Ask a workspace admin to configure this integration in Connected accounts' },
+    })
+  })
+
+  it('preserves permission and configuration refusals', () => {
+    const response = internalPersonalCredentialConnectionErrorPolicy.project(
+      new CredentialGroupOAuthError('Required permissions were not granted', 403)
+    )
+    expect(response).toMatchObject({
+      status: 403,
+      body: { error: 'Required permissions were not granted' },
+    })
+  })
+
+  it('does not expose upstream transport details', () => {
+    const response = internalPersonalCredentialConnectionErrorPolicy.project(
+      new CredentialGroupOAuthError('upstream credential response', 502)
+    )
+    expect(response).toMatchObject({
+      status: 503,
+      body: { error: 'Account sign-in is temporarily unavailable. Please try again.' },
+    })
   })
 })

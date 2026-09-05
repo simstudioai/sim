@@ -9,6 +9,8 @@ import {
   getAuthorizedCredentialGroupMcpOAuthContext,
   getAuthorizedCredentialGroupOAuthContext,
   getAuthorizedPublicCredentialGroupEnrollment,
+  getCredentialGroupMcpOAuthContextForEnrollment,
+  getCredentialGroupOAuthContextForEnrollment,
   type PublicCredentialGroupEnrollmentIdentity,
 } from '@/lib/credential-groups/enrollments'
 import {
@@ -21,6 +23,7 @@ import {
   startCredentialGroupOAuth,
 } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
+import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 import { fireCredentialGroupTrigger } from '@/lib/credential-groups/trigger'
 
 interface AuthorizedCredentialGroupEnrollmentUseCaseDefinition<O, I, C, R> {
@@ -189,6 +192,35 @@ interface CompletePublicCredentialGroupOAuthInput {
   code: string
 }
 
+function identityForOAuthAttempt(
+  principal: CredentialGroupEnrollmentPrincipal,
+  attempt: Pick<
+    CredentialGroupOAuthAttempt,
+    'workspaceId' | 'credentialGroupId' | 'enrollmentId' | 'email' | 'invitationToken'
+  >
+): PublicCredentialGroupEnrollmentIdentity {
+  requireInvitationToken(principal, attempt.invitationToken)
+  if (
+    attempt.workspaceId !== principal.workspaceId ||
+    attempt.email !== principal.email ||
+    attempt.credentialGroupId !== principal.credentialGroupId ||
+    attempt.enrollmentId !== principal.enrollmentId
+  ) {
+    throw new OrchestrationError('not_found', 'Authorization state does not match this enrollment')
+  }
+  return identityFromPrincipal(principal)
+}
+
+async function resolveOAuthAttemptContext(
+  principal: CredentialGroupEnrollmentPrincipal,
+  attempt: CredentialGroupOAuthAttempt
+): Promise<PublicCredentialGroupOAuthContext> {
+  const identity = identityForOAuthAttempt(principal, attempt)
+  const oauth = await getCredentialGroupOAuthContextForEnrollment(identity, attempt.optionId)
+  if (!oauth) throw new CredentialGroupInvitationUnavailableError()
+  return { ...identity, oauth }
+}
+
 export const completePublicCredentialGroupOAuth = defineAuthorizedCredentialGroupEnrollmentUseCase({
   operation: credentialGroupEnrollmentOperations.completeOAuth,
   resolveContext: ({
@@ -197,7 +229,7 @@ export const completePublicCredentialGroupOAuth = defineAuthorizedCredentialGrou
   }: {
     principal: CredentialGroupEnrollmentPrincipal
     input: CompletePublicCredentialGroupOAuthInput
-  }) => resolvePublicOAuthContext(principal, input.attempt.optionId),
+  }) => resolveOAuthAttemptContext(principal, input.attempt),
   async execute({ principal, input, context }) {
     requireInvitationToken(principal, input.attempt.invitationToken)
     const completion = await completeCredentialGroupOAuth(context.oauth, input.attempt, input.code)
@@ -265,13 +297,21 @@ interface CompletePublicCredentialGroupMcpOAuthInput {
 export const completePublicCredentialGroupMcpOAuth =
   defineAuthorizedCredentialGroupEnrollmentUseCase({
     operation: credentialGroupEnrollmentOperations.completeMcpOAuth,
-    resolveContext: ({
+    async resolveContext({
       principal,
       input,
     }: {
       principal: CredentialGroupEnrollmentPrincipal
       input: CompletePublicCredentialGroupMcpOAuthInput
-    }) => resolvePublicMcpOAuthContext(principal, input.attempt.mcpServerId),
+    }) {
+      const identity = identityForOAuthAttempt(principal, input.attempt)
+      const oauth = await getCredentialGroupMcpOAuthContextForEnrollment(
+        identity,
+        input.attempt.mcpServerId
+      )
+      if (!oauth) throw new CredentialGroupInvitationUnavailableError()
+      return { ...identity, oauth }
+    },
     async execute({ principal, input, context }) {
       requireInvitationToken(principal, input.attempt.invitationToken)
       return completeCredentialGroupMcpOAuth(context.oauth, input.attempt.codeVerifier, input.code)

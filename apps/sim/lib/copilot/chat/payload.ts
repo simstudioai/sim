@@ -493,10 +493,10 @@ export async function buildCopilotRequestPayload(
     // Tell the copilot file subagent which document toolchain to write. Emitted
     // only in Python mode so the JS path sends no new field (Go defaults to js).
     ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-    ...(!isAssistant && (params.desktopLocalFilesystem || params.browser || params.terminalCapable)
+    ...((!isAssistant && params.desktopLocalFilesystem) || params.browser || params.terminalCapable
       ? {
           desktopCapabilities: {
-            ...(params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
+            ...(!isAssistant && params.desktopLocalFilesystem ? { localFilesystem: true } : {}),
             ...(params.browser ? { browser: true } : {}),
             ...(params.terminalCapable ? { terminal: true } : {}),
             ...(params.terminalCapable && params.terminals?.length

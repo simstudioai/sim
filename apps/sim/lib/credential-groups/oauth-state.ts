@@ -9,7 +9,7 @@ import {
 } from '@/lib/credential-groups/providers'
 
 const OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const OAUTH_ATTEMPT_VERSION = 2 as const
+const OAUTH_ATTEMPT_VERSION = 3 as const
 const OAUTH_ATTEMPT_STATE_PREFIX = 'cg_'
 
 const CONSUME_SCRIPT = `
@@ -24,6 +24,8 @@ return value
 interface StoredCredentialGroupOAuthAttempt {
   version: typeof OAUTH_ATTEMPT_VERSION
   provider: CredentialGroupProvider
+  workspaceId: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   optionId: string
@@ -31,6 +33,7 @@ interface StoredCredentialGroupOAuthAttempt {
   scopeVersion: number
   requiredScopes: string[]
   redirectUri: string
+  completionRedirect?: boolean
   nonceHash: string
   encryptedCodeVerifier?: string
   encryptedInvitationToken: string
@@ -41,6 +44,8 @@ export interface CredentialGroupOAuthAttempt {
   state: string
   provider: CredentialGroupProvider
   nonceHash: string
+  workspaceId: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   optionId: string
@@ -48,6 +53,7 @@ export interface CredentialGroupOAuthAttempt {
   scopeVersion: number
   requiredScopes: string[]
   redirectUri: string
+  completionRedirect?: boolean
   codeVerifier?: string
   invitationToken: string
   createdAt: number
@@ -55,6 +61,8 @@ export interface CredentialGroupOAuthAttempt {
 
 interface CreateCredentialGroupOAuthAttemptParams {
   provider: CredentialGroupProvider
+  workspaceId: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   optionId: string
@@ -62,6 +70,7 @@ interface CreateCredentialGroupOAuthAttemptParams {
   scopeVersion: number
   requiredScopes: string[]
   redirectUri: string
+  completionRedirect?: boolean
   codeVerifier?: string
   invitationToken: string
 }
@@ -85,6 +94,11 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
     candidate.version === OAUTH_ATTEMPT_VERSION &&
     typeof candidate.provider === 'string' &&
     isCredentialGroupProvider(candidate.provider) &&
+    typeof candidate.workspaceId === 'string' &&
+    candidate.workspaceId.length > 0 &&
+    typeof candidate.email === 'string' &&
+    candidate.email.length >= 3 &&
+    candidate.email.length <= 320 &&
     typeof candidate.enrollmentId === 'string' &&
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.optionId === 'string' &&
@@ -96,6 +110,8 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
     candidate.requiredScopes.length > 0 &&
     candidate.requiredScopes.every((scope) => typeof scope === 'string' && scope.length > 0) &&
     typeof candidate.redirectUri === 'string' &&
+    (candidate.completionRedirect === undefined ||
+      typeof candidate.completionRedirect === 'boolean') &&
     typeof candidate.nonceHash === 'string' &&
     (candidate.encryptedCodeVerifier === undefined ||
       typeof candidate.encryptedCodeVerifier === 'string') &&
@@ -118,6 +134,8 @@ export async function createCredentialGroupOAuthAttempt(
   const attempt: StoredCredentialGroupOAuthAttempt = {
     version: OAUTH_ATTEMPT_VERSION,
     provider: params.provider,
+    workspaceId: params.workspaceId,
+    email: params.email,
     enrollmentId: params.enrollmentId,
     credentialGroupId: params.credentialGroupId,
     optionId: params.optionId,
@@ -125,6 +143,7 @@ export async function createCredentialGroupOAuthAttempt(
     scopeVersion: params.scopeVersion,
     requiredScopes: params.requiredScopes,
     redirectUri: params.redirectUri,
+    ...(params.completionRedirect ? { completionRedirect: true } : {}),
     nonceHash: sha256Hex(nonce),
     ...(encryptedCodeVerifier ? { encryptedCodeVerifier: encryptedCodeVerifier.encrypted } : {}),
     encryptedInvitationToken: encryptedInvitationToken.encrypted,
@@ -167,6 +186,8 @@ export async function consumeCredentialGroupOAuthAttempt(
     state,
     provider: parsed.provider,
     nonceHash: parsed.nonceHash,
+    workspaceId: parsed.workspaceId,
+    email: parsed.email,
     enrollmentId: parsed.enrollmentId,
     credentialGroupId: parsed.credentialGroupId,
     optionId: parsed.optionId,
@@ -174,6 +195,7 @@ export async function consumeCredentialGroupOAuthAttempt(
     scopeVersion: parsed.scopeVersion,
     requiredScopes: parsed.requiredScopes,
     redirectUri: parsed.redirectUri,
+    ...(parsed.completionRedirect ? { completionRedirect: true } : {}),
     ...(codeVerifier ? { codeVerifier: codeVerifier.decrypted } : {}),
     invitationToken: invitationToken.decrypted,
     createdAt: parsed.createdAt,

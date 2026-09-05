@@ -202,6 +202,26 @@ describe('listCredentialProviderCatalog', () => {
     )
   })
 
+  it('uses enrollment app visibility for managed OAuth without changing ordinary OAuth', async () => {
+    const isCredentialVisible = vi.fn(({ type }) => type === 'managed_oauth')
+    mocks.createVisibility.mockReturnValue({
+      isOAuthServiceVisible: () => false,
+      isCredentialVisible,
+    })
+    const ordinary = await listCredentialProviderCatalog(personalPrincipal, context)
+    expect(ordinary.find((provider) => provider.serviceId === 'salesforce')?.available).toBe(false)
+    const enrolled = await listCredentialProviderCatalog(
+      personalPrincipal,
+      context,
+      'managed_oauth'
+    )
+    expect(enrolled.find((provider) => provider.serviceId === 'salesforce')?.available).toBe(true)
+    expect(isCredentialVisible).toHaveBeenCalledWith({
+      providerId: 'salesforce',
+      type: 'managed_oauth',
+    })
+  })
+
   it('exposes an explicit Confluence verification target to service-account API clients', async () => {
     mocks.getServiceConfigByServiceId.mockReturnValue({
       providerId: 'confluence',

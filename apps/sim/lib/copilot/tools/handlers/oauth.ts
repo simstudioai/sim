@@ -41,34 +41,14 @@ export async function executeOAuthGetAuthLink(
       credentialId,
       ...(context.requestMode === 'assistant' ? { personalOnly: true } : {}),
     })
-    if (result.kind === 'personal_token') {
-      const accountsUrl = new URL(
-        `/workspace/${workspaceId}/integrations/${result.providerId}`,
-        baseUrl
-      )
-      accountsUrl.searchParams.set('connect', 'personal-token')
+    if (context.requestMode === 'assistant') {
       return {
         success: true,
         output: {
-          message: `Connect your ${result.serviceName} account with a personal access token.`,
-          oauth_url: accountsUrl.toString(),
-          instructions: `Open ${accountsUrl.toString()} and enter your instance URL and personal access token in the connection form.`,
+          message: `Connect your ${result.serviceName} account using the in-chat connection card.`,
           provider: result.serviceName,
           providerId: result.providerId,
-        },
-      }
-    }
-    if (result.kind === 'managed_oauth') {
-      const accountsUrl = new URL(`/workspace/${workspaceId}/search`, baseUrl)
-      accountsUrl.searchParams.set('search', result.serviceName)
-      return {
-        success: true,
-        output: {
-          message: `Connect or reconnect your ${result.serviceName} account in Your accounts.`,
-          oauth_url: accountsUrl.toString(),
-          instructions: `Open ${accountsUrl.toString()} and connect your account. If sign-in is not configured, ask a workspace admin to enable it in Connected accounts.`,
-          provider: result.serviceName,
-          providerId: result.providerId,
+          instructions: `End your response with <credential>${JSON.stringify({ type: 'link', provider: result.providerId })}</credential>. The card connects the signed-in person's account to Connected accounts. Wait for the connection status before continuing.`,
         },
       }
     }

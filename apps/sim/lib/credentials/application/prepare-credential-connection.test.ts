@@ -222,7 +222,7 @@ describe('prepareCredentialConnection', () => {
     expect(mocks.resolveTarget).not.toHaveBeenCalled()
   })
 
-  it('reauthorizes the person’s ordinary OAuth credential through the existing target policy', async () => {
+  it('connects an ordinary personal account through canonical enrollment in Assistant', async () => {
     mocks.personalCredentials.mockResolvedValue([
       { id: 'own-account', providerId: 'google-email', type: 'oauth' },
     ])
@@ -240,12 +240,11 @@ describe('prepareCredentialConnection', () => {
       },
     })
     expect(result).toEqual({
-      kind: 'oauth',
+      kind: 'managed_oauth',
       providerId: 'google-email',
       serviceName: 'Gmail',
-      credentialId: 'own-account',
     })
-    expect(mocks.resolveTarget).toHaveBeenCalledOnce()
+    expect(mocks.resolveTarget).not.toHaveBeenCalled()
   })
 
   it('uses the enrollment flow for an owned managed account', async () => {

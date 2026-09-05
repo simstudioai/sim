@@ -2,6 +2,7 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { credentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import { resolveCredentialConnectionTarget } from '@/lib/credentials/application/connection-target'
 import { credentialOperations } from '@/lib/credentials/application/operations'
@@ -119,9 +120,13 @@ export const prepareCredentialConnection = defineAuthorizedWorkspaceUseCase({
       }
       return { kind: 'personal_token', providerId: 'gitlab', serviceName: 'GitLab' }
     }
-    const providers = (await listCredentialProviderCatalog(principal, context)).filter(
-      (entry): entry is OAuthCredentialProviderCatalogEntry => entry.type === 'oauth'
-    )
+    const providers = (
+      await listCredentialProviderCatalog(
+        principal,
+        context,
+        input.personalOnly ? 'managed_oauth' : 'oauth'
+      )
+    ).filter((entry): entry is OAuthCredentialProviderCatalogEntry => entry.type === 'oauth')
     const requestedProvider = resolveRequestedProvider(providers, input.providerName)
     const requestedProviderId = requestedProvider.authorizationOptions[0]?.providerId
     if (!requestedProviderId) {
@@ -154,12 +159,16 @@ export const prepareCredentialConnection = defineAuthorizedWorkspaceUseCase({
           'Credential provider does not match the requested integration'
         )
       }
-      if (requestedProviderId === 'slack' || personalCredential?.type === 'managed_oauth') {
-        return {
-          kind: 'managed_oauth',
-          providerId: personalCredential?.providerId ?? requestedProviderId,
-          serviceName: requestedProvider.name,
-        }
+      if (!findCredentialGroupProviderFromProviderId(requestedProviderId)) {
+        throw new OrchestrationError(
+          'validation',
+          'This integration cannot be connected through Connected accounts'
+        )
+      }
+      return {
+        kind: 'managed_oauth',
+        providerId: personalCredential?.providerId ?? requestedProviderId,
+        serviceName: requestedProvider.name,
       }
     }
 

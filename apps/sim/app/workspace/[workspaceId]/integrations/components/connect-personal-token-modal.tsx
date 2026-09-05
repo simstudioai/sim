@@ -22,6 +22,7 @@ interface ConnectPersonalTokenModalProps {
   workspaceId: string
   credentialId?: string
   instanceUrl?: string
+  onConnected?: () => void
 }
 
 /** Personal connections use the existing credential modal and mutation conventions. */
@@ -38,6 +39,7 @@ function PersonalTokenForm({
   workspaceId,
   credentialId,
   instanceUrl,
+  onConnected,
 }: ConnectPersonalTokenModalProps) {
   const [host, setHost] = useState(instanceUrl ? new URL(instanceUrl).host : 'gitlab.com')
   const [token, setToken] = useState('')
@@ -47,7 +49,10 @@ function PersonalTokenForm({
   const error = (credentialId ? update.error : create.error)?.message
   function submit() {
     if (!host.trim() || !token.trim() || pending) return
-    const onSuccess = () => onOpenChange(false)
+    const onSuccess = () => {
+      onConnected?.()
+      onOpenChange(false)
+    }
     if (credentialId) update.mutate({ credentialId, apiToken: token.trim() }, { onSuccess })
     else
       create.mutate(

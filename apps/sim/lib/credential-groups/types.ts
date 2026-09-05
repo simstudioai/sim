@@ -84,7 +84,7 @@ export interface CredentialGroupEnrollmentRecord {
 }
 
 export interface CredentialGroupEnrollmentConnection {
-  provider: CredentialGroupProvider
+  provider: CredentialGroupProvider | 'gitlab'
   status: 'active' | 'needs_reauth' | 'revoked'
   count: number
 }

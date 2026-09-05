@@ -128,40 +128,24 @@ describe('executeOAuthGetAuthLink', () => {
     })
   })
 
-  it('opens the existing GitLab integration form for a personal token', async () => {
-    mocks.execute.mockResolvedValue({
-      kind: 'personal_token',
-      providerId: 'gitlab',
-      serviceName: 'GitLab',
-    })
+  it.each([
+    { kind: 'personal_token', providerId: 'gitlab', serviceName: 'GitLab' },
+    { kind: 'managed_oauth', providerId: 'slack', serviceName: 'Slack' },
+    { kind: 'oauth', providerId: 'confluence', serviceName: 'Confluence' },
+  ])('offers a provider-only personal connection card for $serviceName', async (provider) => {
+    mocks.execute.mockResolvedValue(provider)
     const result = await executeOAuthGetAuthLink(
-      { providerName: 'gitlab' },
+      { providerName: provider.providerId },
       { ...context, requestMode: 'assistant' }
     )
     expect(result.success).toBe(true)
-    const output = result.output as { oauth_url: string; instructions: string }
-    const url = new URL(output.oauth_url)
-    expect(url.origin).toBe('https://sim.test')
-    expect(url.pathname).toBe('/workspace/workspace-1/integrations/gitlab')
-    expect(url.searchParams.get('connect')).toBe('personal-token')
-    expect(output.instructions).toContain('connection form')
-  })
-
-  it('opens existing account enrollment for Slack instead of bot OAuth', async () => {
-    mocks.execute.mockResolvedValue({
-      kind: 'managed_oauth',
-      providerId: 'slack',
-      serviceName: 'Slack',
+    expect(result.output).not.toHaveProperty('oauth_url')
+    expect(result.output).toMatchObject({
+      providerId: provider.providerId,
+      instructions: expect.stringContaining(
+        `<credential>{"type":"link","provider":"${provider.providerId}"}</credential>`
+      ),
     })
-    const result = await executeOAuthGetAuthLink(
-      { providerName: 'slack' },
-      { ...context, requestMode: 'assistant' }
-    )
-    const output = result.output as { oauth_url: string; message: string }
-    const url = new URL(output.oauth_url)
-    expect(url.pathname).toBe('/workspace/workspace-1/search')
-    expect(url.searchParams.get('search')).toBe('Slack')
-    expect(output.message).toContain('your Slack account')
   })
 
   it('does not offer a service-account card or fallback link in Assistant', async () => {

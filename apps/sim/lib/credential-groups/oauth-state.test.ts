@@ -57,6 +57,8 @@ describe('credential group OAuth state', () => {
   it('stores encrypted attempt material and consumes state once', async () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'gmail',
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
       optionId: 'option-1',
@@ -66,6 +68,7 @@ describe('credential group OAuth state', () => {
       redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
       codeVerifier: 'code-verifier',
       invitationToken: 'invitation-token',
+      completionRedirect: true,
     })
 
     const stored = [...values.values()][0]
@@ -77,11 +80,14 @@ describe('credential group OAuth state', () => {
     const consumed = await consumeCredentialGroupOAuthAttempt(created.state)
     expect(consumed).toMatchObject({
       provider: 'gmail',
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
       optionId: 'option-1',
       codeVerifier: 'code-verifier',
       invitationToken: 'invitation-token',
+      completionRedirect: true,
     })
     expect(credentialGroupOAuthNonceMatches(created.nonce, consumed?.nonceHash ?? '')).toBe(true)
     await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
@@ -93,6 +99,8 @@ describe('credential group OAuth state', () => {
     await expect(
       createCredentialGroupOAuthAttempt({
         provider: 'gmail',
+        workspaceId: 'workspace-1',
+        email: 'person@example.com',
         enrollmentId: 'enrollment-1',
         credentialGroupId: 'group-1',
         optionId: 'option-1',
@@ -109,6 +117,8 @@ describe('credential group OAuth state', () => {
   it('supports providers without PKCE while preserving one-time state', async () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'slack',
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
       optionId: 'option-1',
@@ -127,6 +137,68 @@ describe('credential group OAuth state', () => {
       invitationToken: 'invitation-token',
     })
     expect(consumed?.codeVerifier).toBeUndefined()
+    expect(consumed?.completionRedirect).toBeUndefined()
     await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
   })
+  it('keeps independent connection attempts after another invitation is issued', async () => {
+    const params = {
+      provider: 'gmail' as const,
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      optionId: 'option-1',
+      authorizationAppId: 'google:app',
+      scopeVersion: 1,
+      requiredScopes: ['openid'],
+      redirectUri: 'https://sim.ai/callback',
+      invitationToken: 'first-invitation',
+    }
+    const first = await createCredentialGroupOAuthAttempt(params)
+    const second = await createCredentialGroupOAuthAttempt({
+      ...params,
+      optionId: 'option-2',
+      invitationToken: 'second-invitation',
+    })
+    const firstAttempt = await consumeCredentialGroupOAuthAttempt(first.state)
+    const secondAttempt = await consumeCredentialGroupOAuthAttempt(second.state)
+    expect(firstAttempt).toMatchObject({
+      workspaceId: params.workspaceId,
+      email: params.email,
+      invitationToken: params.invitationToken,
+      optionId: 'option-1',
+    })
+    expect(secondAttempt).toMatchObject({
+      workspaceId: params.workspaceId,
+      email: params.email,
+      invitationToken: 'second-invitation',
+      optionId: 'option-2',
+    })
+    expect(credentialGroupOAuthNonceMatches(first.nonce, firstAttempt!.nonceHash)).toBe(true)
+    expect(credentialGroupOAuthNonceMatches(first.nonce, secondAttempt!.nonceHash)).toBe(false)
+  })
+  it.each(['workspaceId', 'email'])(
+    'rejects stored attempts missing the pinned %s and burns them',
+    async (field) => {
+      const created = await createCredentialGroupOAuthAttempt({
+        provider: 'gmail',
+        workspaceId: 'workspace-1',
+        email: 'person@example.com',
+        enrollmentId: 'enrollment-1',
+        credentialGroupId: 'group-1',
+        optionId: 'option-1',
+        authorizationAppId: 'google:app',
+        scopeVersion: 1,
+        requiredScopes: ['openid'],
+        redirectUri: 'https://sim.ai/callback',
+        invitationToken: 'invitation',
+      })
+      const [key, raw] = [...values.entries()][0]
+      const stored = JSON.parse(raw)
+      delete stored[field]
+      values.set(key, JSON.stringify(stored))
+      await expect(consumeCredentialGroupOAuthAttempt(created.state)).rejects.toThrow('malformed')
+      await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
+    }
+  )
 })

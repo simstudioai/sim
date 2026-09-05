@@ -43,6 +43,8 @@ export async function startCredentialGroupMcpOAuth(
       const attempt = provider.requireAuthorizationAttempt()
       await createCredentialGroupMcpOAuthAttempt({
         ...attempt,
+        workspaceId: context.workspaceId,
+        email: context.email,
         enrollmentId: context.enrollmentId,
         credentialGroupId: context.credentialGroupId,
         mcpServerId: context.server.id,
@@ -94,6 +96,8 @@ export async function completeCredentialGroupMcpOAuth(
   )
   const connectionId = await persistManagedMcpCredential({
     enrollmentId: context.enrollmentId,
+    credentialGroupId: context.credentialGroupId,
+    email: context.email,
     workspaceId: context.workspaceId,
     mcpServerId: context.server.id,
     mcpServerName: context.server.name,

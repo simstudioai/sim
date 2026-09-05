@@ -182,17 +182,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   )
   const memberAccessAvailable = useMemberAccessAvailable()
   const [composerMode, setComposerMode] = useMothershipMode()
-  /**
-   * A link that carries a query but no mode opens in Search with the query in
-   * the box; the composer follows the live query the same way (below), so the
-   * box and the results never show two different queries. Where per-member
-   * access is off there is no Search to open into, so the query stays a plain
-   * Build draft rather than a mode write `useMothershipMode` would drop.
-   */
-  useEffect(() => {
-    if (!memberAccessAvailable) return
-    if (searchQuery.trim() && composerMode === 'build') void setComposerMode('search')
-  }, [memberAccessAvailable, searchQuery, composerMode, setComposerMode])
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
@@ -480,13 +469,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
-      captureEvent(posthogRef.current, 'task_message_sent', {
-        workspace_id: workspaceId,
-        has_attachments: !!(fileAttachments && fileAttachments.length > 0),
-        has_contexts: !!(contexts && contexts.length > 0),
-        is_new_task: !chatId,
-      })
-
       /**
        * Search lists documents, not a turn of the agent, and only a query can
        * be searched: attachments alone have nothing to search for. Assistant
@@ -505,6 +487,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         if (trimmed) setSearchQuery(trimmed)
         return
       }
+
+      captureEvent(posthogRef.current, 'task_message_sent', {
+        workspace_id: workspaceId,
+        has_attachments: !!(fileAttachments && fileAttachments.length > 0),
+        has_contexts: !!(contexts && contexts.length > 0),
+        is_new_task: !chatId,
+      })
 
       if (initialViewInputRef.current) {
         setIsInputEntering(true)
@@ -555,16 +544,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    * box is emptied as a send empties it, so the query does not linger as a
    * draft under the answer.
    */
-  const handleSummarize = (prompt: string, assistantSearch: WorkspaceSearchFilters) => {
-    if (resolvedChatId) {
-      MothershipHandoffStorage.store(
-        { message: prompt, requestMode: 'assistant', assistantSearch },
-        workspaceId
-      )
-      router.push(`/workspace/${workspaceId}/home?mode=assistant`)
-      return
-    }
-    void setComposerMode('assistant')
+  const handleSummarize = async (prompt: string, assistantSearch: WorkspaceSearchFilters) => {
+    await setComposerMode('assistant')
     initialViewUserInputRef.current?.clear()
     chatViewUserInputRef.current?.clear()
     void handleSubmit(prompt, undefined, undefined, 'assistant', assistantSearch)

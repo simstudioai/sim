@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
-  authenticateCredentialGroupEnrollment: mocks.authenticate,
+  credentialGroupOAuthAttemptPrincipal: mocks.authenticate,
 }))
 
 vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
@@ -27,7 +27,10 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
   enforcePublicCredentialGroupIpRateLimit: mocks.rateLimit,
 }))
 
-import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
+import {
+  CredentialGroupInvitationUnavailableError,
+  CredentialGroupOAuthError,
+} from '@/lib/credential-groups/provider-adapter'
 import { GET } from '@/app/api/credential-groups/oauth/[provider]/callback/route'
 
 const principal = {
@@ -56,7 +59,7 @@ describe('credential group OAuth callback', () => {
     vi.clearAllMocks()
     mocks.rateLimit.mockResolvedValue(null)
     mocks.consumeAttempt.mockResolvedValue(attempt)
-    mocks.authenticate.mockResolvedValue(principal)
+    mocks.authenticate.mockReturnValue(principal)
     mocks.completeOAuth.mockResolvedValue({ connectedOptionId: 'option-1' })
   })
 
@@ -65,6 +68,7 @@ describe('credential group OAuth callback', () => {
     const response = await GET(callbackRequest, context)
 
     expect(mocks.consumeAttempt).toHaveBeenCalledWith('state-1')
+    expect(mocks.authenticate).toHaveBeenCalledWith(attempt)
     expect(mocks.completeOAuth).toHaveBeenCalledWith({
       principal,
       input: { attempt, code: 'code-1' },
@@ -113,7 +117,7 @@ describe('credential group OAuth callback', () => {
   })
 
   it('returns an unavailable enrollment redirect when the invitation was revoked in flight', async () => {
-    mocks.authenticate.mockResolvedValue(null)
+    mocks.completeOAuth.mockRejectedValueOnce(new CredentialGroupInvitationUnavailableError())
 
     const response = await GET(request('state=state-1&code=code-1'), context)
 
@@ -121,7 +125,7 @@ describe('credential group OAuth callback', () => {
     expect(response.headers.get('location')).toBe(
       '/credential-groups/enroll/invitation-token?oauth=unavailable'
     )
-    expect(mocks.completeOAuth).not.toHaveBeenCalled()
+    expect(mocks.completeOAuth).toHaveBeenCalledOnce()
   })
 
   it('returns an unavailable enrollment redirect when the invitation is revoked during exchange', async () => {
@@ -148,6 +152,51 @@ describe('credential group OAuth callback', () => {
       '/credential-groups/enroll/invitation-token?oauth=rate_limited'
     )
     expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
+  })
+
+  it('returns personal connections to the fixed completion page after invitation rotation', async () => {
+    mocks.consumeAttempt.mockResolvedValue({ ...attempt, completionRedirect: true })
+    const response = await GET(request('state=state-1&code=code-1'), context)
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/credential-groups/complete')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
+  })
+
+  it.each([['error=access_denied', 'denied']])(
+    'shows personal callback failure without reopening a stale invitation: %s',
+    async (query, status) => {
+      mocks.consumeAttempt.mockResolvedValue({ ...attempt, completionRedirect: true })
+      const response = await GET(request(`state=state-1&${query}`), context)
+      expect(response.status).toBe(303)
+      expect(response.headers.get('location')).toBe(`/credential-groups/complete?oauth=${status}`)
+      expect(mocks.completeOAuth).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    [new CredentialGroupInvitationUnavailableError(), 'unavailable'],
+    [new CredentialGroupOAuthError('Sign in with your own account', 403), 'account_mismatch'],
+    [new CredentialGroupOAuthError('Missing scopes', 403), 'permissions_required'],
+    [new CredentialGroupOAuthError('Changed settings', 409), 'configuration_changed'],
+    [new Error('Provider failed'), 'failed'],
+  ])('shows failed personal authorization on the completion page', async (error, status) => {
+    mocks.consumeAttempt.mockResolvedValue({ ...attempt, completionRedirect: true })
+    mocks.completeOAuth.mockRejectedValueOnce(error)
+    const response = await GET(request('state=state-1&code=code-1'), context)
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe(`/credential-groups/complete?oauth=${status}`)
+  })
+
+  it('shows rate limits on the personal completion page without exchanging', async () => {
+    mocks.consumeAttempt.mockResolvedValue({ ...attempt, completionRedirect: true })
+    mocks.rateLimit.mockResolvedValue(
+      NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    )
+    const response = await GET(request('state=state-1&code=code-1'), context)
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/credential-groups/complete?oauth=rate_limited')
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
 })

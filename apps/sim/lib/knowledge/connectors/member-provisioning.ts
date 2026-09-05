@@ -19,11 +19,7 @@ import {
   type CredentialGroupCredentialListContext,
   loadWorkspaceAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
-import {
-  CredentialGroupEnrollmentError,
-  createCredentialGroupInvitationLink,
-  inviteCredentialGroupEnrollment,
-} from '@/lib/credential-groups/enrollments'
+import { inviteCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
 import {
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
@@ -324,72 +320,4 @@ export async function resolveViewerConnectorMemberships(input: {
     )
   }
   return result
-}
-
-/**
- * A fresh enrollment link for the viewer into the connector's group, minted
- * on demand so a workspace member never has to find the invitation email.
- * Issued without an inviter — the person is inviting themselves — and refused
- * for an enrollment an admin revoked or an account whose email is unverified,
- * which could connect but would never be granted a token. The revocation is
- * decided inside the issuing transaction (`reject`), so an admin who revokes
- * between the read here and the issue is never overridden by a link.
- */
-export async function createViewerConnectorEnrollmentLink(input: {
-  userId: string
-  workspaceId: string
-  credentialGroupId: string
-}): Promise<string> {
-  const [viewer] = await db
-    .select({ email: user.email, emailVerified: user.emailVerified })
-    .from(user)
-    .where(eq(user.id, input.userId))
-    .limit(1)
-  if (!viewer) throw new OrchestrationError('not_found', 'User not found')
-  if (!viewer.emailVerified) {
-    throw new OrchestrationError(
-      'validation',
-      'Verify your email address before connecting an account'
-    )
-  }
-  const email = normalizeEmail(viewer.email)
-  const revoked = new OrchestrationError(
-    'forbidden',
-    'A workspace admin removed your access to this connector'
-  )
-  if (await isEnrollmentRevoked(input.credentialGroupId, email)) throw revoked
-  try {
-    const { invitationLink } = await createCredentialGroupInvitationLink(
-      input.workspaceId,
-      input.credentialGroupId,
-      undefined,
-      email,
-      'reject'
-    )
-    return invitationLink
-  } catch (error) {
-    /** The issue refused a revocation that landed after the read above; report it as such. */
-    if (
-      error instanceof CredentialGroupEnrollmentError &&
-      error.status === 409 &&
-      (await isEnrollmentRevoked(input.credentialGroupId, email))
-    ) {
-      throw revoked
-    }
-    throw error
-  }
-}
-
-async function isEnrollmentRevoked(credentialGroupId: string, email: string): Promise<boolean> {
-  const [enrollment] = await db
-    .select({ status: credentialGroupEnrollment.status })
-    .from(credentialGroupEnrollment)
-    .where(
-      and(
-        eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
-        eq(credentialGroupEnrollment.email, email)
-      )
-    )
-    .limit(1)
-  return enrollment?.status === 'revoked'
 }

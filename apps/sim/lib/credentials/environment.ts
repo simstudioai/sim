@@ -853,7 +853,7 @@ export interface AccessibleOAuthCredential {
 export async function getEnrolledManagedOAuthCredentials(
   workspaceId: string,
   userId: string
-): Promise<AccessibleOAuthCredential[]> {
+): Promise<(AccessibleOAuthCredential & { connectedAt: Date })[]> {
   const rows = await db
     .select({
       id: credential.id,
@@ -866,6 +866,8 @@ export async function getEnrolledManagedOAuthCredentials(
       groupStatus: credentialGroup.status,
       groupOptions: credentialGroup.options,
       updatedAt: credential.updatedAt,
+      grantedAt: credential.grantedAt,
+      createdAt: credential.createdAt,
     })
     .from(credential)
     .innerJoin(
@@ -905,6 +907,7 @@ export async function getEnrolledManagedOAuthCredentials(
       role: 'member' as const,
       type: 'managed_oauth' as const,
       updatedAt: row.updatedAt,
+      connectedAt: row.grantedAt ?? row.createdAt,
     }))
 }
 

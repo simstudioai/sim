@@ -1078,7 +1078,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         body.contexts?.length)
     ) {
       return createBadRequestResponse(
-        'Assistant uses the Enterprise Search index. Start a Build chat to use workspace attachments or workflows.'
+        'Assistant uses the Enterprise Search index. Switch to Build to use workspace resources or workflows.'
       )
     }
 
@@ -1229,18 +1229,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.finish('error')
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
-        const previousUserMessage = conversationHistory.find(
-          (entry): entry is { role: 'user'; requestMode?: string } =>
-            typeof entry === 'object' && entry !== null && 'role' in entry && entry.role === 'user'
-        )
-        if (
-          previousUserMessage &&
-          (previousUserMessage.requestMode === 'assistant') !== (body.mode === 'assistant')
-        ) {
-          return createBadRequestResponse(
-            'Start a new chat when switching between Assistant and Build.'
-          )
-        }
       }
 
       /* Record the chat as soon as it is known — the earliest a retry can be
@@ -1307,32 +1295,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             },
             { status: 409 }
           )
-        }
-        /** A concurrent first turn may have chosen its mode while this request waited for the lock. */
-        if (conversationHistory.length === 0 && !chatIsNew) {
-          const lockedChat = await resolveOrCreateChat({
-            chatId: actualChatId,
-            userId: authenticatedUserId,
-            ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
-            workspaceId: branch.workspaceId,
-            model: branch.titleModel,
-            type: branch.kind === 'workflow' ? 'copilot' : 'mothership',
-          })
-          const previousUserMessage = lockedChat.conversationHistory.find(
-            (entry): entry is { role: 'user'; requestMode?: string } =>
-              typeof entry === 'object' &&
-              entry !== null &&
-              'role' in entry &&
-              entry.role === 'user'
-          )
-          if (
-            previousUserMessage &&
-            (previousUserMessage.requestMode === 'assistant') !== (body.mode === 'assistant')
-          ) {
-            return createBadRequestResponse(
-              'Start a new chat when switching between Assistant and Build.'
-            )
-          }
         }
       }
 
@@ -1446,19 +1408,27 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // Both halves come from one primary-db fetch (workspace-context.ts):
       // `workspaceContext` is the markdown transition fallback, `vfs` is the
       // typed snapshot Go diffs into baseline+delta messages.
-      const workspaceContext =
-        body.mode === 'assistant' && workspaceId
-          ? JSON.stringify(
-              await listPersonalCredentials.execute({
-                principal: {
-                  kind: 'session',
-                  userId: authenticatedUserId,
-                  sessionId: session.session.id,
-                },
-                input: { workspaceId },
-              })
-            )
-          : workspaceSnapshot?.markdown
+      let workspaceContext = workspaceSnapshot?.markdown
+      if (body.mode === 'assistant' && workspaceId) {
+        const { credentials } = await listPersonalCredentials.execute({
+          principal: {
+            kind: 'session',
+            userId: authenticatedUserId,
+            sessionId: session.session.id,
+          },
+          input: { workspaceId },
+        })
+        workspaceContext = JSON.stringify({
+          credentials: credentials.map((credential) => ({
+            id: credential.id,
+            providerId: credential.providerId,
+            displayName: credential.displayName,
+            ...(credential.type === 'personal_token'
+              ? { instanceUrl: credential.instanceUrl }
+              : {}),
+          })),
+        })
+      }
       const vfs = workspaceSnapshot?.snapshot
       const turnContexts = agentContexts
       if (body.mode === 'assistant') executionContext.assistantSearch = body.assistantSearch

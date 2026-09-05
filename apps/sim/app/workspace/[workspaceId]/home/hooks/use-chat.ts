@@ -4131,10 +4131,7 @@ export function useChat(
                 activeResourceIdRef.current,
                 desktopScopeIdRef.current
               )
-        const desktopChatCapabilities =
-          options?.requestMode === 'assistant'
-            ? {}
-            : await getDesktopChatCapabilities(desktopScopeIdRef.current)
+        const desktopChatCapabilities = await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',

@@ -26,11 +26,24 @@ describe('chatUrl', () => {
     expect(chatUrl('ws-1', 'chat-1')).toBe('/workspace/ws-1/chat/chat-1')
   })
 
-  it('uses the submitted mode when the URL has not finished changing', () => {
-    withSearch('?mode=search&q=budget&source=upload')
+  it('uses the submitted mode only when no view has been selected', () => {
+    withSearch('')
     expect(chatUrl('ws-1', 'chat-1', 'assistant')).toBe(
       '/workspace/ws-1/chat/chat-1?mode=assistant'
     )
-    expect(chatUrl('ws-1', 'chat-1', 'agent')).toBe('/workspace/ws-1/chat/chat-1')
+    expect(chatUrl('ws-1', 'chat-1', 'agent')).toBe('/workspace/ws-1/chat/chat-1?mode=build')
+  })
+
+  it.each([
+    ['?mode=build', 'assistant', '?mode=build'],
+    ['?mode=assistant', 'agent', '?mode=assistant'],
+    [
+      '?mode=search&q=budget&source=upload&updated=7d',
+      'assistant',
+      '?mode=search&q=budget&source=upload&updated=7d',
+    ],
+  ] as const)('preserves a mode selected after submission: %s', (current, submitted, expected) => {
+    withSearch(current)
+    expect(chatUrl('ws-1', 'chat-1', submitted)).toBe(`/workspace/ws-1/chat/chat-1${expected}`)
   })
 })

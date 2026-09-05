@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { useParams, usePathname, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
   CLEARED_SEARCH_FILTERS,
@@ -13,34 +13,26 @@ import { useMothershipChatHistory } from '@/hooks/queries/mothership-chats'
 import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 
 /**
- * Existing conversations retain their persisted mode. The URL owns Search and
- * the mode of a new conversation; changing a conversation's mode starts a new one.
+ * URL selection owns the current view and next turn. A bare chat link resumes
+ * the latest persisted user mode without changing the mode of any active run.
  */
 export function useMothershipMode() {
   const memberAccessAvailable = useMemberAccessAvailable()
-  const { workspaceId, chatId } = useParams<{ workspaceId: string; chatId?: string }>()
-  const pathname = usePathname()
-  const router = useRouter()
-  const [{ mode: urlMode }, setParams] = useQueryStates(composerModeParsers, resourceUrlKeys)
+  const { chatId } = useParams<{ chatId?: string }>()
+  const [{ mode: urlMode, q: query }, setParams] = useQueryStates(
+    composerModeParsers,
+    resourceUrlKeys
+  )
   const { data: chatHistory } = useMothershipChatHistory(chatId)
-  const persistedMode = chatHistory?.messages.find(
-    (message) => message.role === 'user' && message.requestMode
-  )?.requestMode
+  let persistedMode: 'agent' | 'assistant' | undefined
+  for (const message of chatHistory?.messages ?? []) {
+    if (message.role === 'user') persistedMode = message.requestMode
+  }
   const mode =
-    urlMode === 'search' || !persistedMode
-      ? urlMode
-      : persistedMode === 'assistant'
-        ? 'assistant'
-        : 'build'
+    urlMode ?? (query?.trim() ? 'search' : persistedMode === 'assistant' ? 'assistant' : 'build')
   const setMode = useCallback(
     async (next: MothershipMode) => {
       if (next !== 'build' && !memberAccessAvailable) return
-      if (next !== mode && next !== 'search' && pathname.includes('/chat/')) {
-        router.push(
-          `/workspace/${workspaceId}/home${next === 'assistant' ? '?mode=assistant' : ''}`
-        )
-        return Promise.resolve(new URLSearchParams(next === 'assistant' ? 'mode=assistant' : ''))
-      }
       return setParams(
         {
           mode: next,
@@ -49,7 +41,7 @@ export function useMothershipMode() {
         { history: 'replace', scroll: false }
       )
     },
-    [setParams, mode, pathname, router, workspaceId, memberAccessAvailable]
+    [setParams, memberAccessAvailable]
   )
 
   return [memberAccessAvailable ? mode : 'build', setMode] as const

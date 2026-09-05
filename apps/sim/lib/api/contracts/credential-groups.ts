@@ -123,7 +123,7 @@ export const credentialGroupEnrollmentSchema = z.object({
 export type CredentialGroupEnrollment = z.output<typeof credentialGroupEnrollmentSchema>
 
 export const credentialGroupEnrollmentConnectionSchema = z.object({
-  provider: credentialGroupProviderSchema,
+  provider: z.union([credentialGroupProviderSchema, z.literal('gitlab')]),
   status: z.enum(['active', 'needs_reauth', 'revoked']),
   count: z.number().int().positive(),
 })
@@ -137,7 +137,7 @@ export const credentialGroupEnrollmentMcpConnectionSchema = z.object({
 export const credentialGroupEnrollmentDetailSchema = credentialGroupEnrollmentSchema.extend({
   connections: z
     .array(credentialGroupEnrollmentConnectionSchema)
-    .max(CREDENTIAL_GROUP_PROVIDER_IDS.length * 3),
+    .max((CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3),
   mcpConnections: z
     .array(credentialGroupEnrollmentMcpConnectionSchema)
     .max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT),

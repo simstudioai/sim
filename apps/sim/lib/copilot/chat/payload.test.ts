@@ -624,15 +624,10 @@ describe('Assistant payload', () => {
       },
       { selectedModel: '' }
     )
+    expect(payload.desktopCapabilities).toEqual({ browser: true, terminal: true })
     expect(payload.mode).toBe('assistant')
     expect(payload.assistantSearch).toEqual({ source: 'slack', documentIds: ['document-1'] })
-    for (const field of [
-      'context',
-      'commands',
-      'mothershipTools',
-      'desktopCapabilities',
-      'workflowId',
-    ]) {
+    for (const field of ['context', 'commands', 'mothershipTools', 'workflowId']) {
       expect(payload).not.toHaveProperty(field)
     }
     expect(payload.integrationTools).toEqual([

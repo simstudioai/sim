@@ -12,8 +12,8 @@ import type {
   CredentialGroupEnrollmentConnection,
   CredentialGroupEnrollmentMcpConnection,
 } from '@/lib/api/contracts/credential-groups'
-import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
@@ -69,10 +69,19 @@ interface EnrollmentConnectionsProps {
 }
 
 interface CredentialProviderIconProps {
-  provider: CredentialGroupProvider
+  provider: CredentialGroupEnrollmentConnection['provider']
 }
 
 function CredentialProviderIcon({ provider }: CredentialProviderIconProps) {
+  if (provider === 'gitlab') {
+    const display = resolveCredentialDisplay({
+      type: 'personal_token',
+      providerId: provider,
+      displayName: provider,
+    })
+    const Icon = display.icon
+    return Icon ? <Icon className='size-[14px]' aria-label={display.detailTitle} /> : null
+  }
   const ProviderIcon = getCredentialGroupProviderService(provider).icon
   return <ProviderIcon className='size-[14px]' aria-hidden />
 }

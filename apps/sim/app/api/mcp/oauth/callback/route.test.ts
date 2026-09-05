@@ -30,7 +30,7 @@ vi.mock('@/lib/mcp/service', () => ({
   mcpService: { discoverServerTools: mockDiscoverServerTools },
 }))
 vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
-  authenticateCredentialGroupEnrollment: mockAuthenticateEnrollment,
+  credentialGroupOAuthAttemptPrincipal: mockAuthenticateEnrollment,
 }))
 vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
   completePublicCredentialGroupMcpOAuth: { execute: mockCompleteManagedMcpOAuth },
@@ -68,6 +68,8 @@ describe('MCP OAuth callback route', () => {
     mockDiscoverServerTools.mockResolvedValue(undefined)
     mockConsumeManagedAttempt.mockResolvedValue({
       state: 'mcp_cg_state-1',
+      workspaceId: 'workspace-1',
+      email: 'invitee@example.com',
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
       mcpServerId: 'server-1',
@@ -75,7 +77,7 @@ describe('MCP OAuth callback route', () => {
       invitationToken: 'invitation-token',
       createdAt: Date.now(),
     })
-    mockAuthenticateEnrollment.mockResolvedValue({
+    mockAuthenticateEnrollment.mockReturnValue({
       kind: 'credential_group_enrollment',
       workspaceId: 'workspace-1',
       credentialGroupId: 'group-1',
@@ -159,7 +161,13 @@ describe('MCP OAuth callback route', () => {
 
     expect(mockEnforceCallbackRateLimit).toHaveBeenCalledWith(request, 'oauth-callback')
     expect(mockConsumeManagedAttempt).toHaveBeenCalledWith('mcp_cg_state-1')
-    expect(mockAuthenticateEnrollment).toHaveBeenCalledWith('invitation-token')
+    expect(mockAuthenticateEnrollment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        email: 'invitee@example.com',
+        invitationToken: 'invitation-token',
+      })
+    )
     expect(mockCompleteManagedMcpOAuth).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({

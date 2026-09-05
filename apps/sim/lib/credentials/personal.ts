@@ -8,6 +8,8 @@ export interface PersonalOAuthCredential {
   providerId: string
   displayName: string
   type: 'oauth' | 'managed_oauth'
+  updatedAt: Date
+  connectedAt: Date
 }
 
 /** Accounts whose provider identity belongs to the person, independently of workspace sharing. */
@@ -21,6 +23,8 @@ export async function getPersonalOAuthCredentials(
         id: credential.id,
         providerId: credential.providerId,
         displayName: credential.displayName,
+        updatedAt: credential.updatedAt,
+        connectedAt: credential.createdAt,
       })
       .from(credential)
       .innerJoin(account, eq(account.id, credential.accountId))
@@ -40,10 +44,12 @@ export async function getPersonalOAuthCredentials(
     ...owned.flatMap((row) =>
       row.providerId ? [{ ...row, providerId: row.providerId, type: 'oauth' as const }] : []
     ),
-    ...enrolled.map(({ id, providerId, displayName }) => ({
+    ...enrolled.map(({ id, providerId, displayName, updatedAt, connectedAt }) => ({
       id,
       providerId,
       displayName,
+      updatedAt,
+      connectedAt,
       type: 'managed_oauth' as const,
     })),
   ]

@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { CredentialGroupOAuthCallbackQuery } from '@/lib/api/contracts/credential-groups'
-import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
+import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import {
@@ -11,7 +11,11 @@ import {
   CredentialGroupOAuthError,
 } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
-import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
+import {
+  type CredentialGroupOAuthFailure,
+  createCredentialGroupCompletionRedirect,
+  createCredentialGroupEnrollmentRedirect,
+} from '@/app/api/credential-groups/enrollment-redirect'
 
 const logger = createLogger('CredentialGroupOAuthCallbackAPI')
 
@@ -49,24 +53,21 @@ export async function handleCredentialGroupOAuthCallback({
       { status: 400, headers: { 'Cache-Control': 'no-store' } }
     )
   }
+  const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
+    attempt.completionRedirect
+      ? createCredentialGroupCompletionRedirect(oauth)
+      : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth })
   if (limited) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-      oauth: 'rate_limited',
-    })
+    return failureRedirect('rate_limited')
   }
   if (providerError) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'denied' })
+    return failureRedirect('denied')
   }
   if (!code) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'failed' })
+    return failureRedirect('failed')
   }
 
-  const principal = await authenticateCredentialGroupEnrollment(attempt.invitationToken)
-  if (!principal) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-      oauth: 'unavailable',
-    })
-  }
+  const principal = credentialGroupOAuthAttemptPrincipal(attempt)
 
   try {
     await completePublicCredentialGroupOAuth.execute({
@@ -74,9 +75,11 @@ export async function handleCredentialGroupOAuthCallback({
       input: { attempt, code },
       request,
     })
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-      connected: attempt.optionId,
-    })
+    return attempt.completionRedirect
+      ? createCredentialGroupCompletionRedirect()
+      : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+          connected: attempt.optionId,
+        })
   } catch (error) {
     logger.error('Managed OAuth authorization failed', {
       provider,
@@ -92,6 +95,6 @@ export async function handleCredentialGroupOAuthCallback({
           : error instanceof CredentialGroupOAuthError && error.statusCode === 409
             ? 'configuration_changed'
             : 'failed'
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: status })
+    return failureRedirect(status)
   }
 }
