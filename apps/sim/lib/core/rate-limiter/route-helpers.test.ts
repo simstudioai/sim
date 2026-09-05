@@ -49,7 +49,7 @@ describe('route-helpers rate limiting', () => {
 
       const result = await enforceIpRateLimitWithIndependentBackstop(
         'chat-execute',
-        createMockRequest('POST') as any,
+        createMockRequest('POST'),
         { maxTokens: 40, refillRate: 20, refillIntervalMs: 60_000 },
         'chat-1'
       )
@@ -71,10 +71,7 @@ describe('route-helpers rate limiting', () => {
 
       requestUtilsMockFns.mockGetClientIp.mockReturnValue('203.0.113.9')
 
-      await enforceIpRateLimitWithIndependentBackstop(
-        'forget-password',
-        createMockRequest('POST') as any
-      )
+      await enforceIpRateLimitWithIndependentBackstop('forget-password', createMockRequest('POST'))
 
       expect(consume).toHaveBeenCalledWith(
         'route:forget-password:ip:203.0.113.9',
