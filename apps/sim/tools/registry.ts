@@ -3406,6 +3406,32 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleEpmNarrativeReportingCreateLibraryFileTool,
+  oracleEpmNarrativeReportingCreateLibraryFolderTool,
+  oracleEpmNarrativeReportingCreateReportSnapshotTool,
+  oracleEpmNarrativeReportingDeleteLibraryArtifactTool,
+  oracleEpmNarrativeReportingDownloadBookOutputTool,
+  oracleEpmNarrativeReportingDownloadReportOutputTool,
+  oracleEpmNarrativeReportingDownloadReportSnapshotOutputTool,
+  oracleEpmNarrativeReportingExportLibraryArtifactTool,
+  oracleEpmNarrativeReportingGetBookGlobalPovTool,
+  oracleEpmNarrativeReportingGetBookTool,
+  oracleEpmNarrativeReportingGetJobTool,
+  oracleEpmNarrativeReportingGetLibraryArtifactTool,
+  oracleEpmNarrativeReportingGetReportGlobalPovTool,
+  oracleEpmNarrativeReportingGetReportPackageTool,
+  oracleEpmNarrativeReportingGetReportPromptsTool,
+  oracleEpmNarrativeReportingGetReportSnapshotTool,
+  oracleEpmNarrativeReportingGetReportTool,
+  oracleEpmNarrativeReportingImportLibraryArtifactTool,
+  oracleEpmNarrativeReportingListBooksTool,
+  oracleEpmNarrativeReportingListLibraryArtifactsTool,
+  oracleEpmNarrativeReportingListReportSnapshotsTool,
+  oracleEpmNarrativeReportingListReportsTool,
+  oracleEpmNarrativeReportingRefreshReportPackageDataSourcesTool,
+  oracleEpmNarrativeReportingWaitForJobTool,
+} from '@/tools/oracle_epm_narrative_reporting'
+import {
   outlookCalendarCreateEventTool,
   outlookCalendarDeleteEventTool,
   outlookCalendarGetEventTool,
@@ -9886,6 +9912,48 @@ export const tools: Record<string, ExecutableToolConfig> = {
   microsoft_teams_list_teams: microsoftTeamsListTeamsTool,
   microsoft_teams_list_chats: microsoftTeamsListChatsTool,
   microsoft_teams_list_channels: microsoftTeamsListChannelsTool,
+  oracle_epm_narrative_reporting_create_library_file:
+    oracleEpmNarrativeReportingCreateLibraryFileTool,
+  oracle_epm_narrative_reporting_create_library_folder:
+    oracleEpmNarrativeReportingCreateLibraryFolderTool,
+  oracle_epm_narrative_reporting_create_report_snapshot:
+    oracleEpmNarrativeReportingCreateReportSnapshotTool,
+  oracle_epm_narrative_reporting_delete_library_artifact:
+    oracleEpmNarrativeReportingDeleteLibraryArtifactTool,
+  oracle_epm_narrative_reporting_download_book_output:
+    oracleEpmNarrativeReportingDownloadBookOutputTool,
+  oracle_epm_narrative_reporting_download_report_output:
+    oracleEpmNarrativeReportingDownloadReportOutputTool,
+  oracle_epm_narrative_reporting_download_report_snapshot_output:
+    oracleEpmNarrativeReportingDownloadReportSnapshotOutputTool,
+  oracle_epm_narrative_reporting_export_library_artifact:
+    oracleEpmNarrativeReportingExportLibraryArtifactTool,
+  oracle_epm_narrative_reporting_get_book: oracleEpmNarrativeReportingGetBookTool,
+  oracle_epm_narrative_reporting_get_book_global_pov:
+    oracleEpmNarrativeReportingGetBookGlobalPovTool,
+  oracle_epm_narrative_reporting_get_job: oracleEpmNarrativeReportingGetJobTool,
+  oracle_epm_narrative_reporting_get_library_artifact:
+    oracleEpmNarrativeReportingGetLibraryArtifactTool,
+  oracle_epm_narrative_reporting_get_report: oracleEpmNarrativeReportingGetReportTool,
+  oracle_epm_narrative_reporting_get_report_global_pov:
+    oracleEpmNarrativeReportingGetReportGlobalPovTool,
+  oracle_epm_narrative_reporting_get_report_package:
+    oracleEpmNarrativeReportingGetReportPackageTool,
+  oracle_epm_narrative_reporting_get_report_prompts:
+    oracleEpmNarrativeReportingGetReportPromptsTool,
+  oracle_epm_narrative_reporting_get_report_snapshot:
+    oracleEpmNarrativeReportingGetReportSnapshotTool,
+  oracle_epm_narrative_reporting_import_library_artifact:
+    oracleEpmNarrativeReportingImportLibraryArtifactTool,
+  oracle_epm_narrative_reporting_list_books: oracleEpmNarrativeReportingListBooksTool,
+  oracle_epm_narrative_reporting_list_library_artifacts:
+    oracleEpmNarrativeReportingListLibraryArtifactsTool,
+  oracle_epm_narrative_reporting_list_report_snapshots:
+    oracleEpmNarrativeReportingListReportSnapshotsTool,
+  oracle_epm_narrative_reporting_list_reports: oracleEpmNarrativeReportingListReportsTool,
+  oracle_epm_narrative_reporting_refresh_package_data_sources:
+    oracleEpmNarrativeReportingRefreshReportPackageDataSourcesTool,
+  oracle_epm_narrative_reporting_wait_for_job: oracleEpmNarrativeReportingWaitForJobTool,
   outlook_read: outlookReadTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,

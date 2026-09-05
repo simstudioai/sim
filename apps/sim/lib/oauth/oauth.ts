@@ -1010,6 +1010,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  'oracle-epm-narrative-reporting': {
+    name: 'Oracle EPM Narrative Reporting',
+    icon: NetSuiteIcon,
+    services: {
+      'oracle-epm-narrative-reporting': {
+        name: 'Oracle EPM Narrative Reporting',
+        description:
+          'Manage Narrative Reporting library artifacts, reports, books, report snapshots, package metadata, and jobs.',
+        providerId: 'oracle-epm-narrative-reporting',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm-narrative-reporting',
+  },
   netsuite: {
     name: 'Oracle NetSuite',
     icon: NetSuiteIcon,

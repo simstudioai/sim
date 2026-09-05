@@ -1,0 +1,710 @@
+---
+title: Oracle EPM Narrative Reporting
+description: Work with Narrative Reporting reports, books, library artifacts, snapshots, and jobs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_narrative_reporting"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a reusable Oracle EPM service-account credential to the environment stored in that credential. Discover library artifacts, reports and books; render reports, books and report snapshots to execution files; inspect package metadata; and submit or monitor snapshot, refresh, export and import jobs. Downloads are capped at 100 MiB. Job submission is not completion. Leave block retries disabled for create, delete, snapshot, refresh, export and import operations; reconcile an uncertain Oracle outcome before submitting again. Temporary-file transfer and package list/preview/published-output operations remain unavailable pending verified Oracle contracts. Doclet lifecycle, publishing, bursting and database backups are not supported.
+
+
+
+## Actions
+
+### Oracle EPM Narrative Reporting List Library Artifacts
+
+List one bounded page of repository artifacts or a folder’s children.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `folderId` | string | No | Optional repository folder UUID. Omit to list the library collection. |
+| `limit` | number | No | Maximum objects on one page \(1–100, default 50\). |
+| `offset` | number | No | Zero-based page offset \(0–1,000,000, default 0\). |
+| `q` | string | No | Oracle SCIM filter expression, for example name co "Budget". |
+| `orderBy` | string | No | Comma-separated field:asc or field:desc sort terms supported by this collection. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artifacts` | array | Documented artifacts |
+|   ↳ `artifactId` | string | Repository artifact ID; not interchangeable with a report or package ID |
+|   ↳ `name` | string | Artifact name |
+|   ↳ `description` | string | description |
+|   ↳ `type` | string | type |
+|   ↳ `typeID` | string | typeID |
+|   ↳ `typeLabel` | string | typeLabel |
+|   ↳ `pathName` | string | pathName |
+|   ↳ `systemPath` | string | systemPath |
+|   ↳ `mimeType` | string | mimeType |
+|   ↳ `modifiedBy` | string | modifiedBy |
+|   ↳ `favorite` | boolean | Favorite flag |
+|   ↳ `ordinal` | number | Ordinal |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+| `offset` | number | Provider page offset, when returned |
+| `limit` | number | Provider page limit, when returned |
+| `count` | number | Provider page count, when returned |
+| `hasMore` | boolean | Whether another page exists, when returned |
+| `totalResults` | number | Provider total, when returned |
+
+### Oracle EPM Narrative Reporting Get Library Artifact
+
+Read repository artifact metadata by its repository ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artifact` | object | Documented Artifact metadata; unknown fields and returned URLs are omitted |
+|   ↳ `artifactId` | string | Repository artifact ID; not interchangeable with a report or package ID |
+|   ↳ `name` | string | Artifact name |
+|   ↳ `description` | string | description |
+|   ↳ `type` | string | type |
+|   ↳ `typeID` | string | typeID |
+|   ↳ `typeLabel` | string | typeLabel |
+|   ↳ `pathName` | string | pathName |
+|   ↳ `systemPath` | string | systemPath |
+|   ↳ `mimeType` | string | mimeType |
+|   ↳ `modifiedBy` | string | modifiedBy |
+|   ↳ `favorite` | boolean | Favorite flag |
+|   ↳ `ordinal` | number | Ordinal |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+
+### Oracle EPM Narrative Reporting Create Library Folder
+
+Create a folder in the Oracle Narrative Reporting library.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `name` | string | Yes | Library artifact name. |
+| `description` | string | No | Optional library artifact description. |
+| `systemPath` | string | No | Library destination folder path; do not provide a URL. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artifact` | object | Documented Artifact metadata; unknown fields and returned URLs are omitted |
+|   ↳ `artifactId` | string | Repository artifact ID; not interchangeable with a report or package ID |
+|   ↳ `name` | string | Artifact name |
+|   ↳ `description` | string | description |
+|   ↳ `type` | string | type |
+|   ↳ `typeID` | string | typeID |
+|   ↳ `typeLabel` | string | typeLabel |
+|   ↳ `pathName` | string | pathName |
+|   ↳ `systemPath` | string | systemPath |
+|   ↳ `mimeType` | string | mimeType |
+|   ↳ `modifiedBy` | string | modifiedBy |
+|   ↳ `favorite` | boolean | Favorite flag |
+|   ↳ `ordinal` | number | Ordinal |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+
+### Oracle EPM Narrative Reporting Create Library File
+
+Create a library file referencing an already uploaded Oracle file. This does not upload a Sim file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `name` | string | Yes | Library artifact name. |
+| `description` | string | No | Optional library artifact description. |
+| `systemPath` | string | Yes | Library destination folder path; do not provide a URL. |
+| `providerFile` | string | Yes | Existing Oracle temporary file ID or name, not a Sim UserFile or URL. |
+| `mimeType` | string | Yes | MIME type of the existing provider file \(must be supported by Oracle\). |
+| `overwrite` | boolean | No | Whether to overwrite an existing artifact. Default false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artifact` | object | Documented Artifact metadata; unknown fields and returned URLs are omitted |
+|   ↳ `artifactId` | string | Repository artifact ID; not interchangeable with a report or package ID |
+|   ↳ `name` | string | Artifact name |
+|   ↳ `description` | string | description |
+|   ↳ `type` | string | type |
+|   ↳ `typeID` | string | typeID |
+|   ↳ `typeLabel` | string | typeLabel |
+|   ↳ `pathName` | string | pathName |
+|   ↳ `systemPath` | string | systemPath |
+|   ↳ `mimeType` | string | mimeType |
+|   ↳ `modifiedBy` | string | modifiedBy |
+|   ↳ `favorite` | boolean | Favorite flag |
+|   ↳ `ordinal` | number | Ordinal |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+
+### Oracle EPM Narrative Reporting Delete Library Artifact
+
+Delete a repository artifact by ID. This changes the Oracle library.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Artifact deletion confirmed |
+| `artifactId` | string | Deleted repository artifact ID |
+
+### Oracle EPM Narrative Reporting List Reports
+
+List one bounded page of native Narrative Reporting reports.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `limit` | number | No | Maximum objects on one page \(1–100, default 50\). |
+| `offset` | number | No | Zero-based page offset \(0–1,000,000, default 0\). |
+| `q` | string | No | Oracle SCIM filter expression, for example name co "Budget". |
+| `orderBy` | string | No | Comma-separated field:asc or field:desc sort terms supported by this collection. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reports` | array | Documented reports |
+|   ↳ `reportId` | string | Native report or report snapshot ID |
+|   ↳ `name` | string | Report name |
+|   ↳ `description` | string | Report description |
+|   ↳ `instanceType` | string | editor, result, or snapshot when returned |
+|   ↳ `datasourceNames` | array | Data source names |
+|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `invalidFields` | array | Invalid fields |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+| `offset` | number | Provider page offset, when returned |
+| `limit` | number | Provider page limit, when returned |
+| `count` | number | Provider page count, when returned |
+| `hasMore` | boolean | Whether another page exists, when returned |
+| `totalResults` | number | Provider total, when returned |
+
+### Oracle EPM Narrative Reporting Get Report
+
+Read native report metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | Documented Report metadata; unknown fields and returned URLs are omitted |
+|   ↳ `reportId` | string | Native report or report snapshot ID |
+|   ↳ `name` | string | Report name |
+|   ↳ `description` | string | Report description |
+|   ↳ `instanceType` | string | editor, result, or snapshot when returned |
+|   ↳ `datasourceNames` | array | Data source names |
+|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `invalidFields` | array | Invalid fields |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+
+### Oracle EPM Narrative Reporting Get Report Global POV
+
+Read the report’s global point-of-view dimensions and suggested members.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimensions` | array | Documented dimensions |
+|   ↳ `dimensionId` | string | Dimension ID |
+|   ↳ `name` | string | Dimension name |
+|   ↳ `hidden` | boolean | Hidden dimension |
+|   ↳ `fixedSelection` | boolean | Fixed selection |
+|   ↳ `suggestedMembers` | array | Suggested members, up to 1,000 |
+|     ↳ `memberId` | string | memberId |
+|     ↳ `name` | string | name |
+|     ↳ `alias` | string | alias |
+
+### Oracle EPM Narrative Reporting Get Report Prompts
+
+Read native prompt IDs and valid selections for report rendering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `prompts` | array | Documented prompts |
+|   ↳ `promptId` | string | promptId |
+|   ↳ `label` | string | label |
+|   ↳ `dimensionName` | string | dimensionName |
+|   ↳ `sourceElement` | string | sourceElement |
+|   ↳ `sourceType` | string | sourceType |
+|   ↳ `allowMultipleSelections` | boolean | Whether multiple selections are allowed |
+|   ↳ `suggestedMembers` | array | Suggested members |
+|     ↳ `memberId` | string | memberId |
+|     ↳ `name` | string | name |
+|     ↳ `alias` | string | alias |
+|   ↳ `defaultSelection` | array | Default members |
+|     ↳ `memberId` | string | memberId |
+|     ↳ `name` | string | name |
+|     ↳ `alias` | string | alias |
+
+### Oracle EPM Narrative Reporting Download Report Output
+
+Render a report as PDF and store it as a UserFile. Maximum download 100 MiB.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+| `fileName` | string | No | Optional output filename. Downloads are stored as UserFile objects and capped at 100 MiB. |
+| `globalPov` | string | No | Comma-separated dimension:member selections. |
+| `prompts` | string | No | Comma-separated promptId:selection values; semicolons separate multiple selections. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Canonical execution UserFile, never inline base64; maximum 100 MiB |
+
+### Oracle EPM Narrative Reporting List Books
+
+List one bounded page of native Narrative Reporting books.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `limit` | number | No | Maximum objects on one page \(1–100, default 50\). |
+| `offset` | number | No | Zero-based page offset \(0–1,000,000, default 0\). |
+| `q` | string | No | Oracle SCIM filter expression, for example name co "Budget". |
+| `orderBy` | string | No | Comma-separated field:asc or field:desc sort terms supported by this collection. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `books` | array | Documented books |
+|   ↳ `bookId` | string | Native book ID |
+|   ↳ `name` | string | Book name |
+|   ↳ `description` | string | description |
+|   ↳ `pathName` | string | pathName |
+|   ↳ `systemPath` | string | systemPath |
+|   ↳ `primaryDatasource` | string | primaryDatasource |
+|   ↳ `datasourceNames` | array | Data source names |
+|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+| `offset` | number | Provider page offset, when returned |
+| `limit` | number | Provider page limit, when returned |
+| `count` | number | Provider page count, when returned |
+| `hasMore` | boolean | Whether another page exists, when returned |
+| `totalResults` | number | Provider total, when returned |
+
+### Oracle EPM Narrative Reporting Get Book
+
+Read native book metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `book` | object | Documented Book metadata; unknown fields and returned URLs are omitted |
+|   ↳ `bookId` | string | Native book ID |
+|   ↳ `name` | string | Book name |
+|   ↳ `description` | string | description |
+|   ↳ `pathName` | string | pathName |
+|   ↳ `systemPath` | string | systemPath |
+|   ↳ `primaryDatasource` | string | primaryDatasource |
+|   ↳ `datasourceNames` | array | Data source names |
+|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+
+### Oracle EPM Narrative Reporting Get Book Global POV
+
+Read the book’s global point-of-view dimensions and suggested members.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimensions` | array | Documented dimensions |
+|   ↳ `dimensionId` | string | Dimension ID |
+|   ↳ `name` | string | Dimension name |
+|   ↳ `hidden` | boolean | Hidden dimension |
+|   ↳ `fixedSelection` | boolean | Fixed selection |
+|   ↳ `suggestedMembers` | array | Suggested members, up to 1,000 |
+|     ↳ `memberId` | string | memberId |
+|     ↳ `name` | string | name |
+|     ↳ `alias` | string | alias |
+
+### Oracle EPM Narrative Reporting Download Book Output
+
+Render a book as PDF or XLSX using a bodyless POST and store it as a UserFile, up to 100 MiB.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+| `format` | string | No | Book output format: pdf \(default\) or xlsx. |
+| `fileName` | string | No | Optional output filename. Downloads are stored as UserFile objects and capped at 100 MiB. |
+| `globalPov` | string | No | Comma-separated dimension:member selections. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Canonical execution UserFile, never inline base64; maximum 100 MiB |
+
+### Oracle EPM Narrative Reporting List Report Snapshots
+
+List one bounded page of report snapshots, not database backups.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `limit` | number | No | Maximum objects on one page \(1–100, default 50\). |
+| `offset` | number | No | Zero-based page offset \(0–1,000,000, default 0\). |
+| `q` | string | No | Oracle SCIM filter expression, for example name co "Budget". |
+| `orderBy` | string | No | Comma-separated field:asc or field:desc sort terms supported by this collection. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshots` | array | Documented snapshots |
+|   ↳ `reportId` | string | Native report or report snapshot ID |
+|   ↳ `name` | string | Report name |
+|   ↳ `description` | string | Report description |
+|   ↳ `instanceType` | string | editor, result, or snapshot when returned |
+|   ↳ `datasourceNames` | array | Data source names |
+|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `invalidFields` | array | Invalid fields |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+| `offset` | number | Provider page offset, when returned |
+| `limit` | number | Provider page limit, when returned |
+| `count` | number | Provider page count, when returned |
+| `hasMore` | boolean | Whether another page exists, when returned |
+| `totalResults` | number | Provider total, when returned |
+
+### Oracle EPM Narrative Reporting Get Report Snapshot
+
+Read report snapshot metadata by its native report snapshot ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshot` | object | Documented Report metadata; unknown fields and returned URLs are omitted |
+|   ↳ `reportId` | string | Native report or report snapshot ID |
+|   ↳ `name` | string | Report name |
+|   ↳ `description` | string | Report description |
+|   ↳ `instanceType` | string | editor, result, or snapshot when returned |
+|   ↳ `datasourceNames` | array | Data source names |
+|   ↳ `validationMessages` | array | Validation messages |
+|   ↳ `invalidFields` | array | Invalid fields |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedDate` | string | modifiedDate |
+|   ↳ `lastAccessed` | string | lastAccessed |
+
+### Oracle EPM Narrative Reporting Create Report Snapshot
+
+Submit a report snapshot creation job. Use Wait for Job separately to establish completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `reportId` | string | No | Native report ID. Provide reportId or reportName. |
+| `reportName` | string | No | Library report name or path. Required when reportId is omitted. |
+| `libraryLocation` | string | No | Optional destination folder for the report snapshot. |
+| `snapShotName` | string | No | Optional report snapshot name \(Oracle spelling is snapShotName\). |
+| `globalPov` | string | No | Comma-separated dimension:member selections. |
+| `prompts` | string | No | Comma-separated promptId:selection values; semicolons separate multiple selections. |
+| `overwrite` | string | No | Whether to overwrite the report snapshot: string "true" or "false". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Documented Job metadata; unknown fields and returned URLs are omitted |
+|   ↳ `jobId` | string | Oracle job ID; preserved on local timeout |
+|   ↳ `status` | number | Oracle status: -1 pending, 0 success, 1 error, 3 cancelled; other values are not treated as completion |
+|   ↳ `descriptiveStatus` | string | descriptiveStatus |
+|   ↳ `details` | string | details |
+|   ↳ `jobName` | string | jobName |
+|   ↳ `jobType` | string | jobType |
+
+### Oracle EPM Narrative Reporting Download Report Snapshot Output
+
+Download a report snapshot’s PDF output as a UserFile, up to 100 MiB.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+| `fileName` | string | No | Optional output filename. Downloads are stored as UserFile objects and capped at 100 MiB. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Canonical execution UserFile, never inline base64; maximum 100 MiB |
+
+### Oracle EPM Narrative Reporting Get Report Package
+
+Read metadata for an existing report package by its native package ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reportPackage` | object | Documented ReportPackage metadata; unknown fields and returned URLs are omitted |
+|   ↳ `reportPackageId` | string | Native report package ID |
+|   ↳ `name` | string | Package name |
+|   ↳ `description` | string | description |
+|   ↳ `libraryPath` | string | libraryPath |
+|   ↳ `reportPackageType` | string | reportPackageType |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `creationDate` | string | creationDate |
+|   ↳ `modifiedBy` | string | modifiedBy |
+|   ↳ `modifiedDate` | string | modifiedDate |
+
+### Oracle EPM Narrative Reporting Refresh Package Data Sources
+
+Submit a package data source refresh job by package name. This does not publish the package.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `reportPackageName` | string | Yes | Report package name or library path, NOT its UUID. |
+| `refreshableSources` | array | No | Optional data sources to refresh; omit for the provider default. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Documented Job metadata; unknown fields and returned URLs are omitted |
+|   ↳ `jobId` | string | Oracle job ID; preserved on local timeout |
+|   ↳ `status` | number | Oracle status: -1 pending, 0 success, 1 error, 3 cancelled; other values are not treated as completion |
+|   ↳ `descriptiveStatus` | string | descriptiveStatus |
+|   ↳ `details` | string | details |
+|   ↳ `jobName` | string | jobName |
+|   ↳ `jobType` | string | jobType |
+
+### Oracle EPM Narrative Reporting Get Job
+
+Read job status without waiting or following artifact result links.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Documented Job metadata; unknown fields and returned URLs are omitted |
+|   ↳ `jobId` | string | Oracle job ID; preserved on local timeout |
+|   ↳ `status` | number | Oracle status: -1 pending, 0 success, 1 error, 3 cancelled; other values are not treated as completion |
+|   ↳ `descriptiveStatus` | string | descriptiveStatus |
+|   ↳ `details` | string | details |
+|   ↳ `jobName` | string | jobName |
+|   ↳ `jobType` | string | jobType |
+
+### Oracle EPM Narrative Reporting Wait for Job
+
+Poll an existing job within a bounded wait. Preserve its ID on timeout; never resubmit the operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `resourceId` | string | Yes | Native resource ID returned by its matching discovery operation. |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(10–240, default 120\). A local timeout does not cancel the Oracle job. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Documented Job metadata; unknown fields and returned URLs are omitted |
+|   ↳ `jobId` | string | Oracle job ID; preserved on local timeout |
+|   ↳ `status` | number | Oracle status: -1 pending, 0 success, 1 error, 3 cancelled; other values are not treated as completion |
+|   ↳ `descriptiveStatus` | string | descriptiveStatus |
+|   ↳ `details` | string | details |
+|   ↳ `jobName` | string | jobName |
+|   ↳ `jobType` | string | jobType |
+| `jobId` | string | Oracle job ID, including on timeout |
+| `completed` | boolean | True only when Oracle reports success |
+| `timedOut` | boolean | Local wait timed out; Oracle job was not cancelled |
+| `attempts` | number | Number of status reads |
+
+### Oracle EPM Narrative Reporting Export Library Artifact
+
+Submit an artifact export job; completion requires a separate wait. Automatic Temporary-export downloading is not supported.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `artifactName` | string | Yes | Library artifact name or path to export. |
+| `artifactType` | string | No | Oracle resource type, for example ReportResourceType or BookResourceType. |
+| `exportLocation` | string | No | Export destination: Temporary \(default\), Library, or File. Temporary result links are not automatically downloaded. |
+| `exportFormat` | string | No | Native \(default\), File, or LCM. LCM requires applicationName and supports reports only. |
+| `exportLibraryFolder` | string | No | Library export destination folder when exportLocation is Library. |
+| `saveAsFile` | string | No | Optional provider-side export filename. |
+| `applicationName` | string | No | Application name, required for an LCM report export. |
+| `errorFile` | string | No | Optional provider-side error filename. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Documented Job metadata; unknown fields and returned URLs are omitted |
+|   ↳ `jobId` | string | Oracle job ID; preserved on local timeout |
+|   ↳ `status` | number | Oracle status: -1 pending, 0 success, 1 error, 3 cancelled; other values are not treated as completion |
+|   ↳ `descriptiveStatus` | string | descriptiveStatus |
+|   ↳ `details` | string | details |
+|   ↳ `jobName` | string | jobName |
+|   ↳ `jobType` | string | jobType |
+
+### Oracle EPM Narrative Reporting Import Library Artifact
+
+Submit an import job from an existing provider file. Completion requires a separate wait.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `importFile` | string | Yes | Existing provider-side import file ID or path. |
+| `importLocation` | string | No | Import source: Temporary, Library, or File. |
+| `importFormat` | string | No | Import format: Native \(default\) or File. |
+| `importFolder` | string | No | Optional library destination folder. |
+| `deleteAfterImport` | boolean | No | Delete the provider import file after import. Default false. |
+| `importPermissions` | boolean | No | Import permissions from the archive. Default false. |
+| `overwrite` | boolean | No | Whether to overwrite an existing artifact. Default false. |
+| `errorFile` | string | No | Optional provider-side error filename. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Documented Job metadata; unknown fields and returned URLs are omitted |
+|   ↳ `jobId` | string | Oracle job ID; preserved on local timeout |
+|   ↳ `status` | number | Oracle status: -1 pending, 0 success, 1 error, 3 cancelled; other values are not treated as completion |
+|   ↳ `descriptiveStatus` | string | descriptiveStatus |
+|   ↳ `details` | string | details |
+|   ↳ `jobName` | string | jobName |
+|   ↳ `jobType` | string | jobType |
+
+

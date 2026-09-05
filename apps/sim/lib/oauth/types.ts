@@ -125,6 +125,7 @@ export type OAuthService =
   | 'microsoft-teams'
   | 'microsoft-planner'
   | 'microsoft-word'
+  | 'oracle-epm-narrative-reporting'
   | 'sharepoint'
   | 'outlook'
   | 'clickup'

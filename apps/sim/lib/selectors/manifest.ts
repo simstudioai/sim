@@ -188,6 +188,24 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracle_epm_narrative_reporting.artifacts': providerSelector(['folderId'], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_epm_narrative_reporting.books': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_epm_narrative_reporting.reports': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
