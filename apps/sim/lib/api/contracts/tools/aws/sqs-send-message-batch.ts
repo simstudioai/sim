@@ -1,10 +1,14 @@
 import { z } from 'zod'
 import {
+  hasDistinctBatchEntryIds,
+  SQS_DISTINCT_BATCH_ENTRY_IDS_MESSAGE,
   SQS_MAX_BATCH_ENTRIES,
   sqsBatchEntryIdSchema,
   sqsBatchResultErrorEntrySchema,
   sqsConnectionFields,
   sqsMessageAttributesInputSchema,
+  sqsMessageDeduplicationIdField,
+  sqsMessageGroupIdField,
   sqsQueueUrlField,
 } from '@/lib/api/contracts/tools/aws/sqs-shared'
 import type {
@@ -26,11 +30,8 @@ const SendMessageBatchEntrySchema = z.object({
     .max(900, 'delaySeconds cannot exceed 900')
     .nullish(),
   messageAttributes: sqsMessageAttributesInputSchema.nullish(),
-  messageGroupId: z.string().max(128, 'messageGroupId must be at most 128 characters').nullish(),
-  messageDeduplicationId: z
-    .string()
-    .max(128, 'messageDeduplicationId must be at most 128 characters')
-    .nullish(),
+  messageGroupId: sqsMessageGroupIdField.nullish(),
+  messageDeduplicationId: sqsMessageDeduplicationIdField.nullish(),
 })
 
 const SendMessageBatchSchema = z.object({
@@ -39,7 +40,8 @@ const SendMessageBatchSchema = z.object({
   entries: z
     .array(SendMessageBatchEntrySchema)
     .min(1, 'At least one entry is required')
-    .max(SQS_MAX_BATCH_ENTRIES, `A batch can hold at most ${SQS_MAX_BATCH_ENTRIES} entries`),
+    .max(SQS_MAX_BATCH_ENTRIES, `A batch can hold at most ${SQS_MAX_BATCH_ENTRIES} entries`)
+    .refine(hasDistinctBatchEntryIds, SQS_DISTINCT_BATCH_ENTRY_IDS_MESSAGE),
 })
 
 const SendMessageBatchResponseSchema = z.object({

@@ -44,6 +44,7 @@ export const sendMessageBatchTool: InternalToolConfig<
       maxItems: 10,
       items: {
         type: 'object',
+        required: ['id', 'data'],
         properties: {
           id: { type: 'string' },
           data: { type: 'object' },

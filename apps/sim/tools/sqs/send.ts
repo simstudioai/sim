@@ -109,16 +109,19 @@ export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageRe
       type: 'string',
       description: 'MD5 digest of the message body, for verifying SQS received it intact',
       optional: true,
+      nullable: true,
     },
     md5OfMessageAttributes: {
       type: 'string',
       description: 'MD5 digest of the message attributes',
       optional: true,
+      nullable: true,
     },
     sequenceNumber: {
       type: 'string',
       description: 'Large, non-consecutive sequence number assigned by a FIFO queue',
       optional: true,
+      nullable: true,
     },
   },
 }

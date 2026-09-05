@@ -73,6 +73,7 @@ export const cancelMessageMoveTaskTool: InternalToolConfig<
       type: 'number',
       description: 'Approximate number of messages already moved before the task was cancelled',
       optional: true,
+      nullable: true,
     },
   },
 }

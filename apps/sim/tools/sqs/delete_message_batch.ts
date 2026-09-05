@@ -44,6 +44,7 @@ export const deleteMessageBatchTool: InternalToolConfig<
       maxItems: 10,
       items: {
         type: 'object',
+        required: ['id', 'receiptHandle'],
         properties: {
           id: { type: 'string' },
           receiptHandle: { type: 'string' },

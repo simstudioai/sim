@@ -2,6 +2,8 @@ import { z } from 'zod'
 import {
   sqsConnectionFields,
   sqsMessageAttributesInputSchema,
+  sqsMessageDeduplicationIdField,
+  sqsMessageGroupIdField,
   sqsQueueUrlField,
 } from '@/lib/api/contracts/tools/aws/sqs-shared'
 import type {
@@ -24,11 +26,8 @@ const SendMessageSchema = z.object({
     .max(900, 'delaySeconds cannot exceed 900')
     .nullish(),
   messageAttributes: sqsMessageAttributesInputSchema.nullish(),
-  messageGroupId: z.string().max(128, 'messageGroupId must be at most 128 characters').nullish(),
-  messageDeduplicationId: z
-    .string()
-    .max(128, 'messageDeduplicationId must be at most 128 characters')
-    .nullish(),
+  messageGroupId: sqsMessageGroupIdField.nullish(),
+  messageDeduplicationId: sqsMessageDeduplicationIdField.nullish(),
 })
 
 const SendMessageResponseSchema = z.object({
