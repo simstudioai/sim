@@ -1,0 +1,539 @@
+---
+title: OCI Monitoring
+description: Discover and query metrics, publish custom metrics, and manage OCI alarms
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_monitoring"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a reusable OCI API signing-key credential to discover metrics, run MQL queries, publish custom metrics, and manage alarms and maintenance suppressions. Reads and histories return one bounded page; queries expose explicit stream and datapoint budgets. Alarm destinations reference existing Notifications topics or Streaming streams. IAM policies must grant the selected operations in the alarm and metric compartments; creating and updating alarms also require metric-read access. Use the separate OCI Logging integration for logs.
+
+
+
+## Actions
+
+### OCI Monitoring List Metrics
+
+Discover metric definitions and namespaces
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. Subtree queries require the tenancy OCID and tenancy-level access. |
+| `namespace` | string | No | Metric namespace, such as oci_computeagent. |
+| `name` | string | No | Exact metric name to discover. |
+| `resourceGroup` | string | No | Metric resource group; null matches metrics without a resource group. |
+| `dimensionFilters` | json | No | JSON object of dimension names and exact string values. Metric discovery ignores this when groupBy is supplied. |
+| `groupBy` | json | No | JSON array of namespace, name, or resourceGroup. When present, dimensionFilters is ignored. |
+| `sortBy` | string | No | Sort field: NAMESPACE, NAME, or RESOURCEGROUP. |
+| `sortOrder` | string | No | Sort direction: ASC or DESC. |
+| `compartmentIdInSubtree` | boolean | No | Include child compartments; requires the tenancy OCID and tenancy-level permissions. |
+| `limit` | number | No | Maximum results on this page: 1–1000; defaults to 100. |
+| `page` | string | No | Opaque nextPage from the previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `metrics` | array | Discovered metric definitions; grouping can omit non-grouped fields |
+| `nextPage` | string | Opaque token for the next page; null when complete |
+
+### OCI Monitoring Query Metrics
+
+Query and aggregate metric time series with MQL
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. Subtree queries require the tenancy OCID and tenancy-level access. |
+| `namespace` | string | Yes | Metric namespace, such as oci_computeagent. |
+| `query` | string | Yes | Oracle MQL expression, such as CpuUtilization\[1m\].mean\(\); alarm expressions also require a threshold or absence condition. |
+| `resourceGroup` | string | No | Metric resource group; null matches metrics without a resource group. |
+| `startTime` | string | No | Inclusive RFC3339 query start. Oracle defaults to three hours before the request. |
+| `endTime` | string | No | Exclusive RFC3339 query end. Oracle defaults to request time. |
+| `resolution` | string | No | Aggregation window spacing, no greater than the MQL interval. Queries accept 1m–60m, 1h–24h, or 1d; alarms accept only 1m. |
+| `compartmentIdInSubtree` | boolean | No | Include child compartments; requires the tenancy OCID and tenancy-level permissions. |
+| `maxStreams` | number | No | Maximum returned metric streams: defaults to 100, up to 2000. Excess results fail without truncation. |
+| `maxDatapoints` | number | No | Maximum total returned datapoints: defaults to 10000, up to 100000. Excess results fail without truncation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `metricData` | array | Aggregated metric time series |
+|   ↳ `name` | string | Metric name |
+|   ↳ `namespace` | string | Metric namespace |
+|   ↳ `resourceGroup` | string | Resource group |
+|   ↳ `compartmentId` | string | Metric compartment OCID |
+|   ↳ `dimensions` | json | Dimension names and string values |
+|   ↳ `metadata` | json | Metric metadata such as unit |
+|   ↳ `resolution` | string | Aggregation spacing |
+|   ↳ `aggregatedDatapoints` | array | Aggregated datapoints |
+|     ↳ `timestamp` | string | Datapoint timestamp \(RFC3339\) |
+|     ↳ `value` | number | Aggregated value |
+
+### OCI Monitoring Publish Metrics
+
+Publish custom metric datapoints in one bounded request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `metricData` | json | Yes | JSON array of custom metric records \(compartmentId, namespace, name, dimensions, datapoints\). Sim allows 50 records and 1 MiB per request. Timestamps must be less than two hours old and less than ten minutes ahead. |
+| `batchAtomicity` | string | No | ATOMIC rejects the whole batch on validation failure; NON_ATOMIC permits partial acceptance. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `failedMetricsCount` | number | Number of rejected metric records |
+| `failedMetrics` | array | Rejected metric records and their validation errors |
+|   ↳ `message` | string | Validation failure reason |
+|   ↳ `metricData` | json | Metric record rejected by Oracle |
+|     ↳ `name` | string | Metric name |
+|     ↳ `namespace` | string | Metric namespace |
+|     ↳ `resourceGroup` | string | Resource group |
+|     ↳ `compartmentId` | string | Metric compartment OCID |
+|     ↳ `dimensions` | json | Dimension names and string values |
+|     ↳ `datapoints` | array | Submitted datapoints |
+|       ↳ `timestamp` | string | Raw datapoint timestamp |
+|       ↳ `value` | number | Raw metric value |
+|       ↳ `count` | number | Sample count |
+|     ↳ `metadata` | json | Metric metadata |
+
+### OCI Monitoring List Alarms
+
+List alarm definitions in a compartment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. Subtree queries require the tenancy OCID and tenancy-level access. |
+| `displayName` | string | No | Alarm or suppression display name; list operations use exact matching. |
+| `lifecycleState` | string | No | Lifecycle state: ACTIVE, DELETING, or DELETED. Omit for ACTIVE. |
+| `sortBy` | string | No | Sort field: displayName or severity. |
+| `sortOrder` | string | No | Sort direction: ASC or DESC. |
+| `compartmentIdInSubtree` | boolean | No | Include child compartments; requires the tenancy OCID and tenancy-level permissions. |
+| `limit` | number | No | Maximum results on this page: 1–1000; defaults to 100. |
+| `page` | string | No | Opaque nextPage from the previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarms` | array | Alarm definitions |
+| `nextPage` | string | Opaque token for the next page; null when complete |
+
+### OCI Monitoring List Alarm Statuses
+
+List current aggregate alarm statuses
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. Subtree queries require the tenancy OCID and tenancy-level access. |
+| `displayName` | string | No | Alarm or suppression display name; list operations use exact matching. |
+| `sortBy` | string | No | Sort field: displayName or severity. |
+| `sortOrder` | string | No | Sort direction: ASC or DESC. |
+| `resourceId` | string | No | Filter alarm status by monitored resource OCID. |
+| `serviceName` | string | No | Filter by the exact service-name dimension. |
+| `entityId` | string | No | Filter by monitored entity OCID. |
+| `status` | string | No | Alarm status: FIRING or OK. |
+| `compartmentIdInSubtree` | boolean | No | Include child compartments; requires the tenancy OCID and tenancy-level permissions. |
+| `limit` | number | No | Maximum results on this page: 1–1000; defaults to 100. |
+| `page` | string | No | Opaque nextPage from the previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarmStatuses` | array | Aggregate alarm statuses |
+|   ↳ `id` | string | Alarm OCID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `severity` | string | Severity |
+|   ↳ `ruleName` | string | Rule name |
+|   ↳ `timestampTriggered` | string | Last trigger timestamp |
+|   ↳ `alarmSummary` | string | Alarm summary |
+|   ↳ `status` | string | Aggregate alarm status |
+|   ↳ `suppression` | json | Inline alarm suppression |
+|     ↳ `description` | string | Suppression reason |
+|     ↳ `timeSuppressFrom` | string | Inclusive suppression start \(RFC3339\) |
+|     ↳ `timeSuppressUntil` | string | Inclusive suppression end \(RFC3339\) |
+| `nextPage` | string | Opaque token for the next page; null when complete |
+
+### OCI Monitoring Get Alarm
+
+Get an alarm configuration and ETag
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarm` | json | Alarm configuration |
+| `etag` | string | Concurrency ETag |
+
+### OCI Monitoring Get Alarm History
+
+Get paginated alarm state and rule history
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `alarmHistorytype` | string | No | STATE_HISTORY, STATE_TRANSITION_HISTORY, RULE_HISTORY, or RULE_TRANSITION_HISTORY. |
+| `timestampGreaterThanOrEqualTo` | string | No | Inclusive RFC3339 lower bound for alarm history. |
+| `timestampLessThan` | string | No | Exclusive RFC3339 upper bound for alarm history. |
+| `limit` | number | No | Maximum results on this page: 1–1000; defaults to 100. |
+| `page` | string | No | Opaque nextPage from the previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarmId` | string | Alarm OCID |
+| `isEnabled` | boolean | Whether the alarm is enabled |
+| `history` | array | Alarm history entries |
+|   ↳ `alarmSummary` | string | Alarm summary |
+|   ↳ `summary` | string | History entry summary |
+|   ↳ `timestamp` | string | Entry timestamp |
+|   ↳ `timestampTriggered` | string | Trigger timestamp |
+| `nextPage` | string | Opaque token for the next page; null when complete |
+
+### OCI Monitoring Get Dimension States
+
+Inspect the status of individual metric streams in an alarm
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `dimensionFilters` | json | No | JSON object matching the exact complete set of dimension names and values for an alarm state entry. Partial dimension sets do not match. |
+| `status` | string | No | Alarm status: FIRING or OK. |
+| `limit` | number | No | Maximum results on this page: 1–1000; defaults to 100. |
+| `page` | string | No | Opaque nextPage from the previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarmId` | string | Alarm OCID |
+| `isEnabled` | boolean | Whether the alarm is enabled |
+| `isNotificationsPerMetricDimensionEnabled` | boolean | Whether notifications are split |
+| `dimensionStates` | array | Individual metric stream states |
+|   ↳ `alarmSummary` | string | Alarm summary |
+|   ↳ `dimensions` | json | Metric stream dimensions |
+|   ↳ `status` | string | Metric stream status |
+|   ↳ `ruleName` | string | Rule name |
+|   ↳ `timestamp` | string | State timestamp |
+| `nextPage` | string | Opaque token for the next page; null when complete |
+
+### OCI Monitoring Create Alarm
+
+Create a metric alarm using existing notification destinations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `displayName` | string | Yes | Alarm or suppression display name; list operations use exact matching. |
+| `compartmentId` | string | Yes | Compartment OCID. Subtree queries require the tenancy OCID and tenancy-level access. |
+| `metricCompartmentId` | string | Yes | Compartment OCID containing the metrics evaluated by the alarm. |
+| `namespace` | string | Yes | Metric namespace, such as oci_computeagent. |
+| `query` | string | Yes | Oracle MQL expression, such as CpuUtilization\[1m\].mean\(\); alarm expressions also require a threshold or absence condition. |
+| `severity` | string | Yes | Alarm severity: CRITICAL, ERROR, WARNING, or INFO. |
+| `destinations` | json | Yes | JSON array of existing Notifications topic or Streaming stream OCIDs; at most one per destination service. |
+| `isEnabled` | boolean | Yes | Whether the alarm evaluates its MQL condition. Omit on update to preserve the existing value. |
+| `metricCompartmentIdInSubtree` | boolean | No | Evaluate metrics in child compartments; requires tenancy-level metric access. |
+| `resourceGroup` | string | No | Metric resource group; null matches metrics without a resource group. |
+| `resolution` | string | No | Aggregation window spacing, no greater than the MQL interval. Queries accept 1m–60m, 1h–24h, or 1d; alarms accept only 1m. |
+| `pendingDuration` | string | No | ISO 8601 duration before firing, from PT1M to PT1H. |
+| `body` | string | No | Alarm notification message body. |
+| `isNotificationsPerMetricDimensionEnabled` | boolean | No | Send separate notifications per metric stream; required by Oracle for dimension-specific suppression. |
+| `messageFormat` | string | No | Notification format: RAW, PRETTY_JSON, or ONS_OPTIMIZED. |
+| `repeatNotificationDuration` | string | No | ISO 8601 interval for repeating notifications. |
+| `suppression` | json | No | JSON object with timeSuppressFrom, timeSuppressUntil, and optional description. Use Remove Alarm Suppression to clear it. |
+| `freeformTags` | json | No | JSON object of string tag names and values. |
+| `definedTags` | json | No | JSON object of tag namespaces and values. |
+| `overrides` | json | No | JSON array of up to two alarm trigger-rule overrides. |
+| `ruleName` | string | No | Name of the base alarm rule. |
+| `notificationVersion` | string | No | Oracle alarm notification version. |
+| `notificationTitle` | string | No | Custom title for alarm notifications. |
+| `evaluationSlackDuration` | string | No | ISO 8601 ingestion delay before evaluation, from PT3M to PT2H. |
+| `alarmSummary` | string | No | Custom alarm summary. |
+| `opcRetryToken` | string | No | Stable retry token for creation. Enables bounded tokenized retries; reuse it for the same logical creation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarm` | json | Alarm configuration |
+| `etag` | string | Concurrency ETag |
+
+### OCI Monitoring Update Alarm
+
+Update supplied alarm fields using an optional ETag
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `ifMatch` | string | No | ETag returned by a previous read; the mutation succeeds only if it still matches. |
+| `displayName` | string | No | Alarm or suppression display name; list operations use exact matching. |
+| `compartmentId` | string | No | Compartment OCID. Subtree queries require the tenancy OCID and tenancy-level access. |
+| `metricCompartmentId` | string | No | Compartment OCID containing the metrics evaluated by the alarm. |
+| `namespace` | string | No | Metric namespace, such as oci_computeagent. |
+| `query` | string | No | Oracle MQL expression, such as CpuUtilization\[1m\].mean\(\); alarm expressions also require a threshold or absence condition. |
+| `severity` | string | No | Alarm severity: CRITICAL, ERROR, WARNING, or INFO. |
+| `destinations` | json | No | JSON array of existing Notifications topic or Streaming stream OCIDs; at most one per destination service. |
+| `isEnabled` | boolean | No | Whether the alarm evaluates its MQL condition. Omit on update to preserve the existing value. |
+| `metricCompartmentIdInSubtree` | boolean | No | Evaluate metrics in child compartments; requires tenancy-level metric access. |
+| `resourceGroup` | string | No | Metric resource group; null matches metrics without a resource group. |
+| `resolution` | string | No | Aggregation window spacing, no greater than the MQL interval. Queries accept 1m–60m, 1h–24h, or 1d; alarms accept only 1m. |
+| `pendingDuration` | string | No | ISO 8601 duration before firing, from PT1M to PT1H. |
+| `body` | string | No | Alarm notification message body. |
+| `isNotificationsPerMetricDimensionEnabled` | boolean | No | Send separate notifications per metric stream; required by Oracle for dimension-specific suppression. |
+| `messageFormat` | string | No | Notification format: RAW, PRETTY_JSON, or ONS_OPTIMIZED. |
+| `repeatNotificationDuration` | string | No | ISO 8601 interval for repeating notifications. |
+| `suppression` | json | No | JSON object with timeSuppressFrom, timeSuppressUntil, and optional description. Use Remove Alarm Suppression to clear it. |
+| `freeformTags` | json | No | JSON object of string tag names and values. |
+| `definedTags` | json | No | JSON object of tag namespaces and values. |
+| `overrides` | json | No | JSON array of up to two alarm trigger-rule overrides. |
+| `ruleName` | string | No | Name of the base alarm rule. |
+| `notificationVersion` | string | No | Oracle alarm notification version. |
+| `notificationTitle` | string | No | Custom title for alarm notifications. |
+| `evaluationSlackDuration` | string | No | ISO 8601 ingestion delay before evaluation, from PT3M to PT2H. |
+| `alarmSummary` | string | No | Custom alarm summary. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarm` | json | Alarm configuration |
+| `etag` | string | Concurrency ETag |
+
+### OCI Monitoring Delete Alarm
+
+Delete an alarm using an optional ETag
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `ifMatch` | string | No | ETag returned by a previous read; the mutation succeeds only if it still matches. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+
+### OCI Monitoring Create Alarm Suppression
+
+Schedule alarm-wide or dimension-specific suppression
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `displayName` | string | Yes | Alarm or suppression display name; list operations use exact matching. |
+| `description` | string | No | Reason for the suppression. |
+| `level` | string | No | ALARM for the whole alarm or DIMENSION for specific metric streams. Sim defaults new suppressions to ALARM. |
+| `dimensions` | json | No | JSON object of dimension names and single string values; required for dimension suppression. |
+| `timeSuppressFrom` | string | Yes | Inclusive RFC3339 start of suppression. |
+| `timeSuppressUntil` | string | Yes | Inclusive RFC3339 end of suppression. |
+| `opcRetryToken` | string | No | Stable retry token for creation. Enables bounded tokenized retries; reuse it for the same logical creation. |
+| `freeformTags` | json | No | JSON object of string tag names and values. |
+| `definedTags` | json | No | JSON object of tag namespaces and values. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarmSuppression` | json | Suppression configuration |
+| `etag` | string | Concurrency ETag |
+
+### OCI Monitoring List Alarm Suppressions
+
+List suppressions affecting an alarm
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `displayName` | string | No | Alarm or suppression display name; list operations use exact matching. |
+| `lifecycleState` | string | No | Lifecycle state: ACTIVE or DELETED. Omit for ACTIVE. |
+| `level` | string | No | ALARM for the whole alarm or DIMENSION for specific metric streams. |
+| `isAllSuppressions` | boolean | No | Include compartment or tenancy suppressions affecting the selected alarm. |
+| `sortBy` | string | No | Sort field: displayName, timeCreated, or timeSuppressFrom. |
+| `sortOrder` | string | No | Sort direction: ASC or DESC. |
+| `limit` | number | No | Maximum results on this page: 1–1000; defaults to 100. |
+| `page` | string | No | Opaque nextPage from the previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarmSuppressions` | array | Suppression resources |
+| `nextPage` | string | Opaque token for the next page; null when complete |
+
+### OCI Monitoring Get Alarm Suppression
+
+Get a suppression configuration and ETag
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmSuppressionId` | string | Yes | Alarm suppression OCID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `alarmSuppression` | json | Suppression configuration |
+| `etag` | string | Concurrency ETag |
+
+### OCI Monitoring Delete Alarm Suppression
+
+Delete one alarm suppression resource
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmSuppressionId` | string | Yes | Alarm suppression OCID. |
+| `ifMatch` | string | No | ETag returned by a previous read; the mutation succeeds only if it still matches. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+
+### OCI Monitoring Get Suppression History
+
+Get alarm-wide and dimension-specific suppression history
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `dimensions` | json | No | JSON object of dimension names and single string values; required for dimension suppression. |
+| `timeSuppressFromGreaterThanOrEqualTo` | string | No | Inclusive RFC3339 lower bound on suppression start time; cannot be in the future. |
+| `timeSuppressFromLessThan` | string | No | Exclusive RFC3339 upper bound on suppression start time; cannot be in the future. |
+| `limit` | number | No | Maximum results on this page: 1–1000; defaults to 100. |
+| `page` | string | No | Opaque nextPage from the previous response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+| `suppressionHistory` | array | Effective suppression history |
+|   ↳ `suppressionId` | string | Suppression OCID |
+|   ↳ `alarmSuppressionTarget` | json | Suppression target |
+|     ↳ `targetType` | string | ALARM or COMPARTMENT |
+|     ↳ `alarmId` | string | Target alarm OCID |
+|     ↳ `compartmentId` | string | Target compartment OCID |
+|     ↳ `compartmentIdInSubtree` | boolean | Whether descendants are targeted |
+|   ↳ `level` | string | Suppression level |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Suppression reason |
+|   ↳ `dimensions` | json | Suppressed dimensions |
+|   ↳ `timeEffectiveFrom` | string | Effective start |
+|   ↳ `timeEffectiveUntil` | string | Effective end |
+|   ↳ `suppressionConditions` | array | Suppression preconditions |
+|     ↳ `conditionType` | string | Suppression condition type |
+|     ↳ `suppressionRecurrence` | string | Recurrence expression |
+|     ↳ `suppressionDuration` | string | Duration of each recurrence |
+| `nextPage` | string | Opaque token for the next page; null when complete |
+
+### OCI Monitoring Remove Alarm Suppression
+
+Remove the existing suppression attached to an alarm
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `alarmId` | string | Yes | Alarm OCID. |
+| `ifMatch` | string | No | ETag returned by a previous read; the mutation succeeds only if it still matches. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request ID |
+
+
