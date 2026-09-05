@@ -112,7 +112,7 @@ describe('browser empty state and in-place import', () => {
     await render()
     const emptyState = container.querySelector('section[aria-label="New tab"]')
     expect(emptyState?.textContent).toContain('Browse the web')
-    expect(emptyState?.textContent).toContain('Search or enter a website in the address bar above.')
+    expect(emptyState?.textContent).toContain('Search or enter a URL above.')
     expect(emptyState?.querySelector('button')).toBeNull()
     expect(desktop.browserAgent.setPanelBounds).toHaveBeenLastCalledWith(null, null, PAGE.scopeId)
     expect(container.querySelector('input')).not.toBeNull()

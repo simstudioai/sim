@@ -39,6 +39,7 @@ import { ArrowLeft, ArrowRight, Globe, Key, Link, RefreshCw, Search } from '@sim
 import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import { onFocusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import {
   fillBrowserCredential,
@@ -76,7 +77,6 @@ import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
-import { BrowserEmptyState } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-empty-state'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
 import { BrowserPageIssueView } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-issue'
@@ -1597,7 +1597,18 @@ export function BrowserSession({
             </p>
           </div>
         )}
-        {showEmptyState && <BrowserEmptyState />}
+        {showEmptyState && (
+          <section
+            aria-label='New tab'
+            className='absolute inset-0 flex overflow-auto bg-[var(--bg)]'
+          >
+            <EmptyState
+              graphic={<Globe className='size-6 text-[var(--text-icon)]' aria-hidden='true' />}
+              title='Browse the web'
+              description='Search or enter a URL above.'
+            />
+          </section>
+        )}
         {pageState?.issue && (
           <BrowserPageIssueView
             issue={pageState.issue}
