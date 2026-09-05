@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,97 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_hcm",
+      "slug": "oracle-fusion-cloud-hcm",
+      "name": "Oracle Fusion Cloud HCM",
+      "description": "Read workers, absences, reporting lines, and workforce structures",
+      "longDescription": "Connect to Oracle Fusion Cloud HCM with a reusable, least-privilege integration-user credential. Read public worker profiles, assignments, reporting relationships, absences, absence types, and workforce structures without exposing write operations, raw credentials, or sensitive HR fields.",
+      "bgColor": "#F80000",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_hcm",
+      "operations": [
+        {
+          "name": "List Workers",
+          "description": "List or safely search public worker profiles."
+        },
+        {
+          "name": "Get Worker",
+          "description": "Get one public worker profile by person ID."
+        },
+        {
+          "name": "List Worker Assignments",
+          "description": "List assignments for a worker."
+        },
+        {
+          "name": "Get Worker Assignment",
+          "description": "Get one assignment for a worker."
+        },
+        {
+          "name": "List Worker Managers",
+          "description": "List managers for a worker assignment."
+        },
+        {
+          "name": "List Worker Direct Reports",
+          "description": "List direct reports for a worker assignment."
+        },
+        {
+          "name": "List Absences",
+          "description": "List a worker’s absences using documented Oracle finders."
+        },
+        {
+          "name": "Get Absence",
+          "description": "Get one absence entry by ID."
+        },
+        {
+          "name": "List Absence Types",
+          "description": "List absence types available to a worker."
+        },
+        {
+          "name": "List Jobs",
+          "description": "List or search jobs."
+        },
+        {
+          "name": "List Job Families",
+          "description": "List or search job families."
+        },
+        {
+          "name": "List Departments",
+          "description": "List or search departments."
+        },
+        {
+          "name": "List Locations",
+          "description": "List or search work locations."
+        },
+        {
+          "name": "List Positions",
+          "description": "List or search positions."
+        },
+        {
+          "name": "List Business Units",
+          "description": "List or search business units."
+        },
+        {
+          "name": "List Legal Employers",
+          "description": "List or search legal employers."
+        },
+        {
+          "name": "List Grades",
+          "description": "List or search grades."
+        },
+        {
+          "name": "List Person Types",
+          "description": "List or search person types."
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "hr",
+      "tags": ["automation"]
     },
     {
       "type": "netsuite",
