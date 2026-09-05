@@ -841,6 +841,21 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const OCI_FUNCTIONS_TOOL_IDS = [
+  'oci_functions_change_application_compartment',
+  'oci_functions_create_application',
+  'oci_functions_create_function',
+  'oci_functions_delete_application',
+  'oci_functions_delete_function',
+  'oci_functions_get_application',
+  'oci_functions_get_function',
+  'oci_functions_invoke',
+  'oci_functions_list_applications',
+  'oci_functions_list_functions',
+  'oci_functions_update_application',
+  'oci_functions_update_function',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1523,6 +1538,10 @@ registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
+})
+registerFamily(handlerLoaders, OCI_FUNCTIONS_TOOL_IDS, async () => {
+  const { executeOciFunctionsTool } = await import('@/lib/internal/oci-functions/execute-tool')
+  return executeOciFunctionsTool
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool

@@ -179,6 +179,19 @@ export const selectorManifest = {
   'microsoft.planner.plans': providerSelector([], { listMode: 'paginated', detail: true }),
   'notion.databases': providerSelector([], { detail: true }),
   'notion.pages': providerSelector([], { detail: true }),
+  'oci-functions.applications': providerSelector(['ociRegion', 'compartmentId'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    sourceFields: { compartmentId: ['applicationCompartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci-functions.functions': providerSelector(['ociRegion', 'applicationId'], {
+    readiness: { all: ['oauthCredential', 'applicationId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'netsuite.recordTypes': providerSelector(['jobId'], {
     detail: true,
     unknownDetail: true,
