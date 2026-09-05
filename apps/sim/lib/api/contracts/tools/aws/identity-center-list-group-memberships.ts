@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   identityCenterConnectionShape,
+  identityCenterGroupIdSchema,
   identityCenterIdentityStoreIdSchema,
   identityCenterMaxResultsSchema,
   identityCenterNextTokenSchema,
@@ -15,35 +16,35 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const Schema = z.object({
   ...identityCenterConnectionShape,
   identityStoreId: identityCenterIdentityStoreIdSchema,
+  groupId: identityCenterGroupIdSchema,
   maxResults: identityCenterMaxResultsSchema.optional(),
   nextToken: identityCenterNextTokenSchema.optional(),
 })
 
 const ResponseSchema = z.object({
-  groups: z.array(
+  memberships: z.array(
     z.object({
+      membershipId: z.string(),
       groupId: z.string(),
-      displayName: z.string().nullable(),
-      description: z.string().nullable(),
-      externalIds: z.array(z.object({ issuer: z.string(), id: z.string() })),
+      userId: z.string().nullable(),
     })
   ),
   nextToken: z.string().nullable(),
   count: z.number(),
 })
 
-export const awsIdentityCenterListGroupsContract = defineRouteContract({
+export const awsIdentityCenterListGroupMembershipsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/tools/identity-center/list-groups',
+  path: '/api/tools/identity-center/list-group-memberships',
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-export type AwsIdentityCenterListGroupsRequest = ContractBodyInput<
-  typeof awsIdentityCenterListGroupsContract
+export type AwsIdentityCenterListGroupMembershipsRequest = ContractBodyInput<
+  typeof awsIdentityCenterListGroupMembershipsContract
 >
-export type AwsIdentityCenterListGroupsBody = ContractBody<
-  typeof awsIdentityCenterListGroupsContract
+export type AwsIdentityCenterListGroupMembershipsBody = ContractBody<
+  typeof awsIdentityCenterListGroupMembershipsContract
 >
-export type AwsIdentityCenterListGroupsResponse = ContractJsonResponse<
-  typeof awsIdentityCenterListGroupsContract
+export type AwsIdentityCenterListGroupMembershipsResponse = ContractJsonResponse<
+  typeof awsIdentityCenterListGroupMembershipsContract
 >

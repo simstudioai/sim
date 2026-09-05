@@ -1,9 +1,11 @@
 import { z } from 'zod'
 import {
+  identityCenterAccountIdSchema,
   identityCenterConnectionShape,
   identityCenterInstanceArnSchema,
   identityCenterMaxResultsSchema,
   identityCenterNextTokenSchema,
+  identityCenterPermissionSetArnSchema,
 } from '@/lib/api/contracts/tools/aws/identity-center-shared'
 import type {
   ContractBody,
@@ -15,36 +17,37 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const Schema = z.object({
   ...identityCenterConnectionShape,
   instanceArn: identityCenterInstanceArnSchema,
+  accountId: identityCenterAccountIdSchema,
+  permissionSetArn: identityCenterPermissionSetArnSchema,
   maxResults: identityCenterMaxResultsSchema.optional(),
   nextToken: identityCenterNextTokenSchema.optional(),
 })
 
 const ResponseSchema = z.object({
-  permissionSets: z.array(
+  assignments: z.array(
     z.object({
+      accountId: z.string(),
       permissionSetArn: z.string(),
-      name: z.string(),
-      description: z.string().nullable(),
-      sessionDuration: z.string().nullable(),
-      createdDate: z.string().nullable(),
+      principalType: z.string(),
+      principalId: z.string(),
     })
   ),
   nextToken: z.string().nullable(),
   count: z.number(),
 })
 
-export const awsIdentityCenterListPermissionSetsContract = defineRouteContract({
+export const awsIdentityCenterListAssignmentsForAccountContract = defineRouteContract({
   method: 'POST',
-  path: '/api/tools/identity-center/list-permission-sets',
+  path: '/api/tools/identity-center/list-assignments-for-account',
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-export type AwsIdentityCenterListPermissionSetsRequest = ContractBodyInput<
-  typeof awsIdentityCenterListPermissionSetsContract
+export type AwsIdentityCenterListAssignmentsForAccountRequest = ContractBodyInput<
+  typeof awsIdentityCenterListAssignmentsForAccountContract
 >
-export type AwsIdentityCenterListPermissionSetsBody = ContractBody<
-  typeof awsIdentityCenterListPermissionSetsContract
+export type AwsIdentityCenterListAssignmentsForAccountBody = ContractBody<
+  typeof awsIdentityCenterListAssignmentsForAccountContract
 >
-export type AwsIdentityCenterListPermissionSetsResponse = ContractJsonResponse<
-  typeof awsIdentityCenterListPermissionSetsContract
+export type AwsIdentityCenterListAssignmentsForAccountResponse = ContractJsonResponse<
+  typeof awsIdentityCenterListAssignmentsForAccountContract
 >
