@@ -188,6 +188,38 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracleEpmPlanning.applications': providerSelector([], { detail: true, unknownDetail: true }),
+  'oracleEpmPlanning.cubes': providerSelector(['projectId'], {
+    sourceFields: { projectId: ['application'] },
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleEpmPlanning.dimensions': providerSelector(['projectId', 'planId'], {
+    sourceFields: { projectId: ['application'], planId: ['cube'] },
+    readiness: { all: ['oauthCredential', 'projectId', 'planId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleEpmPlanning.jobDefinitions': providerSelector(['projectId', 'objectType'], {
+    sourceFields: { projectId: ['application'], objectType: ['jobType'] },
+    readiness: { all: ['oauthCredential', 'projectId', 'objectType'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleEpmPlanning.rules': providerSelector(['projectId'], {
+    sourceFields: { projectId: ['application'] },
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleEpmPlanning.rulesets': providerSelector(['projectId'], {
+    sourceFields: { projectId: ['application'] },
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleEpmPlanning.files': providerSelector([], { detail: true, unknownDetail: true }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },

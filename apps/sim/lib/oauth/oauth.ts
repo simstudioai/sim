@@ -1028,6 +1028,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  'oracle-epm': {
+    name: 'Oracle EPM',
+    icon: NetSuiteIcon,
+    services: {
+      'oracle-epm': {
+        name: 'Oracle EPM',
+        description:
+          'Manage Planning and FreeForm applications, rules, jobs, data and repository files.',
+        providerId: 'oracle-epm',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,

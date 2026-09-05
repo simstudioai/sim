@@ -1,0 +1,989 @@
+/** @vitest-environment node */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), validate: vi.fn() }))
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  DEFAULT_MAX_RESPONSE_BYTES: 100 * 1024 * 1024,
+  secureFetchWithPinnedIP: mocks.fetch,
+  validateUrlWithDNS: mocks.validate,
+}))
+vi.mock('@/lib/internal/oracle-epm/files.server', () => ({
+  openOracleEpmSourceFile: vi.fn(),
+  storeOracleEpmDownload: vi.fn(),
+}))
+
+import { executeOracleEpmPlanningTool } from '@/lib/internal/oracle-epm-planning/execute-tool'
+import {
+  assertPlanningPayload,
+  dimensionSchema,
+  formDataSchema,
+  interopStatusSchema,
+  jobSchema,
+  memberSchema,
+  parsePlanningResponse,
+} from '@/lib/internal/oracle-epm-planning/schema'
+import type { OracleEpmPlanningResponse } from '@/tools/oracle_epm_planning/types'
+
+const AUTH = {
+  oauthCredential: 'credential-1',
+  accessToken: Buffer.from('fixture:password').toString('base64'),
+  instanceUrl: 'https://epm.example.com',
+}
+/** Fixtures are projections of the linked Oracle examples, not claims of live tenant verification. */
+const CASES: {
+  operation: string
+  source: string
+  input: Record<string, unknown>
+  method: string
+  path: string
+  response: unknown
+  output: string
+  body?: unknown
+  query?: Record<string, string>
+}[] = [
+  {
+    operation: 'list_applications',
+    source: 'get_applications.html',
+    input: {},
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications',
+    response: {
+      items: [
+        {
+          name: 'Vision',
+          unicode: true,
+          adminMode: 'false',
+          hybrid: 'true',
+        },
+      ],
+    },
+    output: 'applications',
+  },
+  {
+    operation: 'list_cubes',
+    source: 'get_plan_types.html',
+    input: {
+      application: 'Vision',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/plantypes',
+    response: {
+      items: [
+        {
+          planTypeName: 'Plan1',
+          planType: 1,
+          cubeName: 'Plan1',
+          numDimensions: 12,
+          cubeType: 0,
+        },
+      ],
+    },
+    output: 'cubes',
+  },
+  {
+    operation: 'list_dimensions',
+    source: 'get_dim_plan_types.html',
+    input: {
+      application: 'Vision',
+      cube: 'Plan1',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/plantypes/Plan1/dimensions',
+    response: {
+      items: [
+        {
+          name: 'Account',
+          id: '1',
+          level: 0,
+          dimType: 'Account',
+        },
+      ],
+      totalResults: 1,
+      hasMore: false,
+    },
+    output: 'dimensions',
+    query: {
+      offset: '0',
+      limit: '100',
+    },
+  },
+  {
+    operation: 'get_dimension',
+    source: 'get_dim_details.html',
+    input: {
+      application: 'Vision',
+      cube: 'Plan1',
+      dimension: 'Account',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/plantypes/Plan1/dimensions/Account',
+    response: {
+      name: 'Account',
+      id: '1',
+      level: 0,
+      dimType: 'Account',
+      children: [
+        {
+          name: 'Sales',
+          parentName: 'Account',
+        },
+      ],
+    },
+    output: 'dimension',
+  },
+  {
+    operation: 'get_member',
+    source: 'get_member.html',
+    input: {
+      application: 'Vision',
+      dimension: 'Account',
+      memberName: 'Sales',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/dimensions/Account/members/Sales',
+    response: {
+      name: 'Sales',
+      description: null,
+      parentName: 'Account',
+      dimName: 'Account',
+      dataType: 'UNSPECIFIED',
+      dataStorage: 'STOREDATA',
+      objectType: 33,
+      twoPass: false,
+    },
+    output: 'member',
+  },
+  {
+    operation: 'add_member',
+    source: 'add_member.html',
+    input: {
+      application: 'Vision',
+      dimension: 'Account',
+      memberName: 'Sales',
+      parentName: 'Account',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/dimensions/Account/members',
+    response: {
+      name: 'Sales',
+      description: null,
+      parentName: 'Account',
+      dimName: 'Account',
+      dataType: 'UNSPECIFIED',
+      dataStorage: 'STOREDATA',
+      objectType: 33,
+      twoPass: false,
+    },
+    output: 'member',
+    body: {
+      memberName: 'Sales',
+      parentName: 'Account',
+    },
+  },
+  {
+    operation: 'list_substitution_variables',
+    source: 'planning_get_all_subst_variables_for_app_1.html',
+    input: {
+      application: 'Vision',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/substitutionvariables',
+    response: {
+      items: [
+        {
+          name: 'CurrentYear',
+          value: 'FY26',
+          planType: 'ALL',
+        },
+      ],
+    },
+    output: 'variables',
+  },
+  {
+    operation: 'get_substitution_variable',
+    source: 'planning_get_a_subst_variable_for_app_2.html',
+    input: {
+      application: 'Vision',
+      variableName: 'CurrentYear',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/substitutionvariables/CurrentYear',
+    response: {
+      name: 'CurrentYear',
+      value: 'FY26',
+      planType: 'ALL',
+    },
+    output: 'variable',
+  },
+  {
+    operation: 'set_substitution_variables',
+    source: 'planning_create_or_replace_all_subst_variables_for_app_3.html',
+    input: {
+      application: 'Vision',
+      variables: [
+        {
+          name: 'CurrentYear',
+          value: 'FY26',
+          planType: 'ALL',
+        },
+      ],
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/substitutionvariables',
+    response: null,
+    output: 'updated',
+    body: {
+      items: [
+        {
+          name: 'CurrentYear',
+          value: 'FY26',
+          planType: 'ALL',
+        },
+      ],
+    },
+  },
+  {
+    operation: 'delete_substitution_variable',
+    source: 'planning_del_a_subst_variable_for_app.html',
+    input: {
+      application: 'Vision',
+      variableName: 'CurrentYear',
+    },
+    method: 'DELETE',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/substitutionvariables/CurrentYear',
+    response: null,
+    output: 'deleted',
+  },
+  {
+    operation: 'list_job_definitions',
+    source: 'get_job_definitions.html',
+    input: {
+      application: 'Vision',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobdefinitions',
+    response: {
+      items: [
+        {
+          jobName: 'Calculate',
+          jobType: 'RULES',
+          links: null,
+        },
+      ],
+    },
+    output: 'jobDefinitions',
+  },
+  {
+    operation: 'run_job',
+    source: 'execute_a_job.html',
+    input: {
+      application: 'Vision',
+      jobType: 'RULES',
+      jobName: 'Calculate',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+    body: {
+      jobType: 'RULES',
+      jobName: 'Calculate',
+    },
+  },
+  {
+    operation: 'run_rule',
+    source: 'rules.html',
+    input: {
+      application: 'Vision',
+      jobName: 'Calculate',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+    body: {
+      jobType: 'RULES',
+      jobName: 'Calculate',
+    },
+  },
+  {
+    operation: 'run_ruleset',
+    source: 'ruleset.html',
+    input: {
+      application: 'Vision',
+      jobName: 'Calculate',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+    body: {
+      jobType: 'RULESET',
+      jobName: 'Calculate',
+    },
+  },
+  {
+    operation: 'get_job',
+    source: 'retrieve_job_status.html',
+    input: {
+      application: 'Vision',
+      jobId: '42',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs/42',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+  },
+  {
+    operation: 'wait_for_job',
+    source: 'retrieve_job_status.html',
+    input: {
+      application: 'Vision',
+      jobId: '42',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs/42',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+  },
+  {
+    operation: 'get_job_details',
+    source: 'retrieve_job_status_details.html',
+    input: {
+      application: 'Vision',
+      jobId: '42',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs/42/details',
+    response: {
+      items: [
+        {
+          recordsRead: 5,
+          recordsRejected: 1,
+          recordsProcessed: 4,
+          dimensionName: 'Account',
+          loadType: 'Data',
+        },
+      ],
+    },
+    output: 'jobDetails',
+    query: {
+      offset: '0',
+      limit: '100',
+    },
+  },
+  {
+    operation: 'export_data_slice',
+    source: 'export_dataslices.html',
+    input: {
+      application: 'Vision',
+      cube: 'Plan1',
+      gridDefinition: {
+        pov: {
+          members: [['FY26']],
+        },
+        columns: [
+          {
+            members: [['Jan']],
+          },
+        ],
+        rows: [
+          {
+            members: [['Sales']],
+          },
+        ],
+      },
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/plantypes/Plan1/exportdataslice',
+    response: {
+      pov: ['FY26'],
+      columns: [['Jan']],
+      rows: [
+        {
+          headers: ['Sales'],
+          data: ['120'],
+        },
+      ],
+    },
+    output: 'dataGrid',
+    body: {
+      exportPlanningData: false,
+      gridDefinition: {
+        pov: {
+          members: [['FY26']],
+        },
+        columns: [
+          {
+            members: [['Jan']],
+          },
+        ],
+        rows: [
+          {
+            members: [['Sales']],
+          },
+        ],
+      },
+    },
+  },
+  {
+    operation: 'import_data_slice',
+    source: 'import_dataslices.html',
+    input: {
+      application: 'Vision',
+      cube: 'Plan1',
+      dataGrid: {
+        pov: ['FY26'],
+        columns: [['Jan']],
+        rows: [
+          {
+            headers: ['Sales'],
+            data: ['120'],
+          },
+        ],
+      },
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/plantypes/Plan1/importdataslice',
+    response: {
+      numAcceptedCells: 1,
+      numUpdateCells: 1,
+      numRejectedCells: 0,
+      rejectedCells: [],
+      rejectedCellsWithDetails: [],
+    },
+    output: 'importResult',
+    body: {
+      dataGrid: {
+        pov: ['FY26'],
+        columns: [['Jan']],
+        rows: [
+          {
+            headers: ['Sales'],
+            data: ['120'],
+          },
+        ],
+      },
+      customParams: {
+        IncludeRejectedCells: true,
+        IncludeRejectedCellsWithDetails: true,
+      },
+    },
+  },
+  {
+    operation: 'clear_data_slice',
+    source: 'clear_dataslices.html',
+    input: {
+      application: 'Vision',
+      cube: 'Plan1',
+      gridDefinition: {
+        pov: {
+          members: [['FY26']],
+        },
+        columns: [
+          {
+            members: [['Jan']],
+          },
+        ],
+        rows: [
+          {
+            members: [['Sales']],
+          },
+        ],
+      },
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/plantypes/Plan1/cleardataslice',
+    response: {
+      numClearedCells: 1,
+      numRejectedCells: 0,
+      rejectedCells: [],
+    },
+    output: 'clearResult',
+    body: {
+      gridDefinition: {
+        pov: {
+          members: [['FY26']],
+        },
+        columns: [
+          {
+            members: [['Jan']],
+          },
+        ],
+        rows: [
+          {
+            members: [['Sales']],
+          },
+        ],
+      },
+      clearEssbaseData: true,
+      clearPlanningData: false,
+    },
+  },
+  {
+    operation: 'export_form_data',
+    source: 'get_export_form_data.html',
+    input: {
+      application: 'Vision',
+      form: 'Budget',
+    },
+    method: 'GET',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/forms/Budget/data',
+    response: {
+      gridInfo: {
+        pageDimNames: ['Scenario'],
+        allowedPageMembersByDim: {
+          Scenario: ['Plan'],
+        },
+        rowDimNames: ['Account'],
+        columnDimNames: ['Period'],
+      },
+      pov: {
+        Scenario: 'Plan',
+      },
+      columns: [['Jan']],
+      rows: [
+        {
+          headers: ['Sales'],
+          data: [120],
+        },
+      ],
+    },
+    output: 'formData',
+    query: {
+      displayMemberAs: 'MEMBER_NAME',
+      memberAliasDelimiter: ':',
+      forceStartExpanded: 'false',
+    },
+  },
+  {
+    operation: 'export_application_data',
+    source: 'export_data.html',
+    input: {
+      application: 'Vision',
+      jobName: 'Calculate',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+    body: {
+      jobType: 'EXPORT_DATA',
+      jobName: 'Calculate',
+      parameters: {},
+    },
+  },
+  {
+    operation: 'import_application_data',
+    source: 'import_data.html',
+    input: {
+      application: 'Vision',
+      jobName: 'Calculate',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+    body: {
+      jobType: 'IMPORT_DATA',
+      jobName: 'Calculate',
+      parameters: {},
+    },
+  },
+  {
+    operation: 'list_files',
+    source: 'list_files_v2.html',
+    input: {},
+    method: 'GET',
+    path: '/interop/rest/v2/files/list',
+    response: {
+      status: 0,
+      details: null,
+      items: [
+        {
+          name: 'data.csv',
+          type: 'EXTERNAL',
+          size: '3',
+          lastmodifiedtime: '1422547859155',
+        },
+      ],
+    },
+    output: 'files',
+  },
+  {
+    operation: 'delete_file',
+    source: 'delete_files_v2.html',
+    input: {
+      fileName: 'data.csv',
+    },
+    method: 'DELETE',
+    path: '/interop/rest/v2/files/delete',
+    response: {
+      status: 0,
+      details: null,
+    },
+    output: 'deleted',
+    body: {
+      fileName: 'data.csv',
+    },
+  },
+  {
+    operation: 'refresh_cube',
+    source: 'cube_refresh.html',
+    input: {
+      application: 'Vision',
+      jobName: 'Calculate',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+    body: {
+      jobType: 'CUBE_REFRESH',
+      jobName: 'Calculate',
+      parameters: {},
+    },
+  },
+  {
+    operation: 'set_administration_mode',
+    source: 'pbcs_admin_job.html',
+    input: {
+      application: 'Vision',
+      loginLevel: 'Administrators',
+    },
+    method: 'POST',
+    path: '/HyperionPlanning/rest/v3/applications/Vision/jobs',
+    response: {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    },
+    output: 'job',
+    body: {
+      jobType: 'Administration Mode',
+      parameters: {
+        loginLevel: 'Administrators',
+      },
+    },
+  },
+]
+
+async function invoke(operation: string, input: Record<string, unknown>, signal?: AbortSignal) {
+  const response = await executeOracleEpmPlanningTool({
+    toolId: `oracle_epm_planning_${operation}`,
+    input: { ...AUTH, ...input },
+    headers: new Headers(),
+    context: { userId: 'user-1', workflowId: 'workflow-1' },
+    requestId: 'request-1',
+    signal,
+  })
+  return { status: response.status, result: (await response.json()) as OracleEpmPlanningResponse }
+}
+function respond(data: unknown, status = 200) {
+  mocks.fetch.mockImplementation(
+    async () =>
+      new Response(status === 204 ? null : JSON.stringify(data), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      })
+  )
+}
+
+describe('Planning operation contracts through the real foundation', () => {
+  it('accepts numeric job references through the dispatcher', async () => {
+    respond({
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    })
+    expect(
+      (await invoke('wait_for_job', { application: 'Vision', jobId: 42 })).result.success
+    ).toBe(true)
+    expect(new URL(mocks.fetch.mock.calls[0][0]).pathname).toBe(
+      '/HyperionPlanning/rest/v3/applications/Vision/jobs/42'
+    )
+  })
+  it('normalizes documented action links and rejects conflicting methods', () => {
+    const status = {
+      status: -1,
+      details: null,
+      links: [
+        {
+          rel: 'Job Status',
+          action: 'GET',
+          href: 'https://epm.example.com/interop/rest/v1/services/jobs/42',
+        },
+      ],
+    }
+    expect(interopStatusSchema.parse(status).links[0].method).toBe('GET')
+    expect(
+      interopStatusSchema.safeParse({ ...status, links: [{ ...status.links[0], method: 'POST' }] })
+        .success
+    ).toBe(false)
+  })
+  it('accepts a member without the documented availability-dependent dataType', () => {
+    const member = {
+      name: 'Sales',
+      description: null,
+      parentName: 'Account',
+      dimName: 'Account',
+      dataType: 'UNSPECIFIED',
+      dataStorage: 'STOREDATA',
+      objectType: 33,
+      twoPass: false,
+    }
+    const { dataType: _dataType, ...withoutType } = member
+    expect(memberSchema.parse(withoutType)).toEqual(withoutType)
+    expect(memberSchema.safeParse({ ...withoutType, dataType: null }).success).toBe(false)
+  })
+  it('bounds wide arrays, oversized strings and cycles before serialization', () => {
+    expect(() => assertPlanningPayload(Array(1_000_001).fill(0))).toThrow()
+    expect(() => assertPlanningPayload('x'.repeat(16 * 1024 * 1024))).toThrow()
+    const cyclic: { child?: unknown } = {}
+    cyclic.child = cyclic
+    expect(() => assertPlanningPayload(cyclic)).toThrow()
+    const value = { text: 'quote" and unicode λ', values: [true, null, 123, 'line\n'] }
+    expect(assertPlanningPayload(value)).toBe(Buffer.byteLength(JSON.stringify(value)))
+  })
+  /**
+   * Cube variable contracts:
+   * https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/planning_get_subst_variables_defined_at_plan_type_level_5.html
+   * https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/planning_get_derived_subst_variables_at_plan_type_level_6.html
+   * https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/planning_get_a_subst_variables_defined_at_plan_type_level_7.html
+   * https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/planning_get_derived_subst_variables_defined_at_plan_type_level_8.html
+   * https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/planning_del_a_subst_variable_for_plantype.html
+   */
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.validate.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+  })
+  it.each(CASES)('$operation matches its official method, encoding and output', async (entry) => {
+    expect(entry.source).toMatch(/\.html$/)
+    respond(entry.response, entry.response === null ? 204 : 200)
+    const { result, status } = await invoke(entry.operation, entry.input)
+    expect(status).toBe(200)
+    expect(result.success, JSON.stringify(result)).toBe(true)
+    expect(result.output).toHaveProperty(entry.output)
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    const [url, , options] = mocks.fetch.mock.calls[0]
+    expect(new URL(url).pathname).toBe(entry.path)
+    expect(Object.fromEntries(new URL(url).searchParams)).toEqual(entry.query ?? {})
+    expect(options.method).toBe(entry.method)
+    if (entry.body !== undefined) expect(JSON.parse(options.body)).toEqual(entry.body)
+    else expect(options.body).toBeUndefined()
+  })
+  it('normalizes only documented job and boolean variants', async () => {
+    const job = {
+      jobId: 42,
+      status: 0,
+      details: null,
+      jobName: 'Calculate',
+      descriptiveStatus: 'Completed',
+    }
+    expect(jobSchema.parse({ ...job, jobId: undefined, jobID: 42 })).toEqual(job)
+    expect(
+      jobSchema.parse({ ...job, descriptiveStatus: undefined, jobStatus: 'Completed' })
+    ).toEqual(job)
+    expect(jobSchema.safeParse({ ...job, jobID: 99 }).success).toBe(false)
+    expect(jobSchema.safeParse({ ...job, jobId: undefined }).success).toBe(false)
+    expect(jobSchema.safeParse({ ...job, details: {} }).success).toBe(false)
+    respond({ items: [{ name: 'Vision', adminMode: 'false', hybrid: 'true' }] })
+    const { result } = await invoke('list_applications', {})
+    expect(result.output.applications).toEqual([{ name: 'Vision', adminMode: false, hybrid: true }])
+  })
+  it('keeps cube-scoped variable inheritance and message filters in q JSON', async () => {
+    respond({ items: [] })
+    await invoke('list_substitution_variables', {
+      application: 'Vision',
+      cube: 'Plan1',
+      derivedValues: true,
+    })
+    expect(new URL(mocks.fetch.mock.calls[0][0]).searchParams.get('q')).toBe(
+      '{"derivedValues":true}'
+    )
+    await invoke('get_job_details', {
+      application: 'Vision',
+      jobId: '42',
+      messageType: 'ERROR',
+      limit: 25,
+    })
+    expect(new URL(mocks.fetch.mock.calls[1][0]).searchParams.get('q')).toBe(
+      '{"messageType":"ERROR"}'
+    )
+  })
+  it('reports partial imports without hiding rejection counts or reasons', async () => {
+    const diagnostics = {
+      numAcceptedCells: 8,
+      numUpdateCells: 8,
+      numRejectedCells: 4,
+      rejectedCells: ['[Plan,Sales]'],
+      rejectedCellsWithDetails: [
+        {
+          memberNames: ['Plan', 'Sales'],
+          readOnlyReasons: ['Invalid Intersection'],
+          otherReasons: [],
+        },
+      ],
+    }
+    respond(diagnostics)
+    const { result } = await invoke('import_data_slice', {
+      application: 'Vision',
+      cube: 'Plan1',
+      dataGrid: {
+        pov: ['FY26'],
+        columns: [['Jan']],
+        rows: [{ headers: ['Sales'], data: ['120'] }],
+      },
+    })
+    expect(result.success).toBe(true)
+    expect(result.output.importResult).toEqual(diagnostics)
+  })
+  it('does not confuse form maps/numeric rows with data-slice axes', () => {
+    expect(
+      formDataSchema.safeParse({
+        pov: ['FY26'],
+        columns: [['Jan']],
+        rows: [{ headers: ['Sales'], data: ['120'] }],
+      }).success
+    ).toBe(false)
+    expect(
+      formDataSchema.safeParse({
+        gridInfo: {
+          pageDimNames: ['Scenario'],
+          allowedPageMembersByDim: { Scenario: ['Plan'] },
+          rowDimNames: ['Account'],
+          columnDimNames: ['Period'],
+        },
+        pov: { Scenario: 'Plan' },
+        columns: [['Jan']],
+        rows: [{ headers: ['Sales'], data: [120] }],
+      }).success
+    ).toBe(true)
+    expect(
+      dimensionSchema.safeParse({ name: 'Account', children: [{ name: 'Sales' }] }).success
+    ).toBe(true)
+    expect(
+      memberSchema.parse({
+        ...{
+          name: 'Sales',
+          description: null,
+          parentName: 'Account',
+          dimName: 'Account',
+          dataType: 'UNSPECIFIED',
+          dataStorage: 'STOREDATA',
+          objectType: 33,
+          twoPass: false,
+        },
+        children: null,
+      })
+    ).not.toHaveProperty('children')
+  })
+  it.each([null, {}, { items: null }, { items: [{}] }, { items: 'not-an-array' }])(
+    'rejects malformed application response %j',
+    async (data) => {
+      respond(data)
+      const { status, result } = await invoke('list_applications', {})
+      expect(status).toBe(502)
+      expect(result.success).toBe(false)
+    }
+  )
+  it('accepts empty lists, but not wrong success statuses for 204 mutations', async () => {
+    respond({ items: [] })
+    expect((await invoke('list_applications', {})).result.output.applications).toEqual([])
+    respond({})
+    const result = await invoke('set_substitution_variables', {
+      application: 'Vision',
+      variables: [{ name: 'Year', value: 'FY26', planType: 'ALL' }],
+    })
+    expect(result.result.success).toBe(false)
+  })
+  it('rejects invalid inputs, huge payloads and unknown tools before networking', async () => {
+    for (const [operation, input] of [
+      ['list_dimensions', { application: 'Vision', cube: 'Plan1', limit: -1 }],
+      ['run_rule', { application: 'Vision', jobName: 'Calc', parameters: { prompt: 5 } }],
+      ['export_application_data', { application: 'Vision' }],
+      ['no_such_tool', {}],
+    ] as const)
+      expect((await invoke(operation, input)).result.success).toBe(false)
+    expect(
+      (await invoke('list_applications', { padding: 'x'.repeat(16 * 1024 * 1024) })).status
+    ).toBe(413)
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+  it('does not replay a rejected mutation or expose its provider error body', async () => {
+    respond({ error: 'private-response-canary' }, 503)
+    const { result } = await invoke('run_job', {
+      application: 'Vision',
+      jobType: 'RULES',
+      jobName: 'Calc',
+    })
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result)).not.toContain('private-response-canary')
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('propagates cancellation before work', async () => {
+    const controller = new AbortController()
+    controller.abort(new DOMException('Stopped', 'AbortError'))
+    await expect(invoke('list_applications', {}, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+  it('bounds recursive provider hierarchies before recursive parsing', () => {
+    let value: unknown = { name: 'Leaf' }
+    for (let i = 0; i < 70; i++) value = { name: 'Parent', children: [value] }
+    expect(() => parsePlanningResponse(dimensionSchema, { status: 200, data: value })).toThrow()
+  })
+})
