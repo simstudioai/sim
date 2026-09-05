@@ -1,6 +1,7 @@
 import { Table } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { encodeFolderPathSegment, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { readFolderPath } from '@/lib/folders/selection'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToPredicate, sortRulesToSortSpec } from '@/lib/table/query-builder/converters'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
@@ -12,7 +13,6 @@ import type {
   TablePredicate,
   TablePredicateInput,
 } from '@/lib/table/types'
-import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import type { TableQueryV2Response } from '@/tools/table/types'
@@ -541,7 +541,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
     {
       id: 'folderSelection',
       title: 'Folder',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'table',
       mode: 'basic',
       placeholder: 'Anywhere in the workspace',
@@ -574,7 +574,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
     {
       id: 'folderPath',
       title: 'Folder',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'table',
       canonicalParamId: 'folderRef',
       mode: 'basic',
@@ -602,7 +602,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
     {
       id: 'createParentPath',
       title: 'Parent Folder',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'table',
       canonicalParamId: 'createParentRef',
       mode: 'basic',
@@ -630,7 +630,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
     {
       id: 'destinationParentPath',
       title: 'Move Into',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'table',
       canonicalParamId: 'destinationParentRef',
       mode: 'basic',
@@ -702,7 +702,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
     {
       id: 'moveTargetFolderPath',
       title: 'Move Into',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'table',
       canonicalParamId: 'moveTargetRef',
       mode: 'basic',

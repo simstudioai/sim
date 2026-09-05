@@ -11,6 +11,7 @@ import {
   tableUpdateFolderSchemas,
 } from '@/lib/api/contracts/tools/table'
 import { TableV2Block } from '@/blocks/blocks/table_v2'
+import { tableDeleteFolderTool } from '@/tools/table/folders'
 
 /*
  * The block's params transformer feeds the tool dispatch directly, so its output
@@ -237,7 +238,7 @@ describe('table_v2 folder subblocks are wired as canonical pairs', () => {
       'destinationParentPath',
       'moveTargetFolderPath',
     ]) {
-      expect(subBlock(id)?.type).toBe('sim-folder-tree-selector')
+      expect(subBlock(id)?.type).toBe('folder-selector')
       expect(subBlock(id)?.resourceType).toBe('table')
     }
   })
@@ -342,8 +343,18 @@ describe('table_v2 keeps the destination a model asked for', () => {
     expect(params.recursive).toBe(false)
   })
 
-  it('marks the delete cascade user-only on the subblock, not just the tool', () => {
-    /* The block's own schema is what an Agent tool surface is built from. */
+  it('keeps a model out of the delete cascade at the layer that enforces it', () => {
+    /*
+     * The enforcing layer is the TOOL param's `visibility: 'user-only'`, not the
+     * subblock: `createLLMToolSchema` reads `toolConfig.params` to build both the
+     * model's schema and `modelBlockedParams` (tools/params.ts), and
+     * `stripModelBlockedParams` drops those keys from the model's arguments
+     * before they merge (providers/utils.ts). The subblock's `paramVisibility`
+     * governs the tool-input ROW UI — whether a human must fill the field — via
+     * `isToolParamUserRequired`. Both are set here, but only the first is a
+     * guard, so this asserts the tool param and treats the subblock as UI.
+     */
+    expect(tableDeleteFolderTool.params.recursive.visibility).toBe('user-only')
     expect(subBlock('deleteFolderRecursive')?.paramVisibility).toBe('user-only')
   })
 })
