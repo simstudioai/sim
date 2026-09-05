@@ -782,6 +782,53 @@ const NETSUITE_TOOL_IDS = [
   'netsuite_upsert_record',
 ] as const
 
+const ORACLE_FUSION_SCM_TOOL_IDS = [
+  'oracle_fusion_scm_confirm_quick_ship_lines',
+  'oracle_fusion_scm_create_maintenance_work_order',
+  'oracle_fusion_scm_create_manufacturing_work_order',
+  'oracle_fusion_scm_create_sales_order',
+  'oracle_fusion_scm_create_supply_request',
+  'oracle_fusion_scm_delete_sales_order',
+  'oracle_fusion_scm_get_fulfillment_line_detail',
+  'oracle_fusion_scm_get_inventory_organization',
+  'oracle_fusion_scm_get_inventory_transaction',
+  'oracle_fusion_scm_get_item',
+  'oracle_fusion_scm_get_maintenance_work_order',
+  'oracle_fusion_scm_get_manufacturing_work_order',
+  'oracle_fusion_scm_get_on_hand_quantity',
+  'oracle_fusion_scm_get_sales_order',
+  'oracle_fusion_scm_get_sales_order_line',
+  'oracle_fusion_scm_get_shipment',
+  'oracle_fusion_scm_get_shipment_line',
+  'oracle_fusion_scm_get_supply_order_line',
+  'oracle_fusion_scm_get_supply_request',
+  'oracle_fusion_scm_get_transfer_order',
+  'oracle_fusion_scm_get_transfer_order_line',
+  'oracle_fusion_scm_list_fulfillment_line_details',
+  'oracle_fusion_scm_list_inventory_organizations',
+  'oracle_fusion_scm_list_inventory_transactions',
+  'oracle_fusion_scm_list_items',
+  'oracle_fusion_scm_list_maintenance_work_orders',
+  'oracle_fusion_scm_list_manufacturing_work_orders',
+  'oracle_fusion_scm_list_on_hand_quantities',
+  'oracle_fusion_scm_list_sales_order_lines',
+  'oracle_fusion_scm_list_sales_orders',
+  'oracle_fusion_scm_list_shipment_lines',
+  'oracle_fusion_scm_list_shipments',
+  'oracle_fusion_scm_list_supply_order_lines',
+  'oracle_fusion_scm_list_supply_requests',
+  'oracle_fusion_scm_list_transfer_order_lines',
+  'oracle_fusion_scm_list_transfer_orders',
+  'oracle_fusion_scm_pick_release_shipment_lines',
+  'oracle_fusion_scm_update_item',
+  'oracle_fusion_scm_update_maintenance_work_order',
+  'oracle_fusion_scm_update_manufacturing_work_order',
+  'oracle_fusion_scm_update_sales_order',
+  'oracle_fusion_scm_update_supply_request',
+  'oracle_fusion_scm_update_transfer_order',
+  'oracle_fusion_scm_update_transfer_order_line',
+] as const
+
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
@@ -1427,6 +1474,9 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_SCM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-scm/execute-tool')).executeOracleFusionScmTool
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool

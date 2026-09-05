@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,201 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_scm",
+      "slug": "oracle-fusion-cloud-scm",
+      "name": "Oracle Fusion Cloud SCM",
+      "description": "Manage Oracle Fusion inventory, supply, transfer, work orders, shipping, and sales orders",
+      "longDescription": "Connect an Oracle Fusion service account for bounded resource discovery, detailed reads, and focused updates across inventory, supply requests, transfer orders, manufacturing and maintenance work orders, fulfillment, shipments, and order management. Lists return one page and Oracle-derived keys. Shipment actions return Oracle processing results that must be inspected for business errors; pick release schedules a Release Pick Wave process. Oracle permissions, enabled features, and lifecycle rules apply. No native triggers are included.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_scm",
+      "operations": [
+        {
+          "name": "List Inventory Organizations",
+          "description": "List one bounded page of inventory organizations using a fixed safe projection."
+        },
+        {
+          "name": "Get Inventory Organization",
+          "description": "Get one inventory organization by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Items",
+          "description": "List one bounded page of items using a fixed safe projection."
+        },
+        {
+          "name": "Get Item",
+          "description": "Get one item by its opaque Oracle resource key."
+        },
+        {
+          "name": "List On Hand Quantities",
+          "description": "List one bounded page of on-hand quantity details using a fixed safe projection."
+        },
+        {
+          "name": "Get On Hand Quantity",
+          "description": "Get one on-hand quantity detail by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Inventory Transactions",
+          "description": "List one bounded page of completed inventory transactions."
+        },
+        {
+          "name": "Get Inventory Transaction",
+          "description": "Get one completed inventory transaction by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Supply Requests",
+          "description": "List one bounded page of supply requests using a fixed safe projection."
+        },
+        {
+          "name": "Get Supply Request",
+          "description": "Get one supply request by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Supply Order Lines",
+          "description": "List one bounded page of lines for an Oracle supply request."
+        },
+        {
+          "name": "Get Supply Order Line",
+          "description": "Get one supply order line beneath an Oracle supply request."
+        },
+        {
+          "name": "List Shipments",
+          "description": "List one bounded page of shipments using a fixed safe projection."
+        },
+        {
+          "name": "Get Shipment",
+          "description": "Get one shipment by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Shipment Lines",
+          "description": "List one bounded page of shipment lines using a fixed safe projection."
+        },
+        {
+          "name": "Get Shipment Line",
+          "description": "Get one shipment line by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Manufacturing Work Orders",
+          "description": "List one bounded page of manufacturing work orders."
+        },
+        {
+          "name": "Get Manufacturing Work Order",
+          "description": "Get one manufacturing work order by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Maintenance Work Orders",
+          "description": "List one bounded page of maintenance work orders."
+        },
+        {
+          "name": "Get Maintenance Work Order",
+          "description": "Get one maintenance work order by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Transfer Orders",
+          "description": "List one bounded page of transfer orders. q and finder are mutually exclusive."
+        },
+        {
+          "name": "Get Transfer Order",
+          "description": "Get one transfer order using Oracle-derived keys."
+        },
+        {
+          "name": "List Transfer Order Lines",
+          "description": "List one bounded page of transfer order lines under the selected parent. q and finder are mutually exclusive."
+        },
+        {
+          "name": "Get Transfer Order Line",
+          "description": "Get one transfer order line using Oracle-derived keys within its selected parent."
+        },
+        {
+          "name": "List Sales Orders",
+          "description": "List one bounded page of sales orders. q and finder are mutually exclusive."
+        },
+        {
+          "name": "Get Sales Order",
+          "description": "Get one sales order using Oracle-derived keys."
+        },
+        {
+          "name": "List Sales Order Lines",
+          "description": "List one bounded page of sales order lines under the selected parent. q and finder are mutually exclusive."
+        },
+        {
+          "name": "Get Sales Order Line",
+          "description": "Get one sales order line using Oracle-derived keys within its selected parent."
+        },
+        {
+          "name": "List Fulfillment Line Details",
+          "description": "List one bounded page of fulfillment line details under the selected parent. q and finder are mutually exclusive."
+        },
+        {
+          "name": "Get Fulfillment Line Detail",
+          "description": "Get one fulfillment line detail using Oracle-derived keys within its selected parent."
+        },
+        {
+          "name": "Update Item",
+          "description": "Update Item using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Create Supply Request",
+          "description": "Create Supply Request using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Update Supply Request",
+          "description": "Update Supply Request using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Update Transfer Order",
+          "description": "Update the MessageText on an existing transfer order header. Use Update Transfer Order Line to change quantities, dates, or line logistics."
+        },
+        {
+          "name": "Update Transfer Order Line",
+          "description": "Update Transfer Order Line using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Create Manufacturing Work Order",
+          "description": "Create Manufacturing Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Update Manufacturing Work Order",
+          "description": "Update Manufacturing Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Create Maintenance Work Order",
+          "description": "Create Maintenance Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Update Maintenance Work Order",
+          "description": "Update Maintenance Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Create Sales Order",
+          "description": "Create Sales Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Update Sales Order",
+          "description": "Update Sales Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions."
+        },
+        {
+          "name": "Delete Sales Order",
+          "description": "Delete an Oracle sales order when its lifecycle and permissions allow deletion. This is not a cancellation operation."
+        },
+        {
+          "name": "Pick Release Shipment Lines",
+          "description": "Submit the Release Pick Wave scheduled process for the specified shipment lines. Inspect Oracle processing results for business errors; HTTP success alone does not establish completion."
+        },
+        {
+          "name": "Confirm Quick Ship Lines",
+          "description": "Ship confirm quick-ship eligible shipment lines in a quick-ship enabled organization. Inspect Oracle processing results for business errors; HTTP success alone does not establish completion."
+        }
+      ],
+      "operationCount": 44,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",

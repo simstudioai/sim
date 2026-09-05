@@ -1,0 +1,953 @@
+---
+title: Oracle Fusion Cloud SCM
+description: Manage Oracle Fusion inventory, supply, transfer, work orders, shipping, and sales orders
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_scm"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an Oracle Fusion service account for bounded resource discovery, detailed reads, and focused updates across inventory, supply requests, transfer orders, manufacturing and maintenance work orders, fulfillment, shipments, and order management. Lists return one page and Oracle-derived keys. Shipment actions return Oracle processing results that must be inspected for business errors; pick release schedules a Release Pick Wave process. Oracle permissions, enabled features, and lifecycle rules apply. No native triggers are included.
+
+
+
+## Actions
+
+### Oracle Fusion SCM List Inventory Organizations
+
+List one bounded page of inventory organizations using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Inventory Organizations in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Inventory Organization
+
+Get one inventory organization by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `organizationKey` | string | Yes | Oracle-derived organizationKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organization` | object | The inventory organization returned by Oracle |
+
+### Oracle Fusion SCM List Items
+
+List one bounded page of items using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Items in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Item
+
+Get one item by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `itemKey` | string | Yes | Oracle-derived itemKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | The item returned by Oracle |
+
+### Oracle Fusion SCM List On Hand Quantities
+
+List one bounded page of on-hand quantity details using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | On Hand Quantities in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get On Hand Quantity
+
+Get one on-hand quantity detail by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `onHandQuantityKey` | string | Yes | Oracle-derived onHandQuantityKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `onHandQuantity` | object | The on hand quantity returned by Oracle |
+
+### Oracle Fusion SCM List Inventory Transactions
+
+List one bounded page of completed inventory transactions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Inventory Transactions in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Inventory Transaction
+
+Get one completed inventory transaction by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `transactionKey` | string | Yes | Oracle-derived transactionKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transaction` | object | The inventory transaction returned by Oracle |
+
+### Oracle Fusion SCM List Supply Requests
+
+List one bounded page of supply requests using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Supply Requests in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Supply Request
+
+Get one supply request by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `supplyRequestKey` | string | Yes | Oracle-derived supplyRequestKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplyRequest` | object | The supply request returned by Oracle |
+
+### Oracle Fusion SCM List Supply Order Lines
+
+List one bounded page of lines for an Oracle supply request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+| `supplyRequestKey` | string | Yes | Oracle-derived supplyRequestKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Supply Order Lines in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Supply Order Line
+
+Get one supply order line beneath an Oracle supply request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `supplyRequestKey` | string | Yes | Oracle-derived supplyRequestKey; preserve the key exactly |
+| `supplyOrderLineKey` | string | Yes | Oracle-derived supplyOrderLineKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplyOrderLine` | object | The supply order line returned by Oracle |
+
+### Oracle Fusion SCM List Shipments
+
+List one bounded page of shipments using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Shipments in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Shipment
+
+Get one shipment by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `shipmentKey` | string | Yes | Oracle-derived shipmentKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `shipment` | object | The shipment returned by Oracle |
+
+### Oracle Fusion SCM List Shipment Lines
+
+List one bounded page of shipment lines using a fixed safe projection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Shipment Lines in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Shipment Line
+
+Get one shipment line by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `shipmentLineKey` | string | Yes | Oracle-derived shipmentLineKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `shipmentLine` | object | The shipment line returned by Oracle |
+
+### Oracle Fusion SCM List Manufacturing Work Orders
+
+List one bounded page of manufacturing work orders.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Manufacturing Work Orders in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Manufacturing Work Order
+
+Get one manufacturing work order by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `manufacturingWorkOrderKey` | string | Yes | Oracle-derived manufacturingWorkOrderKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `manufacturingWorkOrder` | object | The manufacturing work order returned by Oracle |
+
+### Oracle Fusion SCM List Maintenance Work Orders
+
+List one bounded page of maintenance work orders.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Maintenance Work Orders in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Maintenance Work Order
+
+Get one maintenance work order by its opaque Oracle resource key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `maintenanceWorkOrderKey` | string | Yes | Oracle-derived maintenanceWorkOrderKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `maintenanceWorkOrder` | object | The maintenance work order returned by Oracle |
+
+### Oracle Fusion SCM List Transfer Orders
+
+List one bounded page of transfer orders. q and finder are mutually exclusive.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Transfer Orders in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Transfer Order
+
+Get one transfer order using Oracle-derived keys.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `transferOrderKey` | string | Yes | Oracle-derived transferOrderKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transferOrder` | object | The transfer order returned by Oracle |
+
+### Oracle Fusion SCM List Transfer Order Lines
+
+List one bounded page of transfer order lines under the selected parent. q and finder are mutually exclusive.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+| `transferOrderKey` | string | Yes | Oracle-derived transferOrderKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Transfer Order Lines in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Transfer Order Line
+
+Get one transfer order line using Oracle-derived keys within its selected parent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `transferOrderKey` | string | Yes | Oracle-derived transferOrderKey; preserve the key exactly |
+| `transferOrderLineKey` | string | Yes | Oracle-derived transferOrderLineKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transferOrderLine` | object | The transfer order line returned by Oracle |
+
+### Oracle Fusion SCM List Sales Orders
+
+List one bounded page of sales orders. q and finder are mutually exclusive.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Sales Orders in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Sales Order
+
+Get one sales order using Oracle-derived keys.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `salesOrderKey` | string | Yes | Oracle-derived salesOrderKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `salesOrder` | object | The sales order returned by Oracle |
+
+### Oracle Fusion SCM List Sales Order Lines
+
+List one bounded page of sales order lines under the selected parent. q and finder are mutually exclusive.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+| `salesOrderKey` | string | Yes | Oracle-derived salesOrderKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Sales Order Lines in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Sales Order Line
+
+Get one sales order line using Oracle-derived keys within its selected parent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `salesOrderKey` | string | Yes | Oracle-derived salesOrderKey; preserve the key exactly |
+| `salesOrderLineKey` | string | Yes | Oracle-derived salesOrderLineKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `salesOrderLine` | object | The sales order line returned by Oracle |
+
+### Oracle Fusion SCM List Fulfillment Line Details
+
+List one bounded page of fulfillment line details under the selected parent. q and finder are mutually exclusive.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle predefined finder expression, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute ordering expression, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative safe integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching record count |
+| `salesOrderKey` | string | Yes | Oracle-derived salesOrderKey; preserve the key exactly |
+| `salesOrderLineKey` | string | Yes | Oracle-derived salesOrderLineKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Fulfillment Line Details in this bounded page |
+| `count` | number | Records in this page |
+| `hasMore` | boolean | Whether another page exists |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records, when provided by Oracle |
+| `nextOffset` | number | Offset for the next page, present only when another page exists |
+
+### Oracle Fusion SCM Get Fulfillment Line Detail
+
+Get one fulfillment line detail using Oracle-derived keys within its selected parent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `salesOrderKey` | string | Yes | Oracle-derived salesOrderKey; preserve the key exactly |
+| `salesOrderLineKey` | string | Yes | Oracle-derived salesOrderLineKey; preserve the key exactly |
+| `fulfillmentLineDetailKey` | string | Yes | Oracle-derived fulfillmentLineDetailKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fulfillmentLineDetail` | object | The fulfillment line detail returned by Oracle |
+
+### Oracle Fusion SCM Update Item
+
+Update Item using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `itemKey` | string | Yes | Oracle-derived itemKey; preserve the key exactly |
+| `body` | json | Yes | JSON object. Supported fields: ItemDescription, LongDescription, ItemStatusValue, LifecyclePhaseValue, PrimaryUOMValue, SecondaryUOMValue, InventoryItemFlag, StockEnabledFlag, ShippableFlag, BuildInWIPFlag, LotControlValue, SerialGenerationValue. Provide at least one field. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | The item returned by Oracle |
+
+### Oracle Fusion SCM Create Supply Request
+
+Create Supply Request using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `body` | json | Yes | JSON object. Supported fields: InterfaceBatchNumber, InterfaceSourceCode, SupplyOrderSource, SupplyRequestDate, SupplyRequestStatus, TrustedSource, SupplyOrderReferenceId, SupplyOrderReferenceNumber, ProcessRequestFlag, AllowPartialRequestFlag, supplyRequestLines. Required: InterfaceBatchNumber, SupplyOrderSource, SupplyRequestDate, SupplyRequestStatus, TrustedSource, and a non-empty supplyRequestLines array. supplyRequestLines: up to 100 objects with InterfaceBatchNumber, ProcessStatus, Quantity, SupplyType, UOMCode, ItemId, ItemNumber, SupplyOrderReferenceLineId, SupplyOrderReferenceLineNumber, NeedByDate, RequestedShipDate, SourceOrganizationId, SourceOrganizationCode, SourceSubinventoryCode, DestinationOrganizationId, DestinationOrganizationCode, DestinationSubinventoryCode, DestinationTypeCode, SupplyOperation, Comments. Each requires InterfaceBatchNumber, ProcessStatus, Quantity, SupplyType, UOMCode. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplyRequest` | object | The supply request returned by Oracle |
+
+### Oracle Fusion SCM Update Supply Request
+
+Update Supply Request using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `supplyRequestKey` | string | Yes | Oracle-derived supplyRequestKey; preserve the key exactly |
+| `body` | json | Yes | JSON object. SupplyOrderReferenceNumber can rename the request and returns its new key; clearing it with null is not supported. Supported fields: SupplyOrderReferenceId, SupplyOrderReferenceNumber, ProcessRequestFlag, AllowPartialRequestFlag, TrustedSource, TransferCostAmount, TransferCostCurrencyCode, TransferCostTypeName, supplyRequestLines. Provide at least one field. supplyRequestLines: up to 100 objects with InterfaceBatchNumber, ProcessStatus, Quantity, SupplyType, UOMCode, ItemId, ItemNumber, SupplyOrderReferenceLineId, SupplyOrderReferenceLineNumber, NeedByDate, RequestedShipDate, SourceOrganizationId, SourceOrganizationCode, SourceSubinventoryCode, DestinationOrganizationId, DestinationOrganizationCode, DestinationSubinventoryCode, DestinationTypeCode, SupplyOperation, Comments. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplyRequest` | object | The supply request returned by Oracle |
+
+### Oracle Fusion SCM Update Transfer Order
+
+Update the MessageText on an existing transfer order header. Use Update Transfer Order Line to change quantities, dates, or line logistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `transferOrderKey` | string | Yes | Oracle-derived transferOrderKey; preserve the key exactly |
+| `body` | json | Yes | JSON object. Supported fields: MessageText. Provide at least one field. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transferOrder` | object | The transfer order returned by Oracle |
+
+### Oracle Fusion SCM Update Transfer Order Line
+
+Update Transfer Order Line using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `transferOrderKey` | string | Yes | Oracle-derived transferOrderKey; preserve the key exactly |
+| `transferOrderLineKey` | string | Yes | Oracle-derived transferOrderLineKey; preserve the key exactly |
+| `body` | json | Yes | JSON object. Supported fields: Action, RequestedQuantity, SecondaryRequestedQuantity, NeedByDate, ScheduledShipDate, Comments, SourceOrganizationId, SourceOrganizationCode, SourceSubinventoryCode, DestinationSubinventoryCode, SourceLocatorId, DestinationLocatorId, NoteToReceiver, NoteToSupplier, ShipmentPriority. Provide at least one field. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transferOrderLine` | object | The transfer order line returned by Oracle |
+
+### Oracle Fusion SCM Create Manufacturing Work Order
+
+Create Manufacturing Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `body` | json | Yes | JSON object. Supported fields: InventoryItemId, PlannedStartQuantity, WorkOrderType, OrganizationId, OrganizationCode, WorkOrderNumber, WorkOrderDescription, WorkOrderStatusCode, WorkOrderSubType, WorkOrderPriority, PlannedStartDate, PlannedCompletionDate, WorkDefinitionId, WorkDefinitionCode, SupplyType. Required: InventoryItemId, PlannedStartQuantity, WorkOrderType. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `manufacturingWorkOrder` | object | The manufacturing work order returned by Oracle |
+
+### Oracle Fusion SCM Update Manufacturing Work Order
+
+Update Manufacturing Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `manufacturingWorkOrderKey` | string | Yes | Oracle-derived manufacturingWorkOrderKey; preserve the key exactly |
+| `body` | json | Yes | JSON object. Supported fields: PlannedStartQuantity, WorkOrderDescription, WorkOrderStatusCode, WorkOrderSubType, WorkOrderPriority, PlannedStartDate, PlannedCompletionDate, WorkDefinitionId, WorkDefinitionCode, SupplyType. Provide at least one field. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `manufacturingWorkOrder` | object | The manufacturing work order returned by Oracle |
+
+### Oracle Fusion SCM Create Maintenance Work Order
+
+Create Maintenance Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `body` | json | Yes | JSON object. Supported fields: InventoryItemId, PlannedStartQuantity, UOMCode, WorkOrderTypeCode, OrganizationId, OrganizationCode, WorkOrderNumber, WorkOrderDescription, WorkOrderStatusCode, WorkOrderSubTypeCode, WorkOrderPriority, PlannedStartDate, PlannedCompletionDate, WorkDefinitionId, AssetId, AssetNumber. Required: InventoryItemId, PlannedStartQuantity, UOMCode, WorkOrderTypeCode. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `maintenanceWorkOrder` | object | The maintenance work order returned by Oracle |
+
+### Oracle Fusion SCM Update Maintenance Work Order
+
+Update Maintenance Work Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `maintenanceWorkOrderKey` | string | Yes | Oracle-derived maintenanceWorkOrderKey; preserve the key exactly |
+| `body` | json | Yes | JSON object. Supported fields: PlannedStartQuantity, UOMCode, WorkOrderDescription, WorkOrderStatusCode, WorkOrderSubTypeCode, WorkOrderPriority, PlannedStartDate, PlannedCompletionDate, WorkDefinitionId, AssetId, AssetNumber. Provide at least one field. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `maintenanceWorkOrder` | object | The maintenance work order returned by Oracle |
+
+### Oracle Fusion SCM Create Sales Order
+
+Create Sales Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `body` | json | Yes | JSON object. Supported fields: BusinessUnitId, SourceTransactionId, SourceTransactionNumber, SourceTransactionRevisionNumber, SourceTransactionSystem, BuyingPartyId, BuyingPartyNumber, BuyingPartyName, CustomerPONumber, TransactionalCurrencyCode, TransactionOn, RequestedShipDate, RequestedArrivalDate, Comments, SubmittedFlag, lines. Required: BusinessUnitId, SourceTransactionId, SourceTransactionNumber, SourceTransactionRevisionNumber, SourceTransactionSystem, and a non-empty lines array. lines: up to 100 objects with OrderedQuantity, OrderedUOMCode, ProductId, ProductNumber, SourceScheduleNumber, SourceTransactionLineId, SourceTransactionLineNumber, SourceTransactionScheduleId, RequestedShipDate, RequestedArrivalDate, RequestedFulfillmentOrganizationId, RequestedFulfillmentOrganizationCode, UnitListPrice, UnitSellingPrice, Comments. Each requires OrderedQuantity, OrderedUOMCode, ProductId, SourceScheduleNumber, SourceTransactionLineId, SourceTransactionLineNumber, SourceTransactionScheduleId. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. Set SubmittedFlag explicitly: false creates a draft; true requests validation and submission. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `salesOrder` | object | The sales order returned by Oracle |
+
+### Oracle Fusion SCM Update Sales Order
+
+Update Sales Order using documented Oracle fields. Oracle enforces tenant setup, permissions, and lifecycle restrictions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `salesOrderKey` | string | Yes | Oracle-derived salesOrderKey; preserve the key exactly |
+| `body` | json | Yes | JSON object. Supported fields: SourceTransactionRevisionNumber, BuyingPartyId, BuyingPartyNumber, BuyingPartyName, CustomerPONumber, TransactionalCurrencyCode, RequestedShipDate, RequestedArrivalDate, Comments, SubmittedFlag, CanceledFlag, CancelReasonCode. Provide at least one field. Pass Oracle integer fields as decimal strings \(including nested IDs\); they are serialized exactly as JSON numbers on the server. Omit unchanged fields; use null only for nullable fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `salesOrder` | object | The sales order returned by Oracle |
+
+### Oracle Fusion SCM Delete Sales Order
+
+Delete an Oracle sales order when its lifecycle and permissions allow deletion. This is not a cancellation operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `salesOrderKey` | string | Yes | Oracle-derived salesOrderKey; preserve the key exactly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether Oracle completed the deletion |
+| `salesOrderKey` | string | Deleted sales order key |
+
+### Oracle Fusion SCM Pick Release Shipment Lines
+
+Submit the Release Pick Wave scheduled process for the specified shipment lines. Inspect Oracle processing results for business errors; HTTP success alone does not establish completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `body` | json | Yes | JSON object with details: a non-empty array \(up to 100\) of \{"ShipmentLine":"123"\}. ShipmentLine is a string, not a JSON number. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | Oracle dynamic processing-result map with string values. Inspect every entry for business errors. |
+
+### Oracle Fusion SCM Confirm Quick Ship Lines
+
+Ship confirm quick-ship eligible shipment lines in a quick-ship enabled organization. Inspect Oracle processing results for business errors; HTTP success alone does not establish completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud SCM service-account credential |
+| `body` | json | Yes | JSON object with details: a non-empty array \(up to 100\) of \{"ShipmentLine":"123"\}. ShipmentLine is a string, not a JSON number. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | Oracle dynamic result map of arrays of string-valued objects. Inspect every entry for business errors. |
+
+

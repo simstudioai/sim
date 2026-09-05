@@ -960,6 +960,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  oracle_fusion_scm: {
+    name: 'Oracle Fusion Cloud SCM',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_scm: {
+        name: 'Oracle Fusion Cloud SCM',
+        description: 'Manage inventory, supply, work orders, shipments, and sales orders',
+        providerId: 'oracle_fusion_scm',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_scm',
+  },
   netsuite: {
     name: 'Oracle NetSuite',
     icon: NetSuiteIcon,
