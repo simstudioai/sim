@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Button, Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import type {
   WorkspaceKnowledgeSearchResult,
@@ -118,8 +118,6 @@ interface KnowledgeSearchResultsProps {
   query: string
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
-  /** Asks the agent the query itself, for a prose answer with citations. */
-  onAnswer: (query: string, filters: WorkspaceSearchFilters) => void
 }
 
 /**
@@ -135,7 +133,6 @@ export function KnowledgeSearchResults({
   workspaceId,
   query,
   onSummarize,
-  onAnswer,
 }: KnowledgeSearchResultsProps) {
   const {
     data: knowledgeBases = [],
@@ -217,9 +214,6 @@ export function KnowledgeSearchResults({
           {' · searched as you'}
           {indexingNote && <span className='block'>{indexingNote}</span>}
         </span>
-        <Button variant='ghost' size='sm' onClick={() => onAnswer(query, searchFilters)}>
-          Answer with Sim
-        </Button>
       </div>
       {showFilters && (
         <div className='flex flex-wrap items-center gap-1.5 px-2 pb-2'>

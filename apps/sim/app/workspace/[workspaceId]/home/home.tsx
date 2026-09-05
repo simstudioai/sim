@@ -575,7 +575,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       workspaceId={workspaceId}
       query={searchQuery}
       onSummarize={handleSummarize}
-      onAnswer={handleSummarize}
     />
   ) : null
 
