@@ -189,6 +189,13 @@ export const selectorManifest = {
     unknownDetail: true,
   }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
+  'oracleEpm.applications': providerSelector([], { detail: true }),
+  'oracleEpm.jobDefinitions': providerSelector(['applicationName', 'jobType'], {
+    readiness: { all: ['oauthCredential', 'applicationName', 'jobType'] },
+    sourceFields: { jobType: ['exchangeJobType', 'operation'] },
+    detail: true,
+  }),
+  'oracleEpm.repositoryFiles': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
     listMode: 'paginated',

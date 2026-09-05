@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,121 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_enterprise_profitability",
+      "slug": "oracle-epcm",
+      "name": "Oracle EPCM",
+      "description": "Operate Enterprise Profitability models, POVs, allocations, jobs, and results",
+      "longDescription": "Connect an Oracle EPM service-account credential to Enterprise Profitability and Cost Management (EPCM). Run existing models and allocation rules, manage POV data, inspect members, monitor jobs, exchange data/metadata, and transfer ordinary repository files up to 100 MB. Model, POV, cube, dimension, and rule names are tenant-specific manual inputs. No legacy PCM APIs, model/rule CRUD, migrations, or snapshot workflows. Most operations require Service Administrator. Dynamic member creation requires an eligible parent and a prior cube refresh. Oracle documentation is inconsistent about EPCM job-definition discovery; verify availability in your tenant and use manual saved-job names where necessary.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_enterprise_profitability",
+      "operations": [
+        {
+          "name": "List Applications",
+          "description": "List applications accessible to the EPCM service account; no application-type enum is assumed."
+        },
+        {
+          "name": "Get Member",
+          "description": "Read documented properties of one member; this does not list dimensions or descendants."
+        },
+        {
+          "name": "Add Member",
+          "description": "Create a dynamic member under an eligible parent. The parent must allow dynamic children and the cube must have been refreshed."
+        },
+        {
+          "name": "List Job Definitions",
+          "description": "List saved data or metadata exchange jobs of one type. EPCM availability requires tenant verification because Oracle's applicability matrix is inconsistent."
+        },
+        {
+          "name": "Generate Model Documentation",
+          "description": "Submit documentation generation for an existing EPCM model and its rules. Wait for the job before downloading the report."
+        },
+        {
+          "name": "Validate Model",
+          "description": "Submit validation of an existing EPCM model; retain the job ID and download the named validation file after completion."
+        },
+        {
+          "name": "Calculate Model",
+          "description": "Execute allocations in an existing EPCM model. Submission is separate from waiting; never blindly retry after an ambiguous failure."
+        },
+        {
+          "name": "Clear POV Data",
+          "description": "Clear explicitly selected input, allocated, or adjustment data in a specified POV and cube. This is destructive."
+        },
+        {
+          "name": "Copy POV Data",
+          "description": "Copy existing POV data between explicitly identified source and destination POVs and cubes."
+        },
+        {
+          "name": "Delete POV",
+          "description": "Delete a specified POV and its data from the calculation cube. This is destructive."
+        },
+        {
+          "name": "Get Job Status",
+          "description": "Read one Oracle job status without resubmitting or waiting."
+        },
+        {
+          "name": "Wait for Job",
+          "description": "Wait with a bounded timeout for an existing Oracle job. Timeout or local cancellation does not cancel the remote job."
+        },
+        {
+          "name": "Get Job Details",
+          "description": "Read one page of data/metadata import/export diagnostics, not EPCM calculation traces."
+        },
+        {
+          "name": "Get Child Job Details",
+          "description": "Read one page of child-job diagnostic messages for a metadata import or export."
+        },
+        {
+          "name": "Export Data Slice",
+          "description": "Read a bounded balance/results grid from a specified cube, preserving Oracle's string cell values. Notes and supporting detail are outside this operation."
+        },
+        {
+          "name": "Import Data Slice",
+          "description": "Write a bounded data grid. Aggregation adds values and is not idempotent; it is off by default. Cell notes are left unchanged."
+        },
+        {
+          "name": "Import Data",
+          "description": "Run a saved data import or provide a repository file and source type for an ad hoc import. Essbase source requires a cube."
+        },
+        {
+          "name": "Export Data",
+          "description": "Run a saved data export or provide a complete cube/row/column/POV selection for an ad hoc ZIP export."
+        },
+        {
+          "name": "Import Metadata",
+          "description": "Run an existing saved metadata import. ZIP entries must match configured dimensions; refreshCube optionally overrides the saved setting."
+        },
+        {
+          "name": "Export Metadata",
+          "description": "Run an existing saved metadata export to a repository ZIP file."
+        },
+        {
+          "name": "List Repository Files",
+          "description": "List ordinary EXTERNAL repository files; exclude LCM snapshots."
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload one authorized Sim file, at most 100 MB, as an ordinary repository file. Oracle rejects existing names; snapshot extraction is unsupported."
+        },
+        {
+          "name": "Download File",
+          "description": "Download one ordinary repository file, at most 100 MB, into Sim execution storage. Requires trusted workspace/workflow/execution context."
+        },
+        {
+          "name": "Delete File",
+          "description": "Delete one ordinary EXTERNAL repository file after verifying its type. LCM snapshots are excluded."
+        }
+      ],
+      "operationCount": 24,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",

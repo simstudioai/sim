@@ -1028,6 +1028,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  'oracle-epm-enterprise-profitability': {
+    name: 'Oracle Enterprise Profitability and Cost Management',
+    icon: NetSuiteIcon,
+    services: {
+      'oracle-epm-enterprise-profitability': {
+        name: 'Oracle EPCM',
+        description:
+          'Operate EPCM models, allocations, POVs, jobs, results, and ordinary repository files.',
+        providerId: 'oracle-epm-enterprise-profitability',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm-enterprise-profitability',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
