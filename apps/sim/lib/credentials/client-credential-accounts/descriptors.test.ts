@@ -7,6 +7,8 @@ import {
   getClientCredentialAccountDescriptor,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
   normalizeNetSuiteSuiteTalkOrigin,
+  normalizeOracleFusionApplicationOrigin,
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   resolveClientCredentialAuthMethod,
   resolveSalesforceAuthMethod,
@@ -19,6 +21,9 @@ const salesforce = getClientCredentialAccountDescriptor(SALESFORCE_SERVICE_ACCOU
 const box = getClientCredentialAccountDescriptor(BOX_SERVICE_ACCOUNT_PROVIDER_ID)!
 const zohoDesk = getClientCredentialAccountDescriptor(ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID)!
 const netSuite = getClientCredentialAccountDescriptor(NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID)!
+const oracleFusion = getClientCredentialAccountDescriptor(
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+)!
 
 const ids = (fields: { id: string }[]) => fields.map((field) => field.id)
 
@@ -50,6 +55,17 @@ describe('partitionClientCredentialFields', () => {
         secret: true,
         multiline: true,
       })
+    })
+
+    it('reuses the existing fields for an Oracle Fusion integration user', () => {
+      const { visible, required } = partitionClientCredentialFields(oracleFusion, undefined)
+      expect(ids(visible)).toEqual(['orgId', 'clientId', 'clientSecret'])
+      expect(ids(required)).toEqual(['orgId', 'clientId', 'clientSecret'])
+      expect(oracleFusion.fields).toEqual([
+        expect.objectContaining({ id: 'orgId', label: 'Fusion Applications URL', secret: false }),
+        expect.objectContaining({ id: 'clientId', label: 'Integration username', secret: false }),
+        expect.objectContaining({ id: 'clientSecret', label: 'Password', secret: true }),
+      ])
     })
   })
 
@@ -106,6 +122,41 @@ describe('normalizeNetSuiteSuiteTalkOrigin', () => {
     'https://user@1234567.suitetalk.api.netsuite.com',
   ])('rejects the non-authoritative SuiteTalk URL %j', (value) => {
     expect(normalizeNetSuiteSuiteTalkOrigin(value)).toBeUndefined()
+  })
+})
+
+describe('normalizeOracleFusionApplicationOrigin', () => {
+  it.each([
+    [' https://VISION.fa.us2.oraclecloud.com/ ', 'https://vision.fa.us2.oraclecloud.com'],
+    ['https://acme-prod.fa.ocs.oraclecloud.com', 'https://acme-prod.fa.ocs.oraclecloud.com'],
+    [
+      'https://pod.fa.eu-frankfurt-1.oraclecloud.com',
+      'https://pod.fa.eu-frankfurt-1.oraclecloud.com',
+    ],
+  ])('normalizes the supported application origin %j', (value, expected) => {
+    expect(normalizeOracleFusionApplicationOrigin(value)).toBe(expected)
+  })
+
+  it.each([
+    'http://vision.fa.us2.oraclecloud.com',
+    'https://vision.fa.us2.oraclecloud.com/path',
+    'https://vision.fa.us2.oraclecloud.com/path/..',
+    'https://vision.fa.us2.oraclecloud.com/./',
+    'https://vision.fa.us2.oraclecloud.com/%2e%2e/',
+    'https://vision.fa.us2.oraclecloud.com:443',
+    'https://vision.fa.us2.oraclecloud.com:8443',
+    'https://user@vision.fa.us2.oraclecloud.com',
+    'https://user:password@vision.fa.us2.oraclecloud.com',
+    'https://vision.fa.us2.oraclecloud.com?tenant=other',
+    'https://vision.fa.us2.oraclecloud.com#fragment',
+    'https://vision.fa.us2.oraclecloud.com.evil.example',
+    'https://vision.fa.us2.oraclecloud.co',
+    'https://fusion.example.com',
+    'https://fa.us2.oraclecloud.com',
+    'https://-vision.fa.us2.oraclecloud.com',
+    'https://vision.fa.-us2.oraclecloud.com',
+  ])('rejects the noncanonical Fusion Applications URL %j', (value) => {
+    expect(normalizeOracleFusionApplicationOrigin(value)).toBeUndefined()
   })
 })
 

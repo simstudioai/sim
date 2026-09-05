@@ -117,4 +117,31 @@ describe('parseClientCredentialAccountSecretBlob', () => {
       )
     ).toThrow(MALFORMED)
   })
+
+  it('requires the three reused fields for an Oracle Fusion credential blob', () => {
+    const oracleBlob = blob({
+      providerId: 'oracle-fusion-service-account',
+      orgId: 'https://vision.fa.us2.oraclecloud.com',
+      clientId: 'integration-user',
+      clientSecret: 'password',
+    })
+    expect(
+      parseClientCredentialAccountSecretBlob(oracleBlob, 'oracle-fusion-service-account')
+    ).toMatchObject({
+      orgId: 'https://vision.fa.us2.oraclecloud.com',
+      clientId: 'integration-user',
+      clientSecret: 'password',
+    })
+
+    expect(() =>
+      parseClientCredentialAccountSecretBlob(
+        blob({
+          providerId: 'oracle-fusion-service-account',
+          orgId: 'https://vision.fa.us2.oraclecloud.com',
+          clientSecret: undefined,
+        }),
+        'oracle-fusion-service-account'
+      )
+    ).toThrow(MALFORMED)
+  })
 })
