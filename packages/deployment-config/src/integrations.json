@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,105 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_data",
+      "slug": "oracle-epm-data-integration",
+      "name": "Oracle EPM Data Integration",
+      "description": "Manage Data Integration jobs, mappings, pipelines, POVs, and repository files.",
+      "longDescription": "Use existing Oracle EPM Data Integration and Data Management configurations with 20 actions. Integration and pipeline submissions return opaque Oracle JSON without assumed completion or execution-ID fields. Other documented jobs support optional bounded waiting. File transfers are capped at 100 MiB. Snapshot import clears target data; connection updates, replacement modes, POV locks, and file deletion change provider state. Product-specific Planning, FCCS, Tax, and Profitability APIs are outside this block.",
+      "bgColor": "#C74634",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_data",
+      "operations": [
+        {
+          "name": "List Connections",
+          "description": "List documented Data Integration connection names."
+        },
+        {
+          "name": "Get Connection",
+          "description": "Read a Data Integration source-system connection and its Oracle-returned options."
+        },
+        {
+          "name": "Update Connection",
+          "description": "Update an existing Data Integration connection using Oracle-encrypted secret option values."
+        },
+        {
+          "name": "Get Pipeline Details",
+          "description": "Read an existing pipeline's definition, variables, stages, jobs, and latest execution metadata."
+        },
+        {
+          "name": "Run Integration",
+          "description": "Submit an existing integration and return uninterpreted Oracle JSON, without inferring acceptance or completion."
+        },
+        {
+          "name": "Run Pipeline",
+          "description": "Submit an existing pipeline and return uninterpreted Oracle JSON, without assumed job-ID fields or polling."
+        },
+        {
+          "name": "Run Data Rule",
+          "description": "Execute an existing Data Management load rule with explicit period and import/export modes."
+        },
+        {
+          "name": "Run Batch",
+          "description": "Execute a predefined Data Management batch with optional bounded completion waiting."
+        },
+        {
+          "name": "Get Job Status",
+          "description": "Read a documented Data Integration job by its process ID, optionally waiting for completion."
+        },
+        {
+          "name": "Execute Report",
+          "description": "Run an existing Data Management report and return its job and repository output information."
+        },
+        {
+          "name": "Import Mappings",
+          "description": "Import member mappings from an uploaded file, optionally replacing existing mappings."
+        },
+        {
+          "name": "Export Mappings",
+          "description": "Export a location's member mappings to a repository file."
+        },
+        {
+          "name": "Import Data Integration",
+          "description": "Restore a Data Integration snapshot, clearing existing target setup/staging data instead of merging."
+        },
+        {
+          "name": "Export Data Integration",
+          "description": "Back up Data Integration setup and staging data to a snapshot in outbox."
+        },
+        {
+          "name": "Get POV Status",
+          "description": "Read location/application lock status for a Data Integration period and category."
+        },
+        {
+          "name": "Set POV Lock",
+          "description": "Lock or unlock a location/application POV; locking prevents associated data-load work."
+        },
+        {
+          "name": "List Files",
+          "description": "List EPM repository files and application snapshots with documented size and modification metadata."
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload one authorized UserFile of at most 100 MiB to the EPM repository without overwriting existing files."
+        },
+        {
+          "name": "Download File",
+          "description": "Download an EPM repository file of at most 100 MiB into this workflow's execution storage."
+        },
+        {
+          "name": "Delete File",
+          "description": "Permanently delete the specified EPM repository file or application snapshot."
+        }
+      ],
+      "operationCount": 20,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",

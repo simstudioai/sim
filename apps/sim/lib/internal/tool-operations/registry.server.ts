@@ -752,6 +752,29 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const ORACLE_EPM_DATA_TOOL_IDS = [
+  'oracle_epm_data_delete_file',
+  'oracle_epm_data_download_file',
+  'oracle_epm_data_execute_report',
+  'oracle_epm_data_export_data_integration',
+  'oracle_epm_data_export_mappings',
+  'oracle_epm_data_get_connection',
+  'oracle_epm_data_get_job_status',
+  'oracle_epm_data_get_pipeline_details',
+  'oracle_epm_data_get_pov_status',
+  'oracle_epm_data_import_data_integration',
+  'oracle_epm_data_import_mappings',
+  'oracle_epm_data_list_connections',
+  'oracle_epm_data_list_files',
+  'oracle_epm_data_run_batch',
+  'oracle_epm_data_run_data_rule',
+  'oracle_epm_data_run_integration',
+  'oracle_epm_data_run_pipeline',
+  'oracle_epm_data_set_pov_lock',
+  'oracle_epm_data_update_connection',
+  'oracle_epm_data_upload_file',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1427,6 +1450,9 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
+})
+registerFamily(handlerLoaders, ORACLE_EPM_DATA_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-data/execute-tool')).executeOracleEpmDataTool
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
