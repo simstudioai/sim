@@ -80,6 +80,10 @@ const IDENTITY_CENTER_TOOL_IDS = [
   'identity_center_check_assignment_status',
   'identity_center_check_assignment_deletion_status',
   'identity_center_list_account_assignments',
+  'identity_center_list_assignments_for_account',
+  'identity_center_describe_user',
+  'identity_center_describe_group',
+  'identity_center_list_group_memberships',
 ] as const
 
 const SECRETS_MANAGER_TOOL_IDS = [
