@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SqsResponse } from '@/tools/sqs/types'
 
 export const SQSBlock: BlockConfig<SqsResponse> = {
@@ -16,6 +16,7 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   iconColor: '#527FFF',
   icon: SQSIcon,
+  authMode: AuthMode.ApiKey,
   canvasPresentation: {
     defaultTitle: 'Amazon SQS',
     sentences: {

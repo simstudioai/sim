@@ -1126,7 +1126,7 @@
       "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "messaging", "automation"]

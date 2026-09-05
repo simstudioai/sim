@@ -1,0 +1,60 @@
+=== api-validation ===
+  apps/sim raw same-origin /api/ fetch() callsites: 0
+  apps/sim raw same-origin /api/ fetch() exemptions (annotated): 19
+  as unknown as double-casts (non-test): 6
+  as unknown as double-cast exemptions (annotated): 54
+  route files with raw await request.json() reads: 5 (baseline 5)
+  route raw await request.json() reads (callsites): 5
+  route raw await request.json() annotated exemptions: 1
+  contract untyped response schemas (z.unknown / z.object({}).passthrough / z.record): 0
+  contract untyped response annotated exemptions: 21
+  audit annotations missing reason: 0
+  raw fetch examples:
+  same-origin /api/ fetch examples:
+  double-cast examples:
+    apps/sim/tools/hosting.ts:9 const value = (params as unknown as Record<string, unknown>)[condition.field]
+    apps/sim/executor/utils/errors.ts:203 const candidate = current as unknown as { statusCode?: unknown }
+    apps/sim/executor/utils/errors.ts:286 const attached = error as unknown as AttachedBlockContext
+    packages/logger/src/index.ts:149 errorObj[key] = (error as unknown as Record<string, unknown>)[key]
+    packages/ts-sdk/src/index.ts:511 const errorData = (await response.json().catch(() => ({}))) as unknown as any
+    packages/ts-sdk/src/index.ts:687 const errorData = (await response.json().catch(() => ({}))) as unknown as any
+  raw await request.json() examples:
+    apps/sim/app/api/organizations/route.ts:93 const rawBody = await request.json().catch(() => ({}))
+    apps/sim/app/api/copilot/chat/abort/route.ts:40 const body = await request.json().catch((err) => {
+    apps/sim/app/api/resume/[workflowId]/[executionId]/[contextId]/route.ts:45 payload = await request.json()
+    apps/sim/app/api/workspaces/[id]/route.ts:245 const rawBody = await request.json().catch(() => ({}))
+    apps/sim/app/api/billing/portal/route.ts:24 const body = await request.json().catch(() => ({}))
+  untyped response schema examples:
+  annotations missing reason (must be 0 for --enforce-boundary-baseline):
+  annotation forms: `// boundary-raw-fetch: <reason>` (raw fetch in client hook OR same-origin /api/ fetch outside an API route handler), `// double-cast-allowed: <reason>` (double-cast), `// boundary-raw-json: <reason>` (raw request.json read), `// untyped-response: <reason>` (z.unknown() / z.object({}).passthrough() / z.record(z.string(), z.unknown()) response schema)
+
+API validation audit passed.
+EXIT:0
+=== canvas-sentences ===
+$ bun run apps/sim/scripts/check-canvas-sentences.ts --require-coverage
+✓ Canvas sentence check passed (346 block(s))
+
+Coverage: 5648/5648 operations (100%) across 346/346 blocks
+EXIT:0
+=== docs:check ===
+Getting info for tool: zoom_delete_meeting
+Getting info for tool: zoom_get_meeting_invitation
+Getting info for tool: zoom_list_recordings
+Getting info for tool: zoom_get_meeting_recordings
+Getting info for tool: zoom_delete_recording
+Getting info for tool: zoom_list_past_participants
+Getting info for tool: zoominfo_search_companies
+Getting info for tool: zoominfo_search_contacts
+Getting info for tool: zoominfo_enrich_companies
+Getting info for tool: zoominfo_enrich_contacts
+Getting info for tool: zoominfo_search_intent
+Getting info for tool: zoominfo_search_news
+Generating trigger documentation...
+✓ Loaded full config for 403 triggers
+Skipping trigger provider: generic
+Skipping trigger provider: slack
+Skipping trigger provider: table
+Skipping trigger provider: rss
+✓ Trigger sections merged into 61 integration pages
+✓ Generated integration docs are in sync
+EXIT:0

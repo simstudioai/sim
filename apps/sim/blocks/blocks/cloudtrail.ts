@@ -171,7 +171,16 @@ export const CloudTrailBlock: BlockConfig<
       id: 'attributeKey',
       title: 'Filter By',
       type: 'dropdown',
+      /**
+       * Every LookupEvents attribute is optional, so an unfiltered Region-wide lookup is
+       * the correct default. A dropdown with no `value()` seeds and persists its first
+       * selectable option, which would pair an attribute with an empty value and trip the
+       * both-or-neither guard before any AWS call — so the no-filter sentinel has to be a
+       * real, selectable option the user can also return to.
+       */
+      value: () => '',
       options: [
+        { label: 'No filter', id: '' },
         { label: 'User Name', id: 'Username' },
         { label: 'Event Name', id: 'EventName' },
         { label: 'Event Source', id: 'EventSource' },

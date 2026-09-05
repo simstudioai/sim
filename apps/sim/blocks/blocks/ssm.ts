@@ -492,7 +492,15 @@ export const SSMBlock: BlockConfig<SsmSendCommandResponse> = {
       id: 'parameterTier',
       title: 'Parameter Tier',
       type: 'dropdown',
+      /**
+       * `Tier` is optional, and omitting it lets the account's own default apply —
+       * which may be Intelligent-Tiering. A dropdown with no `value()` seeds and
+       * persists its first option, so without this sentinel the block would silently
+       * force `Standard` on every write.
+       */
+      value: () => '',
       options: [
+        { label: 'Account default', id: '' },
         { label: 'Standard', id: 'Standard' },
         { label: 'Advanced', id: 'Advanced' },
         { label: 'Intelligent-Tiering', id: 'Intelligent-Tiering' },
