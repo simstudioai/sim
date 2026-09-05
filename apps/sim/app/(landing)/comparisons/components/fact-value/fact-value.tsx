@@ -7,34 +7,20 @@ export interface FactValueProps {
   fact: Fact
 }
 
+const TERMINAL_PUNCTUATION = /[.!?][\])}'"’”]*$/
+
 /**
- * Renders one {@link Fact} for a glancing reader while keeping the full
- * granular fact server-rendered for crawlers and AI answer engines.
- *
- * - A true "Yes"/"No" fact renders as an icon alone (a monochrome check or
- *   muted cross, no colored pass/fail styling), no visible text, since the
- *   label column and surrounding context already say what's being asked.
- * - Any other fact shows its `shortValue` (a compact, pre-authored
- *   restatement of `value`), never the full sentence.
- * - `Tooltip` here is a cursor-following mini-bubble meant for a short
- *   one-line label (see its own docs/usages: "Refresh", "last updated: X")
- *  . It is deliberately NOT used to hold paragraph-length detail text, only
- *   the compact source citation, which is exactly what it's designed for.
- * - When a source exists, the visible glance (icon or `shortValue` text)
- *   IS the hover/click target for that source, via `SourceLink`, rather
- *   than a separate info-icon next to every value. One affordance per
- *   fact keeps a 58-row table from reading as icon-cluttered.
- * - A `sr-only` span always carries the complete value, detail, and source
- *   in the initial server-rendered HTML, independent of hover/JS state, so
- *   an LLM or crawler reading the page gets full granularity even though a
- *   human sees only the compact glance.
+ * Keeps the full value and detail in server-rendered text while displaying
+ * a compact value. Only verified boolean claims use icons; other claims keep
+ * their confidence labels and fall back to the original value when needed.
+ * Source tooltips stay brief so qualifications remain available without hover.
  */
 export function FactValue({ fact }: FactValueProps) {
-  const { status, text } = parseFactValue(fact.value)
-  const isBoolean = status === 'yes' || status === 'no'
+  const { status } = parseFactValue(fact.value)
+  const isBoolean = fact.confidence === 'verified' && (status === 'yes' || status === 'no')
   const primarySource = fact.sources[0]
 
-  const detailSeparator = /[.!?]$/.test(fact.value.trimEnd()) ? ' ' : '. '
+  const detailSeparator = TERMINAL_PUNCTUATION.test(fact.value.trimEnd()) ? ' ' : '. '
   const fullText = fact.detail ? `${fact.value}${detailSeparator}${fact.detail}` : fact.value
 
   const glance = isBoolean ? (
@@ -45,9 +31,7 @@ export function FactValue({ fact }: FactValueProps) {
     )
   ) : null
 
-  // A pure yes/no fact renders as an icon only. The "why" lives in the
-  // source link and the sr-only text, not cluttering the glance view.
-  const shortText = isBoolean ? null : (fact.shortValue ?? text)
+  const shortText = isBoolean ? null : (fact.shortValue ?? fact.value)
 
   const valueNode = glance ?? (
     <span className='truncate text-[var(--text-body)] text-small'>{shortText}</span>
@@ -62,6 +46,11 @@ export function FactValue({ fact }: FactValueProps) {
       ) : (
         valueNode
       )}
+      {fact.confidence !== 'verified' ? (
+        <span className='shrink-0 text-[var(--text-muted)] text-caption'>
+          {fact.confidence === 'estimated' ? '(estimate)' : '(unverified)'}
+        </span>
+      ) : null}
       <span className='sr-only'>{fullText}</span>
     </div>
   )

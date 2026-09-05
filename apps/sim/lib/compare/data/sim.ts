@@ -1,355 +1,333 @@
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/**
- * Sim's own profile, for use as the constant left-hand column on every
- * "Sim vs {Competitor}" page. Facts are sourced from the codebase itself
- * (file paths as of the compare-pages-data worktree, 2026-07-02) where
- * possible; a small number of facts (e.g. community size) are self-reported
- * figures rather than independently auditable, and are marked
- * `confidence: 'estimated'` accordingly.
- */
+/** Reviewed against public documentation and source code on 2026-09-04. */
 export const simProfile: CompetitorProfile = {
   id: 'sim',
   name: 'Sim',
   website: 'https://sim.ai',
   oneLiner:
-    'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting 1,000+ integrations and every major LLM to automate real work visually, conversationally, or with code.',
+    'Sim is an open-source AI workspace for building and running agents with a visual workflow canvas, natural-language Chat, custom code, connected services, and multiple model providers.',
   standoutFeatures: [
     {
-      title: 'AI Copilot / Chat agent-building surface',
+      title: 'Workspace Chat and workflow-scoped Copilot',
       description:
-        'A workspace-wide natural-language surface (Chat) that can build workflows, manage data, and take actions across integrations, plus an in-editor Copilot scoped to building and editing a single workflow directly.',
+        'Use natural language to build and edit workflows, work with files and tables, research, and schedule jobs. The in-editor assistant focuses on the current workflow.',
       shortDescription:
-        'Chat builds and manages work across the workspace; in-editor Copilot edits a single workflow.',
+        'Build workflows and manage workspace resources through natural-language requests.',
       source: {
-        url: 'https://docs.sim.ai/copilot',
-        label: 'Sim Docs: Copilot',
-        asOf: '2026-07-08',
+        url: 'https://docs.sim.ai/chat',
+        label: 'Sim Docs: Chat',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Hybrid semantic + keyword knowledge base',
+      title: 'Built-in knowledge base with editable chunks',
       description:
-        'Built-in RAG with pgvector embeddings and a generated tsvector column for combined vector + full-text search, plus a token-based chunker with configurable chunk size/overlap and 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml).',
-      shortDescription:
-        'Combines vector and full-text search with configurable chunking across 11 file formats.',
+        'Upload documents, configure chunking, search by meaning, and inspect or edit individual chunks. Connectors can keep external content synchronized.',
+      shortDescription: 'Search your documents and inspect, edit, merge, or split their chunks.',
       source: {
-        url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-        label: 'Sim codebase: KB schema + file-parsers',
-        asOf: '2026-07-02',
+        url: 'https://docs.sim.ai/knowledgebase',
+        label: 'Sim Docs: Knowledge base',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Native MCP client and server',
+      title: 'MCP workflow publishing',
       description:
-        'A dedicated MCP block lets any workflow call external MCP servers as a tool, and a serve/workflow-servers API surface lets Sim expose its own workflows as MCP servers.',
-      shortDescription:
-        'Call external MCP servers as tools, or expose Sim workflows as an MCP server.',
+        'Publish deployed workflows as tools on public or API-key-protected MCP servers for external assistants.',
+      shortDescription: 'Expose deployed workflows as tools for MCP-compatible clients.',
       source: {
         url: 'https://docs.sim.ai/workflows/deployment/mcp',
-        label: 'Sim Docs: MCP Deployment',
-        asOf: '2026-07-02',
+        label: 'Sim Docs: MCP deployment',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Fork a workspace into dev, qa, and prod environments',
+      title: 'Workspace forks for separate environments',
       description:
-        'Fork a whole workspace into a dev/qa/prod-style child environment, preview a diff, and promote changes bidirectionally. Credential and env-var remapping is required on every promote, so secrets never cross environments silently.',
-      shortDescription: 'Fork, diff, and promote environments with mandatory credential remapping.',
+        'Fork workspaces and preview, push, pull, or roll back changes. Sync requires mapping environment-specific resources and credentials. Enterprise on Sim Cloud.',
+      shortDescription: 'Fork, diff, and sync workspaces with explicit resource mappings.',
       source: {
         url: 'https://docs.sim.ai/platform/enterprise/forks',
-        label: 'Sim Docs: Workspace Forks',
-        asOf: '2026-07-08',
+        label: 'Sim Docs: Workspace forks',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Human-in-the-loop approvals with durable resume',
+      title: 'Human-in-the-loop approval steps',
       description:
-        'A dedicated block pauses a run and waits for a human-submitted approval form, backed by persisted execution snapshots so the run can resume later via a link, even after a server restart.',
+        'Pause a workflow for human input and resume it through an approval portal or API. Configure notification steps to deliver the approval link.',
+      shortDescription: 'Pause for approval and resume through a portal or API.',
+      source: {
+        url: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
+        label: 'Sim Docs: Human in the Loop',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Self-hostable open-source core',
+      description:
+        'Run the Apache-2.0 core with Docker or Kubernetes. Enterprise code has separate license terms, and Chat requires a Sim-managed service connection.',
       shortDescription:
-        'Pause a run for human approval and resume later via a durable snapshot link.',
+        'Self-host the core; Enterprise licensing and external services have separate requirements.',
       source: {
-        url: 'https://docs.sim.ai/blocks/human-in-the-loop',
-        label: 'Sim Docs: Human in the Loop Block',
-        asOf: '2026-07-02',
+        url: 'https://docs.sim.ai/platform/self-hosting',
+        label: 'Sim Docs: Self-hosting',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Self-hostable under Apache 2.0',
+      title: 'Live workflow collaboration',
       description:
-        'Fully open source (Apache 2.0), with Docker Compose files and a Helm chart for Kubernetes deployment, alongside a managed cloud-hosted option.',
-      shortDescription: 'Fully open source with Docker Compose and Helm deployment options.',
-      source: {
-        url: 'https://docs.sim.ai/introduction',
-        label: 'Sim Docs: Introduction (FAQ - Open Source License)',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Live multiplayer canvas editing',
-      description:
-        'Real-time cursors, selection broadcasting, and synced concurrent edits over a dedicated realtime backend, so a team can build the same workflow together at the same time.',
-      shortDescription: 'Real-time cursors, selections, and synced edits on the same canvas.',
+        'The collaborative editor synchronizes workflow activity and broadcasts participant cursors and selections.',
+      shortDescription: 'Work together on a canvas with live cursors and selections.',
       source: {
         url: 'https://github.com/simstudioai/sim/blob/main/apps/realtime/src/handlers/presence.ts',
-        label: 'Sim codebase: realtime presence handler',
-        asOf: '2026-07-04',
+        label: 'Sim source: live cursors and selections',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'Smaller integration catalog than the largest generalist automation platforms',
+      title: 'Self-hosting still requires service configuration',
       description:
-        "Sim ships 266 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
-      shortDescription:
-        "266 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
+        'The core runs on your infrastructure, but Chat uses a Sim-managed service. Knowledge-base embeddings, integrations, and remote code execution require their configured providers or credentials.',
+      shortDescription: 'Plan for Chat, embedding, integration, and sandbox service dependencies.',
       source: {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
-        label: 'Sim codebase: BLOCK_REGISTRY count',
-        asOf: '2026-07-08',
+        url: 'https://docs.sim.ai/platform/self-hosting',
+        label: 'Sim Docs: Self-hosting',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'One-year-old company',
+      title: 'Enterprise capabilities have separate terms',
       description:
-        'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year," newer to market than incumbents like Zapier, n8n, or Workato.',
-      shortDescription: 'Newer to market than incumbents like Zapier, n8n, or Workato.',
+        'The core repository is Apache-2.0 licensed. Enterprise features have a separate license; Sim Cloud also gates governance features by plan.',
+      shortDescription: 'Check Enterprise licensing and plan eligibility for governance features.',
       source: {
-        url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-        label: 'n8n: 2026 AI Agent Development Tools report',
-        asOf: '2026-07-02',
+        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE',
+        label: 'Sim Enterprise License',
+        asOf: '2026-09-04',
       },
     },
   ],
   facts: {
     platform: {
       builderType: {
-        value: 'Visual drag-and-drop canvas, natural-language (Chat), or code (API/SDK)',
-        shortValue: 'Visual canvas, chat, or code',
+        value: 'Visual workflow canvas, natural-language Chat, and custom code or API access',
+        shortValue: 'Visual canvas, Chat, code, and API',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/introduction',
-            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Introduction',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/chat',
+            label: 'Sim Docs: Chat',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
-        value:
-          'Low for visual building; natural-language Chat surface (with a workflow-scoped Copilot) for non-technical builders',
-        detail:
-          'Chat lets users describe a workflow in plain language and have Sim scaffold or edit it; the visual canvas requires no code to connect blocks.',
-        shortValue: 'Low, plus natural-language Chat for non-technical users',
+        value: 'Not objectively rated; visual and conversational building are documented',
+        shortValue: 'No independently measured learning-curve rating',
+        detail: 'Advanced integrations, code, and self-hosting still require technical setup.',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.sim.ai/introduction',
-            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Introduction',
+            asOf: '2026-09-04',
           },
         ],
       },
       selfHostOption: {
-        value: 'Yes: Docker Compose or Kubernetes (Helm)',
+        value: 'Yes: Docker Compose and Kubernetes deployment options for the open-source core',
         shortValue: 'Docker Compose or Kubernetes',
+        detail:
+          'Configure external services separately; Enterprise code has its own license terms.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/self-hosting/docker',
-            label: 'Sim Docs: Self-Hosting with Docker',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/self-hosting/docker',
+            label: 'Sim Docs: Docker',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.sim.ai/self-hosting/kubernetes',
-            label: 'Sim Docs: Kubernetes (Helm) self-hosting',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/self-hosting/kubernetes',
+            label: 'Sim Docs: Kubernetes',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
-        value:
-          'Cloud-hosted (managed, multi-tenant SaaS) or self-hosted (Docker/Kubernetes). No documented managed single-tenant/VPC hosting tier in between',
-        detail:
-          'The Enterprise plan\'s only hosting-related row in the pricing comparison table is a boolean "Self Hosting" flag; there is no dedicated-instance/VPC offering.',
-        shortValue: 'Cloud-hosted or self-hosted, no mid-tier VPC option',
+        value: 'Managed Sim Cloud or a deployment on your own infrastructure',
+        shortValue: 'Managed cloud or self-hosted',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/self-hosting',
-            label: 'Sim Docs: Self-Hosting',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Self-hosting',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.sim.ai/pricing',
-            label: 'Sim Pricing Page',
-            asOf: '2026-07-02',
+            label: 'Sim pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
-        value:
-          'No: the pre-built workflow template gallery (landing and in-workspace) was removed platform-wide. Sim now surfaces per-integration starter prompts instead of a template library.',
-        shortValue: 'No template gallery; per-integration starter prompts only',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://github.com/simstudioai/sim/commit/df5ad7d45f4fd38ab724e7726b083c2b928a1542',
-            label: 'Sim codebase: templates gallery and APIs removed',
-            asOf: '2026-07-08',
-          },
-        ],
+        value: 'Unknown: a current importable workflow-template gallery was not verified',
+        shortValue: 'Importable template gallery not verified',
+        confidence: 'unknown',
+        sources: [],
       },
       license: {
-        value: 'Apache License 2.0',
-        shortValue: 'Apache 2.0',
+        value: 'Apache 2.0 for the core; separate Enterprise license for enterprise features',
+        shortValue: 'Apache-2.0 core; separate Enterprise terms',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE',
+            label: 'Sim Enterprise License',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://docs.sim.ai/introduction',
-            label: 'Sim Docs: Introduction (FAQ - Open Source License)',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Introduction',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim',
+            label: 'Sim GitHub repository',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
-        value:
-          'Yes: fork a whole workspace into a dev/qa/prod-style child, diff it, and promote or roll back changes in either direction. Credential and env-var remapping is required before every promote, so secrets are never silently copied across environments',
+        value: 'Yes: workspace forks with diff, push/pull sync, and rollback',
+        shortValue: 'Workspace forks and sync (Enterprise on Cloud)',
         detail:
-          'Gated to Enterprise plan on hosted Sim, or a FORKING_ENABLED flag on self-hosted deployments.',
-        shortValue: 'Fork, diff, and promote environments with forced credential remap',
+          'Sync requires mapping credentials and other environment-specific resources; copying and synchronization behavior varies by resource.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/forks',
-            label: 'Sim Docs: Workspace Forks',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Workspace forks',
+            asOf: '2026-09-04',
           },
         ],
       },
       versionControlDepth: {
         value:
-          'Deployed-version history with rollback for every workflow; server-persisted checkpoint/revert and visual diff (accept/reject) specifically for Copilot AI edits',
-        detail:
-          'Manual drag-and-drop undo/redo is client-side/localStorage only (capped at 100 ops, 5 stacks), not server-synced across devices. Deployment history does not include an arbitrary version-to-version diff tool, and knowledge base documents have no version history.',
-        shortValue: 'Deployment rollback plus Copilot edit diff/revert',
+          'Deployment history with promotion of an older version and loading a deployment onto the canvas',
+        shortValue: 'Deployment history and rollback',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workflows/diff/diff-engine.ts',
-            label: 'Sim codebase: WorkflowDiffEngine',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-            label: 'Sim codebase: workflowCheckpoints / workflow_deployment_version tables',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/deployment/api',
+            label: 'Sim Docs: API deployment',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
-        value:
-          'Yes: live multiplayer editing of the same workflow canvas, with real-time cursors, selection broadcasting, and synced concurrent edits over a dedicated realtime backend',
-        shortValue: 'Live multiplayer canvas: cursors, selections, synced edits',
+        value: 'Yes: collaborative workflow editing with live cursors and selections',
+        shortValue: 'Live canvas cursors and selections',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/realtime/src/handlers/presence.ts',
-            label: 'Sim codebase: realtime presence handler (cursor/selection broadcast)',
-            asOf: '2026-07-02',
+            label: 'Sim source: live cursors and selections',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/realtime/src/handlers/operations.ts',
-            label: 'Sim codebase: realtime operations handler',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/introduction',
+            label: 'Sim Docs: Introduction',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeFileStorage: {
-        value:
-          'Yes: a native Files area with folder hierarchy, link-based sharing (public, password, email OTP, or SSO auth), and a workspace-level Recently Deleted view covering workflows, tables, knowledge bases, files, and folders',
-        detail:
-          'Admins can restrict which share-auth modes (public/password/email/SSO) a permission group is allowed to use.',
-        shortValue: 'Folders, password-protected sharing, deleted-item recovery',
+        value: 'Yes: a workspace file store shared by users and workflows',
+        shortValue: 'Shared workspace files and workflow outputs',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/files/components/share-modal/share-modal.tsx',
-            label: 'Sim codebase: file share modal (password/email/SSO modes)',
-            asOf: '2026-07-08',
+            url: 'https://docs.sim.ai/files',
+            label: 'Sim Docs: Files',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/settings/components/recently-deleted/recently-deleted.tsx',
-            label: 'Sim codebase: Recently Deleted (files, folders, and other resources)',
-            asOf: '2026-07-08',
+            url: 'https://www.sim.ai/files',
+            label: 'Sim Files',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataTables: {
         value:
-          'Yes: a native spreadsheet-like Tables feature (typed columns, not an external DB connector) with full keyboard support (arrow keys, Tab, copy-paste bulk load, Cmd/Ctrl+Z undo) and atomic per-row writes from multiple workflows at once',
+          'Yes: native typed tables with keyboard editing, spreadsheet paste, and workflow access',
+        shortValue: 'Typed tables with spreadsheet paste and undo',
         detail:
-          'No public fixed row-limit figure is documented (guidance says paginate reads past ~100k rows); a workflow can also be wired to run per row via a "workflow column."',
-        shortValue: 'Spreadsheet-like tables with keyboard nav and undo',
+          'Published per-table limits are 50,000 rows on Free, 100,000 on Pro, and 500,000 on Max; Enterprise is custom.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/tables',
             label: 'Sim Docs: Tables',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.sim.ai/pricing',
+            label: 'Sim pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       richTextEditor: {
-        value:
-          'Yes: markdown files opened in the Files viewer render in an inline WYSIWYG-style rich markdown editor, with inline @-mention links to other Sim resources',
-        shortValue: 'Inline WYSIWYG markdown editor with @-mentions',
+        value: 'Yes: rich Markdown editing with formatting, tables, lists, images, and diagrams',
+        shortValue: 'Rich Markdown editor',
+        detail:
+          'Files containing unsupported editable constructs such as raw HTML or footnotes open read-only to preserve the source.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx',
-            label: 'Sim codebase: rich markdown editor',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/files/editor',
+            label: 'Sim Docs: File editor',
+            asOf: '2026-09-04',
           },
         ],
       },
       subWorkflows: {
-        value:
-          "Yes: a Workflow block calls another saved workflow as a step, waits for it to finish, runs its latest deployed version, and maps parent variables into the child's input form",
-        detail: 'Self-references are blocked to prevent infinite recursion.',
-        shortValue: 'Workflow block calls a saved workflow as a reusable step',
+        value: 'Yes: a Workflow block calls a child workflow and returns its result',
+        shortValue: 'Reusable child-workflow calls',
+        detail:
+          'Deployment behavior depends on the execution context; use deployed child workflows for production.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/blocks/workflow',
             label: 'Sim Docs: Workflow block',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
-        value:
-          "Yes: a user with admin access on a workflow's workspace can publish its deployed version as a named, iconed custom block that appears in the block toolbar for the whole organization. Inputs are read live from the source workflow's Start block; the publisher picks which outputs to expose. The block always runs the source workflow's latest deployed version, and its internal steps and intermediate values are never exposed to consumers",
+        value: 'Yes: publish a deployed workflow as a reusable organization-wide block',
+        shortValue: 'Publish workflows as organization-wide blocks',
         detail:
-          'Enterprise-gated on Sim Cloud; self-hosted deployments can opt in via a feature flag. Distinct from the Workflow (sub-workflow) block, which composes a workflow the same author controls, and from custom code/tool blocks, which run inline code rather than a full deployed workflow.',
-        shortValue: 'Publish a deployed workflow as an org-wide reusable block',
+          'Workspace admins choose exposed outputs. Consumers do not need access to the source workflow. Internal steps stay hidden by default, but publishers can enable consumer trace visibility.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/custom-blocks/route.ts',
-            label: 'Sim codebase: custom-blocks publish API (admin gate)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/custom/build-config.ts',
-            label: 'Sim codebase: custom-block config builder',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/settings/navigation.ts',
-            label: 'Sim codebase: Custom blocks nav entry (Enterprise/self-hosted gating)',
-            asOf: '2026-07-08',
+            url: 'https://docs.sim.ai/platform/enterprise/custom-blocks',
+            label: 'Sim Docs: Custom blocks',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -357,477 +335,420 @@ export const simProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 21 named providers',
-        detail: 'apps/sim/providers/models.ts defines 21 provider entries.',
-        shortValue: '21 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
+          'OpenAI, Anthropic, Google, Azure, AWS Bedrock, OpenRouter, and other hosted or local model providers',
+        shortValue: 'Multiple hosted and local model providers',
+        detail:
+          'The workflow Agent block supports provider selection; the workspace Chat service has its own model policy.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/providers/models.ts',
-            label: 'Sim codebase: PROVIDER_DEFINITIONS',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/agent',
+            label: 'Sim Docs: Agent block',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
         value:
-          'Yes: dedicated agent, function-calling, RAG, code-execution, and evaluation blocks, not just data routing',
-        shortValue: 'Dedicated agent, function-calling, RAG, code, eval blocks',
+          'Yes: Agent blocks reason, call configured tools, and return text or structured output',
+        shortValue: 'Agent blocks with reasoning and tool calls',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
-            label: 'Sim codebase: block registry',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/agent',
+            label: 'Sim Docs: Agent block',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
         value:
-          'Yes: Chat + in-editor AI Copilot can build and modify workflows from natural-language requests',
-        shortValue: 'Chat and Copilot build/edit workflows from prompts',
+          'Yes: workspace Chat and workflow-scoped assistance build and edit workflows from prompts',
+        shortValue: 'Chat and Copilot build and edit workflows',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/copilot',
-            label: 'Sim Docs: Copilot',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/chat',
+            label: 'Sim Docs: Chat',
+            asOf: '2026-09-04',
           },
         ],
       },
       knowledgeBaseRag: {
         value:
-          'Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus 51 connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload',
-        shortValue: 'Hybrid vector + full-text search, 11 file formats, 51 connectors',
+          'Yes: document ingestion, semantic retrieval, configurable chunking, and external-source connectors',
+        shortValue: 'Document RAG with chunking and connectors',
+        detail:
+          'Supported formats include PDF, Word, text, Markdown, HTML, spreadsheets, presentations, CSV, JSON, and YAML. Live sync availability depends on plan.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-            label: 'Sim codebase: KB schema (pgvector + tsvector)',
-            asOf: '2026-07-08',
+            url: 'https://docs.sim.ai/knowledgebase',
+            label: 'Sim Docs: Knowledge base',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/file-parsers/index.ts',
-            label: 'Sim codebase: file-parser registry (11 format families)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/connectors/registry.ts',
-            label: 'Sim codebase: connector registry (51 connectors)',
-            asOf: '2026-07-08',
+            url: 'https://docs.sim.ai/knowledgebase/connectors',
+            label: 'Sim Docs: Connectors',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
-        value:
-          'Yes: both MCP client (call external MCP servers) and MCP server (expose Sim workflows as MCP tools)',
-        shortValue: 'Both MCP client and MCP server',
+        value: 'Yes: call external MCP tools and publish deployed workflows as MCP tools',
+        shortValue: 'MCP client and server',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/mcp',
-            label: 'Sim Docs: Using MCP Tools',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/agents/mcp',
+            label: 'Sim Docs: Using MCP tools',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.sim.ai/workflows/deployment/mcp',
-            label: 'Sim Docs: MCP Deployment',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: MCP deployment',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
-        value:
-          'Evaluator block (LLM-judge scoring against user-defined named metrics) and Guardrails block (JSON validity, regex, RAG/hallucination scoring, PII detection/masking)',
-        detail:
-          'These are per-call scoring/validation primitives, not a batch golden-dataset eval-suite runner or A/B prompt-testing harness.',
-        shortValue: 'LLM-judge Evaluator plus Guardrails validation block',
+        value: 'Evaluator scoring and Guardrails checks for JSON, regex, grounding, and PII',
+        shortValue: 'LLM scoring plus validation and PII checks',
+        detail: 'These are workflow blocks; each Guardrails block performs one configured check.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/blocks/evaluator',
-            label: 'Sim Docs: Evaluator Block',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/evaluator',
+            label: 'Sim Docs: Evaluator',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.sim.ai/blocks/guardrails',
-            label: 'Sim Docs: Guardrails Block',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/guardrails',
+            label: 'Sim Docs: Guardrails',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
-        value:
-          'Yes: dedicated approval block that pauses a run and waits for a human-submitted "Resume Form," with durable pause/resume via persisted execution snapshots and notification hooks (e.g. Slack, email) carrying the resume link',
-        shortValue: 'Approval block with durable pause/resume and notifications',
+        value: 'Yes: pause a workflow for approval or input, then resume through a portal or API',
+        shortValue: 'Approval portal and resumable workflow steps',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/blocks/human-in-the-loop',
-            label: 'Sim Docs: Human in the Loop Block',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/execution/snapshot.ts',
-            label: 'Sim codebase: execution snapshot serializer',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
+            label: 'Sim Docs: Human in the Loop',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
-        value:
-          'Yes: dedicated image (3 provider families incl. OpenAI, Gemini, Fal.ai proxy), video (5 provider families incl. Runway, Veo, Luma, Hailuo, Fal.ai proxy), text-to-speech (7 providers), and speech-to-text (5 providers) blocks',
-        shortValue: 'Image, video, text-to-speech, and speech-to-text blocks',
+        value: 'Yes: image, video, text-to-speech, and speech-to-text integrations',
+        shortValue: 'Image, video, and audio integrations',
+        detail: 'Available operations depend on the selected provider and credentials.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/image_generator.ts',
-            label: 'Sim codebase: Image Generator V2',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/video_generator.ts',
-            label: 'Sim codebase: Video Generator V3',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/tts.ts',
-            label: 'Sim codebase: TTS block (7 providers)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/stt.ts',
-            label: 'Sim codebase: STT block (5 providers)',
-            asOf: '2026-07-08',
+            url: 'https://www.sim.ai/integrations',
+            label: 'Sim integration catalog',
+            asOf: '2026-09-04',
           },
         ],
       },
       dynamicToolUse: {
         value:
-          'No: an Agent block calls tools the workflow author explicitly added to it at build time, rather than browsing and picking from a broader pool (e.g. an entire MCP server catalog) at inference time',
-        detail:
-          'Runtime MCP "discovery" exists to resolve/refresh the schema of an already-configured tool. The model does not browse or choose from the server\'s full tool list.',
-        shortValue: 'Tools pre-wired at build time; runtime discovery refreshes schemas',
+          'Agent blocks select among tools attached by the author; workspace Chat has broader workspace actions',
+        shortValue: 'Agent tools are configured; Chat has workspace actions',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/handlers/agent/agent-handler.ts',
-            label: 'Sim codebase: agent tool resolution (pre-wired only)',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/agent',
+            label: 'Sim Docs: Agent block',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/chat',
+            label: 'Sim Docs: Chat',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelFallback: {
         value:
-          "No: a failed or rate-limited LLM call is retried using Sim's own hosted API keys for the same model, rather than automatically switching to a different model or provider",
-        detail:
-          'A "fallback" comment in the provider layer refers to rotating among Sim\'s own hosted API keys for the same model, not switching models.',
-        shortValue: 'Retries rotate hosted keys for the same model, not across providers',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/providers/index.ts',
-            label: 'Sim codebase: executeProviderRequest (no retry/fallback)',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: automatic failover to another model or provider is not documented for the Agent block',
+        shortValue: 'Cross-model failover not verified',
+        confidence: 'unknown',
+        sources: [],
       },
       agentSkills: {
         value:
-          'Yes: named, reusable "Agent Skills" (built on the open Agent Skills / SKILL.md format) that agents load on demand via progressive disclosure, editable in-app or imported from a SKILL.md file or GitHub URL',
-        detail:
-          "Only the skill name and description sit in the agent's system prompt (~50-100 tokens each); the full instructions load into context only when the agent calls load_skill.",
-        shortValue: 'Named, on-demand skills using the open SKILL.md format',
+          'Yes: reusable Markdown instruction packages loaded on demand by agents or selected in Chat',
+        shortValue: 'Reusable skills loaded on demand',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/skills',
+            url: 'https://docs.sim.ai/agents/skills',
             label: 'Sim Docs: Agent skills',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeChatDeployment: {
-        value:
-          'Yes: a workflow can be deployed as a public, shareable Chat interface with selectable auth (public, password, email OTP, or SSO), in addition to API and MCP deployment targets',
-        shortValue: 'Public Chat deployment with public/password/OTP/SSO auth',
+        value: 'Yes: hosted chat interfaces with streaming, file uploads, and configurable access',
+        shortValue: 'Hosted chat; public, password, email, or SSO',
+        detail: 'SSO-protected chats require Enterprise eligibility.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/deployment/chat',
-            label: 'Sim Docs: Chat Deployment',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Chat deployment',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
         value:
-          'Yes: knowledge base search results and the document detail view expose individual chunk-level detail (chunk index and content), with a dedicated chunk editor, not only whole-document results',
-        shortValue: 'Chunk-level search results and a dedicated chunk editor',
+          'Yes: search results expose chunk text, source, index, and similarity; document chunks are editable',
+        shortValue: 'Chunk-level results and editing',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/knowledgebase/debugging-retrieval',
             label: 'Sim Docs: Debugging retrieval',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-editor/chunk-editor.tsx',
-            label: 'Sim codebase: chunk editor',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/knowledgebase',
+            label: 'Sim Docs: Knowledge base',
+            asOf: '2026-09-04',
           },
         ],
       },
       parallelExecution: {
-        value:
-          'Yes: a native Parallel block fans a run out into concurrent branches (fixed count or one per list item) and joins their results back into the workflow automatically',
-        detail:
-          "Contained blocks run concurrently instead of sequentially, either a fixed number of times or once per item in a list/collection, and each branch's output aggregates for downstream blocks.",
-        shortValue: 'Native Parallel block for concurrent branches',
+        value: 'Yes: Parallel containers execute branches concurrently in configurable batches',
+        shortValue: 'Parallel branches in batches of up to 20',
+        detail: 'Larger collections run in successive batches.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/blocks/parallel',
             label: 'Sim Docs: Parallel block',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
-        value:
-          'Yes: a dedicated A2A block sends messages to, tracks and cancels tasks on, and discovers the capabilities of any Agent2Agent (A2A)-compliant external agent via its Agent Card',
-        shortValue: 'Dedicated A2A block for agent-to-agent interop',
+        value: 'Yes: an A2A integration discovers agent cards, sends messages, and manages tasks',
+        shortValue: 'A2A agent discovery and task operations',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/integrations/a2a',
             label: 'Sim Docs: A2A integration',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       loopIteration: {
-        value:
-          'Yes: a Loop container block runs the blocks inside it repeatedly (For a fixed count, ForEach over a collection, While a condition holds, or Do-While), running iterations one after another; concurrent fan-out is a separate Parallel block',
-        shortValue: 'Native Loop block: For, ForEach, While, Do-While',
+        value: 'Yes: sequential For, ForEach, While, and Do-While loop containers',
+        shortValue: 'For, ForEach, While, and Do-While',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/blocks/loop',
             label: 'Sim Docs: Loop block',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     integrations: {
       integrationCount: {
-        value:
-          '1,000+ integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions',
+        value: '259 apps and services listed in the public integration catalog',
+        shortValue: '259 listed apps and services',
         detail:
-          'Sim\'s landing page cites the "1,000+ integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.',
-        shortValue: '1,000+ integrations (266 blocks, ~3,900 tool actions)',
+          'The broader marketing claim of 1,000+ integrations uses a different scope; this count follows the public service directory.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
-            label: 'Sim codebase: BLOCK_REGISTRY',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.sim.ai/tools',
-            label: 'Sim Docs: Integrations / Tools Overview',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://sim.ai',
-            label: 'Sim Landing Page',
-            asOf: '2026-07-02',
+            url: 'https://www.sim.ai/integrations',
+            label: 'Sim integration catalog',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff',
-        shortValue:
-          'Webhook, cron, chat, REST API, 61 app triggers, plus a diff-aware Tables trigger',
+          'Manual, API, schedule, webhook, chat, and provider events, plus Sim Table and workspace-event triggers',
+        shortValue: 'API, schedules, webhooks, chat, and events',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/triggers',
-            label: 'Sim Docs: Triggers overview',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/deployment/api',
+            label: 'Sim Docs: API deployment',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/triggers/table/poller.ts',
-            label: 'Sim codebase: Table row trigger',
-            asOf: '2026-07-04',
+            url: 'https://docs.sim.ai/workflows/triggers/table',
+            label: 'Sim Docs: Table trigger',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/workflows/triggers/sim',
+            label: 'Sim Docs: Workspace Events',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/introduction',
+            label: 'Sim Docs: Introduction',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
-        value: 'Yes: code-execution block for custom logic',
-        shortValue: 'Code-execution block for custom logic',
+        value:
+          'Yes: a Function block runs JavaScript, Python, or Shell with runtime-dependent availability',
+        shortValue: 'JavaScript, Python, and Shell Function blocks',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/blocks/function',
             label: 'Sim Docs: Function block',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
-            label: 'Sim codebase: block registry',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       codeSandboxRuntime: {
         value:
-          'Yes: named sandboxes a workspace maintains and a Function block selects, each declaring a language, its pip or npm dependencies, optional Debian/APT system packages, and optional managed CLI tools from a catalog grouped by cloud, Kubernetes, infrastructure, deployment, data and storage, and security tools; on sim.ai they require an active Max or Enterprise plan',
+          'Yes: named Function sandboxes with language packages, system packages, and managed CLI tools',
+        shortValue: 'Named sandboxes with packages and CLI tools',
         detail:
-          'Only workspace admins can create or edit sandboxes, in Settings → Sandboxes. On sim.ai each specification is prebuilt into a reusable image so runs pay no install cost; a self-hosted deployment using Daytona installs the dependencies, system packages, and managed CLI tools inside the sandbox at the start of every run instead, and prebuilt images require E2B. Two sandboxes with the same language, dependency list, system packages, and managed CLI tools share one build. Every managed CLI entry uses a pinned, integrity-checked vendor artifact. Self-hosted deployments turn sandboxes on with SANDBOXES_ENABLED, and additionally need a remote execution provider and a dedicated Function base image configured. With no sandbox selected, remote code runs on the dedicated Function base; import-free JavaScript stays in the local isolated runtime and ignores the sandbox selection either way.',
-        shortValue: 'Named sandboxes: packages, system packages, managed CLIs',
+          'Requires Max or Enterprise on Sim Cloud. Self-hosted deployments require the feature and remote execution provider configuration.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/workflows/blocks/function#sandboxes',
-            label: 'Sim Docs: Function block - Sandboxes',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.sim.ai/platform/enterprise/self-hosted',
-            label: 'Sim Docs: Self-hosted enterprise',
-            asOf: '2026-08-10',
+            url: 'https://docs.sim.ai/workflows/blocks/function',
+            label: 'Sim Docs: Function block',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
         value:
-          'Yes: a public REST API (mostly under /api/, with /api/v1 reserved for logs and audit-log endpoints) supporting API-triggered workflow execution and deployment rollback',
-        detail:
-          'The API reference does not document SSE streaming, a resumable event buffer, a dedicated API-trigger block, or a chat-deployment surface as part of the REST API itself.',
-        shortValue: 'REST API (partially versioned) with rollback support',
+          'Yes: deploy workflows as REST endpoints with synchronous, streaming, or asynchronous execution',
+        shortValue: 'REST API with sync, streaming, and async modes',
+        detail: 'The current execution API is under /api/v2.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/api-reference/getting-started',
-            label: 'Sim Docs: API Reference - Getting Started',
-            asOf: '2026-07-08',
+            url: 'https://docs.sim.ai/workflows/deployment/api',
+            label: 'Sim Docs: API deployment',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.sim.ai/execution/api',
-            label: 'Sim Docs: External API',
-            asOf: '2026-07-08',
+            url: 'https://docs.sim.ai/api-reference/getting-started',
+            label: 'Sim Docs: API getting started',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Official client SDKs exist for Python (simstudio-sdk, pip install simstudio-sdk) and TypeScript/JavaScript (simstudio-ts-sdk, npm install simstudio-ts-sdk), both wrapping the REST API (x-api-key header) with methods like execute_workflow / executeWorkflow, retry-with-backoff, and usage-limit lookups. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
-        shortValue: 'Official Python and TypeScript SDKs, plus MCP, code block, and A2A protocol',
+          'Official Python and TypeScript SDKs, custom tools, Function blocks, and MCP connections',
+        shortValue: 'Python and TypeScript SDKs plus custom tools',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/api-reference/python',
             label: 'Sim Docs: Python SDK',
-            asOf: '2026-07-04',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.sim.ai/api-reference/typescript',
             label: 'Sim Docs: TypeScript SDK',
-            asOf: '2026-07-04',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.sim.ai/mcp',
-            label: 'Sim Docs: Using MCP Tools',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/a2a.ts',
-            label: 'Sim codebase: A2A block',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/agents/mcp',
+            label: 'Sim Docs: Using MCP tools',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
-        value:
-          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Codex, Cursor, Claude Code, Claude Desktop, and VS Code',
-        shortValue: 'Deployed workflows publish as MCP server tools',
+        value: 'Yes: publish deployed workflows on public or API-key-protected MCP servers',
+        shortValue: 'Workflows as public or protected MCP tools',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/deployment/mcp',
-            label: 'Sim Docs: MCP Deployment',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: MCP deployment',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     pricing: {
       pricingModel: {
-        value:
-          'Credit-based usage billing (Stripe), with bring-your-own-key exemption from metered caps',
-        shortValue: 'Credit-based billing, BYOK exempt from caps',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://sim.ai/pricing',
-            label: 'Sim Pricing',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      entryPaidPlan: {
-        value: 'Pro: $25 per user/month',
-        shortValue: 'Pro plan at $25/user/month',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://sim.ai/pricing',
-            label: 'Sim Pricing',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      freeTier: {
-        value:
-          'Yes: Free plan with 1,000 one-time credits (worth $5, env-configurable), granted once at signup and never refreshed — no monthly reset and no weekly refresh (weekly refresh is a paid-plan feature)',
-        shortValue: 'Free plan, 1,000 one-time credits',
+        value: 'Per-seat paid plans with included credits and optional usage overages',
+        shortValue: 'Subscription plus credit-based usage',
+        detail:
+          'Workflow costs include a base run charge and applicable model or hosted-tool usage.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.sim.ai/pricing',
-            label: 'Sim Pricing',
-            asOf: '2026-08-26',
+            label: 'Sim pricing',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/constants.ts',
-            label: 'Sim codebase: DEFAULT_FREE_CREDITS',
-            asOf: '2026-08-26',
+            url: 'https://docs.sim.ai/platform/costs',
+            label: 'Sim Docs: Cost calculation',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      entryPaidPlan: {
+        value:
+          'Pro: US$25 per user/month with monthly billing; US$21.25/month equivalent billed annually',
+        shortValue: 'Pro: $25/user/month, monthly billing',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.sim.ai/pricing',
+            label: 'Sim pricing',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/costs',
+            label: 'Sim Docs: Cost calculation',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      freeTier: {
+        value: 'Yes: Free plan with 1,000 one-time credits and plan-specific resource limits',
+        shortValue: 'Free plan with 1,000 one-time credits',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.sim.ai/pricing',
+            label: 'Sim pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       byok: {
         value:
-          'Yes: bring-your-own-key support exempts usage from metered credit caps, and multiple keys stored for the same provider are automatically round-robin rotated, with automatic fallback past any key that fails to decrypt',
-        shortValue: 'BYOK exempts credit caps; multi-key round-robin rotation',
+          'Yes: supported model and tool providers can use your keys, with provider charges paid directly',
+        shortValue: 'BYOK for supported models and tools',
+        detail:
+          'BYOK avoids hosted-provider markup; it does not remove the workflow base charge or all platform limits.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
-            label: 'Sim Docs: Bring Your Own Key (BYOK)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-monitor.ts',
-            label: 'Sim codebase: BYOK usage-monitor logic',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/api-key/byok.ts',
-            label: 'Sim codebase: BYOK key rotation',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/costs',
+            label: 'Sim Docs: Cost calculation',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -835,205 +756,198 @@ export const simProfile: CompetitorProfile = {
     security: {
       dataResidency: {
         value:
-          'Full data control via self-hosting (Docker/Kubernetes); data never leaves customer infrastructure when self-hosted. On Sim Cloud, async job execution has an internal US/EU region toggle, but it is deployment-wide, not a customer-selectable per-workspace residency option',
-        shortValue:
-          'Full control via self-hosting; Cloud region toggle is global, not per-customer',
+          'Self-hosting controls where the core application and database run; external services retain their own data paths',
+        shortValue: 'Self-hosted infrastructure; external services need review',
+        detail:
+          'Chat is Sim-managed, knowledge-base embeddings require a configured provider, and integrations or remote sandboxes may send data outside the deployment. Self-hosting alone does not guarantee all data stays on premises.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/self-hosting/docker',
-            label: 'Sim Docs: Self-Hosting with Docker',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/core/async-jobs/region.ts',
-            label: 'Sim codebase: async job region resolution',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/self-hosting',
+            label: 'Sim Docs: Self-hosting',
+            asOf: '2026-09-04',
           },
         ],
       },
       rbac: {
         value:
-          'Yes: admin/write/read workspace permissions, org-level admin/member roles, plus Enterprise-tier permission groups that allow/deny-list specific models, tools, and integrations per group on top of those base roles',
-        detail:
-          'See modelAndToolGovernance and credentialGovernance for the finer-grained permission-groups layer.',
-        shortValue: 'Workspace/org roles, plus per-group model and tool allow/deny lists',
+          'Yes: organization roles, workspace Read/Write/Admin access, and Enterprise permission groups',
+        shortValue: 'Organization/workspace roles; Enterprise permission groups',
+        detail: 'Team collaboration and governance availability depend on plan.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/permissions',
-            label: 'Sim Docs: Roles and Permissions',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Roles and permissions',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-            label: 'Sim codebase: permissionTypeEnum, role columns',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
-            label: 'Sim codebase: permission groups',
-            asOf: '2026-07-04',
+            url: 'https://docs.sim.ai/platform/enterprise/access-control',
+            label: 'Sim Docs: Access control',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
-        value:
-          'Yes: dedicated audit_log table plus workflow execution logs, exposed via a public /v1/audit-logs API (Enterprise plan), plus continuous SIEM/warehouse export to Datadog, S3, GCS, Azure Blob, BigQuery, or Snowflake via a data-drains dispatcher',
-        shortValue: 'Audit log API plus SIEM/warehouse export',
+        value: 'Yes: organization audit-log UI and API, with scheduled export through Data Drains',
+        shortValue: 'Audit logs, API access, and export',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-            label: 'Sim codebase: auditLog table',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/enterprise/audit-logs',
+            label: 'Sim Docs: Audit logs',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.sim.ai/platform/enterprise/data-drains',
-            label: 'Sim Docs: Data Drains',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Data drains',
+            asOf: '2026-09-04',
           },
         ],
       },
       compliance: {
-        value: 'SOC 2 Type II, ISO 27001:2022, GDPR',
+        value: 'Sim publicly states that it is SOC 2 compliant',
+        shortValue: 'SOC 2 compliance stated by Sim',
         detail:
-          "Beyond these certifications, self-hosting remains Sim's primary option for data-residency-sensitive compliance requirements.",
-        shortValue: 'SOC 2 Type II, ISO 27001:2022, GDPR',
-        confidence: 'verified',
+          'The reviewed public enterprise page does not specify the SOC 2 report type or audit scope. Do not infer ISO certification or a HIPAA agreement from this statement. Self-hosting is a deployment option, not an attestation.',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://trust.sim.ai',
-            label: 'Sim Trust Center',
-            asOf: '2026-09-03',
-          },
-          {
-            url: 'https://sim.ai/enterprise',
-            label: 'Sim Enterprise Page',
-            asOf: '2026-09-03',
+            url: 'https://www.sim.ai/enterprise',
+            label: 'Sim enterprise',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelAndToolGovernance: {
         value:
-          'Yes: enterprise "permission groups" let an admin allow-list/deny-list specific LLM providers and models, and separately deny specific tools/integrations (or disable all MCP or custom tools) per group, layered on top of workspace admin/write/read roles',
+          'Yes: permission groups restrict providers, individual models, blocks, tools, and platform features',
+        shortValue: 'Provider, model, block, and tool restrictions',
         detail:
-          'This does not control whether an LLM provider retains prompts. Sim offers no "zero data retention" mode or governed AI gateway. A separate, Enterprise-gated feature lets orgs set a log-retention window and redact PII, but that only controls how long Sim itself keeps execution logs.',
-        shortValue: 'Admin allow/deny lists for models and tools',
+          'Enterprise controls apply to the relevant organization and workspace; provider data-retention terms remain separate.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
-            label:
-              'Sim codebase: PermissionGroupConfig (allowedModelProviders, deniedModels, deniedTools)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.sim.ai/permissions/roles-and-permissions',
-            label: 'Sim Docs: Roles and Permissions',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/enterprise/access-control',
+            label: 'Sim Docs: Access control',
+            asOf: '2026-09-04',
           },
         ],
       },
       credentialGovernance: {
         value:
-          'Yes: shared credentials (connected accounts, service accounts, workspace secrets) are their own nested permission level (Member/Admin) below organization and workspace roles, and enterprise permission groups can further allow-list specific integrations and restrict which file-share auth modes (public/password/email/SSO) a group may use',
-        detail:
-          "A user's personal environment variables/secrets are never shared or inherited by anyone, including org owners/admins.",
-        shortValue: 'Credentials are their own permission level, plus EE allow-lists',
+          'Yes: credentials have use and administration roles, and permission groups can restrict credential access',
+        shortValue: 'Credential roles and permission-group restrictions',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/permissions/roles-and-permissions',
-            label: 'Sim Docs: Roles and Permissions',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/permissions',
+            label: 'Sim Docs: Roles and permissions',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
-            label: 'Sim codebase: PermissionGroupConfig (allowedIntegrations)',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/enterprise/access-control',
+            label: 'Sim Docs: Access control',
+            asOf: '2026-09-04',
           },
         ],
       },
       whiteLabeling: {
         value:
-          'Yes: Enterprise orgs can replace the logo, wordmark, brand name, and primary/accent theme colors across the workspace UI with their own',
-        shortValue: 'Custom logo, name, and theme colors (Enterprise)',
+          'Yes: Enterprise organization branding; separate instance-level branding for self-hosting',
+        shortValue: 'Organization and instance branding options',
+        detail:
+          'Organization branding applies to signed-in members; public surfaces use separate instance settings and have documented limitations.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
-            label: 'Sim Docs: Whitelabeling',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: White-labeling',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
         value:
-          'Yes: Enterprise orgs can independently configure log retention, soft-deletion cleanup, and Chat/Copilot task cleanup (chats, runs, checkpoints, Inbox tasks) at 1 day to 5 years or Forever, applied org-wide with no per-workspace override',
-        shortValue: 'Configurable retention: 1 day to 5 years, or forever',
+          'Yes: Enterprise retention policies for logs, deleted resources, and Chat data, with workspace overrides',
+        shortValue: 'Organization retention with workspace overrides',
+        detail:
+          'Options range from one day to five years or Forever. Deletion runs on scheduled cleanup jobs.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/data-retention',
-            label: 'Sim Docs: Data Retention',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Data retention',
+            asOf: '2026-09-04',
           },
         ],
       },
       piiRedaction: {
         value:
-          'Yes: a Guardrails workflow block detects and blocks or masks PII (30+ entity types across the US, UK, and several other countries) via Microsoft Presidio, in addition to the org-level data-retention PII policy applied to stored data',
-        shortValue: 'PII detection/masking via Presidio (30+ entity types)',
+          'Yes: Guardrails PII detection/masking and configurable Enterprise redaction policies',
+        shortValue: 'Presidio checks and configurable redaction stages',
+        detail:
+          'Policies can apply to logs, workflow input, or block outputs. In-flight redaction can change workflow results.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/blocks/guardrails',
-            label: 'Sim Docs: Guardrails Block',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/guardrails',
+            label: 'Sim Docs: Guardrails',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/enterprise/data-retention',
+            label: 'Sim Docs: Data retention',
+            asOf: '2026-09-04',
           },
         ],
       },
       sso: {
         value:
-          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain and automatically provisioned into the organization on first sign-in',
-        shortValue: 'SAML 2.0 and OIDC SSO with auto-provisioning',
+          'Yes: OIDC and SAML 2.0 with verified-domain routing and configurable member provisioning',
+        shortValue: 'OIDC/SAML; automatic or invite-only provisioning',
+        detail:
+          'Automatic provisioning creates organization membership subject to seat policy; it does not automatically grant workspace access.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/sso',
-            label: 'Sim Docs: Single Sign-On (SSO)',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Single Sign-On',
+            asOf: '2026-09-04',
           },
         ],
       },
       sessionPolicy: {
         value:
-          'Yes: Enterprise organization owners and admins can set a max session lifetime (1 to 8,760 hours from sign-in, regardless of activity) and an idle timeout (48 to 8,760 hours without activity), applied to every member on every device',
-        detail:
-          'Both limits are optional; leaving them empty keeps the default of 30-day sessions that extend automatically while a member stays active. A separate "Sign out all members" action immediately revokes every member session in the organization except the admin\'s own, for use after a security incident or an offboarding wave. The 48-hour idle floor exists because session activity is recorded at most once per day, so a shorter window could sign out members who are actively working.',
-        shortValue: 'Max session lifetime and idle timeout, applied org-wide',
+          'Yes: Enterprise maximum session lifetime, idle timeout, and organization-wide sign-out',
+        shortValue: 'Session lifetime, idle timeout, and sign-out',
+        detail: 'Lifetime accepts 1–8,760 hours; idle timeout accepts 48–8,760 hours.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/session-policies',
-            label: 'Sim Docs: Session Policies',
-            asOf: '2026-08-10',
+            label: 'Sim Docs: Session policies',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
         value:
-          "Yes: every one of Sim's 266 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
+          'Built-in integrations ship through the Sim repository; external MCP tools and custom code have separate trust requirements',
+        shortValue: 'Repository-shipped integrations; review external tools',
         detail:
-          "Custom code steps run inside Sim's own isolated-vm sandbox rather than as an installable third-party skill package, so the supply-chain trust boundary is Sim's codebase review, not an open registry.",
-        shortValue: 'All 266 blocks are first-party authored and code-reviewed',
+          'Repository inclusion is not an independent security certification for every integration.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/tree/main/apps/sim/blocks/blocks',
-            label: 'Sim codebase: first-party block directory',
-            asOf: '2026-07-08',
+            url: 'https://github.com/simstudioai/sim',
+            label: 'Sim GitHub repository',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/agents/mcp',
+            label: 'Sim Docs: Using MCP tools',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -1041,217 +955,197 @@ export const simProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Yes: execution logs include a per-block/per-span trace view (duration, cost, token counts, and latency stats like TTFT/TPS) with expandable nested iteration groups, plus a "View Snapshot" frozen copy of the workflow structure and block states at run time for debugging',
-        detail:
-          'This trace view is built directly into Sim rather than a raw export browsable in an external tool like Jaeger, and does not expose aggregate latency-percentile charts (p50/p95/p99). The run snapshot serves as a log-detail/debugging artifact rather than a resumable mid-run checkpoint.',
-        shortValue: 'Per-block trace view: duration, cost, tokens, latency',
+          'Per-run and per-block logs with timing, inputs, outputs, cost information, and workflow snapshots',
+        shortValue: 'Block-level logs, costs, and workflow snapshots',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/logs/execution/trace-spans/trace-spans.ts',
-            label: 'Sim codebase: TraceSpan tree builder',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.sim.ai/execution/logging',
+            url: 'https://docs.sim.ai/logs-debugging/logging',
             label: 'Sim Docs: Logging',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
         value:
-          'Individual tool/API calls have configurable exponential-backoff retry (up to 10 attempts). The background job-orchestration layer itself retries only once by design. Durability instead comes from consecutive-failure tracking on schedules and the human-in-the-loop snapshot pause/resume mechanism',
+          'Resumable human-approval steps and configurable retries for supported tool requests',
+        shortValue: 'Approval pause/resume and tool-request retries',
         detail:
-          'Sim does not offer guaranteed-once-only block execution, a failed-run holding queue for manual recovery, or a "replay a past execution with its original inputs" feature. The per-execution debugging snapshot serves as a log-detail artifact rather than a resumable mid-run checkpoint.',
-        shortValue: 'Tool-call retries (up to 10x); single-attempt job orchestration',
+          'Retry behavior depends on the tool and error; this does not guarantee exactly-once external side effects.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/tools/index.ts',
-            label: 'Sim codebase: ToolRetryConfig (exponential backoff)',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
+            label: 'Sim Docs: Human in the Loop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/trigger.config.ts',
-            label: 'Sim codebase: retries.default.maxAttempts = 1',
-            asOf: '2026-07-02',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/tools/index.ts',
+            label: 'Sim source: tool request retry handling',
+            asOf: '2026-09-04',
           },
         ],
       },
       failureAlerting: {
         value:
-          'Yes: a sim_workspace_event trigger fires on run success/failure, deployments, and cost/latency spikes, wired to any notification block (Slack, email, webhook) for real-time alerting',
-        shortValue: 'Event-trigger alerting to Slack, email, or webhook',
+          'Yes: workspace-event triggers can notify on workflow failures and cost, duration, or inactivity thresholds',
+        shortValue: 'Failure and threshold events for notification workflows',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/triggers/sim',
-            label: 'Sim Docs: Sim Workspace Events trigger',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Workspace Events',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataDrains: {
         value:
-          'Yes: Enterprise orgs can continuously export workflow logs, job logs, or audit logs on a schedule to a customer-owned S3 bucket, GCS bucket, Azure Blob container, BigQuery table, Snowflake table, Datadog logs intake, or an HTTPS webhook',
+          'Yes: scheduled Enterprise export of execution logs, audit logs, and Chat data to external storage or HTTPS',
+        shortValue: 'Scheduled exports to storage, warehouses, and webhooks',
         detail:
-          'Each drain exports exactly one data source; multiple drains are created to export multiple sources. Viewing drain config/run history is restricted to org owners/admins.',
-        shortValue: 'Continuous log export to S3, BigQuery, Datadog, webhook, etc.',
+          'Destinations include S3, GCS, Azure Blob, BigQuery, Snowflake, Datadog, and HTTPS webhooks.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/data-drains',
-            label: 'Sim Docs: Data Drains',
-            asOf: '2026-07-02',
+            label: 'Sim Docs: Data drains',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
-        value:
-          'Yes: a workflow can be triggered in fire-and-forget async mode, returning HTTP 202 with an execution ID immediately, then polled through the canonical execution resource across queued/running/terminal states',
-        detail:
-          'Async runs are tracked by execution ID through the same execution status endpoint used for durable logs rather than a separate queue-job resource.',
-        shortValue: 'Async mode: execution ID returned immediately, poll for result',
+        value: 'Yes: asynchronous API execution returns a run ID and status URL for polling',
+        shortValue: 'Async runs with a status URL',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/workflows/[id]/execute/route.ts',
-            label: 'Sim codebase: async execution handler',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/workflows/[id]/executions/[executionId]/route.ts',
-            label: 'Sim codebase: execution status endpoint',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/api-reference/getting-started',
+            label: 'Sim Docs: API getting started',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Plan-gated: synchronous runs time out at 5 minutes on the free plan and 50 minutes on paid plans; async runs default to 90 minutes, while Enterprise policy can be configured up to 7 days; concurrency ranges from 10 to 1,000 executions per billing account depending on plan',
+          'Free synchronous runs: 5 minutes; Pro/Max: 50 minutes. Async defaults to 90 minutes; Enterprise limits are configurable',
+        shortValue: '5–50 min sync; 90 min default async',
         detail:
-          'A direct async API request can shorten the account policy for that request, but cannot extend it. Concurrency limits are published in the platform cost docs, where the Enterprise limit is 1,000 by default and customizable. A run that exceeds its time limit is terminated and marked failed with a timeout error.',
-        shortValue: '5-50 min sync; async defaults to 90 min, Enterprise up to 7 days',
+          'Published concurrency is 10 on Free, 50 on Pro, 200 on Max, and 1,000 by default on Enterprise, shared per billing account.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/platform/costs#concurrent-executions',
-            label: 'Sim Docs: Concurrent Executions',
-            asOf: '2026-08-10',
+            url: 'https://docs.sim.ai/platform/costs',
+            label: 'Sim Docs: Cost calculation',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.sim.ai/platform/costs#run-time-limits',
-            label: 'Sim Docs: Run Time Limits',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-reservation.ts',
-            label: 'Sim codebase: max concurrent executions per plan',
-            asOf: '2026-07-13',
+            url: 'https://www.sim.ai/pricing',
+            label: 'Sim pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       partialFailureHandling: {
         value:
-          'Yes: any block can be wired to a dedicated error-output edge, so a failing step routes execution down an error-handling branch instead of always halting the entire run',
-        shortValue: 'Failed steps can route to an error-handling branch',
+          'Yes: error paths can handle failed steps, and Parallel branches can fail independently',
+        shortValue: 'Error paths and independent parallel branches',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/execution/edge-manager.ts',
-            label: 'Sim codebase: error-output edge routing',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/blocks/workflow',
+            label: 'Sim Docs: Workflow block',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/parallel',
+            label: 'Sim Docs: Parallel block',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
-        value:
-          "Yes: scheduled, webhook, and chat-triggered runs execute as background jobs on trigger.dev workers, entirely on Sim's servers",
-        detail:
-          'No client device needs to be open, awake, or connected for a run to fire or complete; closing the browser tab or shutting down a laptop has no effect on a scheduled or triggered workflow.',
-        shortValue: 'Runs server-side; no dependency on a client device staying open',
+        value: 'Yes: deployed API, scheduled, and event-triggered workflows execute server-side',
+        shortValue: 'Server-side runs without an open browser',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/core/async-jobs/backends/trigger-dev.ts',
-            label: 'Sim codebase: trigger.dev background job backend',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/deployment/api',
+            label: 'Sim Docs: API deployment',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.sim.ai/triggers',
-            label: 'Sim Docs: Triggers',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/workflows/triggers/sim',
+            label: 'Sim Docs: Workspace Events',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     support: {
       supportChannels: {
-        value:
-          'Community (open source, GitHub) plus an unquantified "Dedicated Support" flag on the Enterprise plan',
-        detail:
-          'Enterprise and pricing pages do not include CSM, onboarding/enablement, or professional-services details beyond a plan-comparison-table "Dedicated Support" flag.',
-        shortValue: "Community support plus Enterprise 'Dedicated Support'",
+        value: 'Public documentation and GitHub community; dedicated support listed for Enterprise',
+        shortValue: 'Docs, GitHub, and Enterprise dedicated support',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://github.com/simstudioai/sim',
+            label: 'Sim GitHub repository',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://www.sim.ai/pricing',
-            label: 'Sim Pricing Page',
-            asOf: '2026-07-02',
+            label: 'Sim pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
-        value:
-          'Yes: the Enterprise plan includes a "Dedicated Support" feature per the pricing plan-comparison table; no SLA terminology, response-time, or uptime figures are published on the enterprise or pricing pages',
-        shortValue: "Enterprise 'Dedicated Support' flag; no published SLA terms",
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.sim.ai/pricing',
-            label: 'Sim Pricing Page',
-            asOf: '2026-07-08',
-          },
-        ],
+        value: 'Unknown: no specific contractual uptime or response-time commitment was verified',
+        shortValue: 'Contractual SLA terms not publicly verified',
+        confidence: 'unknown',
+        sources: [],
       },
       community: {
-        value: 'Over 100,000 builders use Sim',
-        shortValue: '100,000+ builders',
+        value: 'Sim reports more than 100,000 builders/developers',
+        shortValue: '100,000+ users reported by Sim',
+        detail: 'A self-reported adoption figure, not independently audited active usage.',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://sim.ai',
-            label: 'Sim Landing Page',
-            asOf: '2026-07-02',
+            url: 'https://github.com/simstudioai/sim',
+            label: 'Sim GitHub repository',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.ycombinator.com/companies/sim',
+            label: 'Y Combinator: Sim company profile',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
-        value:
-          'Independent analysis (n8n\'s 2026 AI agent tools report) notes Sim.ai "has only been around for one year"',
-        detail:
-          'Newer to market than incumbents like Zapier, n8n, or Workato. The same report ranks Sim.ai second-highest on "Codability" (76%) among 14 vendors evaluated.',
-        shortValue: 'About one year old per independent analysis',
+        value: 'Founded in 2025; Y Combinator Spring 2025 company',
+        shortValue: 'Founded 2025; YC Spring 2025',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-            label: 'n8n: 2026 AI Agent Development Tools report',
-            asOf: '2026-07-02',
+            url: 'https://www.ycombinator.com/companies/sim',
+            label: 'Y Combinator: Sim company profile',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
         value:
-          'Yes: Sim Academy is a dedicated structured-learning section of the docs site, separate from reference documentation and the API reference',
-        shortValue: 'Sim Academy: dedicated structured-learning docs section',
+          'Yes: Sim Academy provides structured workflow, Chat, table, and knowledge-base lessons',
+        shortValue: 'Structured Sim Academy lessons',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/academy',
             label: 'Sim Docs: Academy',
-            asOf: '2026-07-02',
+            asOf: '2026-09-04',
           },
         ],
       },

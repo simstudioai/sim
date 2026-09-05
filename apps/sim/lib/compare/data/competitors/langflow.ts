@@ -1,7 +1,7 @@
 import { LangflowIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against current primary sources on 2026-09-04; uncertainty is labeled. */
 export const langflowProfile: CompetitorProfile = {
   id: 'langflow',
   name: 'Langflow',
@@ -14,67 +14,63 @@ export const langflowProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Langflow is an open-source, Python-based visual builder for creating and deploying AI agents and RAG (retrieval-augmented generation) applications, owned by DataStax (an IBM company).',
+    'Langflow is a visual, Python-based builder for AI agents and RAG, with MIT-licensed source, self-managed deployment, and an optional IBM support offering.',
   standoutFeatures: [
     {
-      title: 'Deep LangChain/Python component ecosystem',
+      title: 'Installable provider extensions',
       description:
-        "Langflow ships hundreds of drag-and-drop components organized into core groups and provider bundles (Google, OpenAI, LangChain, Elastic, Composio, and more). Any component's underlying Python code can also be edited directly for full customization.",
-      shortDescription:
-        'Hundreds of customizable Python/LangChain components and provider bundles.',
+        'Install provider bundles as extensions that register components when Langflow starts. Langflow 1.12 includes a curated provider set by default, with additional packages available separately.',
+      shortDescription: 'Curated default providers with additional installable bundles.',
       source: {
-        url: 'https://docs.langflow.org/concepts-components',
-        label: 'Langflow Docs: Components overview',
-        asOf: '2026-07-02',
+        url: 'https://docs.langflow.org/extensions-overview',
+        label: 'Langflow: Extensions',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Zero-step MCP server exposure',
+      title: 'Projects can expose flows through MCP',
       description:
-        'Every Langflow project is automatically registered as an MCP server the moment it is created, exposing any flow with a Chat Output as a callable MCP tool with no separate publish or deploy step. Sim also supports both MCP client and server roles, but publishing a workflow as an MCP tool requires an explicit deploy step.',
-      shortDescription:
-        'Every project auto-registers as an MCP server on creation, no deploy step.',
+        'Project MCP servers expose selected flows with Chat Output components as tools for external clients. Automatic setup is enabled by default; operators can disable it and users can choose which flows are exposed.',
+      shortDescription: 'Project MCP servers with selectable flow tools.',
       source: {
         url: 'https://docs.langflow.org/mcp-server',
-        label: 'Langflow Docs: Use Langflow as an MCP server',
-        asOf: '2026-07-02',
+        label: 'Langflow: MCP server',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Explicit flow version history with restore',
+      title: 'Flow snapshots and restore',
       description:
-        'The flow editor has a Version History panel where users manually save named snapshots, preview a prior version in read-only mode, and restore it. It can optionally auto-back up the current draft first, and this is separate from the continuous auto-save of the working draft.',
-      shortDescription: 'Manual flow snapshots with preview and one-click restore.',
+        'Save explicit flow versions, preview or export a prior version, and restore it with an optional backup of the current draft.',
+      shortDescription: 'Explicit flow snapshots, preview, export, and restore.',
       source: {
         url: 'https://docs.langflow.org/concepts-flows',
-        label: 'Langflow Docs: Build flows',
-        asOf: '2026-07-02',
+        label: 'Langflow: Build flows and save versions',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'No real-time multiplayer editing',
+      title: 'Infrastructure must isolate untrusted users',
       description:
-        "Multiple users cannot co-edit the same flow with live cursors or synced operations. There's an open community feature request for real-time collaboration like Figma or n8n's. Current practice is exporting flows as JSON and merging changes like code, or sharing an account.",
-      shortDescription:
-        'No live multi-user co-editing; only JSON export/import or shared accounts.',
+        'Langflow documents its UI as a code execution environment with host filesystem and network access. Multi-tenant installations require infrastructure isolation; application access controls alone do not provide it.',
+      shortDescription: 'Operators must isolate untrusted code and tenants.',
       source: {
-        url: 'https://github.com/langflow-ai/langflow/issues/1864',
-        label: 'GitHub Issue 1864: Collaborative/Access Control enhancement',
-        asOf: '2026-07-02',
+        url: 'https://docs.langflow.org/security',
+        label: 'Langflow: Security and infrastructure isolation',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Lowest enterprise-readiness scores in third-party benchmark',
+      title: 'Astra-hosted Langflow was removed',
       description:
-        "n8n's 2026 AI Agent Development Tools report scored Langflow 35 percent on Codability and 30 percent on Enterprisiness, the lowest of the vendors evaluated, citing gaps in agent sandboxing, security guardrail maturity, and evaluation frameworks.",
-      shortDescription:
-        "Scored lowest on codability (35%) and enterprisiness (30%) in n8n's 2026 report.",
+        'DataStax removed its Langflow service from Astra on April 9, 2026 and directs users to Langflow OSS. Historical Astra cloud offers should not be used as current Langflow plan information.',
+      shortDescription: 'Former Astra-hosted service removed April 9, 2026.',
       source: {
-        url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
-        label: 'n8n: 2026 AI Agent Development Tools report',
-        asOf: '2026-07-02',
+        url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html',
+        label: 'DataStax: Astra release notes, April 9, 2026',
+        asOf: '2026-09-04',
       },
     },
   ],
@@ -82,206 +78,210 @@ export const langflowProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          "Langflow is primarily a visual drag-and-drop canvas builder for connecting components into a flow. Every component's Python source is directly editable for code-level customization, and a Langflow Assistant can help build or edit flows conversationally.",
-        detail: 'Core paradigm is visual; code editing and an AI assistant are supplementary.',
-        shortValue: 'Visual canvas plus editable Python code, some NL assist',
+          'Visual flow canvas with editable Python components and a natural-language Langflow Assistant.',
+        shortValue: 'Visual canvas, Python, and natural-language assistance',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/concepts-components',
-            label: 'Langflow Docs: Components overview',
-            asOf: '2026-07-02',
+            label: 'Langflow: Components overview',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.langflow.org/langflow-assistant',
-            label: 'Langflow Docs: Langflow Assistant',
-            asOf: '2026-07-02',
+            label: 'Langflow: Assistant',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
         value:
-          'Langflow targets developers comfortable with Python and LangChain concepts such as embeddings, vector stores, chunking, and prompt chains. Non-technical users can use starter templates, but customizing components or debugging chains requires a technical background.',
-        shortValue: 'Moderate to steep, aimed at developers',
+          'Templates ease initial setup; custom components and production deployment require familiarity with Python, model APIs, and infrastructure. This is an editorial assessment.',
+        shortValue: 'Moderate; production use requires technical skills',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langflow.org/starter-projects-vector-store-rag',
-            label: 'Langflow Docs: Vector store RAG starter project',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/concepts-flows',
+            label: 'Langflow: Build flows and save versions',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/install-custom-dependencies',
+            label: 'Langflow: Install custom dependencies',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/security',
+            label: 'Langflow: Security and infrastructure isolation',
+            asOf: '2026-09-04',
           },
         ],
       },
       selfHostOption: {
         value:
-          'Yes: Langflow is fully open source (MIT licensed) and can be self-hosted via pip/uv local install, Docker, or Kubernetes, in addition to a desktop app and Langflow Cloud.',
-        shortValue: 'Yes, self-hostable (pip, Docker, K8s)',
+          'Yes: install the MIT-licensed source as a Python package, Docker deployment, or local desktop application.',
+        shortValue: 'Yes, Python, Docker, and desktop',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/get-started-installation',
-            label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            label: 'Langflow: Installation',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://github.com/langflow-ai/langflow',
-            label: 'GitHub: langflow-ai/langflow',
-            asOf: '2026-07-02',
+            label: 'Langflow: Source repository and MIT license',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
         value:
-          'Langflow can run as a desktop app on Windows/macOS, a local pip/uv install, a Docker container, or a Kubernetes deployment, plus a hosted Langflow Cloud option with a free account tier. Multi-worker setups are documented for scaling self-hosted instances.',
-        shortValue: 'Desktop, local, Docker/K8s, cloud, self-hosted',
+          'Desktop, Python, Docker, and self-managed infrastructure are documented. IBM also lists watsonx Orchestrate integration; the former DataStax Langflow service was removed from Astra on April 9, 2026.',
+        shortValue: 'Desktop and self-managed; Astra service removed',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/get-started-installation',
-            label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            label: 'Langflow: Installation',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langflow.org/deployment-kubernetes-dev',
-            label: 'Langflow Docs: Kubernetes deployment',
-            asOf: '2026-07-02',
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langflow.org/deployment-multi-worker',
-            label: 'Langflow Docs: Deploy Langflow with multiple workers',
-            asOf: '2026-07-02',
+            url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html',
+            label: 'DataStax: Astra release notes, April 9, 2026',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
         value:
-          'Yes: Langflow ships starter projects and templates, including Basic Prompting, Vector Store RAG, Document Q&A, Memory Chatbot, Blog Writer, and Simple Agent. These are accessible from a Templates modal when creating a new flow, plus a public templates gallery on langflow.org.',
-        shortValue: 'Yes, built-in starter project templates',
+          'Yes: the New Flow menu includes templates such as Basic Prompting and Vector Store RAG, alongside blank flows, duplication, and import.',
+        shortValue: 'Yes, built-in flow templates',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/starter-projects-basic-prompting',
-            label: 'Langflow Docs: Basic prompting starter project',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.langflow.org/templates/use-langflow-to-build-local-rag-pipeline-with-ollama-and-chromadb',
-            label: 'Langflow templates gallery example',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/concepts-flows',
+            label: 'Langflow: Build flows and save versions',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
         value:
-          "Langflow's core is MIT licensed, a permissive open-source license, per its public GitHub repository.",
-        shortValue: 'MIT license',
+          'The public Langflow source is MIT licensed. Commercial support and infrastructure have separate terms.',
+        shortValue: 'MIT-licensed source',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/langflow-ai/langflow',
-            label: 'GitHub: langflow-ai/langflow (License: MIT)',
-            asOf: '2026-07-02',
+            label: 'Langflow: Source repository and MIT license',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
         value:
-          "Unknown: no public documentation describes forking or cloning a full project or workspace and promoting changes between separate dev/qa/prod environments. Langflow's version history operates at the single-flow level, not the project or environment level.",
-        detail: 'Version history is per-flow snapshotting, not multi-environment promotion.',
-        shortValue: 'Unknown, no project-level env promotion documented',
-        confidence: 'unknown',
-        sources: [],
+          'Partial: portable flow definitions can be deployed across dev, QA, and production. A managed whole-environment promotion workflow was not verified.',
+        shortValue: 'Portable flows; environment promotion not verified',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       versionControlDepth: {
         value:
-          'Yes: Langflow has a Version History menu for saving named snapshots of a flow, previewing a saved version in read-only mode, and restoring it, with an optional auto-backup of the current draft first. Auto-save of the working draft runs separately from these explicit versions.',
-        detail: 'No diff/compare view or branching documented.',
-        shortValue: 'Manual snapshots, preview, and restore',
+          'Yes: explicitly save flow versions, preview them read-only, export or delete versions, and restore with an optional backup of the draft. Automatic draft saving is separate.',
+        shortValue: 'Saved versions, preview, export, and restore',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/concepts-flows',
-            label: 'Langflow Docs: Build flows',
-            asOf: '2026-07-02',
+            label: 'Langflow: Build flows and save versions',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
         value:
-          "No: real-time multi-user editing of the same flow isn't available. It's an open community feature request; current practice is JSON export/import or Git-based merging of flows between teammates.",
-        shortValue: 'No live multi-user co-editing',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://github.com/langflow-ai/langflow/issues/1864',
-            label: 'GitHub Issue 1864: Collaborative/Access Control enhancement',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: live simultaneous editing with cursors and synchronized canvas operations was not verified. Flow sharing and snapshots do not establish that capability.',
+        shortValue: 'Not verified in reviewed documentation',
+        confidence: 'unknown',
+        sources: [],
       },
       nativeFileStorage: {
         value:
-          'Partial: Langflow has a per-server File Management system with a local or S3 storage backend, letting files be uploaded once and reused across flows. There is no documented folder hierarchy, link-based sharing with auth options, or deleted-item recovery.',
-        shortValue: 'Basic shared file store, no folders/sharing/trash',
+          'Partial: server file management supports reusable uploads, local or S3 storage, rename, download, and delete. Folder hierarchies, sharing links, and deleted-file recovery were not verified.',
+        shortValue: 'Reusable files with local or S3 storage',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/concepts-file-management',
-            label: 'Langflow Docs: Manage files',
-            asOf: '2026-07-02',
+            label: 'Langflow: File management',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataTables: {
         value:
-          "No: Langflow's documentation does not describe a native spreadsheet-like data table feature. It exposes Data and DataFrame object types used to pass structured data between components, not a persistent spreadsheet UI.",
-        shortValue: 'No native spreadsheet-style data table',
+          'Partial: Table/DataFrame objects support structured data inside flows. A persistent spreadsheet-style application database was not verified.',
+        shortValue: 'Table data objects; persistent grid not verified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langflow.org/components-data',
-            label: 'Langflow Docs: Data components',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/data-types',
+            label: 'Langflow: Data types',
+            asOf: '2026-09-04',
           },
         ],
       },
       richTextEditor: {
-        value:
-          'Unknown: no public documentation describes an inline rich-text or WYSIWYG markdown editor for documents stored in Langflow; file handling documentation covers upload and parsing, not in-app document editing.',
-        shortValue: 'Unknown, no WYSIWYG editor documented',
+        value: 'Unknown: an in-app rich-text document editor was not verified.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       subWorkflows: {
         value:
-          "Yes: Langflow's Run Flow component runs another saved flow as a subprocess of the current flow, dynamically generating input and output fields from the target flow's graph so the parent flow passes data in and receives the child flow's outputs back. It can also be attached to an Agent component as a callable tool.",
-        shortValue: 'Yes, via the Run Flow component',
+          'Yes: Run Flow invokes another saved flow with generated input/output fields, including use as an agent tool. Nested flows cannot pause for human input; approval belongs in the parent.',
+        shortValue: 'Run Flow; nested human approval unsupported',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/run-flow',
-            label: 'Langflow Docs: Run Flow component',
-            asOf: '2026-07-02',
+            label: 'Langflow: Run Flow',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
         value:
-          "No: Langflow has no documented mechanism to publish a deployed flow as an encapsulated, named block that appears org-wide in the component sidebar for other users to drop into their own separate flows. The closest features are narrower: grouping components and saving them creates a static snapshot copy in the creating user's own Core components menu, with no documented auto-sync back to a source flow's latest version; and the legacy Langflow Store lets a user publish a component or flow to a public, account-based marketplace rather than a governed, org-scoped, live-linked block. Its Run Flow component (see subWorkflows) is same-project subflow composition, not org-wide reuse by other users.",
-        detail:
-          "Neither mechanism matches Sim's model of a workspace admin publishing a deployed workflow as a block that all consumers see in the shared toolbar, auto-tracks the source's latest deployed version, and hides the source's internal steps and credentials.",
-        shortValue: 'No, only static component snapshots or a public component store',
-        confidence: 'estimated',
+          'Partial: group and save components for reuse, or install extension bundles. Components added to flows are detached copies; a centrally updated, credential-hidden workflow block was not verified.',
+        shortValue: 'Saved component groups and extension bundles',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/concepts-components',
-            label: 'Langflow Docs: Components overview (grouping and saving components)',
-            asOf: '2026-07-08',
+            label: 'Langflow: Components overview',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/langflow-ai/langflow/discussions/4406',
-            label: 'GitHub Discussion 4406: How to save a custom component to the sidebar?',
-            asOf: '2026-07-08',
+            url: 'https://docs.langflow.org/extensions-overview',
+            label: 'Langflow: Extensions',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -289,227 +289,221 @@ export const langflowProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          "Langflow supports configuring multiple LLM providers globally via Settings > Model Providers, each with its own API key, including OpenAI and Ollama for local or self-hosted models. The full list of supported providers is only shown in the running app's UI, not enumerated in the docs.",
-        detail: 'Exact provider count not fully published in docs.',
-        shortValue: 'Multiple providers via global Model Providers settings',
-        confidence: 'estimated',
+          'Yes: configure multiple providers and models, including Ollama and OpenAI-compatible endpoints, or install additional provider components.',
+        shortValue: 'Multiple providers, local models, and compatible endpoints',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/components-models',
-            label: 'Langflow Docs: Language Model component',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.langflow.org/blog/local-ai-using-ollama-with-agents',
-            label: 'Langflow blog: Using Ollama with agents',
-            asOf: '2026-07-02',
+            label: 'Langflow: Language models and RAG',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
         value:
-          'Yes: Langflow has a dedicated Agent and Tool Calling Agent component that uses a connected LLM to reason over input and select among connected tools to complete a task, distinct from plain data-routing components.',
-        shortValue: 'Yes, dedicated Agent and Tool Calling Agent components',
+          'Yes: Agent components use LLMs to select tools and perform multi-step tasks; other agents and flows can be attached as tools.',
+        shortValue: 'Yes, agents with tool calling',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/agents',
-            label: 'Langflow Docs: Use Langflow agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/components-agents',
+            label: 'Langflow: Agent component',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langflow.org/components-agents',
-            label: 'Langflow Docs: Agents component',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/agents-tools',
+            label: 'Langflow: Agent tools and approvals',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
         value:
-          'Yes: Langflow Assistant lets users build and edit flows and components using natural language prompts inside the editor.',
-        shortValue: 'Yes, via Langflow Assistant',
+          'Yes: Langflow Assistant builds or edits flows and components from prompts. It requires a configured tool-calling model and enabled component-authoring permissions.',
+        shortValue: 'Yes, Assistant with model and authoring permissions',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/langflow-assistant',
-            label: 'Langflow Docs: Langflow Assistant',
-            asOf: '2026-07-02',
+            label: 'Langflow: Assistant',
+            asOf: '2026-09-04',
           },
         ],
       },
       knowledgeBaseRag: {
         value:
-          'Yes: Langflow has a documented Vector Store RAG (retrieval-augmented generation) pattern with a two-flow setup for ingestion and query, a Split Text component for chunking, embedding-model components, and connectors to vector stores such as Astra DB and Milvus.',
-        shortValue: 'Yes, built-in RAG pipeline components and vector store connectors',
+          'Yes: RAG flows combine document loading, text splitting, embeddings, vector storage, retrieval, and prompt context. The template separates ingestion from querying.',
+        shortValue: 'Yes, configurable ingestion and retrieval flows',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/starter-projects-vector-store-rag',
-            label: 'Langflow Docs: Vector store RAG starter project',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/components-models',
+            label: 'Langflow: Language models and RAG',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
         value:
-          'Yes: Langflow can act as an MCP client via the MCP Tools component, connecting to external MCP servers (using JSON config, STDIO, or HTTP/SSE) and exposing their functions as tools for agents.',
-        shortValue: 'Yes, consumes external MCP servers as tools',
+          'Yes: register external MCP servers and add their tools to flows. A component can target one action or leave the tool selection blank to expose all server tools.',
+        shortValue: 'Yes, external MCP tools',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/mcp-client',
-            label: 'Langflow Docs: Use Langflow as an MCP client',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.langflow.org/mcp-tools',
-            label: 'Langflow Docs: MCP Tools component',
-            asOf: '2026-07-02',
+            label: 'Langflow: MCP Tools component',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
         value:
-          'Yes: Langflow has a Guardrails component that uses an LLM to check input against built-in categories such as PII, tokens and passwords, jailbreak attempts, offensive content, malicious code, and prompt injection. It also has evaluation components and integrations like Cleanlab Evaluator and LangWatch Evaluator for scoring responses.',
-        shortValue: 'Yes, Guardrails component plus Cleanlab/LangWatch evaluators',
+          'Yes: Guardrails routes text through pass/fail outputs after safety checks. The Policies component is beta and generates tool guards from business rules; neither guarantees perfect detection.',
+        shortValue: 'Guardrails and beta tool policy enforcement',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/guardrails',
-            label: 'Langflow Docs: Guardrails',
-            asOf: '2026-07-02',
+            label: 'Langflow: Guardrails',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langflow.org/bundles-cleanlab',
-            label: 'Langflow Docs: Cleanlab bundle',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/policies',
+            label: 'Langflow: Policies (Beta)',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
         value:
-          'Unknown: no official Langflow documentation describes a dedicated pause-and-wait-for-human-approval mechanism mid-run. A community GitHub discussion asking how to implement human-in-the-loop suggests it is not a standard built-in feature, unlike LangGraph or FlowiseAI, which do document this.',
-        detail:
-          'A user discussion asked how to build this, implying no first-class component exists.',
-        shortValue: 'Unknown, not documented as a built-in feature',
-        confidence: 'estimated',
+          'Yes: Human Input and agent tool approvals pause a run at a checkpoint and resume after a decision without rerunning completed steps.',
+        shortValue: 'Yes, checkpointed human input and tool approvals',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langflow-ai/langflow/discussions/4399',
-            label: 'GitHub Discussion 4399: How to implement human in the loop?',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/human-in-the-loop',
+            label: 'Langflow: Human-in-the-Loop',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
         value:
-          'Unknown: no official Langflow documentation describes built-in image, video, or audio generation components. Community discussions show users integrating image generation via custom components or external APIs, not a native block.',
-        shortValue: 'Unknown, no native generative media blocks documented',
+          'Unknown: a current native image/video generation suite was not verified. The Playground microphone performs transcription; the former full voice mode was deprecated in 1.10.',
+        shortValue: 'Generation unverified; Playground supports transcription',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://docs.langflow.org/concepts-voice-mode',
+            label: 'Langflow: Voice mode deprecation',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       dynamicToolUse: {
         value:
-          "No: tools are connected to the Agent component's Tools input at build time in the flow editor, and the connected LLM only chooses among that pre-wired set at run time based on each tool's description. It does not browse or select from a broader catalog, such as an entire MCP server's tool list, at inference time.",
-        detail:
-          "Same closed-list function-calling mechanism as Sim's Agent block: the pool is whatever is wired into the flow, not the entire platform or an MCP catalog.",
-        shortValue: 'No, agent picks only among tools wired in at build time',
+          'Partial: agents select among connected tools and enabled actions at runtime, including MCP tool sets. Autonomous discovery beyond configured connections was not verified.',
+        shortValue: 'Runtime choice among configured tools and MCP actions',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/agents-tools',
-            label: 'Langflow Docs: Configure tools for agents',
-            asOf: '2026-07-04',
+            label: 'Langflow: Agent tools and approvals',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/mcp-tools',
+            label: 'Langflow: MCP Tools component',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelFallback: {
         value:
-          'Unknown: no public Langflow documentation describes automatic fallback or retry to a different model or provider on a failed or rate-limited LLM call. A blog post shows manually building smart model routing as a custom flow rather than a built-in fallback feature.',
-        detail: 'Users can hand-build routing flows, but it is not an automatic platform feature.',
-        shortValue: 'Unknown, no built-in automatic model fallback documented',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.langflow.org/blog/how-to-build-your-own-gpt-5',
-            label: 'Langflow blog: Build Your Own GPT-5 with Smart Model Routing',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: automatic cross-provider failover after model errors or rate limits was not verified. Model selection or manually composed routing is a separate capability.',
+        shortValue: 'Not verified in reviewed documentation',
+        confidence: 'unknown',
+        sources: [],
       },
       agentSkills: {
-        value:
-          'Unknown: no public documentation describes a reusable, named prompt or knowledge-snippet library invokable by reference across agents, distinct from a one-off system prompt field on each agent component.',
-        shortValue: 'Unknown, no named reusable skill library documented',
+        value: 'Unknown: a named skill library loaded by reference across agents was not verified.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       nativeChatDeployment: {
         value:
-          'Yes: Langflow provides a Shareable Playground at a public flow link and an official Embedded Chat widget that can be added to any website to expose a flow as a conversational chat surface.',
-        shortValue: 'Yes, shareable playground and embeddable chat widget',
+          'Yes: server deployments support a shareable Playground and the official Embedded Chat widget. The shareable Playground is not available in Langflow Desktop.',
+        shortValue: 'Shareable Playground and embed; desktop restrictions apply',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/embedded-chat-widget',
-            label: 'Langflow Docs: Embedded chat widget',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/concepts-playground',
+            label: 'Langflow: Playground',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langflow.org/concepts-playground',
-            label: 'Langflow Docs: Test flows in the Playground',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/get-started-installation',
+            label: 'Langflow: Installation',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://github.com/langflow-ai/langflow-embedded-chat',
+            label: 'Langflow: Embedded Chat source and options',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
         value:
-          'Unknown: no public documentation was found showing a dedicated chunk-level debugging or search-result view that surfaces individual chunk index or content for a knowledge-base query, beyond the general chunking configuration in the Split Text component.',
-        shortValue: 'Unknown, no dedicated chunk-level results view documented',
-        confidence: 'unknown',
-        sources: [],
+          'Yes: after a retrieval flow runs, Inspect output on the vector-store component shows raw search results. This is component inspection rather than a separate knowledge-base console.',
+        shortValue: 'Yes, inspect raw vector search results',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/components-models',
+            label: 'Langflow: Language models and RAG',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       parallelExecution: {
         value:
-          'No: no dedicated fan-out/fan-in feature is documented. Langflow builds a flow into a Directed Acyclic Graph and executes nodes in dependency order, each node run using the results of the nodes it depends on: sequential DAG traversal, not a native concurrent-branch-then-join primitive.',
-        shortValue: 'Not documented, execution model is sequential DAG traversal',
+          'The documented graph processes components sequentially in dependency order. A native concurrent branch-and-join primitive was not verified.',
+        shortValue: 'Sequential graph documented; concurrent branches not verified',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.langflow.org/concepts-flows',
-            label: 'Langflow Docs: Build flows (DAG execution order)',
-            asOf: '2026-07-02',
+            label: 'Langflow: Build flows and save versions',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
         value:
-          'No: native A2A protocol support is not shipped in Langflow core. A community member submitted a working implementation and feature request in November 2025, but it remains an open enhancement request (closed as a duplicate of an earlier tracking issue), not a merged feature. The only path to A2A interoperability is third-party custom components.',
-        shortValue: 'No, open feature request only, not shipped in core',
-        confidence: 'estimated',
+          'Yes: the A2A Agent component calls remote or same-project agents. Publishing Langflow A2A endpoints and calling them in Internal mode requires LANGFLOW_A2A_ENABLED=true; remote External mode does not.',
+        shortValue: 'Yes; A2A server endpoints require opt-in',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langflow-ai/langflow/issues/10658',
-            label: 'GitHub langflow-ai/langflow Issue #10658: Add A2A Protocol Support',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/langflow-ai/langflow/issues/10241',
-            label: 'GitHub langflow-ai/langflow Issue #10241: A2A (tracking issue)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/a2a-agent-component',
+            label: 'Langflow: A2A Agent',
+            asOf: '2026-09-04',
           },
         ],
       },
       loopIteration: {
         value:
-          'Yes: Langflow ships a dedicated Loop component that takes a list of JSON or Table items (for example CSV rows), passes items one at a time through its Item output port to a chain of connected components, and loops back until every item is processed sequentially, before emitting the aggregated result from its Done port.',
-        shortValue: 'Yes, via the Loop component (sequential, Item/Done ports)',
+          'Yes: Loop processes a list of JSON/Table items sequentially through its Item path and returns aggregated results through Done.',
+        shortValue: 'Yes, sequential Loop component',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/loop',
-            label: 'Langflow Docs: Loop component',
-            asOf: '2026-07-02',
+            label: 'Langflow: Loop component',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -517,116 +511,132 @@ export const langflowProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          "Langflow organizes third-party integrations as component bundles grouped by provider, such as Google, OpenAI, LangChain, Elastic, and Composio. The full current list of bundles and components is only visible in the app's Bundles panel, not enumerated on the docs site.",
-        shortValue: 'Dozens of provider bundles; full count only in-app',
-        confidence: 'estimated',
+          'Provider integrations are organized in bundles. Langflow 1.12 installs a curated subset by default, with additional bundles supplied as pip-installable extensions; counts depend on the installation.',
+        shortValue: 'Provider bundles; count depends on installed extensions',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/components-bundle-components',
-            label: 'Langflow Docs: About bundles',
-            asOf: '2026-07-02',
+            label: 'Langflow: Provider bundles',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/extensions-overview',
+            label: 'Langflow: Extensions',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Yes: Langflow flows can be triggered via the REST API run and advanced run endpoints, a dedicated Webhook component for event-driven HTTP POST triggers, the Playground or chat interface, or external schedulers like cron or Airflow calling the API.',
-        detail: 'Scheduling itself is via external tools, not a native in-app scheduler.',
-        shortValue: 'API run, webhook, chat, and external cron/scheduler calls',
+          'Flows can run through the Playground, authenticated API requests, or webhook POSTs. External systems can invoke these endpoints for event-driven automation.',
+        shortValue: 'Playground, API, and webhook triggers',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/webhook',
-            label: 'Langflow Docs: Trigger flows with webhooks',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/concepts-playground',
+            label: 'Langflow: Playground',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.langflow.org/api-flows-run',
-            label: 'Langflow Docs: Flow trigger endpoints',
-            asOf: '2026-07-02',
+            label: 'Langflow: Flow trigger endpoints',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/webhook',
+            label: 'Langflow: Webhook triggers',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
         value:
-          "Yes: Langflow supports custom Python components with full source-code editing, including lifecycle hooks like pre-run setup and typed inputs/outputs from Langflow's own component library (the `lfx.io` module), for arbitrary custom logic inside a flow.",
-        shortValue: 'Yes, custom Python components with full code access',
+          'Yes: custom Python components define inputs, outputs, lifecycle methods, and arbitrary flow logic, subject to deployment permissions.',
+        shortValue: 'Yes, custom Python components',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/components-custom-components',
-            label: 'Langflow Docs: Create custom Python components',
-            asOf: '2026-07-02',
+            label: 'Langflow: Custom Python components',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/langflow-assistant',
+            label: 'Langflow: Assistant',
+            asOf: '2026-09-04',
           },
         ],
       },
       codeSandboxRuntime: {
         value:
-          'Partial: on self-hosted deployments only, the Python environment custom components run in is user-configurable. Langflow Desktop reads a `requirements.txt` in its data directory (`~/.langflow/data/requirements.txt` on macOS) where dependencies are pinned as `DEPENDENCY==VERSION`; Langflow OSS accepts `uv add DEPENDENCY` in a cloned repo and optional dependency groups via pip extras such as `langflow[postgresql]`; and a custom Docker image built on `langflowai/langflow:latest` can layer a `pyproject.toml` plus `uv.lock` for extra packages and mount custom component folders via `LANGFLOW_COMPONENTS_PATH`. Extension packages are pip-installable and register their bundles into the component palette when the server starts. No equivalent dependency configuration is documented for the managed Langflow Cloud.',
-        detail:
-          "This is environment configuration at the deployment level, not a per-step sandbox: packages are declared for the whole Langflow server and applied on restart, and there is no documented per-flow or per-component isolation boundary. Langflow's own Security page states it does not enforce isolation between users in a single process or restrict local disk and network access, so component code runs at the same trust level as the server.",
-        shortValue: 'Self-hosted only: requirements.txt, uv, or a custom Docker image',
+          'Operators control the Python environment and install dependencies; Desktop reads requirements.txt on restart. This is not an isolated per-step sandbox: custom code can access the host process, filesystem, and network.',
+        shortValue: 'Configurable Python environment; infrastructure isolation required',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/install-custom-dependencies',
-            label: 'Langflow Docs: Install custom dependencies',
-            asOf: '2026-08-10',
+            label: 'Langflow: Install custom dependencies',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langflow.org/develop-application',
-            label: 'Langflow Docs: Containerize a Langflow application',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.langflow.org/extensions-overview',
-            label: 'Langflow Docs: Extensions overview',
-            asOf: '2026-08-10',
+            url: 'https://docs.langflow.org/security',
+            label: 'Langflow: Security and infrastructure isolation',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
         value:
-          "Yes: any flow can be called as a REST API via documented run endpoints, with an auto-generated API reference (OpenAPI spec) available at the deployment's docs endpoint.",
-        shortValue: 'Yes, flows callable via REST API with OpenAPI spec',
+          'Yes: flows expose run endpoints. The optional beta Developer Workflow API additionally supports sync, stream, and background modes.',
+        shortValue: 'Yes, run API and optional beta Workflow API',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/api-reference-api-examples',
-            label: 'Langflow Docs: Get started with the Langflow API',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/api-flows-run',
+            label: 'Langflow: Flow trigger endpoints',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/workflow-api',
+            label: 'Langflow: Workflow API (Beta)',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Yes: Langflow supports custom Python component development with documented input and output classes, plus a separate open-source Embedded Chat widget package for embedding. Community members can also contribute components, bundles, and templates back via GitHub, but there is no formal third-party marketplace documented.',
-        detail: 'No formal marketplace documented.',
-        shortValue: 'Custom component SDK, embed widget, community contributions',
+          'Yes: documented Python component and extension interfaces, an official TypeScript API client, and an open-source Embedded Chat widget.',
+        shortValue: 'Python extensions, TypeScript client, and chat embed',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/components-custom-components',
-            label: 'Langflow Docs: Create custom Python components',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/extensions-overview',
+            label: 'Langflow: Extensions',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/typescript-client',
+            label: 'Langflow: TypeScript client',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://github.com/langflow-ai/langflow-embedded-chat',
-            label: 'GitHub: langflow-ai/langflow-embedded-chat',
-            asOf: '2026-07-02',
+            label: 'Langflow: Embedded Chat source and options',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
         value:
-          'Yes: Langflow automatically registers each project as an MCP server when created, exposing every flow that has a Chat Output component as a callable MCP tool for any external MCP client.',
-        shortValue: 'Yes, every project auto-exposed as an MCP server',
+          'Yes: project MCP servers expose selected flows with Chat Output components as tools over Streamable HTTP, with legacy SSE available. Automatic project registration is configurable and enabled by default.',
+        shortValue: 'Yes, configurable project MCP servers',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/mcp-server',
-            label: 'Langflow Docs: Use Langflow as an MCP server',
-            asOf: '2026-07-02',
+            label: 'Langflow: MCP server',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -634,56 +644,68 @@ export const langflowProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          "Langflow's core software is free and open source, with no license fee for self-hosting. Third-party sources describe Langflow Cloud as offering a free account tier plus a paid tier around $25 per month for higher usage limits, and separate enterprise pricing; Langflow's official pricing page does not confirm these figures directly.",
-        detail:
-          "Based on third-party summaries; the official pricing page doesn't confirm these figures.",
-        shortValue: 'Free open-source core; cloud free tier plus paid/enterprise tiers',
-        confidence: 'estimated',
+          'MIT-licensed software has no source license fee; operators fund infrastructure and model usage. IBM offers optional professional support. The former Astra-hosted service has been removed.',
+        shortValue: 'Free source; infrastructure, models, and optional support extra',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/langflow-pricing',
-            label: 'Lindy: Langflow Pricing',
-            asOf: '2026-07-02',
+            url: 'https://github.com/langflow-ai/langflow',
+            label: 'Langflow: Source repository and MIT license',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://automationatlas.io/tools/langflow/',
-            label: 'Automation Atlas: Langflow pricing summary',
-            asOf: '2026-07-02',
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html',
+            label: 'DataStax: Astra release notes, April 9, 2026',
+            asOf: '2026-09-04',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          "Unknown: the exact entry paid-plan price and inclusions aren't confirmed on Langflow's own official pricing page. Third-party summaries cite a cloud paid tier starting around $25 per month.",
-        detail: 'Not confirmed against an official Langflow source.',
-        shortValue: 'Unverified; third parties cite roughly $25/month',
+          'Unknown: a current entry price for commercial Langflow support or hosted service was not verified. IBM lists Elite Support without a public price on its product page.',
+        shortValue: 'Commercial entry price not publicly confirmed',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       freeTier: {
         value:
-          'Yes: the open-source core is free to self-host, with no usage caps beyond your own infrastructure. Langflow Cloud reportedly offers a free account tier before infrastructure and API costs apply.',
-        detail: 'Exact cloud free-tier limits not officially confirmed.',
-        shortValue: 'Yes, free self-hosted core plus a free cloud tier',
-        confidence: 'estimated',
+          'Yes: MIT-licensed source can be self-hosted without a software license fee. Infrastructure and provider usage still cost money; this does not establish a current free managed-cloud tier.',
+        shortValue: 'Free source; infrastructure and model usage extra',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/langflow-pricing',
-            label: 'Lindy: Langflow Pricing',
-            asOf: '2026-07-02',
+            url: 'https://github.com/langflow-ai/langflow',
+            label: 'Langflow: Source repository and MIT license',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.datastax.com/en/astra-db-serverless/release-notes.html',
+            label: 'DataStax: Astra release notes, April 9, 2026',
+            asOf: '2026-09-04',
           },
         ],
       },
       byok: {
         value:
-          'Yes: Langflow requires users to configure their own LLM provider API keys per provider in Settings > Model Providers, meaning usage is billed directly by the LLM provider, not marked up by Langflow.',
-        shortValue: 'Yes, users supply their own provider API keys',
+          'Yes: configure provider API keys or connect a local/OpenAI-compatible model endpoint. Provider permissions and available credits govern model access.',
+        shortValue: 'Yes, provider credentials or local model endpoints',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/agents',
-            label: 'Langflow Docs: Use Langflow agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/components-models',
+            label: 'Langflow: Language models and RAG',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -691,175 +713,182 @@ export const langflowProfile: CompetitorProfile = {
     security: {
       dataResidency: {
         value:
-          'Yes via self-hosting: Langflow can be fully self-hosted on Docker, Kubernetes, on-prem, or any cloud region, giving organizations full control over data residency. No dedicated managed regional-hosting product is documented for Langflow Cloud.',
-        shortValue: 'Yes via self-hosting; no documented managed regional cloud',
-        confidence: 'estimated',
+          'Self-hosters choose the server and storage locations. External model, vector-store, and MCP connections can still transmit data outside that infrastructure.',
+        shortValue: 'Self-host location control; external connections still matter',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/get-started-installation',
-            label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/security',
+            label: 'Langflow: Security and infrastructure isolation',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/components-models',
+            label: 'Langflow: Language models and RAG',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/mcp-tools',
+            label: 'Langflow: MCP Tools component',
+            asOf: '2026-09-04',
           },
         ],
       },
       rbac: {
         value:
-          "Unknown: Langflow's own Security documentation states it neither enforces isolation between users within a single Langflow process nor restricts access to local disk or network resources, relying on infrastructure-level security for multi-tenant deployments. No native role-based access control system with distinct roles or scopes is documented.",
-        shortValue: 'Unknown/limited, docs say isolation is infra-level not built-in',
+          'Partial: Langflow has role, share, and authorization APIs, but OSS registers a pass-through service. Per-resource enforcement requires an installed, registered authorization plugin; setting the flag alone is insufficient.',
+        shortValue: 'Enforcement plugin required; OSS defaults to pass-through',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/security',
-            label: 'Langflow Docs: Security',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/authorization',
+            label: 'Langflow: Authorization, audit and retention',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
         value:
-          'Unknown: no official documentation describes a queryable or exportable audit log of user actions gated by plan. Langflow does document general execution and system logging for debugging, which is distinct from a security audit trail.',
-        shortValue: 'Unknown, only general execution logs documented',
-        confidence: 'estimated',
+          'Yes: optional authorization audit logging records access decisions and share administration, with a paginated superuser API. Durable mode must be explicitly enabled before treating it as reliable compliance evidence.',
+        shortValue: 'Optional authorization audit; durable mode requires opt-in',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/concepts-flows',
-            label: 'Langflow Docs: Build flows',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/authorization',
+            label: 'Langflow: Authorization, audit and retention',
+            asOf: '2026-09-04',
           },
         ],
       },
       compliance: {
         value:
-          'Unknown: no public documentation or official page confirms SOC 2, HIPAA, ISO 27001, GDPR-specific attestation, PCI, or FedRAMP certification for Langflow.',
-        detail:
-          "Langflow's security documentation treats infrastructure isolation and compliance as the deploying organization's responsibility rather than a certification held by Langflow.",
-        shortValue: 'Unknown, no SOC 2 or other compliance certifications documented',
+          'Unknown: a Langflow-specific SOC 2 report or ISO 27001 certificate was not verified. IBM affiliation does not establish certification coverage for a self-hosted deployment.',
+        shortValue: 'Langflow-specific certification coverage unverified',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       modelAndToolGovernance: {
         value:
-          'Unknown: no public documentation describes an admin-configurable restriction on which LLM providers, models, or tools a given role or user may use. Model Providers configuration in Settings appears to be workspace-wide rather than per-role gated.',
-        shortValue: 'Unknown, no per-role model/tool restriction documented',
-        confidence: 'unknown',
-        sources: [],
+          'Yes: superusers can set a server policy through APIs to block components, templates, and models or allow selected providers. OSS has no visual policy editor; policies default to unrestricted.',
+        shortValue: 'Server-wide catalog and model policies via API',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/api-governance-policy',
+            label: 'Langflow: Catalog and model policy',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       credentialGovernance: {
         value:
-          'Unknown: no public documentation describes restricting which specific stored credentials a role or permission group may use, beyond standard per-user API key configuration.',
-        shortValue: 'Unknown, no per-role credential restriction documented',
-        confidence: 'unknown',
-        sources: [],
+          'Partial: authorization plugins can govern variables and shared resources. Shared-flow execution uses the caller’s namespace, so dependencies must be owned by or separately shared with that caller. Infrastructure isolation is still required.',
+        shortValue: 'Caller-scoped dependencies; plugin-based resource controls',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/authorization',
+            label: 'Langflow: Authorization, audit and retention',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/security',
+            label: 'Langflow: Security and infrastructure isolation',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       whiteLabeling: {
         value:
-          "Unknown: no public documentation describes replacing Langflow's branding, such as logo, product name, or theme, in the self-hosted UI or embedded chat widget, beyond basic widget style customization exposed as embed props.",
-        detail:
-          'The embed widget supports styling props but full logo and name replacement across the whole app was not confirmed.',
-        shortValue: 'Unknown; only chat-widget style props documented, not full rebrand',
+          'Partial: the official Embedded Chat package exposes UI customization options and source code. A turnkey organization-wide rebranding control for the full builder was not verified.',
+        shortValue: 'Customizable chat embed; full-builder branding unverified',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://github.com/langflow-ai/langflow-embedded-chat',
-            label: 'GitHub: langflow-ai/langflow-embedded-chat',
-            asOf: '2026-07-02',
+            label: 'Langflow: Embedded Chat source and options',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
         value:
-          'Unknown: no public documentation describes an org-configurable retention window for execution logs or soft-deleted resources. Self-hosters control their own database and log retention at the infrastructure level, since Langflow stores data in a configured database plus local or S3 file storage.',
-        shortValue: 'Unknown, retention managed at self-hosted infra level',
-        confidence: 'estimated',
+          'Partial: authorization audit retention is configurable, defaulting to 90 days; zero disables automatic pruning. General execution-trace and deleted-resource retention policies were not verified.',
+        shortValue: 'Configurable audit retention; broader retention unverified',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/concepts-file-management',
-            label: 'Langflow Docs: Manage files',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/authorization',
+            label: 'Langflow: Authorization, audit and retention',
+            asOf: '2026-09-04',
           },
         ],
       },
       piiRedaction: {
         value:
-          'Yes: the built-in Guardrails component includes a documented PII category that uses an LLM check to detect names, addresses, phone numbers, emails, social security numbers, and credit card numbers in workflow content. This is detection and validation, not confirmed automatic redaction of retained logs.',
-        detail:
-          'Documented as detection and validation; automatic redaction of stored logs specifically was not confirmed.',
-        shortValue: 'Yes, Guardrails component detects PII in content',
+          'Partial: Guardrails detects PII and routes failures. Structured logs scrub sensitive keys and accept extra keys to redact; automatic content-level PII redaction across all traces was not verified.',
+        shortValue: 'PII checks and log-key scrubbing; scope limited',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/guardrails',
-            label: 'Langflow Docs: Guardrails',
-            asOf: '2026-07-02',
+            label: 'Langflow: Guardrails',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/logging',
+            label: 'Langflow: Logging and secret-key scrubbing',
+            asOf: '2026-09-04',
           },
         ],
       },
       sso: {
         value:
-          'Unknown: no official Langflow documentation confirms SAML or OIDC single sign-on with organization auto-provisioning. Authentication docs cover API-key-based authentication, and third-party summaries mention SSO as a roadmap item, not a shipped, documented feature.',
-        detail: 'Some community sources describe SSO as planned rather than confirmed shipped.',
-        shortValue: 'Unknown, not confirmed as a documented shipped feature',
-        confidence: 'unknown',
-        sources: [],
+          'Yes: external authentication accepts tokens from an upstream SSO/OIDC gateway, validates them against configured identity-provider settings, and automatically provisions a local user. Operators configure the gateway and server.',
+        shortValue: 'Yes, external SSO/OIDC with local provisioning',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/external-authentication',
+            label: 'Langflow: External authentication',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       sessionPolicy: {
         value:
-          'Partial: on self-hosted deployments only, via environment variables. Langflow issues short-lived JWTs and exposes `LANGFLOW_ACCESS_TOKEN_EXPIRE_SECONDS` (default 3600, one hour) and `LANGFLOW_REFRESH_TOKEN_EXPIRE_SECONDS` (default 604800, seven days), so an operator sets the absolute ceiling on how long a signed-in session survives before re-authentication. No inactivity or idle timeout setting is documented, and no admin-console UI for setting session policy across an organization is documented for Langflow Cloud.',
-        detail:
-          'Expiry is measured from token issuance rather than last activity, and clients silently exchange a refresh token at `/api/v1/refresh`, so the effective session cap is the refresh token lifetime. Because these are process environment variables, the policy is set by whoever operates the deployment rather than by an administrator inside the product.',
-        shortValue: 'Self-hosted only, via token-expiry env variables',
+          'Partial: operators configure access- and refresh-token lifetimes through server settings. Defaults are one hour and seven days respectively. These are token-expiry controls; an inactivity timeout was not verified.',
+        shortValue: 'Server-configured access and refresh token lifetimes',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/api-keys-and-authentication',
-            label: 'Langflow Docs: API keys and authentication',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.langflow.org/authentication-overview',
-            label: 'Langflow Docs: Authentication and authorization overview',
-            asOf: '2026-08-10',
+            label: 'Langflow: API keys and JWT settings',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
         value:
-          'Partial: Langflow disclosed CVE-2025-3248, an unauthenticated remote code execution flaw in the custom-component code-validation endpoint, fixed in version 1.3.0; security researchers confirmed it was actively exploited in the wild to deploy the Flodrix botnet on unpatched instances before the fix shipped. That incident reflects the underlying trust model: built-in integration bundles are contributed by third-party contributors as pull requests to the official langflow-ai/langflow codebase and reviewed and merged by core maintainers, but Langflow also ships a custom-component system that lets any user author and run their own Python code with full server access, the same trust level as the core server itself.',
-        detail:
-          "Langflow documents that it does not enforce isolation between users or restrict local disk/network access, so custom-component code runs with the same trust level as the core server. By contrast, every one of Sim's blocks is first-party authored and code-reviewed through Sim's own pull-request process, and Sim has no public marketplace where a third party can publish installable executable tool code.",
-        shortValue:
-          'Partial: disclosed CVE-2025-3248 RCE exploited via Flodrix botnet; custom code runs at full server trust',
-        confidence: 'verified',
+          'Extensions add installable provider code, and custom components execute Python. A blanket guarantee that all installable code is vendor-vetted was not verified; operators must review dependencies and isolate execution.',
+        shortValue: 'Installable extensions and custom code require operator review',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langflow.org/components-bundle-components',
-            label: 'Langflow Docs - About bundles',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.langflow.org/contributing-components',
-            label: 'Langflow Docs - Contribute components',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.langflow.org/components-custom-components',
-            label: 'Langflow Docs - Create custom Python components',
-            asOf: '2026-07-08',
+            url: 'https://docs.langflow.org/extensions-overview',
+            label: 'Langflow: Extensions',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.langflow.org/security',
-            label: 'Langflow Docs - Security',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/langflow-ai/langflow/security/advisories/GHSA-rvqx-wpfh-mfx7',
-            label: 'GitHub Security Advisory GHSA-rvqx-wpfh-mfx7 (CVE-2025-3248)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.securityweek.com/recent-langflow-vulnerability-exploited-by-flodrix-botnet/',
-            label: 'SecurityWeek - Langflow Vulnerability Exploited by Flodrix Botnet',
-            asOf: '2026-07-08',
+            label: 'Langflow: Security and infrastructure isolation',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -867,95 +896,108 @@ export const langflowProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Yes: Langflow automatically captures step-by-step execution traces within a flow run. It can forward detailed traces, including prompts, responses, token usage, latency, and intermediate steps, to external observability platforms such as LangSmith, Langfuse, and LangWatch via environment-variable configuration.',
-        detail:
-          'Deep trace visualization relies on integrating an external observability platform.',
-        shortValue: 'Per-step traces, exportable to LangSmith/Langfuse/LangWatch',
+          'Yes: native traces record flow status, component inputs/outputs, latency, errors, and deeper LLM/tool spans with token usage where available. The UI and API expose traces, including human decisions.',
+        shortValue: 'Yes, native flow and component traces',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/integrations-langfuse',
-            label: 'Langflow Docs: Langfuse integration',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.langflow.org/integrations-langsmith',
-            label: 'Langflow Docs: LangSmith integration',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/traces',
+            label: 'Langflow: Native traces',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
         value:
-          'Unknown: no public documentation describes automatic retries, checkpointing, or replaying a past execution with its original inputs at the platform level. This is a documented LangGraph capability, not confirmed for Langflow flows specifically.',
-        shortValue: 'Unknown, no documented replay/checkpoint model for flows',
-        confidence: 'unknown',
-        sources: [],
+          'Partial: human-input gates checkpoint state and resume without repeating completed steps. This does not establish arbitrary crash recovery or automatic retry for every component.',
+        shortValue: 'Checkpointed human approval; general crash recovery unverified',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/human-in-the-loop',
+            label: 'Langflow: Human-in-the-Loop',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       failureAlerting: {
         value:
-          'Unknown: no public documentation describes proactive notification, such as email, Slack, or webhook alerts, when a flow run fails or crosses a cost or latency threshold. Available integrations focus on logging and tracing rather than alerting.',
-        shortValue: 'Unknown, no proactive failure alerting documented',
+          'Unknown: native proactive run-failure or cost/latency-threshold notifications were not verified. External observability services may provide their own alerts.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       dataDrains: {
         value:
-          'Partial: Langflow supports continuously forwarding execution trace data to external observability platforms such as LangSmith, Langfuse, and LangWatch via configuration. No general-purpose data drain to arbitrary destinations like S3, BigQuery, or a generic webhook for audit or usage data was found documented.',
-        shortValue: 'Trace export to LangSmith/Langfuse/LangWatch only',
-        confidence: 'estimated',
+          'Partial: the Langfuse integration forwards traces, and native traces are downloadable or queryable through APIs. A generic managed export of every audit and usage dataset was not verified.',
+        shortValue: 'Trace forwarding and API export; broader drains unverified',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/integrations-langfuse',
-            label: 'Langflow Docs: Langfuse integration',
-            asOf: '2026-07-02',
+            label: 'Langflow: Langfuse integration',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/traces',
+            label: 'Langflow: Native traces',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
         value:
-          "Partial: Langflow documents a webhook-triggered flow execution pattern and a Monitor endpoints page for checking flow build and run status, giving some support for background triggering and later status checks. A dedicated async job-polling API pattern isn't fully documented.",
-        shortValue: 'Some support via webhook trigger plus monitor endpoints',
-        confidence: 'estimated',
+          'Yes: the opt-in beta Workflow API returns a job ID immediately in background mode, supports polling status/results, and allows event-stream reattachment and cancellation.',
+        shortValue: 'Yes, beta background jobs with polling and cancellation',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/api-monitor',
-            label: 'Langflow Docs: Monitor endpoints',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/workflow-api',
+            label: 'Langflow: Workflow API (Beta)',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          "Unknown: Langflow's official documentation publishes no concrete numbers for maximum single-execution duration or concurrent run limits. Self-hosted deployments are bounded only by the operator's own infrastructure and worker configuration.",
-        shortValue: 'Unknown, no published execution/concurrency limits',
-        confidence: 'unknown',
-        sources: [],
+          'Limits depend on deployment and component settings. MCP tool calls default to a configurable 180-second timeout; the beta Workflow API also reports timed-out jobs. No single universal run/concurrency ceiling was verified.',
+        shortValue: 'Deployment-specific limits and configurable component timeouts',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langflow.org/mcp-server',
+            label: 'Langflow: MCP server',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/workflow-api',
+            label: 'Langflow: Workflow API (Beta)',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       partialFailureHandling: {
         value:
-          'Unknown: no public documentation describes routing a single failing step to an error-handling path while the rest of the flow continues; this was not confirmed as a native feature in the documentation reviewed.',
-        shortValue: 'Unknown, no documented per-step error-routing feature',
+          'Unknown: a general automatic error branch for arbitrary failed components was not verified. Guardrail fail outputs and human rejection paths are separate control-flow features.',
+        shortValue: 'Not verified in reviewed documentation',
         confidence: 'unknown',
         sources: [],
       },
       unattendedExecution: {
         value:
-          'Partial: when Langflow is deployed as a server, self-hosted via Docker/Kubernetes or on Langflow Cloud, triggered runs (webhook, API call, or external cron/Airflow calling the API) execute on that server with no dependency on any particular client device staying open. But Langflow can also be run as a desktop app, and a flow triggered through that installation depends on the desktop app process itself staying running on that machine, since there is no separate always-on server component in that deployment mode.',
-        detail:
-          'The dependency is on the chosen deployment mode: a Docker/Kubernetes/Cloud deployment behaves like Sim (server-side, client-independent), while the desktop app is a local process that must stay running to serve triggers.',
-        shortValue: 'Yes if server-deployed; desktop app requires that app to stay running',
-        confidence: 'estimated',
+          'Yes for server deployments: beta background jobs return immediately and can be checked later. The Langflow server must stay running; a local Desktop installation depends on that local process and machine.',
+        shortValue: 'Server background jobs; local process must remain running',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/get-started-installation',
-            label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/workflow-api',
+            label: 'Langflow: Workflow API (Beta)',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langflow.org/webhook',
-            label: 'Langflow Docs: Trigger flows with webhooks',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/get-started-installation',
+            label: 'Langflow: Installation',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -963,65 +1005,81 @@ export const langflowProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          "Langflow's primary support channel is a public Discord community server, plus GitHub Discussions and Issues for questions and feature requests. No official documentation confirms a paid or dedicated enterprise support tier separate from DataStax or IBM commercial channels.",
-        shortValue: 'Discord and GitHub community support; no confirmed paid tier',
+          'Community help is available through Discord and GitHub. IBM also offers Elite Support for Langflow OSS users.',
+        shortValue: 'Discord/GitHub plus optional IBM Elite Support',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/contributing-community',
-            label: 'Langflow Docs: Join the Langflow community',
-            asOf: '2026-07-02',
+            label: 'Langflow: Community and support',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
         value:
-          'Unknown: no public documentation confirms a formal SLA for response time or uptime guarantee offered for Langflow, on any plan.',
-        shortValue: 'Unknown, no SLA documented',
-        confidence: 'unknown',
-        sources: [],
+          'IBM lists Elite Support for enterprises needing SLAs. Exact response times, coverage, and availability commitments require the applicable agreement; no uptime percentage was verified.',
+        shortValue: 'IBM support SLAs; exact contractual terms unverified',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       community: {
         value:
-          "Langflow's GitHub repository has approximately 150,700 stars and 9,395 forks, alongside an active public Discord server. Industry coverage frequently describes it as a widely used open-source AI-agent and RAG (retrieval-augmented generation) builder.",
-        shortValue: 'About 150,700 GitHub stars, 9,400 forks',
+          'The public GitHub repository and Discord provide community participation and support channels. Community size is not a service-quality guarantee.',
+        shortValue: 'Public GitHub and Discord community',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/langflow-ai/langflow',
-            label: 'GitHub: langflow-ai/langflow',
-            asOf: '2026-07-02',
+            label: 'Langflow: Source repository and MIT license',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/contributing-community',
+            label: 'Langflow: Community and support',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
         value:
-          "Langflow started as a self-funded startup called Logspace before DataStax acquired it in April 2024. DataStax, including Langflow, was then acquired by IBM as announced in February 2025, making Langflow part of IBM's watsonx portfolio.",
-        shortValue: 'Acquired by DataStax 2024, then folded into IBM 2025',
+          'Langflow is an IBM product with OSS, Desktop, professional support, and watsonx Orchestrate integration listed as editions or offerings.',
+        shortValue: 'IBM-backed OSS and commercial support offerings',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://techcrunch.com/2024/04/04/datastax-acquires-logspace-the-startup-behind-the-langflow-low-code-tool-for-building-rag-based-chatbots/',
-            label: 'TechCrunch: DataStax acquires Langflow (Logspace)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://newsroom.ibm.com/2025-02-25-ibm-to-acquire-datastax,-deepening-watsonx-capabilities-and-addressing-generative-ai-data-needs-for-the-enterprise',
-            label: 'IBM Newsroom: IBM to acquire DataStax',
-            asOf: '2026-07-02',
+            url: 'https://www.ibm.com/products/langflow',
+            label: 'IBM: Langflow editions and support',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
         value:
-          "Unknown: Langflow doesn't run an official structured course, certification, or academy program. Third-party paid courses exist on platforms like Udemy that teach LangChain and Langflow, but these aren't an official Langflow product.",
-        shortValue: 'No official academy; only third-party courses found',
+          'Official documentation includes tutorials and community learning resources. A formal vendor-issued certification program was not verified.',
+        shortValue: 'Official tutorials; certification program unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.udemy.com/course/langchain-masterclass/',
-            label: 'Udemy: Master LangChain with No-Code tools: Flowise and LangFlow',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/contributing-community',
+            label: 'Langflow: Community and support',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langflow.org/get-started-installation',
+            label: 'Langflow: Installation',
+            asOf: '2026-09-04',
           },
         ],
       },

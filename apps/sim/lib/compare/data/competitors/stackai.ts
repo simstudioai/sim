@@ -1,7 +1,7 @@
 import { StackAIIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against public primary sources on 2026-09-04; unverified capabilities are labeled. */
 export const stackaiProfile: CompetitorProfile = {
   id: 'stack-ai',
   name: 'StackAI',
@@ -14,865 +14,916 @@ export const stackaiProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents, connecting LLMs and business systems through a drag-and-drop, low-code node builder.',
+    'StackAI, acquired by Asana in May 2026, is a commercial visual platform for building and governing AI agents, with hosted, VPC, and on-premise deployment options.',
   standoutFeatures: [
     {
-      title: 'Public Trust Center detailing pen tests and vendor DPAs',
+      title: 'Reviewed deployment stages',
       description:
-        "StackAI publishes a Trust Center (trust.stackai.com) documenting ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic. StackAI's SOC 2 Type II and ISO 27001 certifications overlap with Sim's documented compliance posture, so the public penetration-test results and vendor DPAs are the distinguishing evidence here.",
-      shortDescription: 'Public Trust Center with pen test results and vendor DPAs.',
+        'ADLC provides separate deployment URLs and reviews of frozen workflow versions before promotion. Enabling it applies stages to newly created projects.',
+      shortDescription: 'Reviewed versions move through separate deployment stages.',
       source: {
-        url: 'https://trust.stackai.com/',
-        label: 'StackAI Trust Center',
-        asOf: '2026-07-02',
+        url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/agentic-development-lifecycle-adlc.md',
+        label: 'StackAI: Agentic Development Lifecycle (ADLC)',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'PR-gated approval workflow for promoting agents between environments',
+      title: 'Portable skills with version history',
       description:
-        "StackAI provides three default, isolated environments (development, staging, production), plus custom environments. Promotion between them requires a pull request that must be reviewed and approved, with an admin approval queue sitting before production deploys. Sim also supports forking a workspace into dev/qa/prod-style environments with diff and promote/rollback, but without a mandatory PR-review or approval gate, and that capability is itself gated to Sim's Enterprise plan on hosted Sim (or a feature flag on self-hosted deployments).",
-      shortDescription: 'PR-gated dev/staging/production promotion with admin approval queues.',
+        'Agents load reusable skills on demand. Builders can import and export Agent Skills-compatible bundles with SKILL.md and supporting files.',
+      shortDescription: 'Portable SKILL.md bundles with on-demand loading.',
       source: {
-        url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
-        label: 'The Agentic Development Life Cycle - StackAI blog',
-        asOf: '2026-07-02',
+        url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/bonus-features/skills.md',
+        label: 'StackAI: Skills',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Full version diff/compare on every manual edit, not just AI-generated changes',
+      title: 'Human approval in workflows',
       description:
-        'Every save creates a full version snapshot of an agent, regardless of whether the change was made manually or by an AI assistant. A comparison tool shows added or removed nodes, prompt and LLM config changes, and connection changes. Any version can be reverted, and reverting creates a new version rather than erasing history. Sim diffs and reverts Copilot-generated edits, but manual edits only get local undo/redo, not a versioned diff.',
-      shortDescription: 'Full version snapshots with diff/compare and one-click rollback.',
+        'A workflow can pause for a human to approve, reject, or provide feedback through a connected communication channel.',
+      shortDescription: 'Workflows pause for approval before proceeding.',
       source: {
-        url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
-        label: 'The Agentic Development Life Cycle - StackAI blog',
-        asOf: '2026-07-02',
+        url: 'https://www.stackai.com/blog/introducing-stackai-human-in-the-loop-agentic-workflows-you-can-trust',
+        label: 'Introducing StackAI Human-in-the-Loop: Agentic Workflows You Can Trust',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'On-prem / VPC self-hosted deployment for enterprise',
+      title: 'Enterprise hosting choices',
       description:
-        "The Enterprise plan supports on-premise or VPC deployment behind the customer's own VPN/network, alongside dedicated infrastructure and SSO/access controls.",
-      shortDescription: 'Enterprise-only on-prem or VPC deployment with dedicated infrastructure.',
+        'Enterprise pricing includes dedicated infrastructure, on-premise deployment, and virtual private cloud deployment.',
+      shortDescription: 'Enterprise supports dedicated, on-premise, and VPC deployment.',
       source: {
         url: 'https://www.stackai.com/pricing',
-        label: 'StackAI Pricing',
-        asOf: '2026-07-02',
+        label: 'StackAI Pricing – Plans for Teams & Enterprise',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'Not open source',
-      description:
-        'StackAI is a proprietary, closed-source commercial SaaS platform. Its GitHub organization (github.com/stackai) currently has no public repositories at all, so there is no self-hostable OSS codebase to audit or fork.',
-      shortDescription: 'Closed-source SaaS with no auditable or forkable codebase.',
-      source: {
-        url: 'https://github.com/stackai',
-        label: 'StackAI GitHub organization',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'Free tier is very limited',
-      description:
-        'The free plan caps usage at 500 runs/month, 2 projects, and 1 seat, with support limited to community Discord, well below what a team evaluating agent workflows at scale would need.',
-      shortDescription: 'Free plan caps at 500 runs, 2 projects, 1 seat.',
+      title: 'Small free allowance',
+      description: 'The free plan includes 500 runs per month, 2 projects, and 1 seat.',
+      shortDescription: 'Free includes 500 runs, 2 projects, and 1 seat.',
       source: {
         url: 'https://www.stackai.com/pricing',
-        label: 'StackAI Pricing',
-        asOf: '2026-07-02',
+        label: 'StackAI Pricing – Plans for Teams & Enterprise',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'No published self-serve/mid-tier pricing',
+      title: 'Paid pricing requires a quote',
       description:
-        'Beyond the free tier, StackAI publishes only a custom-quote Enterprise plan with no mid-market tier, so cost comparison requires contacting sales.',
-      shortDescription: 'No mid-tier pricing. Only free or a custom Enterprise quote.',
+        'The public paid offering is Enterprise with custom pricing, so a paid cost comparison requires a quote.',
+      shortDescription: 'Enterprise pricing requires a quote.',
       source: {
         url: 'https://www.stackai.com/pricing',
-        label: 'StackAI Pricing',
-        asOf: '2026-07-02',
+        label: 'StackAI Pricing – Plans for Teams & Enterprise',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'HIPAA/GDPR not documented on the Trust Center itself',
+      title: 'PII protection requires configuration',
       description:
-        'The public Trust Center page lists only SOC 2 Type II and ISO 27001. A separate blog post confirms StackAI was also audited against HIPAA, but GDPR compliance appears only on marketing/pricing pages (e.g. "SOC 2, HIPAA & GDPR compliance" on the Enterprise tier), with no dedicated audit evidence.',
-      shortDescription:
-        'HIPAA is audited but GDPR compliance is undocumented outside marketing pages.',
+        'PII controls are off by default. Warning mode passes the original value to the model; Encrypt mode masks it for the model and restores it in output.',
+      shortDescription: 'PII controls are optional and mode-dependent.',
       source: {
-        url: 'https://trust.stackai.com/',
-        label: 'StackAI Trust Center',
-        asOf: '2026-07-02',
+        url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/advanced-settings.md',
+        label: 'StackAI: Advanced Settings',
+        asOf: '2026-09-04',
       },
     },
   ],
   facts: {
     platform: {
       builderType: {
-        value: 'Visual/low-code node-based workflow builder',
-        detail:
-          'A 2D canvas where builders drag and drop nodes and connect them to build a workflow, drawing from Input, Output, Core (e.g. AI Agent, Knowledge Bases), Apps/integration, and Utils/Logic node categories; supports a Code Node for custom logic (the older Python Code node is now deprecated in favor of it).',
-        shortValue: 'Drag-and-drop node canvas plus Code Node',
+        value:
+          'Visual node-based workflow canvas with AI Agent nodes, a building assistant, and an MCP interface for creating and editing workflows.',
+        shortValue: 'Visual canvas, agents, and AI-assisted building',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
-            label: 'Platform Overview - StackAI Docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: Platform Overview',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.stackai.com/workflow-builder',
-            label: 'Workflow Builder node index - StackAI Docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/python-code',
-            label: 'Python Code node (deprecated) - StackAI Docs',
-            asOf: '2026-07-08',
+            url: 'https://docs.stackai.com/interface-and-deployment/mcp-reference/stackai-mcp-server',
+            label: 'StackAI: StackAI MCP Server',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'Approachable for visual prototyping; production workflows still require knowledge of data, tools, and governance settings.',
+        shortValue: 'Visual prototyping; production setup takes practice',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/getting-started/start-here',
+            label: 'StackAI: Start Here',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       selfHostOption: {
-        value: 'Yes, on the Enterprise plan only',
-        detail:
-          "On-premise or VPC deployment, entirely within the customer's own VPC and behind their own VPN, is offered as part of the custom-priced Enterprise tier. Not available on the free tier.",
-        shortValue: 'Enterprise-only, VPC or on-prem',
+        value: 'Yes: Enterprise offers on-premise and VPC deployment.',
+        shortValue: 'Yes, Enterprise on-premise and VPC',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
           {
-            url: 'https://www.stackai.com/solutions/self-hosted',
-            label: 'StackAI Self-Hosted Solutions page',
-            asOf: '2026-07-02',
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/on-premise.md',
+            label: 'StackAI: On-Premise',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
-        value: 'Cloud SaaS, VPC/on-prem (Enterprise), plus an AWS Marketplace listing',
-        detail:
-          'Agents deploy to chat, forms, APIs, Slack, Teams, or batch run; also listed on AWS Marketplace as "StackAI Hosted".',
-        shortValue: 'Cloud, VPC/on-prem, AWS Marketplace',
+        value:
+          'Hosted service, dedicated infrastructure, customer VPC, or on-premise Enterprise deployment.',
+        shortValue: 'Hosted, dedicated, VPC, or on-premise',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://aws.amazon.com/marketplace/pp/prodview-p6pd4dwnmgyew',
-            label: 'StackAI Hosted - AWS Marketplace',
-            asOf: '2026-07-02',
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
           },
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/on-premise.md',
+            label: 'StackAI: On-Premise',
+            asOf: '2026-09-04',
+          },
         ],
       },
       templates: {
-        value: 'Yes, template library across business functions',
-        detail:
-          'Pre-built templates for finance/compliance, business operations, customer service/support, sales, and more.',
-        shortValue: 'Templates across business functions',
+        value: 'Yes: prebuilt workflow templates and a Chat with Knowledge Base starter.',
+        shortValue: 'Yes, prebuilt workflow templates',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.stackai.com/templates',
-            label: 'Customizable AI Workflow Templates - StackAI',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
+            label: 'StackAI: Platform Overview',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
-        value: 'Proprietary / closed source',
-        detail:
-          'Commercial SaaS platform; the GitHub org (github.com/stackai) currently has no public repositories at all — the core platform is not open source.',
-        shortValue: 'Closed-source commercial SaaS',
+        value:
+          'Commercial platform offered under subscription terms for SaaS, on-premise, and bring-your-own-cloud purchases.',
+        shortValue: 'Commercial subscription platform',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/stackai',
-            label: 'StackAI GitHub organization',
-            asOf: '2026-07-08',
+            url: 'https://asana.com/terms/asana-product-specific-terms',
+            label: 'Asana Product-Specific Terms • Asana',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
-        value: 'Yes: full dev/staging/production workspace promotion with PR-gated approval',
-        detail:
-          'Three default isolated environments (development, staging, production), each independently connectable to different data sources/APIs; changes flow via pull requests that must be reviewed and approved before promotion, with a central admin approval queue. Custom environments (QA, experimentation, demo, client-specific) can be added.',
-        shortValue: 'Dev/staging/prod with PR-gated promotion',
+        value:
+          'Yes: ADLC promotes reviewed versions through Draft, Development, Staging, and Production, with separate deployed URLs.',
+        shortValue: 'Yes, reviewed deployment stages',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
-            label: 'The Agentic Development Life Cycle - StackAI blog',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/agentic-development-lifecycle-adlc.md',
+            label: 'StackAI: Agentic Development Lifecycle (ADLC)',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Admins enable Deployment Stages for new projects. Existing projects do not automatically gain ADLC stages; stage order must be followed, although a stage can be omitted by configuration.',
       },
       versionControlDepth: {
         value:
-          'Version history with diff/compare and rollback via revert; no branching or client-side undo/redo',
-        detail:
-          'Every save creates a full version snapshot; a compare tool diffs nodes, prompts/LLM config, and connections between versions. Any version can be reverted, which creates a new version and preserves history.',
-        shortValue: 'Version history, diff, and rollback',
+          'Published version history includes descriptions, authors, diffs, and reversion; ADLC adds frozen review snapshots and deployment history.',
+        shortValue: 'Published versions, diffs, rollback, and deployment history',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
-            label: 'The Agentic Development Life Cycle - StackAI blog',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/project-controls.md',
+            label: 'StackAI: Project Controls',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/agentic-development-lifecycle-adlc.md',
+            label: 'StackAI: Agentic Development Lifecycle (ADLC)',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
         value:
-          'Unknown: a third-party review mentions "real-time collaboration features," but StackAI\'s own documentation does not confirm live, concurrent multi-user editing (synced cursors, selections, live edits) on the same workflow canvas.',
-        detail:
-          'StackAI documents workspace and folder sharing with role-based access to projects. That is async collaboration, not verified simultaneous co-editing with presence indicators.',
-        shortValue: 'Unknown, not confirmed in official docs',
+          'Unknown: shared access and project locking are documented, but simultaneous editing with synchronized cursors and selections was not verified.',
+        shortValue: 'Live canvas co-editing unverified',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/project-controls.md',
+            label: 'StackAI: Project Controls',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       nativeFileStorage: {
         value:
-          'No: the Files node is a per-workflow input for uploading a document as context for the LLM, not a persistent file store. Ongoing file access goes through Knowledge Base connectors to external storage like Google Drive, Dropbox, OneDrive, SharePoint, Box, S3, or Azure Blob. There is no native file system with its own folder hierarchy, link-based sharing, or a trash/recovery feature.',
-        detail:
-          'Workspace "folders" that exist in StackAI docs organize projects/permissions, not user files.',
-        shortValue: 'No, relies on external storage connectors',
+          'Partial: files can be uploaded for workflows; Code Node outputs are stored with short-lived download URLs. Shared folders, authenticated file links, and trash recovery were not verified.',
+        shortValue: 'Workflow files; full file manager unverified',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/inputs/files-node',
-            label: 'Files Node docs',
-            asOf: '2026-07-02',
+            label: 'StackAI: Files Node',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/workspace-and-folder-access',
-            label: 'Workspace and Folder Access docs',
-            asOf: '2026-07-08',
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/code-node',
+            label: 'StackAI: Code Node',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataTables: {
         value:
-          "No: the Table node lets a workflow upload a CSV or XLSX file and query it with LLM-generated SQL, but only as a one-off input to that workflow run. That's different from a persistent, spreadsheet-like data table shared across a workspace, with defined row/column limits and spreadsheet-style keyboard navigation.",
-        detail:
-          'There is no standalone "Tables" product surface with persistent grid storage independent of a single workflow run.',
-        shortValue: 'No, only per-workflow CSV analysis',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.stackai.com/blog/how-to-build-spreadsheet-ai-agent',
-            label: 'Build Spreadsheet AI Agent blog',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: a general-purpose native spreadsheet grid with documented row limits and keyboard editing was not verified.',
+        shortValue: 'Native spreadsheet grid unverified',
+        confidence: 'unknown',
+        sources: [],
       },
       richTextEditor: {
         value:
-          'Unknown: StackAI has no documented inline rich-text or WYSIWYG markdown editor for documents stored in the platform. Other search results turned up only unrelated third-party products with similar names.',
-        shortValue: 'Unknown, not publicly documented',
+          'Unknown: a native document editor with rich-text editing and stored documents was not verified.',
+        shortValue: 'Native document editor unverified',
         confidence: 'unknown',
         sources: [],
       },
       subWorkflows: {
         value:
-          "Yes: an AI Agent node can invoke a separately saved StackAI workflow as a Subflow Tool. The parent agent passes input into the subflow, waits for it to run to completion, and receives the subflow's output node result back before continuing, rather than only firing an async webhook-triggered run.",
-        detail:
-          'Subflow Tools are configured on the AI Agent node; each must connect to an output node to complete, and the docs describe subflows running "collaboratively" where one subflow\'s output can inform whether/how another is invoked. Whether a Subflow Tool can be reused unmodified across multiple parent workflows is unconfirmed.',
-        shortValue: 'Yes, via Subflow Tools on the AI Agent node',
-        confidence: 'estimated',
+          'Yes: the StackAI Project Node calls another project and returns its outputs, with an optional loop over multiple inputs.',
+        shortValue: 'Yes, reusable Project Node calls',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/subflow-tools',
-            label: 'Subflow Tools docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/utils/stackai-project-node',
+            label: 'StackAI: StackAI Project Node',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
         value:
-          'No: StackAI has no feature for publishing a project as a named, iconed block that appears in a shared toolbar/library for every builder in the organization. The closest capability is the StackAI Project Node, which lets a builder reference another saved project by picking it from a dropdown inside their own workflow, and Subflow Tools, which do the same from an AI Agent node.',
-        detail:
-          "The Project Node docs describe manually matching the calling workflow's inputs to the target project's inputs (not an auto-derived input schema) and returning results as a single opaque JSON blob covering all of that project's outputs, reshaped afterward with the Output Node's Template feature, rather than the caller picking and naming individual outputs to expose. Neither the Project Node nor Subflow Tools docs describe the referenced project appearing as a distinct block in a shared, org-wide toolbar alongside built-in nodes, hiding its internal steps/credentials from the caller, or automatically tracking a separately published/deployed version of the source project.",
-        shortValue: 'No, only same-workspace Project Node / Subflow Tool references',
-        confidence: 'verified',
+          'Partial: Project Nodes and named Subflow Tools provide reusable logic. Publishing each project as a distinct shared toolbar block was not verified.',
+        shortValue: 'Project Nodes and named Subflow Tools',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/utils/stackai-project-node',
-            label: 'StackAI Project Node docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: StackAI Project Node',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/subflow-tools',
-            label: 'Subflow Tools docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: Subflow Tools',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     aiCapabilities: {
       multiLlmSupport: {
-        value: 'Yes, broad support across major LLM providers',
-        detail:
-          'The LLM node is provider-agnostic with a model dropdown, and StackAI docs confirm OpenAI models directly and via Azure hosting, plus AWS Bedrock-hosted models including Anthropic Claude, AI21, Cohere, and Amazon Titan. StackAI also documents data processing agreements with OpenAI and Anthropic.',
-        shortValue: 'Broad LLM provider support',
-        confidence: 'estimated',
+        value:
+          'Yes: multiple LLM providers, including OpenAI, Anthropic, Azure, Bedrock, Google, and local models.',
+        shortValue: 'Multiple providers and local models',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/llm-hosting-and-governance/llms-hosted-on-azure-and-aws-bedrock',
-            label: 'LLMs Hosted on Azure & AWS Bedrock - StackAI Docs',
-            asOf: '2026-07-04',
+            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/analytics.md',
+            label: 'StackAI: Analytics',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://trust.stackai.com/',
-            label: 'StackAI Trust Center (OpenAI/Anthropic DPAs)',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/llm-hosting-and-governance/llms-hosted-on-azure-and-aws-bedrock',
+            label: 'StackAI: LLMs Hosted on Azure & AWS Bedrock',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/on-premise.md',
+            label: 'StackAI: On-Premise',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      naturalLanguageBuilding: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      knowledgeBaseRag: {
-        value: 'Yes: knowledge base / data loader connections',
-        detail:
-          'Connects to knowledge bases, tools, and business systems; the Enterprise plan includes all data loaders.',
-        shortValue: 'Knowledge base and data loader nodes',
+        value: 'Yes: AI Agent nodes choose tools and orchestrate named Subflow Tools.',
+        shortValue: 'Yes, agents with tools and subflows',
         confidence: 'verified',
         sources: [
-          { url: 'https://docs.stackai.com/', label: 'StackAI Docs Overview', asOf: '2026-07-02' },
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/subflow-tools',
+            label: 'StackAI: Subflow Tools',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/tools.md',
+            label: 'StackAI: Tools',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      naturalLanguageBuilding: {
+        value:
+          'Yes: Chat with Workflow assists builders, and the StackAI MCP server lets connected AI assistants create and edit workflows from descriptions.',
+        shortValue: 'Yes, builder assistant and MCP workflow creation',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
+            label: 'StackAI: Platform Overview',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/mcp-reference/stackai-mcp-server',
+            label: 'StackAI: StackAI MCP Server',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      knowledgeBaseRag: {
+        value:
+          'Yes: indexed knowledge bases support retrieval with queries, metadata filters, and configurable result counts.',
+        shortValue: 'Yes, indexed knowledge bases and filtered retrieval',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/apps/knowledge-base',
+            label: 'StackAI: Knowledge Base',
+            asOf: '2026-09-04',
+          },
         ],
       },
       mcpSupport: {
-        value: 'Yes: dedicated MCP node',
-        detail:
-          'An MCP node lets a workflow call a tool on a Model Context Protocol server, using public servers via URL connection or self-hosted/local MCP servers exposed via a tunnel (e.g. ngrok) for advanced users.',
-        shortValue: 'Dedicated MCP node',
+        value: 'Yes: workflows can call selected tools on remote MCP servers using the MCP node.',
+        shortValue: 'Yes, remote MCP tool calls',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/apps/mcp',
-            label: 'MCP - StackAI Docs',
-            asOf: '2026-07-02',
+            label: 'StackAI: MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
         value:
-          'Retrieval grounding, tool-call validation, and output enforcement are covered in vendor guidance, but there is no dedicated first-party evaluation or guardrails feature.',
-        shortValue: 'Guardrail guidance, no dedicated product',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.stackai.com/insights/how-to-design-ai-agent-guardrails-best-practices-for-input-validation-output-filtering-and-safety-controls',
-            label: 'How to Design AI Agent Guardrails - StackAI insights',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      humanInTheLoop: {
-        value: 'Yes: dedicated pause-and-approve mechanism distinct from a simple delay step',
-        detail:
-          'A workflow pauses at a decision point and sends an approval request via Slack, Teams, email, or another connected channel. A human reviewer can approve, reject, or give feedback, and the gated action, such as sending an email, writing to a database, or provisioning access, only executes after approval. This checkpoint reduces the damage a hallucination or a mistaken tool call could cause.',
-        shortValue: 'Pause-and-approve checkpoint before side effects',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.stackai.com/blog/introducing-stackai-human-in-the-loop-agentic-workflows-you-can-trust',
-            label: 'Introducing StackAI Human-in-the-Loop - StackAI blog',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      generativeMedia: {
-        value: 'Yes: image and audio generation nodes; no dedicated video generation node',
-        detail:
-          'A Text-to-Audio node uses ElevenLabs voice-synthesis models (e.g. eleven_multilingual_v2) for TTS; an Image node generates images from text prompts using models such as OpenAI DALL·E 3 or Stable Diffusion.',
-        shortValue: 'Image and audio nodes, no video',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.stackai.com/workflow-builder/outputs/image-node',
-            label: 'Image Node - StackAI Docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.stackai.com/workflow-builder/outputs/audio-node',
-            label: 'Audio Node - StackAI Docs',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      dynamicToolUse: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      modelFallback: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      agentSkills: {
-        value:
-          'Yes, but proprietary and platform-locked: a Prompt Library where builders save and reuse named prompts/instructions (e.g. a saved "Market Analyst Persona") across agents, rather than re-writing a one-off system prompt each time.',
-        detail:
-          "Documented as a prompt/instruction library stored inside a StackAI workspace, not an open, portable file format. StackAI's docs do not describe exporting a saved prompt as a standalone file or importing one from an external source or repository URL, the way some competitors build reusable skills on an open, version-controllable format. There is also no documented progressive-disclosure loading mechanism (only a short name/description surfaced until needed); the full prompt appears to load in full whenever it's attached.",
-        shortValue: 'Yes, but a proprietary Prompt Library, not an open/portable format',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.stackai.com/agentic-adoption-and-security/scalability/prompt-library',
-            label: 'Prompt Library docs',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      nativeChatDeployment: {
-        value:
-          'Yes: builders can publish a workflow or agent as a hosted Chat Assistant interface, alongside form, batch run, Slack, Teams, and API deployment targets. A chat widget can also be embedded on external sites via a copy-paste snippet.',
-        shortValue: 'Yes, native chat + embeddable widget',
+          'Yes: Evaluator runs CSV input batches with LLM grading; optional LLM guardrails screen responses for configured content categories.',
+        shortValue: 'Yes, batch evaluations and optional guardrails',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
-            label: 'Platform Overview',
-            asOf: '2026-07-02',
+            label: 'StackAI: Platform Overview',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.stackai.com/getting-started/start-here',
-            label: 'Start Here',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/advanced-settings.md',
+            label: 'StackAI: Advanced Settings',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Guardrails are off by default. Supported categories include toxic content, legal advice, and suicidal thoughts; behavior can warn or block.',
+      },
+      humanInTheLoop: {
+        value:
+          'Yes: workflows can pause for a human to approve, reject, or provide feedback before proceeding.',
+        shortValue: 'Yes, pause for human approval',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.stackai.com/blog/introducing-stackai-human-in-the-loop-agentic-workflows-you-can-trust',
+            label: 'Introducing StackAI Human-in-the-Loop: Agentic Workflows You Can Trust',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Approval requests can be delivered through connected channels such as Slack, Teams, or email.',
+      },
+      generativeMedia: {
+        value:
+          'Yes: Image and Audio nodes generate images and speech; the RunwayML integration also generates video.',
+        shortValue: 'Yes, image, speech, and video generation',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/outputs/audio-node',
+            label: 'StackAI: Audio Node',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/outputs/image-node',
+            label: 'StackAI: Image Node',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/apps/runwayml.md',
+            label: 'StackAI: RunwayML',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      dynamicToolUse: {
+        value:
+          'Agents choose among tools attached by the builder. Broader runtime discovery of unconfigured tools was not verified.',
+        shortValue: 'Agent selects from configured tools',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/tools.md',
+            label: 'StackAI: Tools',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      modelFallback: {
+        value:
+          'Yes: optional LLM Fallback Mode switches to a chosen backup provider and model after primary-model failures and retries.',
+        shortValue: 'Yes, configurable backup model and provider',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/advanced-settings.md',
+            label: 'StackAI: Advanced Settings',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'Fallback and Retry on Failure are off by default.',
+      },
+      agentSkills: {
+        value:
+          'Yes: reusable, versioned skills load instructions on demand and support Agent Skills-compatible SKILL.md ZIP import and export.',
+        shortValue: 'Yes, portable skills with on-demand loading',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/bonus-features/skills.md',
+            label: 'StackAI: Skills',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Skills can include supporting files and integrations. Everyone in the organization can use them; creators and admins can edit them. Supporting files require the Terminal tool.',
+      },
+      nativeChatDeployment: {
+        value:
+          'Yes: hosted Chat Assistant and embedded Website Chatbot interfaces, alongside forms, API, Slack, and Teams deployment.',
+        shortValue: 'Yes, hosted and embedded chat',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces',
+            label: 'StackAI: End-User Interfaces',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
         value:
-          "Yes: StackAI's Knowledge Base node returns results as an array of document snippets/content chunks plus metadata (source, date, tags). Chunk-level indexing is configurable — chunking algorithm, chunk length, and chunk overlap — via the separate Files and Documents nodes used to index content.",
-        detail:
-          'Knowledge Base node output is chunk-level (results array + metadata), but chunk-size controls live on the Files/Documents nodes used for indexing, not on the Knowledge Base node itself. No output-format toggle between chunks/pages/full documents and no dedicated document preview view is documented.',
-        shortValue: 'Yes, chunk-level results with metadata',
+          'Yes: Knowledge Base search returns content chunks or document snippets with optional metadata.',
+        shortValue: 'Yes, retrieved chunks and metadata',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/getting-started/core-ai-concepts/chunking',
-            label: 'Chunking docs',
-            asOf: '2026-07-08',
-          },
-          {
             url: 'https://docs.stackai.com/workflow-builder/apps/knowledge-base',
-            label: 'Knowledge Base docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: Knowledge Base',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'This verifies chunk-level retrieval output, not a particular document-preview or indexing-debug interface.',
       },
       parallelExecution: {
         value:
-          "Partial: StackAI's core workflow builder is built around sequential and conditional (If/Else) branching rather than a dedicated deterministic fan-out/fan-in node. Concurrent execution shows up at the AI Agent node level, where the agent can call multiple Subflow Tools in parallel (e.g., checking several independent systems at once) and StackAI Project nodes can run in parallel under loop mode.",
-        detail:
-          'There is no standalone "split into parallel paths" or "parallel branches" node in the core logic node set (If/Else, Loop Subflow). Parallelism instead comes from agent-driven concurrent tool calls or parallel sub-project execution inside a loop, a narrower mechanism than a general-purpose fan-out/fan-in workflow node.',
-        shortValue: 'Partial, via parallel tool calls and loop mode',
+          'AI Agents can call independent Subflow Tools in parallel. A general-purpose deterministic fan-out/fan-in container was not verified.',
+        shortValue: 'Parallel Subflow Tools; general join container unverified',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/subflow-tools',
-            label: 'Subflow Tools docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/loop-subflow',
-            label: 'Loop Subflow docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/if-else-node',
-            label: 'If/Else Node docs',
-            asOf: '2026-07-02',
+            label: 'StackAI: Subflow Tools',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
         value:
-          "No: StackAI's documentation, changelog, and blog do not mention the Agent2Agent (A2A) protocol or Agent Cards.",
-        detail:
-          'StackAI documents MCP-style tool integration and Subflow Tools/StackAI Project nodes for composing agents, but nothing references the A2A open standard.',
-        shortValue: 'Not documented',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.stackai.com',
-            label: 'StackAI documentation',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Unknown: native Agent2Agent protocol support was not verified in the reviewed documentation.',
+        shortValue: 'A2A support unverified',
+        confidence: 'unknown',
+        sources: [],
       },
       loopIteration: {
         value:
-          'Yes: the Loop Subflow node iterates over a list of inputs, running its Loop branch once per item sequentially, with the current item exposed via a current_item variable. A separate Done branch runs once after all iterations finish, collecting any outputs explicitly emitted inside the loop.',
-        detail:
-          'This is a sequential, one-item-at-a-time iterator distinct from the parallel/concurrent execution StackAI exposes separately through parallel Subflow Tool calls or parallel Project runs inside a loop.',
-        shortValue: 'Yes, via the Loop Subflow node',
+          'Yes: Loop Subflow processes a list, exposes the current item, and runs a Done branch after all items, aggregating explicitly emitted outputs.',
+        shortValue: 'Yes, Loop and Done branches',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/loop-subflow',
-            label: 'Loop Subflow docs',
-            asOf: '2026-07-02',
+            label: 'StackAI: Loop Subflow',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     integrations: {
       integrationCount: {
-        value: '70+ enterprise integrations',
-        detail:
-          'StackAI documentation states it connects to 70+ apps and services, including Notion, Airtable, AWS, BigQuery, GitHub, Google Workspace, HubSpot, MongoDB, and MCP. Some marketing pages cite a higher "100+" figure, but the documented apps list supports 70+.',
-        shortValue: '70+ integrations',
-        confidence: 'estimated',
+        value:
+          'The documentation lists 70+ apps and services, plus Custom API and MCP connections.',
+        shortValue: '70+ documented apps and services',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/apps',
-            label: 'StackAI Apps documentation (70+ apps and services)',
-            asOf: '2026-07-02',
+            label: 'StackAI: Apps',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/apps/mcp',
+            label: 'StackAI: MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Scheduled/time-based triggers and outbound webhook calls (e.g., to Make); no native inbound webhook trigger node',
-        detail:
-          'Supports scheduled workflows (daily/weekly/monthly automation) and a Make node that can POST to trigger a Make.com scenario. Deployment surfaces (how a finished workflow is exposed, distinct from triggers) include Form, Chat Assistant, API, Website Chatbot, Batch Run, Slack App, and Microsoft Teams.',
-        shortValue: 'Scheduled triggers, outbound webhooks only',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.stackai.com/insights/how-to-set-up-scheduled-ai-workflows-and-automated-reports-on-stackai',
-            label: 'Scheduled AI Workflows - StackAI insights',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.stackai.com/workflow-builder/apps/make',
-            label: 'Make node - StackAI Docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces',
-            label: 'End-User Interfaces - StackAI Docs',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      customCodeSteps: {
-        value: 'Yes: Python code node (being migrated to a newer Code Node)',
-        detail:
-          "A Python Code node allows custom logic within workflows; StackAI's docs now note this node is deprecated in favor of a newer Code Node.",
-        shortValue: 'Python code node',
+          'Native app events, one-time and recurring schedules, workflow-completion events, and inbound HTTP calls through the API.',
+        shortValue: 'App events, schedules, workflow completion, and HTTP',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/python-code',
-            label: 'Python Code - StackAI Docs',
-            asOf: '2026-07-08',
+            url: 'https://docs.stackai.com/workflow-builder/inputs/trigger-node.md',
+            label: 'StackAI: Trigger Node',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'Triggers activate after the workflow is published.',
+      },
+      customCodeSteps: {
+        value:
+          'Yes: Code Node runs Python or TypeScript with an AI code assistant and custom dependencies.',
+        shortValue: 'Yes, Python and TypeScript',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/code-node',
+            label: 'StackAI: Code Node',
+            asOf: '2026-09-04',
           },
         ],
       },
       codeSandboxRuntime: {
         value:
-          'Partial: at the package layer only. The newer Code Node exposes a Dependencies field, documented as "a list of package names that get installed into the sandbox before your code runs," so builders declare third-party Python/TypeScript packages per node. The deprecated Python Code node it replaces is a fixed image restricted to a vendor-curated set of pre-imported libraries.',
-        detail:
-          'Code Node runs in an isolated sandbox with /home/user as the working directory; StackAI\'s docs contrast it with the Python Code node as "Allows importing custom libraries" versus "Restricted to pre-imported libraries." That older node\'s fixed set covers pandas, numpy, requests, BeautifulSoup, matplotlib, plotly, pypdf, sklearn, tiktoken, and weaviate among others, with no way to add to it. Dependency declaration is package-level only — StackAI does not document declaring OS-level system packages or preinstalled CLI binaries, and dependencies add sandbox startup time. Sandbox isolation is provided by E2B, which runs each execution as an isolated VM.',
-        shortValue: 'Packages only: per-node dependencies on the Code Node',
-        confidence: 'verified',
+          'Isolated code sandboxes support declared Python or TypeScript package dependencies. OS packages and custom runtime images were not verified.',
+        shortValue: 'Isolated sandbox with declared package dependencies',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/code-node',
-            label: 'Code Node (Dependencies field) - StackAI Docs',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/python-code',
-            label: 'Python Code node pre-imported libraries - StackAI Docs',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://www.e2b.dev/blog/stackai',
-            label: 'How StackAI Runs Enterprise AI Agents - E2B blog',
-            asOf: '2026-08-10',
+            label: 'StackAI: Code Node',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
-        value: 'Yes: workflows publishable as a REST API with generated client snippets',
-        detail:
-          'Any flow can be exported and published as an API. Docs provide request snippets in Python, JavaScript, and cURL, authenticated via a Bearer token using a public API key generated in Settings → API Keys.',
-        shortValue: 'Publish workflows as REST APIs',
+        value:
+          'Yes: published workflows expose a REST API with bearer authentication and Python, JavaScript, and cURL examples.',
+        shortValue: 'Yes, authenticated REST API',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces/api',
-            label: 'API - StackAI Docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: API',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/run-flow.md',
+            label: 'StackAI: Run Flow',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Client code snippets only (Python, JavaScript, cURL); no installable SDK package, plugin/custom-node dev kit, or community integration marketplace',
-        detail:
-          "Docs provide request snippets for calling a published flow's API, but there's no distributable SDK package, documented custom-node/plugin SDK, or marketplace of community-built integrations.",
-        shortValue: 'Code snippets only, no SDK or marketplace',
+          'REST APIs, custom API tools, and the hosted MCP server support extension. A dedicated custom-node SDK or public plugin marketplace was not verified.',
+        shortValue: 'REST, custom tools, and MCP',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces/api',
-            label: 'API - StackAI Docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: API',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/mcp-reference/stackai-mcp-server',
+            label: 'StackAI: StackAI MCP Server',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/tools.md',
+            label: 'StackAI: Tools',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
         value:
-          'Yes: StackAI provides a hosted MCP server (mcp.stack.ai/mcp) that lets external MCP-compatible clients, such as Claude Desktop, Claude Code, or Cursor, run a published StackAI workflow as a callable MCP tool, passing inputs in and getting structured results back.',
-        shortValue: 'Yes, publishes workflows as an MCP server',
+          'Yes: the hosted StackAI MCP server lets authorized external assistants run published workflows and manage permitted resources.',
+        shortValue: 'Yes, workflows callable through hosted MCP',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/interface-and-deployment/mcp-reference/stackai-mcp-server',
-            label: 'StackAI MCP Server docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: StackAI MCP Server',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Access uses interactive StackAI sign-in and the connected user’s permissions; this is one hosted server, not a separately published server for every workflow.',
       },
     },
     pricing: {
       pricingModel: {
-        value: 'Freemium + custom-quote Enterprise tier, metered by monthly runs/projects/seats',
-        shortValue: 'Freemium plus custom Enterprise quote',
+        value:
+          'Free plan and custom-quoted Enterprise subscriptions, with monthly run, project, and seat allowances.',
+        shortValue: 'Free and custom-quoted Enterprise',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
         ],
       },
       entryPaidPlan: {
-        value: 'No self-serve paid tier. Only Free and custom-quote Enterprise',
-        detail:
-          'The pricing page shows only "Free" ($0/mo) and "Enterprise" (custom pricing); there is no self-serve paid mid-tier.',
-        shortValue: 'No mid-tier, Enterprise is quote-only',
+        value:
+          'Enterprise is custom quoted; the public pricing page does not publish a fixed paid entry price.',
+        shortValue: 'Enterprise, custom quote',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
         ],
       },
       freeTier: {
-        value: 'Yes: 500 runs/month, 2 projects, 1 seat, community Discord support',
-        shortValue: '500 runs/mo, 2 projects, 1 seat',
+        value: 'Free: 500 runs per month, 2 projects, 1 seat, and community support on Discord.',
+        shortValue: '500 monthly runs, 2 projects, 1 seat',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
         ],
       },
       byok: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
+        value: 'Yes: admins can configure LLM connections with their own API keys.',
+        shortValue: 'Yes, administrator-managed LLM API keys',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/feature-access',
+            label: 'StackAI: Feature Access',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The documentation does not establish that bringing a key removes platform subscription or run charges.',
       },
     },
     security: {
       dataResidency: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'Enterprise can run in a customer VPC or on-premise, including local LLMs. Model and integration choices determine where data is sent.',
+        shortValue: 'Enterprise VPC/on-premise and local LLM options',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/on-premise.md',
+            label: 'StackAI: On-Premise',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       rbac: {
         value:
-          'Access controls and SSO on the Enterprise plan; least-privilege access to customer data internally',
-        detail:
-          'The Enterprise plan includes access control and SSO. The Trust Center states customer-data access is restricted on a least-privilege basis with unique personnel IDs and controlled non-console production access.',
-        shortValue: 'Enterprise SSO plus least-privilege access',
-        confidence: 'verified',
-        sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
-          { url: 'https://trust.stackai.com/', label: 'StackAI Trust Center', asOf: '2026-07-02' },
-        ],
-      },
-      auditLogging: {
-        value:
-          'Yes: automatic logs of every run, capturing input/output, token usage, and runtime, queryable through a pull-based Analytics API (filterable by status, user, and date range — no run ID filter parameter is documented)',
-        detail:
-          'The Analytics API is request/response only: a builder calls it to list flow runs or an org-level run summary, filtered by user_id, state (status), and date range. There is no documented continuous push/export of these logs to an external destination such as S3, BigQuery, Datadog, or a generic webhook sink, and no separate public audit-log API distinct from execution logs.',
-        shortValue: 'Automatic per-run logs via a pull-based API, no export destination',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
-            label: 'StackAI Platform Overview docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/analytics.md',
-            label: 'StackAI API Reference: Analytics',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      compliance: {
-        value:
-          'SOC 2 Type II and ISO 27001 certified, and audited against HIPAA in the same review cycle, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
-        detail:
-          'The Trust Center confirms SOC 2 Type II, audited by Modern Assurance, and ISO 27001, DPAs with OpenAI and Anthropic, and a May 2025 penetration test with a Low risk rating. A separate StackAI blog post states the company "was also audited against HIPAA standards during the same period as the SOC 2 Type II audit." GDPR compliance is referenced on the Enterprise pricing page but has no dedicated audit source.',
-        shortValue: 'SOC 2 Type II and ISO 27001 certified; HIPAA audited, GDPR marketing-only',
-        confidence: 'estimated',
-        sources: [
-          { url: 'https://trust.stackai.com/', label: 'StackAI Trust Center', asOf: '2026-07-02' },
-          {
-            url: 'https://www.stackai.com/blog/soc2-type2-hipaa',
-            label: 'StackAI SOC 2 Type II & HIPAA blog',
-            asOf: '2026-07-02',
-          },
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
-        ],
-      },
-      modelAndToolGovernance: {
-        value: 'Unknown',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      credentialGovernance: {
-        value:
-          'Yes: owners and admins can share a connection org-wide or restrict it to specific users or groups, separately from the four-tier role system (Admin, Editor, User, Viewer). StackAI recommends pairing private folders with restricted connections and knowledge bases for sensitive workflows.',
-        shortValue: 'Yes, per-connection user/group restriction',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/workspace-and-folder-access',
-            label: 'Workspace and Folder Access docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/connection-and-knowledge-base-permissions',
-            label: 'Connection and Knowledge Base Permissions docs',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      whiteLabeling: {
-        value:
-          'Unknown: StackAI does not document letting customers replace its logo, product name, or theme colors across the workspace or deployed-app UI. Deployed chat interfaces can be styled/branded, but full workspace-level white-labeling is unconfirmed.',
-        detail:
-          "Marketing pages reference brand guidelines for StackAI's own brand, and chat widgets can be styled to match a customer's site, but no source confirms full white-label replacement of vendor branding.",
-        shortValue: 'Unknown, not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      dataRetention: {
-        value:
-          "Yes: StackAI's Trust Center and security documentation state the org can configure data retention durations, backed by a documented Data Retention and Disposal Policy, rather than a single fixed platform-wide default.",
-        detail:
-          'Public sources describe the policy existing and retention being settable, but exact granularity (per-resource-type controls like execution logs vs soft-deleted items separately) was not independently confirmed.',
-        shortValue: 'Yes, configurable retention windows',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://trust.stackai.com/',
-            label: 'StackAI Trust Center',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-and-privacy',
-            label: 'Security & Privacy docs',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      piiRedaction: {
-        value:
-          "Partial: StackAI's guardrails guidance recommends redacting personally identifiable information (PII) in inputs, retrieval, and logs as part of enterprise agent design, but StackAI's own security page does not itself assert a built-in PII detection/masking mechanism.",
-        shortValue: 'Guardrail guidance only, not a confirmed built-in feature',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.stackai.com/insights/how-to-design-ai-agent-guardrails-best-practices-for-input-validation-output-filtering-and-safety-controls',
-            label: 'AI Agent Guardrails guide',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      sso: {
-        value:
-          'Yes: StackAI supports Single Sign-On, integrating with identity providers like Okta and Entra ID to inherit groups and permissions. Newly provisioned SSO users get a default role, and admins can require SSO for all interfaces org-wide.',
-        detail:
-          'Docs confirm SSO login and default-role auto-provisioning behavior, enabled per interface or enforced org-wide via admin policy. SSO configuration is distributed across these governance controls rather than a single dedicated SSO settings page, and SAML vs OIDC protocol details are not specified beyond the Okta/Entra ID integration.',
-        shortValue: 'Yes, SSO with Okta/Entra ID',
+          'Yes: organization roles, groups, private folders, publishing controls, and per-resource permissions.',
+        shortValue: 'Yes, roles, groups, folders, and resource permissions',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/ai-governance',
-            label: 'AI Governance - StackAI Docs',
-            asOf: '2026-07-08',
+            label: 'StackAI: AI Governance',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/workspace-and-folder-access',
+            label: 'StackAI: Workspace and Folder Access',
+            asOf: '2026-09-04',
           },
         ],
       },
-      sessionPolicy: {
+      auditLogging: {
         value:
-          "Not publicly documented: no admin-configurable session lifetime or idle timeout appears in StackAI's public documentation. Its Authentication and MFA page covers password login, org-wide MFA enforcement, and SSO, and the Feature Access page enumerating org-level admin settings (MFA, LLM access, app/tool availability, knowledge bases, advanced features) lists no session control.",
+          'Yes: administrative activity logs are available through the MCP audit_logs_list tool; execution analytics are tracked separately.',
+        shortValue: 'Yes, admin audit logs and separate execution analytics',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/mcp-reference/stackai-mcp-server',
+            label: 'StackAI: StackAI MCP Server',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/analytics.md',
+            label: 'StackAI: Analytics',
+            asOf: '2026-09-04',
+          },
+        ],
         detail:
-          "Where SSO is used, StackAI states MFA enforcement happens at the identity provider, so an organization's effective re-authentication cadence is inherited from its upstream IdP rather than set in StackAI. No fixed session length is published either, and the Trust Center lists access-control and termination policies without any session-timeout control.",
-        shortValue: 'Not publicly documented',
+          'The audit tool is for administrators and reports actions such as editing, exporting, or deleting resources.',
+      },
+      compliance: {
+        value:
+          'StackAI reports SOC 2 Type II and ISO 27001; it also states HIPAA and GDPR compliance.',
+        shortValue: 'SOC 2 Type II and ISO 27001',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://trust.stackai.com/',
+            label: 'StackAI | Trust Center',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.stackai.com/blog/soc2-type2-hipaa',
+            label: 'Stack AI - SOC 2 Type II & HIPAA Compliant Platform',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The Trust Center lists the audit and certificate, with full documents available on request. The HIPAA audit announcement covers March–May 2024. Public claims were checked; report scope and current coverage require the underlying documents.',
+      },
+      modelAndToolGovernance: {
+        value:
+          'Yes: Feature Access lets admins enable or disable individual LLMs, apps, tools, and knowledge bases for the organization.',
+        shortValue: 'Yes, model, app, tool, and KB controls',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/feature-access',
+            label: 'StackAI: Feature Access',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      credentialGovernance: {
+        value:
+          'Yes: connections are private by default and can be shared with users or groups; admins can view and use all organization connections.',
+        shortValue: 'Yes, connection sharing with users and groups',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/connection-and-knowledge-base-permissions',
+            label: 'StackAI: Connection and Knowledge Base Permissions',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Published workflows may use resources their end users cannot view directly. Sensitive workflows also need restricted folders and appropriate interface security.',
+      },
+      whiteLabeling: {
+        value:
+          'Published interfaces support custom names, logos, colors, and domains. Complete workspace-wide vendor-brand removal was not verified.',
+        shortValue: 'Branded deployed interfaces; full workspace removal unverified',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/authentication-and-mfa',
-            label: 'Authentication and MFA - StackAI Docs',
-            asOf: '2026-08-10',
+            url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
+            label: 'StackAI: Platform Overview',
+            asOf: '2026-09-04',
           },
+        ],
+      },
+      dataRetention: {
+        value: 'Yes: the security documentation says organizations can define retention durations.',
+        shortValue: 'Yes, organization-defined retention durations',
+        confidence: 'verified',
+        sources: [
           {
-            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/feature-access',
-            label: 'Feature Access (org-level admin settings) - StackAI Docs',
-            asOf: '2026-08-10',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-and-privacy',
+            label: 'StackAI: Security & Privacy',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://trust.stackai.com/',
-            label: 'StackAI Trust Center',
-            asOf: '2026-08-10',
+            label: 'StackAI | Trust Center',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The public sources do not specify every resource-specific range or plan restriction.',
+      },
+      piiRedaction: {
+        value:
+          'Yes: optional LLM-node PII controls detect email, phone, SSN, and credit-card data before model submission.',
+        shortValue: 'Yes, optional PII warnings or reversible masking',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/advanced-settings.md',
+            label: 'StackAI: Advanced Settings',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Off by default. Warning mode still sends the original value; Encrypt mode uses a placeholder and restores the original in output, so it is not permanent redaction of all logs or results.',
+      },
+      sso: {
+        value:
+          'Yes: SSO integrates with providers such as Okta and Entra ID; newly provisioned SSO users default to the User role.',
+        shortValue: 'Yes, SSO and default-role provisioning',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/ai-governance',
+            label: 'StackAI: AI Governance',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/authentication-and-mfa',
+            label: 'StackAI: Authentication and MFA',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Admins can enforce SSO on published interfaces. Enterprise pricing lists SSO; protocol and deployment scope depend on configuration.',
+      },
+      sessionPolicy: {
+        value:
+          'Unknown: an administrator-configurable absolute session lifetime or inactivity timeout was not verified.',
+        shortValue: 'Admin session lifetime controls unverified',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/authentication-and-mfa',
+            label: 'StackAI: Authentication and MFA',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
         value:
-          "Yes: StackAI's 70+ app integrations (databases, cloud storage, CRMs, communication tools) are built and maintained by StackAI's own team, not an open community marketplace. Users needing an unlisted service fall back to a built-in Custom API node or connect their own MCP servers, rather than installing code published by other third-party users.",
-        detail:
-          'There is no public marketplace or community-node registry (like n8n community nodes) where outside developers publish installable integrations for other StackAI users. MCP support lets a workspace point at third-party MCP servers, but that is a user-configured connection to an external server the user chooses, not a shared plugin store with lighter vendor review. No StackAI-specific security incident involving its integrations or MCP connections appears in public sources.',
-        shortValue: 'Yes, first-party catalog only',
+          'The platform supplies app integrations and supports customer-configured MCP servers, custom API tools, and imported skills. A universal vendor-vetting guarantee was not verified.',
+        shortValue: 'Vendor integrations plus customer-configured extensions',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/apps',
-            label: 'StackAI Apps documentation',
-            asOf: '2026-07-02',
+            label: 'StackAI: Apps',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.stackai.com/workflow-builder/apps/mcp',
-            label: 'StackAI MCP documentation',
-            asOf: '2026-07-02',
+            label: 'StackAI: MCP',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/bonus-features/skills.md',
+            label: 'StackAI: Skills',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -880,191 +931,198 @@ export const stackaiProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Analytics dashboard with usage graphs and per-run execution logs; no dedicated span-level distributed tracing UI',
-        detail:
-          'An Analytics section shows workflow usage graphs and a full list of execution logs (input/output, token usage, runtime performance). There is no granular per-step span tracing for individual tool-call/LLM-call spans within a run.',
-        shortValue: 'Usage dashboard and run logs, no span tracing',
-        confidence: 'estimated',
+          'Analytics expose usage, latency, tokens, and run details; governance docs describe per-step traces including inputs, knowledge-base hits, and outputs.',
+        shortValue: 'Run analytics and per-step traces',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
-            label: 'StackAI Platform Overview docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/ai-governance',
+            label: 'StackAI: AI Governance',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/analytics.md',
+            label: 'StackAI: Analytics',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
-        value: 'Unknown',
-        detail:
-          'No documented automatic retries, checkpointing, or replay of past executions with original inputs.',
-        shortValue: 'Not documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      failureAlerting: {
-        value: 'Unknown',
-        detail:
-          'No documented proactive failure or threshold alerting; only after-the-fact execution logs are available.',
-        shortValue: 'No proactive alerting documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      dataDrains: {
         value:
-          'Unknown: StackAI does not document continuous export of execution, audit, or usage data to an external destination such as S3, BigQuery, Datadog, or a generic webhook sink. Only per-run API access and project export/import are documented.',
-        detail:
-          'Docs cover an API export view (calling a flow via POST) and project export/import, which are pull/one-shot mechanisms, not a continuous log-drain feature.',
-        shortValue: 'Unknown, not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      asyncExecution: {
-        value:
-          "Partial: StackAI's Analytics API can list and filter runs by ID and by status (including pending, paused, resumed, completed, failed, and cancelled) after the fact, which supports a trigger-then-check-later pattern. But StackAI's docs don't describe an official async-trigger-plus-poll workflow for actually running a flow, the way some platforms document a job-queue API.",
-        detail:
-          "The API used to run a flow only documents a request/response call that waits for the result, with no explicit async job or webhook pattern. The separate Analytics API exposes a run ID and status field, including a pending state, that can be queried after submission, showing a run's status can be checked later, though this is inferred from the analytics endpoint rather than a documented async execution feature.",
-        shortValue: 'Partial: run status queryable later, no documented async API',
+          'Optional LLM retries and backup models handle transient errors; whole-run checkpoint recovery and replay guarantees were not verified.',
+        shortValue: 'Configurable retries and model fallback',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/run-flow.md',
-            label: 'StackAI API Reference: Run Flow',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/advanced-settings.md',
+            label: 'StackAI: Advanced Settings',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      failureAlerting: {
+        value:
+          'Yes: email and in-app alerts fire after repeated failures, with organization and per-workflow thresholds.',
+        shortValue: 'Yes, configurable failure alerts',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/workflow-notifications.md',
+            label: 'StackAI: Workflow Notifications',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The default threshold is three consecutive failures. Recipients default to the creator and organization admins and can be customized.',
+      },
+      dataDrains: {
+        value:
+          'Governance docs describe scheduled analytics exports and customer-webhook delivery for selected security use cases.',
+        shortValue: 'Scheduled exports and webhook delivery',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/ai-governance',
+            label: 'StackAI: AI Governance',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'A universal continuous streaming drain and its availability by plan were not verified.',
+      },
+      asyncExecution: {
+        value:
+          'Background workflows are an administrator-controlled feature; a documented asynchronous run-submission and polling API contract was not verified.',
+        shortValue: 'Background workflows; async API contract unverified',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/feature-access',
+            label: 'StackAI: Feature Access',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/analytics.md',
-            label: 'StackAI API Reference: Analytics (run state/run_id)',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/run-flow.md',
+            label: 'StackAI: Run Flow',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Partial: the only concrete published number is a usage quota, not a timeout or concurrency limit. The Free plan caps usage at 500 runs per month (2 projects, 1 seat), while Enterprise plans get custom or unlimited run allowances. No public documentation states a maximum single-execution duration or a cap on concurrent executions.',
-        detail:
-          "Neither the pricing page nor the API reference pages disclose a per-request timeout or a concurrent-execution cap. This is a gap in StackAI's public documentation, not a confirmed absence of limits.",
-        shortValue: '500 runs/month on Free tier; no published timeout/concurrency',
-        confidence: 'estimated',
+          'Unknown: a maximum workflow duration or concurrency ceiling was not verified. The free plan’s 500 monthly runs are a usage quota, not either limit.',
+        shortValue: 'Duration and concurrency ceilings unverified',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://www.stackai.com/pricing',
-            label: 'StackAI Pricing (500 runs/month on Free plan)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.stackai.com/interface-and-deployment/api-reference.md',
-            label: 'StackAI API Reference index (no rate/timeout limits listed)',
-            asOf: '2026-07-02',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
           },
         ],
       },
       partialFailureHandling: {
-        value:
-          "Yes: each node can have a 'Fallback Branch' (On Error) that, when enabled, lets the workflow keep going after that node fails instead of halting the whole run. It routes execution to an alternate path, such as returning a safe message, emitting a structured error, or notifying a human.",
-        detail:
-          "StackAI's documentation also describes a complementary 'Retry on Failure' setting (configurable max retries and retry interval) and an LLM Fallback Mode, and recommends layering them: retries first, then an LLM fallback, then the fallback branch.",
-        shortValue: 'Yes, via node-level Fallback Branch / On Error',
+        value: 'Yes: optional fallback branches route node errors to alternate workflow paths.',
+        shortValue: 'Yes, configurable error branches',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/guides-and-tips/stackai-hacks/handling-errors-and-fallback.md',
-            label: 'StackAI: Handling Errors & Fallback (Fallback Branch, Retry on Failure)',
-            asOf: '2026-07-02',
+            label: 'StackAI: Handling Errors & Fallback',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/code-node',
+            label: 'StackAI: Code Node',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
         value:
-          "Yes: StackAI is a multi-tenant cloud SaaS (each org gets an isolated partition on shared AWS/Azure/GCP infrastructure, or a dedicated VPC/on-prem deployment on Enterprise), and scheduled, chat, form, Slack, Teams, and API-triggered runs are executed and logged (runtime, tokens, input/output) through that hosted infrastructure rather than a builder's own machine.",
-        detail:
-          "StackAI's docs do not use explicit language like 'no client device dependency' the way some competitors do; this is inferred from its documented deployment model (cloud SaaS or Enterprise VPC/on-prem) and its scheduled-workflow and execution-log features, none of which describe or require a desktop app, browser tab, or local session staying open.",
-        shortValue: 'Yes, inferred from its hosted SaaS/VPC execution model',
-        confidence: 'estimated',
+          'Yes: published workflows run automatically on schedules or connected application events using the deployed service.',
+        shortValue: 'Yes, published event and scheduled workflows',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.stackai.com/solutions/self-hosted',
-            label: 'StackAI Self-Hosted Solutions page',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/workflow-builder/inputs/trigger-node.md',
+            label: 'StackAI: Trigger Node',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.stackai.com/insights/how-to-set-up-scheduled-ai-workflows-and-automated-reports-on-stackai',
-            label: 'Scheduled AI Workflows - StackAI insights',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/on-premise.md',
+            label: 'StackAI: On-Premise',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     support: {
       supportChannels: {
-        value: 'Community Discord (free tier); dedicated solution engineers (Enterprise)',
-        shortValue: 'Discord free, dedicated engineers on Enterprise',
+        value:
+          'Free includes Discord community support; Enterprise includes dedicated solution engineers.',
+        shortValue: 'Discord community; Enterprise solution engineers',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-08' },
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
         ],
       },
       sla: {
-        value: 'Enterprise plans include support SLAs; exact terms are not publicly documented',
-        shortValue: 'Enterprise SLAs, terms undisclosed',
-        confidence: 'estimated',
-        sources: [],
+        value:
+          'Unknown: binding uptime or support-response commitments were not verified in the public pricing and documentation.',
+        shortValue: 'Contractual SLA unverified',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       community: {
-        value:
-          'StackAI community support (Discord, at discord.gg/sSbwawtNsV, not linked from stackai.com/academy), comprehensive docs at docs.stackai.com, and a StackAI Academy with tutorials and courses',
-        shortValue: 'Discord, docs, and StackAI Academy',
+        value: 'Community Discord, public documentation, and StackAI Academy learning resources.',
+        shortValue: 'Discord, documentation, and Academy',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/academy', label: 'StackAI Academy', asOf: '2026-07-08' },
+          {
+            url: 'https://www.stackai.com/pricing',
+            label: 'StackAI Pricing – Plans for Teams & Enterprise',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.stackai.com/getting-started/learning/stackai-academy',
+            label: 'StackAI: StackAI Academy',
+            asOf: '2026-09-04',
+          },
         ],
       },
       companyMaturity: {
-        value:
-          'Acquired by Asana in a deal worth approximately $75 million, announced May 28, 2026. StackAI is now a subsidiary of Asana rather than an independent company',
-        detail:
-          'Founders Antoni Rosinol and Bernardo Aceituno joined Asana as part of the acquisition. Prior to the acquisition, StackAI had raised just under $20M total: a ~$3M seed round in 2023 led by Gradient Ventures (with Y Combinator, Soma Capital, and others participating), and a $16M Series A in May 2025 led by Lobby Capital and LifeX Ventures, with Gradient Ventures and Epakon Capital returning.',
-        shortValue: 'Now a subsidiary of Asana (acquired 2026)',
+        value: 'Asana announced its completed acquisition of StackAI on May 28, 2026.',
+        shortValue: 'Acquired by Asana in May 2026',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://techcrunch.com/2026/05/28/asana-acquires-no-code-agent-builder-stack-ai/',
-            label: 'Asana acquires StackAI - TechCrunch',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.stackai.com/blog/stack-ai-raises-16m-series-a-to-create-ai-agents-for-every-job',
-            label: 'StackAI Raises $16M Series A - StackAI blog',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.ycombinator.com/companies/stackai',
-            label: 'StackAI - Y Combinator company page',
-            asOf: '2026-07-02',
+            url: 'https://investors.asana.com/news-releases/news-release-details/asana-acquires-stackai-adding-cross-system-execution-human-agent',
+            label: 'Asana acquisition announcement',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
         value:
-          'Yes: StackAI runs a structured StackAI Academy with step-by-step lessons and courses covering platform overview, building workflows, knowledge bases, and agent building, plus a separate enterprise offering for AI-driven skills testing and certification.',
-        detail:
-          'Academy is lesson-based across multiple courses. Certification is a separate enterprise offering (skills testing and certification), not confirmed to be bundled into the core Academy itself.',
-        shortValue: 'Yes, has StackAI Academy courses',
+          'Yes: StackAI Academy provides video modules covering workflow building, agents, data, interfaces, and governance.',
+        shortValue: 'Yes, structured Academy video modules',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/getting-started/learning/stackai-academy',
-            label: 'StackAI Academy docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.stackai.com/academy',
-            label: 'StackAI Academy',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.stackai.com/solutions/skills-testing-and-certification',
-            label: 'Skills Testing and Certification',
-            asOf: '2026-07-02',
+            label: 'StackAI: StackAI Academy',
+            asOf: '2026-09-04',
           },
         ],
       },

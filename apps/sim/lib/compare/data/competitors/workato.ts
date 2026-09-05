@@ -1,7 +1,7 @@
 import { WorkatoIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Public claims reviewed on 2026-09-04; uncertainties are marked below. */
 export const workatoProfile: CompetitorProfile = {
   id: 'workato',
   name: 'Workato',
@@ -11,7 +11,7 @@ export const workatoProfile: CompetitorProfile = {
     selfFramed: true,
     colors: ['#62dfd2', '#418484', '#151716'],
     description:
-      'Workato is a Palo Alto-based integration and automation platform that enables enterprises to orchestrate applications, data, and processes using AI-driven agents. Leveraging its proprietary Enterprise Model Context Protocol (MCP), Workato delivers secure, scalable, and accurate AI agents that move from the edge of business operations to the core, allowing real-time, enterprise-wide automation. Trusted by over half of the Fortune 500, the platform connects every application and data source, providing end-to-end workflow automation and intelligent orchestration for the agentic era.',
+      'Workato provides integration and automation for connected business systems, with visual recipes, AI agents, and MCP tools.',
     industries: [
       'Software (B2B)',
       'Developer Tools & APIs',
@@ -19,121 +19,110 @@ export const workatoProfile: CompetitorProfile = {
       'Data Infrastructure & Analytics',
     ],
     socials: [
-      { type: 'x', url: 'https://x.com/workato' },
-      { type: 'linkedin', url: 'https://linkedin.com/company/workato' },
-      { type: 'instagram', url: 'https://instagram.com/workatohq' },
-      { type: 'facebook', url: 'https://facebook.com/workato' },
-      { type: 'youtube', url: 'https://youtube.com/@Workato' },
+      {
+        type: 'x',
+        url: 'https://x.com/workato',
+      },
+      {
+        type: 'linkedin',
+        url: 'https://linkedin.com/company/workato',
+      },
+      {
+        type: 'instagram',
+        url: 'https://instagram.com/workatohq',
+      },
+      {
+        type: 'facebook',
+        url: 'https://facebook.com/workato',
+      },
+      {
+        type: 'youtube',
+        url: 'https://youtube.com/@Workato',
+      },
     ],
     source: 'Context.dev brand-intelligence API',
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Workato is a cloud-based enterprise integration platform that extends its workflow automation engine with an AI-agent layer (Agent Studio, "Genies") and native Model Context Protocol (MCP) server support, for building, orchestrating, and governing AI agents across connected business systems.',
+    'Workato is a managed integration and automation platform with visual recipes, Agent Studio Genies, reusable skills, and governed MCP tools. It offers enterprise subscriptions and self-service credit plans.',
   standoutFeatures: [
     {
-      title: 'Broad compliance certification set',
+      title: 'Development-to-production promotion',
       description:
-        'Workato holds SOC 1/2/3, PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications, a wide footprint for an integration/agent platform.',
-      shortDescription:
-        'Wide compliance footprint spanning SOC, ISO, HIPAA, PCI-DSS, IRAP, and NIST.',
+        'Environments support testing, deployment, and rollback of project assets across development, test, and production. Availability depends on the plan.',
+      shortDescription: 'Promote and roll back project assets across environments.',
       source: {
-        url: 'https://docs.workato.com/security/security-compliance.html',
-        label: 'Security compliance | Workato docs',
-        asOf: '2026-07-02',
+        url: 'https://docs.workato.com/features/environments.html',
+        label: 'Workato: Environments',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: "Pre-built departmental agents ('Genies')",
+      title: 'Hybrid connectivity',
       description:
-        'Agent Studio ships ready-made departmental agents (Genies) for IT, Sales, HR, Support, CX, and Marketing that customers can deploy and customize directly, alongside the option to build a custom agent from scratch.',
-      shortDescription: 'Ready-made departmental agents (Genies) for IT, Sales, HR, and more.',
+        'On-prem agents connect private systems to Workato through outbound encrypted connections, with agent groups for high availability.',
+      shortDescription: 'Connect private systems through outbound on-prem agents.',
       source: {
-        url: 'https://docs.workato.com/agentic/agentic.html',
-        label: 'Agentic | Workato docs',
-        asOf: '2026-07-02',
+        url: 'https://docs.workato.com/on-prem.html',
+        label: 'Workato: On-prem connectivity',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'On-prem agent for hybrid connectivity',
+      title: 'Bring your own model provider',
       description:
-        "A downloadable on-prem agent runs inside the customer's data center, tunneling via TLS websocket to Workato's cloud so the platform can reach on-prem apps, databases (SAP, Oracle EBS, SQL Server), and file servers without opening inbound firewall ports; agents can be grouped for high availability.",
-      shortDescription:
-        'TLS-tunneled agent connects on-prem apps and databases without opening firewall ports.',
+        'Agent Studio supports customer connections for OpenAI, Anthropic, Azure OpenAI, and AWS Bedrock.',
+      shortDescription: 'Genies support four documented BYOLLM provider options.',
       source: {
-        url: 'https://docs.workato.com/on-prem/agents.html',
-        label: 'On-prem agent | Workato docs',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Bring-Your-Own-LLM for Agent Studio',
-      description:
-        "Customers can power Genies with their own OpenAI or Anthropic API credentials instead of Workato's managed model contracts, giving direct control over LLM cost and vendor choice for agent workloads. This BYOLLM option is scoped to two providers and to Agent Studio specifically; Sim's own BYOK support spans any provider across every block, exempts usage from metered credit caps, and automatically round-robins multiple stored keys for the same provider.",
-      shortDescription:
-        'Genies can run on customer-supplied OpenAI or Anthropic API keys, narrower in scope than Sim.',
-      source: {
-        url: 'https://www.workato.com/product-hub/changelog/bring-your-own-llm-byollm-support-for-agent-studio/',
-        label: 'Bring Your Own LLM (BYOLLM) Support for Agent Studio | Workato Product Hub',
-        asOf: '2026-07-02',
+        url: 'https://docs.workato.com/en/agentic/agent-studio/ai-model/ai-model',
+        label: 'Workato: AI models and BYOLLM',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'No published self-serve pricing',
+      title: 'Custom snippet packages are unsupported',
       description:
-        "Workato's pricing page contains no plan names, prices, or free-tier terms, and routes every visitor to a sales demo or trial request, making cost comparison and self-serve adoption difficult versus vendors with transparent pricing.",
-      shortDescription: 'Pricing page has no figures. Every visitor is routed to sales.',
+        'Python recipe steps support standard and selected packages but do not allow installing additional libraries.',
+      shortDescription: 'Python steps use the supported package set.',
       source: {
-        url: 'https://www.workato.com/pricing',
-        label: 'Workato Pricing Model | Workato',
-        asOf: '2026-07-02',
+        url: 'https://docs.workato.com/connectors/python.html',
+        label: 'Workato: Python connector',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Not open source / not self-hostable',
+      title: 'Recipe-based knowledge ingestion does not preserve source permissions',
       description:
-        "Workato is a proprietary, cloud-hosted SaaS platform. The only on-prem component is a lightweight connectivity agent bridging the customer's private network to Workato's cloud; the builder, execution engine, and agent runtime cannot run entirely on customer infrastructure.",
-      shortDescription: 'Proprietary SaaS only. The builder and runtime cannot run on-prem.',
-      source: {
-        url: 'https://docs.workato.com/on-prem.html',
-        label: 'On-prem connectivity | Workato Docs',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Built-in AI actions limited to a fixed model set',
-      description:
-        "Workato's own 'AI by Workato' actions run on a fixed set of models under the hood — Anthropic's Claude Sonnet 4 in most regions, and OpenAI's GPT-4o mini in the Israel data center — rather than offering a first-class choice among the full range of LLM providers.",
-      shortDescription: 'Built-in AI actions run on a fixed Claude Sonnet 4 / GPT-4o mini set.',
-      source: {
-        url: 'https://docs.workato.com/connectors/ai-by-workato.html',
-        label: 'AI by Workato | Workato docs',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'Knowledge base ingestion limited to four document formats',
-      description:
-        "Workato's documented knowledge base data ingestion natively supports only PDF, PPTX, XLSX, and DOCX file types; other formats, including images, videos, and audio files, are not supported for RAG ingestion.",
-      shortDescription:
-        'RAG ingestion supports only PDF, PPTX, XLSX, DOCX — no images, video, or audio.',
+        'The knowledge-base recipe method makes ingested content available to all users of the Genie. The Workato GO connected-source method provides a separate permission-aware option.',
+      shortDescription: 'Recipe-ingested knowledge is accessible to all users of that Genie.',
       source: {
         url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/data-ingestion.html',
-        label: 'Workato Docs: Knowledge base data ingestion',
-        asOf: '2026-07-08',
+        label: 'Workato: Knowledge base ingestion',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'SSO limited to SAML, no confirmed OIDC',
+      title: 'Some platform capabilities require specific plans',
       description:
-        "Workato's SSO documentation covers SAML with just-in-time provisioning and SAML role sync; it does not mention OIDC anywhere, so there is no public confirmation Workato supports it. Sim supports both SAML 2.0 and OIDC single sign-on.",
-      shortDescription: 'Documented SSO is SAML-only, with no confirmed OIDC support.',
+        'Development/test/production environments are available on specific plans and may require contacting Workato to enable them.',
+      shortDescription: 'Environment promotion is plan-dependent.',
       source: {
-        url: 'https://docs.workato.com/user-accounts-and-teams/single-sign-on.html',
-        label: 'Workato Docs: Enable Single Sign-On for a Workato Workspace',
-        asOf: '2026-07-02',
+        url: 'https://docs.workato.com/features/environments.html',
+        label: 'Workato: Environments',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Free credits are a one-time allowance',
+      description:
+        'The self-service Free plan provides 50,000 credits once. Continuing beyond that allowance requires a paid subscription.',
+      shortDescription: 'The 50,000 Free credits do not renew monthly.',
+      source: {
+        url: 'https://docs.workato.com/en/pricing/self-service/self-service',
+        label: 'Workato: Self-service pricing',
+        asOf: '2026-09-04',
       },
     },
   ],
@@ -141,544 +130,428 @@ export const workatoProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          'Hybrid: a low-code/visual "recipe" builder (trigger and action steps), a code-based Custom SDK for connectors, and a separate AI-agent builder (Agent Studio) for defining agent "skills", knowledge bases, and reasoning. Recipe Copilot can draft a recipe skeleton from a plain-language description.',
-        shortValue: 'Visual recipe builder, Agent Studio, and a code SDK',
+          'Visual recipes combine triggers, actions, conditions, loops, and optional code steps.',
+        shortValue: 'Visual recipe builder with code steps',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/building-recipes.html',
-            label: 'Recipe Design | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/recipes/using-recipe-copilot.html',
-            label: 'Copilot in Recipe building | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/agentic/agentic.html',
-            label: 'Agentic | Workato docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Building recipes',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
-        value: 'Unknown',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value: 'Learning effort depends on the recipe and governance requirements.',
+        shortValue: 'Estimated: complexity grows with recipe scope',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.workato.com/recipes/building-recipes.html',
+            label: 'Workato: Building recipes',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'This is an editorial assessment based on documented mappings, conditions, and loops, rather than a measured onboarding comparison.',
       },
       selfHostOption: {
         value:
-          'Core platform is not self-hostable (SaaS-only, proprietary). Workato provides an on-premises "on-prem agent" that runs behind a customer firewall and tunnels via TLS websocket to the Workato cloud, giving hybrid connectivity to on-prem apps and databases without opening firewall ports. This is a connectivity bridge, not a self-hosted deployment of the platform.',
-        shortValue: 'SaaS-only; on-prem agent only bridges connectivity',
+          'The platform is delivered through Workato-managed cloud services, including Virtual Private Workato.',
+        shortValue: 'Managed cloud/VPW with local connectivity components',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/on-prem.html',
-            label: 'On-prem connectivity | Workato Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/cloud-hosting-editions/hosting-editions.html',
+            label: 'Workato: Cloud hosting editions',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.workato.com/on-prem/agents.html',
-            label: 'On-prem agent | Workato docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/on-prem.html',
+            label: 'Workato: On-prem connectivity',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.workato.com/en/api-mgmt/api-edge-gateway.html',
+            label: 'Workato: API Edge Gateway',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'On-prem agents connect private systems. API Edge Gateway also provides a local data-plane option while retaining a cloud control plane.',
       },
       deploymentOptions: {
         value:
-          'Cloud-hosted SaaS platform (multi-region data centers) with an optional on-prem agent for hybrid/on-prem app and database connectivity; the on-prem agent itself installs on a Windows, Linux (DEB/RPM), Docker, or macOS host, whether that host is a cloud VM (AWS/Azure/GCP) or private physical/virtual machine',
-        shortValue: 'Cloud SaaS with optional on-prem connectivity agent',
+          'Shared cloud hosting and a dedicated AWS VPC through Virtual Private Workato are documented.',
+        shortValue: 'Shared cloud or Workato-managed private VPC',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/on-prem.html',
-            label: 'On-prem connectivity | Workato Docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.workato.com/on-prem/groups/add-agent.html',
-            label: 'On-prem agent - Add an agent | Workato Docs',
-            asOf: '2026-07-08',
+            url: 'https://docs.workato.com/cloud-hosting-editions/hosting-editions.html',
+            label: 'Workato: Cloud hosting editions',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Virtual Private Workato is managed by Workato; local connectivity agents are a separate component.',
       },
       templates: {
-        value:
-          'Yes: a Community Library provides pre-built, cloneable "recipes" (workflow templates), connectors, and "skill recipes" across use cases like AI/ML, Finance, and Operations that users can customize',
-        shortValue: 'Community Library of prebuilt recipes and connectors',
+        value: 'The Community Library provides reusable recipes, connectors, and skills.',
+        shortValue: 'Yes: community recipes, connectors, and skills',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/community-library.html',
-            label: 'Community library | Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Community library',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
-        value: 'Proprietary',
-        shortValue: 'Proprietary',
+        value: 'Proprietary commercial platform licensed through a subscription agreement.',
+        shortValue: 'Proprietary commercial service',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.workato.com/legal/terms-of-service',
-            label: 'Terms of Service | Workato',
-            asOf: '2026-07-04',
+            label: 'Workato Terms of Service and support agreement',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
         value:
-          'Yes: dedicated Development/Test/Production environments with project-level promotion',
-        detail:
-          "Workato's Environments feature gives every workspace built-in Dev, Test, and Production environments, each with its own assets, members, and projects. Deployment pushes an entire project's recipes and assets from Development to Test or Production. This is one-directional promotion, not free-form branching, and collaborators need deployment privileges on both the source and target environments. Separately, the Workato Platform CLI supports `workato push`/`workato pull` for git-based, code-first management of project assets across dev/staging/prod configurations. This is a genuine full-project promotion model, not just single-workflow versioning.",
-        shortValue: 'Dev/Test/Prod environments with project-level promotion',
+          'Environments support development, testing, production deployment, and rollback of project assets.',
+        shortValue: 'Yes: dev/test/prod promotion (plan-dependent)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/features/environments.html',
-            label: 'Environments | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/features/environments/deployment.html',
-            label: 'Environments - Understanding project deployment with environments',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/features/environments/deploying-projects-to-an-environment.html',
-            label: 'Environments - Deploying A Project To An Environment',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/en/platform-cli.html',
-            label: 'Workato Platform CLI | Workato docs',
-            asOf: '2026-07-04',
+            label: 'Workato: Environments',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'Availability depends on the contracted plan.',
       },
       versionControlDepth: {
-        value: 'Automatic version history + visual diff + restore; no true branching',
-        detail:
-          "Every recipe save automatically creates a new numbered version with timestamp and author. The Versions tab lets users pick any two versions and view a visual, side-by-side Recipe Diff (added steps green, removed steps red, changed configs blue, down to field-level changes). Users can restore/revert to a prior healthy version from version history (rollback), functioning as a persisted, server-side undo mechanism. No git-style branching of a single recipe exists. Branching-like behavior instead comes from the Development/Test/Production environment model and the Platform CLI's git integration.",
-        shortValue: 'Version history, visual diff, and restore, no branching',
+        value: 'Recipe saves create versions that can be compared with Recipe Diff and restored.',
+        shortValue: 'Saved versions, Recipe Diff, and restore',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/version-management.html',
-            label: 'Recipe Version Management | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/recipe-development-lifecycle/compare-versions-with-recipe-diff.html',
-            label: 'Using a recipe diff to compare recipe changes',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/compare-any-two-versions-of-a-recipe-with-visual-recipe-diffs/',
-            label: 'Visual Recipe Diff: Compare any two versions of a recipe',
-            asOf: '2026-07-02',
+            label: 'Workato: Recipe version management',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
         value:
-          'No: Workato does not support live, concurrent multi-user editing of the same recipe with shared cursors. Instead, it shows which teammate is currently editing a recipe and warns or blocks a second editor from opening it at the same time (a presence/lock-style safeguard), plus versioning and change-tracking for asynchronous collaboration.',
-        detail:
-          "Workato's 'collaboration safeguards' show who is editing and prompt a choice to wait or override, which is closer to file-level locking than true real-time co-editing.",
-        shortValue: 'No: presence warning, not live co-editing',
+          'Presence indicators and stale-version safeguards coordinate multiple recipe editors.',
+        shortValue: 'Partial: presence and stale-save protection',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/collaboration-safeguards.html',
-            label: 'Workato Docs: Recipes - Collaboration safeguards',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/user-accounts-and-teams/team-collaboration.html',
-            label: 'Workato Docs: Workspace collaboration',
-            asOf: '2026-07-02',
+            label: 'Workato: Collaboration safeguards',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'An outdated editor cannot save or test until it reloads. This is not evidence of synchronized shared-cursor recipe editing.',
       },
       nativeFileStorage: {
-        value:
-          'Partial: Workato FileStorage supports creating/storing files and organizing them into directories (folder hierarchy) within a recipe, but no public documentation describes password-protected or link-based external sharing, or a deleted-item recovery view.',
-        detail:
-          'Access to FileStorage itself requires Customer Success enablement on certain plans; a previously published "generate shareable file link" doc page has since been removed.',
-        shortValue: 'Partial: folders exist, no confirmed link sharing',
-        confidence: 'estimated',
+        value: 'Workato FileStorage provides files and directories through a UI and connector.',
+        shortValue: 'Yes: FileStorage, with limited availability',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/features/workato-filestorage.html',
-            label: 'Workato Docs: Workato FileStorage',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/features/filestorage/create-directory-action.html',
-            label: 'Workato Docs: FileStorage - Create directory action',
-            asOf: '2026-07-02',
+            label: 'Workato: FileStorage',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The documented limits include 10 GB per file and 100 GB total storage; access must be enabled for eligible plans.',
       },
       dataTables: {
         value:
-          'Yes, a comparable feature exists: Workato has a native Data Tables feature, a spreadsheet-like store with columns/rows supporting up to 1,000,000 records per table, plus filter/sort/hide-column controls in the UI, distinct from external database connectors.',
-        detail:
-          'Public docs describe filter, sort, and column visibility controls, but not full spreadsheet-style keyboard navigation (arrow-key cell traversal, multi-cell copy-paste, Cmd/Ctrl+Z undo) in the interface, so it is not confirmed to match a keyboard-driven spreadsheet editing experience feature-for-feature.',
-        shortValue: 'Yes: native Data Tables, up to 1M rows, keyboard nav unconfirmed',
+          'Data Tables provide structured storage with documented default limits of one million rows and 100 columns per table.',
+        shortValue: 'Yes: Data Tables with documented capacity limits',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/data-tables.html',
-            label: 'Workato Docs: Data tables',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.workato.com/data-tables/data-table-limits.html',
-            label: 'Workato Docs: Data tables - Limits',
-            asOf: '2026-07-02',
+            label: 'Workato: Data Table limits',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'Enterprise customers can request higher limits.',
       },
       richTextEditor: {
         value:
-          'Unknown: no public documentation describes an inline rich-text/WYSIWYG markdown document editor as a platform feature in Workato.',
-        detail:
-          "Only third-party markdown editor tools appear in public search results, not a Workato-native document editor; Workato's product surface (recipes, data tables, knowledge bases) does not include a general-purpose rich-text document editor akin to a Notion-style editor.",
-        shortValue: 'Unknown: no evidence found',
+          'A native rich-text document editor was not confirmed in the reviewed platform documentation.',
+        shortValue: 'Unconfirmed: native rich-text document editor',
         confidence: 'unknown',
-        sources: [],
-      },
-      subWorkflows: {
-        value:
-          "Yes: Recipe Functions' Call Recipe Function (Synchronously) action adds a step that calls another saved recipe as a child, passing input via that recipe's Input schema, waiting for it to finish, and returning its output through the Response schema back into the parent recipe's data pills; an asynchronous 'fire-and-forget' variant is also available for cases where the parent should not wait.",
-        detail:
-          "This supersedes the older Callable Recipes connector (legacy recipes still run, but new ones must use Recipe Functions). The synchronous call is subject to a timeout, after which Workato's docs recommend the async variant instead.",
-        shortValue: 'Yes: Call Recipe Function step, sync or async, with I/O',
-        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/features/callable-recipes/call-recipe-action.html',
-            label: 'Callable Recipes - Call Recipe Actions | Workato Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/connectors/recipe-functions/actions/call-recipe-function-synchronously.html',
-            label: 'Recipe Functions - Call Recipe Function Synchronously | Workato Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/recipes/building-recipes.html',
+            label: 'Workato: Building recipes',
+            asOf: '2026-09-04',
           },
         ],
       },
-      customBlocks: {
-        value:
-          "No: Workato has no feature to publish a deployed recipe as a distinct, named, iconed block that appears in the recipe builder's general step/action picker for every other builder across the org to drop into their own separate recipes. The closest mechanism, Recipe Functions, lets any recipe in the workspace call another recipe (one built with a 'New function call' trigger) by adding a generic 'Recipe Functions by Workato' connector step and then picking the target function from a dropdown list of saved functions, not a bespoke block with its own name/icon sitting alongside built-in actions. The caller does only see the function's declared Input/Response schema, not its internal steps or credentials, and Workato's own marketing copy states 'update the function once, and the changes will take effect anywhere your function is invoked' (i.e. it always calls the live function recipe, not a frozen copy). No documentation describes per-function governance (allow/deny-listing one specific function for a permission group) distinct from ordinary project/connection-level access control.",
-        detail:
-          "Workato's separate Community Library sharing mechanism is explicitly a clone/template flow, not a live block: shared assets are described as 'intended to serve as a reusable set of templates, best practices and guidelines' for another user to install and then 'modify, customize and enhance' as their own independent copy, with no indication the installed copy stays linked to updates on the original. This rules out Community Library as a second candidate for the same capability.",
-        shortValue: "No, only a generic 'Call Recipe Function' connector, not a published block",
+      subWorkflows: {
+        value: 'Recipe functions allow recipes to call reusable workflows and exchange data.',
+        shortValue: 'Yes: reusable recipe functions',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/connectors/recipe-functions.html',
-            label: 'Recipe Functions by Workato | Workato Docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.workato.com/connectors/recipe-functions/actions/call-recipe-function-synchronously.html',
-            label: 'Recipe Functions - Call Recipe Function Synchronously | Workato Docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/recipe-functions-build-reusable-automations/',
-            label: 'How to build reusable automations with Recipe Functions | Workato Product Hub',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.workato.com/community-library.html',
-            label: 'Community library | Workato Docs',
-            asOf: '2026-07-08',
+            label: 'Workato: Recipe functions',
+            asOf: '2026-09-04',
           },
         ],
+      },
+      customBlocks: {
+        value: 'Recipe functions and shared skills encapsulate reusable workflow behavior.',
+        shortValue: 'Partial: functions/skills; custom toolbar blocks unconfirmed',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.workato.com/connectors/recipe-functions.html',
+            label: 'Workato: Recipe functions',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.workato.com/agentic/skills',
+            label: 'Workato: Skills',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The documented reuse mechanisms are callable recipes and skills; a separate publish-recipe-as-toolbar-block feature was not confirmed.',
       },
     },
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          "AI Hub natively lets users pick Anthropic Claude or OpenAI GPT models to power Genies/agents (Workato states AI by Workato processes most regions with Anthropic Sonnet 4, and Israel data center traffic with OpenAI GPT-4o mini); Agent Studio also supports Bring-Your-Own-LLM (BYOLLM) with the customer's own OpenAI or Anthropic credentials; broader integration to Google Gemini, Amazon Bedrock, Azure OpenAI etc. is available via pre-built connectors rather than a native model switcher",
-        shortValue: 'Claude or GPT natively, BYOLLM, others via connectors',
+          'Agent Studio provides managed model choices and BYOLLM connections for OpenAI, Anthropic, Azure OpenAI, and AWS Bedrock.',
+        shortValue: 'Managed models plus four BYOLLM provider options',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/connectors/ai-by-workato.html',
-            label: 'AI by Workato | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/changelog/bring-your-own-llm-byollm-support-for-agent-studio/',
-            label: 'Bring Your Own LLM (BYOLLM) Support for Agent Studio | Workato Product Hub',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/agentic/agent-studio/ai-model/ai-model',
+            label: 'Workato: AI models and BYOLLM',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
         value:
-          'Yes: Agent Studio provides dedicated AI-agent constructs ("Genies") with skills, knowledge bases, and autonomous decision logic, distinct from plain trigger/action data-routing recipes. Pre-built departmental Genies (IT, Sales, HR, Support, CX, Marketing) are offered alongside custom agent building',
-        shortValue: 'Genies agents with skills and knowledge bases',
+          'Genies combine a job description, skills, and knowledge to decide how to carry out a task.',
+        shortValue: 'Yes: Genies with skills and knowledge',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/agentic/agentic.html',
-            label: 'Agentic | Workato docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Agent Studio',
+            asOf: '2026-09-04',
           },
-          { url: 'https://www.workato.com/', label: 'Workato homepage', asOf: '2026-07-02' },
         ],
       },
       naturalLanguageBuilding: {
         value:
-          'Yes: Recipe Copilot lets a user describe an automation in plain language, then drafts a recipe outline, sets up connections after confirmation, and converts the sketch into a working recipe with AI-suggested data-pill/field mappings for review',
-        shortValue: 'Recipe Copilot drafts recipes from plain language',
+          'Recipe Copilot creates and refines recipe steps from natural-language instructions.',
+        shortValue: 'Yes: Recipe Copilot',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/using-recipe-copilot.html',
-            label: 'Copilot in Recipe building | Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Recipe Copilot',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'Builders review suggested changes before applying them.',
       },
       knowledgeBaseRag: {
         value:
-          'Yes: Agent Studio supports "knowledge bases" as a Genie\'s memory, ingesting documents/data with a vector-embedding pattern for RAG. A Knowledge Base Accelerator uses a prompt-engineering plus vector-embedding-database pattern, natively supporting text and PDF formats, extensible via connectors to other LLM/vector-DB providers',
-        shortValue: 'Knowledge bases for RAG via vector embeddings',
+          'Agent Studio retrieves knowledge from connected sources or custom knowledge-base ingestion recipes.',
+        shortValue: 'Yes: connected-source and recipe-based retrieval',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/knowledge-bases.html',
-            label: 'Knowledge bases | Workato Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/the-connector/knowledge-base-ai/',
-            label: "How Generative AI Unlocks Your Organization's Knowledge Base | Workato",
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/data-ingestion.html',
+            label: 'Workato: Knowledge base ingestion',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
         value:
-          'Yes: Workato ships an "Enterprise MCP" offering. It can act as an MCP server exposing existing recipes/workflows as tools/skills to any MCP-compatible client (Claude, ChatGPT, Agent Studio), including pre-built MCP servers and remote/cloud-hosted MCP servers configurable from AI Hub > MCP servers, plus Local MCP support with fine-grained, API-token-linked access control',
-        shortValue: 'Acts as an MCP server exposing recipes as tools',
+          'Enterprise MCP exposes governed tools to external clients with discovery, identity, and access controls.',
+        shortValue: 'Yes: Enterprise MCP servers',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/mcp.html',
-            label: 'MCP | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/en/mcp/remote-mcp-servers.html',
-            label: 'Remote MCP servers | Workato Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/the-connector/workato-mcp/',
-            label: 'Workato Enterprise MCP: The Future of Agentic Automation',
-            asOf: '2026-07-02',
+            label: 'Workato: Enterprise MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
         value:
-          'Partial: Agent Studio "skills" maintain version history, allow comparing versions, rolling back, and running test cases against a specific version; governance is enforced via RBAC, audit logging, and encryption rather than a dedicated eval/benchmark suite or red-teaming guardrail tooling',
-        shortValue: 'Version rollback and test runs, no dedicated eval suite',
-        confidence: 'estimated',
+          'Agent Studio documents skill test cases and a beta Guardrails API for chat input and output policies.',
+        shortValue: 'Yes: skill tests and beta chat guardrails',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/agentic/agentic.html',
-            label: 'Agentic | Workato docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Agent Studio',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.workato.com/workato-api/agent-studio.html',
+            label: 'Workato: Agent Studio and Guardrails API',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
-        value: 'Yes, via Wait/Wait-for-resume actions and Workbot approval messages',
-        detail:
-          "Workato provides dedicated wait mechanisms distinct from a plain timed delay. 'Wait for Async Calls' pauses a recipe until an external event or call completes; connector SDK 'wait-for-resume' actions let a custom connector pause a recipe and resume later via an external trigger or webhook. For approvals specifically, Workbot for Slack has a 'Wait for user action in messages' action: the recipe posts an interactive Slack message and pauses, then resumes when the designated approver clicks an action button, or auto-proceeds/expires with an Expired flag if a timeout elapses. This is a purpose-built pause-for-human-approval mechanism, not a generic sleep/delay step.",
-        shortValue: 'Wait actions and Slack approval workflows',
+        value:
+          'Workbot can pause a recipe until a Slack user supplies a configured approval or other response.',
+        shortValue: 'Yes: Workbot approval and response steps',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/workbot/wait-for-user-action.html',
-            label: 'Workbot actions for Slack - Wait for user action in messages',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/features/callable-recipes/wait-for-async-action.html',
-            label: 'Callable Recipes - Wait for async calls action',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/developing-connectors/sdk/guides/building-actions/wait-for-resume-actions.html',
-            label: 'Wait for resume actions | Workato docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Wait for user action',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
-        value:
-          "Text-only natively. Workato's own 'AI by Workato' utility connector has no generation actions, but a pre-built OpenAI connector adds a native 'Generate Images' (DALL-E) action for image generation. No native video or audio generation block exists.",
-        detail:
-          "Workato's own 'AI by Workato' utility connector (built on Anthropic/OpenAI models) exposes only text/analysis actions: analyze image (vision/analysis, not generation), categorize text, draft email, parse text, summarize text, translate text. Generative-media capability beyond image generation would have to be assembled via generic HTTP/connector calls to third-party providers (e.g., ElevenLabs) rather than a first-party block.",
-        shortValue: 'Image generation via OpenAI connector, no native video/audio',
+        value: 'The OpenAI connector includes image generation, editing, and variation actions.',
+        shortValue: 'Yes: OpenAI image actions',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/connectors/ai-by-workato.html',
-            label: 'AI by Workato | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/platform/ai-by-workato',
-            label: 'AI by Workato | Streamline Processes and Workflows',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.workato.com/connectors/openai/generate-images.html',
-            label: 'Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: OpenAI image generation',
+            asOf: '2026-09-04',
           },
         ],
       },
       dynamicToolUse: {
-        value: 'Unknown',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'A Genie selects available skills and searches knowledge according to its instructions and the conversation.',
+        shortValue: 'Yes: agent-selected skills and knowledge',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/en/agentic/agent-studio/ai-model/ai-model',
+            label: 'Workato: AI models and BYOLLM',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       modelFallback: {
-        value: 'Unknown',
-        shortValue: 'Not publicly documented',
+        value:
+          'Automatic cross-model failover was not confirmed in the reviewed model and gateway documentation.',
+        shortValue: 'Unconfirmed: automatic model fallback',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://docs.workato.com/en/agentic/agent-studio/ai-model/ai-model',
+            label: 'Workato: AI models and BYOLLM',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.workato.com/en/ai-gateway',
+            label: 'Workato: AI Gateway',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       agentSkills: {
         value:
-          "Yes, but proprietary and not portable: Workato Agent Studio's 'Skills' are reusable recipe-backed workflows (a Start-workflow trigger plus a Return-response step, with a structured skill prompt describing purpose, when to use/not use, inputs and outputs) that can be assigned to and shared across multiple Genies and MCP servers within a project, avoiding duplication.",
-        detail:
-          "Skills are stored and versioned entirely inside Workato's own recipe system; the documentation describes no export, no standalone file format, and no way to move a Skill definition outside the platform. Reuse is internal to a Workato workspace/project, not a portable artifact like a SKILL.md file that could be checked into git or dropped into another vendor's agent.",
-        shortValue: 'Yes: reusable Skills, but proprietary and non-portable',
+          'Skills combine prompts and recipe behavior and can be reused across Genies, projects, and MCP servers.',
+        shortValue: 'Yes: reusable prompt and workflow skills',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/agentic/skills',
-            label: 'Workato Docs: Skills',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/agentstudio',
-            label: 'Workato: Agent Studio',
-            asOf: '2026-07-02',
+            label: 'Workato: Skills',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeChatDeployment: {
-        value:
-          'Yes: Workato Genies (agents built in Agent Studio) can be deployed with a native chat interface, publishable to Slack, Microsoft Teams, Workato GO, or embedded in custom internal chatbots, with real-time back-and-forth conversation.',
-        shortValue: 'Yes: Genie chat interface (Slack, Teams, Workato GO)',
+        value: 'Genies can be used through Slack, Microsoft Teams, and Workato GO chat interfaces.',
+        shortValue: 'Yes: Slack, Teams, and Workato GO',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/agentic/agent-studio/chat-interface/chat-interface.html',
-            label: 'Workato Docs: Chat interface',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/en/agentic/agent-studio/conversations.html',
-            label: 'Workato Docs: Conversations page',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/agentic/agent-studio/chat-interface/chat-interface.html',
+            label: 'Workato: Genie chat interfaces',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
         value:
-          "No: Workato's knowledge base documentation describes chunking as the underlying retrieval mechanism (content is split into fragments/entries and retrieval returns the most semantically similar fragments), but no chunk-index or fragment-level debug view exists; debugging retrieval issues relies on tracing back to the source document/URL rather than inspecting individual chunk content in a dedicated UI.",
-        detail:
-          'Source URLs help identify which document a bad fragment came from, implying fragment-level awareness exists internally, though no chunk index or content inspector is documented as a user-facing feature.',
-        shortValue: 'No: no chunk-level debug view documented',
-        confidence: 'estimated',
+          'Ingestion includes chunking, but a user-facing chunk inspection interface was not confirmed.',
+        shortValue: 'Unconfirmed: chunk inspection UI',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/knowledge-bases.html',
-            label: 'Workato Docs: Knowledge bases',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/data-ingestion.html',
-            label: 'Workato Docs: Knowledge base data ingestion',
-            asOf: '2026-07-02',
+            label: 'Workato: Knowledge base ingestion',
+            asOf: '2026-09-04',
           },
         ],
       },
       parallelExecution: {
         value:
-          'No: Workato recipe steps documentation describes IF/ELSE branching and repeat loops as sequential control-flow constructs; no dedicated fan-out/fan-in step that runs multiple branches concurrently and joins them back exists. Workato does support running independent async calls alongside a wait step, and recipe-level concurrency settings control how many separate job instances run at once, but these are distinct from a single-run parallel-branches feature.',
-        detail:
-          'Multi-threaded custom connector actions (SDK feature) can issue concurrent API requests within one action, but that is a connector-development capability, not a native workflow step available to recipe builders.',
-        shortValue: 'No: no native parallel-branches step documented',
-        confidence: 'estimated',
+          'Asynchronous recipe functions can run independent processes in parallel, then join through Wait for async calls.',
+        shortValue: 'Yes: parallel async functions with a join step',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/recipes/steps.html',
-            label: 'Workato Docs: Steps',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/features/callable-recipes/wait-for-async-action.html',
-            label: 'Workato Docs: Callable Recipes - Wait for async calls action',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/connectors/recipe-functions/actions/wait-for-async-calls',
+            label: 'Workato: Wait for async calls',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
         value:
-          'Yes: Workato\'s Agentic platform documents an A2A Protocol connector that lets Workato "genies" (its AI agents) call any A2A-compliant external agent as a peer, discovering it via its Agent Card and delegating tasks over HTTP/JSON-RPC, with both synchronous and asynchronous call patterns supported.',
-        detail:
-          'This is distinct from MCP-style tool-calling: the A2A connector treats the remote system as an autonomous agent (discovered via its Agent Card) that can be delegated a task, not just a tool invoked for a single function result.',
-        shortValue: 'Yes: dedicated A2A Protocol connector for genies',
+          'An A2A connector in the Community Library connects recipes to external agents using the Agent2Agent protocol.',
+        shortValue: 'Yes: A2A community connector',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/agentic/agentic.html',
-            label: 'Workato Docs: Agentic',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/en/connectors/a2a.html',
-            label: 'Workato Docs: A2A Protocol connector',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/connectors/a2a',
+            label: 'Workato: A2A connector',
+            asOf: '2026-09-04',
           },
         ],
       },
       loopIteration: {
-        value:
-          "Yes: a dedicated 'Repeat for each' loop block executes a nested set of steps once per item in a given list, sequentially rather than concurrently, with each iteration's data pills scoped to that item; Workato also offers a separate 'Repeat while' loop for condition-based looping, and 'Repeat for each in batches' for grouping items into fixed-size batches (default 100) per iteration when downstream systems can't accept single-record calls.",
-        detail:
-          'Docs explicitly frame Repeat for each as sequential, one item at a time, contrasting it with bulk/batch transfer; concurrent/parallel execution of loop iterations is not offered by this construct.',
-        shortValue: 'Yes: Repeat for each/while loop blocks, sequential',
+        value: 'Recipes support list iteration, nested loops, and condition-based do-while loops.',
+        shortValue: 'Yes: for-each and do-while loops',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/repeat-for-each.html',
-            label: 'Repeat for each loop | Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Repeat for each',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.workato.com/recipes/loops.html',
-            label: 'Repeat while loop | Workato docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Conditional loops',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -686,160 +559,107 @@ export const workatoProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          'Workato\'s integrations page cites "thousands of SaaS apps, databases, and ERPs" without a precise total; its on-prem docs cite 300+ cloud and on-premise applications for out-of-the-box on-prem connectivity. Third-party sources put the broader library above 1,200 connectors, though Workato does not publish that figure directly.',
-        shortValue: 'Thousands of connectors; 300+ documented for on-prem',
-        confidence: 'estimated',
+          'Workato describes its prebuilt connector coverage as thousands of apps, databases, and enterprise systems.',
+        shortValue: 'Thousands of connected apps (vendor claim)',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.workato.com/integrations',
-            label: 'Workato Integration Library | Pre-Built Connectors for Apps | Workato',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/the-connector/workato-on-premise-integration/',
-            label: 'On-Premise Integration: How to Connect Cloud & On-Prem Apps | Workato',
-            asOf: '2026-07-02',
+            label: 'Workato integrations',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
-        value:
-          'Recipe types include workflow recipes (event/webhook/scheduled triggers), API recipes (published as REST endpoints), data pipeline recipes, app event recipes, and knowledge base recipes',
-        shortValue: 'Workflow, API, data pipeline, app event, and KB recipes',
+        value: 'Recipes start from configured application events, schedules, or API requests.',
+        shortValue: 'App events, schedules, and API requests',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/recipes.html',
-            label: 'Recipes | Workato docs',
-            asOf: '2026-07-04',
+            url: 'https://docs.workato.com/recipes/building-recipes.html',
+            label: 'Workato: Building recipes',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.workato.com/api-management.html',
+            label: 'Workato: API management',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
-        value:
-          'Yes: recipes run inline custom code through the Python snippets and JavaScript snippets connectors, alongside a separate Ruby-based Custom SDK for authoring custom connectors',
-        detail:
-          'The snippets connectors execute code as a recipe step, on Python 3.9 or later and Node.js 20.11.0 respectively. The Ruby SDK is a distinct capability for building reusable connectors rather than adding a code step to a recipe.',
-        shortValue: 'Python and JavaScript snippet connectors run inline code',
+        value: 'Python and JavaScript connectors execute code inside recipes.',
+        shortValue: 'Yes: Python and JavaScript',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/connectors/python.html',
-            label: 'Python snippets by Workato | Workato Docs',
-            asOf: '2026-08-10',
+            label: 'Workato: Python connector',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.workato.com/connectors/javascript.html',
-            label: 'JavaScript snippets by Workato | Workato Docs',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.workato.com/developing-connectors.html',
-            label: 'Universal connectors | Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: JavaScript connector',
+            asOf: '2026-09-04',
           },
         ],
       },
       codeSandboxRuntime: {
         value:
-          'No: every Workato code surface runs on a fixed, Workato-controlled image with a vendor-curated dependency set. The Python snippets connector runs Python 3.9 or later with the standard library plus a published list of preinstalled packages (pandas, NumPy, requests, lxml, openpyxl, pypdf, bcrypt, msoffcrypto, pytz, xlrd among others) and states that user-provided libraries are not supported; the JavaScript snippets connector runs Node.js 20.11.0 with node_fetch, lodash, gRPC, and Google Protobuf preinstalled and carries the same restriction. There is no package-install step, no OS-level package declaration, and no selection of preinstalled CLI binaries.',
-        detail:
-          'The Ruby Connector SDK moved custom connector code into isolated containers in March 2025, which removed the older Ruby method whitelist and gave developers Ruby 2.7 built-in libraries plus a documented set of 14 gems available in the SDK container (jwt, nokogiri, rest-client, aws-sigv4 and others). That widened what the fixed image contains but did not make it configurable: the docs describe no mechanism for a developer to add a gem. Because Workato is SaaS-only with no self-hostable execution engine, there is also no customer-built container image to fall back on.',
-        shortValue: 'No: fixed images with curated, non-extendable packages',
+          'Snippet runtimes provide standard and selected libraries; user-provided packages are not supported.',
+        shortValue: 'Fixed snippet runtimes; no additional packages',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/connectors/python.html',
-            label: 'Python snippets by Workato | Workato Docs',
-            asOf: '2026-08-10',
+            label: 'Workato: Python connector',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.workato.com/connectors/javascript.html',
-            label: 'JavaScript snippets by Workato | Workato Docs',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.workato.com/developing-connectors/sdk/sdk-reference/whitelist-removal.html',
-            label: 'Full access to Ruby | Workato Docs',
-            asOf: '2026-08-10',
+            label: 'Workato: JavaScript connector',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Python steps have a 90-second timeout; JavaScript steps have a 30-second timeout. Both document 256 MB memory limits.',
       },
       apiPublishing: {
         value:
-          'Yes: Workato supports "API recipes" built on its API Platform, which expose a recipe as a REST API endpoint that external users, other recipes, or integrated systems can call to access and exchange data',
-        shortValue: 'API recipes expose workflows as REST endpoints',
+          'API Management publishes recipes as endpoints and manages API proxies, access policies, and usage.',
+        shortValue: 'Yes: recipe APIs and API management',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/api-management.html',
-            label: 'API Platform | Workato Docs',
-            asOf: '2026-07-04',
+            label: 'Workato: API management',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Ruby-based Connector SDK + open community connector library, no first-party multi-language client SDK found',
-        detail:
-          "Workato's Connector SDK lets developers build custom connectors in Ruby, with a local SDK Emulator (the open-source `workato-connector-sdk` gem on GitHub) for offline development, testing, and git-based versioning outside the cloud editor. Custom connectors can be published to Workato's Community Library (install-and-customize, open-source style) or submitted as Partner Connectors for native review and listing across all workspaces, functioning as a connector marketplace. Workato also exposes a full platform API (recipes, connectors, jobs) for programmatic control, plus a separate Platform CLI for asset sync. No official multi-language client SDK (Python/JS/Go) exists for calling the Workato API beyond the Ruby connector-development kit and the generic REST API.",
-        shortValue: 'Ruby Connector SDK plus community connector library',
+          'The Connector SDK builds and shares custom connectors, including open-source or closed-source distributions.',
+        shortValue: 'Yes: custom Connector SDK',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/developing-connectors/sdk.html',
-            label: 'Developer program | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/workato/workato-connector-sdk',
-            label: 'GitHub - workato/workato-connector-sdk',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/developing-connectors/community/community',
-            label: 'Community connectors | Workato Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/developing-connectors/community/community-listing.html',
-            label: 'Contributing your connector | Workato Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/workato-api/api-connectors.html',
-            label: 'Workato API - Connectors | Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Connector SDK',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
         value:
-          "Yes: Workato lets builders publish recipes/Genies as Enterprise Skills exposed through a managed MCP server hosted in Workato's AI Hub, so external AI tools (Claude, Cursor, other MCP clients) can call Workato automations as MCP servers, in addition to Genies acting as MCP clients that consume external MCP servers.",
-        detail:
-          'Workato ships genuine bidirectional MCP support: both publishing (recipes/Genies as MCP servers) and consuming (Genies as MCP clients).',
-        shortValue: 'Yes: Genies/recipes publishable as MCP servers',
+          'Enterprise MCP publishes recipe-backed tools and skills with client access controls.',
+        shortValue: 'Yes: governed MCP tool publishing',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.workato.com/the-connector/workato-mcp/',
-            label: 'Workato: Enterprise MCP - The Future of Agentic Automation',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/agentic/mcp',
-            label: 'Workato: Enterprise MCP product page',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/en/mcp/genies-as-mcp-clients.html',
-            label: 'Workato Docs: Genies as MCP clients',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/changelog/genies-now-support-external-mcp-servers/',
-            label: 'Workato Product Hub: Genies now support external MCP servers',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/mcp.html',
+            label: 'Workato: Enterprise MCP',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -847,53 +667,58 @@ export const workatoProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Custom, sales-quoted, consumption-based pricing combining a platform/edition subscription fee with usage charges metered mainly in "tasks"/"Workload Units" (individual automated actions); no self-serve list prices are published',
-        shortValue: 'Custom quoted pricing metered in tasks/Workload Units',
-        confidence: 'estimated',
+          'Enterprise subscriptions combine platform editions and usage. Self-service plans use credit allowances.',
+        shortValue: 'Enterprise platform/usage fees; self-service credits',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.workato.com/pricing',
-            label: 'Workato Pricing Model | Workato',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/pricing',
+            label: 'Workato: Pricing',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.workato.com/en/pricing/self-service/self-service',
+            label: 'Workato: Self-service pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       entryPaidPlan: {
-        value:
-          "No published starting price; Workato's pricing page is sales-led (demo/trial request only). Third-party pricing-intelligence sites report a Standard/Starter tier around $2,000 to $10,000/month, unconfirmed by Workato.",
-        shortValue: 'No published price; sales-quoted only',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://www.workato.com/pricing',
-            label: 'Workato Pricing Model | Workato',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      freeTier: {
-        value:
-          "No self-serve free tier is documented. Workato's pricing page is sales-gated (demo/trial request only) and does not confirm a permanent free plan",
-        shortValue: 'No documented free tier',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://www.workato.com/pricing',
-            label: 'Workato Pricing Model | Workato',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      byok: {
-        value:
-          "Yes, for LLM costs specifically. Agent Studio's Bring-Your-Own-LLM (BYOLLM) feature lets customers power Genies with their own OpenAI or Anthropic API credentials instead of Workato's managed model contracts",
-        shortValue: 'Bring your own OpenAI or Anthropic API key for Genies',
+        value: 'Self-service Pro starts at $75 per month with 2,500 monthly credits.',
+        shortValue: 'Self-service Pro: $75/month for 2,500 credits',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.workato.com/product-hub/changelog/bring-your-own-llm-byollm-support-for-agent-studio/',
-            label: 'Bring Your Own LLM (BYOLLM) Support for Agent Studio | Workato Product Hub',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/pricing/self-service/self-service',
+            label: 'Workato: Self-service pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'Enterprise editions and additional capabilities are quoted separately.',
+      },
+      freeTier: {
+        value: 'The self-service Free plan includes a one-time allowance of 50,000 credits.',
+        shortValue: 'Free: 50,000 one-time credits',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/en/pricing/self-service/self-service',
+            label: 'Workato: Self-service pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'This is not a recurring monthly credit allowance.',
+      },
+      byok: {
+        value:
+          'Genies can use customer connections for OpenAI, Anthropic, Azure OpenAI, and AWS Bedrock.',
+        shortValue: 'Yes: Agent Studio BYOLLM',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/en/agentic/agent-studio/ai-model/ai-model',
+            label: 'Workato: AI models and BYOLLM',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -901,416 +726,320 @@ export const workatoProfile: CompetitorProfile = {
     security: {
       dataResidency: {
         value:
-          "Yes, for enterprise customers: Workato enterprise customers can choose the region where their organization's automation data is stored and processed, from regional data centers (US, EU/Frankfurt, Japan, Singapore, Australia, Israel, China, South Korea). Once stored, data remains isolated in that region and is not shared or transferred across regions; there is no ongoing per-workspace or per-project residency toggle. Self-service (non-enterprise) users can't choose a region and are hosted in one of Workato's US data centers. Using more than one region requires signing up for and maintaining a separate Workato account in each desired region.",
-        shortValue: 'Enterprise customers pick a region; self-service defaults to US',
+          'Enterprise regions include the US, EU, Japan, Singapore, Australia, Israel, China, South Korea, and UK.',
+        shortValue: 'Multiple enterprise regions; self-service US only',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/datacenter/datacenter-overview.html',
-            label: 'Data center overview | Workato Docs',
-            asOf: '2026-07-08',
+            label: 'Workato: Data center overview',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Self-service workspaces use the US region. Features and availability vary by region.',
       },
       rbac: {
-        value:
-          "Yes: RBAC 2.0 separates environment-level and project-level roles and permissions, and supports custom collaborator roles for granular access to projects, folders, and tools, following least-privilege principles. Availability of some custom-role features depends on the customer's pricing plan.",
-        shortValue: 'RBAC 2.0 with custom collaborator roles',
+        value: 'Environment and project roles govern access, with custom roles and user groups.',
+        shortValue: 'Yes: environment/project roles and custom groups',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html',
-            label: 'Manage workspace collaborators with role-based access control | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/changelog/rbac-2-0-enhanced-role-based-access-control/',
-            label: 'RBAC 2.0: Enhanced Role-Based Access Control | Workato Product Hub',
-            asOf: '2026-07-02',
+            label: 'Workato: Environment and project access controls',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
         value:
-          "Yes: an Activity audit log records users' significant actions across the workspace and can be streamed to an external destination (e.g. Amazon S3, Azure, Google Cloud Storage, Datadog, Splunk) for retention and analysis",
-        shortValue: 'Activity audit log, streamable externally',
+          'Activity audit logging records workspace events and can stream job and activity data to external systems.',
+        shortValue: 'Yes: activity audit logs and streaming',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/features/activity-audit-log-streaming.html',
-            label: 'Audit log streaming | Workato Docs',
-            asOf: '2026-07-08',
+            label: 'Workato: Activity audit log streaming',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'Streaming is available on specific plans.',
       },
       compliance: {
         value:
-          'SOC1 Type II, SOC2 Type II, SOC3, ISO 27001, ISO 27701, ISO 42001, HIPAA (BAA), PCI-DSS v4.0.1 Level 1, IRAP (PROTECTED, Australia), NIST 800-171A r2',
-        detail:
-          "Workato's certifications go well beyond SOC 2: SOC 1 Type II covers financial reporting controls, while its SOC 2 Type II report is aligned to the AICPA Trust Services Criteria and is available to customers under NDA. Its SOC 3 report is publicly available without an NDA and available upon request. ISO 27001 covers infosec management, ISO 27701 covers privacy (PIMS extending 27001, aligning with GDPR handling of PII), ISO 42001 covers AI governance, HIPAA compliance runs through signable BAAs with annual third-party attestation, PCI-DSS v4.0.1 Level 1 covers cardholder data, IRAP is assessed at the Australian government PROTECTED level, and NIST 800-171A r2 supports federal contractors handling Controlled Unclassified Information. There is no FedRAMP authorization or a standalone GDPR certification; GDPR compliance is represented through the ISO 27701 PIMS alignment.",
-        shortValue: 'SOC 1/2/3, ISO 27001/27701/42001, HIPAA, PCI-DSS, IRAP, NIST',
+          'Workato reports SOC 1/2 Type II and SOC 3, ISO 27001/27701, PCI DSS Level 1, HIPAA attestations and BAAs, IRAP assessment, and NIST 800-171A r2 attestation.',
+        shortValue: 'SOC, ISO, PCI; HIPAA/IRAP/NIST assurances',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/security/security-compliance.html',
-            label: 'Security compliance | Workato docs',
-            asOf: '2026-09-03',
-          },
-          {
-            url: 'https://www.workato.com/platform/security',
-            label: 'Automation Governance and Data Security | Workato',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/legal/security',
-            label: 'Workato Security Overview',
-            asOf: '2026-07-02',
+            label: 'Workato: Security compliance',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The source describes different assurance types, not a single certification category. It describes ISO 42001 alignment separately.',
       },
       modelAndToolGovernance: {
-        value: 'Unknown',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      credentialGovernance: {
         value:
-          "Yes: Workato's project-level access control includes dedicated connection privileges (view, update, create, remove connections) that can be assigned to specific roles or collaborator groups per project, letting admins restrict who can use or manage specific stored connections and credentials, separate from general feature-level permissions.",
-        detail:
-          'Granularity is at the project/connection-privilege level (and per-service scoping such as AWS IAM external IDs), not an arbitrary per-credential allow-list across all roles, but it still restricts specific credentials beyond feature-level access control.',
-        shortValue: 'Yes: per-project connection privileges via RBAC',
+          'AI Gateway scopes keys to provider/model routes and applies limits; Enterprise MCP governs tool access.',
+        shortValue: 'Yes: model routes, scoped keys, and MCP access',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/user-accounts-and-teams/role-based-access/',
-            label: 'Workato Docs: Role-based access control',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/en/ai-gateway',
+            label: 'Workato: AI Gateway',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.workato.com/user-accounts-and-teams/role-based-access/new-model/privileges-reference.html',
-            label: 'Workato Docs: Privileges reference',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/mcp.html',
+            label: 'Workato: Enterprise MCP',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'AI Gateway availability depends on the plan.',
+      },
+      credentialGovernance: {
+        value: 'Environment and project access controls govern resources including connections.',
+        shortValue: 'Project/environment connection access',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html',
+            label: 'Workato: Environment and project access controls',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The reviewed access model establishes resource scope, rather than a universal claim about every credential-specific policy.',
       },
       whiteLabeling: {
         value:
-          'Yes, partially self-service: Workato Embedded offers a Theme editor (Admin Console/Manage Customers > Settings > Branding) for customizing colors, fonts, and spacing, for partners embedding Workato in their own product. Adding a custom company logo is not part of the self-service Theme editor and instead requires contacting a Workato Success Representative.',
-        detail:
-          'Scoped to the Embedded/OEM offering, not the standard workspace UI. No current documentation supports white-labeling of error messages, notifications, or logs.',
-        shortValue: 'Yes: Embedded theme editor (colors/fonts/spacing); logo needs Support',
+          'Workato Embedded supports customizing the embedded editor’s branding and appearance.',
+        shortValue: 'Yes: Embedded editor branding',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/oem/branding.html',
-            label: 'Workato Docs: Branding - Theme editor',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/customization-possibilities-with-the-embedded-theme-editor/',
-            label:
-              'Workato Product Hub: Customization possibilities with the Embedded Theme editor',
-            asOf: '2026-07-08',
+            label: 'Workato: Embedded branding',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
         value:
-          'Yes: Workato supports org-configurable data retention for recipe job logs, with a default of 30 to 90 days depending on the workspace plan. Enterprise Workspaces, or workspaces with the Data Monitoring/Advanced Security & Compliance capability, can set a workspace-wide custom retention period between 1 hour and 90 days; individual recipes can then be set to follow that workspace policy or to store no data at all.',
-        shortValue: 'Yes: org-configurable retention, 1hr-90 days (Enterprise/Data Monitoring)',
+          'Job data retention is configurable; documented defaults are 30 days for Standard/Business and 90 days for Enterprise.',
+        shortValue: 'Job data: 30/90-day defaults; configurable',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/security/data-protection/data-retention/',
-            label: 'Workato Docs: Data retention policies',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.workato.com/security/data-protection/data-retention/configure-retention-for-recipes.html',
-            label: 'Workato Docs: Recipe-level data retention',
-            asOf: '2026-07-08',
+            label: 'Workato: Data retention',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Recipe settings can disable stored job data; supported retention can be reduced to one hour.',
       },
       piiRedaction: {
         value:
-          "No: Workato's relevant feature is manual data masking, where a builder explicitly flags individual recipe steps so their runtime input and output are not stored or shown in job logs. This is step-level opt-in suppression, not automatic detection or redaction of PII patterns (emails, SSNs, etc.) within the content itself.",
-        detail:
-          'Zero data retention is a related but separate blanket no-storage option; neither is content-aware PII pattern detection or redaction.',
-        shortValue: 'No: manual step-masking, not automatic PII detection',
+          'Beta Genie guardrails can detect PII and block, anonymize, or tokenize it; recipe-step masking is a separate control.',
+        shortValue: 'Yes: beta Genie PII policies and step masking',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/features/data-masking.html',
-            label: 'Workato Docs: Data masking',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/workato-api/agent-studio.html',
+            label: 'Workato: Agent Studio and Guardrails API',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.workato.com/product-hub/workato-tip-protecting-sensitive-data-with-data-masking/',
-            label: 'Workato Product Hub: Protecting sensitive data with data masking',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/features/data-masking.html',
+            label: 'Workato: Data masking',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'These controls have different scopes and do not establish automatic redaction of all platform data.',
       },
       sso: {
         value:
-          'Yes: Workato supports SAML-based single sign-on with just-in-time (JIT) provisioning, so a user signing in via SSO for the first time is automatically added/provisioned into the workspace, plus SAML role sync to assign workspace roles and collaborator groups from the identity provider.',
-        detail:
-          'Documentation emphasizes SAML; no public confirmation of native OIDC support alongside SAML exists.',
-        shortValue: 'Yes: SAML SSO with JIT auto-provisioning',
+          'Workspace SSO supports SAML, just-in-time provisioning, and enforcement for members.',
+        shortValue: 'Yes: SAML SSO and provisioning',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/user-accounts-and-teams/single-sign-on.html',
-            label: 'Workato Docs: Enable Single Sign-On for a Workato Workspace',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/user-accounts-and-teams/saml-role-sync.html',
-            label: 'Workato Docs: SAML role sync',
-            asOf: '2026-07-02',
+            label: 'Workato: Single sign-on',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'The workspace owner retains a password sign-in exception.',
       },
       sessionPolicy: {
         value:
-          'Yes: a workspace-wide session timeout duration is set by admins under Workspace admin > Settings > Workspace > General, documented as "the time of inactivity after which users are logged out." Workato\'s security FAQs state the default is seven days and the value is configurable from 15 minutes to 14 days.',
-        detail:
-          'This is an inactivity/idle timeout applied across the workspace, not a separate absolute session lifetime cap measured from sign-in; Workato documents no second control for maximum session age. The setting sits in the general workspace admin settings rather than being gated to a specific security add-on in the documentation.',
-        shortValue: 'Yes: workspace idle timeout, 15 minutes to 14 days',
+          'Session timeout defaults to seven days and can be configured from 15 minutes to 14 days.',
+        shortValue: 'Configurable session timeout: 15 minutes–14 days',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/en/workspace-admin-settings.html',
-            label: 'Workato Docs: Workspace admin settings',
-            asOf: '2026-08-10',
-          },
-          {
             url: 'https://docs.workato.com/security/security-faqs.html',
-            label: 'Workato Docs: Security FAQs',
-            asOf: '2026-08-10',
+            label: 'Workato: Security FAQs',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
         value:
-          'Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish a connector that other users install, alongside an invite-only Partner Connector tier that does get dedicated Workato code review. This is a genuine public marketplace for third-party executable connector code, unlike a vendor with no such marketplace at all.',
-        detail:
-          "Workato's docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library, reviewed within roughly one business day per Workato's own docs, but explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' Community connectors can also be published open-source (installable, viewable, and modifiable by anyone) or closed-source. This is structurally different from a vendor where every executable integration is first-party authored and code-reviewed through the vendor's own repository, with no public listing where an arbitrary third party can publish code for other users to install. No publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) exists; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical, industry-wide concern rather than a Workato-specific incident.",
-        shortValue: 'Partial: first-party catalog plus an open, lightly-vetted marketplace',
+          'Community connectors require installation privileges and a review before public listing.',
+        shortValue: 'Community connector review and installation controls',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/developing-connectors/community/community.html',
-            label: 'Community connectors | Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Community connectors',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.workato.com/developing-connectors/community/community-listing.html',
-            label: 'Contributing your connector | Workato Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/community-connectors/',
-            label: 'Workato Community Connectors: What you need to know',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/developing-connectors/sdk/quickstart/sharing.html',
-            label: 'Workato Docs: Sharing a connector (open-source vs. closed-source)',
-            asOf: '2026-07-04',
+            label: 'Workato: Contributing a connector',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The docs describe community connectors as examples and advise users to evaluate them before production use.',
       },
     },
     observability: {
       tracingDepth: {
-        value: 'Customer-facing job/step-level tracing plus an operational metrics dashboard',
-        detail:
-          'Job debug tracing shows per-step request/response detail (headers, request body, response) for every action in a run, making it possible to trace the root cause of a single execution. The Workato Dashboard gives a workspace-wide operational view: a jobs graph, recipe details table, plan usage, and app-connection overview for spotting trends and outliers across recipes. A separate Logging Service streams step-by-step logs in real time (no need to wait for job completion) and can forward them to external systems like Datadog. These are all customer-facing, in-app views; detailed latency-percentile APM metrics go beyond the jobs/errors dashboard.',
-        shortValue: 'Job/step-level tracing plus operational dashboard',
+        value:
+          'Job debug tracing exposes request/response details; the Logging Service collects configured recipe logs.',
+        shortValue: 'Job debug tracing and configured recipe logs',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/job-debug-tracing.html',
-            label: 'Job debug tracing | Workato docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Job debug tracing',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.workato.com/features/logging-service.html',
-            label: 'Workato Logging Service | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/log-streaming-datadog-dashboards/',
-            label: 'Turn Workato Log Streams into Datadog Insights',
-            asOf: '2026-07-02',
+            label: 'Workato: Logging Service',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Debug tracing requires enablement. Logging Service uses explicit Logger steps and is plan-dependent.',
       },
       durabilityModel: {
         value:
-          'Manual/configurable step retries + full job rerun with original trigger payload; no automatic checkpoint-resume mid-recipe',
-        detail:
-          "Workato's 'Handle errors' block lets you wrap a group of actions and configure up to 3 automatic retries on failure before falling through to an error-handling block. This is opt-in per recipe, not a platform-wide automatic retry for every step. For durability and replay, Workato retains the original trigger event for every job, so any completed or failed job can be rerun from Job History with its original inputs reproduced end-to-end, effectively a full-run replay rather than a mid-run checkpoint resume. At scale, this can be automated via a 'RecipeOps by Workato' recipe that finds failed jobs and reruns them.",
-        shortValue: 'Manual retries plus full job rerun, no checkpoint resume',
+          'Recipes support configured retries and rerunning jobs from their original trigger events.',
+        shortValue: 'Configured retries and full-job reruns',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/best-practices-error-handling.html',
-            label: 'Error handling best practices | Workato docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Error handling',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.workato.com/recipes/rerun-job.html',
-            label: 'Rerunning jobs | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/recipes/recipe-job-errors.html',
-            label: 'Job errors (recipe execution errors)',
-            asOf: '2026-07-02',
+            label: 'Workato: Rerunning jobs',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'A rerun uses the current recipe version and can repeat external side effects.',
       },
       failureAlerting: {
         value:
-          'Yes: proactive email (and Slack/voice via Admin app) alerts on job failure, configurable and throttled',
-        detail:
-          'Workato sends error-notification emails automatically to the workspace owner by default, and admins can configure additional recipients under Workspace admin > Settings > Debug and logs > Error alerts. Notifications are throttled (default one minute per error type per recipe, with an optional one-hour throttle) to reduce noise. Beyond email, the Admin connector/Workbot integration can push failure notifications to Slack, or trigger a custom email or phone call/IVR (via Twilio) when a key recipe goes down, and Workbot lets teams watch for failures across all or specific recipes directly in Slack.',
-        shortValue: 'Throttled email, Slack, and voice failure alerts',
+          'Error emails notify the workspace owner by default; admins can configure recipients and throttling.',
+        shortValue: 'Yes: configurable, throttled error emails',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/error-notifications.html',
-            label: 'Errors notifications emails | Workato Docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/the-connector/new-feature-manage-exceptions-with-workatos-admin-app/',
-            label: "New Feature: Manage Exceptions with Workato's Admin App",
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/user-accounts-and-teams/admin-email.html',
-            label: 'Managing teams - Email notifications | Workato Docs',
-            asOf: '2026-07-02',
+            label: 'Workato: Error notifications',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataDrains: {
         value:
-          'Yes: Workato supports continuous audit/activity log streaming to external destinations including Amazon S3, Azure Monitor/Blob, Google Cloud Storage, Sumo Logic, Datadog, and Splunk, sending each job/event as a JSON payload via HTTP POST, with customizable log message formatting.',
-        detail:
-          "Direct BigQuery streaming isn't documented specifically, though Google Cloud Storage is supported.",
-        shortValue: 'Yes: log streaming to S3, Datadog, Splunk, etc.',
+          'Plan-dependent log streaming sends job and activity data to destinations including S3, Azure, GCS, Datadog, and Splunk.',
+        shortValue: 'Yes: external activity/job log streaming',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/features/activity-audit-log-streaming-destinations.html',
-            label: 'Workato Docs: Audit log streaming destinations',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.workato.com/features/activity-audit-log-streaming.html',
-            label: 'Workato Docs: Activity audit log streaming',
-            asOf: '2026-07-02',
+            label: 'Workato: Activity audit log streaming',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
         value:
-          "Yes: Workato recipes can run as background jobs you check on later, rather than only blocking synchronously. A recipe run creates a job with an ID, and the Workato Jobs API lets you list jobs and fetch an individual job's status and details afterward. Workato also has explicit async patterns inside recipes: Callable Recipes support a 'fire-and-forget' async function call alongside a synchronous variant, a 'Wait for async calls' action to rejoin parallel async jobs, and a resume-token mechanism for jobs paused while awaiting external input.",
-        detail:
-          'The public Jobs API returns metadata/status only (job state, timestamps, step summaries) via job_id, not a rich step-by-step output payload; full run-time data is viewed on the job details page in the UI rather than returned by the API.',
-        shortValue: 'Yes: async job_id + pollable Jobs API',
+          'Recipes support asynchronous function calls, and the Jobs API provides job status and details.',
+        shortValue: 'Yes: async functions and pollable Jobs API',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/workato-api/jobs.html',
-            label: 'Workato API - Jobs',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.workato.com/connectors/recipe-functions/actions/call-recipe-function-asynchronously.html',
-            label: 'Recipe Functions - Call Recipe Function Asynchronously',
-            asOf: '2026-07-02',
+            label: 'Workato: Asynchronous recipe functions',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.workato.com/features/callable-recipes/wait-for-async-action.html',
-            label: 'Callable Recipes - Wait for async calls action',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/workato-api/jobs.html',
+            label: 'Workato: Jobs API',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Workato documents a default job execution timeout of 90 minutes of active execution time (configurable by workspace admins to a custom limit), and a per-recipe concurrency setting with a default of 1 simultaneous job and a maximum of 30 simultaneous jobs.',
-        detail:
-          "Concurrency is configured per recipe (not account-wide); Workato recommends its separate 'Long actions' mechanism for bulk/long-running steps that would otherwise hit the timeout. The docs also note that long actions can let subsequent jobs start even when concurrency is set to 1.",
-        shortValue: '90 min timeout default; concurrency 1-30',
+          'The default active execution timeout is 90 minutes; recipe concurrency defaults to one and can be set up to 30.',
+        shortValue: '90-minute default; concurrency 1–30',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/jobs.html',
-            label: 'Recipes - Jobs (job timeout)',
-            asOf: '2026-07-02',
+            label: 'Workato: Recipe jobs',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.workato.com/recipes/settings.html',
-            label: 'Recipe settings (concurrency default/max)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/recipes/long-actions.html',
-            label: 'Long actions',
-            asOf: '2026-07-02',
+            label: 'Workato: Recipe settings',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Admins can configure execution timeout. Long actions can pause and resume a job and allow subsequent jobs to start.',
       },
       partialFailureHandling: {
         value:
-          "Yes: Workato's Handle Errors step lets a failing action be routed to a dedicated On Error block (with configurable retries) while the rest of the recipe continues, rather than halting entirely. Per the docs, the recipe always runs the monitored block within the Handle Errors step and then continues to the next step, whether or not an error occurred.",
-        detail:
-          'By default Workato does not retry a failed action and immediately runs the On Error steps; retries (up to a configurable count and delay) can be enabled. Error datapills (type, message, retry count, source app) are available inside the On Error block for logging or branching logic.',
-        shortValue: 'Yes: Handle Errors step with On Error block',
+          'Handle Errors blocks provide retry and On Error paths so recipes can continue with configured recovery logic.',
+        shortValue: 'Yes: Handle Errors and On Error paths',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/best-practices-error-handling.html',
-            label: 'Error handling best practices',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/recipes/recipe-job-errors.html',
-            label: 'Job errors (recipe execution errors)',
-            asOf: '2026-07-02',
+            label: 'Workato: Error handling',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
-        value:
-          "Yes: Workato recipes are a cloud-hosted SaaS execution engine, so scheduled, webhook, and other triggered runs fire and complete as jobs on Workato's own servers, with no builder browser tab, desktop client, or session required to stay open.",
-        detail:
-          "The Scheduler trigger fires recipes on a defined interval, and every run creates a job tracked through Workato's cloud Jobs API, both entirely server-side. The only client-adjacent component is the optional on-prem agent, and even that is a persistent background service (not an interactive desktop app or user session) that bridges the Workato cloud to on-prem systems; the recipe's trigger, logic, and job state still live in Workato's cloud regardless of whether an on-prem agent is involved.",
-        shortValue: 'Yes: runs server-side on Workato cloud, no client session needed',
+        value: 'Active recipes run as managed jobs in response to their configured triggers.',
+        shortValue: 'Yes: managed background recipe execution',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.workato.com/product-hub/scheduler-trigger-routine-custom-schedules/',
-            label: 'Scheduler Trigger: Kick-off recipes to run on routine and custom schedules',
-            asOf: '2026-07-04',
+            url: 'https://docs.workato.com/recipes/building-recipes.html',
+            label: 'Workato: Building recipes',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.workato.com/workato-api/jobs.html',
-            label: 'Workato API - Jobs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.workato.com/on-prem/agents.html',
-            label: 'On-prem agent | Workato docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/recipes/jobs.html',
+            label: 'Workato: Recipe jobs',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -1318,81 +1047,68 @@ export const workatoProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Email support (support@workato.com), an official documentation/help center, and a public community forum ("Systematic Community") for peer discussion; no dedicated live-chat channel is documented',
-        shortValue: 'Email, docs, and community forum',
-        confidence: 'estimated',
+          'The support agreement documents portal, email, and chat support, with coverage depending on the support plan.',
+        shortValue: 'Support portal, email, and chat; plan-based coverage',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://systematic.workato.com/',
-            label: 'Workato Systematic Community',
-            asOf: '2026-07-02',
+            url: 'https://www.workato.com/legal/terms-of-service',
+            label: 'Workato Terms of Service and support agreement',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
-        value: 'Not publicly documented',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'The support agreement defines response targets; Enterprise severity-one incidents have a one-hour response target.',
+        shortValue: 'Enterprise: one-hour severity-one response target',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.workato.com/legal/terms-of-service',
+            label: 'Workato Terms of Service and support agreement',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'This is a support response commitment, not an uptime guarantee.',
       },
       community: {
         value:
-          'No published community size metrics. Workato operates a public forum ("Systematic Community") with active discussion, but no member count, Slack/Discord size, or GitHub star count is published, and the core product is closed source so no GitHub stars apply',
-        shortValue: 'No published size metrics; closed-source',
-        confidence: 'unknown',
+          'The Community Library enables sharing and reuse of recipes, skills, and connectors.',
+        shortValue: 'Community recipes, skills, and connectors',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://systematic.workato.com/',
-            label: 'Workato Systematic Community',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/community-library.html',
+            label: 'Workato: Community library',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
         value:
-          'Founded 2013; ~$421M total funding; last priced at $5.7B (2021), secondary markets ~$1.7B (mid-2025); ~1,400 employees',
-        detail:
-          'Workato was founded in 2013 by Gautham Viswanathan and Vijay Tella (Palo Alto, CA). It has raised approximately $421M in total funding across rounds including a $200M Series E in late 2021 at a $5.7B valuation; secondary-market pricing as of mid-2025 implied a lower valuation near $1.7B. Employee count is approximately 1,414 as of May 2026, a mature, well-funded, late-stage private company with no IPO.',
-        shortValue: 'Founded 2013; ~$421M raised; ~1,400 employees',
+          'Workato lists a Palo Alto headquarters, international offices, and institutional investors.',
+        shortValue: 'Established company with international offices',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.crunchbase.com/organization/workato',
-            label: 'Workato - Crunchbase Company Profile & Funding',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://techcrunch.com/2021/11/10/workato-storms-to-a-5-7b-valuation-after-raising-200m-for-its-enterprise-automation-platform/',
-            label: 'Workato storms to a $5.7B valuation after raising $200M | TechCrunch',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://tracxn.com/d/companies/workato/__OtQBgvGNY2vOc7gmJydkZ3zQ6CHQGUY1_fzhOK4C3xU',
-            label: 'Workato - 2026 Company Profile, Team, Funding & Competitors | Tracxn',
-            asOf: '2026-07-02',
+            url: 'https://www.workato.com/about_us',
+            label: 'About Workato',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'Volatile headcount, funding totals, and secondary-market valuations are omitted.',
       },
       academy: {
         value:
-          'Yes: Workato Academy (Automation Institute) offers structured self-paced courses, badges, and a tiered Automation Pro I/II/III certification program covering beginner to advanced recipe-building skills, plus live training options, available to anyone with a Workato workspace.',
-        shortValue: 'Yes: Workato Academy with tiered certifications',
+          'Workato Academy offers structured courses, hands-on labs, and completion certificates, including Foundations courses.',
+        shortValue: 'Yes: Workato Academy courses and certificates',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://academy.workato.com/learn',
-            label: 'Workato Academy',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.workato.com/training/automation-institute.html',
-            label: 'Workato Docs: Workato Academy',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/certification',
-            label: 'Workato: Certification',
-            asOf: '2026-07-02',
+            label: 'Workato: Workato Academy',
+            asOf: '2026-09-04',
           },
         ],
       },

@@ -1,679 +1,662 @@
 import { PipedreamIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against live primary sources on 2026-09-04; unverified capabilities are labeled. */
 export const pipedreamProfile: CompetitorProfile = {
   id: 'pipedream',
   name: 'Pipedream',
   website: 'https://pipedream.com',
   brand: {
-    icon: PipedreamIcon,
     selfFramed: true,
     colors: ['#35d38c', '#94eccc', '#6b6f72'],
     description:
       "Pipedream is an advanced integration platform designed specifically for developers. Our platform allows developers to connect APIs incredibly quickly, ensuring enhanced productivity. Since its inception, Pipedream has attracted over 300,000 developers, with a growth rate of more than 500 new developers daily. We aim to make developers 10x more productive, believing that this will create significant global impact. Pipedream offers the fastest way to build robust applications that integrate various services within your tech stack, providing code-level control when needed and a no-code option for simplicity. Join our journey if you share our vision for making developers' lives easier and more productive.",
     industries: ['Developer Tools & APIs'],
-    socials: [{ type: 'linkedin', url: 'https://linkedin.com/company/pipedreamhq' }],
+    socials: [
+      {
+        type: 'linkedin',
+        url: 'https://linkedin.com/company/pipedreamhq',
+      },
+    ],
     source: 'Context.dev brand-intelligence API',
     asOf: '2026-07-02',
+    icon: PipedreamIcon,
   },
   oneLiner:
-    'Pipedream is a cloud integration platform, now owned by Workday (acquired Nov 2025), that connects 3,000+ APIs through low-code workflows or custom Node.js/Python/Go code, and exposes those integrations to AI agents as tools through a hosted MCP server.',
+    'Pipedream is a hosted integration platform for building workflows with prebuilt actions and code, and embedding authentication and API tools into applications and AI agents through Connect and MCP.',
   standoutFeatures: [
     {
-      title: 'Hosted MCP server covering thousands of apps',
+      title: 'Hosted MCP and managed authentication',
       description:
-        'Pipedream runs a fully-managed MCP server (mcp.pipedream.com) that exposes 3,000+ integrated apps and 10,000+ pre-built tools to any MCP-compatible AI agent, and handles OAuth and credential storage so credentials are never exposed to the model.',
-      shortDescription: 'Managed MCP server exposes 3,000+ apps as tools with hosted OAuth.',
+        'Pipedream Connect exposes thousands of app integrations as MCP tools and manages end-user account authorization. Developers can use the tools with frameworks including OpenAI, Anthropic, Google Gemini, and the Vercel AI SDK.',
+      shortDescription: 'Hosted MCP tools with managed account authentication.',
       source: {
-        url: 'https://pipedream.com/docs/connect/mcp',
-        label: 'Pipedream Docs: MCP Servers',
-        asOf: '2026-07-02',
+        url: 'https://pipedream.com/docs/connect/mcp/developers',
+        label: 'Develop with Pipedream MCP — Pipedream Docs',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Code-first escape hatch alongside no-code builder',
+      title: 'Code alongside prebuilt actions',
       description:
-        "Any step in a Pipedream workflow can be replaced with custom Node.js, Python, Bash, or Go code, and pre-built actions can be used as no-code building blocks or 'scaffolded' into code you customize.",
-      shortDescription: 'Every workflow step can drop into custom code in four languages.',
-      source: { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
+        'Workflows combine prebuilt actions with Node.js, Python, Go, or Bash. Step results, logs, and errors are available in the builder, and deployed workflows run on Pipedream servers.',
+      shortDescription: 'Four code runtimes alongside prebuilt actions.',
+      source: {
+        url: 'https://pipedream.com/docs/workflows',
+        label: 'What Are Workflows? — Pipedream Docs',
+        asOf: '2026-09-04',
+      },
     },
     {
-      title: 'Source-available component registry on GitHub',
+      title: 'Custom tools for Connect and MCP',
       description:
-        "Pipedream's ~11.5k-star GitHub repo publishes the source for its integration components (triggers/actions for 1,000+ apps) under a source-available (not OSI open-source) license, letting developers inspect and contribute component code, though the hosted platform itself is not self-hostable.",
-      shortDescription: 'Component source is public and contributable, though not self-hostable.',
+        'Business customers can publish their own Node.js actions to development or production Connect environments. Those actions become callable through Connect APIs and the relevant app MCP server.',
+      shortDescription: 'Business custom actions are available through APIs and MCP.',
       source: {
-        url: 'https://github.com/PipedreamHQ/pipedream',
-        label: 'GitHub: PipedreamHQ/pipedream',
-        asOf: '2026-07-02',
+        url: 'https://pipedream.com/docs/connect/components/custom-tools',
+        label: 'Using Custom Tools — Pipedream Docs',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'Not self-hostable',
+      title: 'Customer-infrastructure deployment requires a sales discussion',
       description:
-        'Pipedream is a hosted cloud platform only. The public GitHub repo is a source-available component registry, not a deployable self-hosted application, and community requests to self-host on a private server or EC2 instance have not resulted in an official self-hosting path.',
-      shortDescription: 'No official path exists to self-host Pipedream.',
+        'Pipedream documents isolated networks for its hosted workflows and invites customers to contact sales about running workflows on their own infrastructure. Public availability and deployment terms were not verified.',
+      shortDescription: 'Customer-infrastructure deployment terms require a sales discussion.',
       source: {
-        url: 'https://github.com/PipedreamHQ/pipedream/issues/954',
-        label: 'GitHub Issue #954: Self-host request',
-        asOf: '2026-07-02',
+        url: 'https://pipedream.com/docs/workflows/vpc',
+        label: 'Virtual Private Clouds — Pipedream Docs',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Proprietary source-available license, not open source',
+      title: 'AI workflow editing has feature restrictions',
       description:
-        "The GitHub repository is licensed under the 'Pipedream Source Available License Version 1.0,' which explicitly prohibits using the code to run a competing SaaS/PaaS/IaaS offering. This is not an OSI-approved open-source license.",
-      shortDescription: "The component repo's license bars running a competing service.",
+        'The documented String.com editing path excludes workflows using control-flow steps, GitHub Sync, Python, Connect features, or multiple triggers. Node.js workflows without those features can use the AI editing flow.',
+      shortDescription: 'String AI editing excludes several workflow features.',
+      source: {
+        url: 'https://pipedream.com/docs/workflows/building-workflows/build-with-ai',
+        label: 'Build with AI — Pipedream Docs',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Retry and logging controls have scope limits',
+      description:
+        'Automatic step retries require Advanced and do not cover timeout or out-of-memory failures. Disabling workflow data retention does not disable logging of inbound events by its source.',
+      shortDescription: 'Advanced retries; source logs have separate retention.',
+      source: {
+        url: 'https://pipedream.com/docs/workflows/building-workflows/settings',
+        label: 'Settings — Pipedream Docs',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Source-available repository license',
+      description:
+        'The component repository uses Pipedream Source Available License v1.0 with an excluded-purpose restriction on commercial use, including competing online services. It is not a permissive open-source license.',
+      shortDescription: 'Repository reuse is restricted by its source-available license.',
       source: {
         url: 'https://github.com/PipedreamHQ/pipedream/blob/master/LICENSE',
-        label: 'GitHub: LICENSE file',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'No dedicated built-in evaluation/guardrail tooling found',
-      description:
-        'Pipedream has no documented built-in AI evaluation suite, prompt-testing harness, or agent guardrail/safety-policy tooling.',
-      shortDescription: 'No documented built-in eval, prompt-testing, or guardrail tooling.',
-      source: {
-        url: 'https://pipedream.com/docs',
-        label: 'Pipedream Docs (general)',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'No native fail-and-continue branch on step errors',
-      description:
-        'By default an unhandled step error halts the entire workflow execution. Auto-retry (Advanced plan and above) and the global $error event stream let teams react to a failure after the fact, but neither lets the original run continue past the failing step in the same execution without hand-coded try/catch or conditional logic.',
-      shortDescription: 'An unhandled step error halts the whole run by default.',
-      source: {
-        url: 'https://pipedream.com/docs/workflows/building-workflows/errors',
-        label: 'Pipedream Docs: Handling Errors',
-        asOf: '2026-07-02',
+        label: 'pipedream/LICENSE at master · PipedreamHQ/pipedream · GitHub',
+        asOf: '2026-09-04',
       },
     },
   ],
   facts: {
     platform: {
       builderType: {
-        value: 'Hybrid low-code/code',
-        detail:
-          'Visual workflow builder with drag-and-drop steps that can each be swapped for custom code (Node.js, Python, Bash, Go); pre-built components work as no-code blocks or can be scaffolded into custom code.',
-        shortValue: 'Visual builder plus custom code steps',
+        value:
+          'Hosted visual workflows with prebuilt actions and Node.js, Python, Go, or Bash steps.',
+        shortValue: 'Visual workflow builder with four code runtimes',
         confidence: 'verified',
         sources: [
-          { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
+          {
+            url: 'https://pipedream.com/docs/workflows',
+            label: 'What Are Workflows? — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
         ],
       },
       learningCurve: {
-        value: 'Unknown',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'No primary source (docs, pricing, or trust page) publishes a learning-curve assessment.',
-        shortValue: 'Not publicly documented',
+          'This review did not measure learning time. The visual builder supports prebuilt actions, while custom integrations require API and programming knowledge.',
         confidence: 'unknown',
         sources: [],
       },
       selfHostOption: {
-        value: 'Not officially supported',
+        value:
+          'Contact sales: documentation invites inquiries about running workflows on customer infrastructure; availability and terms were not verified.',
+        shortValue: 'Customer-infrastructure deployment: contact sales',
         detail:
-          'Pipedream is offered only as a hosted cloud service; the public GitHub repo is a source-available component registry, not a deployable platform. A long-standing GitHub feature request to self-host remains open.',
-        shortValue: 'Hosted only; no self-host path',
-        confidence: 'verified',
+          'The public documentation does not provide deployment instructions or establish generally available self-hosting.',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://github.com/PipedreamHQ/pipedream/issues/954',
-            label: 'GitHub Issue #954',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/PipedreamHQ/pipedream',
-            label: 'GitHub: PipedreamHQ/pipedream repo description',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/vpc',
+            label: 'Virtual Private Clouds — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
-        value: 'Cloud-hosted only (multi-tenant SaaS, AWS us-east-1)',
+        value:
+          'Hosted on AWS us-east-1, with optional isolated Pipedream VPC networks for workflow egress.',
+        shortValue: 'AWS us-east-1; optional isolated workflow networks',
         detail:
-          "Pipedream infrastructure runs on AWS in the us-east-1 region; no on-prem, Docker, or Kubernetes deployment is offered for the core platform. A 'Virtual Private Clouds' feature covers network-level workflow access to private resources, not hosting the platform itself.",
-        shortValue: 'Cloud-hosted SaaS on AWS us-east-1',
+          'Business VPCs provide network isolation and static outbound IPs within the hosted service. The documentation directs customer-infrastructure deployment inquiries to sales.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs: Privacy & Security',
-            asOf: '2026-07-02',
+            label: 'Privacy and Security at Pipedream — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://pipedream.com/docs/workflows/vpc',
-            label: 'Pipedream Docs: Virtual Private Clouds',
-            asOf: '2026-07-02',
+            label: 'Virtual Private Clouds — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
-        value: 'Yes',
+        value:
+          'Yes: workflow share links create reusable templates with separate credentials and version history.',
+        shortValue: 'Share links create independent workflow templates',
         detail:
-          'Pipedream publishes a public template library at pipedream.com/templates, and any workflow can be shared/cloned via a Workflow Share Link.',
-        shortValue: 'Public template library, shareable workflows',
+          'A share link is frozen at creation time; later changes do not update copied workflows.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/templates',
-            label: 'Pipedream Templates',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/sharing',
+            label: 'Sharing Workflows — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
-        value:
-          'Proprietary (Pipedream Source Available License v1.0) for the GitHub component registry; hosted platform is closed-source SaaS',
+        value: 'The public component repository uses Pipedream Source Available License v1.0.',
+        shortValue: 'Source-available license with commercial-use restrictions',
         detail:
-          'Not an OSI-approved open-source license. It bars using the code to run a competing SaaS/PaaS/IaaS.',
-        shortValue: 'Proprietary source-available registry license',
+          'Its excluded-purpose clause restricts commercial use, including competing online services. Hosted-service access is separate from rights to reuse repository code.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/PipedreamHQ/pipedream/blob/master/LICENSE',
-            label: 'GitHub: LICENSE file',
-            asOf: '2026-07-02',
+            label: 'pipedream/LICENSE at master · PipedreamHQ/pipedream · GitHub',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
         value:
-          'Partial: GitHub Sync promotes an entire project (all its workflows) via a development-to-production branch merge; no per-file promotion and no native clone/fork of an existing project into a new one',
+          'GitHub Sync deploys modified project resources by merging a development branch into production.',
+        shortValue: 'Project promotion through GitHub branch merges',
         detail:
-          "Pipedream Connect projects have Development and Production environments, but these scope connected end-user accounts and Connect API tokens — not general per-project workflow promotion. The closest equivalent for promoting workflows is GitHub Sync (Advanced/Business plans): each project links to one GitHub repo, all of a project's workflows and resources are serialized to YAML, changes are made in a development branch, and merging that branch into `production` deploys everything that changed to production workflows. This is project-level (whole-project, branch-merge) promotion, not file-level. Pipedream's own docs also state that syncing an existing GitHub repo of workflows into a new Pipedream project ('cloning' a project via GitHub Sync) is not currently possible.",
-        shortValue: 'GitHub Sync promotes whole projects via branch merge',
-        confidence: 'estimated',
+          'Connect separately isolates development/production accounts. GitHub Sync does not currently bootstrap a new project from an existing workflow repository.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/connect/managed-auth/environments/',
-            label: 'Pipedream Docs – Connect Environments',
-            asOf: '2026-07-08',
+            url: 'https://pipedream.com/docs/workflows/git',
+            label: 'GitHub Sync — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/docs/workflows/git',
-            label: 'Pipedream Docs – GitHub Sync',
-            asOf: '2026-07-08',
+            url: 'https://pipedream.com/docs/connect/managed-auth/environments',
+            label: 'Environments — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       versionControlDepth: {
         value:
-          'Deploy/draft model with undo via GitHub Sync; no native diff view or per-step version history confirmed',
+          'Bidirectional GitHub Sync, development branches, pull requests, a merge diff, and Git history.',
+        shortValue: 'GitHub branches, pull requests, and merge diffs',
         detail:
-          "Each workflow has a deployed (live) version and an editable draft; discarding a draft reverts to the last deployed version. Pipedream states there is no native per-step version-history or diff UI, and points users to GitHub Sync for full git-based history, review, and revert. Some third-party sources describe a newer in-editor version-history panel with preview and rollback, not confirmed in Pipedream's own documentation.",
-        shortValue: 'Deploy/draft revert; full history only via GitHub Sync',
-        confidence: 'estimated',
+          'Merging to production deploys every modified resource in the project. Changes can also be edited locally and synchronized through GitHub.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/community/t/how-to-inspect-the-version-history-for-a-given-step/8561',
-            label: 'Pipedream Community – staff reply on version history',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/community/t/how-can-i-discard-a-draft-edit-to-a-workflow-without-having-to-revert-to-the-deployed-version/10640',
-            label: 'Pipedream Community – discard draft edit',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://pipedream.com/docs/workflows/git',
-            label: 'Pipedream Docs – GitHub Sync',
-            asOf: '2026-07-02',
+            label: 'GitHub Sync — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
-        value:
-          "No: Pipedream's collaboration model is workspace/project sharing, with team members able to view and edit the same workflows and connected accounts, but not live concurrent multi-user editing with visible cursors, selections, or synced real-time operations on the same workflow canvas.",
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'Collaboration features (workflow sharing, team workspaces) are gated to paid plans and described as asynchronous project/account sharing, not simultaneous live editing.',
-        shortValue: 'No, sharing only, not live co-editing',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/projects/access-controls',
-            label: 'Project Access Controls docs',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Shared workspaces and project access are documented. Simultaneous workflow-canvas editing with live cursors and synchronized operations was not verified.',
+        confidence: 'unknown',
+        sources: [],
       },
       nativeFileStorage: {
         value:
-          "No: Pipedream's native file feature (File Stores) is a project-scoped cloud filesystem with list/upload/download/delete operations and no documented size limit, but no folders, link-based sharing with auth options (password/SSO), or deleted-item recovery. Link-based sharing requires a separate connected app like Google Drive or Dropbox.",
+          'Partial: project File Stores include directories, persistent files, and shareable file URLs; deletion is permanent.',
+        shortValue: 'Project files, directories, URLs; no deletion recovery',
         detail:
-          'File Stores are per-project cloud storage for workflow use, not a full file-management product with folders, shareable links, or a trash/recovery flow.',
-        shortValue: 'No, only a flat project file store',
-        confidence: 'estimated',
+          'Documented as Preview on Advanced and above. Node.js helpers manage the store; password- or SSO-protected file links were not verified.',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/data-management/file-stores',
-            label: 'File Stores docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/blog/filestores/',
-            label: 'File Stores blog announcement',
-            asOf: '2026-07-02',
+            label: 'File Stores — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataTables: {
         value:
-          "No: Pipedream's native data feature is Data Stores, a key-value store (with a dashboard grid view for records) for lightweight state and caching, not a spreadsheet-like table with defined rows/columns and spreadsheet keyboard navigation (arrow keys, multi-cell copy-paste). Spreadsheet-like functionality requires integrating an external app like Google Sheets or Excel.",
+          'Partial: built-in key-value Data Stores support JSON values, manual editing, TTLs, and workflow actions.',
+        shortValue: 'Key-value Data Stores with TTL and manual editing',
         detail:
-          'Data Stores can be viewed/edited in a dashboard, but Pipedream documentation frames them as key-value storage, not a spreadsheet grid product.',
-        shortValue: 'No, only a key-value Data Store',
-        confidence: 'estimated',
+          'These are not relational spreadsheet tables. Operations are not atomic or transactional, and capacity depends on the workspace plan.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/data-stores',
-            label: 'Data Stores docs',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/data-management/data-stores',
+            label: 'Data Stores — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       richTextEditor: {
-        value:
-          'No: Pipedream provides text-format conversion actions (HTML-to-Markdown and Markdown-to-HTML) as workflow steps, but has no native inline WYSIWYG rich-text editor for authoring or storing documents within the platform itself.',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'The only markdown-related features are conversion utilities for use inside workflow steps, not a document-editing surface.',
-        shortValue: 'No, only text-conversion actions found',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/apps/helper-functions/actions/html-to-markdown',
-            label: 'HTML to Markdown action',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Workflow step notes support Markdown, but a native document workspace with rich-text editing and stored documents was not verified.',
+        confidence: 'unknown',
+        sources: [],
       },
       subWorkflows: {
         value:
-          'No: Pipedream\'s mechanism for connecting workflows is $.send.emit(), which is asynchronous ("Destination delivery is asynchronous: emits are sent after your workflow finishes"). This triggers a separate listener workflow after the emitting workflow completes; it is not a step that calls a saved workflow synchronously, waits for it, and receives its return value.',
+          'Yes: the Trigger Workflow action or $.flow.trigger() invokes another saved workflow; documented as alpha.',
+        shortValue: 'Trigger Workflow action and code invocation (alpha)',
         detail:
-          'Pipedream has no "call workflow" or "execute sub-workflow" step. Community help threads confirm the emit-and-listen pattern is the standard workaround for chaining workflows, not true parent-waits-for-child composition.',
-        shortValue: 'No, only async emit-to-listener chaining',
-        confidence: 'estimated',
+          'A workflow in the same workspace can be invoked directly, without an HTTP request or additional trigger configuration.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/destinations/emit',
-            label: 'Pipedream Docs: Destinations (emit)',
-            asOf: '2026-07-03',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs',
+            label: 'Running Node.js in Workflows — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
-        value:
-          "No: Pipedream's closest mechanism is publishing a single Node.js code step as a reusable 'custom action' that shows up under 'My Actions' for other steps to select, not a full multi-step deployed workflow turned into an org-wide toolbar block. The published code stays directly visible and editable to whoever adds it (no encapsulation of internals/credentials), and updates are opt-in: Pipedream's own docs state a new version 'doesn't automatically update all instances of the same action across your workflows... this gives you the control to gradually update.'",
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          "No Pipedream documentation describes taking an entire deployed workflow, auto-deriving its inputs, letting the publisher hand-pick named outputs, and exposing it as a named/iconed block in the builder toolbar for every other team member to drop into their own workflows while always running the source's latest deployed version. 'Sharing Code Across Workflows' scopes reuse to one code step at a time (multi-step reuse requires the CLI to build a full component, which then cannot be edited inline), and the Components docs don't address workflow-to-component conversion at all. Pipedream's registry model is instead built around wrapping third-party API calls into app integrations, not packaging a user's own business-logic workflow as a hidden-internals block.",
-        shortValue: 'No, only single code-step reuse with opt-in updates',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs/sharing-code',
-            label: 'Pipedream Docs: Sharing Code Across Workflows',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://pipedream.com/docs/components',
-            label: 'Pipedream Docs: Components Overview',
-            asOf: '2026-07-08',
-          },
-        ],
+          'Reusable custom action components are documented, but publishing a complete saved workflow as its own encapsulated organization toolbar block was not verified.',
+        confidence: 'unknown',
+        sources: [],
       },
     },
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes, via app-specific LLM actions (OpenAI confirmed; other providers available as separate app integrations)',
+          'OpenAI actions plus model-independent MCP tools usable with OpenAI, Anthropic, Gemini, and other compatible agent frameworks.',
+        shortValue: 'Provider actions and model-independent MCP tools',
         detail:
-          "Pipedream's OpenAI app provides pre-built LLM actions for workflows, and workflows can run parallel/non-dependent LLM queries. Other model providers are addable as their own apps in the 3,000+ integration catalog, though no single page enumerates every LLM provider supported as a first-class block.",
-        shortValue: 'OpenAI confirmed; other LLMs via app integrations',
-        confidence: 'estimated',
+          'The connected model provider performs inference; Pipedream supplies integrations and execution infrastructure.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/apps',
-            label: 'Pipedream Apps directory (OpenAI app + others)',
-            asOf: '2026-07-02',
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/chat-with-responses-api/chat-with-responses-api.mjs',
+            label: 'Pipedream official source — chat with responses api',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/connect/mcp/developers',
+            label: 'Develop with Pipedream MCP — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
-        value: 'Yes: dedicated AI Agent Builder',
+        value:
+          'Partial: AI-assisted agent building through String and provider actions supporting model tools and multi-turn responses.',
+        shortValue: 'String agent building and provider tool-calling actions',
         detail:
-          "Pipedream markets an 'AI Agent Builder' to prompt, run, edit, and deploy AI agents, distinct from plain data-routing workflow steps.",
-        shortValue: 'Dedicated AI Agent Builder feature',
-        confidence: 'estimated',
-        sources: [
-          { url: 'https://pipedream.com/', label: 'Pipedream homepage', asOf: '2026-07-02' },
-        ],
-      },
-      naturalLanguageBuilding: {
-        value: "Yes: 'Edit with AI'",
-        detail:
-          "An 'Edit with AI' button in the workflow header or any code step lets users modify workflows using natural-language instructions.",
-        shortValue: "'Edit with AI' modifies workflows via prompt",
+          'A universal built-in agent-loop block was not verified; tool orchestration depends on the chosen provider action or custom code.',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://pipedream.com/blog/build-workflows-faster-with-ai/',
-            label: 'Pipedream Blog: Build workflows faster with AI',
-            asOf: '2026-07-04',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/build-with-ai',
+            label: 'Build with AI — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/chat-with-responses-api/chat-with-responses-api.mjs',
+            label: 'Pipedream official source — chat with responses api',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      naturalLanguageBuilding: {
+        value: 'Yes: Edit with AI opens String.com to create, edit, test, and deploy workflows.',
+        shortValue: 'String.com workflow generation and editing',
+        detail:
+          'The documented editing path excludes control flow, GitHub Sync, Python, Connect features, and multiple triggers.',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/build-with-ai',
+            label: 'Build with AI — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       knowledgeBaseRag: {
-        value: 'No dedicated customer-facing KB/RAG product feature',
+        value:
+          'Partial: provider integrations can supply retrieval tools, including OpenAI file search in the Responses action.',
+        shortValue: 'Provider retrieval tools; native KB unverified',
         detail:
-          'Pipedream built an internal Postgres+pgvector RAG system to power its own documentation search/chat assistant, but it is not offered as a customer-usable knowledge-base/vector-store feature inside workflows.',
-        shortValue: 'No customer-facing KB/RAG feature',
+          'A Pipedream-managed document ingestion, vector index, and knowledge-base administration product was not verified.',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://pipedream.com/blog/build-your-own-chat-bot-with-openai-and-pipedream/',
-            label: 'Pipedream Blog: Build your own chat bot with OpenAI and Pipedream',
-            asOf: '2026-07-04',
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/chat-with-responses-api/chat-with-responses-api.mjs',
+            label: 'Pipedream official source — chat with responses api',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
-        value: 'Yes: first-class, hosted MCP server',
-        detail:
-          'Pipedream runs a hosted MCP server (mcp.pipedream.com) exposing 3,000+ apps / 10,000+ tools to any MCP client, with managed OAuth and credential isolation. Its GitHub repo also includes a reference/self-hosted MCP server implementation, though Pipedream notes it is no longer actively maintained and recommends the hosted remote MCP server for production use.',
-        shortValue: 'Hosted MCP server, 3,000+ apps as tools',
+        value:
+          'Yes: hosted app MCP servers with managed authentication; the OpenAI Responses action also accepts remote MCP tools.',
+        shortValue: 'Hosted MCP servers and provider-mediated MCP consumption',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/connect/mcp',
-            label: 'Pipedream Docs: MCP Servers',
-            asOf: '2026-07-08',
+            label: 'MCP Servers — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/PipedreamHQ/pipedream/blob/master/modelcontextprotocol/README.md',
-            label: 'GitHub: Modelcontextprotocol README (reference implementation, unmaintained)',
-            asOf: '2026-07-08',
+            url: 'https://pipedream.com/docs/connect/mcp/developers',
+            label: 'Develop with Pipedream MCP — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/chat-with-responses-api/chat-with-responses-api.mjs',
+            label: 'Pipedream official source — chat with responses api',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
-        value: 'Unknown',
-        detail: 'No built-in evals, guardrails, or agent-safety policy tooling documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value: 'Partial: prebuilt OpenAI moderation and schema-constrained Responses actions.',
+        shortValue: 'Provider moderation and structured-output actions',
+        detail:
+          'A platform-wide evaluation suite or policy engine was not verified; builders must connect these actions to their workflow logic.',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/create-moderation/create-moderation.mjs',
+            label: 'Pipedream official source — create moderation',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/chat-with-responses-api/chat-with-responses-api.mjs',
+            label: 'Pipedream official source — chat with responses api',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       humanInTheLoop: {
-        value: 'Yes: native `$.flow.suspend()` pause/resume/cancel primitive',
+        value:
+          'Yes: $.flow.suspend() pauses a run and returns execution-specific resume and cancel URLs for approval.',
+        shortValue: 'Code-based suspend, approval, and resume',
         detail:
-          'Pipedream has a dedicated code primitive, `$.flow.suspend()`, distinct from a plain delay (`$.flow.delay`). Calling it pauses the workflow and generates a resume link and a cancel link for that execution, which the workflow author sends to a human approver through any channel (email, Slack, etc.) as a workflow step. Opening the resume link continues the run; opening the cancel link stops it. A suspended run auto-cancels after 24 hours by default if nobody acts, and that timeout is configurable.',
-        shortValue: 'Native suspend/resume/cancel with approval URLs',
+          'Builders distribute the approval links. Suspended runs auto-cancel after 24 hours by default, with a configurable timeout.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs/rerun',
-            label: 'Pipedream Docs – Pause, Resume, and Rerun a Workflow',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/community/t/how-to-program-a-manual-approval-step-into-a-workflow/10513',
-            label: 'Pipedream Community – manual approval step',
-            asOf: '2026-07-02',
+            label: 'Pause, Resume, and Rerun a Workflow — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
         value:
-          'Image and video generation via third-party provider actions (e.g. Google Vertex AI Veo); no confirmed native standalone audio/TTS-STT block',
+          'Prebuilt provider actions for image creation, text-to-speech, transcription, and Vertex AI Veo video generation.',
+        shortValue: 'Image, speech, transcription, and video provider actions',
         detail:
-          "Pipedream's marketplace includes pre-built actions for AI media generation, notably 'Generate Video from Image' and 'Generate Video from Text' via Google Vertex AI (Veo models), with audio generation bundled into that same action rather than offered as its own text-to-speech/speech-to-text block. These are pre-built component actions, not a dedicated first-party media-generation product. Image, video, and audio generation are otherwise reached through broader app integrations (OpenAI, Google, ElevenLabs, etc.), with no standalone speech action separate from those third-party connectors.",
-        shortValue: 'Image/video via provider actions; no native TTS/STT',
-        confidence: 'estimated',
+          'Provider accounts and provider-specific availability, usage fees, and limits apply.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/integrations/generate-video-from-image-with-google-vertex-ai-api-on-updated-credential-from-accredible-api-int_QmsA2m5p',
-            label: 'Pipedream – Generate Video from Image (Vertex AI)',
-            asOf: '2026-07-02',
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/create-image/create-image.mjs',
+            label: 'Pipedream official source — create image',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/apps/survser/integrations/google-vertex-ai/generate-video-from-text-with-google-vertex-ai-api-on-new-survey-response-from-survser-api-int_g2s54oeP',
-            label: 'Pipedream – Generate Video from Text (Vertex AI)',
-            asOf: '2026-07-02',
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/convert-text-to-speech/convert-text-to-speech.mjs',
+            label: 'Pipedream official source — convert text to speech',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/create-transcription/create-transcription.mjs',
+            label: 'Pipedream official source — create transcription',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/google_vertex_ai/actions/generate-video-from-text/generate-video-from-text.mjs',
+            label: 'Pipedream official source — generate video from text',
+            asOf: '2026-09-04',
           },
         ],
       },
       dynamicToolUse: {
-        value: 'Unknown',
-        detail: 'Not publicly documented for Pipedream.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'Partial: models can select configured functions or MCP tools at runtime through provider actions and external agent frameworks.',
+        shortValue: 'Runtime choice among configured provider/MCP tools',
+        detail:
+          'The reviewed sources do not establish unrestricted runtime discovery across the entire catalog.',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/actions/chat-using-functions/chat-using-functions.mjs',
+            label: 'Pipedream official source — chat using functions',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/connect/mcp/developers',
+            label: 'Develop with Pipedream MCP — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       modelFallback: {
-        value: 'Unknown',
-        detail: 'Not publicly documented for Pipedream.',
-        shortValue: 'Not publicly documented',
+        value: 'Not verified',
+        shortValue: 'Not verified',
+        detail:
+          'Automatic cross-model or cross-provider failover was not verified. Step retries and custom error handling are separate mechanisms.',
         confidence: 'unknown',
         sources: [],
       },
       agentSkills: {
-        value:
-          'Unknown: Pipedream has no documented feature for defining named, reusable prompt or knowledge snippets that can be invoked by reference across multiple agents. Its reuse model is centered on code component reuse (shared prop definitions and methods across workflow steps), not named prompt/skill libraries for AI agents.',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'Pipedream documents reusable code components and props across workflow steps, but nothing for reusable prompt/knowledge snippets specific to agents.',
-        shortValue: 'Unknown, no named prompt-skill library found',
+          'A first-class shared library of named prompt or knowledge snippets referenced across agents was not verified. Reusable components primarily share code.',
         confidence: 'unknown',
         sources: [],
       },
       nativeChatDeployment: {
-        value:
-          'Unknown: Pipedream has an AI Agent Builder that lets users prompt, run, edit, and deploy agents, and offers an open-source reference chat app (MCP Chat) built on its MCP server, but does not document a native, one-click publicly deployable chat surface hosted by Pipedream itself for a built agent, distinct from API/webhook/form deployment.',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'MCP Chat is a separate open-source reference app developers self-host, not a built-in hosted chat deployment target inside the Pipedream product.',
-        shortValue: 'Unknown, unclear if chat is natively hosted',
+          'Pipedream links to an MCP demonstration chat and supports developer-built agents. A native public chat deployment target for an arbitrary saved workflow was not verified.',
         confidence: 'unknown',
         sources: [],
       },
       kbChunkVisibility: {
-        value:
-          "Unknown: Pipedream has no customer-facing knowledge-base product with chunk-level search debugging views. The only documented RAG/embeddings work is Pipedream's own internal support-bot implementation (built on Postgres hybrid search), not a shipped end-user knowledge base feature with a chunk-inspection UI.",
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'Pipedream does not offer a customer-facing knowledge-base/RAG product with a chunk-level inspection UI; not applicable in the same shape as a KB-centric AI workspace.',
-        shortValue: 'Unknown, no customer-facing KB feature found',
+          'A native Pipedream knowledge-base search debugger exposing chunk indices and retrieved content was not verified. Provider search tools have their own outputs.',
         confidence: 'unknown',
         sources: [],
       },
       parallelExecution: {
-        value: "Yes: native 'Parallel' control-flow step",
+        value:
+          'Yes: Parallel branches execute concurrently and return branch results to the parent flow.',
+        shortValue: 'Parallel branches with joined results',
         detail:
-          "Pipedream's Parallel operator lets a workflow branch into multiple paths that execute concurrently rather than sequentially, with optional per-branch conditions, then merges back into the parent flow using each branch's last-step exports. Documentation notes workflow queue concurrency/rate settings may not behave as expected when this operator is used.",
-        shortValue: "Native 'Parallel' step runs branches concurrently, then merges",
+          'The docs label queue concurrency/execution-rate behavior with this operator as a beta limitation.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/building-workflows/control-flow/parallel',
-            label: 'Pipedream Docs: Parallel control flow',
-            asOf: '2026-07-02',
+            label: 'Parallel — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
-        value: 'No documented support found',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'Pipedream does not support the Agent2Agent (A2A) protocol or an Agent Card in any documentation, changelog, or blog post. It documents MCP (agent-to-tool) support via its Connect MCP server, a distinct protocol from A2A (agent-to-agent).',
-        shortValue: 'No A2A support documented; only MCP tool-calling found',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/connect/mcp',
-            label: 'Pipedream Docs: MCP Servers',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Native Agent2Agent protocol support and Agent Card publication were not verified. MCP support is documented separately.',
+        confidence: 'unknown',
+        sources: [],
       },
       loopIteration: {
-        value:
-          'No: Pipedream\'s control flow docs list If/Else, Delay, Filter, and End Workflow as available operators, and the control flow overview page states "more operators (including parallel and looping) are coming soon" even after the Parallel operator itself shipped. A dedicated sequential Loop/Repeat/For Each container is not released.',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'No page exists for a Loop or Repeat control-flow operator, and long-running community threads confirm the standard workaround is iterating over an array inside a Node.js or Python code step rather than using a native loop block.',
-        shortValue: 'No native loop block; only code-step iteration workaround',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/workflows/building-workflows/control-flow',
-            label: 'Pipedream Docs: Control Flow overview',
-            asOf: '2026-07-03',
-          },
-        ],
+          'A visual Loop/For Each container was not verified. The control-flow overview still describes looping as forthcoming, while dedicated pages already document other newer operators; iteration in code is available.',
+        confidence: 'unknown',
+        sources: [],
       },
     },
     integrations: {
       integrationCount: {
-        value: '3,000+ integrated apps; 10,000+ pre-built tools',
-        detail:
-          "Homepage states: '3,000+ integrated apps. Use managed authentication across 3,000+ apps and build agents to solve any use case' and 'Access 10k tools. Embed pre-built tools (triggers and actions) directly in your application or AI agent.'",
-        shortValue: '3,000+ apps, 10,000+ pre-built tools',
+        value: 'Pipedream advertises 3,000+ app APIs and 10,000+ tools.',
+        shortValue: '3,000+ APIs; 10,000+ tools',
+        detail: 'Vendor-reported catalog scale; APIs/apps and callable tools are different units.',
         confidence: 'verified',
         sources: [
-          { url: 'https://pipedream.com/', label: 'Pipedream homepage', asOf: '2026-07-02' },
+          {
+            url: 'https://pipedream.com/docs/connect/mcp/developers',
+            label: 'Develop with Pipedream MCP — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
         ],
       },
       triggerTypes: {
         value:
-          'Webhook/HTTP, schedule (cron), app-event sources, and REST-API-driven workflow instantiation',
-        detail:
-          "Workflow editor supports building hosted HTTP REST endpoints or scheduled cron tasks; 'source' triggers fire on app events (e.g., new Slack message); workflows can also be created/run programmatically via the REST API. There is no standalone 'chat trigger' block, though Connect-based agent tool invocation effectively serves that role.",
-        shortValue: 'Webhook, cron, app events, REST API',
+          'HTTP/webhooks, schedules, email, and app-event sources; workflows can have multiple triggers.',
+        shortValue: 'HTTP, schedules, email, and app-event triggers',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/rest-api/',
-            label: 'Pipedream Docs: REST API',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/triggers',
+            label: 'Triggers — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/docs/sources',
-            label: 'Pipedream Docs: Triggers (event sources)',
-            asOf: '2026-07-04',
+            url: 'https://pipedream.com/docs/workflows',
+            label: 'What Are Workflows? — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
-        value: 'Yes: Node.js, Python, Bash, Go',
-        detail: 'Any workflow step can be a custom code step in Node.js, Python, Bash, or Go.',
-        shortValue: 'Node.js, Python, Bash, or Go steps',
+        value: 'Yes: Node.js, Python, Go, and Bash workflow steps.',
+        shortValue: 'Node.js, Python, Go, and Bash',
         confidence: 'verified',
         sources: [
-          { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code',
+            label: 'Overview — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
         ],
       },
       codeSandboxRuntime: {
         value:
-          'Partial: at the package layer only. A code step declares its own third-party dependencies inline, any npm package in Node.js (`import axios from "axios@0.19.2"` pins an exact version, and `^`/`~` ranges are accepted) and any PyPI package in Python (`import requests`, with `# pipedream add-package pandas==2.0.0` to pin), with no package.json or requirements.txt to maintain. The OS layer underneath is not user-configurable — there is no custom image, Dockerfile, or apt-level control: Bash steps ship a Pipedream-chosen set of binaries (curl, jq, git), and the docs state that packages needing binaries or system libraries absent from the execution environment are unsupported.',
+          'Inline npm/PyPI dependencies with version controls; Bash includes common binaries and supports installing software under /tmp.',
+        shortValue: 'User packages; vendor-managed runtime',
         detail:
-          'Pipedream\'s docs are explicit that workflows start with no packages installed and that importing a module is what makes it available for that step, so the dependency set is genuinely user-controlled per step rather than a vendor-curated allowlist. System-level configuration is not exposed: Pipedream\'s Python docs say of packages requiring environment binaries that "we cannot support these types of packages at this time," and the Bash docs direct users who need a package preinstalled to file a support request, with downloading and building software into the 2GB `/tmp` scratch directory at run time as the only self-service workaround. There is no custom-image, Dockerfile, or apt-level configuration, and because Pipedream is cloud-hosted only there is no self-hosted runtime a team could rebuild instead.',
-        shortValue: 'Packages only: any npm or PyPI dependency, fixed OS image',
+          'Python packages needing unavailable system libraries are unsupported. A self-service custom-image or OS-package configuration interface was not verified.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs',
-            label: 'Pipedream Docs: Running Node.js in Workflows (npm packages)',
-            asOf: '2026-08-10',
+            label: 'Running Node.js in Workflows — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://pipedream.com/docs/workflows/building-workflows/code/python',
-            label: 'Pipedream Docs: Running Python in Workflows (PyPI packages)',
-            asOf: '2026-08-10',
+            label: 'Python — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/docs/workflows/building-workflows/code/bash/',
-            label: 'Pipedream Docs: Running Bash in Workflows (preinstalled binaries)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://pipedream.com/docs/workflows/limits/',
-            label: 'Pipedream Docs: Limits (2GB `/tmp` disk)',
-            asOf: '2026-08-10',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/bash',
+            label: 'Bash — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
-        value: 'Yes: workflows can be hosted as HTTP/REST endpoints',
-        detail:
-          "The workflow builder can create a free HTTP endpoint you can send requests to, running any Node.js code or pre-built actions per request; workflows can also be created and deployed programmatically via Pipedream's own REST API ('Instantiate via API').",
-        shortValue: 'Workflows hosted as REST endpoints',
+        value:
+          'Yes: HTTP-triggered workflows expose endpoints and can return custom HTTP responses.',
+        shortValue: 'Hosted HTTP endpoints with custom responses',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/blog/creating-workflows-programmatically/',
-            label: 'Pipedream Blog: Creating Workflows with the REST API',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/rest-api/examples/workflows',
-            label: 'Pipedream Docs: REST API Example - Create a Workflow',
-            asOf: '2026-07-04',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/triggers',
+            label: 'Triggers — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Yes: official TypeScript SDK (@pipedream/sdk) and Python SDK (pipedream on PyPI), plus @pipedream/connect-react for embeddable connect UI',
+          'Official TypeScript, Python, and Java Connect SDKs, plus component development and CLI publishing.',
+        shortValue: 'TypeScript, Python, Java SDKs and component tooling',
         detail:
-          "Pipedream ships an official TypeScript SDK, @pipedream/sdk (v3.1.1 on npm), and an official Python SDK, published as `pipedream` on PyPI (v2.1.14), both for programmatic access to the Pipedream/Connect APIs, alongside a companion @pipedream/connect-react package (v3.0.1 on npm) for embeddable React auth/connect UI. Beyond the SDKs, Pipedream provides a full component development kit: triggers and actions ('components') are plain Node.js modules that run on Pipedream's serverless infrastructure and can use most npm packages with no install step. Components are open-sourced in the public PipedreamHQ/pipedream GitHub monorepo, and community members can build and publish their own actions/sources that appear in Pipedream's UI/marketplace alongside first-party ones, functioning as a de facto community integration marketplace.",
-        shortValue: 'TypeScript + Python SDKs, plus components SDK',
+          'Custom components can be privately published or submitted for the public registry.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://registry.npmjs.org/@pipedream/sdk/latest',
-            label: 'npm registry – @pipedream/sdk (latest)',
-            asOf: '2026-07-08',
+            url: 'https://pipedream.com/docs/connect/api-reference/sdks',
+            label: 'SDKs — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://registry.npmjs.org/@pipedream/connect-react/latest',
-            label: 'npm registry – @pipedream/connect-react (latest)',
-            asOf: '2026-07-08',
+            url: 'https://pipedream.com/docs/components',
+            label: 'Overview — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pypi.org/project/pipedream/',
-            label: 'PyPI – pipedream package',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://pipedream.com/docs/components/guidelines',
-            label: 'Pipedream Docs – Components Guidelines & Patterns',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://github.com/PipedreamHQ/pipedream',
-            label: 'GitHub – PipedreamHQ/pipedream monorepo',
-            asOf: '2026-07-08',
+            url: 'https://pipedream.com/docs/components/contributing',
+            label: 'Pipedream Registry — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
         value:
-          "No: Pipedream's MCP support runs primarily in the consumption direction. Pipedream hosts MCP servers that expose its catalog of 3,000+ app integrations and prebuilt actions as callable tools for AI clients (Claude, ChatGPT, etc.) to consume, and lets developers self-host that same server. There is no documented mechanism for taking an arbitrary deployed Pipedream workflow and publishing it as its own callable MCP server endpoint for external AI tools.",
+          'Partial: Business custom actions automatically become tools in the relevant app MCP server.',
+        shortValue: 'Business custom actions publish as MCP tools',
         detail:
-          "Pipedream is an MCP server provider for its own app/action catalog and an MCP client consumer; no docs describe publishing a user's custom workflow as a standalone MCP server.",
-        shortValue: 'No, MCP is consumption-direction only',
-        confidence: 'estimated',
+          'Publishing an entire saved workflow directly as its own MCP server was not verified. Custom components can implement the desired API operation.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/connect/mcp',
-            label: 'MCP Servers docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://mcp.pipedream.com/',
-            label: 'Pipedream MCP server',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/connect/components/custom-tools',
+            label: 'Using Custom Tools — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -681,273 +664,234 @@ export const pipedreamProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Credit-based compute pricing (per-execution-time credits) plus separate Connect usage/end-user pricing',
+          'Compute credits per workflow segment; Connect additionally charges for end users and API usage.',
+        shortValue: 'Compute credits plus Connect end-user usage',
         detail:
-          '1 credit = 30 seconds of workflow compute at 256MB memory; credit burn rate scales with memory allocation. Connect (embedding Pipedream in your own app) bills separately on API usage (actions/tool calls/trigger emits) and number of connected end users.',
-        shortValue: 'Credit-based compute; separate Connect usage pricing',
+          'One workflow credit covers 30 seconds at 256MB per segment. Higher memory, additional segments, and dedicated workers affect consumption.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/pricing',
-            label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-07-02',
+            label: 'Plans and Pricing — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       entryPaidPlan: {
-        value:
-          'Not publicly listed; third-party estimates range roughly $29–$45/mo for the entry paid tier',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          "Pipedream's own pricing page is JavaScript-rendered and not directly verifiable via static fetch. Third-party sources report conflicting numbers for the entry paid tier, roughly $29/mo to $45/mo for around 2,000 credits/month, but the exact current price is unconfirmed from a primary source.",
-        shortValue: '~$29–$45/mo (unconfirmed)',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/pricing',
-            label:
-              'Pipedream Pricing page (official, JS-rendered, not independently verifiable via fetch)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://automationatlas.io/answers/pipedream-pricing-explained-2026/',
-            label: 'Automation Atlas: Pipedream Pricing Explained 2026 (third-party)',
-            asOf: '2026-07-02',
-          },
-        ],
+          'The public pricing page did not expose readable current amounts during this review, and the pricing docs defer to that page. Confirm the current Basic price and billing cadence directly; conflicting third-party estimates have been removed.',
+        confidence: 'unknown',
+        sources: [],
       },
       freeTier: {
-        value: 'Yes: free workspace with a daily credit limit',
+        value:
+          'Yes: free workflow usage has daily credit and resource limits; Connect is available for development use.',
+        shortValue: 'Limited free workflows and Connect development',
         detail:
-          'Free workspaces get a daily limit of free credits (cannot be exceeded/rolled over), a capped number of active workflows and connected accounts, community-only support, and Connect development-environment access only. Developing/testing a workflow with test events in the builder is always free, and public-registry event source triggers are free.',
-        shortValue: 'Free tier with daily credit cap',
+          'Workflow testing does not consume credits, but free testing has a runtime limit. Connect production requires a paid plan.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/pricing',
-            label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-07-02',
+            label: 'Plans and Pricing — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       byok: {
-        value: 'Unknown',
+        value:
+          'Yes: provider actions use connected accounts and API keys, including the user-supplied OpenAI key.',
+        shortValue: 'Bring provider credentials through connected accounts',
         detail:
-          "Pipedream has no documented formal 'bring your own LLM API key' program; users add their own OpenAI/other provider connected accounts, which functions similarly to BYOK for the LLM app integrations.",
-        shortValue: 'Not formally documented as BYOK',
-        confidence: 'unknown',
-        sources: [],
+          'Pipedream compute and Connect charges remain separate from model-provider billing.',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/apps/connected-accounts',
+            label: 'Connected Accounts — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/PipedreamHQ/pipedream/master/components/openai/openai.app.mjs',
+            label: 'Pipedream official source — openai.app',
+            asOf: '2026-09-04',
+          },
+        ],
       },
     },
     security: {
       dataResidency: {
-        value: 'Single-region (AWS us-east-1); no customer-selectable data residency documented',
-        detail:
-          "Pipedream's infrastructure and customer data are hosted on AWS in the us-east-1 region within AWS-controlled data centers, with no alternate regions or customer-chosen data residency.",
-        shortValue: 'Single AWS us-east-1 region only',
+        value: 'Pipedream documents AWS us-east-1 hosting.',
+        shortValue: 'AWS us-east-1',
+        detail: 'The reviewed documentation did not establish another customer-selectable region.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
+            label: 'Privacy and Security at Pipedream — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       rbac: {
-        value: 'Workspace-level access controls exist; granular per-plan RBAC not fully documented',
+        value: 'Yes: workspace Owner, Admin, and Member roles, with project access controls.',
+        shortValue: 'Workspace roles and project access',
         detail:
-          'OAuth clients and workspace administration are scoped to workspace admins, and internal staff access follows least-privilege principles, but no page enumerates a customer-facing RBAC feature (custom roles/permissions) or which plans include it.',
-        shortValue: 'Workspace-level controls; granular RBAC unclear',
-        confidence: 'estimated',
+          'Business workspaces can restrict individual projects to specified members; owners/admins retain broader access.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workspaces',
+            label: 'Managing workspaces — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/projects/access-controls',
+            label: 'Access Controls — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
-        value:
-          'Internal infra monitoring confirmed; customer-facing audit log feature/plan-gating not documented',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'Pipedream documents using CloudTrail, CloudWatch, Datadog and custom alerts for its own infrastructure monitoring, but no page confirms a customer-accessible workspace audit log feature or specifies which plans include it.',
-        shortValue: 'Internal monitoring only; no customer audit log',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
-          },
-        ],
+          'Execution history and provider-internal security monitoring are documented, but customer-facing administrative audit logs and their plan scope were not verified.',
+        confidence: 'unknown',
+        sources: [],
       },
       compliance: {
         value:
-          'SOC 2 Type 2, HIPAA (via BAA, Enterprise), GDPR (SCCs), and AWS KMS infra with ISO 27001/27017/27018. No independent Pipedream-held ISO 27001/PCI/FedRAMP certification on the trust page',
+          'SOC 2 Type 2 report available; Business customers can sign a HIPAA BAA for eligible services; DPA includes GDPR SCCs.',
+        shortValue: 'SOC 2 Type 2; Business HIPAA BAA',
         detail:
-          "Pipedream's Privacy and Security page states it provides a SOC 2 Type 2 report on request, undergoes annual third-party audits, and uses continuous-compliance monitoring tooling. It signs Business Associate Addendums (BAAs) for HIPAA/PHI use cases (Enterprise) and uses Standard Contractual Clauses (SCCs) for GDPR-related data transfers. Sensitive data (OAuth grants, key-based credentials, env vars) is encrypted at rest with AES-256-GCM via AWS KMS, which itself holds SOC 1/2/3 and ISO 27001/27017/27018 certifications. That ISO/PCI/FedRAMP coverage is inherited from the AWS infrastructure layer, not a certification Pipedream independently holds on its own trust page. Some third-party review sites describe Pipedream itself as directly PCI, FedRAMP, and CSA STAR compliant, but Pipedream's own security documentation does not corroborate this.",
-        shortValue: 'SOC 2, HIPAA BAA, GDPR SCCs; ISO via AWS only',
-        confidence: 'estimated',
+          'HIPAA-eligible services include Workflows, sources, Data Stores, Destinations, and Connect; File Stores and v1 workflows are explicitly excluded. Private reports were not inspected. AWS certifications are not represented as Pipedream-held certifications.',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs – Privacy and Security',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/blog/hippa/',
-            label: 'Pipedream Blog – Pipedream supports HIPAA compliance',
-            asOf: '2026-07-02',
+            label: 'Privacy and Security at Pipedream — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://pipedream.com/docs/privacy-and-security/hipaa',
-            label: 'Pipedream Docs: HIPAA Compliance',
-            asOf: '2026-07-02',
+            label: 'HIPAA Compliance — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelAndToolGovernance: {
-        value: 'Unknown',
-        detail: 'Not publicly documented for Pipedream.',
-        shortValue: 'Not publicly documented',
+        value: 'Not verified',
+        shortValue: 'Not verified',
+        detail:
+          'A customer-administered per-role allowlist of LLM models or callable integration tools was not verified. Workspace, project, and connected-account permissions are documented separately.',
         confidence: 'unknown',
         sources: [],
       },
       credentialGovernance: {
         value:
-          "No: Pipedream's governance model restricts access to a connected account as a whole (private by default, ownership-based, with Business-plan project-level access restriction), rather than letting an admin restrict which specific credentials a given role or permission group may use within shared projects.",
+          'Yes: connected accounts are private by default, can be shared, and have access enforced at each workflow step.',
+        shortValue: 'Private/shared accounts with step-level enforcement',
         detail:
-          'Connected accounts are private to the connecting user by default and can be granted or restricted per project on Business plans, coarser than per-role governance of specific stored credentials.',
-        shortValue: 'No, only account-level ownership restriction',
-        confidence: 'estimated',
+          'A collaborator without account access cannot edit that step code or inputs. Account sharing is distinct from a custom permission-group policy system.',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/apps/connected-accounts',
-            label: 'Connected Accounts docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/projects/access-controls',
-            label: 'Project Access Controls docs',
-            asOf: '2026-07-02',
+            label: 'Connected Accounts — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       whiteLabeling: {
         value:
-          'No: Pipedream supports custom domains for HTTP endpoint URLs, but its documentation and community support state the authentication/consent experience is not white-label. Users always see Pipedream branding and are asked to consent to Pipedream processing their data during connect flows, so vendor branding cannot be fully replaced across the workspace or deployed-app UI.',
+          'Partial: custom endpoint domains and customer-owned OAuth clients provide limited branding control.',
+        shortValue: 'Custom domains and customer-owned OAuth clients',
         detail:
-          'Custom domains only rebrand webhook endpoint URLs (e.g. api.example.com instead of *.m.pipedream.net); the OAuth/consent UI and general product UI keep Pipedream branding.',
-        shortValue: 'No, endpoint domains only, auth stays branded',
-        confidence: 'verified',
+          'Complete removal of Pipedream branding from all dashboard and hosted consent surfaces was not verified.',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/domains',
-            label: 'Custom Domains docs',
-            asOf: '2026-07-02',
+            label: 'Custom Domains — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/community/t/what-3rd-party-tool-can-i-use-to-white-label-my-endpoints-from-http-pipedream-com-pipedream-com-to-my-domain/7842',
-            label: 'Community: white-labeling endpoints limitation',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/connect/managed-auth/oauth-clients',
+            label: 'OAuth Clients — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
         value:
-          'Yes: Pipedream documents account-level retention rules for event/execution data, and states Enterprise customers can turn off all data retention, while internal application logs are deleted within about 30 days by default.',
+          'Partial: workflow settings can disable execution-log retention; source event logs and builder test events are separate.',
+        shortValue: 'Workflow log opt-out; separate source retention',
         detail:
-          'Documentation is thin on exact self-serve controls for standard workspaces; the clearest statement of org-configurable retention is tied to the Enterprise plan.',
-        shortValue: 'Yes, retention configurable on Enterprise',
-        confidence: 'estimated',
+          'Retention windows follow account rules. Connect API/MCP request and response bodies are not retained according to Pipedream security docs; a general admin-set number-of-days control was not verified.',
+        confidence: 'verified',
         sources: [
           {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/settings',
+            label: 'Settings — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Privacy and Security at Pipedream',
-            asOf: '2026-07-02',
+            label: 'Privacy and Security at Pipedream — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       piiRedaction: {
-        value:
-          'Unknown: Pipedream has no documented built-in feature that detects and redacts or blocks PII (emails, SSNs, etc.) in workflow content or retained execution logs. Its security materials focus on encryption, SOC 2 compliance, and log-deletion timelines, not content-level PII scanning.',
-        shortValue: 'Unknown, no PII redaction feature found',
+        value: 'Not verified',
+        shortValue: 'Not verified',
+        detail:
+          'Automatic PII detection and redaction in workflow payloads or logs was not verified. Disabling execution logging is a separate control.',
         confidence: 'unknown',
         sources: [],
       },
       sso: {
-        value:
-          'Yes: Pipedream supports Single Sign-On via SAML 2.0 with any compatible identity provider (including Okta and Google Workspace) on the Business plan.',
+        value: 'Yes: Business supports SAML 2.0 or Google OAuth SSO and SCIM user provisioning.',
+        shortValue: 'Business SAML/Google SSO and SCIM',
         detail:
-          'Documentation confirms SAML 2.0 SSO and requires a Business-plan workspace, but does not mention OIDC as a supported protocol or call out any separate Enterprise-tier requirement.',
-        shortValue: 'Yes, SAML SSO on Business plan',
+          'Workspace owners retain alternate login access to prevent lockout. First-login automatic provisioning behavior was not separately verified.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workspaces/sso',
-            label: 'Single Sign On Overview',
-            asOf: '2026-07-02',
+            label: 'Single Sign On Overview — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/workspaces',
+            label: 'Managing workspaces — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       sessionPolicy: {
-        value:
-          "Not publicly documented: Pipedream's workspace administration and SSO documentation enumerates the security controls available to admins — requiring two-factor authentication for all members, configuring SAML/Google/Okta SSO, SCIM provisioning, and managing verified domains, all on the Business plan — and includes no absolute session lifetime, idle timeout, or forced re-authentication interval. Pipedream also does not publish a fixed session length for the dashboard, so the absence of an admin control is inferred from the documentation rather than stated by Pipedream.",
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          "Neither the workspace administration docs, the SSO overview, nor the Privacy and Security page mentions session duration, idle timeout, or re-authentication frequency; the only session-related announcement Pipedream has published was a one-time invalidation of all login sessions during a September 2021 maintenance window, which stated no ongoing policy. Workspaces on SSO inherit whatever re-authentication cadence the upstream identity provider enforces, but that is the IdP's policy rather than a Pipedream-side control. The one expiration Pipedream does publish covers API credentials rather than signed-in user sessions: REST API OAuth access tokens expire after 1 hour.",
-        shortValue: 'No documented admin session lifetime or idle timeout',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/workflows/workspaces/',
-            label: 'Pipedream Docs: Managing workspaces (2FA, SSO, verified domains)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://pipedream.com/docs/workflows/workspaces/sso/',
-            label: 'Pipedream Docs: Single Sign-On Overview',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://pipedream.com/docs/privacy-and-security/',
-            label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://pipedream.com/community/t/update-to-pipedream-login-session-handling-on-monday-september-6th/1174',
-            label: 'Pipedream Community: Update to login session handling',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://pipedream.com/docs/rest-api/auth',
-            label: 'Pipedream Docs: REST API Authentication (1-hour access tokens)',
-            asOf: '2026-08-10',
-          },
-        ],
+          'Customer-configurable absolute session duration or inactivity limits were not verified. API-token expiration is not treated as a dashboard session policy.',
+        confidence: 'unknown',
+        sources: [],
       },
       thirdPartyVetting: {
         value:
-          "No: Pipedream's 3,000+ app integrations are backed by a public component registry (pipedreamhq/pipedream on GitHub) where any developer can fork the repo, write a trigger or action, and submit it as a pull request for anyone else's workflows to run; users can also write and execute their own arbitrary custom code steps.",
+          'Community registry contributions require a pull request and approval by the Pipedream team before publication.',
+        shortValue: 'Team-reviewed community registry contributions',
         detail:
-          "Pipedream's own contributing docs describe the merge path as: submit a PR, the code runs through automated checks (linting, dependency install, and other CI a contributor can also run locally via pnpm), the Pipedream team reviews it against published Component Guidelines & Patterns, and once approved the PR is merged to master and the component becomes runnable by every Pipedream user. That review step is functional/style-focused (code structure, error handling, README quality), not a documented formal security audit, static-analysis security scan, or sandboxed vulnerability assessment distinct from ordinary code review. This is the inverse of Sim's model: Sim has no public marketplace where an arbitrary third party can publish and have other users install executable tool code, whereas Pipedream's whole integration catalog is built on exactly that open, PR-based contribution model. No security incident specific to a malicious or compromised Pipedream component is publicly documented.",
-        shortValue: 'No, open PR-based community component registry',
-        confidence: 'estimated',
+          'Private custom components are also supported. The documented review process does not establish a formal security-audit guarantee for every component.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/components/guidelines',
-            label: 'Pipedream Docs: Components Guidelines & Patterns',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/apps/contributing',
-            label: 'Pipedream Docs: Contributing to the Pipedream Registry',
-            asOf: '2026-07-04',
-          },
-          {
-            url: 'https://pipedream.com/community',
-            label: 'Pipedream Community',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/components/contributing',
+            label: 'Pipedream Registry — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -955,149 +899,152 @@ export const pipedreamProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Customer-facing per-execution step logs and event history; no dedicated metrics dashboard (latency percentiles/error-rate charts) confirmed',
-        detail:
-          "Pipedream's Event History dashboard is customer-facing and shows, per event, the steps executed, each step's configuration/inputs/outputs, stack traces on error, and overall workflow performance for that run; events are filterable by workflow, execution status (success/error/paused), and time range. Each execution carries a `trace_id`, stable across auto-retries of the same original event, enabling correlation across retries. This is real per-execution tracing depth, but no aggregate metrics dashboard (e.g., p50/p95 latency, error-rate over time, throughput charts) exists. Observability is oriented around inspecting individual runs rather than fleet-level metrics visualization.",
-        shortValue: 'Per-run step logs; no metrics dashboard',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/workflows/event-history',
-            label: 'Pipedream Docs – Event History',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/workflows/events/inspect/',
-            label: 'Pipedream Docs – Inspect Events',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      durabilityModel: {
-        value: 'Yes, but auto-retry on errors is gated to the Advanced plan and above',
-        detail:
-          'Pipedream supports an auto-retry-on-errors setting per workflow, available on the Advanced plan and above: on failure, the failed step is retried up to 8 times over a 10-hour span with exponential backoff (does not retry on out-of-memory or timeout errors). Independently, Event History lets you replay one or many past events, including bulk replay of failed events, which re-executes the workflow from the original incoming event data rather than resuming mid-run from the exact failed step. True checkpoint/resume exists only for explicit pause points via `$.flow.suspend()`/resume.',
-        shortValue: 'Auto-retry (Advanced plan+); replay from event history',
+          'Per-event history shows workflow steps, configuration, results, errors, stack traces, and run performance.',
+        shortValue: 'Event history and step-level execution details',
+        detail: 'Aggregate latency-percentile or distributed-span dashboards were not verified.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/event-history',
-            label: 'Pipedream Docs – Event History',
-            asOf: '2026-07-02',
+            label: 'Event History — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://changelog.pipedream.com/en/bulk-replay-and-delete-in-event-history',
-            label: 'Pipedream Changelog – Bulk replay and delete failed events',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows',
+            label: 'What Are Workflows? — Pipedream Docs',
+            asOf: '2026-09-04',
           },
+        ],
+      },
+      durabilityModel: {
+        value:
+          'Advanced retries resume at the failed step, up to eight retries over ten hours; event history supports bulk replay.',
+        shortValue: 'Failed-step retries, bulk replay, and explicit pause/resume',
+        detail:
+          'Automatic retries exclude timeout and out-of-memory errors. Explicit suspend/resume handles approval or callback waits.',
+        confidence: 'verified',
+        sources: [
           {
             url: 'https://pipedream.com/docs/workflows/building-workflows/settings',
-            label: 'Pipedream Docs',
-            asOf: '2026-07-02',
+            label: 'Settings — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/event-history',
+            label: 'Event History — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs/rerun',
+            label: 'Pause, Resume, and Rerun a Workflow — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       failureAlerting: {
         value:
-          'Yes: proactive default email (and optional Slack/custom) notification on unhandled workflow errors',
+          'Yes: unhandled live errors send email; custom workflows can consume the global error stream for other channels.',
+        shortValue: 'Error email and custom error-stream notifications',
         detail:
-          "By default, Pipedream workflows email the owner the first time a given workflow raises an unhandled error within a rolling 24-hour window (subsequent identical errors in that window are suppressed; if the error persists past 24 hours, another notification is sent). This 'Notify me on errors' behavior can be toggled off per workflow, and workflows with auto-retry enabled have an optional 'Send notification on first error' setting, off by default. Beyond the built-in email, users can wire additional proactive channels (Slack messages, custom HTTP calls to PagerDuty/etc.) as ordinary workflow steps/destinations. This is opt-in custom logic, not a first-party alerting/threshold product for cost or latency SLAs.",
-        shortValue: 'Default error email; optional Slack/webhook',
-        confidence: 'estimated',
+          'Duplicate emails are limited to one per error/workflow per 24 hours. Paid plans also notify at 80% and 100% of included compute credits.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/workflows/settings',
-            label: 'Pipedream Docs – Workflow Settings',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/errors',
+            label: 'Handling Errors — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/community/t/how-to-configure-settings-to-receive-workflow-error-notifications-only-via-slack/11054',
-            label: 'Pipedream Community – error notification settings',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/limits',
+            label: 'Limits — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataDrains: {
         value:
-          'Unknown: Pipedream has no documented native, continuous export of its own execution logs, audit logs, or usage data to an external destination such as S3, BigQuery, or Datadog. Users could build a Pipedream workflow themselves to forward event data somewhere, but that is not the same as a built-in platform data-drain feature.',
+          'Partial: destinations asynchronously deliver builder-selected event data to external services; error streams and APIs expose failures.',
+        shortValue: 'Event destinations and error streams',
         detail:
-          "Pipedream is itself an integration/automation platform, so 'building a workflow to export your own execution data' is a workaround, not a documented native drain feature.",
-        shortValue: 'Unknown, no native log-export feature found',
-        confidence: 'unknown',
-        sources: [],
+          'Automatic continuous export of all execution logs, audit events, and usage records was not verified.',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows/data-management/destinations',
+            label: 'Destinations — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/errors',
+            label: 'Handling Errors — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       asyncExecution: {
         value:
-          "Yes: Pipedream's default HTTP-trigger behavior is asynchronous. A workflow returns an immediate 200 OK response to the caller while the rest of the workflow keeps running in the background, and developers can inspect the resulting event/execution afterward in the workflow's event history. A fully synchronous mode is also available via the `$.respond()` function, which can be called at the end of the workflow (blocking until completion) or mid-workflow with `immediate: true` to send a response early and continue processing after.",
+          'Yes: HTTP triggers can respond immediately while the workflow runs, or send custom responses through $.respond().',
+        shortValue: 'Immediate HTTP response with background execution',
         detail:
-          "Pipedream docs describe the default as an immediate 200 OK while processing continues in background; $.respond() gives synchronous or hybrid (immediate + continue) response patterns. No explicit API-based 'trigger now, poll status later' endpoint is documented, though the event inspector/history UI shows past execution results.",
-        shortValue: 'Yes, default is async with optional sync $.respond()',
+          'Execution results remain available through event inspection according to retention settings.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/docs/workflows/triggers',
-            label: 'Pipedream Docs: HTTP-triggered workflows (default async response, $.respond)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/workflows/events/inspect/',
-            label: 'Pipedream Docs: Inspect Events (viewing past execution results)',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/triggers',
+            label: 'Triggers — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Yes: Pipedream publishes hard execution limits. A single workflow execution times out at 300 seconds (5 minutes) by default on the free tier and can be raised to a maximum of 750 seconds (12.5 minutes) on paid plans; memory defaults to 256MB and can be raised up to 10GB. HTTP-triggered workflows are rate-limited to an average of 10 requests per second, with 429 Too Many Requests returned beyond that, and free workspaces additionally cap total test/dev runtime at 30 minutes per day.',
+          'Defaults: 30 seconds for HTTP/email and 60 seconds for cron; configurable maxima are 300 seconds Free and 750 seconds paid.',
+        shortValue: '300-second Free / 750-second paid execution caps',
         detail:
-          'Additional published caps: HTTP request body 512KB, email payload including attachments 30MB, combined function logs/exports 6MB, /tmp scratch disk 2GB (fixed), event retention 7 days (free) with execution details expiring after 365 days.',
-        shortValue: '5-12.5 min timeout, 10 req/s HTTP cap',
+          'Control-flow boundaries create new segments and reset the execution timeout, so total workflow duration can be longer. HTTP triggers average 10 requests/second unless increased for a paid customer.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/limits',
-            label: 'Pipedream Docs: Limits',
-            asOf: '2026-07-02',
+            label: 'Limits — Pipedream Docs',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/control-flow',
+            label: 'Overview — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       partialFailureHandling: {
         value:
-          "No: Pipedream does not have a built-in error-handling branch that automatically routes a failed step so the rest of the same run continues; by default an unhandled step error halts that workflow execution. Workarounds exist (enabling auto-retry, which re-runs from the failed step up to 8 times over 10 hours with exponential backoff on paid plans; wrapping code in try/catch; using If/Else conditional logic; or subscribing a separate workflow to Pipedream's global $error event stream), but these are manual patterns, not a native 'continue past this failed step in the same run' feature. Community feature requests ask for a 'continue on failure' / skip-step option, which is not shipped.",
-        detail:
-          'Auto-retry and the global error-event stream let you react to failures, but the original run itself still halts at the failing step unless you hand-code try/catch or conditional logic around it.',
-        shortValue: 'No native fail-and-continue branch',
-        confidence: 'verified',
+          'Partial: code can catch failures; unhandled action errors use retries or a separate error-handling workflow.',
+        shortValue: 'Code error handling and separate error listeners',
+        detail: 'A general built-in continue-on-error branch for action steps was not verified.',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows/building-workflows/errors',
-            label: 'Pipedream Docs: Handling Errors',
-            asOf: '2026-07-02',
+            label: 'Handling Errors — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/community/t/option-to-configure-error-handling/2833',
-            label: 'Pipedream Community: feature request for configurable error handling',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/community/t/how-to-continue-steps-in-workflow-if-one-step-fails/7604',
-            label: 'Pipedream Community: how to continue steps if one step fails',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/building-workflows/settings',
+            label: 'Settings — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
         value:
-          "Yes: scheduled (cron), webhook, and app-event triggered workflows run as deployed jobs on Pipedream's own serverless infrastructure, not in a session tied to a client device",
-        detail:
-          'Pipedream\'s own docs state it plainly: "Once you save a workflow, we deploy it to our servers. Each event triggers the workflow code, whether you have the workflow open in your browser, or not." No desktop app, browser tab, or active session needs to stay open for a scheduled or triggered run to fire or complete.',
-        shortValue: 'Runs server-side; no dependency on a client device staying open',
+          'Yes: deployed workflows execute on Pipedream servers without an open browser session.',
+        shortValue: 'Server-side execution without an open browser',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/workflows',
-            label: 'Pipedream Docs: What Are Workflows?',
-            asOf: '2026-07-04',
+            label: 'What Are Workflows? — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -1105,95 +1052,79 @@ export const pipedreamProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Community forum/Slack (free/lower tiers), email support and dedicated Slack channel (higher tiers), dedicated support on Business/Enterprise',
+          'Community forum and Slack are documented for free workspaces; support requests are available through the vendor support channel.',
+        shortValue: 'Community forum, Slack, and vendor support',
         detail:
-          'Free tier gets community support (forum + public Slack) only; paid tiers add email support and a dedicated Slack channel; Business/Enterprise adds dedicated support resources.',
-        shortValue: 'Community free tier; email/Slack on paid',
-        confidence: 'estimated',
+          'Current paid support response times and dedicated-channel entitlements were not verified.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://pipedream.com/support',
-            label: 'Pipedream Support page',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/pricing',
+            label: 'Plans and Pricing — Pipedream Docs',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pipedream.com/docs/pricing',
-            label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-07-02',
+            url: 'https://github.com/PipedreamHQ/pipedream',
+            label:
+              'GitHub — Pipedream DocsHQ/pipedream: Connect APIs, remarkably fast.  Free for developers. · GitHub',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
-        value:
-          'Enterprise plan reportedly includes a dedicated Success Engineer and uptime guarantee; no published response-time SLA',
+        value: 'Not verified',
+        shortValue: 'Not verified',
         detail:
-          'No Pipedream page publishes a specific support response-time SLA for any tier; enterprise-level uptime/support arrangements appear to be negotiated directly with sales rather than published.',
-        shortValue: 'No published response-time SLA',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/pricing',
-            label: 'Pipedream Pricing page',
-            asOf: '2026-07-02',
-          },
-        ],
+          'No current contractual uptime percentage or support response-time SLA was verified from the readable primary sources. Confirm applicable contract terms with Pipedream.',
+        confidence: 'unknown',
+        sources: [],
       },
       community: {
-        value: '~11.5k GitHub stars on the main component-registry repo',
-        detail:
-          'The PipedreamHQ/pipedream GitHub repository has approximately 11.5k stars. Pipedream also references a large developer user base and a public community Slack/forum, but no official page states exact Slack/Discord member counts.',
-        shortValue: '~11.5k GitHub stars on component registry',
+        value:
+          'Public component repository with approximately 11.7k GitHub stars, plus community forum and Slack.',
+        shortValue: 'Public repository, forum, and Slack',
+        detail: 'Repository stars are a rounded snapshot, not a count of customers.',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://github.com/PipedreamHQ/pipedream',
-            label: 'GitHub: PipedreamHQ/pipedream',
-            asOf: '2026-07-02',
+            label:
+              'GitHub — Pipedream DocsHQ/pipedream: Connect APIs, remarkably fast.  Free for developers. · GitHub',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://pipedream.com/docs/pricing',
+            label: 'Plans and Pricing — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
-        value:
-          "Founded 2019 (some sources say 2018), San Francisco; ~21-50 employees; raised at least $20M in Series A financing; Workday signed a definitive agreement to acquire Pipedream (Nov 19, 2025), with the deal expected to close by the end of Workday's fiscal Q4 2026 (Jan 31, 2026) — no independently reachable source confirms the acquisition has actually closed",
+        value: 'Workday has confirmed that its acquisition of Pipedream closed.',
+        shortValue: 'Acquired by Workday',
         detail:
-          "Pipedream was founded in 2019 and is headquartered in San Francisco, CA (company-data aggregators put the founding team at 8 people, including Tod Sacerdoti, Dylan Sather, and TJ Koblentz), with a current headcount signal of roughly 21-50 employees. Pipedream's own blog confirms it closed a $20M Series A round led by True Ventures, with CRV, Felicis Ventures, and World Innovation Lab participating. Workday signed a definitive agreement to acquire Pipedream on November 19, 2025; per Workday's own newsroom release, the transaction is expected to close in Workday's fiscal Q4 2026 (ending January 31, 2026), subject to closing conditions. Crunchbase (previously cited for a 'deal closed' date) returned 403 and could not be independently verified, so this claim no longer asserts the acquisition has closed.",
-        shortValue: 'Founded 2019; Workday acquisition pending, expected to close by Jan 2026',
-        confidence: 'estimated',
+          'Workday published a completion announcement. Stale funding and employee estimates are omitted.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://newsroom.workday.com/2025-11-19-Workday-Signs-Definitive-Agreement-to-Acquire-Pipedream',
-            label: 'Workday Newsroom – Workday Signs Definitive Agreement to Acquire Pipedream',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://pipedream.com/blog/pipedream-to-be-acquired-by-workday/',
-            label: 'Pipedream Blog – Pipedream to be acquired by Workday',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://pipedream.com/blog/series-a-financing/',
-            label: 'Pipedream Blog – Pipedream Closes $20M Series A Financing',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://prospeo.io/c/pipedream',
-            label: 'Prospeo – Pipedream company profile',
-            asOf: '2026-07-08',
+            url: 'https://www.linkedin.com/posts/workday_were-excited-to-share-that-the-acquisition-activity-7402384155063517184-ltfO',
+            label: 'Workday — Pipedream acquisition completion announcement',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
         value:
-          'Yes: Pipedream operates Pipedream University, a structured library of courses and video lessons that teaches workflow building, custom code steps, and platform concepts beyond ad hoc docs and blog posts.',
+          'Guided workflow development documentation teaches triggers, code, testing, and deployment.',
+        shortValue: 'Guided workflow development tutorials',
         detail:
-          'No formal certification/exam program; it reads as structured video courses rather than a certification track.',
-        shortValue: 'Yes, via Pipedream University courses',
+          'A currently accessible University course catalog or certification program was not verified.',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://pipedream.com/university',
-            label: 'Pipedream University',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows/quickstart',
+            label: 'Workflow Development — Pipedream Docs',
+            asOf: '2026-09-04',
           },
         ],
       },

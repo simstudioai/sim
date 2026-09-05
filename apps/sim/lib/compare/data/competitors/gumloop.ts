@@ -1,7 +1,7 @@
 import { GumloopIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against current primary sources on 2026-09-04. */
 export const gumloopProfile: CompetitorProfile = {
   id: 'gumloop',
   name: 'Gumloop',
@@ -22,340 +22,328 @@ export const gumloopProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Gumloop is a hosted, no-code visual platform for building and deploying AI agents and automations: a drag-and-drop canvas, an AI copilot ("Gen") for natural-language flow creation, and native MCP (Model Context Protocol) integration support.',
+    'Gumloop combines configurable AI agents, Company Brain search, skills, MCP integrations, and a visual workflow builder; it offers managed cloud and Enterprise VPC deployment.',
   standoutFeatures: [
     {
-      title: '250+ fully hosted MCP servers',
+      title: 'Company Brain connects shared knowledge',
       description:
-        'Gumloop offers 250+ pre-built, zero-setup hosted MCP servers spanning popular services, letting agents connect to external tools without manual configuration.',
-      shortDescription: '250+ zero-setup hosted MCP servers across popular services.',
+        'Brain indexes connected company sources and makes permission-scoped hybrid search available to agents and through an API.',
+      shortDescription: 'Indexed company knowledge with semantic and keyword search.',
+      source: {
+        url: 'https://docs.gumloop.com/api-reference/brain/search.md',
+        label: 'Gumloop: Search Company Brain',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Persistent agent code environments',
+      description:
+        'Agents run Python and shell commands in isolated VMs. Editors can install packages that persist across conversations.',
+      shortDescription: 'Isolated code execution with persistent packages.',
+      source: {
+        url: 'https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets.md',
+        label: 'Gumloop: Code Sandbox & Secrets',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Skills synchronized from GitHub',
+      description:
+        'Organization skills can be maintained in a repository and synchronized into Gumloop for shared agent use.',
+      shortDescription: 'Version-controlled organization skills.',
+      source: {
+        url: 'https://docs.gumloop.com/core-concepts/organization_skills.md',
+        label: 'Gumloop: Organization Skills',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Conversation evaluations with notifications',
+      description:
+        'Completed agent interactions are graded against configured criteria, with tags, extracted data, and notifications for selected outcomes.',
+      shortDescription: 'Automatic conversation grading and notifications.',
+      source: {
+        url: 'https://docs.gumloop.com/core-concepts/evaluations.md',
+        label: 'Gumloop: Evaluations',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: '250+ MCP servers advertised',
+      description:
+        'The vendor advertises managed connections to more than 250 MCP servers; custom servers can extend the catalog.',
+      shortDescription: '250+ vendor-advertised MCP servers.',
       source: {
         url: 'https://www.gumloop.com/mcp',
-        label: 'Gumloop: Fully Hosted MCP Servers',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'Gummie copilot builds, edits, and debugs flows from natural language',
-      description:
-        "Beyond building new flows from a prompt, Gumloop's AI copilot, Gummie, can edit, debug, and run existing workflows: users describe what they want changed or fixed in plain English and Gummie figures out the implementation.",
-      shortDescription:
-        'Gummie copilot can build, edit, debug, and run workflows from natural-language prompts.',
-      source: {
-        url: 'https://www.gumloop.com/changelog',
-        label: 'Gumloop Changelog',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'Plain-English, org-wide guardrail policy engine',
-      description:
-        'Organizations can define app/tool usage policies in plain English at org, team, or agent level; violating actions can be blocked or tagged and logged.',
-      shortDescription: 'Plain-English usage policies enforced at org, team, or agent level.',
-      source: {
-        url: 'https://www.gumloop.com/solutions/security',
-        label: 'Gumloop Security & Trust',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Enterprise VPC deployment with zero data retention',
-      description:
-        'Enterprise customers can have Gumloop deployed and operated inside their own cloud (VPC) for data residency, combined with zero-data-retention agreements with major LLM providers and BYOK support.',
-      shortDescription:
-        'Enterprise VPC deployment plus zero-data-retention agreements with LLM providers.',
-      source: {
-        url: 'https://www.gumloop.com/solutions/security',
-        label: 'Gumloop Security & Trust',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Built-in agent evaluation and regression testing',
-      description:
-        'Teams can define test cases and grade agent responses to catch regressions before shipping changes, alert on low-scoring agent chat evaluations, and test individual nodes with fake inputs from the canvas.',
-      shortDescription: 'Test cases and grading catch agent regressions before changes ship.',
-      source: {
-        url: 'https://www.gumloop.com/changelog',
-        label: 'Gumloop Changelog',
-        asOf: '2026-07-02',
+        label: 'MCP Servers for Your AI Agents | Gumloop',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'No public self-hosting of the core platform',
+      title: 'Workflows are now labeled legacy',
       description:
-        "Gumloop is only available as managed SaaS or an enterprise-managed VPC deployment operated by Gumloop inside a customer's cloud project. There is no downloadable, self-managed install of the Gumloop application itself; Gumloop's own guMCP_template repo is a self-hosted MCP-server starter, not an install of the platform.",
-      shortDescription: 'No downloadable self-hosted install. Only managed SaaS or enterprise VPC.',
+        'Current pricing identifies the visual workflow offering as legacy alongside the newer agent product. Confirm the roadmap if the canvas is central to your adoption.',
+      shortDescription: 'Visual workflows are listed as legacy.',
       source: {
-        url: 'https://www.gumloop.com/solutions/security',
-        label: 'Gumloop Security & Trust',
-        asOf: '2026-07-02',
+        url: 'https://www.gumloop.com/pricing',
+        label: 'Pricing | Gumloop',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Proprietary license, closed source',
+      title: 'Usage includes orchestration charges',
       description:
-        'The core Gumloop application has no open-source license; Gumloop\'s own Terms of Service state the Service, its features, and its functionality "are and will remain the exclusive property of AgentHub Inc. (doing business as Gumloop) and its licensors," unlike some workflow-automation competitors that ship an open-source core.',
-      shortDescription: 'Closed commercial product with no open-source core.',
+        'Agent runs incur compute, tool, and orchestration costs. BYOK removes model credits but raises the standard agent orchestration rate to 16%; provider tokens are billed separately.',
+      shortDescription: 'BYOK still carries agent orchestration and other charges.',
       source: {
-        url: 'https://www.gumloop.com/tos',
-        label: 'Gumloop Terms of Service',
-        asOf: '2026-07-08',
+        url: 'https://docs.gumloop.com/core-concepts/credits.md',
+        label: 'Gumloop: Credits',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Inconsistent/unclear integration count across vendor pages',
+      title: 'Workflow saves can affect live triggers',
       description:
-        "Gumloop's own pages give differing figures for integrations: its docs introduction cites '100+ pre-built nodes and integrations,' while its dedicated MCP page separately advertises '250+ MCP servers.' These may be different countable categories (native nodes vs MCP-protocol connectors), but neither page cross-references the other, and the dedicated /integrations directory page still returns a 404, making an exact, citable integration count hard to pin down from primary sources.",
-      shortDescription:
-        'Vendor pages cite different integration counts with no single authoritative figure.',
+        'Checkpoint documentation says saved changes to the live checkpoint immediately affect triggers. Use checkpoint and testing practices appropriate to production workflows.',
+      shortDescription: 'Saved live-checkpoint changes affect triggers immediately.',
       source: {
-        url: 'https://docs.gumloop.com/getting-started/introduction',
-        label: 'Getting Started - Gumloop docs',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'No documented built-in vector-search/RAG knowledge base feature in primary docs',
-      description:
-        "No official Gumloop documentation describes a dedicated, built-in vector-database/RAG knowledge-base capability. Only a user forum thread and a third-party tutorial reference building a 'knowledge base' with Gumloop nodes.",
-      shortDescription:
-        'No official docs describe a built-in RAG or vector-database knowledge base.',
-      source: {
-        url: 'https://forum.gumloop.com/t/building-a-knowledge-base-for-rag/841',
-        label: 'Gumloop forum: Building a knowledge base for RAG',
-        asOf: '2026-07-02',
+        url: 'https://docs.gumloop.com/core-concepts/checkpoint_history.md',
+        label: 'Gumloop: Workflow Checkpoints',
+        asOf: '2026-09-04',
       },
     },
   ],
   facts: {
     platform: {
       builderType: {
-        value:
-          "Visual, no-code canvas builder with an AI copilot ('Gummie') that can generate/modify flows from natural-language prompts",
+        value: 'Agent configuration and chat, plus a visual node-based workflow builder',
+        shortValue: 'Agent builder plus visual workflows',
         detail:
-          "Gumloop is a visual/no-code drag-and-drop canvas for chaining nodes (AI, integration, logic) into agent 'flows'; a chat-based AI agent named Gummie can build and edit these flows from plain-English instructions.",
-        shortValue: 'Visual canvas plus Gummie AI copilot for building flows',
-        confidence: 'estimated',
+          'Current pricing labels the workflow product as legacy; agents combine instructions, connectors, skills, subagents, and abilities.',
+        confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com', label: 'Gumloop homepage', asOf: '2026-07-08' },
           {
-            url: 'https://www.gumloop.com/blog/agentic-ai-tools',
-            label: 'Gumloop blog: agentic AI tools',
-            asOf: '2026-07-08',
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/workbooks.md',
+            label: 'Gumloop: Workflows',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
         value:
-          'Low for basic no-code flows aimed at non-technical business users; steeper for advanced use of custom Python code nodes and multi-agent orchestration',
-        shortValue: 'Easy for basics, steeper for code and multi-agent',
+          'Accessible for basic agents; advanced integrations and code require more technical work',
+        shortValue: 'Simple basics; technical depth for custom work',
         confidence: 'estimated',
         sources: [
-          { url: 'https://www.gumloop.com', label: 'Gumloop homepage', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets.md',
+            label: 'Gumloop: Code Sandbox & Secrets',
+            asOf: '2026-09-04',
+          },
         ],
       },
       selfHostOption: {
         value:
-          'No public self-host option for the core Gumloop app; enterprise customers can get a managed Virtual Private Cloud (VPC) deployment into their own cloud (e.g. GCP) instead of full self-hosting',
-        detail:
-          "Gumloop deploys and operates the platform inside the customer's cloud project rather than offering a downloadable, self-managed open-source install. Gumloop's own guMCP_template repo is an open-source starter for self-hosted MCP servers, but it is not an install of the Gumloop app itself.",
-        shortValue: 'No self-host; VPC deployment only',
+          'Customer-cloud VPC deployment is offered; a supported self-managed install was not confirmed',
+        shortValue: 'Customer VPC; self-managed install unconfirmed',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/gumloop/guMCP_template',
-            label: "guMCP_template (Gumloop's self-hosted MCP starter repo)",
-            asOf: '2026-07-02',
+            label: 'Security and trust at Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
-        value:
-          "Managed SaaS (cloud) and enterprise VPC deployment into customer's own cloud region",
-        shortValue: 'Managed SaaS or enterprise VPC',
-        confidence: 'estimated',
+        value: 'Managed SaaS or an optional Enterprise deployment into your own cloud',
+        shortValue: 'SaaS or Enterprise VPC',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
+            label: 'Security and trust at Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Pricing | Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
-        value:
-          "Yes: a public template gallery ('flows') plus an organization-templates feature for Team/Enterprise plans to share internal templates",
-        detail:
-          'Gumloop lists a community/creator template marketplace at gumloop.com/templates covering sales, marketing, HR, finance, data extraction, etc.',
-        shortValue: 'Public gallery plus internal org template sharing',
-        confidence: 'estimated',
+        value: 'Yes: public templates and organization sharing for reusable automations',
+        shortValue: 'Public templates and team reuse',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/templates',
-            label: 'Gumloop Community Templates',
-            asOf: '2026-07-02',
+            label: 'Gumloop Community Templates | AI Agent and Workflow Automation Templates',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/teams',
+            label: 'Organization and Teams - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
-        value: 'Proprietary',
-        detail:
-          "The core Gumloop application has no open-source license; it is a closed, hosted commercial SaaS product. Gumloop's own guMCP_template repo is an open-source MCP-server starter, but it is not the Gumloop platform.",
+        value: 'Proprietary hosted service',
         shortValue: 'Proprietary',
-        confidence: 'estimated',
-        sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
-        ],
-      },
-      environmentPromotion: {
-        value:
-          "No dedicated dev/staging/production promotion pipeline. Work is organized as Organization > Personal Space (private) plus Teams (shared, Pro plan and up), with a 'Move to Team' action to share a flow, not cross-workspace cloning.",
         detail:
-          "Gumloop organizes work as Organization > Personal Space (private) or Team (a shared collaborative space, Pro plan and above), with no structured pipeline for promoting changes between dev, staging, and production. Moving a flow out of a personal space happens via a manual 'Move to Team' action. Version history is handled separately through single-workflow checkpoints (see versionControlDepth).",
-        shortValue: 'No dev/staging/prod promotion pipeline',
+          'The service terms reserve ownership of the platform to AgentHub and its licensors. Open model support and open SDKs do not make the platform open source.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/projects',
-            label: 'Gumloop Docs: Organizations and Workspaces',
-            asOf: '2026-07-02',
+            url: 'https://www.gumloop.com/tos',
+            label: 'Terms Of Service | Gumloop',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      environmentPromotion: {
+        value: 'Workflow checkpoints can be made live; organization skills can sync from GitHub',
+        shortValue: 'Live checkpoints; GitHub skill sync',
+        detail:
+          'A separate staged promotion pipeline for the whole platform was not confirmed. Saved edits to the live workflow affect triggers immediately.',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/core-concepts/checkpoint_history.md',
+            label: 'Gumloop: Workflow Checkpoints',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.gumloop.com/core-concepts/checkpoint_history',
-            label: 'Gumloop Docs: Workflow Checkpoints',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/organization_skills.md',
+            label: 'Gumloop: Organization Skills',
+            asOf: '2026-09-04',
           },
         ],
       },
       versionControlDepth: {
-        value:
-          'Linear checkpoint snapshots with rollback; no diff view, no true undo/redo, no branching',
+        value: 'Workflow snapshots and rollback; GitHub-backed organization skills',
+        shortValue: 'Checkpoint rollback and GitHub skill sync',
         detail:
-          'Gumloop replaced a per-version system with a "checkpoints" model. Users manually create checkpoints (snapshots) before major changes, then can either "Make This Checkpoint Live" (switch triggers/interfaces to that checkpoint) or "Rollback to This Checkpoint" (duplicate a past snapshot into the current draft). Docs describe checkpoint metadata (number, date, author) but no diff/compare view between checkpoints, no session-level undo/redo, and a linear history with no branching. Gumloop compares it to Google Docs version history, not git-style branching.',
-        shortValue: 'Checkpoint snapshots; no diff or branching',
+          'Checkpoint documentation describes choosing a live snapshot. It does not establish Git-style workflow branches or visual diffs.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/checkpoint_history',
-            label: 'Gumloop Docs: Workflow Checkpoints',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/checkpoint_history.md',
+            label: 'Gumloop: Workflow Checkpoints',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/organization_skills.md',
+            label: 'Gumloop: Organization Skills',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
-        value:
-          'No: Gumloop calls itself a "multiplayer AI agent builder" and lets Teams share ownership so multiple editors can work on the same flow or agent, but no public documentation confirms live, concurrent multi-user editing with synced cursors, selections, or operations on the same open canvas at the same moment.',
+        value: 'Not confirmed in current public documentation',
+        shortValue: 'Not publicly confirmed',
         detail:
-          '"Multiplayer" refers to shared workspace/team access, not a documented live-cursor/synced-operation editing experience.',
-        shortValue: 'No: shared team access, not confirmed live co-editing',
-        confidence: 'estimated',
+          'Team sharing and editor access are documented; simultaneous cursor-synchronized canvas editing was not confirmed.',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://docs.gumloop.com/core-concepts/teams',
-            label: 'Organization and Teams - Gumloop docs',
-            asOf: '2026-07-02',
+            label: 'Organization and Teams - Gumloop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/',
-            label: 'Gumloop homepage',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/workbooks.md',
+            label: 'Gumloop: Workflows',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeFileStorage: {
-        value:
-          'Yes: Gumloop has a native files area (personal/team Files) where generated artifacts get a dedicated URL. Share access can be set to restricted, organization-wide, or public-link, and enterprise admins can block external sharing. Folder creation is also supported for connected Drive storage.',
-        detail:
-          'Public documentation does not confirm password/SSO-gated share links or a deleted-item recovery (trash/undelete) feature for this native file store.',
-        shortValue: 'Yes: native file storage with link-sharing controls',
-        confidence: 'estimated',
+        value: 'Yes: stored agent artifacts with versions, previews, and access-controlled sharing',
+        shortValue: 'Versioned artifacts with sharing controls',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.gumloop.com/blog/artifacts',
-            label: 'Make shareable files with agents - Gumloop blog',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/personal/files',
-            label: 'Files - Gumloop',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agent_artifacts.md',
+            label: 'Gumloop: Agent Artifacts (Files)',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataTables: {
         value:
-          'No: Gumloop has no native, first-class spreadsheet-like data-grid primitive with its own typed columns, row/column limits, and keyboard navigation (arrow keys, Tab, copy-paste, undo) wired directly into agent runs. Tabular work instead runs through external connector nodes (Google Sheets, Airtable, Postgres, Supabase) and a "List of Lists" data type for passing table-shaped data between nodes, not an in-app database/table object a workflow can read from and write to as storage.',
-        detail:
-          'Gumloop added "table support ... for better data visualization," per its changelog, which is a display/rendering feature for showing tabular data in the UI, not a persistent, spreadsheet-navigable data table entity a workflow can use as its own storage layer. This is a real capability gap versus a native, spreadsheet-like data-grid feature built into the product.',
-        shortValue: 'No: no native data-grid; only external Sheets/Airtable connectors',
+          'Spreadsheet artifacts and tabular data are supported; a native editable database grid was not confirmed',
+        shortValue: 'Spreadsheet artifacts; native database grid unconfirmed',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/types',
-            label: 'Types - Gumloop docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agent_artifacts.md',
+            label: 'Gumloop: Agent Artifacts (Files)',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/changelog',
-            label: 'Gumloop changelog',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/types',
+            label: 'Types - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       richTextEditor: {
-        value:
-          'Unknown: no public documentation describes an inline rich-text/WYSIWYG markdown editor for documents stored in Gumloop; searches surfaced only generic markdown-editor products unrelated to Gumloop.',
+        value: 'Not confirmed in current public documentation',
+        shortValue: 'Not publicly confirmed',
         detail:
-          "Gumloop's platform is workflow/agent-centric with file and artifact nodes; docs, changelog, and blog surface no dedicated document WYSIWYG editor.",
-        shortValue: 'Unknown: no evidence found either way',
+          'Artifact documentation describes previews and syntax-highlighted text; a native document WYSIWYG editor was not confirmed.',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/core-concepts/agent_artifacts.md',
+            label: 'Gumloop: Agent Artifacts (Files)',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       subWorkflows: {
-        value:
-          "Yes: a dedicated 'Subflow' feature lets any saved workflow be dropped in as a reusable node inside another workflow, with Input/Output nodes to pass parameters in and return values out",
-        detail:
-          "Gumloop docs describe Subflows as workflows that 'show up in your node library just like native nodes' once built, so they can be dragged onto the canvas of any other flow, wired to Input nodes for parameters and Output nodes for return values. When a list is connected to a Subflow node it runs once per list item (Loop Mode) rather than a single time. Public docs do not explicitly state whether the parent execution blocks until the subflow completes, but since a Subflow is embedded as a node in the parent's directed graph, not invoked over a separate async webhook call, later nodes depending on its outputs wait for it to resolve.",
-        shortValue: 'Yes: Subflow node calls a saved workflow as a step',
+        value: 'Yes: saved workflows become reusable Subflow nodes with input and output ports',
+        shortValue: 'Reusable Subflow nodes',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/core-concepts/subflows',
-            label: 'Subflows - Gumloop docs',
-            asOf: '2026-07-08',
+            label: 'Subflows - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
-        value:
-          'No: Gumloop has no feature that publishes an existing deployed workflow as an encapsulated, named block for the whole org to reuse. Subflows let a saved workflow be dropped into other flows as a node, but public docs describe this only as personal/same-project reuse, with no mention of hiding the subflow\'s internal steps or credentials, or of org-wide toolbar placement for other users. The one org-wide, block-like publishing surface Gumloop does have, the Custom Node Builder plus its "Node and Flow Library" Hub, is scoped to single AI-generated code nodes (wrapping an API or script), not a way to turn a multi-step visual workflow into a reusable block.',
+        value: 'Reusable Subflows and organization-shared custom code nodes',
+        shortValue: 'Subflows and shared custom nodes',
         detail:
-          "Gumloop's docs on Subflows describe only how to nest a saved workflow as a node with Input/Output nodes for parameters, with no documented mechanism for sharing that subflow node to other users, hiding its internal graph from them, or auto-propagating updates when the source workflow changes. Separately, docs.gumloop.com/core-concepts/node_and_flow_library confirms users can share a Custom Node organization-wide ('Share with Organization: Makes the node discoverable by all organization members'), appearing immediately in teammates' node libraries, but the page's substantive sections (Custom Nodes Tab, Sharing Custom Nodes, Publishing Custom Nodes) only ever cover single code-based nodes generated by the Custom Node Builder from a natural-language description, not multi-step canvas workflows. No Gumloop page describes converting an existing built flow into a shareable, encapsulated block the way a Custom Node is shared.",
-        shortValue: "No: Subflows aren't org-shared; org-shared Custom Nodes are code, not flows",
+          'Custom code nodes appear in teammates’ node libraries. Hiding every internal step and credential of a shared multi-step workflow was not confirmed.',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.gumloop.com/core-concepts/subflows',
-            label: 'Subflows - Gumloop docs',
-            asOf: '2026-07-08',
+            label: 'Subflows - Gumloop',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.gumloop.com/core-concepts/node_and_flow_library',
-            label: 'Node and Workflow Library - Gumloop docs',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.gumloop.com/blog/gumloop-custom-nodes',
-            label: 'Gumloop Blog: Gumloop Custom Nodes',
-            asOf: '2026-07-08',
+            label: 'Node and Workflow Library - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -363,645 +351,644 @@ export const gumloopProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Multiple LLM providers without lock-in: Anthropic (Claude), OpenAI, Google (Gemini), and DeepSeek are named',
-        shortValue: 'Claude, OpenAI, Gemini, DeepSeek',
-        confidence: 'estimated',
+          'Yes: multiple providers and open models, with model selection and custom Enterprise proxies',
+        shortValue: 'Multiple providers and open models',
+        confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com', label: 'Gumloop homepage', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/ai_models.md',
+            label: 'Gumloop: AI Models',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/enterprise-features/ai_model_control',
+            label: 'AI Model Governance & Configuration - Gumloop',
+            asOf: '2026-09-04',
+          },
         ],
       },
       agentReasoningBlocks: {
-        value:
-          "Yes: dedicated 'Ask AI'/Agent nodes and multi-agent orchestration on the canvas, distinct from plain data-routing nodes",
-        detail:
-          "Docs and third-party write-ups describe an 'Ask AI' node for LLM reasoning plus an Agent Node for autonomous/agentic behavior with reflections and tool-use, beyond simple integration/data nodes.",
-        shortValue: 'Dedicated Ask AI and Agent nodes, multi-agent orchestration',
-        confidence: 'estimated',
+        value: 'Yes: autonomous agents choose tools, and an Agent node embeds them in workflows',
+        shortValue: 'Agents with tools and workflow Agent nodes',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/agents',
-            label: 'Gumloop docs: Agents',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/pricing',
-            label: 'Gumloop Pricing (agent reflections feature)',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
         value:
-          "Yes: an AI copilot named 'Gummie' builds/edits flows from natural-language descriptions",
-        shortValue: 'Gummie copilot builds and edits flows from prompts',
-        confidence: 'estimated',
+          'Yes: agents can write their instructions and skills; Gummie assists workflow creation',
+        shortValue: 'Conversational agent and workflow creation',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.gumloop.com/blog/agentic-ai-tools',
-            label: 'Gumloop blog: agentic AI tools',
-            asOf: '2026-07-08',
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.gumloop.com/changelog',
+            label: 'Changelog | Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       knowledgeBaseRag: {
-        value: 'Unknown',
-        detail:
-          "No built-in vector-search or RAG knowledge-base feature is documented in Gumloop's official docs; only a community forum thread references building a custom knowledge base out of Gumloop nodes.",
-        shortValue: 'Not documented as a built-in feature',
-        confidence: 'unknown',
-        sources: [],
-      },
-      mcpSupport: {
         value:
-          'Yes: native MCP client/server support with 250+ pre-built hosted MCP servers plus custom MCP server connections',
+          'Yes: Company Brain indexes connected knowledge and provides hybrid search with citations',
+        shortValue: 'Company Brain hybrid search and citations',
         detail:
-          "Gumloop can connect to any MCP server (custom URL over HTTPS), offers 250+ fully-hosted MCP servers with zero setup, and supports both 'native MCP' (model connects directly) and a 'backend connector' mode (Gumloop executes tool calls).",
-        shortValue: '250+ hosted MCP servers plus custom MCP',
+          'Sources are scoped to personal, team, or organization access. Search combines semantic and keyword retrieval.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.gumloop.com/mcp',
-            label: 'Gumloop: Fully Hosted MCP Servers',
-            asOf: '2026-07-08',
+            url: 'https://docs.gumloop.com/core-concepts/brain.md',
+            label: 'Gumloop: Brain',
+            asOf: '2026-09-04',
           },
           {
+            url: 'https://docs.gumloop.com/api-reference/brain/search.md',
+            label: 'Gumloop: Search Company Brain',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      mcpSupport: {
+        value: 'Yes: managed integrations, custom MCP connections, and a remote Gumloop MCP server',
+        shortValue: 'MCP connections and remote Gumloop server',
+        confidence: 'verified',
+        sources: [
+          {
             url: 'https://docs.gumloop.com/nodes/mcp/custom_mcp_servers',
-            label: 'Gumloop docs: Custom MCP Servers',
-            asOf: '2026-07-08',
+            label: 'Custom MCP Servers - Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/mcp-server/overview.md',
+            label: 'Gumloop: MCP Server',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.gumloop.com/mcp',
+            label: 'MCP Servers for Your AI Agents | Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
-        value:
-          'Yes: agent chat evaluation alerts, test-case/grading tools to catch regressions, per-node test runs, and plain-English guardrail policies with human-in-the-loop approval',
+        value: 'Yes: conversation grading and alerts, plus App Rules that block or tag tool calls',
+        shortValue: 'Conversation evaluations and tool-call rules',
         detail:
-          'Product surfaces let teams define test cases and grade agent responses to catch regressions, test individual nodes with fake inputs from the canvas, set org/team/agent-level guardrail policies in plain English that can block/tag actions and log violations, and require human approval mid-task for sensitive actions.',
-        shortValue: 'Test cases, grading, guardrail policies, HITL approval',
-        confidence: 'estimated',
+          'Evaluations run after completed interactions. This does not establish a separate batch dataset regression runner.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.gumloop.com/changelog',
-            label: 'Gumloop Changelog',
-            asOf: '2026-07-08',
+            url: 'https://docs.gumloop.com/core-concepts/evaluations.md',
+            label: 'Gumloop: Evaluations',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/enterprise-features/app-policies/app-rules.md',
+            label: 'Gumloop: App Rules',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
-        value: 'Yes: dedicated approval-card pause/resume, distinct from a delay step',
-        detail:
-          'Gumloop Agents support a Tool Management setting ("Ask for writes/deletes" or "Ask each time") that pauses the agent mid-task before it calls a sensitive tool. The approver is notified via an in-context "approval card" shown in the agent chat (available in agent chats and Slack). Once the human approves or rejects, the agent resumes exactly where it left off. Agents can also pause to ask a clarifying question with selectable options, not just approve or deny.',
-        shortValue: 'Approval-card pause and resume on sensitive actions',
+        value: 'Yes: tool approvals and structured questions pause agents for human decisions',
+        shortValue: 'Tool approvals and structured questions',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/agents',
-            label: 'Gumloop Docs: Agents',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/changelog',
-            label: 'Gumloop Changelog',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/human_in_the_loop.md',
+            label: 'Gumloop: Human in the Loop',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
-        value:
-          'Generate Image node supporting 6 models (GPT-Image, DALL-E 3, DALL-E 2, Gemini 3.1 Flash, Gemini 3 Pro, Gemini 2.5 Flash), with 1-10 variations per prompt. No dedicated video or audio (TTS/STT) generation node is documented.',
+        value: 'Image generation and server-side voice transcription are documented',
+        shortValue: 'Image generation and voice transcription',
         detail:
-          'Separately, an Enterprise-level admin control lets org admins allow or deny specific AI models platform-wide and set automatic fallback models. This is a general model-governance setting, not specific to image generation.',
-        shortValue: 'Image generation node; no video or audio node',
+          'Video generation and a general native speech-generation feature were not confirmed.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/nodes/using_ai/generate_image',
-            label: 'Gumloop Docs: Generate Image node',
-            asOf: '2026-07-02',
+            label: 'Generate Image - Gumloop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/changelog',
-            label: 'Gumloop Changelog',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.gumloop.com/enterprise-features/ai_model_control',
-            label: 'Gumloop Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
           },
         ],
       },
       dynamicToolUse: {
-        value: 'Unknown',
-        detail: "Not documented in Gumloop's public materials.",
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      modelFallback: {
-        value: 'Unknown',
-        detail:
-          'Not documented outside the model allow/deny and fallback controls described for image generation (see generativeMedia).',
-        shortValue: 'Not documented outside image generation',
-        confidence: 'unknown',
-        sources: [],
-      },
-      agentSkills: {
-        value:
-          'Yes: Gumloop has a dedicated "Skills" system where a skill is a reusable folder of instructions, templates, and scripts that teaches an agent how to do a specific task. The general agent discovers skills dynamically via semantic search, and custom agents can have specific skills explicitly attached.',
-        detail:
-          'Described in Gumloop\'s own docs as "a living knowledge base" distinct from a one-off system prompt; agents can even edit/create skills themselves if that toggle is enabled.',
-        shortValue: 'Yes: reusable named "Skills" library for agents',
+        value: 'Yes: agents select tools and can load tool schemas on demand',
+        shortValue: 'Runtime tool selection and discovery',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/skills',
-            label: 'Agent Skills - Gumloop docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      modelFallback: {
+        value:
+          'Yes: agent retries can switch to another provider, with up to two configured fallbacks',
+        shortValue: 'Retries with cross-provider model fallback',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      agentSkills: {
+        value:
+          'Yes: reusable instruction and script packages, with organization GitHub synchronization',
+        shortValue: 'Reusable skills with GitHub synchronization',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/core-concepts/skills.md',
+            label: 'Gumloop: Agent Skills',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/blog/announcing-skills-for-agents',
-            label: 'Announcing Skills for Agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/organization_skills.md',
+            label: 'Gumloop: Organization Skills',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeChatDeployment: {
-        value:
-          'Yes: Gumloop agents can be deployed via a public or private hosted chat page, in addition to Slack, Microsoft Teams, and an inbox channel. A conversational chat surface is a native, publicly deployable target, not just a form, API, or webhook.',
-        shortValue: 'Yes: hosted public/private chat page for agents',
+        value: 'Yes: agents can publish standalone hosted chat pages',
+        shortValue: 'Hosted public or restricted chat pages',
+        detail:
+          'Hosted pages use gumloopagents.com. Sharing and credential settings determine who can use them.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/agents',
-            label: 'Agents - Gumloop docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/blog/announcing-gumloop-agents',
-            label: 'Announcing Gumloop Agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/hosted_pages.md',
+            label: 'Gumloop: Hosted Pages',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
-        value:
-          'No: Gumloop does not have public documentation of a knowledge-base search feature that exposes chunk-level detail (chunk index/content) in a debugging view. Its closest analog, "Skills," is a semantic-search instruction library the agent pulls into context, not a document-chunk retrieval or debug interface.',
-        detail:
-          'No dedicated "Knowledge Base" / vector-search product page was found on docs.gumloop.com distinct from Skills or file/Drive nodes.',
-        shortValue: 'No: no documented chunk-level KB debugging view',
+        value: 'Brain search exposes ranked snippets and source metadata through its API',
+        shortValue: 'Search snippets and source metadata',
+        detail: 'A dedicated raw chunk-index debugging interface was not confirmed.',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/skills',
-            label: 'Agent Skills - Gumloop docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/api-reference/brain/search.md',
+            label: 'Gumloop: Search Company Brain',
+            asOf: '2026-09-04',
           },
         ],
       },
       parallelExecution: {
-        value:
-          'Partial: Loop Mode runs multiple list items concurrently (up to 15 at once on the Pro plan), but there is no documented dedicated node for splitting a single run into distinct parallel branches that later join, comparable to a fan-out/fan-in construct',
+        value: 'Yes: parallel subagents and concurrent list processing in workflow Loop Mode',
+        shortValue: 'Parallel subagents and list processing',
         detail:
-          'Gumloop docs describe Loop Mode as processing list items simultaneously rather than one at a time, with concurrency limits tied to plan tier (2 concurrent items on Free, 15 on Pro). This is data-parallelism over a list, not branch-level fan-out/fan-in across different paths of logic.',
-        shortValue:
-          'Partial: concurrent list-item processing (Loop Mode), no branch fan-out/fan-in node',
-        confidence: 'estimated',
+          'Loop Mode documents 15 concurrent items on Pro; subagent concurrency depends on subscription.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/loop_mode',
-            label: 'Loop Mode - Gumloop docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/loop_mode.md',
+            label: 'Gumloop: Loop Mode',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
-        value:
-          'No: no public documentation of Agent2Agent (A2A) protocol support was found on Gumloop docs, blog, or changelog',
+        value: 'Not confirmed in current public documentation',
+        shortValue: 'Not publicly confirmed',
         detail:
-          'Gumloop documents MCP client/server support (hosted MCP servers, MCP nodes) but has no mention of the A2A open standard, Agent Cards, or peer-to-peer agent discovery/invocation.',
-        shortValue: 'No: not documented',
-        confidence: 'estimated',
+          'The reviewed integration documentation covers MCP; native Agent2Agent protocol support was not confirmed.',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.gumloop.com/changelog',
-            label: 'Gumloop Changelog',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/blog/introducing-mcp-workflows',
-            label: 'Introducing MCP Nodes & Workflows in Gumloop',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/nodes/mcp/custom_mcp_servers',
+            label: 'Custom MCP Servers - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       loopIteration: {
-        value:
-          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism covered under parallelExecution, which a user manually enables on a node so it runs once per item in a connected list. Per Gumloop's docs this is concurrent (2 items at once on Free, 15 on Pro), not a strictly one-at-a-time sequential container, and no separate while-loop or fixed-iteration-count node is documented, only manually-enabled iteration over an existing list.",
+        value: 'Yes: Loop Mode processes each list item and collects corresponding outputs',
+        shortValue: 'List iteration through Loop Mode',
         detail:
-          "Gumloop docs describe Loop Mode as a mode a user enables on a node ('When you enable Loop Mode on a node...'), which then processes multiple list items simultaneously with concurrency capped by plan tier, distinct from a classic for-each node that guarantees one iteration finishes before the next starts. No dedicated while-loop (condition-based) or fixed-count repeat node is documented; all iteration requires manually enabling Loop Mode with a list as input.",
-        shortValue: 'Partial: manually-enabled Loop Mode is concurrent, not a sequential loop node',
-        confidence: 'estimated',
+          'Items can execute concurrently. A separate while-loop container was not confirmed.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/loop_mode',
-            label: 'Loop Mode - Gumloop docs',
-            asOf: '2026-07-08',
+            url: 'https://docs.gumloop.com/core-concepts/loop_mode.md',
+            label: 'Gumloop: Loop Mode',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     integrations: {
       integrationCount: {
-        value:
-          'Vendor-claimed figures vary by page: 100+ pre-built nodes and integrations (per docs.gumloop.com), 250+ hosted MCP servers (per gumloop.com/mcp)',
+        value: 'Vendor advertises 250+ MCP servers',
+        shortValue: '250+ MCP servers, vendor-reported',
         detail:
-          "No single authoritative exact count is published on a primary Gumloop page. docs.gumloop.com's introduction cites '100+ pre-built nodes and integrations' while gumloop.com/mcp separately cites '250+ MCP servers, zero setup'; the two pages do not cross-reference each other, and the dedicated /integrations directory page returns a 404.",
-        shortValue: '100+ nodes/integrations, 250+ MCP servers (vendor figures vary)',
-        confidence: 'estimated',
+          'This is an MCP-server count, not a count of workflow actions or unique native app integrations.',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/getting-started/introduction',
-            label: 'Getting Started - Gumloop docs',
-            asOf: '2026-07-08',
-          },
-          {
             url: 'https://www.gumloop.com/mcp',
-            label: 'Gumloop: Fully Hosted MCP Servers',
-            asOf: '2026-07-08',
+            label: 'MCP Servers for Your AI Agents | Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
-        value:
-          'Schedule (daily/weekly/custom), webhook, and API-triggered runs are documented; chat-based triggering (e.g. via Slack) is also supported',
-        shortValue: 'Schedule, webhook, API, and chat triggers',
-        confidence: 'estimated',
+        value: 'Scheduled, event-driven, webhook, chat, email, and API entry points',
+        shortValue: 'Schedules, events, webhooks, chat, email, API',
+        confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.gumloop.com/core-concepts/agent_triggers.md',
+            label: 'Gumloop: Agent Triggers',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://docs.gumloop.com/core-concepts/workflow_triggers',
-            label: 'Gumloop docs: Workflow Triggers',
-            asOf: '2026-07-02',
+            label: 'Workflow Triggers - Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/api-reference/getting-started',
+            label: 'Getting Started - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
-        value:
-          "Yes: a 'run code' / custom code node lets advanced users drop in Python when visual nodes aren't sufficient",
-        shortValue: 'Python code node for custom logic',
-        confidence: 'estimated',
-        sources: [{ url: 'https://docs.gumloop.com/', label: 'Gumloop docs', asOf: '2026-07-02' }],
-      },
-      codeSandboxRuntime: {
-        value:
-          'No: the Run Code node executes against a fixed, Gumloop-controlled runtime. Users import from a vendor-curated preinstalled list (Python: pandas, numpy, scipy, xarray, opencv-python, scikit-image, scikit-learn, nltk, spacy, beautifulsoup4, requests, aiohttp, matplotlib, plotly, openpyxl, python-docx, librosa and others published at a Gumloop-hosted requirements.txt; JavaScript: the `ai` SDK plus @ai-sdk/openai, azure, anthropic, amazon-bedrock, google, google-vertex, mistral, cohere and groq). There is no documented way to declare npm/PyPI dependencies, install OS-level system packages, or specify CLI binaries for the runtime.',
-        detail:
-          'Gumloop docs describe importing packages only via a plain `import` (Python) or `require` (JavaScript) statement drawn from the published list, with no pip/npm install step. Custom Nodes run in what the docs call "an isolated virtual environment with a 5-minute runtime limit" but likewise document no dependency declaration. On the Gumloop forum, a staff member responding to a Run Code failure caused by unavailable libraries pointed the user back to the published list and suggested a Custom Node as a workaround rather than any package-installation path. Gumloop also ships no downloadable self-managed install of the core platform (see platform.selfHostOption), and its enterprise VPC deployment is operated by Gumloop, so no customer-supplied runtime image is documented there either.',
-        shortValue: 'No: fixed runtime, vendor-curated preinstalled packages',
+        value: 'Yes: Python or JavaScript workflow nodes and Python/shell agent sandboxes',
+        shortValue: 'Python/JavaScript nodes and agent shell',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/nodes/advanced/run_code',
-            label: 'Run Code - Gumloop docs',
-            asOf: '2026-08-10',
+            label: 'Run Code - Gumloop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.gumloop.com/nodes/custom_node_details',
-            label: 'Custom Node Builder - Gumloop docs',
-            asOf: '2026-08-10',
+            url: 'https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets.md',
+            label: 'Gumloop: Code Sandbox & Secrets',
+            asOf: '2026-09-04',
           },
+        ],
+      },
+      codeSandboxRuntime: {
+        value:
+          'Yes: isolated agent VMs support pip/npm installation and persistent package environments',
+        shortValue: 'Agent VMs with installable packages',
+        detail:
+          'Editors can persist packages across agent chats; viewer installs are session-only. Commands have a 30-minute timeout. Legacy Run Code nodes expose a curated library list.',
+        confidence: 'verified',
+        sources: [
           {
-            url: 'https://forum.gumloop.com/t/run-code-node-fails-with-generic-error-likely-missing-libraries/2133',
-            label: 'Gumloop forum: Run Code node missing libraries',
-            asOf: '2026-08-10',
+            url: 'https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets.md',
+            label: 'Gumloop: Code Sandbox & Secrets',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
-        value:
-          'Yes: flows can be triggered via REST API and a JavaScript SDK; agents embedded in a flow can be called via the same API',
-        detail:
-          'Execution is asynchronous: start a flow run via API/SDK, then poll a run-by-ID endpoint for status and structured outputs.',
-        shortValue: 'REST API and JS SDK, async run-and-poll',
-        confidence: 'estimated',
+        value: 'Yes: APIs manage agents and sessions and start asynchronous workflow runs',
+        shortValue: 'Agent/session APIs and workflow execution',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/api-reference/sdk/javascript',
-            label: 'Gumloop docs: JavaScript SDK',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/api-reference/getting-started',
+            label: 'Getting Started - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Official JS/TypeScript and Python SDKs, plus an in-product AI-assisted Custom Node Builder; no public third-party marketplace yet',
-        detail:
-          'Gumloop publishes official client SDKs for JavaScript/TypeScript (`npm install gumloop`, GumloopClient, github.com/gumloop/gumloop-js) and Python (github.com/gumloop/gumloop-py) for starting automations and retrieving outputs programmatically. Separately, the in-app "Custom Node Builder" lets users describe desired functionality in natural language and have AI generate a deployable custom node that integrates with any API, shareable with teammates (editor access) within a workspace. A public node-selling marketplace and "official Gumloop integrations built as custom nodes" are a stated future direction, not a shipped marketplace today.',
-        shortValue: 'JS/Python SDKs plus AI custom node builder',
+          'Official Python and JavaScript SDKs, a programmable API, and an AI-assisted custom node builder',
+        shortValue: 'Python/JavaScript SDKs, API, custom nodes',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/api-reference/sdk/javascript',
-            label: 'Gumloop Docs: JavaScript SDK',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/api-reference/getting-started',
+            label: 'Getting Started - Gumloop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/gumloop/gumloop-js',
-            label: 'GitHub: Gumloop/gumloop-js',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/api-reference/sdk/javascript',
+            label: 'JavaScript SDK - Gumloop',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.gumloop.com/nodes/custom_node_details',
-            label: 'Gumloop Docs: Custom Node Builder',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/blog/gumloop-custom-nodes',
-            label: 'Gumloop Blog: Gumloop Custom Nodes',
-            asOf: '2026-07-02',
+            label: 'Gumloop: Retrieve API key from environment variable',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
-        value:
-          "No: Gumloop's MCP capability mainly runs in the consuming direction. It connects agents/workflows to 250+ fully hosted MCP servers and lets users add custom MCP servers as tool sources. No official Gumloop documentation describes publishing a user's deployed workflow itself as a callable MCP server for external AI tools to consume.",
-        detail:
-          'A third-party, unofficial open-source project ("gumloop-mcp" on GitHub) wraps the Gumloop management API as an MCP server, but that is not the same as natively publishing a specific deployed workflow as an MCP tool, and it is not an official Gumloop product.',
-        shortValue: "No: consumes MCP servers, doesn't publish flows as one",
-        confidence: 'estimated',
+        value: 'Yes: Gumloop MCP Server can start workflows and agents and retrieve their results',
+        shortValue: 'Workflows and agents callable through MCP',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.gumloop.com/mcp',
-            label: 'Fully Hosted MCP Servers for Your AI Agents - Gumloop',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.gumloop.com/nodes/mcp/custom_mcp_servers',
-            label: 'Custom MCP Servers - Gumloop docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/blog/introducing-mcp-workflows',
-            label: 'Introducing MCP Nodes & Workflows in Gumloop',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/mcp-server/overview.md',
+            label: 'Gumloop: MCP Server',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     pricing: {
       pricingModel: {
-        value:
-          'Usage-based monthly credit system (credits consumed per task/run), with tiered monthly credit allotments from 5k (free) up to 1.5M+ on paid tiers, plus seat-based distinctions between Free/Pro/Enterprise',
-        shortValue: 'Credit-based usage across tiered plans',
+        value: 'Credits for model, tool, and compute usage; agent orchestration adds a base 8% fee',
+        shortValue: 'Usage credits plus agent orchestration fee',
+        detail:
+          'Workflow runs charge node costs without the agent compute or orchestration fee. Enterprise rates may differ.',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/credits.md',
+            label: 'Gumloop: Credits',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.gumloop.com/blog/transparent-pricing',
+            label: 'Gumloop: A simple, transparent pricing model',
+            asOf: '2026-09-04',
+          },
         ],
       },
       entryPaidPlan: {
-        value:
-          'Pro plan at $37/month for 20k+ credits. Includes unlimited seats/teams, 5 concurrent runs, 25 concurrent agent interactions, agent reflections, unified billing, and 1 hosted MCP server instance',
-        detail:
-          "Gumloop's pricing page lists 'MCP Server Hosting (1)' under the Pro plan without clarifying its scope: it is not stated whether this cap limits access to the 100+ pre-built, zero-setup MCP servers described on gumloop.com/mcp, or only applies to a separate custom MCP server that Gumloop hosts on a customer's behalf. That distinction is not resolved anywhere on Gumloop's own pricing or MCP pages.",
-        shortValue: '$37/month Pro plan, 20k+ credits',
+        value: 'Pro starts at $37/month with 20,000 credits and unlimited seats',
+        shortValue: 'Pro from $37/month',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Pricing | Gumloop',
+            asOf: '2026-09-04',
+          },
         ],
       },
       freeTier: {
         value:
-          'Yes: Free plan with 5,000 credits/month, 1 seat, 1 active trigger, 2 concurrent runs, 5 concurrent agent interactions, unlimited agents/flows, forum-only support',
-        shortValue: '5,000 credits/month, 1 seat',
+          'A 14-day Pro trial requiring a card; current signup documentation replaces the former Free plan',
+        shortValue: '14-day Pro trial; card required',
+        detail:
+          'The trial converts to paid Pro unless cancelled. It is a one-time offer per customer.',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/credits.md',
+            label: 'Gumloop: Credits',
+            asOf: '2026-09-04',
+          },
         ],
       },
       byok: {
-        value: 'Yes: Bring Your Own API Keys is supported across all plans',
-        shortValue: 'Supported on all plans',
+        value:
+          'Yes: Pro+ waives model credits with your key, while agent orchestration rises to 16%',
+        shortValue: 'BYOK waives model credits; other charges remain',
+        detail:
+          'You pay the provider directly. Compute and tool charges remain; the agent fee uses the run’s pre-waiver value. Enterprise rates can differ. Workflows have no orchestration fee.',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
           {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/credits.md',
+            label: 'Gumloop: Credits',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     security: {
       dataResidency: {
-        value:
-          'Enterprise VPC deployment into a customer-controlled cloud region provides data residency/control; zero data retention (ZDR) agreements are in place with major LLM providers',
-        shortValue: 'VPC deployment plus zero data retention',
-        confidence: 'estimated',
+        value: 'Enterprise VPC deployment can use your chosen cloud region',
+        shortValue: 'Chosen region through Enterprise VPC',
+        detail:
+          'LLM and connected-service calls still depend on the selected providers and account configuration.',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
+            label: 'Security and trust at Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       rbac: {
-        value:
-          'Yes: role- and attribute-based access control (RBAC/ABAC) for agents/tools with per-tool authorization policies, plus SSO/SCIM on enterprise plans',
-        shortValue: 'RBAC/ABAC plus SSO/SCIM on Enterprise',
-        confidence: 'estimated',
+        value: 'Yes: organization and team roles, plus Enterprise custom roles',
+        shortValue: 'Organization/team roles and custom roles',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/organization_user_roles.md',
+            label: 'Gumloop: User Roles',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/pricing',
-            label: 'Gumloop Pricing (Enterprise features list)',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/enterprise-features/user_groups',
+            label: 'Custom Roles - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
-        value: 'Yes: audit logs available, documented as an enterprise feature',
-        shortValue: 'Enterprise-tier audit logs',
-        confidence: 'estimated',
+        value: 'Yes: Enterprise logs record administrative, workflow, agent, and file activity',
+        shortValue: 'Enterprise audit logs',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/enterprise-features/audit_logging',
-            label: 'Gumloop docs: Audit Logging',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/pricing',
-            label: 'Gumloop Pricing (Enterprise features list)',
-            asOf: '2026-07-02',
+            label: 'Audit Logging - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       compliance: {
         value:
-          'SOC 2 Type II, HIPAA (with BAAs), GDPR-aligned program plus EU-U.S. Data Privacy Framework (incl. UK Extension); no ISO 27001, PCI, or FedRAMP',
+          'Vendor states SOC 2 Type II attestation, HIPAA support with eligible-plan BAAs, and GDPR-aligned practices',
+        shortValue: 'SOC 2 II; HIPAA/BAA; GDPR-aligned',
         detail:
-          'Gumloop is SOC 2 Type II attested, is HIPAA compliant with Business Associate Agreements (BAAs) available on eligible plans, maintains a GDPR-aligned privacy program, and is certified under the EU-U.S. Data Privacy Framework including the UK Extension. It also has zero-data-retention (ZDR) agreements with major LLM providers, BYOK support, encryption in transit and at rest, and DPAs for Enterprise customers, but no ISO 27001, PCI DSS, or FedRAMP.',
-        shortValue: 'SOC 2, HIPAA, GDPR; no ISO/PCI/FedRAMP',
+          'Gumloop also states EU–US Data Privacy Framework certification including the UK Extension. These are vendor claims; the restricted audit report was not inspected.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop: Security and trust',
-            asOf: '2026-07-02',
+            label: 'Security and trust at Gumloop',
+            asOf: '2026-09-04',
           },
-          { url: 'https://trust.gumloop.com/', label: 'Gumloop Trust Center', asOf: '2026-07-02' },
         ],
       },
       modelAndToolGovernance: {
         value:
-          'Yes for models: an org-wide AI Model Control setting lets admins restrict members to an allow-list or block-list of models, set automatic fallback models (including a separate fallback for image generation), and override the default Recommended/Smartest/Fastest presets so all agents use consistent model choices. Tool governance is handled separately via the per-tool authorization policies covered under RBAC/ABAC, not a distinct model-and-tool control surface.',
+          'Yes: Enterprise model restrictions and role policies; App Rules can block or tag tool calls',
+        shortValue: 'Model restrictions and scoped App Rules',
         detail:
-          "Gumloop's docs describe AI Model Control as an Enterprise admin feature applying platform-wide to every member ('Allow Only Selected' or 'Block Selected' modes), not scoped per-team or per-agent. It covers only which LLMs are usable and their fallback/preset routing; it makes no mention of restricting access to non-model tools, which is instead covered by the RBAC/ABAC per-tool authorization policies documented separately.",
-        shortValue: 'Yes: org-wide model allow/deny with fallback; tool governance via RBAC',
+          'Agent-scoped rules are available on Pro with limits; organization-wide rules require Enterprise.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/enterprise-features/ai_model_control',
-            label: 'Gumloop Docs: AI Model Control',
-            asOf: '2026-07-04',
+            label: 'AI Model Governance & Configuration - Gumloop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/enterprise-features/user_groups',
+            label: 'Custom Roles - Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/enterprise-features/app-policies/app-rules.md',
+            label: 'Gumloop: App Rules',
+            asOf: '2026-09-04',
           },
         ],
       },
       credentialGovernance: {
         value:
-          'No: Gumloop\'s Custom User Roles restrict access at the level of apps, tools, OAuth scopes, workflow nodes, and features (e.g. team creation, public sharing), plus usage caps, but not which specific stored credential or connection a role may use. The one related feature, "Agent-Owned Credentials," pins a single connection for everyone using an agent, which operates at the agent level, not the role or permission-group level.',
+          'Personal, team, and organization credentials with account selection and role-governed access',
+        shortValue: 'Scoped credentials and account selection',
         detail:
-          'Multi-role composition uses a union (least-restrictive) model for app access, the opposite of fine-grained per-credential allow/deny.',
-        shortValue: 'No: roles restrict apps/tools, not specific credentials',
-        confidence: 'verified',
+          'Specific credential allowlists per role were not confirmed. Agents may use the runner’s account, a selected account, or a team default.',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.gumloop.com/enterprise-features/user_groups',
-            label: 'Custom User Roles - Gumloop docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/credentials.md',
+            label: 'Gumloop: Connectors',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/blog/gumloop-for-enterprise',
-            label: 'Gumloop for Enterprise',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets.md',
+            label: 'Gumloop: Code Sandbox & Secrets',
+            asOf: '2026-09-04',
           },
         ],
       },
       whiteLabeling: {
         value:
-          "No: Gumloop offers only partial branding controls. A custom Slack app lets an agent appear under the customer's own bot name/avatar, and a dedicated org-specific login page is available at gumloop.com/{your-org}, but the platform's logo, product name, and theme colors are not fully replaceable across the workspace/builder and deployed-app UI.",
-        detail: 'The core canvas/builder UI itself has no comprehensive white-labeling.',
-        shortValue: 'No: partial branding only (Slack bot, login page)',
+          'Custom Slack app branding and organization login pages; full workspace rebranding unconfirmed',
+        shortValue: 'Slack branding and organization login pages',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.gumloop.com/core-concepts/custom_slack_app',
-            label: 'Custom Slack App Integration - Gumloop docs',
-            asOf: '2026-07-02',
+            label: 'Custom Slack App Integration - Gumloop',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
-            label: 'SSO, SAML & SCIM - Gumloop docs (mentions dedicated login page)',
-            asOf: '2026-07-02',
+            label: 'SSO, SAML & SCIM - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataRetention: {
         value:
-          'Yes: Gumloop\'s Enterprise plan includes custom data retention rules and an "Incognito Mode" for ephemeral runs with no history retention for legal/compliance-sensitive flows, alongside audit logs retained per custom policy.',
-        detail:
-          'Exact configurable windows (e.g. specific day counts) are not published publicly; the capability itself is confirmed as an Enterprise-tier feature.',
-        shortValue: 'Yes: custom retention rules plus incognito ephemeral runs',
+          'Enterprise custom retention; Incognito chats use temporary storage deleted after 24 hours',
+        shortValue: 'Custom retention and temporary Incognito chats',
+        detail: 'Incognito is not a promise that every external provider retains no data.',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Security and trust at Gumloop',
-            asOf: '2026-07-02',
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Pricing | Gumloop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/blog/gumloop-for-enterprise',
-            label: 'Gumloop for Enterprise',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
           },
         ],
       },
       piiRedaction: {
-        value:
-          'No: no Gumloop documentation, blog post, or security page describes a feature that detects and redacts or blocks PII (emails, SSNs, etc.) in workflow content or retained logs.',
+        value: 'Not confirmed in current public documentation',
+        shortValue: 'Not publicly confirmed',
         detail:
-          "Gumloop's security page covers encryption, RBAC/ABAC, and audit traceability, but not PII detection or redaction.",
-        shortValue: 'No: no documented PII redaction feature',
-        confidence: 'estimated',
+          'Tool policies and secret handling are documented; general automatic PII redaction of inputs, outputs, and retained logs was not confirmed.',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Security and trust at Gumloop',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/enterprise-features/app-policies/app-rules.md',
+            label: 'Gumloop: App Rules',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets.md',
+            label: 'Gumloop: Code Sandbox & Secrets',
+            asOf: '2026-09-04',
           },
         ],
       },
       sso: {
-        value:
-          'Yes: Gumloop supports enterprise SSO via SAML 2.0 (Okta, Entra ID, Google Workspace, JumpCloud, Ping Identity, Active Directory) plus Google/Microsoft OAuth. An SCIM add-on for Okta and Microsoft Entra ID auto-provisions and deprovisions users, syncs custom roles and teams from IdP groups, and runs on a 15-minute sync cycle.',
-        detail:
-          'Requires Admin role and an Enterprise subscription; enforces SP-initiated login only.',
-        shortValue: 'Yes: SAML SSO plus SCIM auto-provisioning',
+        value: 'Yes: Enterprise SAML SSO and SCIM provisioning',
+        shortValue: 'Enterprise SAML SSO and SCIM',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
-            label: 'SSO, SAML & SCIM - Gumloop docs',
-            asOf: '2026-07-02',
+            label: 'SSO, SAML & SCIM - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       sessionPolicy: {
         value:
-          'Not publicly documented: no admin-configurable session lifetime or idle timeout appears in Gumloop\'s public documentation. The only primary-source statement is a single bullet on the Enterprise SSO page listing "Session Management: Configurable session timeouts and secure token handling." No admin setting name, configuration steps, default session lifetime, idle-timeout value, or absolute-cap value is published anywhere in Gumloop\'s docs, security page, or trust center.',
+          'SSO documentation mentions configurable session timeouts without public configuration details',
+        shortValue: 'Timeout capability mentioned; settings unconfirmed',
         detail:
-          "The bullet sits in a Security & Compliance list introduced as \"Gumloop's SSO implementation follows industry security standards\", alongside SOC 2 Type II certification, SAML 2.0 and TLS 1.3 entries that are compliance assurances rather than admin-configurable settings, so it does not establish a customer-facing control. The same page documents its actual admin controls in detail, including per-direction SCIM mapping-table toggles, name-based mapping mode, and named audit events, but describes no session setting; it gates SAML and SCIM settings to the Admin organization role and an Enterprise subscription, so any such control would be Enterprise-tier. Gumloop's public security page and trust center make no mention of session lifetime, idle timeout, or forced re-authentication. Because SAML SSO is available, organizations can also inherit re-authentication frequency from their upstream IdP, but that is the IdP's policy rather than a Gumloop-enforced one.",
-        shortValue: 'Single SSO-page bullet cites configurable timeouts; no setting documented',
+          'Defaults, idle versus absolute duration, and the administrative configuration procedure were not confirmed.',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
-            label: 'SSO, SAML & SCIM - Gumloop docs',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Security and trust at Gumloop',
-            asOf: '2026-08-10',
+            label: 'SSO, SAML & SCIM - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
-        value:
-          "Yes: Gumloop's 100+ built-in integrations are first-party nodes authored and maintained by Gumloop. Custom Nodes (user-written code steps) are built privately per account or team and shared only with named teammates or an org/link, not published to a public, searchable registry of third-party installable nodes. The separate Community Templates gallery is workflow templates built from Gumloop's own nodes, and submissions go through a Gumloop content-quality review before listing.",
-        detail:
-          "No public marketplace exists where an unaffiliated third-party developer publishes a Custom Node for arbitrary other users to discover and install, unlike an open community-node ecosystem. No documented security incidents involving Gumloop's Custom Nodes or Community Templates appear in public sources.",
-        shortValue: 'Yes: first-party nodes, private custom nodes, reviewed templates',
-        confidence: 'verified',
+        value: 'Managed integrations coexist with customer-defined custom nodes and MCP servers',
+        shortValue: 'Managed and customer-defined integrations',
+        detail: 'A universal vendor security review of every custom integration was not confirmed.',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.gumloop.com/nodes/custom_node_details',
-            label: 'Custom Node Builder - Gumloop docs',
-            asOf: '2026-07-02',
+            label: 'Gumloop: Retrieve API key from environment variable',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/blog/announcing-community-templates',
-            label: 'Announcing Community Templates - Gumloop blog',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/nodes/mcp/custom_mcp_servers',
+            label: 'Custom MCP Servers - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
@@ -1009,211 +996,225 @@ export const gumloopProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Customer-facing per-node execution trace with duration/cost, but no aggregate metrics dashboard (percentiles/error-rate) found',
-        detail:
-          'Gumloop\'s "Run Log" is a customer-facing execution trace view. For every run it shows per-node execution status, inputs/outputs, per-node execution time and credit cost, a subflow detail drill-down, and per-iteration visibility for Loop Mode nodes, plus a workflow summary of total time and total credits, accessible via a `run_id`-scoped URL. No cross-run metrics dashboard (e.g. latency percentiles or aggregate error rates across many runs) is documented. The Run Log is built for debugging one execution at a time, not fleet-wide observability.',
-        shortValue: 'Per-node run trace; no aggregate metrics dashboard',
+          'Per-node inputs, outputs, duration, and credits, plus organization usage dashboards',
+        shortValue: 'Node traces and organization insights',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/core-concepts/run_log',
-            label: 'Gumloop Docs: Run Log',
-            asOf: '2026-07-02',
+            label: 'Run Log - Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/enterprise-features/organization_insights.md',
+            label: 'Gumloop: Organization Insights',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
-        value:
-          'No automatic retries, no execution checkpointing, no run replay with original inputs. Only a manual "Error Shield" node and workflow-level (not run-level) checkpoints',
+        value: 'Workflow Resume, scheduled-trigger retries, and agent model retries with fallbacks',
+        shortValue: 'Resume, trigger retries, and model fallback',
         detail:
-          'Gumloop\'s Run Log documentation makes no mention of automatic node retries, mid-run checkpointing of execution state, or the ability to replay a past execution with its original inputs. Failure handling is opt-in and manual via an "Error Shield" node that wraps other nodes to catch errors and prevent a full workflow crash, something designed into the workflow rather than automatic infrastructure-level retry/replay. Gumloop\'s "checkpoints" feature (see platform.versionControlDepth) snapshots workflow definitions, not individual run state, so it is unrelated to run durability.',
-        shortValue: 'No auto-retry or replay; manual Error Shield node',
-        confidence: 'verified',
+          'General durable replay of all external side effects after infrastructure failure was not confirmed.',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.gumloop.com/core-concepts/run_log',
-            label: 'Gumloop Docs: Run Log',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/workbooks.md',
+            label: 'Gumloop: Workflows',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.gumloop.com/nodes/flow_basics/error_shield',
-            label: 'Gumloop Docs: Error Shield node',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/workflow_triggers',
+            label: 'Workflow Triggers - Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/agents.md',
+            label: 'Gumloop: Agents',
+            asOf: '2026-09-04',
           },
         ],
       },
       failureAlerting: {
-        value:
-          'Yes: proactive email push notification on workflow failure (Pro plan+); credit-usage thresholds are separate/lookup-based',
-        detail:
-          'Gumloop supports configuring email notifications for workflow failures directly from a workbook\'s side panel. This requires a Pro plan or higher and can be scoped to "Alert only on trigger-based failures" so manual test runs don\'t spam alerts. The failure email includes the workflow name, a run link, and error details, a proactive push rather than something you look up after the fact. Credit/cost-threshold notifications are configured separately on the Subscription page and read more like a lookup setting than a proactive per-threshold push alert.',
-        shortValue: 'Proactive email alerts on failure (Pro plan+)',
+        value: 'Yes: Pro+ workflow failure emails and configurable agent evaluation notifications',
+        shortValue: 'Failure emails and evaluation notifications',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/core-concepts/alerts',
-            label: 'Gumloop Docs: Alerts',
-            asOf: '2026-07-02',
+            label: 'Alerts - Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/evaluations.md',
+            label: 'Gumloop: Evaluations',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataDrains: {
-        value:
-          'Yes: Gumloop\'s Enterprise "Data Drains" feature continuously pushes organization data (workflow runs, agents, agent interactions, credit logs, audit logs, and MCP tool calls) to an external destination: an HTTP/OTLP custom endpoint, Amazon S3, or Datadog. It polls every 15 seconds to 10 minutes and tracks sync state to avoid duplicates, in addition to one-time CSV exports.',
-        detail: 'This is a distinct Enterprise capability separate from one-time snapshot exports.',
-        shortValue: 'Yes: continuous Data Drains to S3/Datadog/webhook',
+        value: 'Yes: Enterprise continuous exports to HTTP/OTLP, S3, or Datadog',
+        shortValue: 'Enterprise HTTP/OTLP, S3, Datadog drains',
+        detail:
+          'Drains begin from creation and do not refresh already-delivered in-flight costs. The docs recommend Credit Logs for finalized cost accounting.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/enterprise-features/organization_data_export',
-            label: 'Usage Data Export / Data Drains - Gumloop docs',
-            asOf: '2026-07-02',
+            label: 'Usage Data Export - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
-        value:
-          "Yes: Gumloop's API triggers workflows asynchronously. A POST to the start_pipeline endpoint returns immediately with a run_id, and the caller polls a separate get_pl_run endpoint (passing that run_id) to check status, logs, and retrieve outputs once the run completes.",
-        detail:
-          'Documented pattern: POST https://api.gumloop.com/api/v1/start_pipeline to start, GET https://api.gumloop.com/api/v1/get_pl_run?run_id=... to poll for completion and outputs.',
-        shortValue: 'Yes: async trigger + poll by run_id',
+        value: 'Yes: asynchronous agent sessions and workflow runs with retrievable status',
+        shortValue: 'Asynchronous sessions and workflow runs',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/api-reference/getting-started',
-            label: 'Gumloop API Reference: Getting Started',
-            asOf: '2026-07-02',
+            label: 'Getting Started - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Gumloop publishes concurrency limits by plan on its pricing page: Free allows 2 concurrent runs and 5 concurrent agent interactions, Pro allows 5 concurrent runs and 25 concurrent agent interactions, and Enterprise has custom, unpublished limits. Gumloop does not publicly document a maximum execution duration or per-request timeout for a single workflow run.',
+          'Pro allows 5 concurrent workflows and 25 agent chats; agent shell commands time out after 30 minutes',
+        shortValue: 'Pro: 5 workflows, 25 chats concurrently',
         detail:
-          "Numbers taken directly from the pricing page comparison table. No max single-execution runtime or timeout figure is published in Gumloop's docs, forum, or pricing page.",
-        shortValue: '2-5 concurrent runs by plan; no published timeout',
+          'Enterprise concurrency is customizable. The shell-command timeout is not a maximum duration for an entire workflow.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/pricing',
-            label: 'Gumloop Pricing (concurrent runs / agent interactions by plan)',
-            asOf: '2026-07-02',
+            label: 'Pricing | Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets.md',
+            label: 'Gumloop: Code Sandbox & Secrets',
+            asOf: '2026-09-04',
           },
         ],
       },
       partialFailureHandling: {
-        value:
-          'Yes: Gumloop offers an Error Shield node that wraps another node, catching its failure and routing execution down a separate Error Path while a Success Path carries forward normal results. This means a single failing step does not have to halt the whole run. In Loop Mode this happens automatically per iteration. For single-item flows outside Loop Mode, a Join Paths node is required to reconnect the error branch so the workflow keeps going instead of dead-ending.',
+        value: 'Yes: Error Shield routes failed nodes to an error path',
+        shortValue: 'Error Shield success/error routing',
         detail:
-          "Without Error Shield (or without Join Paths in non-loop cases), a node failure stops the whole workflow, per Gumloop's docs.",
-        shortValue: 'Yes: Error Shield node routes failures to an error path',
+          'It supports per-item loop failures; non-loop paths require appropriate joining to continue.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/nodes/flow_basics/error_shield',
-            label: 'Gumloop Docs: Error Shield node',
-            asOf: '2026-07-02',
+            label: 'Error Shield - Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
-        value:
-          "Yes: scheduled, webhook, and API-triggered runs execute on Gumloop's own cloud infrastructure with no dependency on a client device staying open, awake, or connected",
-        detail:
-          "Gumloop's own asyncExecution pattern confirms this: a POST to the start_pipeline API returns a run_id immediately and the run continues on Gumloop's servers, polled later via get_pl_run. Schedule, webhook, and API triggers documented under integrations.triggerTypes are server-side entry points into the same hosted platform, not a desktop app or local agent; there is no published requirement for a browser tab, desktop client, or local session to stay active for a triggered run to fire or finish.",
-        shortValue: 'Yes: runs execute on Gumloop servers, no client dependency',
-        confidence: 'estimated',
+        value: 'Yes: scheduled and event-triggered agents run on the hosted service',
+        shortValue: 'Hosted scheduled and event execution',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.gumloop.com/api-reference/getting-started',
-            label: 'Gumloop API Reference: Getting Started',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.gumloop.com/core-concepts/workflow_triggers',
-            label: 'Gumloop docs: Workflow Triggers',
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/agent_triggers.md',
+            label: 'Gumloop: Agent Triggers',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     support: {
       supportChannels: {
-        value:
-          'Forum support on Free plan, escalating to dedicated Slack support on higher/Enterprise plans',
-        shortValue: 'Forum on Free, Slack on higher tiers',
-        confidence: 'estimated',
+        value: 'Email support, public forum, University, and Enterprise Slack support',
+        shortValue: 'Email, forum, learning, Enterprise Slack',
+        confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Pricing | Gumloop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://university.gumloop.com/',
+            label: 'Gumloop University - Gumloop University',
+            asOf: '2026-09-04',
+          },
         ],
       },
       sla: {
-        value: 'Unknown',
-        detail: "Gumloop's pricing and trust pages publish no SLA or response-time commitment.",
-        shortValue: 'Not published',
-        confidence: 'unknown',
-        sources: [],
-      },
-      community: {
-        value: 'Unknown',
+        value: 'Not confirmed in current public documentation',
+        shortValue: 'Not publicly confirmed',
         detail:
-          "No public Discord/Slack member count or GitHub star count exists for the core Gumloop product; Gumloop's public GitHub org hosts only SDK/client repos (gumloop-py, gumloop-js, guMCP_template), not the core product.",
-        shortValue: 'Not publicly disclosed',
+          'A public contractual uptime percentage or service-credit schedule was not confirmed in the current pricing and service terms.',
         confidence: 'unknown',
-        sources: [],
-      },
-      companyMaturity: {
-        value:
-          "Founded in Vancouver in April 2023 (originally as 'AgentHub') by Max Brodeur-Urbas and Rahul Behal. Raised a $3.1M seed (July 2024) and a $17M Series A in January 2025 (led by Nexus Venture Partners), both independently corroborated; a self-reported $50M Series B in March 2026 (led by Benchmark) would bring the total to about $70M across 3 rounds. Y Combinator alum with roughly 37 employees as of mid-2026.",
-        detail:
-          "Gumloop started as a side project in a Vancouver bedroom in April 2023, founded by Max Brodeur-Urbas and Rahul Behal under the name AgentHub before rebranding to Gumloop. It raised a $3.1M seed round in July 2024 and a $17M Series A in January 2025 led by Nexus Venture Partners (with First Round Capital, Y Combinator, and angel investors), both independently corroborated by TechCrunch. The $50M Series B in March 2026 led by Benchmark (with Nexus Venture Partners, First Round Capital, Y Combinator, Box Group, The Cannon Project, and Shopify Ventures) is self-reported on Gumloop's own blog only, with no independent press or funding-tracker corroboration found. Total raised is about $70M across 3 rounds. Y Combinator lists a team size of 37.",
-        shortValue: 'Founded 2023, ~$70M raised, Series B in 2026 (self-reported)',
-        confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.gumloop.com/blog/gumloops-17m-series-a',
-            label: 'Gumloop Blog: Series A announcement',
-            asOf: '2026-07-02',
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Pricing | Gumloop',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.gumloop.com/blog/agenthub-to-gumloop',
-            label: 'Gumloop Blog: Why we rebranded to Gumloop',
-            asOf: '2026-07-02',
+            url: 'https://www.gumloop.com/tos',
+            label: 'Terms Of Service | Gumloop',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      community: {
+        value: 'Public user forum and a creator template gallery',
+        shortValue: 'Public forum and creator templates',
+        detail: 'No community-size comparison is asserted.',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.gumloop.com/templates',
+            label: 'Gumloop Community Templates | AI Agent and Workflow Automation Templates',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://techcrunch.com/2025/01/10/gumloop-founded-in-a-bedroom-in-vancouver-lets-users-automate-tasks-with-drag-and-drop-modules/',
-            label: 'TechCrunch: Gumloop founding story & Series A',
-            asOf: '2026-07-02',
+            url: 'https://university.gumloop.com/',
+            label: 'Gumloop University - Gumloop University',
+            asOf: '2026-09-04',
           },
+        ],
+      },
+      companyMaturity: {
+        value: 'Founded in 2023; YC-backed; announced a $50 million Series B in March 2026',
+        shortValue: 'Founded 2023; YC-backed; Series B announced',
+        detail:
+          'Funding is reported by Gumloop. No employee count or implied financial stability guarantee is asserted.',
+        confidence: 'verified',
+        sources: [
           {
             url: 'https://www.ycombinator.com/companies/gumloop',
-            label: 'Y Combinator: Gumloop company page',
-            asOf: '2026-07-02',
+            label:
+              'Gumloop: A no-code platform for creating agents and automating workflows with… | Y Combinator',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.gumloop.com/blog/series-b',
-            label: 'Gumloop Blog: Series B announcement',
-            asOf: '2026-07-02',
+            label: "Announcing Gumloop's $50M Series B",
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
-        value:
-          'Yes: Gumloop runs "Gumloop University," a structured learning resource with self-paced courses (e.g. "Getting Started with Gumloop"), live webinars, and week-long "Learning Cohorts" that award a certificate of completion for finishing practical challenges.',
-        detail:
-          'Certification is tied to completing cohort challenges rather than a formal exam-based program, but it is a structured curriculum beyond ad hoc docs/blog posts.',
-        shortValue: 'Yes: Gumloop University with courses and certificates',
+        value: 'Yes: Gumloop University courses and cohort-based learning',
+        shortValue: 'University courses and learning cohorts',
         confidence: 'verified',
         sources: [
           {
             url: 'https://university.gumloop.com/',
-            label: 'Gumloop University',
-            asOf: '2026-07-08',
+            label: 'Gumloop University - Gumloop University',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.gumloop.com/cohorts',
-            label: 'Gumloop Learning Cohorts',
-            asOf: '2026-07-08',
+            label: 'Learning Cohorts | Gumloop',
+            asOf: '2026-09-04',
           },
         ],
       },

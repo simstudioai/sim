@@ -1,12 +1,12 @@
 import { VellumIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against public primary sources on 2026-09-04; uncertainties are labeled. */
 export const vellumProfile: CompetitorProfile = {
   id: 'vellum',
   name: 'Vellum',
   website: 'https://www.vellum.ai',
-  isWorkflowBuilder: false,
+  isWorkflowBuilder: true,
   brand: {
     icon: VellumIcon,
     selfFramed: true,
@@ -15,1135 +15,1014 @@ export const vellumProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
+    'Vellum’s documented AI development platform combines visual workflows, a Python SDK, evaluations, and deployment management. This comparison covers that platform; its current main website also markets a separate personal assistant.',
   standoutFeatures: [
     {
-      title: 'HIPAA compliance with a signable BAA',
+      title: 'Visual and code workflow development',
       description:
-        'Vellum is HIPAA compliant and enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study. Sim does not currently offer HIPAA compliance (both platforms hold SOC 2 Type 2).',
-      shortDescription: 'HIPAA compliant with a signable BAA; Sim does not offer HIPAA.',
+        'The open-source Workflows SDK supports bidirectional editing between Python code and Vellum’s visual workflow editor.',
+      shortDescription: 'Build workflows in Python or the visual editor.',
       source: {
-        url: 'https://drata.com/customers/vellum',
-        label: 'Vellum Case Study: Drata',
-        asOf: '2026-09-03',
+        url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+        label: 'docs.vellum.ai: Introduction',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Vendor-managed dedicated VPC deployment',
+      title: 'Enterprise self-hosting',
       description:
-        'Enterprise customers can get a Vellum-managed dedicated deployment inside a single-tenant AWS, Azure, or GCP VPC via a Replicated-based install. Sim offers self-hosting (Docker Compose or Kubernetes/Helm) but has no documented managed single-tenant/VPC hosting tier.',
-      shortDescription: 'Vendor-managed single-tenant VPC tier that Sim does not offer.',
+        'Vellum documents running its complete platform in customer infrastructure, including air-gapped environments, with vendor deployment support.',
+      shortDescription: 'Enterprise platform deployment in customer infrastructure.',
       source: {
-        url: 'https://www.vellum.ai/blog/announcing-vellum-vpc',
-        label: 'Announcing Vellum VPC',
-        asOf: '2026-07-08',
+        url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
+        label: 'docs.vellum.ai: Introduction',
+        asOf: '2026-09-04',
+      },
+    },
+    {
+      title: 'Deployment promotion and rollback',
+      description:
+        'Promote prompt and workflow releases across environments and revert to an earlier release from deployment history.',
+      shortDescription: 'Environment promotion and release rollback.',
+      source: {
+        url: 'https://docs.vellum.ai/product/deployments/deployment-lifecycle-management',
+        label: 'docs.vellum.ai: Deployment Lifecycle Management',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'Brand/product ambiguity as of mid-2026',
+      title: 'Confirm the product and commercial terms',
       description:
-        "Vellum's homepage, pricing page, security docs, and several product pages now serve content for a new consumer 'Personal Intelligence' assistant (an open-source, MIT-licensed Mac app) instead of the original enterprise workflow, evaluations, and prompt-engineering platform. That makes enterprise-specific details, like environment promotion, version-control depth, tracing, alerting, and integration counts, harder to verify from the public site alone.",
-      shortDescription:
-        'Public site now foregrounds a consumer product over the enterprise platform.',
-      source: {
-        url: 'https://www.vellum.ai/',
-        label: 'Vellum: Your Personal Intelligence',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Enterprise BYOK policy no longer verifiable',
-      description:
-        "Vellum's pricing page has been replaced by a consumer 'Personal Intelligence' pricing model (subscription plus pay-as-you-go credits); the original enterprise LLM-cost-pass-through pricing this claim describes, including any bring-your-own-API-key policy, is no longer published at this URL.",
-      shortDescription:
-        'Pricing page now shows a different consumer product; enterprise BYOK policy unconfirmed.',
+        'The current pricing page sells Vellum Assistant plans. Those prices do not establish the commercial terms for the workflow and evaluation platform compared here.',
+      shortDescription: 'Assistant pricing does not establish workflow-platform pricing.',
       source: {
         url: 'https://www.vellum.ai/pricing',
-        label: 'Vellum Pricing (now shows the consumer product)',
-        asOf: '2026-07-08',
+        label: 'www.vellum.ai: Pricing',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Enterprise SLA no longer verifiable',
+      title: 'Agent Builder has documented input limits',
       description:
-        "The /enterprise page has been repurposed for Vellum's consumer product and no longer represents its (formerly documented) enterprise LLMOps offering, so SLA absence can no longer be verified against genuine enterprise-tier content at this URL.",
-      shortDescription:
-        'SLA status unverifiable after the /enterprise page pivoted to the consumer product.',
+        'Agent Builder does not perform web search and cannot read document inputs held only inside an existing workflow unless they are passed in again or indexed.',
+      shortDescription: 'Builder cannot search the web or implicitly read existing documents.',
       source: {
-        url: 'https://www.vellum.ai/enterprise',
-        label: 'Vellum Enterprise (now shows the consumer product)',
-        asOf: '2026-07-08',
-      },
-    },
-    {
-      title: 'No native spreadsheet-style data tables',
-      description:
-        'No Vellum documentation describes a native, spreadsheet-like data-table object with persistent rows/columns, keyboard navigation, or per-row writes from workflows; the closest documented tabular handling is uploading CSV/XLS files and extracting or generating structured output within workflow nodes, unlike Sim, which has a built-in Tables feature.',
-      shortDescription: 'No documented table/spreadsheet feature; CSV upload and extraction only.',
-      source: {
-        url: 'https://docs.vellum.ai/developers/workflows-sdk/tutorials/document-data-extraction',
-        label:
-          'Vellum Docs: Document Data Extraction tutorial (the closest documented tabular-data handling)',
-        asOf: '2026-07-02',
+        url: 'https://docs.vellum.ai/product/agent-builder/agent-builder-sme.md',
+        label: 'docs.vellum.ai: Agent Builder Sme',
+        asOf: '2026-09-04',
       },
     },
   ],
   facts: {
     platform: {
       builderType: {
-        value:
-          "Visual workflow builder plus a code-first SDK, and a natural-language 'Vellum for Agents' mode for non-technical users",
-        detail:
-          "Vellum offers a visual graph builder and a code-first SDK that stay in sync, with nodes for model calls, retrieval, tool/API steps, and control flow. A separate 'Vellum for Agents' surface lets non-engineers describe a goal in plain language to generate an agent.",
-        shortValue: 'Visual builder, code SDK, or natural language',
-        confidence: 'estimated',
+        value: 'Visual workflow editor, Python Workflows SDK, and natural-language Agent Builder',
+        shortValue: 'Visual, Python, and natural-language building',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.vellum.ai/blog/introducing-vellum-for-agents',
-            label: 'Introducing Vellum for Agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://skywork.ai/blog/vellum-ai-review-prompt-management-evaluations-orchestration/',
-            label: 'Vellum AI Review: Prompt Management, Evaluations & Orchestration',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/agent-builder/agent-builder-sme.md',
+            label: 'docs.vellum.ai: Agent Builder Sme',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      selfHostOption: {
-        value: 'Yes: self-hosted / VPC install available for enterprise customers',
-        detail:
-          "A 'Self-Hosted Vellum' path and a VPC Install option (via a Replicated-based deployment) let enterprises run the platform in their own AWS/Azure/GCP VPC or on-prem.",
-        shortValue: 'Self-hosted / VPC for enterprise',
+        value:
+          'Visual and conversational entry points; advanced workflows require technical configuration',
+        shortValue: 'Varies with workflow complexity',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
-            label: 'Self-Hosted Vellum: Vellum Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.vellum.ai/blog/announcing-vellum-vpc',
-            label: 'Announcing Vellum VPC',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/agent-builder/agent-builder-sme.md',
+            label: 'docs.vellum.ai: Agent Builder Sme',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'This is an assessment of the documented authoring surfaces, not a measured learning-time comparison.',
       },
-      deploymentOptions: {
-        value:
-          'Vellum Managed (fully managed hosted service), self-hosted, and Vellum VPC install on AWS, Azure, or GCP',
-        shortValue: 'Managed, self-hosted, or VPC install',
-        confidence: 'estimated',
+      selfHostOption: {
+        value: 'Yes: the complete platform can run in customer infrastructure',
+        shortValue: 'Enterprise self-hosting',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
-            label: 'Self-Hosted Vellum: Vellum Docs',
-            asOf: '2026-07-08',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Vellum offers installation, architecture, training, and maintenance assistance; confirm commercial terms with the vendor.',
+      },
+      deploymentOptions: {
+        value: 'Vellum cloud hosting and customer-managed self-hosted/VPC deployments',
+        shortValue: 'Cloud or customer infrastructure',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/developers/client-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.vellum.ai/blog/announcing-vellum-vpc',
-            label: 'Announcing Vellum VPC',
-            asOf: '2026-07-08',
+            url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
-        value: 'A templates page exists on vellum.ai; contents are not publicly detailed.',
-        shortValue: 'Exists; contents undocumented',
-        confidence: 'unknown',
-        sources: [],
+        value: 'Documented workflow examples and common-architecture tutorials',
+        shortValue: 'Examples and architecture tutorials',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/common-architectures',
+            label: 'docs.vellum.ai: Common Architectures',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Examples include RAG, prompt chains, and multi-agent workflows; a current template-gallery inventory was not established.',
       },
       license: {
-        value:
-          "Proprietary/commercial for the core enterprise Vellum platform. A separate consumer 'Vellum Assistant' product is open-sourced under MIT license.",
-        detail:
-          'github.com/vellum-ai/vellum-assistant is MIT-licensed (confirmed live, 825+ stars). No evidence the enterprise workflow/evaluations platform itself is open source.',
-        shortValue: 'Proprietary enterprise platform; MIT consumer app',
+        value: 'Open-source Workflows SDK; platform licensing should be confirmed separately',
+        shortValue: 'Open-source SDK; separate platform terms',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://github.com/vellum-ai/vellum-assistant',
-            label: 'vellum-ai/vellum-assistant: GitHub',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The separate Vellum Assistant repository is MIT-licensed; that does not establish a license for the full workflow platform.',
       },
       environmentPromotion: {
         value:
-          "Vellum has Development/Staging/Production environments, each with isolated API keys, release histories, and environment variables/secrets. A 'Promote' button moves a tested Release to another environment, or you can deploy directly to multiple environments at once. Sandboxes (prompt/workflow definitions) are shared across environments; deployments and releases are environment-scoped.",
-        detail:
-          'Promotion operates at the level of individual workflow/prompt releases rather than whole-workspace forking.',
-        shortValue: 'Dev/Staging/Prod with one-click promotion',
+          'Yes: promote releases between environments with separate keys, releases, and monitoring data',
+        shortValue: 'Environment-specific releases and promotion',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/deployments/environments',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Environments',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Sandbox definitions are shared across environments; deployed releases and configuration are environment-scoped.',
       },
       versionControlDepth: {
-        value:
-          'Vellum maintains per-environment Release history with instant one-click rollback (no code changes required) and semantic-versioned Release Tags or a rolling LATEST tag. Version comparison is mentioned, but a dedicated diff/side-by-side view is not documented.',
-        shortValue: 'Release history with one-click rollback',
+        value: 'Release history, rollback, release tags, and publish-time workflow code comparison',
+        shortValue: 'History, rollback, tags, and code comparison',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://skywork.ai/blog/vellum-ai-review-prompt-management-evaluations-orchestration/',
-            label: 'Vellum AI Review: Prompt Management, Evaluations & Orchestration',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/deployments/deployment-lifecycle-management',
+            label: 'docs.vellum.ai: Deployment Lifecycle Management',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.vellum.ai/product/deployments/deployment-lifecycle-management',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/changelog/2025/2025-11',
+            label: 'docs.vellum.ai: 2025 11',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
-        value:
-          "No: Vellum's collaboration model is asynchronous, not live multi-user editing. Prompt Sandbox lets team members see each other's history, tag entries, and share/invite others, but there is no documented live-cursor or simultaneous editing of the same workflow or prompt.",
-        detail:
-          'Vellum documents shared visibility into sandbox history and sharing/invite mechanisms, framed around sequential iteration rather than simultaneous editing.',
-        shortValue: 'Async collaboration, no live co-editing',
-        confidence: 'estimated',
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/prompts/collaboration',
-            label: 'Collaborate on Prompts with Vellum Prompt Sandbox',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Collaboration',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Prompt collaboration documents shared history and invitations; simultaneous editing with live cursors was not established.',
       },
       nativeFileStorage: {
-        value:
-          "No: Vellum's document handling is scoped to Document Indexes for RAG (upload, indexing, search), not general-purpose file storage. No folder hierarchy, shareable links with password/SSO auth, or trash/recovery feature is documented.",
-        detail:
-          'Documents are environment-scoped, uploaded for indexing with size limits (up to 32MB) and supported formats (PDF, DOCX, CSV, etc.), but folder hierarchy, link-sharing with auth, and deleted-item recovery are not documented.',
-        shortValue: 'RAG document indexes only, not general file storage',
+        value: 'Document Indexes store uploaded documents for retrieval',
+        shortValue: 'Stored RAG documents',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/documents/uploading-documents',
-            label: 'Easy Guide to Uploading Documents on Vellum AI',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Uploading Documents',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The reviewed document feature is indexed storage; general file-sharing links and recovery controls were not established.',
       },
       dataTables: {
-        value:
-          'No: Vellum has no native, spreadsheet-like data-table feature (persistent rows/columns, keyboard navigation, per-row writes from workflows) comparable to a built-in database. Its only tabular-data handling is uploading CSV/XLS files and extracting or generating structured output within workflow nodes.',
-        detail:
-          'Vellum supports CSV/XLS upload and structured JSON extraction, and has blog content on converting PDFs to CSV, but no editable in-platform spreadsheet/data-table object exists; Executions tables are read-only run logs, not a general-purpose data store.',
-        shortValue: 'No native table/spreadsheet feature; CSV upload and extraction only',
-        confidence: 'estimated',
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://docs.vellum.ai/developers/workflows-sdk/tutorials/document-data-extraction',
-            label: 'Document Data Extraction - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.vellum.ai/blog/tutorial-how-to-convert-any-pdf-to-csv',
-            label: 'Tutorial: How to Convert Any PDF to CSV - Vellum',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/documents/uploading-documents',
+            label: 'docs.vellum.ai: Uploading Documents',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'CSV/XLS/XLSX ingestion and structured document extraction are documented, but a general editable database grid was not established.',
       },
       richTextEditor: {
-        value:
-          'Unknown: no documentation describes an inline rich-text/WYSIWYG markdown editor for documents stored within the B2B Vellum workflow platform (docs.vellum.ai). Prompt/node inputs in Workflows appear to be plain text/code fields.',
-        detail:
-          'A rich-text/Markdown document editor is documented for the separate Vellum personal-assistant product (vellum.ai, a 2026 pivot product), but not confirmed for the B2B workflow/agent platform compared here.',
-        shortValue: 'Unknown for the workflow platform',
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
         confidence: 'unknown',
         sources: [],
+        detail:
+          'An inline rich-text document editor for the workflow platform was not established; separate Vellum Assistant features are outside this profile.',
       },
       subWorkflows: {
-        value:
-          'Yes: Vellum has a Subworkflow node that executes a deployed or inline workflow as a step inside a parent workflow, waiting for it to finish and passing/receiving data through defined inputs and outputs.',
-        detail:
-          'Both "Deployed Subworkflows" (calling a separately versioned, released workflow) and "Inline Subworkflows" (defined within the parent workflow for modularization/reuse) are documented; the Agent Node can also register subworkflows as callable tools.',
-        shortValue: 'Dedicated Subworkflow node',
+        value: 'Yes: inline and deployed subworkflows can be called from workflows and agents',
+        shortValue: 'Inline and deployed subworkflows',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/developers/workflows-sdk/api-reference/nodes/subworkflow-deployment-node',
-            label: 'Subworkflow Deployment Node - Vellum Documentation',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Subworkflow Deployment Node',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
-            label: 'Agent Node - Vellum Documentation',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Agent Node',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
-        value:
-          "Partial: Vellum has no documented feature for publishing a workflow as a named, iconed block that appears in a shared toolbar for the whole organization. Its closest mechanism is the Deployed Subworkflow node, a dedicated 'Deployed Subworkflow' option in the Insert Node Panel that lets a builder insert an already-deployed workflow as a single node in their own separate workflow, wiring only its defined inputs/outputs rather than exposing the source workflow's internal nodes. Pointing it at the LATEST release tag means it automatically runs the source workflow's newest deployment with no separate republish step.",
-        detail:
-          "Unlike Sim's Custom Blocks, there is no documented step where a publisher assigns a custom name/icon that then surfaces the workflow as a first-class item in the general node toolbar alongside built-in nodes; consumers instead search for and link a specific deployed workflow through the Subworkflow node type. There is also no documented ability to hand-pick and rename a subset of outputs to expose, and no Enterprise-only gating or block-level allow/deny governance specific to this reuse mechanism beyond Vellum's general workspace-wide RBAC roles.",
-        shortValue:
-          'Partial: Deployed Subworkflow node, not a published named/iconed toolbar block',
-        confidence: 'estimated',
+        value: 'Yes: custom nodes packaged in a Docker image appear in the workflow node panel',
+        shortValue: 'Custom nodes in the workflow palette',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.vellum.ai/developers/workflows-sdk/api-reference/nodes/subworkflow-deployment-node',
-            label: 'Subworkflow Deployment Node - Vellum Documentation',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.vellum.ai/changelog/2025/2025-08',
-            label: 'Vellum Changelog: August 2025 (Insert Node Panel Subworkflow split)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.vellum.ai/product/deployments/release-tags',
-            label: 'Release Tags - Vellum Documentation',
-            asOf: '2026-07-08',
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/custom-container-images',
+            label: 'docs.vellum.ai: Custom Container Images',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'Selecting the custom image exposes its nodes for drag-and-drop use. Deployed subworkflows provide a separate reuse mechanism.',
       },
     },
     aiCapabilities: {
       multiLlmSupport: {
-        value:
-          'Model-agnostic across 20-23+ providers (OpenAI, Anthropic, Google/Gemini, Cohere, Azure OpenAI, Bedrock, Fireworks, Perplexity, Cerebras, Groq, etc.) and hundreds of individual models, including recent additions like GPT-5 and Claude Opus 4.1.',
-        shortValue: '20+ providers, hundreds of models',
+        value: 'Multiple model providers, including OpenAI, Anthropic, and Google',
+        shortValue: 'Multiple model providers',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/changelog/2025/2025-08',
-            label: 'Vellum Changelog',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: 2025 08',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The reviewed changelog documents a provider catalog and per-provider configuration; no current numerical model count is asserted.',
       },
       agentReasoningBlocks: {
-        value:
-          "Vellum's 'Agent Node' (formerly 'Tool Calling Node') is its dedicated agent/reasoning-and-tool-execution block within Workflows, currently documenting raw code, subworkflows, and Composio SaaS actions as tool types in one node; MCP tool support is not documented on the current Agent Node page.",
-        shortValue: 'Agent Node handles reasoning + tool execution; MCP not currently documented',
+        value: 'Agent Node selects and calls configured tools until it returns a response',
+        shortValue: 'Agent Node with iterative tool calling',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
-            label: 'Vellum Docs',
-            asOf: '2026-07-08',
+            label: 'docs.vellum.ai: Agent Node',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
-        value:
-          "Yes: 'Vellum for Agents' lets users describe a goal in plain language to generate a working agent",
-        detail:
-          'Handles model selection, prompt engineering, and integration wiring automatically from a natural-language description; targeted at Ops/Finance/Sales/Marketing users.',
-        shortValue: 'Describe a goal, get a working agent',
-        confidence: 'estimated',
+        value: 'Yes: Agent Builder creates and modifies workflows from instructions',
+        shortValue: 'Natural-language Agent Builder',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.vellum.ai/blog/introducing-vellum-for-agents',
-            label: 'Introducing Vellum for Agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/agent-builder/agent-builder-sme.md',
+            label: 'docs.vellum.ai: Agent Builder Sme',
+            asOf: '2026-09-04',
           },
         ],
       },
       knowledgeBaseRag: {
-        value:
-          "Vellum supports RAG via 'Document Indexes' and a dedicated 'Evaluating RAG Pipelines' documentation area.",
-        shortValue: 'Document Indexes + RAG pipeline evaluation',
+        value: 'Yes: Document Indexes, Search Nodes, and RAG evaluation metrics',
+        shortValue: 'Indexed document retrieval and RAG evaluation',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/evaluation/evaluating-rag-pipelines',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Evaluating Rag Pipelines',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
-        value:
-          "Agent Nodes support adding a remote MCP server as a tool via a '+ Tool' button, with automatic tool discovery (since August 2025).",
-        shortValue: 'Remote MCP servers with auto tool discovery',
+        value: 'Yes: Agent Nodes can connect to remote MCP servers',
+        shortValue: 'Remote MCP tools',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/changelog/2025/2025-08',
-            label: 'Vellum Changelog',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: 2025 08',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
-        value:
-          "Vellum's 'Evaluations' product uses Test Suites and Metrics (0-1 scores) for quantitative evaluation, supports bulk CSV test-case upload, online/production evaluations, custom reusable metrics, and RAG-pipeline evaluation.",
-        shortValue: 'Test suites, scored metrics, production evals',
+        value: 'Test Suites and reusable metrics, plus inline Guardrail Nodes',
+        shortValue: 'Evaluations and inline guardrails',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://skywork.ai/blog/vellum-ai-review-prompt-management-evaluations-orchestration/',
-            label: 'Vellum AI Review: Prompt Management, Evaluations & Orchestration',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/evaluation/quantitative-evaluation',
+            label: 'docs.vellum.ai: Quantitative Evaluation',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.vellum.ai/product/evaluation/quantitative-evaluation',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/workflows/nodes/overview',
+            label: 'docs.vellum.ai: Overview',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
-        value:
-          "An 'External Input' node pauses Workflow execution until a human or external system supplies input, enabling human-in-the-loop approval patterns.",
-        shortValue: 'External Input node for approvals',
+        value: 'Yes: workflows can pause for human or external input',
+        shortValue: 'Pause for external input',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/vellum-ai/vellum-python-sdks/blob/main/src/vellum/workflows/README.md',
-            label: 'GitHub',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
-        value: 'Unknown',
-        detail:
-          'Pricing includes credits for image generation as a billable usage type, but specific image/video/audio blocks or supported providers are not publicly detailed.',
-        shortValue: 'Image-gen credits exist; blocks undocumented',
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
         confidence: 'unknown',
-        sources: [
-          { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
-        ],
+        sources: [],
+        detail:
+          'Dedicated image, audio, and video generation capabilities were not established for the workflow platform; Assistant pricing is not evidence for those features.',
       },
       dynamicToolUse: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value: 'Yes: the model chooses among configured Agent Node tools at runtime',
+        shortValue: 'Runtime selection among configured tools',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
+            label: 'docs.vellum.ai: Agent Node',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Tool selection is dynamic within the configured tool set; arbitrary tool discovery was not established.',
       },
       modelFallback: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value: 'Yes: workflow expressions and error paths can select fallback models',
+        shortValue: 'Configurable fallback workflow paths',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/common-architectures/fallback-models.md',
+            label: 'docs.vellum.ai: Fallback Models',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'The documented pattern requires explicit workflow configuration.',
       },
       agentSkills: {
-        value:
-          "No: Vellum's B2B workflow/agent platform (docs.vellum.ai) has no named, reusable prompt or skill object invoked by reference across multiple agents. Its reuse primitives are Subworkflows (reusable workflow logic blocks) and shared Prompt Sandboxes, not a discrete 'skill' package referenced by name.",
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
+            label: 'docs.vellum.ai: Agent Node',
+            asOf: '2026-09-04',
+          },
+        ],
         detail:
-          "Reuse happens via Subflows/subworkflows and deployed prompts, a different mechanism than a discrete named skill library referenced across agents. Vellum's separate consumer 'Personal Intelligence' assistant product (vellum.ai/docs, a different product from the B2B workflow platform compared here) does have a 'Skills' feature, built on the same open convention as other agent platforms: a directory containing a SKILL.md file (YAML frontmatter plus a markdown instruction body, with optional bundled scripts/reference files), extended with Vellum-namespaced metadata fields like metadata.vellum.display-name.",
-        shortValue:
-          'Only subworkflows on the workflow platform; open SKILL.md format lives in a separate consumer product',
+          'Named SKILL.md packages are documented for Vellum Assistant, but were not established for the workflow platform. Subworkflows and deployed prompts are its documented reuse primitives.',
+      },
+      nativeChatDeployment: {
+        value: 'Chat Message Triggers support an interactive sandbox panel and deployed API calls',
+        shortValue: 'Chat triggers, sandbox chat, and API',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.vellum.ai/product/workflows/common-architectures',
-            label: 'Building Common LLM Architectures with Vellum Workflows',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.vellum.ai/blog/built-in-tool-calling-for-complex-agent-workflows',
-            label: 'Built-In Tool Calling for Complex Agent Workflows',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.vellum.ai/docs/extensibility/skills',
-            label: 'Skills - Vellum Docs (Personal Intelligence consumer product)',
-            asOf: '2026-07-04',
-          },
-        ],
-      },
-      nativeChatDeployment: {
-        value:
-          'Yes: Vellum Agents can be built with a first-class Chat Message Trigger that maintains chat_history/conversation state across turns, and Workflows/Agents can be deployed with this chat pattern rather than only form/API/webhook targets.',
-        detail:
-          "Documented alongside RAG chatbot tutorials and the Agent Node's conversation-state handling; deployment surface details (e.g., a hosted public chat widget URL) were not independently confirmed beyond the trigger/state mechanism.",
-        shortValue: 'Chat Message Trigger for deployed conversational agents',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/workflows/tutorials/building-a-rag-chatbot',
-            label: 'Building a RAG Chatbot from Scratch - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.vellum.ai/changelog/2026/2026-01',
-            label: 'Vellum Changelog: January 2026',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: 2026 01',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'A hosted public chat widget was not established by this documentation.',
       },
       kbChunkVisibility: {
-        value:
-          "Yes: Vellum's Document Index search returns individual chunk-level results, and Advanced Chunking exposes per-chunk metadata (like source page range) alongside configurable chunk size and overlap settings, giving chunk-level visibility for debugging retrieval quality.",
-        detail:
-          'Documented under the Document Indexes / Search API and RAG pipeline evaluation docs; each search result object represents one matching chunk, not a whole document.',
-        shortValue: 'Search returns per-chunk results with metadata',
+        value: 'Yes: Advanced Chunking returns source-page metadata on search chunks',
+        shortValue: 'Chunk metadata in search results',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.vellum.ai/developers/client-sdk/document-indexes/search',
-            label: 'Search - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.vellum.ai/product/evaluation/evaluating-rag-pipelines',
-            label: 'Evaluating RAG Pipelines - Vellum Documentation',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/documents/uploading-documents',
+            label: 'docs.vellum.ai: Uploading Documents',
+            asOf: '2026-09-04',
           },
         ],
       },
       parallelExecution: {
-        value:
-          'Yes: Vellum Workflows has a Map Node that iterates over an array and executes a subworkflow concurrently for each item, and a Merge Strategy (available on all node types, replacing the older standalone Merge Node) that consolidates divergent execution paths back into one result.',
-        detail:
-          'As of the January 2026 release, the standalone Merge Node was replaced by Merge Strategy, a setting on every node type, so branches can fan out via the Map Node and fan back in without a dedicated join node.',
-        shortValue: 'Map Node fans out, Merge Strategy fans back in',
+        value: 'Yes: Map Nodes run subworkflows in parallel for array items',
+        shortValue: 'Parallel Map execution',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.vellum.ai/developers/workflows-sdk/api-reference/nodes/merge-node',
-            label: 'Merge Node - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.vellum.ai/changelog/2026/2026-01',
-            label: 'Vellum Changelog: January 2026',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/workflows/nodes/map-node',
+            label: 'docs.vellum.ai: Map Node',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The page documents up to 96 concurrent Map executions; this is not an account-wide quota.',
       },
       a2aProtocol: {
-        value:
-          'No: Vellum documentation and changelogs show no support for the Agent2Agent (A2A) protocol. Vellum has written about the related Google AP2 payments protocol, but has not documented an A2A implementation or Agent Card support.',
-        detail:
-          'No mentions of "Agent2Agent" or "A2A" appear in Vellum product docs, help center, or changelog. This reflects the absence of public documentation, not a statement from Vellum that it will never support it.',
-        shortValue: 'Not documented',
-        confidence: 'estimated',
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://docs.vellum.ai/',
-            label: 'Vellum Documentation (no A2A/Agent2Agent results)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.vellum.ai/blog/googles-ap2-a-new-protocol-for-ai-agent-payments',
-            label: "Google's AP2: A new protocol for AI agent payments - Vellum Blog",
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Docs.Vellum.Ai',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'A workflow-platform implementation of the Agent2Agent protocol was not established in the reviewed documentation.',
       },
       loopIteration: {
-        value:
-          "No: Vellum's only documented list-iteration mechanism is the Map Node, which executes a subworkflow once per array item concurrently (up to 96 parallel executions) rather than as a dedicated sequential for-each/while container; no separate While/loop node is documented.",
-        detail:
-          'The Map Node is already the mechanism counted under parallelExecution (concurrent fan-out plus Merge Strategy join). Vellum does not document a way to force single-lane sequential iteration or a distinct while/repeat-until construct.',
-        shortValue: 'Only a concurrent Map Node, no sequential loop',
-        confidence: 'estimated',
+        value: 'Yes: Map supports sequential iteration, and workflow graphs support loops',
+        shortValue: 'Sequential Map iteration and graph loops',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/workflows/nodes/map-node',
-            label: 'Map Node - Vellum Documentation',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Map Node',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     integrations: {
       integrationCount: {
-        value:
-          "Via a Composio partnership (August 2025), Vellum connects to Composio's library of 10,000+ tools directly inside Agent Nodes (Google Sheets, Slack, Salesforce, Notion, Jira, Linear, Trello, etc.). Vellum separately advertises 100+ of its own native integrations.",
-        shortValue: '10,000+ tools via Composio, 100+ native',
-        confidence: 'verified',
+        value: 'Native integrations and Composio tools; a current app count is unconfirmed',
+        shortValue: 'Native integrations and Composio tools',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.vellum.ai/blog/introducing-vellum-for-agents',
-            label: 'Introducing Vellum for Agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/changelog/2025/2025-11',
+            label: 'docs.vellum.ai: 2025 11',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.vellum.ai/blog/vellum-composio-new-partnership-for-ai-agent-building',
-            label: 'Vellum Blog',
-            asOf: '2026-07-02',
+            label: 'www.vellum.ai: Vellum Composio New Partnership For Ai Agent Building',
+            asOf: '2026-09-04',
           },
         ],
+        detail:
+          'The 2025 partnership announcement describes Composio’s tool library; tool actions should not be counted as distinct integrated apps.',
       },
       triggerTypes: {
-        value: 'Unknown',
-        detail:
-          "A 'Chat Message Trigger' exists for chat-first agent building; the full set of trigger types (webhook, API, etc.) is not publicly enumerated.",
-        shortValue: 'Chat trigger confirmed; full list undocumented',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/changelog/2026/2026-01',
-            label: 'Vellum Changelog: January 2026',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      customCodeSteps: {
-        value:
-          "Vellum has a documented 'Code Execution Node' supporting custom Python or TypeScript code with a required main() function signature, an in-browser IDE, and support for public PyPI/npm packages. Newer 'Custom Nodes' are expected to eventually replace it.",
-        shortValue: 'Python/TypeScript code node with in-browser IDE',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/workflows/nodes/code-execution-node',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      codeSandboxRuntime: {
-        value:
-          "Yes: Code Execution Nodes run against a user-configurable environment. Public PyPI and npm packages can be declared as dependencies, package dependencies can be defined once at the Workflow level through the Workflow Settings modal (which generates a reusable container image) instead of per node, private Python and AWS CodeArtifact repositories are supported, and a fully custom Docker image can be built and pushed with the 'vellum image push' CLI command to install system-level dependencies and pre-defined application code.",
-        detail:
-          "Vellum's launch post for the feature describes custom container images as giving 'full control over their runtime, so you can install system-level dependencies, rely on private packages, and reference pre-defined application code'; the documentation itself puts it more narrowly, saying the images let you 'use pre-existing logic from the rest of your repository, or some bespoke binaries', and requires that they inherit from the vellumai/python-workflow-runtime base image. Images must be built for linux/amd64 and each instance is capped at 2048MB (2GB) of memory, with higher limits available by contacting support. The docs do not state a plan-tier restriction and do not address self-hosted availability.",
-        shortValue: 'PyPI/npm deps, private repos, and custom Docker images',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/developers/workflows-sdk/custom-container-images',
-            label: 'Custom Docker Images - Vellum Documentation',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.vellum.ai/changelog/2025/2025-07',
-            label:
-              'Vellum Changelog, July 2025 (workflow-level package dependencies, private package repositories)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://www.vellum.ai/blog/introducing-custom-docker-images-custom-nodes',
-            label: 'Introducing Custom Docker Images & Custom Nodes - Vellum Blog',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://www.vellum.ai/blog/running-arbitrary-code-in-workflows-evals',
-            label:
-              'Running Arbitrary Code in Workflows & Evals - Vellum Blog (PyPI and npm support)',
-            asOf: '2026-08-10',
-          },
-        ],
-      },
-      apiPublishing: {
-        value:
-          'Deploying a Workflow from the Vellum UI produces a code snippet to call it in production as an API. Vellum handles execution server-side and callers just supply input variables; each execution is also viewable/shareable via an execution URL.',
-        shortValue: 'One-click deploy to a callable API',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/workflows/api-integration',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      extensibilitySdk: {
-        value:
-          "The Workflows SDK (GitHub: vellum-ai/vellum-python-sdks) is an open-source Python framework for defining and executing agentic workflows as graphs declaratively; docs also describe a 'Custom Nodes' extensibility tutorial.",
-        detail: 'Language support beyond Python is not publicly confirmed.',
-        shortValue: 'Open-source Python Workflows SDK',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.vellum.ai/blog/introducing-vellum-for-agents',
-            label: 'Introducing Vellum for Agents',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      mcpPublishing: {
-        value:
-          "No: Vellum's MCP support runs one direction only. Its Agent Node lets a workflow connect to and call external/remote MCP servers as tools (with auto-discovered schemas), but nothing documents the reverse: publishing a deployed Vellum workflow as a callable MCP server for external AI tools to consume.",
-        detail:
-          "The August 2025 changelog and blog content describe adding MCP servers as tools inside Agent nodes; Vellum's 'How does MCP work' blog post does not address exposing Vellum workflows as MCP endpoints. Some third-party sources conflate this with Vellum's separate personal-assistant product exposing its own MCP server, a different, non-workflow-platform product.",
-        shortValue: 'MCP client only, not MCP server publishing',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/changelog/2025/2025-08',
-            label: 'August 2025 Changelog - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.vellum.ai/blog/how-does-mcp-work',
-            label: 'How does MCP work - Vellum Blog',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-    },
-    pricing: {
-      pricingModel: {
-        value:
-          "Not publicly listed for the B2B enterprise platform: Vellum's current pricing page has been fully replaced by the unrelated consumer 'Personal Intelligence' product's plans. A September 2025 third-party pricing analysis, published before that switch, described the enterprise platform as execution-credit-based with per-tier seat caps (Free, Pro, Enterprise) rather than the prepaid-credit model now shown.",
-        detail:
-          "Current pricing pages (vellum.ai/pricing, vellum.ai/docs/pricing) describe the consumer 'Personal Intelligence' product's plans (Base/Free and Pro $50/mo tiers with configurable vCPU/RAM/storage add-ons), not the enterprise workflow platform. The last third-party description of the enterprise platform's model itself states Vellum 'does not publicly list pricing details on its website,' so the figures below are third-party estimates, not Vellum-published prices.",
-        shortValue: 'Not publicly listed; third-party analysis describes credit-based tiers',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://www.zenml.io/blog/vellum-ai-pricing',
-            label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-07-04',
-          },
-          {
-            url: 'https://www.vellum.ai/pricing',
-            label: 'Vellum Pricing (now shows the consumer product)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      entryPaidPlan: {
-        value:
-          'Unconfirmed: a third-party analysis reports a Pro tier around $500/month for the enterprise platform, but Vellum does not publish this figure itself',
-        detail:
-          "The cited third-party breakdown describes Pro at roughly $500/month with 5,000 prompt executions/day, 250 workflow executions/day, RBAC, and monitoring integrations, still capped at 5 users; Enterprise tiers above that are custom/'Contact us' pricing. None of this is confirmed on Vellum's own site, which currently shows only the unrelated consumer product's $50/mo Pro plan.",
-        shortValue: '~$500/mo reported by a third party, unconfirmed by Vellum',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://www.zenml.io/blog/vellum-ai-pricing',
-            label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-07-04',
-          },
-        ],
-      },
-      freeTier: {
-        value:
-          "Reportedly yes: a third-party analysis describes a Free tier (50 prompt executions/day, 25 workflow executions/day, up to 5 users, no RBAC) for the enterprise platform, but this is not confirmed on Vellum's current site",
-        detail:
-          "Vellum's own pricing page no longer shows this tier; it now presents only the unrelated consumer 'Personal Intelligence' product's free 'Base' plan.",
-        shortValue: 'Reported by a third party, unconfirmed by Vellum',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://www.zenml.io/blog/vellum-ai-pricing',
-            label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-07-04',
-          },
-        ],
-      },
-      byok: {
-        value:
-          "Unconfirmed for the enterprise platform: Vellum's pricing page has been replaced by an unrelated consumer 'Personal Intelligence' product page, so BYOK availability can no longer be verified from vellum.ai/pricing.",
-        detail:
-          "The current pricing page describes Vellum-provided credits for the consumer product, not the enterprise platform's LLM-cost pass-through model; no bring-your-own-API-key policy is described for either product on this page.",
-        shortValue: 'Unverifiable after the pricing page pivoted to the consumer product',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://www.vellum.ai/pricing',
-            label: 'Vellum Pricing (now shows the consumer product)',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-    },
-    security: {
-      dataResidency: {
-        value: 'Unknown: no specific region/residency options documented',
-        detail:
-          "Docs describe data being stored 'in Vellum's infrastructure, isolated in a dedicated, encrypted container' but do not specify selectable residency regions.",
-        shortValue: 'No selectable residency regions documented',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
-            label: 'Vellum Docs: Data Privacy and Storage',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      rbac: {
-        value: 'Yes: workspace-level role-based access control with six predefined roles',
-        detail:
-          "Roles are Admin, Deployment Editor, Document Index Editor, Test Suite Editor, Playground Editor, and Member (read-only). Permissions apply workspace-wide rather than per individual resource, and only Admins can change other users' roles.",
-        shortValue: 'Six workspace-level roles, Admin to read-only Member',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/security/rbac-permissions',
-            label: 'Role-Based Access Control (RBAC) - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      auditLogging: {
-        value: 'Unknown',
-        detail:
-          'Not publicly documented for the enterprise platform; permissions-model docs describe per-action risk badges for the consumer assistant product only.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [
-          {
-            url: 'https://www.vellum.ai/docs/trust-security/the-permissions-model',
-            label: 'Vellum Docs: The Permissions Model',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      compliance: {
-        value:
-          'SOC 2 Type 2 and HIPAA compliant, with a BAA available for enterprise customers; a Drata case study also notes SOC 2 Type 1; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
-        detail:
-          "Vellum's docs state it is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). A third-party Drata case study also notes its SOC 2 Type 1 and Type 2 attestations. No mention of ISO 27001, a GDPR-specific attestation, PCI, or FedRAMP certification was found.",
-        shortValue: 'SOC 2 Type 2, HIPAA + BAA; no other certs confirmed',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
-            label: 'Vellum Docs: Data Privacy and Storage',
-            asOf: '2026-09-03',
-          },
-          {
-            url: 'https://drata.com/customers/vellum',
-            label: 'Vellum Case Study: Drata',
-            asOf: '2026-09-03',
-          },
-        ],
-      },
-      modelAndToolGovernance: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      credentialGovernance: {
-        value:
-          'No: Vellum has workspace-level Role-Based Access Control (Admin/Member roles governing create/update/delete permissions), but nothing documents restricting which specific stored credentials or connections a role or permission group may use.',
-        detail:
-          'RBAC docs describe workspace-wide role permissions (Admin vs Member) rather than credential-level allow/deny lists. A separate Vellum personal-assistant product describes per-credential allowedTools/allowedDomains scoping, but it is a different product from the B2B workflow platform compared here.',
-        shortValue: 'Workspace RBAC only, no per-credential scoping',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/security/rbac-permissions',
-            label: 'Role-Based Access Control (RBAC)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      whiteLabeling: {
-        value:
-          "Unknown: no documentation describes replacing Vellum's own branding (logo, product name, theme) with a customer's branding across the workspace or deployed apps. Only generic 'white glove' Enterprise service language appears, and that refers to onboarding support, not white-label branding.",
-        detail:
-          "Vellum's own branding-guide page addresses Vellum's use of its own brand assets by others, not a customer-facing white-label capability.",
-        shortValue: 'Unknown, no white-label branding docs found',
-        confidence: 'unknown',
-        sources: [],
-      },
-      dataRetention: {
-        value:
-          'Yes: Enterprise customers can configure data retention policies to automatically delete monitoring/interaction data after a specified period (30, 60, 90, or 365 days) instead of the default indefinite retention.',
-        detail:
-          'Configured from Organization Settings under Advanced Settings; default behavior without this Enterprise configuration is indefinite retention.',
-        shortValue: 'Enterprise-configurable 30 to 365 day retention',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
-            label: 'Data Privacy and Storage - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      piiRedaction: {
-        value:
-          'Unknown: nothing confirms or denies a dedicated PII detection/redaction feature distinct from generic Guardrail nodes for output validation.',
-        detail:
-          'Vellum documents a general Guardrail Node for workflow quality checks, but no page specifically describes PII detection/redaction (emails, SSNs, etc.) in workflow content or logs.',
-        shortValue: 'Unknown',
-        confidence: 'unknown',
-        sources: [],
-      },
-      sso: {
-        value:
-          'Unknown: third-party summaries claim Vellum supports SSO/SAML, but no first-party Vellum documentation describes SAML/OIDC setup or auto-provisioning on first login.',
-        detail:
-          "Vellum's security/data-privacy documentation does not mention SSO/SAML, and a search of docs.vellum.ai for SSO/SAML configuration returns no dedicated setup page.",
-        shortValue: 'Claimed by third parties, undocumented directly',
-        confidence: 'unknown',
-        sources: [],
-      },
-      sessionPolicy: {
-        value:
-          'Not publicly documented: no admin-configurable session lifetime cap or idle timeout is documented for Vellum workspaces. The docs index lists four security pages (Data Privacy and Storage, HMAC Authentication, RBAC, Static IPs) and two organization-settings pages (Manage Organization Access, Data Retention Policies), none of which describe session length, inactivity expiry, or forced re-authentication; the only admin-configurable access controls documented are workspace roles and domain-based automatic join.',
-        detail:
-          'The Manage Organization Access page covers only domain-based automatic join and the verified-domain list. The Data Privacy and Storage page references RBAC and HMAC authentication for API access but says nothing about interactive session duration. No first-party SAML/OIDC setup page exists either, so an inherited IdP session policy cannot be confirmed as available.',
-        shortValue: 'No documented session lifetime or idle timeout controls',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/llms.txt',
-            label: 'Vellum Documentation index (no session or SSO/SAML page listed)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.vellum.ai/product/organizations/manage-access.md',
-            label: 'Manage Organization Access - Vellum Documentation',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage.md',
-            label: 'Data Privacy and Storage - Vellum Documentation',
-            asOf: '2026-08-10',
-          },
-        ],
-      },
-      thirdPartyVetting: {
-        value:
-          "Yes: Vellum's tool ecosystem is closed and vendor/partner controlled, not an open marketplace. Its 100+ native integrations are built and maintained by Vellum, its Composio partnership adds access to Composio's curated tool library, and 'Custom Nodes' are authored by the customer's own team for internal reuse rather than published to a shared marketplace for other tenants.",
-        detail:
-          "No documentation describes a public marketplace or community-node/plugin registry where third-party developers publish executable code for other Vellum customers to install, unlike ecosystems such as n8n community nodes. Custom Nodes extend a single customer's own workflows and are not distributed to other organizations. No publicly documented security incidents involving Vellum's integration or tool ecosystem were found.",
-        shortValue: 'Closed first-party/partner catalog, no open plugin marketplace',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.vellum.ai/blog/vellum-composio-new-partnership-for-ai-agent-building',
-            label: 'Vellum + Composio: Build Powerful AI Agents Faster',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.vellum.ai/developers/workflows-sdk/tutorials/custom-nodes',
-            label: 'Custom Nodes - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-    },
-    observability: {
-      tracingDepth: {
-        value:
-          'Vellum automatically captures every Prompt/Workflow execution in production into filterable, sortable Executions tables, including per-step inputs, outputs, latency, and aggregated cost, plus shareable execution URLs for linking from external tools and alerts.',
-        shortValue: 'Full execution tracing with shareable URLs',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://skywork.ai/blog/vellum-ai-review/',
-            label: 'Vellum Review: Reliable AI Workflow Orchestration & Observability',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.vellum.ai/product/deployments/observability',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      durabilityModel: {
-        value:
-          "Vellum supports a 'Retry Node Adornment' — a standalone adornment applied to a node (separate from that node's Settings) that automatically re-invokes the node until it succeeds or reaches a configured max-attempts count.",
-        shortValue: 'Automatic node-level retries',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/workflows/nodes/overview',
-            label: 'Vellum Docs: Nodes Overview (adornments, error handling)',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.vellum.ai/changelog/2025/2025-03',
-            label: 'Vellum Changelog, March 2025 (Try/Retry node adornments)',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
-      failureAlerting: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
-      dataDrains: {
-        value:
-          'Yes: Vellum streams execution/monitoring events (workflow execution initiated/fulfilled/rejected, usage calculation, metric execution events) continuously to external systems via configurable webhooks, including documented support for forwarding to Datadog.',
-        detail:
-          'Configured from Organization Settings; supports API key, Bearer token, and HMAC verification for webhook payloads. No native S3 or BigQuery connector exists, but the generic webhook mechanism supports building such an export.',
-        shortValue: 'Webhooks stream events to Datadog and custom systems',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/monitoring/webhooks',
-            label: 'Webhook Integration - Vellum Documentation',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      asyncExecution: {
-        value:
-          'Yes: Vellum offers an Execute Workflow Async API endpoint that starts a workflow run and returns an execution_id immediately, without blocking. A separate status endpoint lets clients poll for the current state (PENDING, FULFILLED, REJECTED, etc.) and outputs once the run finishes.',
-        detail:
-          'Introduced November 2025. Vellum also documents an Execute Workflow as Stream endpoint for streaming responses, in addition to the synchronous Execute Workflow call that blocks until completion.',
-        shortValue: 'Yes, via async execution_id + status polling',
+        value: 'API calls, scheduled triggers, integration webhook events, and chat messages',
+        shortValue: 'API, schedules, integration events, and chat',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/changelog/2025/2025-11',
-            label: 'Vellum Changelog, November 2025 (async workflow execution)',
-            asOf: '2026-07-08',
+            label: 'docs.vellum.ai: 2025 11',
+            asOf: '2026-09-04',
           },
+          {
+            url: 'https://docs.vellum.ai/changelog/2026/2026-01',
+            label: 'docs.vellum.ai: 2026 01',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      customCodeSteps: {
+        value: 'Yes: Python and TypeScript Code Execution Nodes',
+        shortValue: 'Python and TypeScript nodes',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/code-execution-node',
+            label: 'docs.vellum.ai: Code Execution Node',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      codeSandboxRuntime: {
+        value: 'Custom Docker images support added dependencies and custom nodes',
+        shortValue: 'Custom Docker runtime images',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/custom-container-images',
+            label: 'docs.vellum.ai: Custom Container Images',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Images inherit Vellum’s runtime and target linux/amd64; the documented default memory limit is 2 GB per instance, with higher limits by arrangement.',
+      },
+      apiPublishing: {
+        value: 'Yes: deployed workflows are callable through Vellum’s API',
+        shortValue: 'Deployed workflow API',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/api-integration',
+            label: 'docs.vellum.ai: Api Integration',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      extensibilitySdk: {
+        value: 'Python Workflows SDK plus Python, TypeScript, and Go API clients',
+        shortValue: 'Workflow SDK and three API client languages',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.vellum.ai/developers/client-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      mcpPublishing: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/changelog/2025/2025-08',
+            label: 'docs.vellum.ai: 2025 08',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Remote MCP consumption is documented, but publishing workflow deployments as MCP servers was not established.',
+      },
+    },
+    pricing: {
+      pricingModel: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://www.vellum.ai/pricing',
+            label: 'www.vellum.ai: Pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The current pricing page describes Vellum Assistant. Current workflow-platform pricing, entry price, and free-plan allowances must be confirmed separately.',
+      },
+      entryPaidPlan: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://www.vellum.ai/pricing',
+            label: 'www.vellum.ai: Pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The current pricing page describes Vellum Assistant. Current workflow-platform pricing, entry price, and free-plan allowances must be confirmed separately.',
+      },
+      freeTier: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://www.vellum.ai/pricing',
+            label: 'www.vellum.ai: Pricing',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The current pricing page describes Vellum Assistant. Current workflow-platform pricing, entry price, and free-plan allowances must be confirmed separately.',
+      },
+      byok: {
+        value: 'Yes: provider pages accept the customer’s LLM provider API keys',
+        shortValue: 'Provider API keys supported',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/changelog/2025/2025-08',
+            label: 'docs.vellum.ai: 2025 08',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Platform fees, model charges, and any commercial restrictions need separate confirmation.',
+      },
+    },
+    security: {
+      dataResidency: {
+        value: 'Customer infrastructure/VPC deployment supports location control',
+        shortValue: 'Customer-hosted residency options',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://www.vellum.ai/blog/announcing-vellum-vpc',
+            label: 'www.vellum.ai: Announcing Vellum Vpc',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Model and integration data may leave that infrastructure unless their endpoints are also privately hosted. Managed-service region options were not established.',
+      },
+      rbac: {
+        value: 'Yes: six workspace roles govern editing and administration',
+        shortValue: 'Six workspace roles',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/security/rbac-permissions',
+            label: 'docs.vellum.ai: Rbac Permissions',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Roles include Admin, Deployment Editor, Document Index Editor, Test Suite Editor, Playground Editor, and read-only Member.',
+      },
+      auditLogging: {
+        value: 'Execution history and monitoring webhooks can support execution auditing',
+        shortValue: 'Execution records and audit webhooks',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/monitoring/webhooks',
+            label: 'docs.vellum.ai: Webhooks',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'This does not establish a comprehensive administrative activity audit log.',
+      },
+      compliance: {
+        value: 'Vellum states SOC 2 Type 2 and HIPAA compliance',
+        shortValue: 'Vendor-stated SOC 2 Type 2 and HIPAA',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage.md',
+            label: 'docs.vellum.ai: Data Privacy And Storage',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'The public documentation states these claims; a current audit report, scope, and BAA terms were not inspected. Other certifications are unconfirmed.',
+      },
+      modelAndToolGovernance: {
+        value: 'Admins manage models; workflow authors configure permitted Agent Node tools',
+        shortValue: 'Admin model settings and configured tools',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/security/rbac-permissions',
+            label: 'docs.vellum.ai: Rbac Permissions',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
+            label: 'docs.vellum.ai: Agent Node',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Organization-wide model/tool allowlists beyond these controls were not established.',
+      },
+      credentialGovernance: {
+        value: 'Admin role controls provider-credential and secret management',
+        shortValue: 'Admin-managed credentials and secrets',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/security/rbac-permissions',
+            label: 'docs.vellum.ai: Rbac Permissions',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Per-credential usage permissions were not established in the reviewed role documentation.',
+      },
+      whiteLabeling: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [],
+        detail: 'Customer branding controls for the workflow platform were not established.',
+      },
+      dataRetention: {
+        value: 'Enterprise retention policies support 30, 60, 90, or 365 days',
+        shortValue: 'Enterprise-configurable monitoring retention',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage.md',
+            label: 'docs.vellum.ai: Data Privacy And Storage',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Interaction data is retained indefinitely by default; the configurable policy deletes monitoring data.',
+      },
+      piiRedaction: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage.md',
+            label: 'docs.vellum.ai: Data Privacy And Storage',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'A dedicated PII detection/redaction feature for workflow content or logs was not established.',
+      },
+      sso: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/organizations/manage-access.md',
+            label: 'docs.vellum.ai: Manage Access',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'A first-party SAML/OIDC configuration or provisioning policy for the workflow platform was not established.',
+      },
+      sessionPolicy: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/organizations/manage-access.md',
+            label: 'docs.vellum.ai: Manage Access',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Administrator-configured login lifetime and idle-timeout controls were not established in the access documentation.',
+      },
+      thirdPartyVetting: {
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://www.vellum.ai/blog/vellum-composio-new-partnership-for-ai-agent-building',
+            label: 'www.vellum.ai: Vellum Composio New Partnership For Ai Agent Building',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/custom-container-images',
+            label: 'docs.vellum.ai: Custom Container Images',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Composio integration and customer-authored custom nodes are documented, but a uniform security-review guarantee for all tools was not established.',
+      },
+    },
+    observability: {
+      tracingDepth: {
+        value: 'Execution tables, per-node analysis, cost/latency views, and visual replay',
+        shortValue: 'Execution and node-level observability',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/deployments/observability.md',
+            label: 'docs.vellum.ai: Observability',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      durabilityModel: {
+        value: 'Retry adornments and workflow replay/debugging controls',
+        shortValue: 'Node retries and execution replay',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/nodes/overview',
+            label: 'docs.vellum.ai: Overview',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/deployments/observability.md',
+            label: 'docs.vellum.ai: Observability',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail:
+          'Visual replay of execution history is not a guarantee of checkpoint recovery after infrastructure failure.',
+      },
+      failureAlerting: {
+        value: 'Failure events can be delivered to a custom alerting webhook',
+        shortValue: 'Failure-event webhooks',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/monitoring/webhooks',
+            label: 'docs.vellum.ai: Webhooks',
+            asOf: '2026-09-04',
+          },
+        ],
+        detail: 'The receiving system implements notification routing and threshold logic.',
+      },
+      dataDrains: {
+        value: 'Yes: monitoring webhooks stream execution, usage, and metric events',
+        shortValue: 'Monitoring event webhooks',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/monitoring/webhooks',
+            label: 'docs.vellum.ai: Webhooks',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      asyncExecution: {
+        value: 'Yes: async workflow execution returns an execution ID immediately',
+        shortValue: 'Asynchronous execution API',
+        confidence: 'verified',
+        sources: [
           {
             url: 'https://docs.vellum.ai/developers/client-sdk/workflows/execute-workflow-async',
-            label: 'Vellum Docs: Execute Workflow Async',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.vellum.ai/developers/client-sdk/workflows/execute-workflow-stream',
-            label: 'Vellum Docs: Execute Workflow as Stream',
-            asOf: '2026-07-08',
+            label: 'docs.vellum.ai: Execute Workflow Async',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
         value:
-          'Unknown: Vellum confirms a per-account concurrency limit exists and that async executions automatically queue once it is exceeded, but does not publish the actual numbers. No max concurrent executions, max execution duration, or requests-per-minute rate limit is listed on its public docs or pricing pages.',
+          'Async executions queue when account concurrency is exceeded; quotas require confirmation',
+        shortValue: 'Account quotas require confirmation',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/product/workflows/advanced/long-running-workflows.md',
+            label: 'docs.vellum.ai: Long Running Workflows',
+            asOf: '2026-09-04',
+          },
+        ],
         detail:
-          "The November 2025 changelog states executions 'automatically queue when you exceed your concurrency limit' but gives no figure. The pricing page describes credit-based billing and machine sizes (vCPU/RAM tiers) but no execution timeout or concurrency figures. Third-party blog posts cite older per-day execution caps, but Vellum's current docs do not confirm them, so they are not included as a verified figure.",
-        shortValue: 'Concurrency limit exists, no public numbers',
-        confidence: 'unknown',
-        sources: [],
+          'The docs do not establish a universal numeric execution limit; client timeout examples are not platform ceilings.',
       },
       partialFailureHandling: {
-        value:
-          "Yes: Vellum lets you wrap any workflow node with a Try or Retry adornment for first-class error handling, so a single node's failure does not have to halt the entire run. The Try adornment attempts the node once and continues with an Error output if it fails; the Retry adornment repeatedly re-invokes the node until it succeeds or hits a maximum attempt count.",
-        detail:
-          "Adornments are applied from the node's side panel and appear in monitoring as a single-node subworkflow, so downstream branches can consume the Error output and keep the rest of the run going instead of the whole execution stopping.",
-        shortValue: 'Yes, via Try/Retry node adornments',
+        value: 'Yes: Try adornments expose errors; Retry adornments reattempt nodes',
+        shortValue: 'Try and Retry adornments',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.vellum.ai/changelog/2025/2025-03',
-            label: 'Vellum Changelog, March 2025 (Try/Retry node adornments)',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.vellum.ai/product/workflows/nodes/overview',
-            label: 'Vellum Docs: Nodes Overview (adornments, error handling)',
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Overview',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
-        value:
-          "Yes, by inference: Scheduled Triggers (cron-based) and Integration Triggers (webhook-based, introduced November 2025) fire a deployed Workflow automatically on Vellum's own Cloud, self-hosted, or VPC infrastructure, the same server-side execution path already documented for API and async calls. No Vellum documentation for the B2B workflow/agent platform ties a scheduled or triggered run's reliability to a client device, browser tab, or desktop app staying open.",
-        detail:
-          "Vellum's changelog states a deployed Workflow Deployment containing a Trigger 'executes automatically based on that configuration' but does not spell out the runtime location in those words. This is inferred from the deployment/API execution model (deploymentOptions, apiPublishing, asyncExecution facts) rather than an explicit doc statement. Note Vellum's separate consumer 'Personal Intelligence' assistant product explicitly ties its own schedule reliability to a locally running daemon on self-hosted installs; that client-dependent model is a different product from the B2B workflow platform compared here.",
-        shortValue: 'Runs server-side on deployment infra; no documented client dependency',
-        confidence: 'estimated',
+        value: 'Yes: deployed scheduled and integration triggers execute automatically',
+        shortValue: 'Automatic deployed triggers',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/changelog/2025/2025-11',
-            label: 'Vellum Changelog, November 2025 (Scheduled and Integration Triggers)',
-            asOf: '2026-07-08',
+            label: 'docs.vellum.ai: 2025 11',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'Availability depends on the hosted or self-hosted runtime being available.',
       },
     },
     support: {
       supportChannels: {
-        value:
-          'Email, an in-app chat, a shared Slack channel for active customers, and a Discord community',
-        detail:
-          "Vellum's help center lists email (support@vellum.ai), in-app chat via the dashboard's 'Get Help' button, and a shared Slack channel for active customers; the enterprise page separately links a public Discord community. vellum.ai/pricing has since been repurposed for a different 'personal AI assistant' product, so its 'priority support' mention describes that product's paid add-on, not the workflow platform's support tiers — no priority-support or SLA claim is made here.",
-        shortValue: 'Email, in-app chat, Slack (customers), Discord community',
-        confidence: 'estimated',
+        value: 'Email, in-app chat, documentation, and shared customer Slack channels',
+        shortValue: 'Email, in-app chat, docs, and customer Slack',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/home/getting-started/support',
-            label: "Vellum's Help Center",
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.vellum.ai/enterprise',
-            label: 'Vellum Enterprise',
-            asOf: '2026-07-08',
+            label: 'docs.vellum.ai: Support',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
-        value: 'Unknown: no SLA commitments or figures found on current public pages',
-        detail:
-          "The enterprise and pricing pages now serve the consumer 'Personal Intelligence' product and contain no SLA language (uptime, response time, or otherwise). An earlier version of this page may have referenced named SLA features, but the live site does not confirm that, so it is not included as a verified claim.",
-        shortValue: 'No SLA content found on current site',
+        value: 'Not confirmed in the reviewed public documentation',
+        shortValue: 'Not confirmed in public documentation',
         confidence: 'unknown',
         sources: [],
+        detail:
+          'A current contractual uptime or support-response commitment for the workflow platform was not established.',
       },
       community: {
-        value: 'Discord community exists',
-        shortValue: 'Discord community',
-        confidence: 'estimated',
+        value: 'Public SDK repository and workflow development resources',
+        shortValue: 'Public SDK and developer resources',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.vellum.ai/enterprise',
-            label: 'Vellum Enterprise',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction.md',
+            label: 'docs.vellum.ai: Introduction',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
-        value:
-          'Founded 2023 (Y Combinator W23) by Noa Flaherty, Sidd Seethepalli, and Akash Sharma. Raised a $5M seed (July 2023) and a $20M Series A (July 2025, led by Leaders Fund). Based in New York City, with 150+ reported customers as of the Series A announcement.',
-        shortValue: 'YC W23, $25M raised across 2 rounds, NYC-based',
-        confidence: 'estimated',
+        value: 'Founded in 2023; Y Combinator Winter 2023; announced a $20M Series A in July 2025',
+        shortValue: 'Founded 2023; $20M Series A in 2025',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.ycombinator.com/companies/vellum',
-            label: 'Vellum: Y Combinator',
-            asOf: '2026-07-08',
+            label: 'www.ycombinator.com: Vellum',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.vellum.ai/blog/announcing-our-20m-series-a',
-            label: 'Announcing our $20m Series A: Vellum',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://voicebot.ai/2023/07/13/generative-ai-prompt-engineering-startup-vellum-ai-raises-5m/',
-            label: 'Generative AI Prompt Engineering Startup Vellum.ai Raises $5M: Voicebot.ai',
-            asOf: '2026-07-08',
+            label: 'www.vellum.ai: Announcing Our 20M Series A',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
-        value:
-          'No: Vellum has no documented Academy-style learning resource with courses or certification. It offers standard documentation (docs.vellum.ai), a blog, and webinars, but no dedicated course or certification program.',
-        detail:
-          "Searches for 'Vellum academy', 'certification', 'courses' turned up only docs, blog posts, and webinars; no evidence of a structured curriculum.",
-        shortValue: 'No structured academy or certification',
+        value: 'Documentation, webinars, and recorded practical workflow sessions',
+        shortValue: 'Docs and practical webinars',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.vellum.ai/home/getting-started/support',
-            label: "Vellum's Help Center",
-            asOf: '2026-07-02',
+            label: 'docs.vellum.ai: Support',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://www.vellum.ai/webinars',
-            label: 'Vellum Webinars',
-            asOf: '2026-07-02',
+            label: 'www.vellum.ai: Webinars',
+            asOf: '2026-09-04',
           },
         ],
+        detail: 'A formal certification curriculum was not established.',
       },
     },
   },

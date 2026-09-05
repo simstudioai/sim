@@ -1,7 +1,7 @@
 import { LangChainIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/** Reviewed against live primary sources on 2026-09-04; unresolved claims remain marked unknown. */
 export const langchainProfile: CompetitorProfile = {
   id: 'langchain',
   name: 'LangChain',
@@ -15,116 +15,107 @@ export const langchainProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'LangChain is an open-source Python/JavaScript framework for building LLM applications. LangGraph is its low-level, code-first agent-orchestration library for stateful, long-running agents, and LangSmith is the commercial observability, evaluation, and deployment platform for both.',
+    'LangChain and LangGraph are open-source libraries for building agents in code. The separate LangSmith platform provides observability, evaluation, deployment, and Fleet, a no-code agent builder.',
   standoutFeatures: [
     {
-      title: 'Durable execution via checkpointed graph state',
+      title: 'Checkpointed graph execution',
       description:
-        "LangGraph's checkpointer snapshots the full graph state after every node completes. If a process crashes or an agent run is interrupted (timeout, human approval, service restart), execution resumes from the last checkpoint instead of restarting from scratch, and past checkpoints can be replayed for time-travel debugging.",
-      shortDescription:
-        'Snapshots graph state after every node so runs resume, not restart, on failure.',
+        'LangGraph saves graph state at super-step boundaries. With persistent storage, agents can resume after interruptions, replay past execution, and fork alternative paths.',
+      shortDescription: 'Persistent checkpoints support recovery, replay, and branching.',
       source: {
-        url: 'https://docs.langchain.com/oss/python/langgraph/use-time-travel',
-        label: 'Time travel - Docs by LangChain',
-        asOf: '2026-07-08',
+        url: 'https://docs.langchain.com/oss/python/langgraph/checkpointers',
+        label: 'Checkpointers',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Dynamic parallel fan-out via the Send API',
+      title: 'Dynamic parallel orchestration',
       description:
-        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. Because the merge step is arbitrary code, a developer can implement any custom aggregation logic, not just a fixed join behavior.',
-      shortDescription:
-        'Send API spawns a runtime-determined number of parallel branches that merge via a reducer.',
+        'LangGraph supports concurrent branches and Send-based map-reduce. Developers control routing and the reducers that combine branch results.',
+      shortDescription: 'Parallel branches with programmable routing and aggregation.',
       source: {
         url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
-        label: 'Use the graph API - Docs by LangChain',
-        asOf: '2026-07-02',
+        label: 'Use the graph API',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'LangSmith evaluation stack: datasets, LLM-as-judge, annotation queues, Align Evals',
+      title: 'Integrated agent evaluation',
       description:
-        'LangSmith supports building test datasets from production traces, scoring runs with configurable LLM-as-judge evaluators or heuristic/pairwise comparisons, routing outputs to human annotation queues for review, and an Align Evals feature that calibrates an LLM-judge against accumulated human corrections over time.',
-      shortDescription:
-        'Datasets, LLM-as-judge, human annotation queues, and judge-calibration in one eval stack.',
+        'LangSmith evaluates agent outputs against datasets and production traces, with automated scoring and human review workflows.',
+      shortDescription: 'Dataset evaluations, production scoring, and human review.',
       source: {
-        url: 'https://www.langchain.com/langsmith/evaluation',
-        label: 'LangSmith Evaluations',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/langsmith/evaluation',
+        label: 'LangSmith Evaluation',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Native A2A protocol support as both server and client',
+      title: 'No-code agents with Fleet',
       description:
-        "A locally run LangGraph dev server exposes A2A protocol endpoints at /a2a/{assistant_id}, and the LangSmith Deployment A2A endpoint maps the protocol's contextId to a LangGraph thread_id for tracing continuity, so any LangChain/LangGraph agent can expose itself as an A2A server and call other A2A-compliant agents built on different frameworks.",
-      shortDescription:
-        'Agents expose themselves as A2A servers and call other A2A agents across frameworks.',
+        'LangSmith Fleet creates agents from descriptions or templates and connects them to tools, chat, and event channels. It is a separate platform surface from the open-source frameworks.',
+      shortDescription: 'Build agents through descriptions and connected tools.',
       source: {
-        url: 'https://docs.langchain.com/langsmith/server-a2a',
-        label: 'A2A endpoint in Agent Server - Docs by LangChain',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/langsmith/fleet',
+        label: 'No-code agents with LangSmith Fleet',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'LangGraph Studio: browser-based execution visualization with hot-reload',
+      title: 'Interactive debugging in Studio',
       description:
-        "Studio is a browser-based UI (hosted at smith.langchain.com/studio) that connects to a locally running agent and shows each execution step, prompt, and tool call, and hot-reloads when a prompt or tool signature changes in code. LangGraph's time-travel capability (inspecting, editing, and forking from a prior checkpoint) is a separate, SDK-level feature exposed via code (get_state_history / update_state), not a point-and-click Studio UI.",
-      shortDescription:
-        'Browser-based execution viewer with hot-reload; checkpoint rewind/fork is a separate SDK capability.',
+        'LangSmith Studio connects to a running agent to inspect prompts, tool calls, results, and intermediate state. Its local development server supports hot reload and rerunning conversation steps.',
+      shortDescription: 'Inspect execution and rerun steps while iterating locally.',
       source: {
         url: 'https://docs.langchain.com/oss/python/langgraph/studio',
-        label: 'LangGraph Studio - Docs by LangChain',
-        asOf: '2026-07-08',
+        label: 'LangSmith Studio',
+        asOf: '2026-09-04',
       },
     },
   ],
   limitations: [
     {
-      title: 'Code-first framework, not a visual builder for non-developers',
+      title: 'Graph-level customization requires code',
       description:
-        'Building an agent means writing Python or JavaScript against the LangChain/LangGraph APIs. LangGraph Studio visualizes and debugs an already-coded graph, but it does not let a non-developer assemble agent logic from scratch by dragging and connecting blocks the way a visual workflow builder does.',
-      shortDescription:
-        'Building agents means writing code; Studio only visualizes and debugs graphs already written.',
+        'The LangGraph Graph API expresses state, nodes, edges, and control flow in code. Teams choosing this authoring path need programming expertise.',
+      shortDescription: 'LangGraph orchestration requires programming.',
       source: {
         url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
-        label: 'Use the graph API - Docs by LangChain',
-        asOf: '2026-07-02',
+        label: 'Use the graph API',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'No one-click chat deployment tied to a specific agent',
+      title: 'Managed services introduce additional usage charges',
       description:
-        'Neither LangChain, LangGraph, nor LangSmith Deployment lets a builder toggle a hosted chat surface on for one specific agent the way a platform-managed deployment target would. LangChain does host a shared, generic "Agent Chat UI" instance at agentchat.vercel.app that any team can point at their own LangGraph Agent Server URL and API key, or a team can deploy the open-source Next.js app themselves (or use a separate framework like Chainlit/Streamlit).',
-      shortDescription:
-        'No per-agent hosted chat toggle; a shared generic Agent Chat UI instance exists, or self-deploy.',
+        'LangSmith services have their own usage charges alongside paid seats. A free open-source library does not include unlimited hosted operations.',
+      shortDescription: 'Account for seats and managed-service usage.',
       source: {
-        url: 'https://github.com/langchain-ai/agent-chat-ui',
-        label: 'langchain-ai/agent-chat-ui (GitHub)',
-        asOf: '2026-07-08',
+        url: 'https://www.langchain.com/pricing',
+        label: 'LangSmith plans and pricing',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'No dedicated native image/video/audio generation capability',
+      title: 'Advanced platform governance requires Enterprise',
       description:
-        'LangChain and LangGraph provide standardized model integrations, so an agent can call a multimodal provider (DALL-E, an image model via a provider integration) as a tool, but there is no first-party, dedicated generative-media node or block comparable to a purpose-built image/video-generation feature.',
-      shortDescription:
-        'Multimodal generation happens only through provider integrations, not a dedicated first-party block.',
+        'Custom RBAC and resource policies are LangSmith Enterprise features. Evaluate the required platform tier separately from the open-source libraries.',
+      shortDescription: 'Enterprise is required for advanced platform access controls.',
       source: {
-        url: 'https://docs.langchain.com/oss/python/langchain/models',
-        label: 'Models - Docs by LangChain',
-        asOf: '2026-07-04',
+        url: 'https://docs.langchain.com/langsmith/enterprise',
+        label: 'LangSmith for Enterprise',
+        asOf: '2026-09-04',
       },
     },
     {
-      title: 'Full white-labeling and org-level credential governance are not documented',
+      title: 'Cloud deployment type is fixed after creation',
       description:
-        'No LangSmith or LangGraph Platform documentation describes rebranding the platform UI with customer branding, or restricting a specific role/permission group to a specific stored credential/connection distinct from workspace-level RBAC and API-key scoping.',
-      shortDescription:
-        'No documented white-labeling, and credential access is scoped by workspace RBAC, not per-credential.',
+        'LangSmith distinguishes serverless and dedicated deployments. The deployment size can change, but the type cannot be changed after creation.',
+      shortDescription: 'Choose serverless or dedicated before creating a deployment.',
       source: {
-        url: 'https://docs.langchain.com/langsmith/user-management',
-        label: 'User management - Docs by LangChain',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/langsmith/cloud-platform-features',
+        label: 'Cloud platform features',
+        asOf: '2026-09-04',
       },
     },
   ],
@@ -132,1054 +123,1112 @@ export const langchainProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          'Code-first Python/JavaScript framework (LangChain) plus a low-level graph-orchestration library (LangGraph) for building agents in code. LangGraph Studio adds a browser-based visual IDE to render, inspect, and debug an already-coded agent graph, and Deep Agents provides a batteries-included harness on top of both.',
+          'Python/JavaScript agent frameworks, with a separate no-code agent builder in LangSmith Fleet.',
         detail:
-          'There is no drag-and-drop agent authoring surface; developers write Python or TypeScript against LangChain/LangGraph APIs, and Studio visualizes execution steps for debugging (time-travel checkpoint rewind/fork is a separate SDK-level feature) rather than authoring the graph visually from scratch.',
-        shortValue:
-          'Code framework plus a graph-visualization/debugging Studio, not a visual builder',
+          'LangGraph defines orchestration in code; LangSmith Studio helps inspect and test execution. Fleet creates agents from descriptions or templates.',
+        shortValue: 'Code frameworks plus no-code Fleet',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/oss/python/langgraph/studio',
-            label: 'LangGraph Studio - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'LangSmith Studio',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://github.com/langchain-ai/deepagents',
-            label: 'langchain-ai/deepagents (GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/fleet',
+            label: 'No-code agents with LangSmith Fleet',
+            asOf: '2026-09-04',
           },
         ],
       },
       learningCurve: {
         value:
-          'Steep for non-developers; moderate to steep for developers new to graph-based state machines and LLM orchestration concepts',
+          'The open-source frameworks require programming; Fleet offers an entry point through natural language.',
         detail:
-          'The framework assumes Python or JavaScript proficiency and introduces its own concepts (Runnables, graphs, checkpointers, reducers, Send/Command primitives) that take real ramp-up time even for experienced engineers. LangChain Academy exists specifically to address this learning curve.',
-        shortValue: 'Requires coding proficiency; own vocabulary (graphs, checkpointers, reducers)',
+          'This is an editorial assessment of the documented authoring approaches, not a measured learning-time benchmark.',
+        shortValue: 'Coding for frameworks; natural-language entry through Fleet',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://academy.langchain.com/',
-            label: 'LangChain Academy',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
+            label: 'Use the graph API',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet',
+            label: 'No-code agents with LangSmith Fleet',
+            asOf: '2026-09-04',
           },
         ],
       },
       selfHostOption: {
         value:
-          'Yes: the LangChain/LangGraph open-source libraries run entirely self-hosted by default (no vendor service required). LangGraph Platform (the deployment/runtime layer) can also be fully self-hosted, so no agent data leaves the customer VPC.',
+          'Yes: run the open-source libraries yourself; licensed LangSmith components also support self-hosting.',
         detail:
-          'A basic LangGraph server can additionally be self-hosted for free on the Developer plan with up to 100k nodes executed per month. Full self-hosting of the platform layer is typically an Enterprise offering.',
-        shortValue: 'Yes, both the OSS libraries and LangGraph Platform can be fully self-hosted',
+          'Standalone Agent Server requires a LangSmith license and backing services. Self-hosted Fleet is documented as beta. External model and tool calls depend on your configuration.',
+        shortValue: 'OSS self-hosting; licensed platform options',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
-            label: 'Self-host standalone servers - Docs by LangChain',
-            asOf: '2026-07-02',
+            label: 'Self-host standalone servers',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet',
+            label: 'No-code agents with LangSmith Fleet',
+            asOf: '2026-09-04',
           },
         ],
       },
       deploymentOptions: {
         value:
-          'Any environment that runs Python/Node for the open-source libraries themselves. LangGraph Platform (renamed LangSmith Deployment) additionally offers a managed cloud service, a standalone self-hosted container (Docker/Kubernetes/VM with a Redis + Postgres backend), and a hybrid model.',
+          'Open-source libraries run in your application; LangSmith supports cloud, hybrid, and self-hosted deployments.',
         detail:
-          'Standalone container deployment requires a REDIS_URI (background task queue) and a DATABASE_URI (Postgres, for assistants/threads/runs/state). langgraph deploy (introduced March 2026) is the current production deployment path, superseding the older langgraph up Docker Compose flow.',
-        shortValue: 'OSS libraries anywhere, plus managed cloud, self-hosted container, or hybrid',
+          'Standalone Agent Server can run in containers with PostgreSQL and Redis. The hosting model determines which infrastructure your team operates.',
+        shortValue: 'Application code, cloud, hybrid, or self-hosted',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
-            label: 'Self-host standalone servers - Docs by LangChain',
-            asOf: '2026-07-04',
+            label: 'Self-host standalone servers',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/enterprise',
+            label: 'LangSmith for Enterprise',
+            asOf: '2026-09-04',
           },
         ],
       },
       templates: {
         value:
-          'Yes: a small, official set of LangGraph templates (RAG Chatbot, ReAct Agent, Data Enrichment Agent, plus a blank starter) available in Python and JavaScript, downloadable via LangGraph Studio or as standalone GitHub repos. A much larger, informal ecosystem of community-published starter repos exists alongside them.',
+          'Yes: Fleet has curated agent templates with instructions, tools, and optional event channels.',
         detail:
-          'The official template count is small and curated (four templates at launch) compared to marketplace-style template galleries seen on visual workflow builders. Most reuse in practice comes from cloning community GitHub repos rather than an in-product template library.',
-        shortValue:
-          'A handful of official templates (RAG, ReAct, Data Enrichment), plus community repos',
+          'Templates can be cloned and customized. The available collection changes over time.',
+        shortValue: 'Curated, customizable Fleet agent templates',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://blog.langchain.com/launching-langgraph-templates/',
-            label: 'Launching LangGraph Templates (LangChain Blog)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/fleet/templates',
+            label: 'Templates',
+            asOf: '2026-09-04',
           },
         ],
       },
       license: {
         value:
-          'MIT License (LangChain and LangGraph open-source libraries); LangSmith and LangGraph Platform are proprietary commercial SaaS/self-hosted products',
+          'MIT for the LangChain and LangGraph libraries; LangSmith is a separate commercial platform.',
         detail:
-          "Both the langchain-ai/langchain and langchain-ai/langgraph GitHub repos are MIT-licensed. LangSmith (observability/evaluation) and LangGraph Platform's managed/enterprise deployment tooling are commercial products layered on top of the free libraries, not covered by the MIT license.",
-        shortValue: 'MIT for the OSS libraries; LangSmith/Platform are commercial',
+          'The repositories publish MIT licenses. That license does not grant rights to the separately licensed LangSmith deployment services.',
+        shortValue: 'MIT libraries; commercial LangSmith',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/langchain-ai/langchain',
-            label: 'langchain-ai/langchain (GitHub)',
-            asOf: '2026-07-02',
+            label: 'LangChain repository and MIT license',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://github.com/langchain-ai/langgraph',
-            label: 'langchain-ai/langgraph (GitHub)',
-            asOf: '2026-07-02',
+            label: 'LangGraph repository and MIT license',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
+            label: 'Self-host standalone servers',
+            asOf: '2026-09-04',
           },
         ],
       },
       environmentPromotion: {
         value:
-          'Partial: LangGraph Platform assistants are versioned (every edit creates a new version, with instant rollback to a prior version). But this is deployment/version management within one deployed service, not a Git-backed promotion of a whole project between separate dev/test/prod environments.',
+          'Yes through code and CI/CD: LangSmith documents preview deployments and quality-gated production releases.',
         detail:
-          'A LangGraph Platform deployment automatically creates a default assistant per graph. The platform tracks assistant versions and lets an operator roll back, comparable to a single-service release history rather than a multi-environment promotion pipeline.',
-        shortValue:
-          'Assistant versioning with rollback, not whole-project multi-environment promotion',
-        confidence: 'estimated',
+          'The documented GitHub Actions example creates preview environments for pull requests and production revisions after merge. Teams configure this pipeline.',
+        shortValue: 'Preview-to-production CI/CD through code',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/assistants',
-            label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/cicd-pipeline-example',
+            label: 'Implement a CI/CD pipeline using LangSmith Deployment and Evaluation',
+            asOf: '2026-09-04',
           },
         ],
       },
       versionControlDepth: {
         value:
-          'Standard Git-based source control for agent code (since agents are code), plus LangGraph Platform assistant-level versioning with instant rollback. No in-product visual diff/compare UI exists beyond what Git tooling itself provides.',
+          'Git for agent source code, plus versioned assistant configurations in LangSmith Deployment.',
         detail:
-          "Because the agent logic lives in a codebase, teams get full Git history, branching, and diffing for free through their own repository, distinct from a workflow builder's in-app version history panel. LangGraph Platform layers assistant versioning on top for the deployed configuration.",
-        shortValue: 'Git for code; assistant versioning/rollback for deployed configs',
-        confidence: 'estimated',
+          'Assistant configuration changes create versions that can be selected later. GitHub-based CI/CD manages source revisions.',
+        shortValue: 'Git history and assistant configuration versions',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/assistants',
-            label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            label: 'Assistants',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/cicd-pipeline-example',
+            label: 'Implement a CI/CD pipeline using LangSmith Deployment and Evaluation',
+            asOf: '2026-09-04',
           },
         ],
       },
       realtimeCollaboration: {
         value:
-          "No: there is no live, concurrent multi-user editing surface. Agents are authored as code in each developer's own editor/IDE and merged via standard Git workflows, not edited simultaneously inside a shared canvas.",
+          'Simultaneous live editing with shared cursors is not confirmed in the reviewed documentation.',
         detail:
-          'LangGraph Studio is a debugging/visualization tool for a single running graph, not a multiplayer authoring surface with visible cursors or synced edits.',
-        shortValue: 'No, collaboration happens through Git, not live co-editing',
-        confidence: 'estimated',
+          'Fleet documents sharing and edit permissions. Those capabilities alone do not establish concurrent editing behavior.',
+        shortValue: 'Live co-editing not confirmed',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.langchain.com/blog/langgraph-studio-the-first-agent-ide',
-            label: 'LangGraph Studio: The first agent IDE',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/fleet/access-and-oversight',
+            label: 'Access & oversight',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeFileStorage: {
         value:
-          "No: neither LangChain, LangGraph, nor LangSmith provides a Drive-like file storage system with folder hierarchy, link sharing, or a recycle bin. Deep Agents offers a virtual filesystem abstraction (in-memory, local disk, LangGraph store, or custom backends) for an agent's own working context, but persistent storage still relies on external integrations (S3, GCS, local filesystem) a developer wires up themselves",
+          'Partial: Fleet computers provide persistent agent files; a shared drive with link permissions and deleted-file recovery is not confirmed.',
         detail:
-          "Deep Agents provides a virtual/in-memory filesystem abstraction for an agent's own working context (planning, scratch files), which is a per-run working memory concept, not a persistent, user-facing file manager.",
-        shortValue: 'No, file handling is via document-loader code, not a built-in file manager',
+          'Shared computers can retain files across conversations. This is agent execution storage; the full file-management feature set remains unverified.',
+        shortValue: 'Persistent agent files; shared-drive features unconfirmed',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langchain.com/oss/python/deepagents/overview',
-            label: 'Deep Agents overview - Docs by LangChain',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/langsmith/fleet/computer-use',
+            label: 'Computer use',
+            asOf: '2026-09-04',
           },
         ],
       },
       dataTables: {
-        value:
-          'No: there is no native, in-product spreadsheet-like data table feature. Structured data storage is left entirely to whatever external database or vector store a developer integrates (Postgres, a vector store, etc.) via code',
+        value: 'A native spreadsheet-style data table is not confirmed.',
         detail:
-          "LangGraph's own persistence layer (checkpointer/store) is a state and memory backend for agent execution, not a user-facing spreadsheet grid for arbitrary structured data.",
-        shortValue:
-          'No, no built-in spreadsheet-like table; state store is for agent memory, not data',
-        confidence: 'estimated',
-        sources: [],
-      },
-      richTextEditor: {
-        value:
-          'No: there is no inline WYSIWYG rich-text/document editor in any LangChain, LangGraph, or LangSmith product surface. Content is authored as code, markdown files (e.g. SKILL.md), or plain-text prompts',
-        detail:
-          "SKILL.md files used by Deep Agents' SkillsMiddleware are edited as raw Markdown in a code editor, not through an in-product WYSIWYG surface.",
-        shortValue: 'No, content is authored as code or raw Markdown, not WYSIWYG',
-        confidence: 'estimated',
+          'The reviewed Fleet documentation describes agent tools and connected services, but does not establish the requested built-in table editor.',
+        shortValue: 'Native data tables not confirmed',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://reference.langchain.com/python/deepagents/middleware/skills',
-            label: 'skills | deepagents | LangChain Reference',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/fleet/tools',
+            label: 'Tool integrations',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      richTextEditor: {
+        value: 'A document-focused WYSIWYG editor is not confirmed.',
+        detail:
+          'Fleet supports agent instructions and skills; those do not by themselves establish an inline document editor.',
+        shortValue: 'Document editor not confirmed',
+        confidence: 'unknown',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet/skills',
+            label: 'Skills',
+            asOf: '2026-09-04',
           },
         ],
       },
       subWorkflows: {
-        value:
-          "Yes: LangGraph's subgraph feature lets a compiled graph be added directly as a node in a parent graph via add_node. The parent waits for the subgraph to finish before continuing, and when state keys overlap, the subgraph reads from and writes to the parent's state channels automatically. When schemas differ, a wrapper node function maps parent state to subgraph input and back.",
+        value: 'Yes: LangGraph composes graphs by using a subgraph as a node in a parent graph.',
         detail:
-          'This is a code-level composition primitive (one compiled graph nested inside another), not a drag-and-drop "call another workflow" block in a visual builder, but it satisfies the same synchronous parent-waits-for-child, data-in/data-out contract.',
-        shortValue: 'Yes, LangGraph subgraphs: compiled graph nested as a node, parent waits',
+          'Shared state keys can pass data directly; differing schemas require a wrapper that maps inputs and outputs.',
+        shortValue: 'Reusable subgraphs in parent graphs',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/oss/python/langgraph/use-subgraphs',
-            label: 'Subgraphs - Docs by LangChain',
-            asOf: '2026-07-02',
+            label: 'Subgraphs',
+            asOf: '2026-09-04',
           },
         ],
       },
       customBlocks: {
-        value:
-          "No: LangChain/LangGraph has no drag-and-drop block toolbar at all, so there is no way to publish a deployed graph as a named, iconed block that other org members drop into their own separate graphs with auto-derived inputs and curated, renamed outputs. The closest adjacent capability is code-level: the RemoteGraph SDK class lets a developer add another team's deployed graph as a node in their own graph by writing code that points at its deployment URL and graph/assistant name.",
+        value: 'Partial: RemoteGraph can reuse a deployed graph in another graph through code.',
         detail:
-          "RemoteGraph exposes the same programmatic interface as a locally compiled graph ('as if it were a local graph'), but the consuming developer must hand-write any state-schema-mapping wrapper code themselves, and there is no UI for picking/renaming which outputs to expose or for auto-deriving input fields from the source graph the way a visual builder does. LangChain's own docs describe RemoteGraph purely as an SDK for calling a deployment programmatically, not as a block placed in a shared, org-wide palette alongside built-in nodes.",
-        shortValue: 'No block toolbar exists; closest is code-level RemoteGraph SDK calls',
+          'A shared visual block palette with automatically derived input/output fields is not confirmed.',
+        shortValue: 'Remote graph reuse; visual block publishing unconfirmed',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/use-remote-graph',
-            label: 'How to interact with a deployment using RemoteGraph - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'How to interact with a deployment using RemoteGraph',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     aiCapabilities: {
       multiLlmSupport: {
-        value:
-          'Yes: LangChain provides a standardized model interface and advertises 1,000+ documented integrations across providers, embeddings, and vector stores, including OpenAI, Anthropic, Google, AWS, Groq, Hugging Face, Databricks, Mistral, and local models via Ollama',
+        value: 'Yes: LangChain has a common model interface with provider integrations.',
         detail:
-          "This is the framework's foundational design goal: swap providers by changing the model class instantiation, with the rest of a chain/graph remaining unchanged.",
-        shortValue: '1,000+ integrations via a standardized model interface',
+          'Developers configure supported providers and their credentials; model capabilities still vary by provider.',
+        shortValue: 'Common interface for multiple model providers',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/langchain',
-            label: 'LangChain: Open Source AI Agent Framework',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/oss/python/langchain/models',
+            label: 'Models',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentReasoningBlocks: {
         value:
-          'Yes: LangGraph is purpose-built low-level orchestration for stateful, reasoning-driven agents, distinct from a plain deterministic chain. It supports single-agent ReAct loops, multi-agent systems, and hierarchical/supervisor architectures within one graph-based framework.',
+          'Yes: LangChain offers tool-using agents, and LangGraph provides explicit orchestration graphs.',
         detail:
-          'Graphs model explicit decision points, conditional edges, and tool-calling loops as first-class constructs, giving low-level control over exactly how an agent reasons and branches, rather than a black-box agent abstraction.',
-        shortValue:
-          'LangGraph provides low-level graph primitives for single- and multi-agent reasoning',
+          'Agent tool loops and conditional graph routing allow reasoning-driven behavior alongside deterministic steps.',
+        shortValue: 'Tool-using agents with graph orchestration',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/langgraph',
-            label: 'LangGraph: Agent Orchestration Framework for Reliable AI Agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langchain/agents',
+            label: 'Agents',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
+            label: 'Use the graph API',
+            asOf: '2026-09-04',
           },
         ],
       },
       naturalLanguageBuilding: {
-        value:
-          'No: there is no feature that converts a plain-text description into a working, editable agent graph. Agents are built by writing code against the LangChain/LangGraph APIs',
+        value: 'Yes: LangSmith Fleet builds agents from natural-language descriptions.',
         detail:
-          'LangGraph Studio hot-reloads and visualizes changes made in code, but does not itself generate agent logic from a natural-language prompt.',
-        shortValue: 'No natural-language-to-agent generation feature found',
-        confidence: 'estimated',
-        sources: [],
+          'Fleet configures an agent and pauses for input during creation. This is a LangSmith capability, separate from authoring the open-source libraries in code.',
+        shortValue: 'Describe an agent in Fleet',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet',
+            label: 'No-code agents with LangSmith Fleet',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       knowledgeBaseRag: {
         value:
-          'Yes: LangChain ships a full RAG toolkit (document loaders, text splitters, embeddings interfaces, and a standardized VectorStore interface) with integrations for Pinecone, Qdrant, Chroma, PGVector, Weaviate, and many others, usable as a retriever or wrapped as a callable tool for a LangGraph agent',
+          'Yes: document loading, splitting, embeddings, vector stores, and retrievers support RAG.',
         detail:
-          'The official RAG Chatbot LangGraph template packages this pattern (retrieval step against a search index, then a generation step) as a ready-made starting point.',
-        shortValue:
-          'Full RAG toolkit: loaders, splitters, and a standardized vector-store interface',
+          'Teams assemble retrieval pipelines in code and can expose retrieval as an agent tool.',
+        shortValue: 'Document ingestion and retrieval toolkit',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/oss/python/langchain/retrieval',
-            label: 'Retrieval - Docs by LangChain',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.langchain.com/oss/python/integrations/vectorstores',
-            label: 'VectorStore Interface and Integrations - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'Retrieval',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpSupport: {
-        value:
-          'Yes: the official langchain-mcp-adapters library converts external MCP server tools into LangChain/LangGraph-compatible tools over stdio or streamable HTTP transport, letting an agent call tools across multiple MCP servers. LangGraph agents can themselves be exposed for MCP consumption.',
+        value: 'Yes: LangChain consumes MCP tools through its MCP adapters.',
         detail:
-          'Interceptors give access to LangGraph runtime context during MCP tool execution, adding middleware-like control (modify requests, retries, dynamic headers) around MCP tool calls.',
-        shortValue: 'Official langchain-mcp-adapters library, stdio and streamable HTTP',
+          'The documentation covers stdio and streamable HTTP connections, including multiple servers.',
+        shortValue: 'MCP client via official adapters',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langchain-ai/langchain-mcp-adapters',
-            label: 'langchain-ai/langchain-mcp-adapters (GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langchain/mcp',
+            label: 'Model Context Protocol (MCP)',
+            asOf: '2026-09-04',
           },
         ],
       },
       evaluationGuardrails: {
         value:
-          'Yes: LangSmith provides a dedicated evaluation stack, datasets built from sampled production traces, LLM-as-judge evaluators scored against defined criteria, heuristic checks, pairwise comparisons, human annotation queues, and an Align Evals feature that calibrates judges against accumulated human corrections over time',
+          'Yes: LangSmith supports dataset-based evaluation and evaluation of production traces.',
         detail:
-          "This is LangSmith (the commercial platform), not the free open-source libraries; the evaluation stack is one of LangSmith's core paid product surfaces alongside tracing.",
-        shortValue: 'LangSmith: datasets, LLM-as-judge, human annotation queues, judge calibration',
+          'Evaluators score application outputs; annotation queues add human review. Open-source agent middleware also provides runtime controls.',
+        shortValue: 'Offline/online evaluations and human review',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/langsmith/evaluation',
-            label: 'LangSmith Evaluations',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/evaluation',
+            label: 'LangSmith Evaluation',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/langchain/middleware/built-in',
+            label: 'Prebuilt middleware',
+            asOf: '2026-09-04',
           },
         ],
       },
       humanInTheLoop: {
         value:
-          "Yes: a dedicated interrupt() function pauses a running graph at an exact line and returns a payload to the caller; Command(resume=...) resumes execution with the human's response (approve, edit, reject, or respond), all backed by the checkpointer so the pause survives a process restart",
+          'Yes: checkpoint-backed interrupts pause agents for approval, editing, or rejection.',
         detail:
-          'The same thread_id must be used for the initial invocation and the resume call, since that is how the checkpointer identifies which frozen state to restore.',
-        shortValue:
-          'interrupt()/Command(resume=...) primitives with checkpoint-backed pause/resume',
+          'A persistent checkpointer is needed for pauses that must survive process restarts. Fleet adds a review inbox.',
+        shortValue: 'Checkpoint-backed approval and resume',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/oss/python/langchain/human-in-the-loop',
-            label: 'Human-in-the-loop - Docs by LangChain',
-            asOf: '2026-07-02',
+            label: 'Human-in-the-loop',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet/access-and-oversight',
+            label: 'Access & oversight',
+            asOf: '2026-09-04',
           },
         ],
       },
       generativeMedia: {
-        value:
-          "Partial: no dedicated, first-party image/video/audio-generation node exists. Generative media is reached only by calling a provider's multimodal model (e.g. an image-generation model) through LangChain's standard model-integration interface, the same as any other model call",
+        value: 'Yes through provider integrations, including OpenAI image-generation tool calls.',
         detail:
-          'There is no purpose-built "generate an image" or "generate a video" abstraction distinct from a generic chat-model or tool call to a multimodal provider.',
-        shortValue:
-          'Only via generic provider-model integrations, no dedicated media-gen abstraction',
-        confidence: 'estimated',
-        sources: [],
-      },
-      dynamicToolUse: {
-        value:
-          "No: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of developer-selected tools to a model at build time, and the model only chooses among that bound pool at each step, rather than browsing or picking from a broader catalog (e.g. an entire MCP server's full tool list) at inference time",
-        detail:
-          "This is the same closed-list function-calling mechanism as Sim's Agent block: the tool pool, including any MCP-provided tools, is bound ahead of time by the developer, not browsed at runtime.",
-        shortValue: 'No, agent picks only among tools bound in at build time',
+          'Supported models can return multimodal content. Availability and output formats depend on the selected provider.',
+        shortValue: 'Provider-backed image and multimodal generation',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.langchain.com/oss/python/integrations/chat/openai',
+            label: 'ChatOpenAI integration',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://docs.langchain.com/oss/python/langchain/models',
-            label: 'Models - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'Models',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      dynamicToolUse: {
+        value:
+          'Yes: tools can be loaded or filtered at runtime, and middleware can select relevant tools before a model call.',
+        detail:
+          'LangChain documents dynamic tool selection; its LLM tool selector reduces a larger configured tool set to relevant tools.',
+        shortValue: 'Runtime tool selection and loading',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/oss/python/langchain/tools',
+            label: 'Tools',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/langchain/middleware/built-in',
+            label: 'Prebuilt middleware',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelFallback: {
         value:
-          "Yes: LangChain's with_fallbacks() method (RunnableWithFallbacks) lets a developer chain a primary model with one or more fallback models or providers, tried in order until one succeeds, at either a single model call or a whole-chain level",
+          'Yes: model fallback middleware retries with alternative models when the primary fails.',
         detail:
-          "Documentation notes that a wrapper's own internal retry logic should typically be disabled when using fallbacks, otherwise the primary model keeps retrying instead of failing over to the fallback.",
-        shortValue: 'Yes, with_fallbacks() chains ordered fallback models/providers',
+          'The separate LangSmith LLM Gateway also supports ordered cross-provider fallback chains and is currently beta.',
+        shortValue: 'Fallback middleware; beta gateway fallback chains',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://reference.langchain.com/python/langchain-core/runnables/fallbacks/RunnableWithFallbacks',
-            label: 'RunnableWithFallbacks - LangChain Reference',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/oss/python/langchain/middleware/built-in',
+            label: 'Prebuilt middleware',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/llm-gateway-fallbacks',
+            label: 'Model fallbacks',
+            asOf: '2026-09-04',
           },
         ],
       },
       agentSkills: {
-        value:
-          'Yes: the Deep Agents harness ships a SkillsMiddleware that loads named SKILL.md files (metadata plus full Markdown instructions) from a directory and injects them into the system prompt using progressive disclosure, giving a reusable, named capability invokable across multiple agents, distinct from a one-off system prompt',
+        value: 'Yes: Deep Agents supports reusable SKILL.md packages with progressive loading.',
         detail:
-          'Static skill/memory content is automatically prompt-cached for Anthropic and Amazon Bedrock models to avoid reprocessing the same tokens on every turn.',
-        shortValue: 'Deep Agents SkillsMiddleware: named, reusable SKILL.md files across agents',
+          'Agents discover skill metadata first and load instructions and supporting files when relevant. Fleet also exposes skills.',
+        shortValue: 'Reusable SKILL.md packages and Fleet skills',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://reference.langchain.com/python/deepagents/middleware/skills',
-            label: 'skills | deepagents | LangChain Reference',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/deepagents/skills',
+            label: 'Skills',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet/skills',
+            label: 'Skills',
+            asOf: '2026-09-04',
           },
         ],
       },
       nativeChatDeployment: {
         value:
-          'Partial: neither the open-source libraries nor LangSmith Deployment let a builder toggle a hosted chat surface on for one specific agent. LangChain hosts a shared, generic "Agent Chat UI" instance at agentchat.vercel.app that any team can point at their own LangGraph Agent Server URL and API key, or a team can deploy the open-source Next.js app itself',
+          'Partial: Fleet provides hosted agent chat; public application chat can use the official Agent Chat UI.',
         detail:
-          'LangGraph Studio itself provides a chat-style interaction panel for testing/debugging a graph during development, but this is a developer tool, not a shippable end-user chat deployment target.',
-        shortValue: 'Partial: shared generic hosted chat client, no per-agent one-click toggle',
+          'Agent Chat UI connects to a deployed agent and can be self-deployed. The reviewed Fleet docs establish workspace chat, not anonymous public sharing.',
+        shortValue: 'Fleet chat; deployable Agent Chat UI',
         confidence: 'estimated',
         sources: [
           {
+            url: 'https://docs.langchain.com/langsmith/fleet',
+            label: 'No-code agents with LangSmith Fleet',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://github.com/langchain-ai/agent-chat-ui',
-            label: 'langchain-ai/agent-chat-ui (GitHub)',
-            asOf: '2026-07-08',
+            label: 'Add tags via the .with_config method',
+            asOf: '2026-09-04',
           },
         ],
       },
       kbChunkVisibility: {
-        value:
-          "Yes: LangChain's Document abstraction returned by any VectorStore retriever carries per-chunk page_content and per-chunk metadata (source, page, chunk index), and LangSmith's trace view shows this document-level detail for each retrieval step in an agent run",
+        value: 'Partial: retrieval exposes chunk content and metadata in code.',
         detail:
-          'This chunk-level detail is a property of the standard LangChain Document object used across all vector-store integrations, not a bespoke debugging UI feature.',
-        shortValue:
-          'Yes, Document objects carry per-chunk content/metadata, visible in LangSmith traces',
-        confidence: 'verified',
+          'LangChain documents splitting documents into chunks and retrieving relevant documents. A dedicated built-in knowledge-base chunk browser is not confirmed.',
+        shortValue: 'Chunk data in code; dedicated browser unconfirmed',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://reference.langchain.com/python/langchain-core/documents/base/Document',
-            label: 'Document - LangChain Reference',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/oss/python/langchain/retrieval',
+            label: 'Retrieval',
+            asOf: '2026-09-04',
           },
         ],
       },
       parallelExecution: {
-        value:
-          'Yes: the Send API lets a routing function dynamically spawn one parallel branch per item in a collection of unknown length at runtime, each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
-        detail:
-          "This is a code-level equivalent of a 'fan out one branch per list item' pattern: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over, the same run-time-determined-count model that block-based parallel constructs also support alongside a fixed-count mode.",
-        shortValue:
-          'Yes, Send API fans out one branch per list item at runtime, merged via a reducer',
+        value: 'Yes: LangGraph supports concurrent branches and dynamic map-reduce with Send.',
+        detail: 'State reducers combine results from parallel branches.',
+        shortValue: 'Concurrent branches and dynamic fan-out',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://machinelearningplus.com/gen-ai/langgraph-map-reduce-parallel-execution/',
-            label: 'LangGraph Map-Reduce: Parallel Execution with Send API',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
+            label: 'Use the graph API',
+            asOf: '2026-09-04',
           },
         ],
       },
       a2aProtocol: {
-        value:
-          "Yes: the local LangGraph dev server and the LangSmith Deployment Agent Server both expose native A2A (Agent2Agent) endpoints at /a2a/{assistant_id}, letting any LangChain/LangGraph agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list.",
+        value: 'Yes: Agent Server exposes A2A endpoints for deployed agents.',
         detail:
-          "The LangSmith Deployment A2A endpoint maps the protocol's contextId to a LangGraph thread_id automatically, so A2A conversations get the same tracing/observability as native LangGraph runs.",
-        shortValue: 'Yes, native A2A server/client support with auto-generated Agent Cards',
+          'The A2A guide documents agent cards, message exchange, task retrieval, and streaming, with examples of agents calling each other.',
+        shortValue: 'A2A server endpoints and inter-agent calls',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/server-a2a',
-            label: 'A2A endpoint in Agent Server - Docs by LangChain',
-            asOf: '2026-07-02',
+            label: 'A2A endpoint in Agent Server',
+            asOf: '2026-09-04',
           },
         ],
       },
       loopIteration: {
         value:
-          'No: there is no dedicated for-each/while/Loop container node. Sequential repetition over a list, a fixed count, or a condition is built by wiring a conditional edge back to an earlier node (a cycle in the graph) with the loop-continuation check written in a routing function, capped by a default recursion_limit of 25 super-steps unless raised',
+          'Partial: LangGraph implements loops through graph cycles and conditional routing in code.',
         detail:
-          'This is a general graph-cycle capability, not a purpose-built "Loop"/"Repeat" block a builder drops in and configures declaratively; a developer writes the state counter, the exit condition, and the conditional edge by hand. The Send API covers the concurrent/parallel case, sequential iteration is left to hand-built cycles.',
-        shortValue:
-          'No dedicated loop block; sequential iteration is a hand-built conditional-edge cycle',
+          'The documented loop patterns are programmatic; a dedicated visual loop container is not confirmed.',
+        shortValue: 'Code-defined cycles and loop conditions',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
-            label: 'Use the graph API - Docs by LangChain',
-            asOf: '2026-07-02',
+            label: 'Use the graph API',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     integrations: {
       integrationCount: {
-        value: '1,000+ integrations, spanning model providers, data sources, and tools',
+        value: 'LangChain advertises 1,000+ integrations across models, tools, and databases.',
         detail:
-          'Community-maintained integrations beyond what LangChain centrally documents also exist across dedicated integration repos, so the true count is larger and harder to pin to one authoritative live number, unlike a connector-count page some workflow builders publish.',
-        shortValue: '1,000+ integrations',
-        confidence: 'estimated',
+          'This is a vendor-reported ecosystem total, not a count of unique business-app connectors.',
+        shortValue: '1,000+ integrations; mixed integration types',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/langchain',
-            label: 'LangChain: Open Source AI Agent Framework',
-            asOf: '2026-07-08',
+            label: 'LangChain: Open Source AI Agent Framework for Any Model',
+            asOf: '2026-09-04',
           },
         ],
       },
       triggerTypes: {
-        value:
-          "Not a workflow-builder concept: agents are invoked programmatically (function/API call) or served over the LangGraph Agent Server's REST interface. The Agent Server also exposes protocol-level entry points (A2A), but there is no equivalent to a connector-event/schedule/webhook trigger picker.",
+        value: 'API calls, scheduled runs, and Fleet event channels are supported.',
         detail:
-          'A developer wires up whatever trigger mechanism they need in their own application code (a cron job, a webhook handler, a queue consumer) that then calls the LangGraph SDK or REST API to start a run.',
-        shortValue:
-          'No trigger picker; runs are started by calling the Agent Server API from your own code',
-        confidence: 'estimated',
+          'Fleet documents Gmail, Slack, and Teams channels plus recurring schedules. Agent Server also supports cron jobs.',
+        shortValue: 'API, schedules, and connected event channels',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/server-api-ref',
-            label: 'Agent Server API reference - Docs by LangChain',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/langsmith/fleet/channels',
+            label: 'Channels',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet/schedules',
+            label: 'Schedules',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/agent-server',
+            label: 'Agent Server',
+            asOf: '2026-09-04',
           },
         ],
       },
       customCodeSteps: {
-        value:
-          'Yes, by definition: every node in a LangGraph graph is arbitrary Python or JavaScript code, and the entire LangChain framework is consumed as a library inside a codebase, not a sandboxed code step within a separate visual builder',
-        detail:
-          'There is no separate "custom code node" concept because the whole agent, not just one step, is written in code.',
-        shortValue: 'Yes, every node is Python/JavaScript code by design',
-        confidence: 'verified',
-        sources: [],
-      },
-      codeSandboxRuntime: {
-        value:
-          'Yes: LangSmith Sandboxes let a team supply their own Docker image ("Bring your own image. Define dependencies, CPU, and memory in a Docker image, then reuse it across sandboxes"), including images pulled from a private registry. A snapshot is built by pointing at any Docker image, or captured from a running sandbox after packages have been installed in it, and sandboxes then boot from that snapshot.',
-        detail:
-          "Two distinct runtimes should not be conflated. LangGraph node code itself is not sandboxed at all: it executes in the developer's own Python/Node process, so the dependency set is whatever their own requirements.txt or package.json declares and there is no isolation boundary between agent code and the host. Sandboxes are a separate, opt-in execution surface (billed on the LangSmith pricing page at sandbox CPU/memory/storage rates) for code the agent generates or for risky filesystem work; they reached general availability in May 2026 after a waitlisted private preview, and the docs list them as generally available on the US, EU, and APAC GCP environments, on AWS US, and on self-hosted deployments. The docs describe a snapshot as 'a reusable filesystem bundle backed by a Docker image', built with a docker_image argument plus an fs_capacity_bytes size, and optionally a registry_id referencing stored private-registry credentials. The Deep Agents harness can back the same abstraction with third-party sandbox providers instead (Daytona, E2B, Modal, Runloop, Vercel, AWS AgentCore, NVIDIA OpenShell) or a custom backend the developer implements, in which case the image and dependency configuration follow that provider's model.",
-        shortValue: 'Yes, LangSmith Sandboxes take a bring-your-own Docker image',
+        value: 'Yes: graph nodes and custom tools are authored in Python or JavaScript.',
+        detail: 'Developers supply the functions that implement application behavior.',
+        shortValue: 'Custom code in graph nodes and tools',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/langsmith/sandboxes',
-            label: 'LangSmith Sandboxes | Secure Runtime for Agent Code',
-            asOf: '2026-08-10',
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
+            label: 'Use the graph API',
+            asOf: '2026-09-04',
           },
           {
+            url: 'https://docs.langchain.com/oss/python/langchain/tools',
+            label: 'Tools',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      codeSandboxRuntime: {
+        value: 'Yes: LangSmith Sandboxes can boot from custom Docker-image snapshots.',
+        detail:
+          'Snapshots can also capture a running environment after dependencies are installed. Sandbox resources and lifecycle are configured separately.',
+        shortValue: 'Custom image snapshots for isolated execution',
+        confidence: 'verified',
+        sources: [
+          {
             url: 'https://docs.langchain.com/langsmith/sandbox-snapshots',
-            label: 'Sandbox snapshots - Docs by LangChain',
-            asOf: '2026-08-10',
+            label: 'Sandbox snapshots',
+            asOf: '2026-09-04',
           },
           {
             url: 'https://docs.langchain.com/langsmith/sandboxes',
-            label: 'LangSmith Sandboxes (environment availability) - Docs by LangChain',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://www.langchain.com/blog/langsmith-sandboxes-generally-available',
-            label: 'LangSmith Sandboxes are Generally Available (LangChain Blog)',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://docs.langchain.com/oss/python/deepagents/sandboxes',
-            label: 'Sandboxes - Docs by LangChain',
-            asOf: '2026-08-10',
+            label: 'LangSmith Sandboxes',
+            asOf: '2026-09-04',
           },
         ],
       },
       apiPublishing: {
-        value:
-          'Yes: the LangGraph Agent Server exposes deployed graphs over a REST API, and additionally supports A2A as a callable interface for the same deployed agent',
-        detail:
-          'A single deployed graph can be called via plain REST or the standardized A2A agent-interop protocol, depending on the caller.',
-        shortValue: 'Yes, REST API plus an A2A interface',
+        value: 'Yes: Agent Server publishes deployed agents through a REST API.',
+        detail: 'The API manages assistants, threads, runs, state, and background execution.',
+        shortValue: 'REST API for deployed agents',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/server-api-ref',
-            label: 'Agent Server API reference - Docs by LangChain',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.langchain.com/langsmith/server-a2a',
-            label: 'A2A endpoint in Agent Server - Docs by LangChain',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/langsmith/agent-server',
+            label: 'Agent Server',
+            asOf: '2026-09-04',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Official Python and JavaScript/TypeScript SDKs for both LangChain and LangGraph, a public REST API for the Agent Server, and an open, MIT-licensed codebase that any developer can extend or fork; community integrations now live in their own dedicated repositories rather than the sunset langchain-community package',
+          'Python and JavaScript libraries, custom tools, and Agent Server APIs support extensions.',
         detail:
-          'Because the whole product is a set of open-source libraries, extensibility is inherent rather than a separately bolted-on SDK layer, distinct from a workflow builder that offers a custom-node development kit for an otherwise closed core product.',
-        shortValue:
-          'Official Python/JS SDKs, open MIT-licensed codebase, integrations in standalone repos',
+          'LangChain and LangGraph can be extended in code; custom tool definitions connect application functions to agents.',
+        shortValue: 'Libraries, custom tools, and server APIs',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langchain-ai/langchain',
-            label: 'langchain-ai/langchain (GitHub)',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/oss/python/langchain/tools',
+            label: 'Tools',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://pypi.org/project/langchain-community/',
-            label: 'langchain-community on PyPI (sunset notice)',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/langsmith/agent-server',
+            label: 'Agent Server',
+            asOf: '2026-09-04',
           },
         ],
       },
       mcpPublishing: {
-        value:
-          "Yes: a LangGraph agent deployed on LangGraph Server is automatically exposed as an MCP-compatible tool via the server's built-in /mcp endpoint (Streamable HTTP), a separate mechanism from langchain-mcp-adapters, which is used only to consume external MCP servers as LangChain tools. LangGraph also supports native A2A server exposure",
+        value: 'Yes: Agent Server exposes deployed agents as MCP tools.',
         detail:
-          "This is the reverse direction from consuming an external MCP server's tools, publishing a LangGraph agent's own capabilities for other MCP clients to invoke.",
-        shortValue: 'Yes, LangGraph Server exposes deployed agents via a built-in /mcp endpoint',
-        confidence: 'estimated',
+          'Its /mcp endpoint uses streamable HTTP. This is separate from consuming external MCP servers.',
+        shortValue: 'Deployed agents exposed through /mcp',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/server-api-ref',
-            label: 'Agent Server API reference - Docs by LangChain',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/langsmith/server-mcp',
+            label: 'MCP endpoint in Agent Server',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     pricing: {
       pricingModel: {
-        value:
-          'The LangChain/LangGraph libraries themselves are free and open source (MIT); LangSmith (observability, evaluation, deployment) is a separate commercial product billed per-seat plus usage (traces, deployment uptime-minutes, compute units, sandbox resources)',
+        value: 'Free MIT libraries; LangSmith charges for seats and service usage.',
         detail:
-          'Usage-based components include base/extended trace pricing (different retention windows), dev vs. production deployment uptime rates, LangChain Compute Units (LCUs) for the underlying execution engine, and sandbox CPU/memory/storage rates.',
-        shortValue: 'Free OSS libraries; LangSmith is per-seat plus usage-based billing',
+          'Current usage pricing uses compute and storage units, with additional model-access billing where applicable.',
+        shortValue: 'Free libraries; seats plus platform usage',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
-            label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            label: 'LangSmith plans and pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       entryPaidPlan: {
-        value:
-          'LangSmith Plus: $39/seat/month, up to 10,000 base traces/month included, then pay-as-you-go, unlimited seats, one complimentary dev deployment, email support',
-        detail:
-          'The Developer plan below it is $0/seat/month (single seat, up to 5,000 base traces/month, community support only), so Plus is the first genuinely paid tier.',
-        shortValue: '$39/seat/month, 10,000 base traces included',
+        value: 'LangSmith Plus starts at $39 per seat per month, plus usage.',
+        detail: 'Includes 10,000 base traces monthly and one small serverless deployment.',
+        shortValue: 'Plus: $39/seat/month plus usage',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
-            label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            label: 'LangSmith plans and pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       freeTier: {
-        value:
-          "Yes: the LangChain/LangGraph open-source libraries are free with no usage limits of their own, and LangSmith's Developer plan is $0/seat/month with up to 5,000 base traces/month. Self-hosted LangGraph deployment is now an Enterprise (custom-priced) offering rather than a free tier",
+        value: 'LangSmith Developer includes one free seat and 5,000 base traces monthly.',
         detail:
-          'The free LangSmith Developer tier is capped at a single seat and community-only support; higher usage, team seats, or self-hosted deployment require moving to a paid or Enterprise tier.',
-        shortValue: 'Free OSS libraries, plus a free single-seat LangSmith Developer tier',
+          'The open-source libraries are also free; infrastructure and model costs remain separate.',
+        shortValue: 'Free libraries; Developer includes 5,000 traces',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
-            label: 'LangSmith Pricing',
-            asOf: '2026-07-08',
+            label: 'LangSmith plans and pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       byok: {
-        value:
-          "Yes, by default: every model call in LangChain/LangGraph requires the developer's own provider API credentials (OpenAI, Anthropic, etc.) configured directly in application code or environment variables; LangSmith itself does not resell or proxy model access",
+        value: 'Yes: use provider credentials directly or through LangSmith LLM Gateway.',
         detail:
-          'This is the inherent architecture of a code library calling out to providers directly, not a named "BYOK" toggle in a UI.',
-        shortValue:
-          'Yes, de facto by architecture; every model call uses your own provider credentials',
+          'Gateway also offers LangSmith-billed model access without your own provider key. It is currently beta.',
+        shortValue: 'BYOK or gateway-managed model access',
         confidence: 'verified',
-        sources: [],
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/llm-gateway',
+            label: 'LLM Gateway',
+            asOf: '2026-09-04',
+          },
+        ],
       },
     },
     security: {
       dataResidency: {
-        value:
-          'Yes: LangSmith offers selectable regions at no extra cost — US (GCP US), EU (GCP EU), APAC (GCP APAC), and a separate AWS US region',
+        value: 'LangSmith documents GCP US, GCP EU, GCP APAC, and AWS US regional instances.',
         detail:
-          'Migrating an existing organization between regions is not supported; the region must be chosen at signup. Full self-hosting (of the OSS libraries or LangGraph Platform) is a further, absolute form of data residency control.',
-        shortValue: 'Yes, US/EU/APAC/AWS-US selectable regions, no migration between them',
+          'Organizations select a region; cross-region migration is not supported. Feature availability can differ during regional rollouts.',
+        shortValue: 'US, EU, and APAC instances',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/regions-faq',
-            label: 'Regions FAQ - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'Regions FAQ',
+            asOf: '2026-09-04',
           },
         ],
       },
       rbac: {
-        value:
-          'Yes: LangSmith Role-Based Access Control is available to Enterprise customers, with three built-in system roles (Admin, Editor, Viewer) and custom roles with granular, per-entity permissions assignable at the workspace or organization level',
-        detail:
-          'Editor has full permissions except workspace management (adding/removing users, changing roles, configuring service keys), which is reserved for Admin.',
-        shortValue: 'Yes, on Enterprise: Admin/Editor/Viewer plus custom granular roles',
+        value: 'Yes: Enterprise supports workspace roles and granular permissions.',
+        detail: 'Built-in and custom roles control access; ABAC adds resource-level policies.',
+        shortValue: 'Enterprise RBAC and resource policies',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/blog/access-control-updates-for-langsmith',
-            label: 'Role Based Access Control (RBAC) for LangSmith',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/rbac',
+            label: 'Role-based access control',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/enterprise',
+            label: 'LangSmith for Enterprise',
+            asOf: '2026-09-04',
           },
         ],
       },
       auditLogging: {
-        value:
-          'Not publicly documented: no LangSmith or LangGraph Platform page describes a dedicated, exportable audit-log feature distinct from run tracing and RBAC',
+        value: 'Yes: LangSmith Enterprise records administrative audit events.',
         detail:
-          'LangSmith exposes rich execution traces and OpenTelemetry-based export of those traces to external observability backends, but that is run/execution telemetry rather than a documented admin-activity audit log (user logins, permission changes, etc.).',
-        shortValue: 'Not publicly documented as a distinct admin-activity audit log',
-        confidence: 'unknown',
-        sources: [],
-      },
-      compliance: {
-        value:
-          "LangSmith is SOC 2 Type II, ISO/IEC 27001:2022, HIPAA, and GDPR compliant; LangGraph Platform (now LangSmith Deployment) shares LangSmith's SOC 2 attestation and compliance posture, and LangChain says its 2026 SOC 2 Type II report spans the entire LangSmith offering",
-        detail:
-          "LangChain's own docs and Trust Center state LangSmith is SOC 2 Type II, ISO/IEC 27001:2022, HIPAA, and GDPR compliant. The 2026 SOC 2 Type II report covers Security, Availability, and Confidentiality for July 1, 2025 through June 30, 2026, with an unqualified opinion and no exceptions noted. Advantage Partners performed that examination and issued the ISO certification, which covers the systems, teams, and information assets supporting LangSmith and its LLM application tooling. The Trust Center is the canonical source, and the static Regions FAQ independently confirms SOC 2 Type II, HIPAA, and GDPR compliance. No PCI-DSS or FedRAMP attestation was found.",
-        shortValue:
-          'LangSmith/LangGraph SOC 2 Type II and ISO 27001:2022; HIPAA and GDPR compliant',
+          'Admins can inspect events in the UI or API. The docs describe up to 400 days of retention and scheduled forwarding to external systems.',
+        shortValue: 'Enterprise admin audit logs with API access',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://trust.langchain.com/',
-            label: 'LangChain Trust Center',
-            asOf: '2026-09-03',
+            url: 'https://docs.langchain.com/langsmith/audit-logs',
+            label: 'Audit logs',
+            asOf: '2026-09-04',
           },
+        ],
+      },
+      compliance: {
+        value:
+          'LangChain states that LangSmith maintains SOC 2 Type II, HIPAA, and GDPR compliance.',
+        detail:
+          'This is a vendor statement in its shared-responsibility documentation. Audit reports were not inspected; it is not an attestation for an independently operated open-source deployment.',
+        shortValue: 'Vendor-stated SOC 2 II, HIPAA, and GDPR posture',
+        confidence: 'verified',
+        sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/regions-faq',
-            label: 'Regions FAQ - Docs by LangChain',
-            asOf: '2026-09-03',
-          },
-          {
-            url: 'https://docs.langchain.com/langsmith/deployment',
-            label: 'LangSmith Deployment - Docs by LangChain',
-            asOf: '2026-09-03',
+            url: 'https://docs.langchain.com/langsmith/shared-responsibility-model',
+            label: 'LangSmith shared responsibility model',
+            asOf: '2026-09-04',
           },
         ],
       },
       modelAndToolGovernance: {
         value:
-          'Not publicly documented: no LangSmith/LangGraph Platform feature restricts which LLM providers or tools a given role/user may invoke beyond general workspace RBAC and API-key scoping',
+          'Yes: Fleet Enterprise can restrict tools with roles, resource policies, and workspace integration controls.',
         detail:
-          'Because agents are code, provider/tool selection is a decision made in the codebase itself; there is no admin console toggle limiting which model or tool a deployed agent is allowed to call at the platform level.',
-        shortValue:
-          'Not publicly documented; provider/tool choice lives in agent code, not an admin toggle',
-        confidence: 'unknown',
-        sources: [],
+          'LangSmith LLM Gateway separately adds model-call permissions and centralized usage policies; the gateway is beta.',
+        shortValue: 'Fleet tool policies; beta gateway controls',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet/access-and-oversight',
+            label: 'Access & oversight',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/llm-gateway-access',
+            label: 'Traces and access control',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       credentialGovernance: {
         value:
-          'No: RBAC in LangSmith is scoped to workspace/organization entities (traces, datasets, deployments) via custom roles, not to individual stored provider credentials or connections',
+          'Partial: Fleet supports shared or per-user credentials, and the gateway centralizes provider keys.',
         detail:
-          "Provider API keys are typically supplied as environment variables or secrets in the developer's own deployment environment, outside any LangSmith-native credential-governance layer.",
-        shortValue: 'No, RBAC governs LangSmith entities, not specific stored provider credentials',
+          'The reviewed docs establish agent identity and tool-resource controls. A general per-credential role allowlist across all stored connections is not confirmed.',
+        shortValue: 'Credential isolation; general credential allowlists unconfirmed',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/user-management',
-            label: 'User management - Docs by LangChain',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/fleet/access-and-oversight',
+            label: 'Access & oversight',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/llm-gateway-access',
+            label: 'Traces and access control',
+            asOf: '2026-09-04',
           },
         ],
       },
       whiteLabeling: {
-        value:
-          "Not publicly documented: no LangSmith or LangGraph Platform page describes an option to replace LangChain/LangSmith branding with a customer's own across the product UI",
+        value: 'Full platform white-labeling is not confirmed.',
         detail:
-          'No official documentation on customer-facing white-labeling or OEM/embed branding controls was found.',
-        shortValue: 'Not publicly documented',
+          'The reviewed Fleet settings document agent configuration and sharing, but do not establish replacement of LangSmith branding across the platform.',
+        shortValue: 'Full white-labeling not confirmed',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/fleet/manage-agent-settings',
+            label: 'Manage agent settings',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       dataRetention: {
-        value:
-          "Yes: LangSmith's usage-based trace pricing offers two retention tiers a customer chooses per trace, base traces (14-day retention) and extended traces (400-day retention), giving org-level control over how long execution data is kept",
-        detail:
-          'This retention choice is made at billing/trace-ingestion time (base vs. extended), rather than a single fixed platform-wide default.',
-        shortValue: 'Yes, choose 14-day (base) or 400-day (extended) trace retention',
+        value: 'LangSmith distinguishes 14-day base traces and 400-day extended traces.',
+        detail: 'Enterprise documentation also describes custom retention and deletion controls.',
+        shortValue: 'Base/extended trace retention; Enterprise controls',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
-            label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            label: 'LangSmith plans and pricing',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/enterprise',
+            label: 'LangSmith for Enterprise',
+            asOf: '2026-09-04',
           },
         ],
       },
       piiRedaction: {
-        value:
-          'Yes: LangSmith supports masking sensitive data before it reaches the backend via environment-variable-level hiding of all inputs/outputs, custom masking functions for selective redaction, and a reference regex-based anonymizer example covering emails, phone numbers, full names, credit cards, and SSNs. It also integrates with third-party tools like Microsoft Presidio.',
+        value: 'Yes: LangSmith supports hiding inputs/outputs and custom masking before ingestion.',
         detail:
-          "Redaction happens client-side, before the trace payload is serialized and sent, via a create_anonymizer hook, so sensitive data is stripped in the customer's own process rather than being redacted after ingestion.",
-        shortValue: 'Yes, client-side masking/anonymizer hooks with regex PII detection',
+          'LangChain also offers PII middleware for agent conversations. Configure the appropriate control for the data path being protected.',
+        shortValue: 'Trace masking and agent PII middleware',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/mask-inputs-outputs',
-            label: 'Prevent logging of sensitive data in traces - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'Prevent logging of sensitive data in traces',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/langchain/middleware/built-in',
+            label: 'Prebuilt middleware',
+            asOf: '2026-09-04',
           },
         ],
       },
       sso: {
-        value:
-          'Yes: LangSmith supports SAML 2.0 single sign-on for Enterprise Cloud customers, letting organizations centrally manage team access through a single authentication source',
+        value: 'Yes: LangSmith Enterprise documents SAML and OIDC single sign-on.',
         detail:
-          'SSO is documented as an Enterprise Cloud feature rather than available to lower tiers.',
-        shortValue: 'Yes, SAML 2.0 SSO, Enterprise Cloud tier',
+          'The enterprise documentation includes just-in-time provisioning and user-management controls.',
+        shortValue: 'Enterprise SAML/OIDC SSO',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/user-management',
-            label: 'User management - Docs by LangChain',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/langsmith/enterprise',
+            label: 'LangSmith for Enterprise',
+            asOf: '2026-09-04',
           },
         ],
       },
       sessionPolicy: {
         value:
-          'Partial: self-hosted LangSmith only. An operator sets the maximum session length via the OAUTH_SESSION_MAX_SEC environment variable when using OAuth 2.0/SSO, or BASIC_AUTH_JWT_EXPIRATION_SECONDS when using basic authentication, both defaulting to 28800 seconds (8 hours). No equivalent admin-configurable session control is documented for LangSmith Cloud.',
+          'Partial: self-hosted LangSmith documents configurable authentication-session lifetimes.',
         detail:
-          'Both settings are an absolute cap on session lifetime from sign-in; no separate inactivity/idle timeout is documented. On the cloud product, LangChain support states that after a SAML assertion is validated the session token (a JWT) is issued by LangSmith\'s own auth layer rather than the IdP, and that this "is by design and is not configurable", so an upstream IdP session policy does not govern the resulting LangSmith session either.',
-        shortValue: 'Self-hosted env vars (8h default); not configurable on cloud',
-        confidence: 'verified',
+          'The OAuth and basic-auth lifetime settings apply to self-hosted installations. A corresponding customer-configurable Cloud session policy is not confirmed.',
+        shortValue: 'Configurable self-hosted session lifetime',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.langchain.com/articles/9515017706-session-timeout-configuration-for-langsmith-self-hosted',
-            label: 'Session Timeout Configuration for LangSmith Self-Hosted',
-            asOf: '2026-08-10',
-          },
-          {
-            url: 'https://support.langchain.com/articles/8821869322-sso-authentication-and-token-issuance-in-langsmith',
-            label: 'SSO Authentication and Token Issuance in LangSmith',
-            asOf: '2026-08-10',
+            url: 'https://kb.langchain.com/articles/9515017706-session-timeout-configuration-for-langsmith-self-hosted',
+            label:
+              'Session Timeout Configuration for LangSmith Self-Hosted | LangChain Knowledge Base',
+            asOf: '2026-09-04',
           },
         ],
       },
       thirdPartyVetting: {
-        value:
-          "Partial: the core langchain and langchain-core packages plus a set of popular integrations are maintained and security-reviewed by LangChain's own team, but the much larger integration surface lives in the community-driven langchain-community package (and hundreds of separately published community PyPI packages), which LangChain's own security policy states is not eligible for its bug bounty program",
+        value: 'Mixed: integration security coverage depends on the package and maintainer.',
         detail:
-          "LangChain's published security policy excludes langchain-community from bug bounty eligibility due to its community-driven nature, while still accepting and addressing reports for it. This is a lighter, best-effort review tier for community-contributed integration code compared to the core libraries and officially maintained popular integrations. No documented incident exists of a malicious or credential-stealing community-published LangChain integration package; the closest public security incident (CVE-2025-68664, a serialization-injection vulnerability nicknamed LangGrinch, CVSS 9.3) was in the core langchain-core library itself, not a third-party community integration.",
-        shortValue:
-          'Partial: core/popular integrations vendor-reviewed; langchain-community is community-maintained, excluded from bug bounty',
-        confidence: 'verified',
+          'LangChain publishes a security scope for its maintained packages and integrations. Third-party packages and MCP servers should not be treated as uniformly vendor-vetted.',
+        shortValue: 'Package-specific security coverage',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.langchain.com/oss/python/security-policy',
-            label: 'Security policy - Docs by LangChain',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/advisories/GHSA-c67j-w6g6-q2cm',
-            label:
-              'LangChain serialization injection vulnerability (CVE-2025-68664) - GitHub Advisory Database',
-            asOf: '2026-07-02',
+            label: 'Security policy',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     observability: {
       tracingDepth: {
-        value:
-          "Yes: LangSmith provides full span-level distributed tracing of every LLM call, tool call, and intermediate step in a run, plus LangGraph Studio's time-travel debugging that lets a developer rewind to any prior checkpoint, inspect state, and fork a new execution path from it",
+        value: 'Yes: LangSmith traces application runs and nested LLM/tool calls.',
         detail:
-          'This is deeper than dashboard-level metrics: LangSmith traces are span-based (individual step-by-step execution detail), not just aggregate run counts/success rates.',
-        shortValue: 'Yes, full span-level tracing plus checkpoint-based time-travel debugging',
+          'Studio shows prompts, tool arguments, results, and intermediate execution state for debugging.',
+        shortValue: 'Run, model, tool, and state inspection',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/observability-concepts',
-            label: 'Observability concepts - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'Observability concepts',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langchain.com/oss/python/langgraph/use-time-travel',
-            label: 'Time travel - Docs by LangChain',
-            asOf: '2026-07-08',
+            url: 'https://docs.langchain.com/oss/python/langgraph/studio',
+            label: 'LangSmith Studio',
+            asOf: '2026-09-04',
           },
         ],
       },
       durabilityModel: {
         value:
-          'LangGraph\'s checkpointer snapshots full graph state after every node completes (a "super-step"), so a run resumes from the last checkpoint after an interruption, timeout, human-approval pause, or crash rather than restarting. RetryPolicy provides automatic per-node retries with backoff/jitter, and TimeoutPolicy caps a node attempt.',
+          'LangGraph checkpointers persist graph state at super-step boundaries and support recovery and replay.',
         detail:
-          'Checkpointing alone does not include automatic failure detection; an external process still needs to notice a crash and trigger the resume. Durability here is a resumable-state primitive, not a fully autonomous self-healing system.',
-        shortValue:
-          'Checkpoint-based resume plus per-node RetryPolicy/TimeoutPolicy, no auto failure detection',
+          'Successful per-node writes can survive another node failing in the same step. Use persistent storage for recovery across process restarts.',
+        shortValue: 'Checkpoint recovery, replay, and pending-write reuse',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/blog/fault-tolerance-in-langgraph',
-            label: 'Fault Tolerance in LangGraph (LangChain Blog)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langgraph/checkpointers',
+            label: 'Checkpointers',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/langgraph/persistence',
+            label: 'Persistence',
+            asOf: '2026-09-04',
           },
         ],
       },
       failureAlerting: {
-        value:
-          'Not publicly documented: no LangSmith or LangGraph Platform page describes an automatic, proactive failure-alert notification (e.g. email/Slack) distinct from viewing failures in the trace dashboard',
-        detail:
-          "LangSmith surfaces failed runs and errors in its tracing UI, but no source confirms an automatic push notification/digest comparable to some workflow builders' failure-alert emails.",
-        shortValue: 'Not publicly documented as a proactive alert feature',
-        confidence: 'unknown',
-        sources: [],
-      },
-      dataDrains: {
-        value:
-          'Yes: LangSmith services emit OpenTelemetry traces that can be exported to an observability backend of choice by configuring an OTel/Prometheus collector endpoint, letting execution data flow continuously into external systems like Datadog rather than only being viewable in LangSmith itself',
-        detail:
-          'This is a generic OTel-based export mechanism, not named, pre-built connectors to specific destinations like S3 or BigQuery.',
-        shortValue: 'Yes, OpenTelemetry export to any OTel-compatible backend',
+        value: 'Yes: LangSmith alerts on errors, latency, cost, and feedback metrics.',
+        detail: 'Notifications can route to Slack, PagerDuty, or HTTP webhooks.',
+        shortValue: 'Threshold alerts with notification channels',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.langchain.com/langsmith/alerts',
+            label: 'Alerts in LangSmith',
+            asOf: '2026-09-04',
+          },
+        ],
+      },
+      dataDrains: {
+        value: 'Yes: LangSmith supports scheduled bulk trace exports to S3-compatible storage.',
+        detail:
+          'Bulk export is Enterprise for new accounts; some earlier Plus accounts have transitional access. Self-hosted Kubernetes telemetry can also be exported to external collectors.',
+        shortValue: 'Scheduled trace exports and self-hosted telemetry',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/data-export',
+            label: 'Bulk export trace data',
+            asOf: '2026-09-04',
+          },
+          {
             url: 'https://docs.langchain.com/langsmith/export-backend',
-            label: 'Export LangSmith telemetry to your observability backend - Docs by LangChain',
-            asOf: '2026-07-02',
+            label: 'Export LangSmith telemetry to your observability backend',
+            asOf: '2026-09-04',
           },
         ],
       },
       asyncExecution: {
-        value:
-          'Yes: the LangGraph Agent Server enqueues each run for a queue worker to pick up, and its result can be polled or streamed later via the REST API, independent of the client connection that started it.',
-        detail:
-          "This is a natural consequence of the Agent Server's run/thread model, where a run's state persists server-side independent of any single blocking client connection.",
-        shortValue: "Yes, via the Agent Server's queued run/thread API",
-        confidence: 'estimated',
+        value: 'Yes: Agent Server queues runs for background execution.',
+        detail: 'Clients can reconnect to stream output or retrieve run state through the API.',
+        shortValue: 'Queued runs with later result access',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/agent-server',
-            label: 'Agent Server - Docs by LangChain',
-            asOf: '2026-07-08',
+            label: 'Agent Server',
+            asOf: '2026-09-04',
           },
         ],
       },
       executionLimits: {
-        value:
-          "Not publicly documented as concrete published numbers: no LangGraph Platform or LangSmith page states a maximum run duration or a fixed concurrency ceiling comparable to some workflow builders' published limits",
+        value: 'Limits depend on cloud deployment size and self-hosted configuration.',
         detail:
-          "Execution duration and concurrency are effectively bounded by the customer's own compute/infrastructure configuration (self-hosted) or the specific managed-plan resources purchased, rather than a single documented platform-wide ceiling.",
-        shortValue: 'Not publicly documented as fixed platform-wide numbers',
-        confidence: 'unknown',
-        sources: [],
+          'Cloud docs publish resource sizes and a 25 MB request-body limit. A universal maximum run duration or concurrency cap is not established by those specifications.',
+        shortValue: 'Deployment-specific resources; universal run cap unconfirmed',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/cloud-platform-features',
+            label: 'Cloud platform features',
+            asOf: '2026-09-04',
+          },
+        ],
       },
       partialFailureHandling: {
-        value:
-          "Yes: LangGraph's per-node RetryPolicy and TimeoutPolicy let a single failing node retry or time out independently, and a developer can route a node's error to a dedicated error-handling branch in the graph, so one step failing does not necessarily halt the entire run",
+        value: 'Yes: LangGraph supports per-node retry and timeout policies and error handlers.',
         detail:
-          "This is implemented in code as explicit graph edges/conditional routing around a node's exception, rather than a single toggle exposed in a visual builder.",
-        shortValue: 'Yes, per-node retry/timeout policies plus code-defined error-handling edges',
+          'Error handlers can route recovery after retries are exhausted; pending writes avoid repeating successful parallel work on resume.',
+        shortValue: 'Node retries, timeouts, and recovery paths',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://deepwiki.com/langchain-ai/langgraph/3.8-error-handling-and-retry-policies',
-            label: 'Error Handling and Retry Policies | langchain-ai/langgraph | DeepWiki',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
+            label: 'Use the graph API',
+            asOf: '2026-09-04',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/langgraph/checkpointers',
+            label: 'Checkpointers',
+            asOf: '2026-09-04',
           },
         ],
       },
       unattendedExecution: {
-        value:
-          'Yes, once deployed: a run started against the LangGraph Agent Server (managed LangSmith Deployment cloud, a self-hosted container, or hybrid) executes entirely server-side against its Redis/Postgres backend, with no dependency on a client device staying open, awake, or connected; interrupt()-paused runs likewise sit server-side across an arbitrary human-response gap.',
+        value: 'Yes: deployed Agent Server runs execute on server infrastructure.',
         detail:
-          "This requires the graph to already be deployed to the Agent Server; LangChain/LangGraph itself has no built-in trigger picker (schedule, webhook, connector event), so a developer's own cron job, webhook handler, or queue consumer is what calls the Agent Server API to start the run in the first place. Once that call is made, the run's execution has no further tie to the caller's device.",
-        shortValue: 'Yes once deployed to the Agent Server; the trigger itself is hand-wired',
-        confidence: 'estimated',
+          'Fleet recurring schedules start agents automatically. Self-hosted deployments require infrastructure operated by the team.',
+        shortValue: 'Server-side runs and recurring schedules',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/assistants',
-            label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/agent-server',
+            label: 'Agent Server',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
-            label: 'Self-host standalone servers - Docs by LangChain',
-            asOf: '2026-07-04',
+            url: 'https://docs.langchain.com/langsmith/fleet/schedules',
+            label: 'Schedules',
+            asOf: '2026-09-04',
           },
         ],
       },
     },
     support: {
       supportChannels: {
-        value:
-          'Documentation via docs.langchain.com and reference.langchain.com, a public LangChain Forum, a Community Slack, GitHub issues on the open-source repos, and paid email/Enterprise support tiers through LangSmith plans',
+        value: 'Documentation, the LangChain community, and plan-dependent vendor support.',
         detail:
-          'Community support is the default at the free Developer tier; email support is included starting at the Plus tier, with dedicated SLA-backed support at Enterprise.',
-        shortValue: 'Docs, forum, Slack, GitHub issues, plus paid email/Enterprise tiers',
+          'The community page links the forum, Slack, and GitHub. Paid support options depend on the LangSmith plan.',
+        shortValue: 'Docs, community, and plan-dependent support',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/pricing',
-            label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            url: 'https://www.langchain.com/join-community',
+            label: 'LangChain Community Slack for GenAI Developers',
+            asOf: '2026-09-04',
           },
           {
-            url: 'https://www.langchain.com/join-community',
-            label: 'LangChain Community Slack',
-            asOf: '2026-07-02',
+            url: 'https://www.langchain.com/pricing',
+            label: 'LangSmith plans and pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       sla: {
         value:
-          'Not publicly documented as a specific uptime percentage: LangSmith Enterprise lists "SLA guarantees" as an included feature, but no page publishes a concrete SLA number',
+          'LangSmith Enterprise advertises a support SLA; a universal public uptime percentage is not confirmed.',
         detail:
-          'The LangSmith pricing page names "SLA guarantees" under the Enterprise tier without stating the specific percentage or terms publicly.',
-        shortValue: 'Enterprise includes SLA guarantees, exact terms not publicly stated',
-        confidence: 'estimated',
+          'The reviewed pricing page does not establish a single uptime commitment for every service and hosting model.',
+        shortValue: 'Enterprise support SLA; uptime percentage unconfirmed',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
-            label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            label: 'LangSmith plans and pricing',
+            asOf: '2026-09-04',
           },
         ],
       },
       community: {
-        value:
-          'Large: 141,000+ GitHub stars on langchain-ai/langchain and 36,000+ on langchain-ai/langgraph, an active Community Slack, a dedicated LangChain Forum, and reported adoption by roughly 35% of the Fortune 500',
+        value: 'Public open-source repositories and dedicated community channels.',
         detail:
-          "Star counts and the Fortune 500 adoption figure are from LangChain's October 2025 Series B announcement.",
-        shortValue: '141k+ and 36k+ GitHub stars; Slack and Forum communities',
+          'LangChain links its forum, Slack community, GitHub, and events for discussion and project participation.',
+        shortValue: 'GitHub, forum, Slack, and events',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langchain-ai/langchain',
-            label: 'langchain-ai/langchain (GitHub)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/langchain-ai/langgraph',
-            label: 'langchain-ai/langgraph (GitHub)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.langchain.com/blog/series-b',
-            label: 'LangChain raises $125M to build the platform for agent engineering',
-            asOf: '2026-07-02',
+            url: 'https://www.langchain.com/join-community',
+            label: 'LangChain Community Slack for GenAI Developers',
+            asOf: '2026-09-04',
           },
         ],
       },
       companyMaturity: {
         value:
-          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $160M across seed, Series A, and Series B), with reported headcount in the roughly 260-325 employee range as of mid-2026',
+          'LangChain announced a $125 million funding round at a $1.25 billion valuation in October 2025.',
         detail:
-          "Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). $10M + $25M + $125M totals approximately $160M; some third-party trackers report a higher ~$260M cumulative figure, which appears to double-count TechCrunch's July 2025 report of an in-progress raise (at a reported $1.1B valuation) as a separate round from its October 2025 close (the same round, at $1.25B) rather than an additional close, so $160M is the figure directly supported by LangChain's own funding announcement and primary reporting. Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.",
-        shortValue:
-          'Founded 2022; $125M Series B (Oct 2025) at $1.25B valuation; ~260-325 employees',
+          'Its dated announcement identifies IVP as the lead investor. This is a historical financing event, not an estimate of current valuation or total funding.',
+        shortValue: 'October 2025: $125M financing announcement',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/blog/series-b',
-            label: 'LangChain raises $125M to build the platform for agent engineering',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://techcrunch.com/2025/10/21/open-source-agentic-startup-langchain-hits-1-25b-valuation/',
-            label: 'Open source agentic startup LangChain hits $1.25B valuation | TechCrunch',
-            asOf: '2026-07-02',
+            label: 'LangChain Series B announcement',
+            asOf: '2026-09-04',
           },
         ],
       },
       academy: {
         value:
-          'Yes: LangChain Academy (academy.langchain.com) is a free, structured learning platform built by the LangChain team, offering courses (video lessons, code exercises, Jupyter notebooks) on LangChain and LangGraph fundamentals, agent architectures, and advanced patterns, with completion certificates',
-        detail:
-          'Course content spans introductory quickstarts through advanced multi-agent and observability-focused material; roughly 13 hours of core LangGraph-focused content across the primary course sequence.',
-        shortValue: 'Yes, free structured courses with certificates at LangChain Academy',
+          'Yes: LangChain Academy offers structured self-paced courses and certification resources.',
+        detail: 'The catalog includes Deep Agents, LangSmith essentials, and deployment courses.',
+        shortValue: 'Structured Academy courses and certification',
         confidence: 'verified',
         sources: [
-          { url: 'https://academy.langchain.com/', label: 'LangChain Academy', asOf: '2026-07-02' },
+          {
+            url: 'https://academy.langchain.com/',
+            label: 'LangChain Academy',
+            asOf: '2026-09-04',
+          },
         ],
       },
     },
