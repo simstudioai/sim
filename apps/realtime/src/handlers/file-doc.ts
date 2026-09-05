@@ -1430,7 +1430,8 @@ export function setupWorkspaceFileDocHandlers(
       if (
         existing &&
         isDocSeeded(existing.doc) &&
-        !(await store.isDocumentGenerationCurrent(name, docIdOf(existing.doc)))
+        !(await store.isDocumentGenerationCurrent(name, docIdOf(existing.doc))) &&
+        fileDocRooms.get(name) === existing
       ) {
         discardInvalidatedRoom(name, io)
       }

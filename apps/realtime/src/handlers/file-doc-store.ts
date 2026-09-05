@@ -80,18 +80,18 @@ const ADOPT_GENERATION_SCRIPT =
  * Returns the new stream id, or `false` while invalidated.
  */
 const APPEND_UPDATE_SCRIPT =
-  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] then return false end; if ARGV[3] ~= '' then return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1') else return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]) end"
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; if ARGV[3] ~= '' then return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1') else return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]) end"
 
 /** A compacted snapshot replaces the seed entry, so it must carry that seed's generation forward. */
 const APPEND_SNAPSHOT_SCRIPT =
-  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] then return false end; return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4])"
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4])"
 
 /**
  * Atomically deduplicate and append an acknowledged client update. Socket acknowledgements can be
  * lost, so a retry with the same id must not inflate the stream or its compaction counters.
  */
 const APPEND_CLIENT_UPDATE_SCRIPT =
-  "local generation = redis.call('get', KEYS[3]) or ''; if generation ~= ARGV[6] then return -1 end; if redis.call('zscore', KEYS[2], ARGV[1]) then redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 0 end; local id = redis.call('xadd', KEYS[1], '*', ARGV[2], ARGV[3]); local score = string.match(id, '^(%d+)'); redis.call('zadd', KEYS[2], score, ARGV[1]); local excess = redis.call('zcard', KEYS[2]) - tonumber(ARGV[4]); if excess > 0 then redis.call('zpopmin', KEYS[2], excess) end; if redis.call('ttl', KEYS[2]) < 0 then redis.call('expire', KEYS[2], ARGV[5]) end; redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 1"
+  "local generation = redis.call('get', KEYS[3]) or ''; if generation ~= ARGV[6] or redis.call('exists', KEYS[1]) == 0 then return -1 end; if redis.call('zscore', KEYS[2], ARGV[1]) then redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 0 end; local id = redis.call('xadd', KEYS[1], '*', ARGV[2], ARGV[3]); local score = string.match(id, '^(%d+)'); redis.call('zadd', KEYS[2], score, ARGV[1]); local excess = redis.call('zcard', KEYS[2]) - tonumber(ARGV[4]); if excess > 0 then redis.call('zpopmin', KEYS[2], excess) end; if redis.call('ttl', KEYS[2]) < 0 then redis.call('expire', KEYS[2], ARGV[5]) end; redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 1"
 
 /**
  * Monotonic set of the synced-version token: overwrite ONLY when the new value is greater than the
@@ -802,34 +802,44 @@ export class FileDocStore {
   ): Promise<number> {
     if (!this.write) return 0
     const key = streamKey(name)
+    let firstId = (await this.write.xRange(key, '-', '+', { COUNT: 1 }))[0]?.id
+    if (!firstId) return 0
     const tail = await this.write.xRevRange(key, '+', '-', { COUNT: 1 })
-    if (tail.length === 0) return 0
-    const endId = tail[0].id
+    if (tail.length === 0) throw new FileDocInvalidatedError()
+    let endId = tail[0].id
     let cursor = afterId.includes('-') ? afterId : `${afterId}-0`
     let entriesRead = 0
     let encodedBytes = 0
 
-    while (isAfterStreamId(endId, cursor)) {
-      const page = await this.write.xRange(key, `(${cursor}`, '+', {
-        COUNT: REPLAY_PAGE_COUNT,
-      })
-      if (page.length === 0) {
-        if (isAfterStreamId(endId, cursor)) {
+    while (true) {
+      while (isAfterStreamId(endId, cursor)) {
+        const page = await this.write.xRange(key, `(${cursor}`, '+', {
+          COUNT: REPLAY_PAGE_COUNT,
+        })
+        if (page.length === 0) {
           throw new Error(`File document replay lost its completion barrier for ${name}`)
         }
-        break
-      }
-      for (const entry of page) {
-        entriesRead += 1
-        encodedBytes += entry.message[UPDATE_FIELD]?.length ?? 0
-        if (entriesRead > REPLAY_MAX_ENTRIES || encodedBytes > REPLAY_MAX_ENCODED_BYTES) {
-          throw new Error(`File document replay exceeded its safety limit for ${name}`)
+        for (const entry of page) {
+          entriesRead += 1
+          encodedBytes += entry.message[UPDATE_FIELD]?.length ?? 0
+          if (entriesRead > REPLAY_MAX_ENTRIES || encodedBytes > REPLAY_MAX_ENCODED_BYTES) {
+            throw new Error(`File document replay exceeded its safety limit for ${name}`)
+          }
+          cursor = entry.id
+          if (!visit(entry)) return entriesRead
         }
-        cursor = entry.id
-        if (!visit(entry)) return entriesRead
       }
+
+      /** A moving head means compaction may have removed unread dependencies. Replay its snapshot. */
+      const currentFirstId = (await this.write.xRange(key, '-', '+', { COUNT: 1 }))[0]?.id
+      if (!currentFirstId) throw new FileDocInvalidatedError()
+      if (currentFirstId === firstId) return entriesRead
+      firstId = currentFirstId
+      cursor = '0-0'
+      const currentTail = await this.write.xRevRange(key, '+', '-', { COUNT: 1 })
+      if (currentTail.length === 0) throw new FileDocInvalidatedError()
+      endId = currentTail[0].id
     }
-    return entriesRead
   }
 
   /** Release the seed lock (compare-and-delete) once the seed has been published or a seed attempt failed. */

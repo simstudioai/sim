@@ -151,7 +151,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   /** Deadline for reaching readiness (synced + seeded); fires the fallback if it is never reached. */
   private readinessTimer: ReturnType<typeof setTimeout> | null = null
   private joinAccepted = false
-  private acknowledgedUpdates = false
+  private updateMode: 'negotiating' | 'legacy' | 'acknowledged' = 'negotiating'
   private joinPending = false
   private joinRetryAttempt = 0
   private joinRetryTimer: ReturnType<typeof setTimeout> | null = null
@@ -165,7 +165,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private pendingUpdateBatch: Uint8Array[] = []
   private inFlightUpdate: PendingClientUpdate | null = null
   private updateBatchTimer: ReturnType<typeof setTimeout> | null = null
-  private updateAckTimer: ReturnType<typeof setTimeout> | null = null
   private updateRetryTimer: ReturnType<typeof setTimeout> | null = null
   private updateRetryAttempt = 0
   private updateFlushInProgress = false
@@ -233,7 +232,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   /** Clear the readiness deadline once the editor is usable (synced AND seeded). */
   private handleConfigChange = () => {
     if (this.synced && this.isSeeded()) this.clearReadinessTimer()
-    if (this.acknowledgedUpdates && this.docId() && this.pendingUpdateBatch.length > 0) {
+    if (this.updateMode === 'acknowledged' && this.docId() && this.pendingUpdateBatch.length > 0) {
       this.scheduleUpdateFlush(0)
     }
   }
@@ -291,10 +290,8 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private clearUpdateTimers() {
     if (this.updateBatchTimer !== null) clearTimeout(this.updateBatchTimer)
-    if (this.updateAckTimer !== null) clearTimeout(this.updateAckTimer)
     if (this.updateRetryTimer !== null) clearTimeout(this.updateRetryTimer)
     this.updateBatchTimer = null
-    this.updateAckTimer = null
     this.updateRetryTimer = null
   }
 
@@ -357,9 +354,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.clearJoinRetryTimer()
     this.clearJoinAckTimer()
     this.clearSyncRetryTimer()
-    if (this.updateAckTimer !== null) clearTimeout(this.updateAckTimer)
     if (this.updateRetryTimer !== null) clearTimeout(this.updateRetryTimer)
-    this.updateAckTimer = null
     this.updateRetryTimer = null
     this.joinAccepted = false
     this.joinHydrating = false
@@ -401,7 +396,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.joinPending = false
     this.joinRetryAttempt = 0
     this.clearJoinRetryTimer()
-    this.acknowledgedUpdates = data.acknowledgedUpdates === true && data.docId !== undefined
+    if (data.acknowledgedUpdates === true && data.docId !== undefined) {
+      this.updateMode = 'acknowledged'
+    }
     this.joinHydrating = true
     const generation = this.connectionGeneration
     if (!this.journal) {
@@ -482,10 +479,17 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
 
-    if (recovered !== null && this.acknowledgedUpdates && !this.recoveryQueued) {
+    const updateMode =
+      data.acknowledgedUpdates === true && data.docId !== undefined ? 'acknowledged' : 'legacy'
+    /** Pre-negotiation deltas stay in Y.Doc for legacy sync; existing recovery is never acknowledged here. */
+    if (updateMode === 'legacy' && this.updateMode === 'negotiating') this.pendingUpdateBatch = []
+    this.updateMode = updateMode
+
+    if (recovered !== null && !this.recoveryQueued) {
       this.queuePendingUpdate(recovered.pendingUpdate)
       this.recoveryQueued = true
     }
+    this.updateBeforeUnloadProtection()
 
     this.joinHydrating = false
     this.joinAccepted = true
@@ -495,7 +499,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     const bufferedMessages = this.bufferedMessages
     this.clearBufferedMessages()
     for (const message of bufferedMessages) this.applyMessage(message)
-    if (this.acknowledgedUpdates) {
+    if (this.updateMode === 'acknowledged') {
       if (this.inFlightUpdate) this.sendInFlightUpdate()
       else if (this.pendingUpdateBatch.length > 0) this.scheduleUpdateFlush(0)
     }
@@ -659,7 +663,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
         const syncType = syncProtocol.readSyncMessage(decoder, encoder, this.doc, this)
         if (encoding.length(encoder) > 1) {
           const response = encoding.toUint8Array(encoder)
-          if (this.acknowledgedUpdates && syncType === syncProtocol.messageYjsSyncStep1) {
+          if (this.updateMode === 'acknowledged' && syncType === syncProtocol.messageYjsSyncStep1) {
             const responseDecoder = decoding.createDecoder(response)
             decoding.readVarUint(responseDecoder)
             decoding.readVarUint(responseDecoder)
@@ -705,12 +709,12 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
 
     if (!this.joinAccepted) {
-      this.queuePendingUpdate(update)
-      if (this.acknowledgedUpdates) this.scheduleUpdateFlush(UPDATE_BATCH_MS)
+      if (this.updateMode !== 'legacy') this.queuePendingUpdate(update)
+      if (this.updateMode === 'acknowledged') this.scheduleUpdateFlush(UPDATE_BATCH_MS)
       return
     }
 
-    if (!this.acknowledgedUpdates) {
+    if (this.updateMode !== 'acknowledged') {
       if (!this.socket.connected) return
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
@@ -739,7 +743,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private async flushPendingUpdates(): Promise<void> {
     if (
-      !this.acknowledgedUpdates ||
+      this.updateMode !== 'acknowledged' ||
       this.pendingUpdateBatch.length === 0 ||
       this.disposed ||
       this.fatal
@@ -792,7 +796,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (
       !pending ||
       !docId ||
-      !this.acknowledgedUpdates ||
+      this.updateMode !== 'acknowledged' ||
       this.disposed ||
       this.fatal ||
       !this.socket.connected ||
@@ -800,28 +804,28 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     )
       return
 
-    if (this.updateAckTimer !== null) clearTimeout(this.updateAckTimer)
-    this.updateAckTimer = setTimeout(() => {
-      this.updateAckTimer = null
-      this.scheduleUpdateRetry()
-    }, FILE_DOC_TIMEOUTS.updateAckMs)
-
+    const generation = this.connectionGeneration
     const payload: FileDocUpdatePayload = {
       fileId: this.fileId,
       docId,
       updateId: pending.updateId,
       update: pending.update,
     }
-    this.socket.emit(FILE_DOC_EVENTS.UPDATE, payload, (ack: FileDocUpdateAck) => {
-      this.handleUpdateAck(ack)
-    })
+    this.socket
+      .timeout(FILE_DOC_TIMEOUTS.updateAckMs)
+      .emit(FILE_DOC_EVENTS.UPDATE, payload, (error: Error | null, ack?: FileDocUpdateAck) => {
+        if (this.disposed || this.fatal || this.inFlightUpdate !== pending) return
+        if (error) {
+          if (generation === this.connectionGeneration) this.scheduleUpdateRetry()
+          return
+        }
+        if (ack) this.handleUpdateAck(ack)
+      })
   }
 
   private handleUpdateAck(ack: FileDocUpdateAck) {
     const pending = this.inFlightUpdate
     if (!pending || ack.updateId !== pending.updateId || this.disposed || this.fatal) return
-    if (this.updateAckTimer !== null) clearTimeout(this.updateAckTimer)
-    this.updateAckTimer = null
 
     if (ack.status === 'accepted') {
       const docId = this.docId()

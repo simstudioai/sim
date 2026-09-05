@@ -817,6 +817,36 @@ describe('setupWorkspaceFileDocHandlers', () => {
     clientDoc.destroy()
   })
 
+  it('does not discard a rebuilt room after a delayed check of its predecessor', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Old', 'doc-old'))
+    const { io, left } = createIo()
+    const original = setup('socket-original', io)
+    await original.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    const checks: Array<(current: boolean) => void> = []
+    const guard = vi
+      .spyOn(getFileDocStore(), 'isDocumentGenerationCurrent')
+      .mockImplementation(() => new Promise<boolean>((resolve) => checks.push(resolve)))
+    try {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# New', 'doc-new'))
+      const first = setup('socket-first-new', io)
+      const second = setup('socket-second-new', io)
+      const firstJoin = first.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+      const secondJoin = second.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 3 })
+      await vi.waitFor(() => expect(checks).toHaveLength(2))
+      checks[0](false)
+      await firstJoin
+      checks[1](false)
+      await secondJoin
+
+      expect(joinSuccessFileId(first.socket)).toBe('file-1')
+      expect(joinSuccessFileId(second.socket)).toBe('file-1')
+      expect(left).toContainEqual({ socketId: 'socket-original', room: ROOM_NAME })
+      expect(left).not.toContainEqual({ socketId: 'socket-first-new', room: ROOM_NAME })
+    } finally {
+      guard.mockRestore()
+    }
+  })
+
   it('seeds once across concurrent joiners, and every one of them waits for that seed', async () => {
     // Keep the first seed fetch IN FLIGHT so the doc is still unseeded when the second socket joins:
     // that forces the dedup onto the in-flight seed rather than `isDocSeeded`. Both joins must WAIT

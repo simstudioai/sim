@@ -164,6 +164,20 @@ describe('RichMarkdownFind', () => {
     expect(instance.getMarkdown()).toBe('gamma and beta')
   })
 
+  it.each([
+    ['he**llo**', 'world'],
+    ['**he**llo', '**world**'],
+  ])('follows native ProseMirror replacement formatting for %s', (source, expected) => {
+    const instance = mountEditor(source)
+    setFindQuery(instance, 'hello')
+    const { from, to } = getFindTally(instance.state).matches[0]
+    const nativeResult = instance.state.tr.setStoredMarks(null).insertText('world', from, to).doc
+
+    expect(replaceActiveFindMatch(instance, 'world')).toBe(true)
+    expect(instance.state.doc.eq(nativeResult)).toBe(true)
+    expect(instance.getMarkdown()).toBe(expected)
+  })
+
   it('preserves each matched range formatting during Replace All', () => {
     const instance = mountEditor('**alpha** and alpha and *alpha*')
     instance.commands.setTextSelection(instance.state.doc.content.size - 1)

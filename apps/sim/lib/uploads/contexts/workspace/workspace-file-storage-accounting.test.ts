@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { workspaceFiles } from '@sim/db/schema'
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { describeError } from '@sim/utils/errors'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { eq } from 'drizzle-orm'
@@ -749,6 +749,22 @@ describe('workspace file metadata and storage accounting', () => {
   const MD_ROW = { ...FILE_ROW, originalName: 'note.md', contentType: 'text/markdown' }
 
   it('transactionally enqueues a markdown overwrite for live-document reconciliation', async () => {
+    const transaction = { ...dbChainMock.db }
+    let committed = false
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => {
+      const result = await callback(transaction)
+      expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(
+        transaction,
+        expect.objectContaining({ fileId: MD_ROW.id })
+      )
+      expect(mockProcessWorkspaceFileLiveDocReconciliationNow).not.toHaveBeenCalled()
+      committed = true
+      return result
+    })
+    mockProcessWorkspaceFileLiveDocReconciliationNow.mockImplementationOnce(async () => {
+      expect(committed).toBe(true)
+      return 'completed'
+    })
     // Distinct updatedAt vs contentUpdatedAt so the assertion proves the merge carries the CONTENT
     // version (the persist If-Match token), not `updatedAt` — reverting that wiring would fail here.
     const updatedFile = {
@@ -769,7 +785,7 @@ describe('workspace file metadata and storage accounting', () => {
       Buffer.from('# new content', 'utf-8')
     )
 
-    expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(expect.anything(), {
+    expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(transaction, {
       workspaceId: MD_ROW.workspaceId,
       fileId: MD_ROW.id,
       version: updatedFile.contentUpdatedAt.getTime(),

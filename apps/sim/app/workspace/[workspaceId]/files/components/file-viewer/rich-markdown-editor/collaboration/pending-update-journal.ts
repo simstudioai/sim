@@ -2,7 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { FILE_DOC_LIMITS } from '@sim/realtime-protocol/file-doc'
-import { update as updateValue } from 'idb-keyval'
+import { get, update as updateValue } from 'idb-keyval'
 import * as Y from 'yjs'
 
 const logger = createLogger('PendingFileDocUpdateJournal')
@@ -98,15 +98,10 @@ export class PendingFileDocUpdateJournal {
   async load(preferredDocId?: string): Promise<PendingDocumentRecovery | null> {
     try {
       await this.mutationQueue
-      let recovered: PendingDocumentRecovery | null = null
-      await updateValue<unknown>(this.key, (value) => {
-        const documents = liveDocuments(value, Date.now())
-        recovered = preferredDocId
-          ? (documents.find((document) => document.docId === preferredDocId) ?? null)
-          : (documents[0] ?? null)
-        return record(documents)
-      })
-      return recovered
+      const documents = liveDocuments(await get<unknown>(this.key), Date.now())
+      return preferredDocId
+        ? (documents.find((document) => document.docId === preferredDocId) ?? null)
+        : (documents[0] ?? null)
     } catch (error) {
       logger.warn('Failed to load pending file edits', { error })
       return null

@@ -161,6 +161,34 @@ describe('isRoundTripSafe', () => {
   })
 
   it.each([
+    '<img src="a>b" class="hero">',
+    '[<img src="a>b" class="hero">](/link)',
+    '[<img src="/image" title="a>b" class="hero" width="30">](/link)',
+    "[<img src='/image' title='a>b' data-credit='Alice' width='30'>](/link)",
+  ])('checks attributes after quoted angle brackets without losing source: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
+  it.each([
+    '<img src="/image" alt="first" alt="second">',
+    '[<img src="/image" alt="first" alt="second" width="30">](/link)',
+    '[<img src="/image" alt="first" ALT="second" width="30">](/link)',
+    '[<img src="/image" width="30" WIDTH="60">](/link)',
+  ])('keeps duplicate image attributes in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
+  it('allows supported image attributes containing quoted angle brackets', () => {
+    expect(isRoundTripSafe('<img src="/image" title="a>b" width="30">')).toBe(true)
+    expect(isRoundTripSafe('[<img src="/image" alt="a>b" width="30">](/link)')).toBe(true)
+    expect(
+      isRoundTripSafe('[<img src="/image" title="example <img class=hero>" width="30">](/link)')
+    ).toBe(true)
+  })
+
+  it.each([
     '| <img src="/image.png"> |\n| --- |\n| body |',
     '| header |\n| --- |\n| <img src="/image.png"> |',
     '| header |\n| --- |\n| <IMG src="/image.png"> |',
