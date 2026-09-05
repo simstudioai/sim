@@ -163,6 +163,36 @@ runs:
           echo "::warning::Layer cache prune failed; this sticky disk is unbounded for this run"
         fi
 
+        # Why this block exists: the cap above is enforced against `buildctl du`,
+        # and on the busiest disk that number no longer describes the disk. The
+        # app image's amd64 sticky disk reports 224.9 GB while du inside the same
+        # job reads 65.87 GB, so the prune correctly does nothing — it is already
+        # under a 100 GB cap by its own accounting — and the disk keeps growing.
+        # The same Dockerfile's arm64 disk, which builds far less often, reads
+        # 88.04 GB against an 86.4 GB disk: no gap at all. So the divergence
+        # tracks build frequency, not image content.
+        #
+        # The mount log ("Filesystem free space after mount") says the filesystem
+        # really is holding those bytes, so this is not a thin-provisioned volume
+        # failing to release freed blocks — there are real files here that du's
+        # total does not cover. The candidates are the `RUN --mount=type=cache`
+        # dirs (apt, bun, npm, next, turbo), which are a different record class
+        # from the layer cache `--keep-storage` trims.
+        #
+        # These three readings separate those cases: df is the filesystem's own
+        # view, the record-type summary shows whether du even accounts for cache
+        # mounts, and the directory walk locates the bytes if it does not. All are
+        # best-effort and bounded — this step must never be able to fail a deploy,
+        # which is why every command is guarded and the walk has a timeout.
+        echo "--- cache accounting (diagnostic) ---"
+        df -h /var/lib/buildkit 2>/dev/null || true
+        echo "du by record type:"
+        sudo buildctl --addr "$addr" du --verbose 2>/dev/null \
+          | awk '/^Type:/ { t=$2 } /^Size:/ { s[t] += $2 } END { for (k in s) printf "  %-24s %10.2f GB\n", k, s[k]/1e9 }' \
+          | sort -k2 -rn || true
+        echo "largest directories under /var/lib/buildkit:"
+        sudo timeout 120 du -xh -d1 /var/lib/buildkit 2>/dev/null | sort -rh | head -8 || true
+
     - name: Set up Docker Buildx
       if: inputs.provider != '' && inputs.provider != 'blacksmith'
       uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
