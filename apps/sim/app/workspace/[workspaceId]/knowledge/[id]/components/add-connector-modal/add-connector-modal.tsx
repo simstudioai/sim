@@ -1,12 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
-  ArrowRight,
-  Button,
   ButtonGroup,
   ButtonGroupItem,
   Checkbox,
+  Chip,
   ChipCombobox,
   ChipInput,
   ChipModal,
@@ -16,20 +15,23 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  cn,
-  handleKeyboardActivation,
   OverflowText,
-  Search,
 } from '@sim/emcn'
-import { ArrowLeft, Plus } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
-import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
+  getServiceAccountProviderForProviderId,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import {
+  ConnectServiceAccountModal,
+  useServiceAccountConnectTarget,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { derivedAclCapFieldIds } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
   ConnectorAccessField,
@@ -47,15 +49,17 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { getBlock } from '@/blocks'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { withBrandIcon } from '@/blocks/brand-icon'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useMemberAccessAvailable } from '@/hooks/use-member-access'
+import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 
@@ -70,6 +74,8 @@ interface AddConnectorModalProps {
   initialConnectorType?: string | null
   initialAccessMode?: ConnectorAccessSelection['accessMode']
   initialSyncIntervalMinutes?: number
+  onCreated?: (connectorType: string) => void
+  setupDraftKey?: string
 }
 
 type Step = 'select-type' | 'configure'
@@ -83,34 +89,56 @@ export function AddConnectorModal({
   initialConnectorType,
   initialAccessMode = 'workspace',
   initialSyncIntervalMinutes = 1440,
+  onCreated,
+  setupDraftKey,
 }: AddConnectorModalProps) {
+  const metadataId = useId()
   const initialType =
     initialConnectorType &&
     (!isSearchIndex || CONNECTOR_META_REGISTRY[initialConnectorType]?.search)
       ? initialConnectorType
       : null
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const [draft] = useState(() =>
+    setupDraftKey ? useConnectorSetupStore.getState().getDraft(setupDraftKey) : undefined
+  )
   const [step, setStep] = useState<Step>(() => (initialType ? 'configure' : 'select-type'))
   const [selectedType, setSelectedType] = useState<string | null>(initialType)
-  const [syncInterval, setSyncInterval] = useState(initialSyncIntervalMinutes)
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [contentCredentialId, setContentCredentialId] = useState<string | null>(null)
+  const [syncInterval, setSyncInterval] = useState(
+    isSearchIndex ? SIM_SEARCH_SYNC_INTERVAL_MINUTES : initialSyncIntervalMinutes
+  )
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(
+    draft?.credentialId ?? null
+  )
+  const [contentCredentialId, setContentCredentialId] = useState<string | null>(
+    draft?.contentCredentialId ?? null
+  )
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => ({
     accessMode:
-      isSearchIndex && initialAccessMode === 'workspace'
+      draft?.accessMode ??
+      (isSearchIndex && initialAccessMode === 'workspace'
         ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
           ? 'admin'
           : 'members'
-        : initialAccessMode,
+        : initialAccessMode),
   }))
-  const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(() => new Set())
+  const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(
+    () => new Set(draft?.disabledTagIds)
+  )
+  const [showMetadata, setShowMetadata] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
+  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
 
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  useOAuthReturnForKBConnectors(
+    isSearchIndex ? knowledgeBaseId : undefined,
+    setSelectedCredentialId,
+    selectedType ?? undefined
+  )
   const { ownerBilling, features } = useWorkspaceHostContext()
   const { canAdmin } = useUserPermissionsContext()
   const memberAccessAvailable = useMemberAccessAvailable()
@@ -122,10 +150,7 @@ export function AddConnectorModal({
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
-  const hiddenCapFieldIds = useMemo(
-    () => derivedAclCapFieldIds(connectorConfig, access.accessMode),
-    [connectorConfig, access.accessMode]
-  )
+  const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
   /** True when the connector declares its key optional (public sources need none). */
   const isApiKeyOptional =
     connectorConfig?.auth.mode === 'apiKey' && connectorConfig.auth.optional === true
@@ -136,6 +161,28 @@ export function AddConnectorModal({
         : null,
     [connectorConfig]
   )
+
+  const { integrationAvailability } = usePermissionConfig()
+  const serviceAccountProviderId = connectorProviderId
+    ? getServiceAccountProviderForProviderId(connectorProviderId)
+    : undefined
+  const serviceAccountTarget = useServiceAccountConnectTarget({
+    serviceAccountProviderId:
+      isSearchIndex &&
+      (serviceAccountProviderId === 'google-service-account' ||
+        serviceAccountProviderId === 'atlassian-service-account')
+        ? serviceAccountProviderId
+        : undefined,
+    serviceName: connectorConfig?.name,
+    serviceIcon: connectorConfig?.icon,
+  })
+  const deploymentState = selectedType
+    ? integrationAvailability.get(selectedType)?.state
+    : undefined
+  const canConnectServiceAccount =
+    serviceAccountTarget &&
+    !serviceAccountTarget.hidden &&
+    (deploymentState === 'ready' || deploymentState === 'limited')
 
   const {
     data: credentials = [],
@@ -162,9 +209,32 @@ export function AddConnectorModal({
     handleFieldChange,
     toggleCanonicalMode,
     resolveSourceConfig,
-  } = useConnectorConfigFields({ connectorConfig })
+  } = useConnectorConfigFields({
+    connectorConfig,
+    initialSourceConfig: draft?.sourceConfig,
+    initialCanonicalModes: draft?.canonicalModes,
+  })
+
+  const saveSetup = () => {
+    if (!setupDraftKey) return
+    useConnectorSetupStore.getState().saveDraft(setupDraftKey, {
+      sourceConfig,
+      canonicalModes,
+      accessMode: access.accessMode,
+      credentialId: effectiveCredentialId,
+      contentCredentialId,
+      disabledTagIds: Array.from(disabledTagIds),
+      savedAt: Date.now(),
+    })
+  }
+
+  const closeSetup = (nextOpen: boolean) => {
+    if (!nextOpen && setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
+    onOpenChange(nextOpen)
+  }
 
   const handleSelectType = (type: string) => {
+    if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
     setSelectedType(type)
     setSourceConfig({})
     setSelectedCredentialId(null)
@@ -179,23 +249,12 @@ export function AddConnectorModal({
     setApiKeyValue('')
     setApiKeyFocused(false)
     setDisabledTagIds(new Set())
+    setShowMetadata(false)
     setCanonicalModes({})
     setError(null)
     setSearchTerm('')
     setStep('configure')
     onConnectorTypeChange?.(type)
-  }
-
-  const toggleTagDefinition = (tagId: string) => {
-    setDisabledTagIds((prev) => {
-      const next = new Set(prev)
-      if (prev.has(tagId)) {
-        next.delete(tagId)
-      } else {
-        next.add(tagId)
-      }
-      return next
-    })
   }
 
   const hasRequiredCredential = isApiKeyMode
@@ -266,7 +325,8 @@ export function AddConnectorModal({
       },
       {
         onSuccess: () => {
-          onOpenChange(false)
+          closeSetup(false)
+          onCreated?.(selectedType)
         },
         onError: (err) => {
           setError(err.message)
@@ -291,25 +351,23 @@ export function AddConnectorModal({
     <>
       <ChipModal
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={closeSetup}
         srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
         size='md'
         dismissDisabled={isCreating}
       >
-        <ChipModalHeader onClose={() => onOpenChange(false)}>
+        <ChipModalHeader onClose={() => closeSetup(false)}>
           {step === 'configure' ? (
             <span className='flex items-center gap-2'>
-              <Button
-                variant='ghost'
+              <Chip
+                leftIcon={ArrowLeft}
                 aria-label='Choose another source'
-                className='size-6 p-0'
                 onClick={() => {
+                  if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
                   setStep('select-type')
                   onConnectorTypeChange?.('')
                 }}
-              >
-                <ArrowLeft className='size-4' />
-              </Button>
+              />
               {`Configure ${connectorConfig?.name}`}
             </span>
           ) : (
@@ -361,6 +419,10 @@ export function AddConnectorModal({
                   allowAdmin={mirroredAccessAvailable}
                   allowWorkspace={!isSearchIndex}
                   disabled={isCreating}
+                  searchSetupSource={
+                    isSearchIndex && selectedType === 'slack' ? 'slack' : undefined
+                  }
+                  onSetupNavigate={saveSetup}
                 />
               )}
 
@@ -409,8 +471,21 @@ export function AddConnectorModal({
                             : `Connect ${connectorConfig.name} account`,
                         value: '__connect_new__',
                         icon: Plus,
-                        onSelect: () => setShowOAuthModal(true),
+                        onSelect: () => {
+                          saveSetup()
+                          setShowOAuthModal(true)
+                        },
                       },
+                      ...(canConnectServiceAccount
+                        ? [
+                            {
+                              label: serviceAccountTarget.label,
+                              value: '__service_account__',
+                              icon: Plus,
+                              onSelect: () => setShowServiceAccountModal(true),
+                            },
+                          ]
+                        : []),
                     ]}
                     value={effectiveCredentialId ?? undefined}
                     onChange={(value) => setSelectedCredentialId(value)}
@@ -451,73 +526,87 @@ export function AddConnectorModal({
               />
 
               {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
-                <ChipModalField type='custom' title='Metadata Tags'>
-                  <div className='flex flex-col gap-2'>
-                    {connectorConfig.tagDefinitions.map((tagDef) => (
-                      <div
-                        key={tagDef.id}
-                        role='checkbox'
-                        aria-checked={!disabledTagIds.has(tagDef.id)}
-                        tabIndex={0}
-                        className='flex cursor-pointer items-center gap-2 rounded-sm p-0.5 text-small'
-                        onClick={() => toggleTagDefinition(tagDef.id)}
-                        onKeyDown={(event) => {
-                          if (event.target !== event.currentTarget) return
-                          handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
-                        }}
-                      >
-                        <Checkbox
-                          checked={!disabledTagIds.has(tagDef.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          onCheckedChange={(checked) => {
-                            setDisabledTagIds((prev) => {
-                              const next = new Set(prev)
-                              if (checked) {
-                                next.delete(tagDef.id)
-                              } else {
-                                next.add(tagDef.id)
-                              }
-                              return next
-                            })
-                          }}
-                        />
-                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
-                          {tagDef.displayName}
-                        </span>
-                        <span className='shrink-0 text-[var(--text-muted)] text-xs'>
-                          ({tagDef.fieldType})
-                        </span>
-                      </div>
-                    ))}
+                <>
+                  <div className='px-2'>
+                    <Chip
+                      type='button'
+                      leftIcon={showMetadata ? ChevronDown : ChevronRight}
+                      aria-expanded={showMetadata}
+                      onClick={() => setShowMetadata((visible) => !visible)}
+                    >
+                      Document details (optional)
+                    </Chip>
                   </div>
-                </ChipModalField>
+                  {showMetadata && (
+                    <ChipModalField
+                      type='custom'
+                      title='Metadata tags'
+                      hint='All document details below are included by default. Deselect any you do not need.'
+                    >
+                      <div className='flex flex-col gap-2'>
+                        {connectorConfig.tagDefinitions.map((tagDef) => (
+                          <label
+                            key={tagDef.id}
+                            htmlFor={`${metadataId}-${tagDef.id}`}
+                            className='flex cursor-pointer items-center gap-2 text-small'
+                          >
+                            <Checkbox
+                              id={`${metadataId}-${tagDef.id}`}
+                              checked={!disabledTagIds.has(tagDef.id)}
+                              onCheckedChange={(checked) => {
+                                setDisabledTagIds((prev) => {
+                                  const next = new Set(prev)
+                                  if (checked) {
+                                    next.delete(tagDef.id)
+                                  } else {
+                                    next.add(tagDef.id)
+                                  }
+                                  return next
+                                })
+                              }}
+                            />
+                            <OverflowText
+                              label={tagDef.displayName}
+                              className='flex-1 text-[var(--text-body)]'
+                            />
+                            <span className='shrink-0 text-[var(--text-muted)] text-xs'>
+                              ({tagDef.fieldType})
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </ChipModalField>
+                  )}
+                </>
               )}
 
-              <ChipModalField
-                type='custom'
-                title='Sync Frequency'
-                hint={connectorSyncFrequencyHint(
-                  access.accessMode,
-                  syncInterval,
-                  Boolean(contentCredentialId)
-                )}
-              >
-                <ButtonGroup
-                  value={String(syncInterval)}
-                  onValueChange={(val) => setSyncInterval(Number(val))}
+              {!isSearchIndex && (
+                <ChipModalField
+                  type='custom'
+                  title='Sync Frequency'
+                  hint={connectorSyncFrequencyHint(
+                    access.accessMode,
+                    syncInterval,
+                    Boolean(contentCredentialId)
+                  )}
                 >
-                  {SYNC_INTERVALS.map((interval) => (
-                    <ButtonGroupItem
-                      key={interval.value}
-                      value={String(interval.value)}
-                      disabled={interval.requiresMax && !hasMaxAccess}
-                    >
-                      {interval.label}
-                      {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
-                    </ButtonGroupItem>
-                  ))}
-                </ButtonGroup>
-              </ChipModalField>
+                  <ButtonGroup
+                    value={String(syncInterval)}
+                    onValueChange={(val) => setSyncInterval(Number(val))}
+                  >
+                    {SYNC_INTERVALS.map((interval) => (
+                      <ButtonGroupItem
+                        key={interval.value}
+                        value={String(interval.value)}
+                        disabled={interval.requiresMax && !hasMaxAccess}
+                      >
+                        {interval.label}
+                        {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
+                      </ButtonGroupItem>
+                    ))}
+                  </ButtonGroup>
+                </ChipModalField>
+              )}
 
               <ChipModalError>{error}</ChipModalError>
             </>
@@ -526,7 +615,7 @@ export function AddConnectorModal({
 
         {step === 'configure' && (
           <ChipModalFooter
-            onCancel={() => onOpenChange(false)}
+            onCancel={() => closeSetup(false)}
             primaryAction={{
               label: isCreating
                 ? isMembersMode
@@ -541,6 +630,21 @@ export function AddConnectorModal({
           />
         )}
       </ChipModal>
+      {showServiceAccountModal && canConnectServiceAccount && (
+        <ConnectServiceAccountModal
+          open
+          onOpenChange={setShowServiceAccountModal}
+          workspaceId={workspaceId}
+          serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          serviceName={serviceAccountTarget.serviceName}
+          serviceIcon={serviceAccountTarget.serviceIcon}
+          atlassianProduct={selectedType === 'confluence' ? 'confluence' : undefined}
+          onCreated={(credentialId) => {
+            setSelectedCredentialId(credentialId)
+            void refetchCredentials()
+          }}
+        />
+      )}
       {showOAuthModal &&
         connectorConfig &&
         connectorConfig.auth.mode === 'oauth' &&
@@ -551,7 +655,6 @@ export function AddConnectorModal({
             open={showOAuthModal}
             onOpenChange={(open) => {
               if (!open) {
-                consumeOAuthReturnContext()
                 setShowOAuthModal(false)
               }
             }}
@@ -575,41 +678,15 @@ interface ConnectorTypeCardProps {
 }
 
 function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
-  const Icon = config.icon
-  const brandBg = getBlock(type)?.bgColor ?? null
-
   return (
-    <button
-      type='button'
-      className='flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+    <SettingsResourceRow
+      iconVariant='custom'
+      icon={<IntegrationTile blockType={type} icon={config.icon} />}
+      title={config.name}
+      description={config.description}
       onClick={onClick}
-    >
-      <div className='size-9 shrink-0'>
-        <div
-          className={cn(
-            'flex size-full items-center justify-center rounded-xl border',
-            brandBg
-              ? 'border-[var(--border-1)]'
-              : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
-          )}
-          style={brandBg ? { background: brandBg } : undefined}
-        >
-          <Icon
-            className={cn(
-              'size-5',
-              brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
-            )}
-          />
-        </div>
-      </div>
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <OverflowText label={config.name} className='text-[var(--text-body)] text-sm' />
-        <OverflowText
-          label={config.description}
-          className='text-[var(--text-muted)] text-caption'
-        />
-      </div>
-      <ArrowRight className='size-4 shrink-0 text-[var(--text-icon)]' />
-    </button>
+      clickLabel={config.name}
+      navigable
+    />
   )
 }

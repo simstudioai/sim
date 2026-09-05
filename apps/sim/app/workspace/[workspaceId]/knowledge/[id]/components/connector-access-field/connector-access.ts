@@ -14,7 +14,7 @@ export function connectorMemberProvider(
   return findCredentialGroupProviderFromProviderId(connectorConfig.auth.provider)
 }
 
-/** The config fields a per-member connector hides: its listing caps, which the server clears. */
+/** Derived ACL modes hide listing caps, which the server clears. */
 export function derivedAclCapFieldIds(
   connectorConfig: ConnectorMeta | null,
   accessMode: ConnectorAccessMode

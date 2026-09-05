@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Button } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
@@ -79,14 +79,13 @@ export function MemberConnectorsSection({ workspaceId, connectors }: MemberConne
                   .join(' · ')}
                 trailing={
                   CONNECTABLE_MEMBERSHIPS.has(connector.viewerMembership) ? (
-                    <Button
+                    <Chip
                       variant='primary'
-                      size='sm'
                       onClick={() => connect(connector.knowledgeBaseId, connector.connectorId)}
                       disabled={isPending}
                     >
                       {enrollmentActionLabel(connector.viewerMembership, waiting)}
-                    </Button>
+                    </Chip>
                   ) : undefined
                 }
               />

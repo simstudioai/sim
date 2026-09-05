@@ -14,6 +14,7 @@ const {
   mockPrepareSource,
   mockNavigate,
   mockSlackAvailable,
+  mockAccounts,
 } = vi.hoisted(() => ({
   mockConnect: vi.fn(),
   mockConnectSource: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockPrepareSource: vi.fn(),
   mockNavigate: vi.fn(),
   mockSlackAvailable: vi.fn(),
+  mockAccounts: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -31,14 +33,20 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockNavigate }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: () => ({ features: mockFeatures() }),
   useOptionalWorkspaceHostContext: () => ({ features: mockFeatures() }),
+  useWorkspaceHostContext: () => ({ features: mockFeatures() }),
 }))
 vi.mock('nuqs', () => ({
-  useQueryState: () => [mockSearchTerm() ?? '', vi.fn()],
+  useQueryState: (key: string) => [key === 'search' ? (mockSearchTerm() ?? '') : false, vi.fn()],
 }))
 vi.mock('@/hooks/use-debounced-search-setter', () => ({
   useDebouncedSearchSetter: (write: (value: string) => void) => write,
+}))
+vi.mock('@/hooks/queries/credential-groups', () => ({
+  useWorkspaceAccounts: () => ({
+    data: mockAccounts() ?? { credentialGroup: null },
+    isLoading: false,
+  }),
 }))
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacePermissionsQuery: () => ({ data: { viewer: { isAdmin: true } } }),
@@ -211,6 +219,7 @@ afterEach(() => {
   mockPrepareSource.mockReset()
   mockNavigate.mockReset()
   mockSlackAvailable.mockReset()
+  mockAccounts.mockReset()
 })
 
 describe('Search', () => {
@@ -218,10 +227,36 @@ describe('Search', () => {
     mockSlackAvailable.mockReturnValue(true)
     mount()
     const link = Array.from(container?.querySelectorAll('a') ?? []).find((node) =>
-      node.textContent?.includes('Configure member sign-in')
+      node.textContent?.includes('Set up Slack')
     )
-    expect(link?.getAttribute('href')).toBe('/workspace/workspace-1/settings/credential-groups')
+    expect(link?.getAttribute('href')).toBe(
+      '/workspace/workspace-1/settings/credential-groups?search-setup=search&credential-group-provider=slack'
+    )
+    expect(container?.textContent).not.toContain('Set up Slack app')
+    expect(container?.textContent).not.toContain(
+      'Documents become searchable as indexing completes'
+    )
     expect(mockPrepareSource).not.toHaveBeenCalled()
+  })
+
+  it('offers personal Connect after Slack is configured and keeps MCP above the sources', () => {
+    mockSlackAvailable.mockReturnValue(true)
+    mockAccounts.mockReturnValue({
+      credentialGroup: {
+        status: 'active',
+        options: [{ provider: 'slack', status: 'active', configurationStatus: 'ready' }],
+      },
+    })
+    mount()
+    expect(container?.textContent).not.toContain('Set up Slack')
+    expect(container?.textContent?.indexOf('Use Search in other apps')).toBeLessThan(
+      container?.textContent?.indexOf('Your accounts') ?? -1
+    )
+    const connect = buttons()
+      .filter((button) => button.textContent === 'Connect')
+      .at(0)
+    act(() => connect?.click())
+    expect(mockConnectSource).toHaveBeenCalledWith('workspace-1', 'slack')
   })
 
   it('filters configured sources by their displayed source address', () => {

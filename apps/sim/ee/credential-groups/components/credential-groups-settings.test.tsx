@@ -8,10 +8,13 @@ import type { CredentialGroup } from '@/lib/api/contracts/credential-groups'
 
 const mocks = vi.hoisted(() => ({
   groups: [] as CredentialGroup[],
+  accountsPending: false,
   ensure: vi.fn(),
   ensured: undefined as { credentialGroup: CredentialGroup } | undefined,
   setupError: null as Error | null,
   setupIdle: true,
+  setupPending: false,
+  push: vi.fn(),
   update: vi.fn(),
   panel: null as {
     title?: string
@@ -20,21 +23,27 @@ const mocks = vi.hoisted(() => ({
   } | null,
 }))
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/workspace/workspace-1/settings/credential-groups',
+  useRouter: () => ({ push: mocks.push }),
+}))
 vi.mock('@/hooks/queries/credential-groups', () => ({
   useWorkspaceAccounts: (workspaceId: string) => ({
-    data: {
-      credentialGroup: mocks.groups.find((group) => group.workspaceId === workspaceId) ?? null,
-      availableProviders: [],
-    },
-    isSuccess: true,
-    isPending: false,
+    data: mocks.accountsPending
+      ? undefined
+      : {
+          credentialGroup: mocks.groups.find((group) => group.workspaceId === workspaceId) ?? null,
+          availableProviders: [],
+        },
+    isSuccess: !mocks.accountsPending,
+    isPending: mocks.accountsPending,
   }),
   useEnsureWorkspaceAccounts: () => ({
     mutate: mocks.ensure,
     data: mocks.ensured,
     error: mocks.setupError,
     isIdle: mocks.setupIdle,
-    isPending: false,
+    isPending: mocks.setupPending,
   }),
   useCredentialGroupDetail: (_workspaceId: string, groupId: string) => ({
     data: {
@@ -114,9 +123,11 @@ describe('Connected accounts settings', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     vi.spyOn(toast, 'success').mockImplementation(() => '')
     mocks.groups = [canonical]
+    mocks.accountsPending = false
     mocks.ensured = undefined
     mocks.setupError = null
     mocks.setupIdle = true
+    mocks.setupPending = false
     mocks.panel = null
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -199,6 +210,33 @@ describe('Connected accounts settings', () => {
     )
     await act(async () => retry?.click())
     expect(mocks.ensure).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
+  })
+
+  it.each([
+    ['loading', 'search', '/workspace/workspace-1/search'],
+    ['loading', 'slack', '/workspace/workspace-1/search?addConnector=slack'],
+    ['preparing', 'search', '/workspace/workspace-1/search'],
+    ['preparing', 'slack', '/workspace/workspace-1/search?addConnector=slack'],
+    ['failed', 'search', '/workspace/workspace-1/search'],
+    ['failed', 'slack', '/workspace/workspace-1/search?addConnector=slack'],
+  ] as const)('returns from %s accounts to %s setup', async (state, source, href) => {
+    mocks.groups = []
+    mocks.accountsPending = state === 'loading'
+    mocks.setupIdle = state === 'loading'
+    mocks.setupPending = state === 'preparing'
+    mocks.setupError = state === 'failed' ? new Error('Temporary setup failure') : null
+
+    await render(`?search-setup=${source}`)
+
+    expect(container.querySelector('[data-accounts-id]')).toBeNull()
+    if (state === 'failed') expect(container.textContent).toContain('Temporary setup failure')
+    const continueSetup = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Continue Search setup'
+    )
+    expect(continueSetup).toBeDefined()
+    await act(async () => continueSetup?.click())
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith(href)
+    expect(mocks.ensure).not.toHaveBeenCalled()
   })
 
   it('offers to enable a disabled canonical container without replacing it', async () => {

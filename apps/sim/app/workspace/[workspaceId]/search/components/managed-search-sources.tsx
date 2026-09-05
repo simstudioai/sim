@@ -1,11 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { Button, ChipLink } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import dynamic from 'next/dynamic'
+import { useQueryState } from 'nuqs'
+import { useSession } from '@/lib/auth/auth-client'
 import { MANAGED_SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import {
+  managedSourceParam,
+  searchSetupParam,
+} from '@/app/workspace/[workspaceId]/search/search-params'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useConnectorList, usePrepareSearchSource } from '@/hooks/queries/kb/connectors'
@@ -15,6 +20,14 @@ const AddConnectorModal = dynamic(
   () =>
     import('@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal').then(
       (module) => module.AddConnectorModal
+    ),
+  { ssr: false }
+)
+
+const SearchSourceStatus = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/search/components/search-source-status').then(
+      (module) => module.SearchSourceStatus
     ),
   { ssr: false }
 )
@@ -33,7 +46,15 @@ export function ManagedSearchSources({
   available,
   search,
 }: ManagedSearchSourcesProps) {
-  const [selectedType, setSelectedType] = useState<string | null>(null)
+  const { data: session } = useSession()
+  const [selectedType, setSelectedType] = useQueryState(
+    searchSetupParam.key,
+    searchSetupParam.parser.withOptions({ history: 'replace' })
+  )
+  const [managedType, setManagedType] = useQueryState(
+    managedSourceParam.key,
+    managedSourceParam.parser.withOptions({ history: 'replace' })
+  )
   const prepare = usePrepareSearchSource()
   const bases = useKnowledgeBasesQuery(workspaceId, { enabled: canAdmin && available })
   const existingBase = bases.data?.find((base) => base.isSearchIndex === true)
@@ -42,7 +63,7 @@ export function ManagedSearchSources({
   const visible = MANAGED_SEARCH_CONNECTORS.filter(({ meta }) =>
     `${meta.name} ${meta.description}`.toLowerCase().includes(search)
   )
-  if (visible.length === 0) return null
+  if (visible.length === 0 && selectedType === null && !managedType) return null
   const failedQuery = bases.isError
     ? bases
     : knowledgeBaseId && connectors.isError
@@ -50,7 +71,7 @@ export function ManagedSearchSources({
       : null
   if (canAdmin && available && failedQuery) {
     return (
-      <IntegrationSection label='Workspace sources'>
+      <IntegrationSection label='Workspace sources' layout='list'>
         <SettingsQueryErrorState
           error={failedQuery.error}
           fallback='Failed to load workspace sources'
@@ -62,7 +83,11 @@ export function ManagedSearchSources({
     )
   }
   return (
-    <IntegrationSection label='Workspace sources'>
+    <IntegrationSection
+      label='Workspace sources'
+      layout='list'
+      description='Connect an administrator or service account for your team.'
+    >
       {visible.map(({ type, meta }) => {
         const configured =
           (canAdmin && available ? connectors.data : undefined)?.filter(
@@ -75,7 +100,7 @@ export function ManagedSearchSources({
             ? 'Ask a workspace admin to connect this source.'
             : type === 'gitlab'
               ? 'Self-managed GitLab. Requires an instance administrator token with read_api access.'
-              : 'Connect an administrator or service account. Each person keeps their access to the source.'
+              : 'Source permissions determine what each person can search.'
         return (
           <SettingsResourceRow
             key={type}
@@ -91,29 +116,33 @@ export function ManagedSearchSources({
               canAdmin && available ? (
                 <div className='flex items-center gap-2'>
                   {configured.length > 0 && knowledgeBaseId && (
-                    <ChipLink href={`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`}>
+                    <Chip
+                      onClick={() => void setManagedType(managedSourceParam.parser.parse(type))}
+                    >
                       Manage
-                    </ChipLink>
+                    </Chip>
                   )}
-                  <Button
+                  <Chip
                     variant='primary'
-                    size='sm'
                     disabled={
                       prepare.isPending ||
                       bases.isPending ||
                       Boolean(knowledgeBaseId && connectors.isPending)
                     }
                     onClick={() => {
-                      if (knowledgeBaseId) setSelectedType(type)
+                      if (knowledgeBaseId) void setSelectedType(searchSetupParam.parser.parse(type))
                       else
                         prepare.mutate(
                           { workspaceId, connectorType: type },
-                          { onSuccess: () => setSelectedType(type) }
+                          {
+                            onSuccess: () =>
+                              void setSelectedType(searchSetupParam.parser.parse(type)),
+                          }
                         )
                     }}
                   >
                     {configured.length ? 'Add source' : 'Set up'}
-                  </Button>
+                  </Chip>
                 </div>
               ) : undefined
             }
@@ -123,18 +152,48 @@ export function ManagedSearchSources({
       {canAdmin && available && prepare.error && (
         <p className='text-[var(--text-error)] text-caption'>{prepare.error.message}</p>
       )}
-      {canAdmin && available && selectedType && knowledgeBaseId && (
+      {canAdmin && available && selectedType && !knowledgeBaseId && !bases.isPending && (
+        <Chip
+          disabled={prepare.isPending}
+          onClick={() =>
+            prepare.mutate({
+              workspaceId,
+              connectorType: selectedType,
+              ...(selectedType === 'slack' && { accessMode: 'members' }),
+            })
+          }
+        >
+          Continue setup
+        </Chip>
+      )}
+      {canAdmin && available && selectedType !== null && knowledgeBaseId && session?.user?.id && (
         <AddConnectorModal
-          key={selectedType}
+          key={`${session.user.id}:${knowledgeBaseId}:${selectedType}`}
           open
           onOpenChange={(open) => {
-            if (!open) setSelectedType(null)
+            if (!open) void setSelectedType(null)
           }}
           knowledgeBaseId={knowledgeBaseId}
           isSearchIndex
           initialConnectorType={selectedType}
-          initialAccessMode='admin'
-          initialSyncIntervalMinutes={60}
+          initialAccessMode={selectedType === 'slack' ? 'members' : 'admin'}
+          setupDraftKey={`${session.user.id}:${workspaceId}:${knowledgeBaseId}:${selectedType}`}
+          onConnectorTypeChange={(type) =>
+            void setSelectedType(type !== null ? searchSetupParam.parser.parse(type) : null)
+          }
+          onCreated={(type) => void setManagedType(managedSourceParam.parser.parse(type))}
+        />
+      )}
+      {canAdmin && available && managedType && knowledgeBaseId && (
+        <SearchSourceStatus
+          workspaceId={workspaceId}
+          knowledgeBaseId={knowledgeBaseId}
+          connectorType={managedType}
+          connectors={
+            connectors.data?.filter((connector) => connector.connectorType === managedType) ?? []
+          }
+          isLoading={connectors.isPending}
+          onClose={() => void setManagedType(null)}
         />
       )}
     </IntegrationSection>

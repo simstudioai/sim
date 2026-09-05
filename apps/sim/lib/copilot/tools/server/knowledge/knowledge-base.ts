@@ -450,8 +450,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               query: modelQuery,
               topK,
               surface: 'copilot',
-              signal: context.abortSignal,
               resultSecretRegistry: context.resolvedSecretTraceRegistry,
+              signal: context.abortSignal,
             }),
             /**
              * Whether to ask for a citation is a presentation choice, and it is

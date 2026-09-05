@@ -31,13 +31,12 @@ import {
   missingSetupFields,
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
 } from '@/lib/sim-search/connectors'
+import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
 const SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION =
   'What each person can open in the sources they connected, searched as them.'
-/** Between runs the change feeds keep deletions and unshares fresh; the hourly run fills the rest. */
-const SIM_SEARCH_SYNC_INTERVAL_MINUTES = 60
 
 export interface ConnectSimSearchConnectorInput {
   workspaceId: string

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  ChipLink,
+  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -21,6 +21,7 @@ import {
   SLACK_MANAGED_USER_SCOPES,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
@@ -83,6 +84,7 @@ export function SlackManagedUsersModal({
 }: SlackManagedUsersModalProps) {
   const queryClient = useQueryClient()
   const startAuthorization = useStartSlackCredentialGroupConfiguration()
+  const [appSetupOpen, setAppSetupOpen] = useState(false)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
@@ -268,112 +270,120 @@ export function SlackManagedUsersModal({
     isLoading || noBots || !selectedBot || pending || !clientId.trim() || !clientSecret.trim()
 
   return (
-    <ChipModal
-      open={open}
-      onOpenChange={handleOpenChange}
-      dismissDisabled={pending}
-      srTitle='Set up Slack'
-      size='md'
-    >
-      <ChipModalHeader
-        icon={SlackIcon}
-        onClose={() => handleOpenChange(false)}
-        closeDisabled={pending}
+    <>
+      <ChipModal
+        open={open}
+        onOpenChange={handleOpenChange}
+        dismissDisabled={pending}
+        srTitle='Set up Slack'
+        size='md'
       >
-        Set up Slack
-      </ChipModalHeader>
-      <ChipModalBody>
-        {isLoading ? (
-          <div className='flex flex-col gap-[9px] px-2'>
-            <Skeleton className='h-4 w-24 rounded' />
-            <Skeleton className='h-[30px] w-full rounded-lg' />
-          </div>
-        ) : noBots ? (
-          <ChipModalField
-            type='custom'
-            title='Slack app'
-            hint='Set up a Slack app so members can connect their accounts.'
-          >
-            <ChipLink href={`/workspace/${workspaceId}/integrations/slack`}>
-              Set up Slack app
-            </ChipLink>
-          </ChipModalField>
-        ) : (
-          <>
+        <ChipModalHeader
+          icon={SlackIcon}
+          onClose={() => handleOpenChange(false)}
+          closeDisabled={pending}
+        >
+          Set up Slack
+        </ChipModalHeader>
+        <ChipModalBody>
+          {isLoading ? (
+            <div className='flex flex-col gap-[9px] px-2'>
+              <Skeleton className='h-4 w-24 rounded' />
+              <Skeleton className='h-[30px] w-full rounded-lg' />
+            </div>
+          ) : noBots ? (
             <ChipModalField
-              type='dropdown'
+              type='custom'
               title='Slack app'
-              value={effectiveCredentialId || undefined}
-              onChange={handleSelectBot}
-              options={bots.map((bot) => ({
-                value: bot.id,
-                label: bot.displayName,
-                icon: SlackIcon,
-              }))}
-              placeholder='Select a Slack app'
-              disabled={pending}
-              required
-            />
-            {selectedBot ? (
-              <>
-                <ChipModalField
-                  type='dropdown'
-                  title='Access'
-                  value={effectiveAccess}
-                  onChange={(value) => {
-                    if (value === 'search' || value === 'workflow') setAccess(value)
-                  }}
-                  options={[
-                    { value: 'search', label: 'Search documents' },
-                    { value: 'workflow', label: 'Workflow tools' },
-                  ]}
-                  hint={
-                    effectiveAccess === 'search'
-                      ? 'Read messages members can access. Changing access requires members to reconnect.'
-                      : 'Read and write Slack content for workflows. Changing access requires members to reconnect.'
-                  }
-                  disabled={pending}
-                />
-                <ChipModalField
-                  type='input'
-                  title='Client ID'
-                  value={clientId}
-                  onChange={setClientId}
-                  placeholder='Paste the Client ID'
-                  autoComplete='off'
-                  disabled={pending}
-                  required
-                />
-                <ChipModalField
-                  type='input'
-                  inputType='password'
-                  title='Client Secret'
-                  value={clientSecret}
-                  onChange={setClientSecret}
-                  placeholder='Paste the Client Secret'
-                  autoComplete='off'
-                  disabled={pending}
-                  required
-                />
-              </>
-            ) : null}
-          </>
-        )}
-        <ChipModalError>{error ? getErrorMessage(error) : null}</ChipModalError>
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={() => handleOpenChange(false)}
-        cancelDisabled={pending}
-        {...(noBots
-          ? { defaultAction: 'dismiss' as const }
-          : {
-              primaryAction: {
-                label: primaryLabel,
-                onClick: () => void handleSubmit(),
-                disabled: primaryDisabled,
-              },
-            })}
-      />
-    </ChipModal>
+              hint='Set up a Slack app so members can connect their accounts.'
+            >
+              <Chip onClick={() => setAppSetupOpen(true)}>Set up Slack app</Chip>
+            </ChipModalField>
+          ) : (
+            <>
+              <ChipModalField
+                type='dropdown'
+                title='Slack app'
+                value={effectiveCredentialId || undefined}
+                onChange={handleSelectBot}
+                options={bots.map((bot) => ({
+                  value: bot.id,
+                  label: bot.displayName,
+                  icon: SlackIcon,
+                }))}
+                placeholder='Select a Slack app'
+                disabled={pending}
+                required
+              />
+              {selectedBot ? (
+                <>
+                  <ChipModalField
+                    type='dropdown'
+                    title='Access'
+                    value={effectiveAccess}
+                    onChange={(value) => {
+                      if (value === 'search' || value === 'workflow') setAccess(value)
+                    }}
+                    options={[
+                      { value: 'search', label: 'Search documents' },
+                      { value: 'workflow', label: 'Workflow tools' },
+                    ]}
+                    hint={
+                      effectiveAccess === 'search'
+                        ? 'Read messages members can access. Changing access requires members to reconnect.'
+                        : 'Read and write Slack content for workflows. Changing access requires members to reconnect.'
+                    }
+                    disabled={pending}
+                  />
+                  <ChipModalField
+                    type='input'
+                    title='Client ID'
+                    value={clientId}
+                    onChange={setClientId}
+                    placeholder='Paste the Client ID'
+                    autoComplete='off'
+                    disabled={pending}
+                    required
+                  />
+                  <ChipModalField
+                    type='input'
+                    inputType='password'
+                    title='Client Secret'
+                    value={clientSecret}
+                    onChange={setClientSecret}
+                    placeholder='Paste the Client Secret'
+                    autoComplete='off'
+                    disabled={pending}
+                    required
+                  />
+                </>
+              ) : null}
+            </>
+          )}
+          <ChipModalError>{error ? getErrorMessage(error) : null}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => handleOpenChange(false)}
+          cancelDisabled={pending}
+          {...(noBots
+            ? { defaultAction: 'dismiss' as const }
+            : {
+                primaryAction: {
+                  label: primaryLabel,
+                  onClick: () => void handleSubmit(),
+                  disabled: primaryDisabled,
+                },
+              })}
+        />
+      </ChipModal>
+      {appSetupOpen && (
+        <ConnectSlackBotModal
+          open
+          onOpenChange={setAppSetupOpen}
+          workspaceId={workspaceId}
+          onCreated={setSelectedCredentialId}
+        />
+      )}
+    </>
   )
 }

@@ -1,19 +1,8 @@
 'use client'
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  ArrowRight,
-  Check,
-  ChevronDown,
-  cn,
-  Expandable,
-  ExpandableContent,
-  SecretReveal,
-  SquareArrowUpRight,
-  Tooltip,
-  toast,
-} from '@sim/emcn'
-import { TerminalWindow } from '@sim/emcn/icons'
+import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from '@sim/emcn'
+import { ArrowRight, Check, ChevronDown, SquareArrowUpRight, TerminalWindow } from '@sim/emcn/icons'
 import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'

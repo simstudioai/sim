@@ -3,8 +3,8 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import {
   Badge,
-  Button,
   Checkbox,
+  Chip,
   ChipConfirmModal,
   cn,
   DropdownMenu,
@@ -16,6 +16,7 @@ import {
 } from '@sim/emcn'
 import {
   ChevronDown,
+  ChevronUp,
   CircleAlert,
   CircleCheck,
   CircleX,
@@ -40,9 +41,8 @@ import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
-import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type {
   ConnectorData,
@@ -103,9 +103,6 @@ const MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS = {
   error: 'error',
   disabled: 'disabled',
 } as const satisfies Record<MemberSyncStatus, keyof typeof STATUS_CONFIG>
-
-const CONNECTOR_ACTION_BUTTON_CLASSES =
-  'size-7 rounded-lg p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
 
 export function ConnectorsSection({
   workspaceId,
@@ -316,7 +313,6 @@ function ConnectorCard({
     ? describeSearchSource(connectorDef, connector.sourceConfig)
     : ''
   const Icon = connectorDef?.icon
-  const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
   /**
    * A members-mode connector's content status stays `active` while the member
    * engine does the work, so its badge reads the member engine's status. A
@@ -417,24 +413,7 @@ function ConnectorCard({
     >
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div
-            className={cn(
-              'flex size-9 shrink-0 items-center justify-center rounded-xl border',
-              brandBg
-                ? 'border-[var(--border-1)]'
-                : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
-            )}
-            style={brandBg ? { background: brandBg } : undefined}
-          >
-            {Icon && (
-              <Icon
-                className={cn(
-                  'size-5',
-                  brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
-                )}
-              />
-            )}
-          </div>
+          {Icon && <IntegrationTile blockType={connector.connectorType} icon={Icon} />}
           <div className='flex min-w-0 flex-col gap-0.5'>
             <div className='flex min-w-0 items-center gap-2'>
               <span className='flex min-w-0 items-center gap-1.5 text-[var(--text-primary)] text-small'>
@@ -507,14 +486,11 @@ function ConnectorCard({
                       {/* span keeps the tooltip hoverable while the trigger button is disabled */}
                       <span className='inline-flex'>
                         <DropdownMenuTrigger asChild>
-                          <Button
-                            variant='ghost'
+                          <Chip
                             aria-label='Sync options'
-                            className={CONNECTOR_ACTION_BUTTON_CLASSES}
                             disabled={syncDisabled}
-                          >
-                            <RefreshCw className='size-3.5' />
-                          </Button>
+                            leftIcon={RefreshCw}
+                          />
                         </DropdownMenuTrigger>
                       </span>
                     </Tooltip.Trigger>
@@ -530,15 +506,12 @@ function ConnectorCard({
                   <Tooltip.Trigger asChild>
                     {/* span keeps the tooltip hoverable while the button is disabled */}
                     <span className='inline-flex'>
-                      <Button
-                        variant='ghost'
+                      <Chip
                         aria-label='Sync now'
-                        className={CONNECTOR_ACTION_BUTTON_CLASSES}
                         disabled={syncDisabled}
                         onClick={() => onSync(false)}
-                      >
-                        <RefreshCw className='size-3.5' />
-                      </Button>
+                        leftIcon={RefreshCw}
+                      />
                     </span>
                   </Tooltip.Trigger>
                   <Tooltip.Content>{syncTooltip}</Tooltip.Content>
@@ -547,31 +520,27 @@ function ConnectorCard({
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onEdit}
-                  >
-                    <Settings className='size-3.5' />
-                  </Button>
+                  <Chip onClick={onEdit} aria-label='Settings' leftIcon={Settings} />
                 </Tooltip.Trigger>
                 <Tooltip.Content>Settings</Tooltip.Content>
               </Tooltip.Root>
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                  <Chip
                     onClick={onTogglePause}
                     disabled={isUpdating}
-                  >
-                    {connector.status === 'paused' || connector.status === 'disabled' ? (
-                      <Play className='size-3.5' />
-                    ) : (
-                      <Pause className='size-3.5' />
-                    )}
-                  </Button>
+                    aria-label={
+                      connector.status === 'paused' || connector.status === 'disabled'
+                        ? 'Resume'
+                        : 'Pause'
+                    }
+                    leftIcon={
+                      connector.status === 'paused' || connector.status === 'disabled'
+                        ? Play
+                        : Pause
+                    }
+                  />
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   {connector.status === 'paused' || connector.status === 'disabled'
@@ -582,13 +551,7 @@ function ConnectorCard({
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onDelete}
-                  >
-                    <Trash className='size-3.5' />
-                  </Button>
+                  <Chip onClick={onDelete} aria-label='Delete' leftIcon={Trash} />
                 </Tooltip.Trigger>
                 <Tooltip.Content>Delete</Tooltip.Content>
               </Tooltip.Root>
@@ -597,15 +560,12 @@ function ConnectorCard({
 
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                className={CONNECTOR_ACTION_BUTTON_CLASSES}
+              <Chip
                 onClick={() => setExpanded((prev) => !prev)}
-              >
-                <ChevronDown
-                  className={cn('size-3.5 transition-transform', expanded && 'rotate-180')}
-                />
-              </Button>
+                aria-label={expanded ? 'Hide history' : 'Sync history'}
+                aria-expanded={expanded}
+                leftIcon={expanded ? ChevronUp : ChevronDown}
+              />
             </Tooltip.Trigger>
             <Tooltip.Content>{expanded ? 'Hide history' : 'Sync history'}</Tooltip.Content>
           </Tooltip.Root>
@@ -642,7 +602,7 @@ function ConnectorCard({
                 : ' Use the resume button to re-enable syncing.'}
             </p>
             {canEdit && serviceId && providerId && (
-              <Button
+              <Chip
                 variant='primary'
                 disabled={Boolean(connector.credentialId && !selectedCredential)}
                 onClick={() => {
@@ -661,11 +621,10 @@ function ConnectorCard({
                   }
                   setShowOAuthModal(true)
                 }}
-                size='sm'
-                className='w-full'
+                fullWidth
               >
                 Reconnect
-              </Button>
+              </Chip>
             )}
           </div>
         </div>
@@ -679,7 +638,7 @@ function ConnectorCard({
               Additional permissions required
             </div>
             {canEdit && (
-              <Button
+              <Chip
                 variant='primary'
                 onClick={() => {
                   if (connector.credentialId) {
@@ -697,11 +656,10 @@ function ConnectorCard({
                   }
                   setShowOAuthModal(true)
                 }}
-                size='sm'
-                className='w-full'
+                fullWidth
               >
                 Update access
-              </Button>
+              </Chip>
             )}
           </div>
         </div>

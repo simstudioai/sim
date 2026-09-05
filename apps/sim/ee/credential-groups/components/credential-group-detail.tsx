@@ -16,6 +16,7 @@ import { getCredentialGroupProviderService } from '@/lib/credential-groups/provi
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SearchSetupReturn } from '@/app/workspace/[workspaceId]/search/components/search-setup-return'
 import {
   credentialGroupPeopleSearchParam,
   credentialGroupPeopleSearchUrlKeys,
@@ -219,7 +220,7 @@ export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupD
         ...(activeTab === 'people'
           ? [
               {
-                text: 'Invite users',
+                text: 'Request connections',
                 icon: Plus,
                 variant: 'primary' as const,
                 onSelect: () => setShowInvite(true),
@@ -285,6 +286,7 @@ export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupD
               : undefined
         }
       >
+        <SearchSetupReturn workspaceId={workspaceId} onNavigate={guard.guardBack} />
         {detail.error ? (
           <SettingsEmptyState tone='error'>
             {getErrorMessage(detail.error, "Couldn't load connected accounts")}

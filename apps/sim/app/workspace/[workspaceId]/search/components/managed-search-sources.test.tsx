@@ -2,11 +2,16 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
+  userId: 'user-1',
+  urlUpdate: vi.fn(),
+  oauthReturn: vi.fn(),
+  sourceStatus: vi.fn(),
   features: { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true },
   create: vi.fn(),
   update: vi.fn(),
@@ -45,6 +50,19 @@ const mocks = vi.hoisted(() => ({
   connectorsQuery: vi.fn(),
 }))
 
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: mocks.userId } } }),
+}))
+vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
+vi.mock('@/hooks/use-permission-config', () => ({
+  usePermissionConfig: () => ({ integrationAvailability: new Map() }),
+}))
+vi.mock('@/app/workspace/[workspaceId]/search/components/search-source-status', () => ({
+  SearchSourceStatus: (props: { knowledgeBaseId: string; connectorType: string }) => {
+    mocks.sourceStatus(props)
+    return <div role='dialog'>Source sync status</div>
+  },
+}))
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
   usePathname: () => '/workspace/workspace-1/search',
@@ -122,17 +140,24 @@ import { MANAGED_SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal'
 import { ManagedSearchSources } from '@/app/workspace/[workspaceId]/search/components/managed-search-sources'
+import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-async function render(node: ReactNode) {
+async function render(node: ReactNode, searchParams = '') {
   if (!root) {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
   }
-  await act(async () => root?.render(node))
+  await act(async () =>
+    root?.render(
+      <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mocks.urlUpdate}>
+        {node}
+      </NuqsTestingAdapter>
+    )
+  )
 }
 
 function button(label: string): HTMLButtonElement {
@@ -202,6 +227,8 @@ function connector(overrides: Partial<ConnectorData> = {}): ConnectorData {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.userId = 'user-1'
+  useConnectorSetupStore.getState().reset()
   mocks.canAdmin = true
   mocks.features = { knowledgeMemberAccess: true, knowledgeSourceMirroredAccess: true }
   mocks.createPending = false
@@ -289,8 +316,9 @@ describe('managed search setup with real connector dialogs', () => {
       <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='gitlab' />
     )
     expect(mocks.connectorsQuery).toHaveBeenLastCalledWith('renamed-index')
-    expect(document.querySelector('a')?.getAttribute('href')).toBe(
-      '/workspace/workspace-1/knowledge/renamed-index'
+    await click(button('Manage'))
+    expect(mocks.sourceStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({ knowledgeBaseId: 'renamed-index', connectorType: 'gitlab' })
     )
     expect(mocks.prepare).not.toHaveBeenCalled()
   })
@@ -360,9 +388,7 @@ describe('managed search setup with real connector dialogs', () => {
     )
     expect(document.body.textContent).toContain('2 sources connected · error')
     expect(document.body.textContent).not.toContain('error, error')
-    expect(document.querySelector('a')?.getAttribute('href')).toBe(
-      '/workspace/workspace-1/knowledge/kb-search'
-    )
+    expect(button('Manage')).toBeDefined()
     expect(button('Add source')).toBeDisabled()
     expect(document.body.textContent).toContain('Source preparation failed')
     await render(
@@ -422,13 +448,10 @@ describe('member content credentials in real add and edit dialogs', () => {
         initialAccessMode='members'
       />
     )
-    expect(document.body.textContent).toContain('Each member connects their own Slack account')
+    expect(document.body.textContent).toContain('each member connects their own Slack account')
     expect(
       Array.from(document.querySelectorAll('a')).map((node) => node.getAttribute('href'))
-    ).toEqual([
-      '/workspace/workspace-1/integrations/slack',
-      '/workspace/workspace-1/settings/credential-groups',
-    ])
+    ).toEqual(['/workspace/workspace-1/settings/credential-groups'])
   })
 
   it.each([
@@ -461,7 +484,7 @@ describe('member content credentials in real add and edit dialogs', () => {
           initialAccessMode='members'
         />
       )
-      expect(document.body.textContent).toContain('Configure member sign-in')
+      expect(document.body.textContent).toContain('Set up Slack')
       expect(document.body.textContent).not.toContain('Choose member accounts')
     }
   )
@@ -507,8 +530,8 @@ describe('member content credentials in real add and edit dialogs', () => {
     })
     await click(button('Choose another source'))
     await fill('Search sources...', 'gitlab')
-    const card = Array.from(document.querySelectorAll('button')).find((node) =>
-      node.textContent?.startsWith('GitLab')
+    const card = Array.from(document.querySelectorAll('button')).find(
+      (node) => node.getAttribute('aria-label') === 'GitLab'
     )
     await click(card!)
     expect(document.body.textContent).not.toContain('Connected members')
@@ -577,7 +600,7 @@ describe('member content credentials in real add and edit dialogs', () => {
     expect(document.body.textContent).toContain('Indexing account')
     expect(document.body.textContent).not.toContain('Choose member accounts')
     expect(document.body.textContent).not.toContain('Change credential group')
-    expect(document.body.textContent).not.toContain('Configure member sign-in')
+    expect(document.body.textContent).not.toContain('Set up Slack')
     expect(button('Save')).toBeDisabled()
     expect(mocks.applyAccess).not.toHaveBeenCalled()
   })
@@ -668,13 +691,15 @@ describe('canonical Search connector safety', () => {
       />
     )
     const sourceButtons = Array.from(document.querySelectorAll('button')).filter((node) =>
-      ['Confluence', 'GitLab', 'Google Drive', 'Slack', 'Airtable', 'Google Chat'].some((name) =>
-        node.textContent?.startsWith(name)
+      ['Confluence', 'GitLab', 'Google Drive', 'Slack', 'Airtable', 'Google Chat'].some(
+        (name) => node.getAttribute('aria-label') === name
       )
     )
-    expect(sourceButtons.map((node) => node.textContent)).toHaveLength(4)
-    expect(sourceButtons.some((node) => node.textContent?.startsWith('Airtable'))).toBe(false)
-    expect(sourceButtons.some((node) => node.textContent?.startsWith('Google Chat'))).toBe(false)
+    expect(sourceButtons.map((node) => node.getAttribute('aria-label'))).toHaveLength(4)
+    expect(sourceButtons.some((node) => node.getAttribute('aria-label') === 'Airtable')).toBe(false)
+    expect(sourceButtons.some((node) => node.getAttribute('aria-label') === 'Google Chat')).toBe(
+      false
+    )
   })
 
   it('defaults an OAuth source to member accounts and never offers workspace-wide access', async () => {
@@ -695,8 +720,8 @@ describe('canonical Search connector safety', () => {
     ).toBe(false)
     expect(document.body.textContent).not.toContain('Everyone in this workspace')
     await click(button('Choose another source'))
-    const gitlab = Array.from(document.querySelectorAll('button')).find((node) =>
-      node.textContent?.startsWith('GitLab')
+    const gitlab = Array.from(document.querySelectorAll('button')).find(
+      (node) => node.getAttribute('aria-label') === 'GitLab'
     )
     expect(gitlab).toBeDefined()
     await click(gitlab!)
@@ -733,5 +758,137 @@ describe('canonical Search connector safety', () => {
       )
     ).toBe(false)
     expect(document.body.textContent).not.toContain('Everyone in this workspace')
+  })
+})
+
+describe('resuming Search source setup', () => {
+  const key = 'user-1:workspace-1:kb-search:slack'
+
+  it('reopens the source from the URL even when the source filter hides its row', async () => {
+    await render(
+      <ManagedSearchSources
+        workspaceId='workspace-1'
+        canAdmin
+        available
+        search='nothing-matches'
+      />,
+      '?addConnector=gitlab'
+    )
+    expect(button('Source permissions')).toHaveAttribute('aria-checked', 'true')
+    expect(document.body.textContent).toContain('Configure GitLab')
+    expect(document.body.textContent).not.toContain('Sync Frequency')
+    expect(document.body.textContent).not.toContain('Sync automatically')
+    expect(mocks.prepare).not.toHaveBeenCalled()
+  })
+
+  it('keeps the picker open when changing sources and updates the configuration selection', async () => {
+    await render(
+      <ManagedSearchSources workspaceId='workspace-1' canAdmin available search='' />,
+      '?addConnector=google_drive'
+    )
+    await click(button('Choose another source'))
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(document.body.textContent).toContain('Connect Source')
+    const confluence = Array.from(document.querySelectorAll('button')).find(
+      (node) => node.getAttribute('aria-label') === 'Confluence'
+    )
+    await click(confluence!)
+    expect(document.body.textContent).toContain('Configure Confluence')
+  })
+
+  it('restores the source configuration and content account after an account-settings detour', async () => {
+    const onCreated = vi.fn()
+    const form = (
+      <AddConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        onCreated={onCreated}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        initialConnectorType='slack'
+        initialAccessMode='members'
+        setupDraftKey={key}
+      />
+    )
+    await render(form)
+    await chooseCombo('Connected members', 'Indexing account')
+    await fill('e.g. hr, legal, C01ABC23DEF', 'legal')
+    const setup = Array.from(document.querySelectorAll('a')).find(
+      (link) => link.textContent === 'Set up Slack'
+    )
+    expect(setup?.getAttribute('href')).toContain('search-setup=slack')
+    setup?.addEventListener('click', (event) => event.preventDefault())
+    await click(setup!)
+    expect(useConnectorSetupStore.getState().getDraft(key)).toMatchObject({
+      sourceConfig: { excludeChannels: 'legal' },
+      contentCredentialId: 'cred-source',
+      accessMode: 'members',
+    })
+    await act(async () => root?.unmount())
+    root = null
+    container?.remove()
+    await useConnectorSetupStore.persist.rehydrate()
+    await render(form)
+    expect(
+      document.querySelector<HTMLInputElement>('input[placeholder="e.g. hr, legal, C01ABC23DEF"]')
+        ?.value
+    ).toBe('legal')
+    expect(document.body.textContent).not.toContain('Connected members')
+    await click(button('Create & Invite'))
+    expect(mocks.create.mock.calls[0][0]).toMatchObject({
+      syncIntervalMinutes: 60,
+      credentialId: 'cred-source',
+      sourceConfig: { excludeChannels: 'legal' },
+    })
+    await act(async () => mocks.create.mock.calls[0][1].onSuccess())
+    expect(onCreated).toHaveBeenCalledWith('slack')
+    expect(useConnectorSetupStore.getState().getDraft(key)).toBeUndefined()
+  })
+
+  it('selects the verified OAuth account instead of the previously selected one', async () => {
+    mocks.credentials = [
+      { id: 'cred-source', name: 'Old account', provider: 'google_drive' },
+      { id: 'cred-new', name: 'New account', provider: 'google_drive' },
+    ]
+    await render(
+      <AddConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        initialConnectorType='google_drive'
+      />
+    )
+    await act(async () => mocks.oauthReturn.mock.calls.at(-1)?.[1]('cred-new'))
+    const account = document.querySelector('[role="combobox"]')
+    expect(account?.textContent).toContain('New account')
+  })
+
+  it('keeps the general KB schedule and both document-detail sections collapsed by default', async () => {
+    await render(
+      <AddConnectorModal
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='ordinary-kb'
+        initialConnectorType='google_drive'
+      />
+    )
+    expect(document.body.textContent).toContain('Sync Frequency')
+    expect(button('Live')).toBeDefined()
+    expect(button('Document details (optional)')).toHaveAttribute('aria-expanded', 'false')
+    await click(button('Document details (optional)'))
+    expect(document.body.textContent).toContain('Metadata tags')
+    await render(
+      <AddConnectorModal
+        key='search'
+        open
+        onOpenChange={vi.fn()}
+        knowledgeBaseId='kb-search'
+        isSearchIndex
+        initialConnectorType='google_drive'
+      />
+    )
+    expect(document.body.textContent).not.toContain('Sync Frequency')
+    expect(button('Document details (optional)')).toHaveAttribute('aria-expanded', 'false')
   })
 })

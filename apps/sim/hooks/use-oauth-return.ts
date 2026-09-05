@@ -35,6 +35,7 @@ const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
 export interface OAuthResultMessage {
   kind: 'success' | 'error'
   text: string
+  credentialId?: string
 }
 
 export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAuthResultMessage> {
@@ -52,16 +53,23 @@ export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAut
     const oauthCredentials = requireWorkspaceCredentialListResponse(data)
 
     const forProvider = oauthCredentials.filter((c) => c.providerId === ctx.providerId)
-    if (forProvider.length > ctx.preCount) {
-      return {
-        kind: 'success',
-        text: `"${ctx.displayName}" credential connected successfully.`,
-      }
-    }
-
     const baselineCredentials = new Map(
       ctx.baselineCredentials?.map((credential) => [credential.id, credential]) ?? []
     )
+    if (forProvider.length > ctx.preCount) {
+      const added = ctx.baselineCredentials
+        ? forProvider.filter((credential) => !baselineCredentials.has(credential.id))
+        : []
+      const connected =
+        added.find((credential) => credential.displayName === ctx.displayName) ??
+        (added.length === 1 ? added[0] : undefined)
+      return {
+        kind: 'success',
+        text: `"${ctx.displayName}" credential connected successfully.`,
+        ...(connected && { credentialId: connected.id }),
+      }
+    }
+
     const reauthorizedCredential = forProvider.find((credential) => {
       const baseline = baselineCredentials.get(credential.id)
       return (
@@ -74,6 +82,7 @@ export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAut
       return {
         kind: 'success',
         text: `This account is already connected as "${reauthorizedCredential.displayName}".`,
+        credentialId: reauthorizedCredential.id,
       }
     }
   } catch {
@@ -118,10 +127,37 @@ function showOAuthResultMessage(result: OAuthResultMessage): void {
   toast.error(result.text)
 }
 
-function dispatchCredentialUpdate(ctx: { providerId: string; workspaceId: string }) {
+interface OAuthCredentialUpdate {
+  providerId: string
+  workspaceId: string
+  credentialId?: string
+  knowledgeBaseId?: string
+  connectorType?: string
+  requestedAt?: number
+}
+
+function dispatchCredentialUpdate(
+  ctx: Pick<OAuthReturnContext, 'providerId' | 'workspaceId'> | OAuthReturnContext,
+  result?: OAuthResultMessage
+) {
+  const detail: OAuthCredentialUpdate = {
+    providerId: ctx.providerId,
+    workspaceId: ctx.workspaceId,
+  }
+  if (
+    'origin' in ctx &&
+    ctx.origin === 'kb-connectors' &&
+    result?.kind === 'success' &&
+    result.credentialId
+  ) {
+    detail.credentialId = result.credentialId
+    detail.knowledgeBaseId = ctx.knowledgeBaseId
+    detail.connectorType = ctx.connectorType
+    detail.requestedAt = ctx.requestedAt
+  }
   window.dispatchEvent(
     new CustomEvent(OAUTH_CREDENTIAL_UPDATED_EVENT, {
-      detail: { providerId: ctx.providerId, workspaceId: ctx.workspaceId },
+      detail,
     })
   )
 }
@@ -327,30 +363,63 @@ export function useOAuthReturnForWorkflow(workflowId: string) {
 }
 
 /**
- * Post-OAuth handler for KB connectors pages.
- * Consumes the return context and shows a toast notification.
+ * Restores the connected account after a web return or desktop completion.
  */
-export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
+export function useOAuthReturnForKBConnectors(
+  knowledgeBaseId: string | undefined,
+  onConnected?: (credentialId: string) => void,
+  connectorType?: string
+) {
+  const params = useParams()
+  const workspaceId = params?.workspaceId
   useEffect(() => {
-    clearDataverseOAuthEnvironmentParam()
-    const ctx = readOAuthReturnContext()
-    if (!ctx || ctx.origin !== 'kb-connectors') return
-    if (ctx.knowledgeBaseId !== knowledgeBaseId) return
-    consumeOAuthReturnContext()
-    if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
+    if (!knowledgeBaseId) return
 
-    const callbackError = consumeOAuthCallbackError(ctx)
-    if (callbackError) {
-      showOAuthResultMessage(callbackError)
-      return
+    const handleCredentialUpdate = (event: Event) => {
+      const { detail } = event as CustomEvent<OAuthCredentialUpdate>
+      if (
+        !detail?.credentialId ||
+        detail.knowledgeBaseId !== knowledgeBaseId ||
+        detail.connectorType !== connectorType ||
+        detail.workspaceId !== workspaceId ||
+        detail.requestedAt === undefined ||
+        Date.now() - detail.requestedAt > CONTEXT_MAX_AGE_MS
+      ) {
+        return
+      }
+      onConnected?.(detail.credentialId)
+    }
+    window.addEventListener(OAUTH_CREDENTIAL_UPDATED_EVENT, handleCredentialUpdate)
+
+    if (!getDesktopBridge()?.onOAuthConnectComplete) {
+      clearDataverseOAuthEnvironmentParam()
+      const ctx = readOAuthReturnContext()
+      if (
+        ctx?.origin === 'kb-connectors' &&
+        ctx.knowledgeBaseId === knowledgeBaseId &&
+        ctx.workspaceId === workspaceId &&
+        (!connectorType || ctx.connectorType === connectorType)
+      ) {
+        consumeOAuthReturnContext()
+        if (Date.now() - ctx.requestedAt <= CONTEXT_MAX_AGE_MS) {
+          const callbackError = consumeOAuthCallbackError(ctx)
+          if (callbackError) {
+            showOAuthResultMessage(callbackError)
+          } else {
+            void (async () => {
+              const message = await resolveOAuthMessage(ctx)
+              showOAuthResultMessage(message)
+              dispatchCredentialUpdate(ctx, message)
+            })()
+          }
+        }
+      }
     }
 
-    void (async () => {
-      const message = await resolveOAuthMessage(ctx)
-      showOAuthResultMessage(message)
-      dispatchCredentialUpdate(ctx)
-    })()
-  }, [knowledgeBaseId])
+    return () => {
+      window.removeEventListener(OAUTH_CREDENTIAL_UPDATED_EVENT, handleCredentialUpdate)
+    }
+  }, [knowledgeBaseId, onConnected, connectorType, workspaceId])
 }
 
 /**
@@ -396,7 +465,7 @@ export function useDesktopOAuthConnectListener() {
         void (async () => {
           const message = await resolveOAuthMessage(ctx)
           showOAuthResultMessage(message)
-          dispatchCredentialUpdate(ctx)
+          dispatchCredentialUpdate(ctx, message)
         })()
         return
       }
