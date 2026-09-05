@@ -3,6 +3,7 @@
  */
 import {
   FILE_DOC_EVENTS,
+  FILE_DOC_LIMITS,
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
@@ -40,9 +41,10 @@ import {
   flushAllFileDocRooms,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
+import { FileDocInvalidatedError, getFileDocStore } from '@/handlers/file-doc-store'
 import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
-type Handler = (payload?: unknown) => Promise<void> | void
+type Handler = (...payload: unknown[]) => Promise<void> | void
 
 const ROOM_NAME = 'workspace-file-doc:file-1'
 
@@ -133,10 +135,11 @@ async function flushMicrotasks(): Promise<void> {
  * An encoded Yjs update shaped like the server seed builder's output: some content in the shared
  * `default` type plus the {@link FILE_DOC_SEED} flag, so applying it marks the doc seeded.
  */
-function seedResult(content: string): { update: Uint8Array; version: number } {
+function seedResult(content: string, docId?: string): { update: Uint8Array; version: number } {
   const doc = new Y.Doc()
   doc.getText(FILE_DOC_FIELD).insert(0, content)
   doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+  if (docId) doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, docId)
   return { update: Y.encodeStateAsUpdate(doc), version: 1 }
 }
 
@@ -217,6 +220,24 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
   })
 
+  it('fails closed when authorization does not resolve a workspace context', async () => {
+    mockAuthorizeRoom.mockResolvedValueOnce({
+      allowed: true,
+      status: 200,
+      workspacePermission: 'write',
+    })
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-no-workspace', io)
+
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'JOIN_FAILED', retryable: true })
+    )
+    expect(socket.join).not.toHaveBeenCalled()
+  })
+
   it('rejects join with a retryable error when realtime is unavailable', async () => {
     const { io } = createIo()
     const { socket, handlers } = createSocket('socket-1')
@@ -246,6 +267,196 @@ describe('setupWorkspaceFileDocHandlers', () => {
       expect.objectContaining({ code: 'INVALID_PAYLOAD', retryable: false })
     )
     expect(mockAuthorizeRoom).not.toHaveBeenCalled()
+  })
+
+  it('rejects an incompatible collaborative-document schema before authorizing', async () => {
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-schema', io)
+
+    await handlers[FILE_DOC_EVENTS.JOIN]({
+      fileId: 'file-1',
+      clientId: 1,
+      schemaVersion: 99,
+    })
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_ERROR,
+      expect.objectContaining({ code: 'SCHEMA_VERSION_MISMATCH', retryable: false })
+    )
+    expect(mockAuthorizeRoom).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges user updates only after applying them to the joined document', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original', 'doc-1'))
+    const { io, sent } = createIo()
+    const { handlers } = setup('socket-update', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    const source = new Y.Doc()
+    source.getText(FILE_DOC_FIELD).insert(0, 'acknowledged edit')
+    const acknowledge = vi.fn()
+    sent.length = 0
+
+    await handlers[FILE_DOC_EVENTS.UPDATE](
+      {
+        fileId: 'file-1',
+        docId: 'doc-1',
+        updateId: 'update-1',
+        update: Y.encodeStateAsUpdate(source),
+      },
+      acknowledge
+    )
+
+    expect(acknowledge).toHaveBeenCalledWith({ status: 'accepted', updateId: 'update-1' })
+    expect(sent).toContainEqual(
+      expect.objectContaining({
+        target: ROOM_NAME,
+        event: FILE_DOC_EVENTS.MESSAGE,
+      })
+    )
+    source.destroy()
+  })
+
+  it('rejects an update for a replaced document without applying it', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original', 'doc-current'))
+    const { io, sent } = createIo()
+    const { handlers } = setup('socket-replaced', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    const acknowledge = vi.fn()
+    sent.length = 0
+
+    await handlers[FILE_DOC_EVENTS.UPDATE](
+      {
+        fileId: 'file-1',
+        docId: 'doc-stale',
+        updateId: 'update-stale',
+        update: Y.encodeStateAsUpdate(new Y.Doc()),
+      },
+      acknowledge
+    )
+
+    expect(acknowledge).toHaveBeenCalledWith({
+      status: 'rejected',
+      code: 'DOCUMENT_REPLACED',
+      retryable: false,
+      updateId: 'update-stale',
+    })
+    expect(sent).toHaveLength(0)
+  })
+
+  it('rejects malformed Yjs updates without retrying them', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original', 'doc-1'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-malformed-update', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    const acknowledge = vi.fn()
+
+    await handlers[FILE_DOC_EVENTS.UPDATE](
+      {
+        fileId: 'file-1',
+        docId: 'doc-1',
+        updateId: 'update-malformed',
+        update: new Uint8Array([255]),
+      },
+      acknowledge
+    )
+
+    expect(acknowledge).toHaveBeenCalledWith({
+      status: 'rejected',
+      code: 'INVALID_UPDATE',
+      retryable: false,
+      updateId: 'update-malformed',
+    })
+  })
+
+  it('ignores an acknowledged-update event without a callable acknowledgement', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original', 'doc-1'))
+    const { io } = createIo()
+    const { handlers } = setup('socket-missing-ack', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    expect(() =>
+      handlers[FILE_DOC_EVENTS.UPDATE](
+        {
+          fileId: 'file-1',
+          docId: 'doc-1',
+          updateId: 'update-1',
+          update: Y.encodeStateAsUpdate(new Y.Doc()),
+        },
+        { not: 'a function' }
+      )
+    ).not.toThrow()
+  })
+
+  it('keeps a room alive until an acknowledged update finishes appending', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original', 'doc-1'))
+    let resolveAppend: () => void = () => {}
+    const append = new Promise<void>((resolve) => {
+      resolveAppend = resolve
+    })
+    const publish = vi
+      .spyOn(getFileDocStore(), 'publishClientUpdateAndWait')
+      .mockReturnValue(append)
+    const { io } = createIo()
+    const { handlers } = setup('socket-update-leave', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    const source = new Y.Doc()
+    source.getText(FILE_DOC_FIELD).insert(0, 'accepted before leave')
+    const acknowledge = vi.fn()
+
+    handlers[FILE_DOC_EVENTS.UPDATE](
+      {
+        fileId: 'file-1',
+        docId: 'doc-1',
+        updateId: 'update-leave',
+        update: Y.encodeStateAsUpdate(source),
+      },
+      acknowledge
+    )
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledTimes(1))
+    handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+    resolveAppend()
+
+    await vi.waitFor(() =>
+      expect(acknowledge).toHaveBeenCalledWith({
+        status: 'accepted',
+        updateId: 'update-leave',
+      })
+    )
+    publish.mockRestore()
+    source.destroy()
+  })
+
+  it('rejects a generation-fenced update as a durable document replacement', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Original', 'doc-1'))
+    const publish = vi
+      .spyOn(getFileDocStore(), 'publishClientUpdateAndWait')
+      .mockRejectedValue(new FileDocInvalidatedError())
+    const { io } = createIo()
+    const { handlers } = setup('socket-replaced-update', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    const source = new Y.Doc()
+    source.getText(FILE_DOC_FIELD).insert(0, 'stale edit')
+    const acknowledge = vi.fn()
+
+    await handlers[FILE_DOC_EVENTS.UPDATE](
+      {
+        fileId: 'file-1',
+        docId: 'doc-1',
+        updateId: 'update-replaced',
+        update: Y.encodeStateAsUpdate(source),
+      },
+      acknowledge
+    )
+
+    expect(acknowledge).toHaveBeenCalledWith({
+      status: 'rejected',
+      code: 'DOCUMENT_REPLACED',
+      retryable: false,
+      updateId: 'update-replaced',
+    })
+    publish.mockRestore()
+    source.destroy()
   })
 
   it('does not re-enter the room when access was revoked while the join was in flight', async () => {
@@ -550,6 +761,10 @@ describe('setupWorkspaceFileDocHandlers', () => {
       FILE_DOC_EVENTS.JOIN_SUCCESS,
       expect.objectContaining({ fileId: 'file-1', clientId: 1 })
     )
+    const joinSuccess = socket.emit.mock.calls.find(
+      ([event]) => event === FILE_DOC_EVENTS.JOIN_SUCCESS
+    )?.[1] as Record<string, unknown>
+    expect(joinSuccess).not.toHaveProperty('acknowledgedUpdates')
 
     // A binary sync-step-1 message (type tag 0) is sent to kick off the handshake.
     const syncMessage = socket.emit.mock.calls.find(
@@ -573,6 +788,33 @@ describe('setupWorkspaceFileDocHandlers', () => {
     applySyncReply(reply?.[1] as Uint8Array, clientDoc)
     expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
     expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# From server')
+  })
+
+  it('discards a fenced in-memory generation before serving the next join', async () => {
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# Old', 'doc-old'))
+    const { io, left } = createIo()
+    const first = setup('socket-old-generation', io)
+    await first.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+
+    await getFileDocStore().invalidateDocument(ROOM_NAME, 1)
+    mockFetchFileDocSeed.mockResolvedValue(seedResult('# New', 'doc-new'))
+    const second = setup('socket-new-generation', io)
+    await second.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+
+    expect(left).toContainEqual({ socketId: 'socket-old-generation', room: ROOM_NAME })
+    second.socket.emit.mockClear()
+    second.handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (encoder) =>
+        syncProtocol.writeSyncStep1(encoder, new Y.Doc())
+      )
+    )
+    const reply = second.socket.emit.mock.calls.find(
+      ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+    )
+    const clientDoc = new Y.Doc()
+    applySyncReply(reply?.[1] as Uint8Array, clientDoc)
+    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# New')
+    clientDoc.destroy()
   })
 
   it('seeds once across concurrent joiners, and every one of them waits for that seed', async () => {
@@ -1030,6 +1272,31 @@ describe('setupWorkspaceFileDocHandlers', () => {
     ).not.toThrow()
   })
 
+  it('drops a legacy frame that cannot fit the durable stream budget', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-oversized-legacy', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    sent.length = 0
+
+    expect(() =>
+      a.handlers[FILE_DOC_EVENTS.MESSAGE](new Uint8Array(FILE_DOC_LIMITS.updateBytes + 65))
+    ).not.toThrow()
+    expect(sent).toHaveLength(0)
+  })
+
+  it('preflights the inner legacy update before applying a framing-sized overflow', async () => {
+    const { io, sent } = createIo()
+    const a = setup('socket-inner-oversized-legacy', io)
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    sent.length = 0
+    const oversized = frame(FILE_DOC_MESSAGE_TYPE.SYNC, (encoder) =>
+      syncProtocol.writeUpdate(encoder, new Uint8Array(FILE_DOC_LIMITS.updateBytes + 1))
+    )
+
+    expect(() => a.handlers[FILE_DOC_EVENTS.MESSAGE](oversized)).not.toThrow()
+    expect(sent).toHaveLength(0)
+  })
+
   it('drops the document when the last editor leaves, re-seeding a fresh joiner from the server', async () => {
     const { io } = createIo()
     const a = setup('socket-a', io)
@@ -1053,12 +1320,22 @@ describe('setupWorkspaceFileDocHandlers', () => {
     let resolveFirst: (v: unknown) => void = () => {}
     mockAuthorizeRoom
       .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
-      .mockResolvedValueOnce({ allowed: true, status: 200, workspacePermission: 'write' })
+      .mockResolvedValueOnce({
+        allowed: true,
+        status: 200,
+        workspacePermission: 'write',
+        workspaceId: 'ws-1',
+      })
     const s = setup('socket-a', io)
 
     const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     await s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
-    resolveFirst({ allowed: true, status: 200, workspacePermission: 'write' })
+    resolveFirst({
+      allowed: true,
+      status: 200,
+      workspacePermission: 'write',
+      workspaceId: 'ws-1',
+    })
     await pending
 
     // The socket is bound only to the newer file, never cross-bound to file-1.
@@ -1075,7 +1352,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     s.socket.disconnected = true
     cleanupFileDocForSocket('socket-a', io, true) // disconnect cleanup — no-op, nothing registered yet
-    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    resolveAuth({
+      allowed: true,
+      status: 200,
+      workspacePermission: 'write',
+      workspaceId: 'ws-1',
+    })
     await pending
 
     expect(s.socket.join).not.toHaveBeenCalled()
@@ -1095,7 +1377,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const pending = s.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-2', clientId: 1 })
     // A stale leave for a DIFFERENT file must not invalidate the in-flight join.
     s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
-    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    resolveAuth({
+      allowed: true,
+      status: 200,
+      workspacePermission: 'write',
+      workspaceId: 'ws-1',
+    })
     await pending
 
     expect(joinSuccessFileId(s.socket)).toBe('file-2')
@@ -1119,7 +1406,12 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // map (`undefined !== generation`) and abort the join the client actually wants.
     s.handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
 
-    resolveAuth({ allowed: true, status: 200, workspacePermission: 'write' })
+    resolveAuth({
+      allowed: true,
+      status: 200,
+      workspacePermission: 'write',
+      workspaceId: 'ws-1',
+    })
     await pending
 
     expect(joinSuccessFileId(s.socket)).toBe('file-2')

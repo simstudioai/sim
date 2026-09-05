@@ -4,6 +4,7 @@
 import { workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { describeError } from '@sim/utils/errors'
+import { PASTE_LIMITS } from '@sim/utils/paste'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +12,7 @@ const {
   mockDecrementStorageUsageForBillingContextInTx,
   mockDeleteFile,
   mockEnqueueWorkspaceFileStorageCleanup,
+  mockEnqueueWorkspaceFileLiveDocReconciliation,
   mockGetWorkspaceWithOwner,
   mockHasCloudStorage,
   mockHeadObject,
@@ -20,9 +22,9 @@ const {
   mockLoadActiveFolderPathIndex,
   mockInitializeWorkspaceFileSecretProvenanceInTx,
   mockMaybeNotifyStorageLimitForBillingContext,
-  mockMergeEditIntoLiveFileDoc,
   mockNotifyWorkspaceFilesChanged,
   mockProcessWorkspaceFileStorageCleanupNow,
+  mockProcessWorkspaceFileLiveDocReconciliationNow,
   mockResolveStorageBillingContext,
   mockResolveFolderPathFromIndex,
   mockResolveWorkspaceFileFolderTarget,
@@ -32,6 +34,7 @@ const {
   mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockDeleteFile: vi.fn(),
   mockEnqueueWorkspaceFileStorageCleanup: vi.fn(),
+  mockEnqueueWorkspaceFileLiveDocReconciliation: vi.fn(),
   mockGetWorkspaceWithOwner: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
@@ -41,9 +44,9 @@ const {
   mockLoadActiveFolderPathIndex: vi.fn(),
   mockInitializeWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockMergeEditIntoLiveFileDoc: vi.fn(),
   mockNotifyWorkspaceFilesChanged: vi.fn(),
   mockProcessWorkspaceFileStorageCleanupNow: vi.fn(),
+  mockProcessWorkspaceFileLiveDocReconciliationNow: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
   mockResolveFolderPathFromIndex: vi.fn(),
   mockResolveWorkspaceFileFolderTarget: vi.fn(),
@@ -59,8 +62,12 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
 }))
 
 vi.mock('@/lib/realtime/notify', () => ({
-  mergeEditIntoLiveFileDoc: mockMergeEditIntoLiveFileDoc,
   notifyWorkspaceFilesChanged: mockNotifyWorkspaceFilesChanged,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({
+  enqueueWorkspaceFileLiveDocReconciliation: mockEnqueueWorkspaceFileLiveDocReconciliation,
+  processWorkspaceFileLiveDocReconciliationNow: mockProcessWorkspaceFileLiveDocReconciliationNow,
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -166,9 +173,10 @@ describe('workspace file metadata and storage accounting', () => {
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
     mockEnqueueWorkspaceFileStorageCleanup.mockResolvedValue('cleanup-event-1')
-    mockMergeEditIntoLiveFileDoc.mockResolvedValue(undefined)
+    mockEnqueueWorkspaceFileLiveDocReconciliation.mockResolvedValue('live-doc-event-1')
     mockNotifyWorkspaceFilesChanged.mockResolvedValue(undefined)
     mockProcessWorkspaceFileStorageCleanupNow.mockResolvedValue('completed')
+    mockProcessWorkspaceFileLiveDocReconciliationNow.mockResolvedValue('completed')
     mockReplaceWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
   })
 
@@ -740,7 +748,7 @@ describe('workspace file metadata and storage accounting', () => {
 
   const MD_ROW = { ...FILE_ROW, originalName: 'note.md', contentType: 'text/markdown' }
 
-  it('streams a markdown overwrite into any open collaborative editor (the shared merge chokepoint)', async () => {
+  it('transactionally enqueues a markdown overwrite for live-document reconciliation', async () => {
     // Distinct updatedAt vs contentUpdatedAt so the assertion proves the merge carries the CONTENT
     // version (the persist If-Match token), not `updatedAt` — reverting that wiring would fail here.
     const updatedFile = {
@@ -761,9 +769,14 @@ describe('workspace file metadata and storage accounting', () => {
       Buffer.from('# new content', 'utf-8')
     )
 
-    expect(mockMergeEditIntoLiveFileDoc).toHaveBeenCalledWith(MD_ROW.id, '# new content', {
+    expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(expect.anything(), {
+      workspaceId: MD_ROW.workspaceId,
+      fileId: MD_ROW.id,
       version: updatedFile.contentUpdatedAt.getTime(),
     })
+    expect(mockProcessWorkspaceFileLiveDocReconciliationNow).toHaveBeenCalledWith(
+      'live-doc-event-1'
+    )
   })
 
   it('does NOT merge when syncLiveDoc is false (the relay persist / empty-shell opt-out)', async () => {
@@ -781,7 +794,7 @@ describe('workspace file metadata and storage accounting', () => {
       { syncLiveDoc: false }
     )
 
-    expect(mockMergeEditIntoLiveFileDoc).not.toHaveBeenCalled()
+    expect(mockEnqueueWorkspaceFileLiveDocReconciliation).not.toHaveBeenCalled()
   })
 
   it('does NOT merge a non-markdown write (the collaborative editor only renders markdown)', async () => {
@@ -798,7 +811,57 @@ describe('workspace file metadata and storage accounting', () => {
       'application/octet-stream'
     )
 
-    expect(mockMergeEditIntoLiveFileDoc).not.toHaveBeenCalled()
+    expect(mockEnqueueWorkspaceFileLiveDocReconciliation).not.toHaveBeenCalled()
+  })
+
+  it('enqueues an oversized markdown write so an older live generation is invalidated', async () => {
+    const size = PASTE_LIMITS.RICH_MARKDOWN_BYTES + 1
+    const updatedFile = { ...MD_ROW, size, sizeBytes: size }
+    dbChainMockFns.limit.mockResolvedValueOnce([MD_ROW]).mockResolvedValueOnce([MD_ROW])
+    dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
+    mockUploadFile.mockResolvedValueOnce({ key: MD_ROW.key })
+
+    await updateWorkspaceFileContent(
+      MD_ROW.workspaceId,
+      MD_ROW.id,
+      MD_ROW.userId,
+      Buffer.alloc(size)
+    )
+
+    expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(expect.anything(), {
+      workspaceId: MD_ROW.workspaceId,
+      fileId: MD_ROW.id,
+      version: updatedFile.contentUpdatedAt.getTime(),
+    })
+  })
+
+  it('enqueues a markdown-to-binary replacement so an older live generation is invalidated', async () => {
+    const markdownByType = { ...MD_ROW, originalName: 'note.txt' }
+    const updatedFile = {
+      ...markdownByType,
+      contentType: 'application/octet-stream',
+      size: 12,
+      sizeBytes: 12,
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([markdownByType])
+      .mockResolvedValueOnce([markdownByType])
+    dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
+    mockUploadFile.mockResolvedValueOnce({ key: markdownByType.key })
+
+    await updateWorkspaceFileContent(
+      markdownByType.workspaceId,
+      markdownByType.id,
+      markdownByType.userId,
+      Buffer.alloc(12),
+      'application/octet-stream'
+    )
+
+    expect(mockEnqueueWorkspaceFileLiveDocReconciliation).toHaveBeenCalledWith(expect.anything(), {
+      workspaceId: markdownByType.workspaceId,
+      fileId: markdownByType.id,
+      version: updatedFile.contentUpdatedAt.getTime(),
+    })
   })
 
   it('writes when the expectedUpdatedAt optimistic-concurrency guard matches', async () => {

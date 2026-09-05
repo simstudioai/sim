@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/emcn', () => ({
+  cn: (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(' '),
   Button: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
     <button type='button' {...props}>
       {children}
@@ -29,6 +30,7 @@ vi.mock('@sim/emcn', () => ({
 
 vi.mock('@sim/emcn/icons', () => ({
   ChevronDown: () => <span data-icon='chevron-down' />,
+  ChevronRight: () => <span data-icon='chevron-right' />,
   ChevronUp: () => <span data-icon='chevron-up' />,
   Loader: () => <span data-icon='loader' />,
   Search: () => <span data-icon='search' />,
@@ -220,5 +222,47 @@ describe('FindBar controls', () => {
     render({ query: 'a', count: 2 })
     expect(buttonByLabel('Next match').disabled).toBe(false)
     expect(buttonByLabel('Previous match').disabled).toBe(false)
+  })
+
+  it('reveals bounded replace controls without changing find-only surfaces', () => {
+    render()
+    expect(container.querySelector('input[aria-label="Replace in document"]')).toBeNull()
+
+    const onReplace = vi.fn()
+    const onReplaceAll = vi.fn()
+    render({
+      query: 'alpha',
+      count: 2,
+      replace: {
+        value: 'beta',
+        onChange: vi.fn(),
+        onReplace,
+        onReplaceAll,
+        canReplace: true,
+        canReplaceAll: true,
+      },
+    })
+    act(() => buttonByLabel('Show replace').click())
+    const replaceInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Replace in document"]'
+    )
+    expect(replaceInput?.value).toBe('beta')
+    act(() =>
+      replaceInput?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true })
+      )
+    )
+    expect(onReplace).not.toHaveBeenCalled()
+    act(() =>
+      replaceInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expect(onReplace).toHaveBeenCalledTimes(1)
+    act(() => {
+      const all = Array.from(container.querySelectorAll('button')).find(
+        (candidate) => candidate.textContent === 'All'
+      )
+      all?.click()
+    })
+    expect(onReplaceAll).toHaveBeenCalledTimes(1)
   })
 })

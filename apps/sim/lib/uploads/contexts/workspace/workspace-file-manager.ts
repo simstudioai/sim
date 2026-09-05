@@ -55,8 +55,13 @@ import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
-import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
+import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  enqueueWorkspaceFileLiveDocReconciliation,
+  processWorkspaceFileLiveDocReconciliationNow,
+} from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   initializeWorkspaceFileSecretProvenanceInTx,
@@ -87,7 +92,6 @@ import {
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
-import type { WorkspaceFileFolderRecord } from './workspace-file-folder-manager'
 import {
   assertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
@@ -1816,6 +1820,7 @@ export async function updateWorkspaceFileContent(
       oldKey: string
       sizeDiff: number
       updatedUsage: number | undefined
+      liveDocEventId: string | undefined
     }
     try {
       finalized = await db.transaction(async (tx) => {
@@ -1926,11 +1931,23 @@ export async function updateWorkspaceFileContent(
           )
         }
 
+        const liveDocEventId =
+          options?.syncLiveDoc !== false &&
+          (isMarkdownFile({ type: currentFile.contentType, name: currentFile.originalName }) ||
+            isMarkdownFile({ type: updatedFile.contentType, name: updatedFile.originalName }))
+            ? await enqueueWorkspaceFileLiveDocReconciliation(tx, {
+                workspaceId,
+                fileId,
+                version: updatedFile.contentUpdatedAt.getTime(),
+              })
+            : undefined
+
         return {
           file: updatedFile,
           oldKey: currentFile.key,
           sizeDiff,
           updatedUsage,
+          liveDocEventId,
         }
       })
     } catch (finalizationError) {
@@ -1949,22 +1966,25 @@ export async function updateWorkspaceFileContent(
       await cleanupWorkspaceStorageObject(finalized.oldKey, 'version replacement')
     }
 
-    // Stream this write into any open collaborative editor as a CRDT merge, so a copilot/tool edit
-    // shows up live instead of the file silently changing underneath the reader. Gated to markdown (the
-    // only format the collaborative editor renders) and best-effort (a no-op when nobody has the file
-    // open; never throws). This is the single chokepoint every external writer shares — the relay's own
-    // persist and empty-shell creates pass `syncLiveDoc: false` to stay out of it.
-    if (
-      options?.syncLiveDoc !== false &&
-      isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
-    ) {
-      // Pass the new CONTENT version this write produced, so the relay records that its live doc now
-      // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
-      // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
-      // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
-      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'), {
-        version: finalized.file.contentUpdatedAt.getTime(),
-      })
+    if (finalized.liveDocEventId) {
+      try {
+        const result = await processWorkspaceFileLiveDocReconciliationNow(finalized.liveDocEventId)
+        if (result !== 'completed') {
+          logger.warn('Live document reconciliation deferred to outbox retry', {
+            workspaceId,
+            fileId,
+            eventId: finalized.liveDocEventId,
+            result,
+          })
+        }
+      } catch (error) {
+        logger.warn('Live document reconciliation deferred after inline processing error', {
+          workspaceId,
+          fileId,
+          eventId: finalized.liveDocEventId,
+          error: getErrorMessage(error),
+        })
+      }
     }
 
     const pathPrefix = getServePathPrefix()

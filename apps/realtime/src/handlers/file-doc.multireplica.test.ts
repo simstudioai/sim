@@ -25,6 +25,7 @@ const fakeStore = {
   versions: new Map<string, number>(),
   acquireMergeSlot: vi.fn(async () => 'token'),
   releaseMergeSlot: vi.fn(async () => {}),
+  getDocumentGeneration: vi.fn(async () => 'shared-generation'),
   getStreamState: vi.fn(async () => new Uint8Array([1])),
   publishAndWait: vi.fn(async () => {}),
   getSyncedVersion: vi.fn(async (name: string) => fakeStore.versions.get(name) ?? null),
@@ -67,7 +68,13 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
     expect(await applyMarkdownToLiveFileDoc('file-1', '# durable', { version: 100 })).toBe(
       'applied'
     )
-    expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 100)
+    expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 100, 'shared-generation')
+    expect(fakeStore.getStreamState).toHaveBeenCalledWith(ROOM_NAME, 'shared-generation')
+    expect(fakeStore.publishAndWait).toHaveBeenCalledWith(
+      ROOM_NAME,
+      expect.any(Uint8Array),
+      'shared-generation'
+    )
     mockFetchFileDocMerge.mockClear()
 
     // A durable write with an OLDER version than the SHARED synced version is stale — rejected under the
@@ -81,7 +88,7 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
     expect(await applyMarkdownToLiveFileDoc('file-1', '# durable again', { version: 150 })).toBe(
       'applied'
     )
-    expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 150)
+    expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 150, 'shared-generation')
     // setSyncedVersion fired only for the two applied durable writes, never for the stale one.
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledTimes(2)
   })
@@ -98,7 +105,7 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
     ).toBe('applied')
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled() // content deferred to the client
     expect(fakeStore.publishAndWait).not.toHaveBeenCalled()
-    expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 100) // version still recorded
+    expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 100, 'shared-generation') // version still recorded
 
     // Once streaming stops the flag clears and the (now near-noop) durable merge resumes normally.
     fakeStore.isAgentStreaming.mockResolvedValue(false)
