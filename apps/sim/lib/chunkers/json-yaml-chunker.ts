@@ -9,6 +9,8 @@ import {
   normalizeTokenChunkSize,
   tokensToChars,
 } from '@/lib/chunkers/utils'
+import { measureYamlExpansion, type YamlExpansionLimits } from '@/lib/file-parsers/yaml-limits'
+import { FILE_PARSER_YAML_LIMITS } from '@/lib/file-parsers/yaml-parser'
 
 const logger = createLogger('JsonYamlChunker')
 
@@ -20,40 +22,148 @@ type BoundedChunkMetadataMode = 'text-offsets' | 'preserve-range'
 
 const MAX_DEPTH = 5
 
+/**
+ * Smallest source ceiling this chunker imposes, so a knowledge base configured
+ * with tiny chunks keeps structural chunking on documents it indexes perfectly
+ * well today.
+ */
+const MIN_SOURCE_BYTES = 4 * 1024 * 1024
+
+/**
+ * How far a document may legitimately expand past its own source.
+ *
+ * `measureYamlExpansion` charges a flat per-node allowance, so a compact source
+ * of small values is charged well above its own length — `[1,1,1]` costs about
+ * 22 estimated bytes per element against two in source. An order of magnitude of
+ * headroom therefore covers ordinary document shape, while alias expansion
+ * overshoots it by several orders.
+ */
+const MAX_EXPANSION_RATIO = 16
+
+/**
+ * Longest source this chunker will parse: the most text it could ever emit, one
+ * output budget's worth. A larger document cannot be indexed whole by any
+ * chunker — `ChunkBudget` stops it either way — so parsing it buys nothing.
+ */
+function resolveMaxSourceBytes(maxChunks: number | undefined, chunkSize: number): number {
+  if (maxChunks === undefined) return FILE_PARSER_YAML_LIMITS.maxSerializedBytes
+
+  return Math.min(
+    FILE_PARSER_YAML_LIMITS.maxSerializedBytes,
+    Math.max(MIN_SOURCE_BYTES, maxChunks * tokensToChars(chunkSize))
+  )
+}
+
+/**
+ * What the document is allowed to expand to once it is walked as a tree.
+ *
+ * Structural chunking re-serializes what it parsed, so its cost follows the
+ * document's *expanded* size rather than its source size, and `yaml.load`
+ * resolves aliases into shared references — a sub-kilobyte source can carry tens
+ * of megabytes of expansion. `ChunkBudget` cannot bound that: it counts emitted
+ * chunks, and every parse and serialization happens before the first is emitted.
+ *
+ * Two expansions are admissible: one that stays within the output budget, and
+ * one that stays proportionate to the source. Taking the larger of the two keeps
+ * transient allocation tied to work the chunker would have done anyway, without
+ * charging an ordinary large document for the estimator's per-node conservatism.
+ * Neither is ever allowed past what the file parser itself would hand over.
+ */
+function resolveExpansionLimits(sourceBytes: number, maxSourceBytes: number): YamlExpansionLimits {
+  return {
+    /** Bytes bind here; every reached node charges some, so a self-referential anchor still terminates. */
+    maxNodes: Number.MAX_SAFE_INTEGER,
+    maxSerializedBytes: Math.min(
+      FILE_PARSER_YAML_LIMITS.maxSerializedBytes,
+      Math.max(maxSourceBytes, sourceBytes * MAX_EXPANSION_RATIO)
+    ),
+    maxDepth: FILE_PARSER_YAML_LIMITS.maxDepth,
+  }
+}
+
 export class JsonYamlChunker {
   private chunkSize: number
   private minCharactersPerChunk: number
   private maxChunks?: number
+  private readonly maxSourceBytes: number
 
   constructor(options: ChunkerOptions = {}) {
     this.chunkSize = normalizeTokenChunkSize(options.chunkSize ?? 1024, 'JSON/YAML chunk size')
     this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
     this.maxChunks = options.maxChunks
+    this.maxSourceBytes = resolveMaxSourceBytes(this.maxChunks, this.chunkSize)
   }
 
-  static isStructuredData(content: string): boolean {
+  /**
+   * Read `content` as JSON, falling back to YAML, and measure what the parsed
+   * value expands to before anything materializes it.
+   *
+   * The source-length check comes first so oversized content is never parsed at
+   * all; the expansion measurement then catches what length alone cannot — alias
+   * expansion, and the indentation a pretty-printed re-serialization adds.
+   */
+  private parseWithinLimits(content: string): JsonValue | undefined {
+    if (content.length > this.maxSourceBytes) {
+      return this.reject(
+        `source of ${content.length} characters exceeds the ${this.maxSourceBytes}-byte ceiling`
+      )
+    }
+
+    let parsed: unknown
     try {
-      const parsed = JSON.parse(content)
-      return typeof parsed === 'object' && parsed !== null
+      parsed = JSON.parse(content)
     } catch {
       try {
-        const parsed = yaml.load(content)
-        return typeof parsed === 'object' && parsed !== null
+        parsed = yaml.load(content)
       } catch {
-        return false
+        return undefined
       }
     }
+
+    if (parsed === undefined) return undefined
+
+    const limits = resolveExpansionLimits(content.length, this.maxSourceBytes)
+    const measured = measureYamlExpansion(parsed, limits)
+    if (!measured.within) return this.reject(measured.reason)
+
+    return parsed as JsonValue
+  }
+
+  private reject(reason: string): undefined {
+    logger.warn(
+      'Structured content exceeds the chunking expansion limits, declining to expand it',
+      {
+        reason,
+      }
+    )
+    return undefined
+  }
+
+  /**
+   * Chunk `content` as a structured object or array, or return `null` when it is
+   * neither — including when its expanded form outgrows the ceiling above. The
+   * caller then chooses another chunker for it.
+   */
+  static async chunkStructured(
+    content: string,
+    options: ChunkerOptions = {}
+  ): Promise<Chunk[] | null> {
+    const chunker = new JsonYamlChunker(options)
+    const data = chunker.parseWithinLimits(content)
+    if (data === null || typeof data !== 'object') return null
+
+    return chunker.chunkParsed(data, content)
   }
 
   async chunk(content: string): Promise<Chunk[]> {
-    try {
-      let data: JsonValue
-      try {
-        data = JSON.parse(content) as JsonValue
-      } catch {
-        data = yaml.load(content) as JsonValue
-      }
+    const data = this.parseWithinLimits(content)
+    if (data === undefined) return this.chunkAsText(content)
 
+    return this.chunkParsed(data, content)
+  }
+
+  private chunkParsed(data: JsonValue, content: string): Chunk[] {
+    try {
       const chunks: Chunk[] = []
       this.chunkStructuredData(data, [], 0, chunks, new ChunkBudget(this.maxChunks))
 
@@ -64,7 +174,7 @@ export class JsonYamlChunker {
     } catch (error) {
       if (error instanceof ChunkLimitExceededError) throw error
       logger.info('Structured data chunking failed, falling back to text chunking')
-      return this.chunkAsText(content, new ChunkBudget(this.maxChunks))
+      return this.chunkAsText(content)
     }
   }
 
@@ -299,7 +409,11 @@ export class JsonYamlChunker {
     }
   }
 
-  private chunkAsText(content: string, budget: ChunkBudget, chunks: Chunk[] = []): Chunk[] {
+  private chunkAsText(
+    content: string,
+    budget: ChunkBudget = new ChunkBudget(this.maxChunks),
+    chunks: Chunk[] = []
+  ): Chunk[] {
     let currentChunk = ''
     let currentTokens = 0
     let startIndex = 0
@@ -361,10 +475,5 @@ export class JsonYamlChunker {
     }
 
     return chunks
-  }
-
-  static async chunkJsonYaml(content: string, options: ChunkerOptions = {}): Promise<Chunk[]> {
-    const chunker = new JsonYamlChunker(options)
-    return chunker.chunk(content)
   }
 }

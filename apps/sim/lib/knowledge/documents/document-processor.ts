@@ -281,13 +281,17 @@ export async function processDocument(
           mimeType.includes('json') ||
           mimeType.includes('yaml')
 
-        if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
+        const jsonYamlChunks = isJsonYaml
+          ? await JsonYamlChunker.chunkStructured(content, {
+              chunkSize,
+              minCharactersPerChunk,
+              maxChunks: MAX_DOCUMENT_CHUNKS,
+            })
+          : null
+
+        if (jsonYamlChunks !== null) {
           logger.info('Using JSON/YAML chunker for structured data')
-          chunks = await JsonYamlChunker.chunkJsonYaml(content, {
-            chunkSize,
-            minCharactersPerChunk,
-            maxChunks: MAX_DOCUMENT_CHUNKS,
-          })
+          chunks = jsonYamlChunks
         } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
           logger.info('Using structured data chunker for spreadsheet/CSV content')
           const rowCount = metadata.totalRows ?? metadata.rowCount
