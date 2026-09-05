@@ -95,6 +95,31 @@ const SECRETS_MANAGER_TOOL_IDS = [
   'secrets_manager_rotate_secret',
 ] as const
 
+const SSM_TOOL_IDS = [
+  'ssm_send_command',
+  'ssm_list_commands',
+  'ssm_list_command_invocations',
+  'ssm_get_command_invocation',
+  'ssm_cancel_command',
+  'ssm_get_parameter',
+  'ssm_get_parameters',
+  'ssm_get_parameters_by_path',
+  'ssm_put_parameter',
+  'ssm_delete_parameter',
+  'ssm_describe_parameters',
+  'ssm_describe_instance_information',
+  'ssm_describe_instance_patches',
+  'ssm_describe_instance_patch_states',
+  'ssm_list_compliance_items',
+  'ssm_list_compliance_summaries',
+  'ssm_start_automation_execution',
+  'ssm_describe_automation_executions',
+  'ssm_get_automation_execution',
+  'ssm_stop_automation_execution',
+  'ssm_list_documents',
+  'ssm_get_document',
+] as const
+
 const DYNAMODB_TOOL_IDS = [
   'dynamodb_delete',
   'dynamodb_get',
@@ -1344,6 +1369,9 @@ registerFamily(handlerLoaders, IDENTITY_CENTER_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, SECRETS_MANAGER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/secrets-manager/execute-tool')).executeSecretsManagerTool
+})
+registerFamily(handlerLoaders, SSM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/ssm/execute-tool')).executeSsmTool
 })
 registerFamily(handlerLoaders, DYNAMODB_TOOL_IDS, async () => {
   return (await import('@/lib/internal/dynamodb/execute-tool')).executeDynamodbTool

@@ -318,6 +318,7 @@ import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
 import { SquareBlock, SquareBlockMeta } from '@/blocks/blocks/square'
 import { SSHBlock, SSHBlockMeta } from '@/blocks/blocks/ssh'
+import { SSMBlock, SSMBlockMeta } from '@/blocks/blocks/ssm'
 import { StagehandBlock, StagehandBlockMeta } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
@@ -667,6 +668,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   sqs: SQSBlock,
   square: SquareBlock,
   ssh: SSHBlock,
+  ssm: SSMBlock,
   stagehand: StagehandBlock,
   start_trigger: StartTriggerBlock,
   starter: StarterBlock,
@@ -980,6 +982,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   sqs: SQSBlockMeta,
   square: SquareBlockMeta,
   ssh: SSHBlockMeta,
+  ssm: SSMBlockMeta,
   stagehand: StagehandBlockMeta,
   stripe: StripeBlockMeta,
   sts: STSBlockMeta,

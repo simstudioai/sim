@@ -2641,6 +2641,113 @@
       "tags": ["cloud", "identity"]
     },
     {
+      "type": "ssm",
+      "slug": "aws-systems-manager",
+      "name": "AWS Systems Manager",
+      "description": "Run commands, manage parameters, and audit managed nodes",
+      "longDescription": "Integrate AWS Systems Manager into your workflow. Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.",
+      "bgColor": "#E7157B",
+      "iconName": "SSMIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/ssm",
+      "operations": [
+        {
+          "name": "Send Command",
+          "description": "Run an SSM document on managed nodes with AWS Systems Manager Run Command"
+        },
+        {
+          "name": "List Commands",
+          "description": "List Run Command executions in an AWS account"
+        },
+        {
+          "name": "List Command Invocations",
+          "description": "List the per-node invocations of Run Command executions"
+        },
+        {
+          "name": "Get Command Invocation",
+          "description": "Read the output and status of a Run Command execution on one managed node"
+        },
+        {
+          "name": "Cancel Command",
+          "description": "Cancel an in-flight Run Command execution"
+        },
+        {
+          "name": "Get Parameter",
+          "description": "Read one parameter from AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Get Parameters",
+          "description": "Read up to ten parameters from AWS Systems Manager Parameter Store by name"
+        },
+        {
+          "name": "Get Parameters By Path",
+          "description": "Read parameters under a Parameter Store hierarchy path"
+        },
+        {
+          "name": "Put Parameter",
+          "description": "Create or update a parameter in AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Delete Parameter",
+          "description": "Delete a parameter from AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Describe Parameters",
+          "description": "List Parameter Store parameter metadata without reading any values"
+        },
+        {
+          "name": "Describe Instance Information",
+          "description": "List managed nodes registered with AWS Systems Manager and their agent status"
+        },
+        {
+          "name": "Describe Instance Patches",
+          "description": "List the patches reported for one managed node"
+        },
+        {
+          "name": "Describe Instance Patch States",
+          "description": "Read patch compliance summaries for a set of managed nodes"
+        },
+        {
+          "name": "List Compliance Items",
+          "description": "List individual compliance findings reported to AWS Systems Manager"
+        },
+        {
+          "name": "List Compliance Summaries",
+          "description": "Read compliant and non-compliant counts per compliance type"
+        },
+        {
+          "name": "Start Automation Execution",
+          "description": "Start an AWS Systems Manager Automation runbook execution"
+        },
+        {
+          "name": "Describe Automation Executions",
+          "description": "List Automation runbook executions in an AWS account"
+        },
+        {
+          "name": "Get Automation Execution",
+          "description": "Read the status, outputs, and step results of one Automation execution"
+        },
+        {
+          "name": "Stop Automation Execution",
+          "description": "Stop a running AWS Systems Manager Automation execution"
+        },
+        {
+          "name": "List Documents",
+          "description": "List SSM documents and runbooks available to an AWS account"
+        },
+        {
+          "name": "Get Document",
+          "description": "Read the content of an SSM document or Automation runbook"
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "automation"]
+    },
+    {
       "type": "textract_v2",
       "slug": "aws-textract",
       "name": "AWS Textract",
