@@ -86,6 +86,33 @@ const IDENTITY_CENTER_TOOL_IDS = [
   'identity_center_list_group_memberships',
 ] as const
 
+const OCI_SECRETS_TOOL_IDS = [
+  'oci_secrets_cancel_secret_deletion',
+  'oci_secrets_cancel_secret_rotation',
+  'oci_secrets_cancel_secret_version_deletion',
+  'oci_secrets_change_secret_compartment',
+  'oci_secrets_create_secret',
+  'oci_secrets_get_key',
+  'oci_secrets_get_secret',
+  'oci_secrets_get_secret_bundle',
+  'oci_secrets_get_secret_bundle_by_name',
+  'oci_secrets_get_secret_version',
+  'oci_secrets_get_vault',
+  'oci_secrets_get_work_request',
+  'oci_secrets_list_keys',
+  'oci_secrets_list_secret_bundle_versions',
+  'oci_secrets_list_secret_versions',
+  'oci_secrets_list_secrets',
+  'oci_secrets_list_vaults',
+  'oci_secrets_list_work_request_errors',
+  'oci_secrets_list_work_request_logs',
+  'oci_secrets_list_work_requests',
+  'oci_secrets_rotate_secret',
+  'oci_secrets_schedule_secret_deletion',
+  'oci_secrets_schedule_secret_version_deletion',
+  'oci_secrets_update_secret',
+] as const
+
 const SECRETS_MANAGER_TOOL_IDS = [
   'secrets_manager_get_secret',
   'secrets_manager_list_secrets',
@@ -1388,6 +1415,9 @@ registerFamily(handlerLoaders, IAM_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, IDENTITY_CENTER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/identity-center/execute-tool')).executeIdentityCenterTool
+})
+registerFamily(handlerLoaders, OCI_SECRETS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-secrets/execute-tool')).executeOciSecretsTool
 })
 registerFamily(handlerLoaders, SECRETS_MANAGER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/secrets-manager/execute-tool')).executeSecretsManagerTool

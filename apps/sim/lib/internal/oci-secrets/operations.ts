@@ -1,0 +1,566 @@
+import { filterUndefined } from '@sim/utils/object'
+import { z } from 'zod'
+import type { OciAuthenticatedResponse, OciClient } from '@/lib/internal/oci/client.server'
+import {
+  createOciDiscoveredEndpointPolicy,
+  createOciStaticEndpointPolicy,
+  type OciPreparedEndpoint,
+} from '@/lib/internal/oci/endpoints'
+import { OciClientError } from '@/lib/internal/oci/errors'
+import type { OciSecretsInput } from '@/lib/internal/oci-secrets/input'
+import type { OciSecretConfiguration, OciSecretsResponse } from '@/tools/oci_secrets/types'
+
+const secretManagementEndpoint = createOciStaticEndpointPolicy({
+  serviceId: 'oci_secrets',
+  serviceName: 'vaults',
+  hostnameTemplate: 'regional-oci',
+})
+const secretRetrievalEndpoint = createOciStaticEndpointPolicy({
+  serviceId: 'oci_secrets',
+  serviceName: 'secrets.vaults',
+  hostnameTemplate: 'regional-oci',
+})
+const vaultEndpoint = createOciStaticEndpointPolicy({
+  serviceId: 'oci_secrets',
+  serviceName: 'kms',
+  hostnameTemplate: 'regional',
+})
+const keyManagementEndpoint = createOciDiscoveredEndpointPolicy({
+  serviceId: 'oci_secrets',
+  serviceName: 'kms',
+  hostnameTemplate: 'regional',
+  responsePolicy: vaultEndpoint,
+  source: { kind: 'json', path: ['managementEndpoint'] },
+})
+const workRequestEndpoint = createOciStaticEndpointPolicy({
+  serviceId: 'oci_secrets',
+  serviceName: 'iaas',
+  hostnameTemplate: 'regional',
+})
+
+const REQUEST_TIMEOUT_MS = 30_000
+const MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+const responseLimits = {
+  timeoutMs: REQUEST_TIMEOUT_MS,
+  maxResponseBytes: MAX_RESPONSE_BYTES,
+  responseHeaders: ['opc-next-page', 'opc-work-request-id'],
+} as const
+
+const optionalText = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? null)
+const optionalNumber = z
+  .number()
+  .nullish()
+  .transform((value) => value ?? null)
+const optionalBoolean = z
+  .boolean()
+  .nullish()
+  .transform((value) => value ?? null)
+const optionalRecord = z
+  .record(z.string(), z.unknown())
+  .nullish()
+  .transform((value) => value ?? null)
+const tags = {
+  freeformTags: z
+    .record(z.string(), z.string())
+    .nullish()
+    .transform((value) => value ?? null),
+  definedTags: optionalRecord,
+}
+const stages = z
+  .array(z.string())
+  .nullish()
+  .transform((value) => value ?? [])
+const rotationConfigSchema = z.object({
+  targetSystemDetails: z.discriminatedUnion('targetSystemType', [
+    z.object({ targetSystemType: z.literal('ADB'), adbId: z.string() }),
+    z.object({ targetSystemType: z.literal('FUNCTION'), functionId: z.string() }),
+  ]),
+  rotationInterval: optionalText,
+  isScheduledRotationEnabled: optionalBoolean,
+})
+const generationContextSchema = z.object({
+  generationType: z.string(),
+  generationTemplate: z.string(),
+  secretTemplate: optionalText,
+  passphraseLength: optionalNumber,
+})
+const secretRuleSchema = z.discriminatedUnion('ruleType', [
+  z.object({
+    ruleType: z.literal('SECRET_EXPIRY_RULE'),
+    isSecretContentRetrievalBlockedOnExpiry: optionalBoolean,
+    secretVersionExpiryInterval: optionalText,
+    timeOfAbsoluteExpiry: optionalText,
+  }),
+  z.object({
+    ruleType: z.literal('SECRET_REUSE_RULE'),
+    isEnforcedOnDeletedSecretVersions: optionalBoolean,
+  }),
+])
+const replicationConfigSchema = z.object({
+  replicationTargets: z.array(
+    z.object({
+      targetKeyId: z.string(),
+      targetRegion: z.string(),
+      targetVaultId: z.string(),
+    })
+  ),
+  isWriteForwardEnabled: optionalBoolean,
+})
+const secretSummarySchema = z.object({
+  id: z.string(),
+  compartmentId: z.string(),
+  vaultId: z.string(),
+  secretName: z.string(),
+  lifecycleState: z.string(),
+  timeCreated: z.string(),
+  description: optionalText,
+  keyId: optionalText,
+  lifecycleDetails: optionalText,
+  timeOfCurrentVersionExpiry: optionalText,
+  timeOfDeletion: optionalText,
+  ...tags,
+  rotationConfig: rotationConfigSchema.nullish().transform((value) => value ?? null),
+  rotationStatus: optionalText,
+  lastRotationTime: optionalText,
+  nextRotationTime: optionalText,
+  isAutoGenerationEnabled: optionalBoolean,
+  secretGenerationContext: generationContextSchema.nullish().transform((value) => value ?? null),
+})
+const secretSchema = secretSummarySchema.extend({
+  currentVersionNumber: optionalNumber,
+  metadata: optionalRecord,
+  secretRules: z
+    .array(secretRuleSchema)
+    .nullish()
+    .transform((value) => value ?? []),
+  replicationConfig: replicationConfigSchema.nullish().transform((value) => value ?? null),
+  isReplica: optionalBoolean,
+  sourceRegionInformation: z
+    .object({
+      sourceKeyId: z.string(),
+      sourceRegion: z.string(),
+      sourceVaultId: z.string(),
+    })
+    .nullish()
+    .transform((value) => value ?? null),
+})
+const secretVersionSchema = z.object({
+  secretId: optionalText,
+  versionNumber: optionalNumber,
+  name: optionalText,
+  contentType: optionalText,
+  stages,
+  timeCreated: optionalText,
+  timeOfDeletion: optionalText,
+  timeOfCurrentVersionExpiry: optionalText,
+  isContentAutoGenerated: optionalBoolean,
+})
+const secretVersionSummarySchema = secretVersionSchema
+  .omit({ timeOfCurrentVersionExpiry: true })
+  .extend({
+    secretId: z.string(),
+    versionNumber: z.number(),
+    timeCreated: z.string(),
+    timeOfExpiry: optionalText,
+  })
+const bundleVersionSchema = z.object({
+  secretId: z.string(),
+  versionNumber: z.number(),
+  versionName: optionalText,
+  stages,
+  timeCreated: optionalText,
+  timeOfDeletion: optionalText,
+  timeOfExpiry: optionalText,
+})
+const bundleSchema = bundleVersionSchema.extend({
+  metadata: optionalRecord,
+  secretBundleContent: z
+    .object({
+      contentType: z.literal('BASE64'),
+      content: z
+        .string()
+        .max(25600)
+        .nullish()
+        .transform((value) => value ?? null),
+    })
+    .nullish()
+    .transform((value) => value ?? null),
+})
+const vaultSummarySchema = z.object({
+  id: z.string(),
+  compartmentId: z.string(),
+  displayName: z.string(),
+  lifecycleState: z.string(),
+  vaultType: z.string(),
+  timeCreated: z.string(),
+  managementEndpoint: z.string(),
+  cryptoEndpoint: z.string(),
+  ...tags,
+})
+const vaultSchema = vaultSummarySchema.extend({
+  timeOfDeletion: optionalText,
+  isPrimary: optionalBoolean,
+  restoredFromVaultId: optionalText,
+  wrappingkeyId: optionalText,
+})
+const keySummarySchema = z.object({
+  id: z.string(),
+  compartmentId: z.string(),
+  vaultId: z.string(),
+  displayName: z.string(),
+  lifecycleState: z.string(),
+  timeCreated: z.string(),
+  protectionMode: optionalText,
+  algorithm: optionalText,
+  isAutoRotationEnabled: optionalBoolean,
+  ...tags,
+})
+const keySchema = keySummarySchema.omit({ algorithm: true }).extend({
+  currentKeyVersion: z.string(),
+  keyShape: z.object({ algorithm: z.string(), length: z.number(), curveId: optionalText }),
+  timeOfDeletion: optionalText,
+  isPrimary: optionalBoolean,
+  restoredFromKeyId: optionalText,
+})
+const workSummarySchema = z.object({
+  id: z.string(),
+  compartmentId: z.string(),
+  operationType: z.string(),
+  status: z.string(),
+  percentComplete: z.number(),
+  timeAccepted: z.string(),
+  timeStarted: optionalText,
+  timeFinished: optionalText,
+})
+const workSchema = workSummarySchema.extend({
+  resources: z.array(
+    z.object({
+      actionType: z.string(),
+      entityType: z.string(),
+      identifier: z.string(),
+      entityUri: optionalText,
+    })
+  ),
+})
+const logSchema = z.object({ message: z.string(), timestamp: z.string() })
+const errorSchema = logSchema.extend({ code: z.string() })
+
+function parseBody(response: OciAuthenticatedResponse): unknown {
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(response.body))
+  } catch {
+    throw new OciClientError('request_failed', { status: 502, opcRequestId: response.opcRequestId })
+  }
+}
+
+function queryPairs(values: Record<string, string | number | undefined>): [string, string][] {
+  return Object.entries(filterUndefined(values)).map(([key, value]) => [key, String(value)])
+}
+
+function secretConfiguration(input: OciSecretConfiguration): Record<string, unknown> {
+  return filterUndefined({
+    description: input.description,
+    freeformTags: input.freeformTags,
+    definedTags: input.definedTags,
+    metadata: input.metadata,
+    secretContent: input.secretContent,
+    secretRules: input.secretRules,
+    enableAutoGeneration: input.enableAutoGeneration,
+    secretGenerationContext: input.secretGenerationContext,
+    rotationConfig: input.rotationConfig,
+    replicationConfig: input.replicationConfig,
+  })
+}
+
+/** Reads only one provider page; endpoint preparation and HTTP/signing remain in the OCI client. */
+export async function executeOciSecretsOperation(
+  client: OciClient,
+  input: OciSecretsInput,
+  signal?: AbortSignal
+): Promise<OciSecretsResponse> {
+  signal?.throwIfAborted()
+  let policy = secretManagementEndpoint
+  let endpoint: OciPreparedEndpoint | undefined
+  let path: string
+  let method: 'GET' | 'POST' | 'PUT' = 'GET'
+  let body: Record<string, unknown> | undefined
+  let query: Record<string, string | number | undefined> = {}
+  let expectedStatus = 200
+  const page = {
+    limit: 'limit' in input ? (input.limit ?? 100) : 100,
+    page: 'page' in input ? input.page : undefined,
+  }
+
+  switch (input.operation) {
+    case 'list_secrets':
+      path = '/20180608/secrets'
+      query = {
+        ...page,
+        compartmentId: input.compartmentId,
+        name: input.name,
+        vaultId: input.vaultId,
+        lifecycleState: input.lifecycleState,
+        sortBy: input.sortBy,
+        sortOrder: input.sortOrder,
+      }
+      break
+    case 'get_secret':
+      path = `/20180608/secrets/${encodeURIComponent(input.secretId)}`
+      break
+    case 'create_secret':
+      path = '/20180608/secrets'
+      method = 'POST'
+      body = {
+        ...secretConfiguration(input),
+        compartmentId: input.compartmentId,
+        secretName: input.secretName,
+        vaultId: input.vaultId,
+        keyId: input.keyId,
+      }
+      break
+    case 'update_secret':
+      path = `/20180608/secrets/${encodeURIComponent(input.secretId)}`
+      method = 'PUT'
+      body = filterUndefined({
+        ...secretConfiguration(input),
+        currentVersionNumber: input.currentVersionNumber,
+      })
+      break
+    case 'list_secret_versions':
+      path = `/20180608/secrets/${encodeURIComponent(input.secretId)}/versions`
+      query = { ...page, sortOrder: input.sortOrder }
+      break
+    case 'get_secret_version':
+      path = `/20180608/secrets/${encodeURIComponent(input.secretId)}/version/${input.secretVersionNumber}`
+      break
+    case 'schedule_secret_deletion':
+    case 'cancel_secret_deletion':
+    case 'schedule_secret_version_deletion':
+    case 'cancel_secret_version_deletion':
+    case 'rotate_secret':
+    case 'cancel_secret_rotation':
+    case 'change_secret_compartment': {
+      const action = {
+        schedule_secret_deletion: 'scheduleDeletion',
+        cancel_secret_deletion: 'cancelDeletion',
+        schedule_secret_version_deletion: 'scheduleDeletion',
+        cancel_secret_version_deletion: 'cancelDeletion',
+        rotate_secret: 'rotate',
+        cancel_secret_rotation: 'cancelRotation',
+        change_secret_compartment: 'changeCompartment',
+      }[input.operation]
+      const versionPath =
+        'secretVersionNumber' in input ? `/version/${input.secretVersionNumber}` : ''
+      path = `/20180608/secrets/${encodeURIComponent(input.secretId)}${versionPath}/actions/${action}`
+      method = 'POST'
+      expectedStatus = input.operation === 'rotate_secret' ? 202 : 204
+      if (
+        input.operation === 'schedule_secret_deletion' ||
+        input.operation === 'schedule_secret_version_deletion'
+      ) {
+        body = filterUndefined({ timeOfDeletion: input.timeOfDeletion })
+      } else if (input.operation === 'change_secret_compartment') {
+        body = { compartmentId: input.compartmentId }
+      }
+      break
+    }
+    case 'get_secret_bundle':
+    case 'get_secret_bundle_by_name':
+      policy = secretRetrievalEndpoint
+      query = {
+        versionNumber: input.versionNumber,
+        secretVersionName: input.secretVersionName,
+        stage: input.stage,
+      }
+      if (input.operation === 'get_secret_bundle_by_name') {
+        path = '/20190301/secretbundles/actions/getByName'
+        method = 'POST'
+        query = { ...query, secretName: input.secretName, vaultId: input.vaultId }
+      } else {
+        path = `/20190301/secretbundles/${encodeURIComponent(input.secretId)}`
+      }
+      break
+    case 'list_secret_bundle_versions':
+      policy = secretRetrievalEndpoint
+      path = `/20190301/secretbundles/${encodeURIComponent(input.secretId)}/versions`
+      query = { ...page, sortOrder: input.sortOrder }
+      break
+    case 'list_vaults':
+      policy = vaultEndpoint
+      path = '/20180608/vaults'
+      query = {
+        ...page,
+        compartmentId: input.compartmentId,
+        sortBy: input.sortBy,
+        sortOrder: input.sortOrder,
+      }
+      break
+    case 'get_vault':
+      policy = vaultEndpoint
+      path = `/20180608/vaults/${encodeURIComponent(input.vaultId)}`
+      break
+    case 'list_keys':
+    case 'get_key': {
+      const discoveryEndpoint = await client.prepareStaticEndpoint(vaultEndpoint)
+      const vaultResponse = await client.request({
+        ...responseLimits,
+        endpoint: discoveryEndpoint,
+        method: 'GET',
+        encodedPath: `/20180608/vaults/${encodeURIComponent(input.vaultId)}`,
+        retry: { kind: 'safe', maxAttempts: 3 },
+        signal,
+      })
+      endpoint = await client.prepareDiscoveredEndpoint(keyManagementEndpoint, vaultResponse)
+      if (input.operation === 'list_keys') {
+        path = '/20180608/keys'
+        query = {
+          ...page,
+          compartmentId: input.compartmentId,
+          sortBy: input.sortBy,
+          sortOrder: input.sortOrder,
+          protectionMode: input.protectionMode,
+          algorithm: input.algorithm,
+          length: input.length,
+          curveId: input.curveId,
+        }
+      } else {
+        path = `/20180608/keys/${encodeURIComponent(input.keyId)}`
+      }
+      break
+    }
+    case 'list_work_requests':
+      policy = workRequestEndpoint
+      path = '/20160918/workRequests'
+      query = { ...page, compartmentId: input.compartmentId, resourceId: input.secretId }
+      break
+    case 'get_work_request':
+      policy = workRequestEndpoint
+      path = `/20160918/workRequests/${encodeURIComponent(input.workRequestId)}`
+      break
+    case 'list_work_request_errors':
+    case 'list_work_request_logs':
+      policy = workRequestEndpoint
+      path = `/20160918/workRequests/${encodeURIComponent(input.workRequestId)}/${input.operation === 'list_work_request_errors' ? 'errors' : 'logs'}`
+      query = { ...page, sortOrder: input.sortOrder }
+      break
+  }
+
+  endpoint ??= await client.prepareStaticEndpoint(policy)
+  signal?.throwIfAborted()
+  const headers = filterUndefined({
+    'if-match': 'ifMatch' in input ? input.ifMatch : undefined,
+  })
+  const retryToken = 'retryToken' in input ? input.retryToken : undefined
+  const request = {
+    ...responseLimits,
+    endpoint,
+    encodedPath: path,
+    queryPairs: queryPairs(query),
+    headers,
+    signal,
+  }
+  const response = await client.request(
+    method === 'GET'
+      ? { ...request, method, retry: { kind: 'safe', maxAttempts: 3 } }
+      : {
+          ...request,
+          method,
+          contentType: 'application/json',
+          body:
+            body === undefined ? new Uint8Array() : new TextEncoder().encode(JSON.stringify(body)),
+          retry: retryToken ? { kind: 'tokenized', retryToken, maxAttempts: 3 } : undefined,
+        }
+  )
+  signal?.throwIfAborted()
+  if (response.status !== expectedStatus) {
+    throw new OciClientError('request_failed', {
+      status: response.status,
+      opcRequestId: response.opcRequestId,
+    })
+  }
+  const output: OciSecretsResponse['output'] = {
+    status: response.status,
+    opcRequestId: response.opcRequestId ?? null,
+  }
+  if (input.operation === 'rotate_secret') {
+    output.workRequestId = response.headers['opc-work-request-id'] ?? null
+  } else if (
+    input.operation !== 'cancel_secret_rotation' &&
+    !input.operation.includes('work_request') &&
+    input.operation !== 'get_secret_bundle_by_name' &&
+    !input.operation.startsWith('list_')
+  ) {
+    output.etag = response.headers.etag ?? null
+  }
+  if (input.operation.startsWith('list_'))
+    output.nextPage = response.headers['opc-next-page'] ?? null
+  if (expectedStatus === 200) {
+    const data = parseBody(response)
+    try {
+      switch (input.operation) {
+        case 'list_secrets':
+          output.secrets = z.array(secretSummarySchema).max(1000).parse(data)
+          break
+        case 'get_secret':
+        case 'create_secret':
+        case 'update_secret':
+          output.secret = secretSchema.parse(data)
+          break
+        case 'list_secret_versions':
+          output.secretVersions = z.array(secretVersionSummarySchema).max(1000).parse(data)
+          break
+        case 'get_secret_version':
+          output.secretVersion = secretVersionSchema.parse(data)
+          break
+        case 'get_secret_bundle':
+        case 'get_secret_bundle_by_name': {
+          output.secretBundle = bundleSchema.parse(data)
+          if (input.decodeContent) {
+            const content = output.secretBundle.secretBundleContent?.content
+            output.secretValue =
+              content == null
+                ? null
+                : new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(content, 'base64'))
+          }
+          break
+        }
+        case 'list_secret_bundle_versions':
+          output.secretBundleVersions = z.array(bundleVersionSchema).max(1000).parse(data)
+          break
+        case 'list_vaults':
+          output.vaults = z.array(vaultSummarySchema).max(1000).parse(data)
+          break
+        case 'get_vault':
+          output.vault = vaultSchema.parse(data)
+          break
+        case 'list_keys':
+          output.keys = z.array(keySummarySchema).max(1000).parse(data)
+          break
+        case 'get_key':
+          output.key = keySchema.parse(data)
+          break
+        case 'list_work_requests':
+          output.workRequests = z.array(workSummarySchema).max(1000).parse(data)
+          break
+        case 'get_work_request':
+          output.workRequest = workSchema.parse(data)
+          break
+        case 'list_work_request_errors':
+          output.errors = z.array(errorSchema).max(1000).parse(data)
+          break
+        case 'list_work_request_logs':
+          output.logs = z.array(logSchema).max(1000).parse(data)
+          break
+      }
+    } catch {
+      throw new OciClientError('request_failed', {
+        status: 502,
+        opcRequestId: response.opcRequestId,
+      })
+    }
+  }
+  return { success: true, output }
+}
