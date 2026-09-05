@@ -8,6 +8,7 @@ import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 import {
+  assertWorkspaceCreationCapability,
   getWorkspaceInvitePolicy,
   lockWorkspaceCreationContext,
   resolveInviteFlags,
@@ -58,6 +59,15 @@ export function emitWorkspaceCreatedPlatformEvent(params: {
  * The caller supplies the creation-policy snapshot. This function revalidates
  * that snapshot under the shared organization/user locks before inserting the
  * workspace, owner permission, and optional starter workflow atomically.
+ */
+/**
+ * The workspace.create capability gate is the CALLER's responsibility, because
+ * it must not run inside this transaction — see
+ * {@link assertWorkspaceCreationCapability}. `createWorkspace` calls it before
+ * opening its transaction; the only other entry point,
+ * {@link createDefaultPersonalWorkspaceInTransaction}, passes both
+ * `organizationId` and `observedOrganizationId` as `null` by construction, so
+ * the gate is a no-op on that path rather than a skipped check.
  */
 export async function createWorkspaceInTransaction(
   tx: DbOrTx,
@@ -167,6 +177,18 @@ export async function createWorkspaceInTransaction(
 
 /** Creates a workspace through the canonical lock-and-insert transaction. */
 export async function createWorkspace(params: CreateWorkspaceParams) {
+  /**
+   * Gate before opening the transaction, never inside it — see
+   * {@link assertWorkspaceCreationCapability} for why the lock never protected
+   * this read. Its `WorkspaceCreationCapabilityWithheldError` is thrown from the
+   * same call stack as before, so `app/api/workspaces/route.ts` still projects
+   * the identical capability refusal.
+   */
+  await assertWorkspaceCreationCapability({
+    organizationId: params.organizationId,
+    observedOrganizationId: params.observedOrganizationId,
+  })
+
   let created: CreatedWorkspace
   try {
     created = await db.transaction((tx) => createWorkspaceInTransaction(tx, params))

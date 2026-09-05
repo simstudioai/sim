@@ -127,6 +127,47 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
  * Returns the live billing owner. The caller must invoke this in the same
  * transaction as the workspace insert.
  */
+/**
+ * permission-group-enforced: workspace.create — the creation gate, deliberately
+ * OUTSIDE the creation transaction.
+ *
+ * This resolves the organization's entitlement and default group, which is up to
+ * four sequential reads. Running it inside {@link lockWorkspaceCreationContext}
+ * checked out a SECOND pooled connection while that transaction already held one
+ * plus three advisory locks — the pool deadlock `packages/db/tx-tripwire.ts`
+ * exists to detect — and added those round trips to a lock hold that serializes
+ * every organization mutation, which is what pushed concurrent creates past the
+ * 5s `lock_timeout` and answered them as a generic 500.
+ *
+ * Nothing is given up by moving it out. The re-read was never serialized against
+ * permission-group writes: those take `permission_group:<org>`
+ * (`organizations/[id]/permission-groups/utils.ts`) while creation takes
+ * `organization-mutation:<org>` (`billing/organizations/membership.ts`). Those
+ * are different advisory-lock ids and never contend, so holding the lock while
+ * reading bought no exclusion. What the check actually provides is RECENCY
+ * against the caller's earlier preflight, and that holds identically here.
+ *
+ * The governing organization is `organizationId ?? observedOrganizationId`,
+ * both known before the transaction. That is equivalent to the membership read
+ * this previously used, because {@link lockWorkspaceCreationContext} throws
+ * `WorkspaceCreationContextChangedError` unless live membership still equals
+ * `observedOrganizationId` — so a verdict computed here can never be applied to
+ * an organization other than the one that commits.
+ */
+export async function assertWorkspaceCreationCapability({
+  organizationId,
+  observedOrganizationId,
+}: {
+  organizationId: string | null
+  observedOrganizationId: string | null
+}): Promise<void> {
+  const governingOrganizationId = organizationId ?? observedOrganizationId
+  if (!governingOrganizationId) return
+  if (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create')) {
+    throw new WorkspaceCreationCapabilityWithheldError()
+  }
+}
+
 export async function lockWorkspaceCreationContext(
   tx: DbOrTx,
   {
@@ -149,24 +190,6 @@ export async function lockWorkspaceCreationContext(
     (organizationId !== null && currentMembership?.organizationId !== organizationId)
   ) {
     throw new WorkspaceCreationContextChangedError()
-  }
-
-  /**
-   * permission-group-enforced: workspace.create — re-read under the lock because
-   * the preflight in `getWorkspaceCreationPolicy` and the insert are separate
-   * requests: a group that withheld creation in between would otherwise still
-   * let the in-flight create land, and a new workspace carries no
-   * `permissionGroupWorkspace` row to bring it back under the regime afterwards.
-   * Governed by the same organization the preflight used — the explicit one, or
-   * the caller's membership when the workspace would be personal — so a personal
-   * workspace stays as governed here as it is there.
-   */
-  const governingOrganizationId = organizationId ?? currentMembership?.organizationId ?? null
-  if (
-    governingOrganizationId &&
-    (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create'))
-  ) {
-    throw new WorkspaceCreationCapabilityWithheldError()
   }
 
   if (!organizationId) return { billedAccountUserId: userId }

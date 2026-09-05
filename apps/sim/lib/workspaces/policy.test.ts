@@ -47,6 +47,7 @@ vi.mock('@/lib/billing/core/plan', () => ({
 }))
 
 import {
+  assertWorkspaceCreationCapability,
   getOrganizationOwnerId,
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
@@ -74,6 +75,67 @@ describe('getOrganizationOwnerId', () => {
     expect(from).toHaveBeenCalledWith(member)
     expect(where).toHaveBeenCalledOnce()
     expect(limit).toHaveBeenCalledWith(1)
+  })
+})
+
+/**
+ * The capability gate moved OUT of `lockWorkspaceCreationContext` so it no
+ * longer runs on a second pooled connection inside the lock-holding
+ * transaction. These three cases are the ones that lived there, retargeted
+ * rather than rewritten — the gate's behavior is unchanged, only where it runs.
+ */
+describe('assertWorkspaceCreationCapability', () => {
+  it('rejects when the group withheld workspace creation after the preflight', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: false })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+
+    await expect(
+      assertWorkspaceCreationCapability({
+        organizationId: 'org-1',
+        observedOrganizationId: 'org-1',
+      })
+    ).rejects.toBeInstanceOf(WorkspaceCreationCapabilityWithheldError)
+    expect(mockGetUserPermissionConfigForOrganization).toHaveBeenCalledWith('org-1')
+  })
+
+  /**
+   * A personal workspace is precisely the escape from a scoped group, so the
+   * gate reads the caller's membership organization even when the workspace
+   * being inserted carries none — the same organization the preflight used.
+   * `observedOrganizationId` carries that membership, and
+   * `lockWorkspaceCreationContext` still refuses to commit if live membership
+   * has since diverged from it.
+   */
+  it('rejects a personal workspace when the membership organization withheld creation', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+
+    await expect(
+      assertWorkspaceCreationCapability({
+        organizationId: null,
+        observedOrganizationId: 'org-1',
+      })
+    ).rejects.toBeInstanceOf(WorkspaceCreationCapabilityWithheldError)
+  })
+
+  it('leaves an unaffiliated creator alone, with no group to read', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+
+    await expect(
+      assertWorkspaceCreationCapability({
+        organizationId: null,
+        observedOrganizationId: null,
+      })
+    ).resolves.toBeUndefined()
+    expect(mockGetUserPermissionConfigForOrganization).not.toHaveBeenCalled()
   })
 })
 
@@ -136,75 +198,6 @@ describe('lockWorkspaceCreationContext', () => {
     expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
       mockGetOrganizationSubscription.mock.invocationCallOrder[0]
     )
-  })
-
-  /**
-   * The preflight in `getWorkspaceCreationPolicy` and the insert are separate
-   * requests. A group that withheld creation in between has to be caught under
-   * the lock, or the in-flight create lands a workspace that carries no
-   * `permissionGroupWorkspace` row to bring it back under the regime.
-   */
-  it('rejects when the group withheld workspace creation after the preflight', async () => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    setEnvFlags({ isBillingEnabled: false })
-    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
-    mockGetUserOrganization.mockResolvedValue({ organizationId: 'org-1', role: 'admin' })
-    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
-      disableWorkspaceCreation: true,
-    })
-    queueTableRows(member, [{ userId: 'owner-1' }])
-    const tx = dbChainMock.db as unknown as DbOrTx
-
-    await expect(
-      lockWorkspaceCreationContext(tx, {
-        userId: 'creator-1',
-        organizationId: 'org-1',
-        observedOrganizationId: 'org-1',
-      })
-    ).rejects.toBeInstanceOf(WorkspaceCreationCapabilityWithheldError)
-    expect(mockGetUserPermissionConfigForOrganization).toHaveBeenCalledWith('org-1')
-  })
-
-  /**
-   * A personal workspace is precisely the escape from a scoped group, so the
-   * re-check reads the caller's membership organization even when the workspace
-   * being inserted carries none — the same organization the preflight used.
-   */
-  it('rejects a personal workspace when the membership organization withheld creation', async () => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
-    mockGetUserOrganization.mockResolvedValue({ organizationId: 'org-1', role: 'member' })
-    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
-      disableWorkspaceCreation: true,
-    })
-    const tx = dbChainMock.db as unknown as DbOrTx
-
-    await expect(
-      lockWorkspaceCreationContext(tx, {
-        userId: 'creator-1',
-        organizationId: null,
-        observedOrganizationId: 'org-1',
-      })
-    ).rejects.toBeInstanceOf(WorkspaceCreationCapabilityWithheldError)
-  })
-
-  it('leaves an unaffiliated creator alone, with no group to read', async () => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
-    mockGetUserOrganization.mockResolvedValue(null)
-    const tx = dbChainMock.db as unknown as DbOrTx
-
-    await expect(
-      lockWorkspaceCreationContext(tx, {
-        userId: 'creator-1',
-        organizationId: null,
-        observedOrganizationId: null,
-      })
-    ).resolves.toEqual({ billedAccountUserId: 'creator-1' })
-    expect(mockGetUserPermissionConfigForOrganization).not.toHaveBeenCalled()
   })
 
   it('rejects when the paid org entitlement disappeared before insertion', async () => {
