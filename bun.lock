@@ -166,6 +166,7 @@
         "@aws-sdk/client-secrets-manager": "3.1117.0",
         "@aws-sdk/client-sesv2": "3.1117.0",
         "@aws-sdk/client-sqs": "3.1117.0",
+        "@aws-sdk/client-ssm": "3.1117.0",
         "@aws-sdk/client-sso-admin": "3.1117.0",
         "@aws-sdk/client-sts": "3.1117.0",
         "@aws-sdk/client-textract": "3.1117.0",

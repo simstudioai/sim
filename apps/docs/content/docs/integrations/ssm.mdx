@@ -1,0 +1,612 @@
+---
+title: AWS Systems Manager
+description: Run commands, manage parameters, and audit managed nodes
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ssm"
+  color="#E7157B"
+/>
+
+## Usage Instructions
+
+Integrate AWS Systems Manager into your workflow. Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.
+
+
+
+## Actions
+
+### SSM Send Command
+
+Run an SSM document on managed nodes with AWS Systems Manager Run Command
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `documentName` | string | Yes | Name of the SSM document to run \(e.g., AWS-RunShellScript\) |
+| `instanceIds` | json | No | Managed node IDs to target, as an array of strings \(e.g., \["i-0abc123"\]\). Provide instanceIds or targets |
+| `targets` | json | No | Tag or resource-group targets, as an array of \{Key, Values\} objects. Provide instanceIds or targets |
+| `documentVersion` | string | No | Document version to run \($LATEST, $DEFAULT, or a version number\) |
+| `parameters` | json | No | Document parameters, as an object mapping each parameter name to an array of string values |
+| `comment` | string | No | Comment describing the command, at most 100 characters |
+| `executionTimeoutSeconds` | number | No | Seconds to wait for a node to acknowledge the command before it times out \(30-2592000\) |
+| `maxConcurrency` | string | No | Number or percentage of nodes to run the command on at once \(e.g., 10 or 50%\) |
+| `maxErrors` | string | No | Number or percentage of errors allowed before the command stops \(e.g., 0 or 10%\) |
+| `outputS3BucketName` | string | No | S3 bucket to store command output in |
+| `outputS3KeyPrefix` | string | No | S3 key prefix for stored command output |
+| `serviceRoleArn` | string | No | ARN of the IAM service role Systems Manager uses to publish notifications |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commandId` | string | ID of the command; pass it to ssm_get_command_invocation or ssm_list_command_invocations to read per-node results |
+| `documentName` | string | Name of the document that was run |
+| `documentVersion` | string | Document version that was run |
+| `comment` | string | Comment supplied with the command |
+| `status` | string | Command status \(Pending, InProgress, Success, Cancelled, Failed, TimedOut, Cancelling\) |
+| `statusDetails` | string | Detailed status of the command |
+| `requestedDateTime` | string | When the command was requested |
+| `expiresAfter` | string | When the command stops being dispatched to nodes that have not run it |
+| `instanceIds` | array | Managed node IDs the command targets |
+| `targets` | json | Tag or resource-group targets the command was sent to, as an array of \{key, values\} |
+| `maxConcurrency` | string | Concurrency setting the command ran with |
+| `maxErrors` | string | Error threshold the command ran with |
+| `targetCount` | number | Number of targets the command was sent to |
+| `completedCount` | number | Number of targets that have completed the command |
+| `errorCount` | number | Number of targets whose command execution failed |
+| `deliveryTimedOutCount` | number | Number of targets the command could not be delivered to in time |
+| `executionTimeoutSeconds` | number | Acknowledgement timeout the command ran with |
+| `outputS3BucketName` | string | S3 bucket command output is written to |
+| `outputS3KeyPrefix` | string | S3 key prefix command output is written under |
+| `outputS3Region` | string | S3 region reported for command output |
+| `serviceRole` | string | IAM service role used for notifications |
+
+### SSM List Commands
+
+List Run Command executions in an AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `commandId` | string | No | Return only the command with this ID |
+| `instanceId` | string | No | Return only commands sent to this managed node |
+| `filters` | json | No | Filters, as an array of \{key, value\} objects. Valid keys: InvokedAfter, InvokedBefore, Status, ExecutionStage, DocumentName |
+| `maxResults` | number | No | Maximum number of commands to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commands` | json | Commands, each with commandId, documentName, status, statusDetails, requestedDateTime, instanceIds, targets, targetCount, completedCount, and errorCount |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of commands returned |
+
+### SSM List Command Invocations
+
+List the per-node invocations of Run Command executions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `commandId` | string | No | Return only invocations of this command |
+| `instanceId` | string | No | Return only invocations on this managed node |
+| `filters` | json | No | Filters, as an array of \{key, value\} objects. Valid keys: InvokedAfter, InvokedBefore, Status, DocumentName |
+| `details` | boolean | No | Include per-plugin detail \(command plugins and their output\) for each invocation |
+| `maxResults` | number | No | Maximum number of invocations to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commandInvocations` | json | Invocations, each with commandId, instanceId, instanceName, status, statusDetails, requestedDateTime, standardOutputUrl, standardErrorUrl, and commandPlugins |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of invocations returned |
+
+### SSM Get Command Invocation
+
+Read the output and status of a Run Command execution on one managed node
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `commandId` | string | Yes | ID of the command, as returned by ssm_send_command |
+| `instanceId` | string | Yes | Managed node the command ran on \(e.g., i-0abc123\) |
+| `pluginName` | string | No | Name of the document plugin to read output for; required for documents with more than one plugin |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commandId` | string | ID of the command |
+| `instanceId` | string | Managed node the command ran on |
+| `comment` | string | Comment supplied with the command |
+| `documentName` | string | Document that was run |
+| `documentVersion` | string | Document version that was run |
+| `pluginName` | string | Plugin the output belongs to |
+| `responseCode` | number | Exit code of the command, or -1 if it has not started |
+| `executionStartDateTime` | string | When the command started running on the node |
+| `executionElapsedTime` | string | How long the command ran, as an ISO 8601 duration |
+| `executionEndDateTime` | string | When the command finished running on the node |
+| `status` | string | Invocation status \(Pending, InProgress, Delayed, Success, Cancelled, TimedOut, Failed, Cancelling\) |
+| `statusDetails` | string | Detailed status of the invocation |
+| `standardOutputContent` | string | First 24000 characters of stdout; longer output is available at standardOutputUrl |
+| `standardOutputUrl` | string | S3 URL of the full stdout, if S3 output was configured |
+| `standardErrorContent` | string | First 8000 characters of stderr; longer output is available at standardErrorUrl |
+| `standardErrorUrl` | string | S3 URL of the full stderr, if S3 output was configured |
+
+### SSM Cancel Command
+
+Cancel an in-flight Run Command execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `commandId` | string | Yes | ID of the command to cancel, as returned by ssm_send_command |
+| `instanceIds` | json | No | Managed node IDs to cancel on, as an array of strings; omit to cancel on every targeted node |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `commandId` | string | ID of the command that was cancelled |
+
+### SSM Get Parameter
+
+Read one parameter from AWS Systems Manager Parameter Store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Name of the parameter, optionally with a :version or :label suffix |
+| `withDecryption` | boolean | No | Return the decrypted value of a SecureString parameter; ignored for String and StringList parameters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the parameter |
+| `type` | string | Parameter type \(String, StringList, or SecureString\) |
+| `value` | string | Parameter value; encrypted unless withDecryption was set for a SecureString |
+| `version` | number | Version of the parameter |
+| `selector` | string | Version or label selector used to read the parameter |
+| `sourceResult` | string | Raw result from the source for a parameter served by another service |
+| `lastModifiedDate` | string | When the parameter was last changed |
+| `arn` | string | ARN of the parameter |
+| `dataType` | string | Data type of the parameter \(text, aws:ec2:image, or aws:ssm:integration\) |
+
+### SSM Get Parameters
+
+Read up to ten parameters from AWS Systems Manager Parameter Store by name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `names` | json | Yes | Parameter names to read, as an array of at most 10 strings |
+| `withDecryption` | boolean | No | Return decrypted values for SecureString parameters; ignored for String and StringList parameters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `parameters` | json | Parameters that were found, each with name, type, value, version, arn, dataType, and lastModifiedDate |
+| `invalidParameters` | array | Names that could not be read because they do not exist or are malformed |
+| `count` | number | Number of parameters returned |
+
+### SSM Get Parameters By Path
+
+Read parameters under a Parameter Store hierarchy path
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `path` | string | Yes | Hierarchy path to read, starting with a slash \(e.g., /prod/app\) |
+| `recursive` | boolean | No | Include parameters in nested paths below the given path |
+| `withDecryption` | boolean | No | Return decrypted values for SecureString parameters; ignored for String and StringList parameters |
+| `parameterFilters` | json | No | Filters, as an array of \{Key, Option, Values\} objects. Valid keys here: Type, KeyId, Label |
+| `maxResults` | number | No | Maximum number of parameters to return \(1-10\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `parameters` | json | Parameters under the path, each with name, type, value, version, arn, dataType, and lastModifiedDate |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of parameters returned |
+
+### SSM Put Parameter
+
+Create or update a parameter in AWS Systems Manager Parameter Store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Name of the parameter, optionally using a slash-separated hierarchy |
+| `value` | string | Yes | Value to store |
+| `type` | string | No | Parameter type \(String, StringList, or SecureString\); required when creating a new parameter |
+| `description` | string | No | Description of the parameter |
+| `keyId` | string | No | KMS key ID or ARN used to encrypt a SecureString parameter; defaults to the account key |
+| `overwrite` | boolean | No | Overwrite the parameter if it already exists |
+| `allowedPattern` | string | No | Regular expression the value must match |
+| `tier` | string | No | Parameter tier \(Standard, Advanced, or Intelligent-Tiering\) |
+| `dataType` | string | No | Data type of the parameter \(text, aws:ec2:image, or aws:ssm:integration\) |
+| `policies` | string | No | Parameter policies as a JSON array string; Advanced tier only |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `name` | string | Name of the parameter that was written |
+| `version` | number | Version number the write produced |
+| `tier` | string | Tier the parameter was stored in |
+
+### SSM Delete Parameter
+
+Delete a parameter from AWS Systems Manager Parameter Store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Name of the parameter to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `name` | string | Name of the parameter that was deleted |
+
+### SSM Describe Parameters
+
+List Parameter Store parameter metadata without reading any values
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `parameterFilters` | json | No | Filters, as an array of \{Key, Option, Values\} objects. Valid keys: Name, Type, KeyId, Path, Tier, DataType, or tag:&lt;key&gt; |
+| `shared` | boolean | No | Return parameters shared with this account instead of parameters it owns |
+| `maxResults` | number | No | Maximum number of parameters to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `parameters` | json | Parameter metadata, each with name, arn, type, keyId, description, tier, version, dataType, allowedPattern, lastModifiedDate, lastModifiedUser, and policies. Values are never included |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of parameters returned |
+
+### SSM Describe Instance Information
+
+List managed nodes registered with AWS Systems Manager and their agent status
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: InstanceIds, AgentVersion, PingStatus, PlatformTypes, ActivationIds, IamRole, ResourceType, AssociationStatus, SourceIds, SourceTypes, tag-key, or tag:&lt;key&gt; |
+| `maxResults` | number | No | Maximum number of nodes to return \(5-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `instances` | json | Managed nodes, each with instanceId, pingStatus, lastPingDateTime, agentVersion, isLatestVersion, platformType, platformName, platformVersion, computerName, ipAddress, iamRole, resourceType, and associationStatus |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of managed nodes returned |
+
+### SSM Describe Instance Patches
+
+List the patches reported for one managed node
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceId` | string | Yes | Managed node to report patches for \(e.g., i-0abc123\) |
+| `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: Classification, KBId, Severity, State |
+| `maxResults` | number | No | Maximum number of patches to return \(10-100\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `patches` | json | Patches, each with title, kbId, classification, severity, state, installedTime, and cveIds |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of patches returned |
+
+### SSM Describe Instance Patch States
+
+Read patch compliance summaries for a set of managed nodes
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceIds` | json | Yes | Managed node IDs to summarize, as an array of at most 50 strings |
+| `maxResults` | number | No | Maximum number of patch states to return \(10-100\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `instancePatchStates` | json | Patch states, each with instanceId, patchGroup, baselineId, operation, operationStartTime, operationEndTime, installedCount, missingCount, failedCount, notApplicableCount, criticalNonCompliantCount, and securityNonCompliantCount |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of patch states returned |
+
+### SSM List Compliance Items
+
+List individual compliance findings reported to AWS Systems Manager
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `resourceIds` | json | No | Resource to report on, as an array holding a single managed node ID |
+| `resourceTypes` | json | No | Resource type to report on, as an array holding a single value; currently only ManagedInstance is supported |
+| `filters` | json | No | Filters, as an array of \{Key, Values, Type\} objects. Type is one of EQUAL, NOT_EQUAL, BEGIN_WITH, LESS_THAN, GREATER_THAN |
+| `maxResults` | number | No | Maximum number of compliance items to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `complianceItems` | json | Compliance items, each with complianceType, resourceType, resourceId, id, title, status, severity, executionTime, executionId, executionType, and details |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of compliance items returned |
+
+### SSM List Compliance Summaries
+
+Read compliant and non-compliant counts per compliance type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `filters` | json | No | Filters, as an array of \{Key, Values, Type\} objects. Type is one of EQUAL, NOT_EQUAL, BEGIN_WITH, LESS_THAN, GREATER_THAN |
+| `maxResults` | number | No | Maximum number of summaries to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `complianceSummaryItems` | json | Summaries, each with complianceType, compliantCount, compliantSeveritySummary, nonCompliantCount, and nonCompliantSeveritySummary |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of summaries returned |
+
+### SSM Start Automation Execution
+
+Start an AWS Systems Manager Automation runbook execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `documentName` | string | Yes | Name of the Automation runbook to run \(e.g., AWS-RestartEC2Instance\) |
+| `documentVersion` | string | No | Runbook version to run \($LATEST, $DEFAULT, or a version number\) |
+| `parameters` | json | No | Runbook parameters, as an object mapping each parameter name to an array of string values |
+| `mode` | string | No | Execution mode, Auto or Interactive |
+| `targetParameterName` | string | No | Runbook parameter that receives each resolved target; required when targets is set |
+| `targets` | json | No | Rate-control target, as an array holding a single \{Key, Values\} object; requires targetParameterName |
+| `maxConcurrency` | string | No | Number or percentage of targets to run against at once \(e.g., 10 or 50%\) |
+| `maxErrors` | string | No | Number or percentage of errors allowed before the execution stops \(e.g., 0 or 10%\) |
+| `clientToken` | string | No | Idempotency token, exactly 36 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `automationExecutionId` | string | ID of the execution; pass it to ssm_get_automation_execution or ssm_stop_automation_execution |
+
+### SSM Describe Automation Executions
+
+List Automation runbook executions in an AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: DocumentNamePrefix, ExecutionStatus, ExecutionId, ParentExecutionId, CurrentAction, StartTimeBefore, StartTimeAfter, AutomationType, TagKey, TargetResourceGroup, AutomationSubtype, OpsItemId |
+| `maxResults` | number | No | Maximum number of executions to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `automationExecutions` | json | Executions, each with automationExecutionId, documentName, documentVersion, automationExecutionStatus, executionStartTime, executionEndTime, executedBy, currentStepName, currentAction, failureMessage, and outputs |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of executions returned |
+
+### SSM Get Automation Execution
+
+Read the status, outputs, and step results of one Automation execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `automationExecutionId` | string | Yes | ID of the execution, as returned by ssm_start_automation_execution |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `automationExecutionId` | string | ID of the execution |
+| `documentName` | string | Runbook that was run |
+| `documentVersion` | string | Runbook version that was run |
+| `automationExecutionStatus` | string | Execution status \(Pending, InProgress, Waiting, Success, TimedOut, Cancelling, Cancelled, Failed, and related values\) |
+| `executionStartTime` | string | When the execution started |
+| `executionEndTime` | string | When the execution finished |
+| `executedBy` | string | IAM identity that started the execution |
+| `mode` | string | Execution mode, Auto or Interactive |
+| `parentAutomationExecutionId` | string | ID of the parent execution, for a child execution |
+| `currentStepName` | string | Step the execution is currently running |
+| `currentAction` | string | Action the execution is currently running |
+| `failureMessage` | string | Reason the execution failed |
+| `targetParameterName` | string | Runbook parameter that received each resolved target |
+| `target` | string | Resource the execution targeted |
+| `maxConcurrency` | string | Concurrency setting the execution ran with |
+| `maxErrors` | string | Error threshold the execution ran with |
+| `parameters` | json | Parameter values the execution was started with |
+| `outputs` | json | Outputs the execution produced |
+| `stepExecutions` | json | Steps, each with stepName, action, stepStatus, stepExecutionId, executionStartTime, executionEndTime, failureMessage, response, isEnd, and nextStep |
+| `stepExecutionsTruncated` | boolean | Whether the returned step list was truncated |
+
+### SSM Stop Automation Execution
+
+Stop a running AWS Systems Manager Automation execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `automationExecutionId` | string | Yes | ID of the execution to stop, as returned by ssm_start_automation_execution |
+| `stopType` | string | No | How to stop the execution: Cancel to stop it immediately, or Complete to let the current step finish |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `automationExecutionId` | string | ID of the execution that was stopped |
+
+### SSM List Documents
+
+List SSM documents and runbooks available to an AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `filters` | json | No | Filters, as an array of \{Key, Values\} objects. Valid keys: Name, Owner, DocumentType, PlatformTypes, TargetType, or tag:&lt;key&gt; |
+| `maxResults` | number | No | Maximum number of documents to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documents` | json | Documents, each with name, displayName, owner, documentType, documentFormat, documentVersion, schemaVersion, platformTypes, targetType, createdDate, reviewStatus, author, and tags |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of documents returned |
+
+### SSM Get Document
+
+Read the content of an SSM document or Automation runbook
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Name of the document to read, as returned by ssm_list_documents |
+| `documentVersion` | string | No | Document version to read \($LATEST, $DEFAULT, or a version number\) |
+| `versionName` | string | No | User-defined version name to read |
+| `documentFormat` | string | No | Format to return the content in: JSON, YAML, or TEXT |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the document |
+| `displayName` | string | Friendly name of the document |
+| `createdDate` | string | When the document was created |
+| `versionName` | string | User-defined version name |
+| `documentVersion` | string | Document version that was returned |
+| `status` | string | Document status \(Creating, Active, Updating, Deleting, Failed\) |
+| `statusInformation` | string | Detail about the document status |
+| `content` | string | Content of the document in the requested format |
+| `documentType` | string | Type of the document \(Command, Automation, Policy, Session, and related values\) |
+| `documentFormat` | string | Format the content is returned in |
+| `reviewStatus` | string | Review status of the document \(APPROVED, NOT_REVIEWED, PENDING, REJECTED\) |
+
+
