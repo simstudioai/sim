@@ -1,0 +1,1038 @@
+---
+title: Oracle EPM FCCS
+description: Consolidate and translate financial data, manage journals, and monitor FCCS jobs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_fccs"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Oracle Financial Consolidation and Close](https://www.oracle.com/performance-management/financial-consolidation-close/) (FCCS) is a Cloud EPM business process. This integration provides 40 actions for metadata discovery, consolidation/translation, data and journal transfers, intercompany matching reports, job monitoring, and external repository files.
+
+### Connection and permissions
+
+Create an **Oracle EPM service account** credential with the REST base URL, username, and password. The URL is the HTTPS environment origin, optionally including a gateway prefix—not a URL ending in `/HyperionPlanning/rest/v3`, `/interop/rest`, or an API resource. Select that credential in the block. Sim injects authentication and the destination on the server; workflows cannot override them through tool arguments. Use the username format required by your Oracle identity domain.
+
+Grant only the Oracle application, member, rule, journal, and migration permissions needed by the selected actions. Rules require Service Administrator or a Power User with Rule Launch access. Journal actions require the appropriate consolidation-journal security role and read/write member access; opening/closing periods requires Service Administrator or Consolidation Journals – Manage Periods. Repository transfers require Service Administrator or an application role with Migrations – Administer. Other operations have their own role requirements; do not assume that successful connection grants write permission. See [rules](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/rules.html), [journal actions](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fccs_perform_journal_actions.html), [journal periods](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fccs_perform_journal_update.html), and [file upload](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/upload.html).
+
+### Selectors and manual inputs
+
+Use the block's credential selector to connect and select the Oracle EPM service account. As with NetSuite, the current shared catalog does not expose service-account-only connections through the integration-detail page or Copilot/VFS credential discovery. The block connection and execution path remains available.
+
+Choose an FCCS application, then its cube and dimensions. Member, entity, period, and scenario pickers retrieve the relevant hierarchy on the server. Each has an Advanced/manual alternative. Enter literal Oracle names and repository paths without URL encoding; Sim preserves them and the foundation encodes them once. Oracle's [dimension/member naming restrictions](https://docs.oracle.com/en/cloud/saas/financial-consolidation-cloud/agfcc/restricted_dimension_names.html) still apply.
+
+Hierarchy retrieval is capped at 2 MiB, 10,000 nodes, and 64 levels. Other JSON responses are capped at 8 MiB. A picker fails explicitly if it cannot provide a complete result within its budget; it never implies a truncated list is complete. Dimension pickers allow up to 1,000 dimensions; configured-job and file pickers allow up to 10,000 records. Use manual values for larger tenants. Manual file download/delete can find an external file beyond 10,000 entries, but still require a repository inventory within the 8 MiB response limit to exclude LCM snapshots. Rules and rulesets are deployed job definitions. Saved profiles, intercompany report definitions, and configurable-consolidation ruleset names remain manual where Oracle does not document a listing API.
+
+### Jobs and files
+
+Submission actions return promptly. Wire the returned `jobId` into **Wait for Job** or **Get Job**; Oracle's numeric `jobId` and `jobID` spellings normalize to one string. Status `-1` is in progress, `2` is cancel pending, `0` is success, and other codes are terminal failures. Wait is cancellable and bounded by both the requested duration and the workflow deadline. Job IDs can also be entered manually; there is no invented job-instance listing endpoint. Job Details supports only data/metadata import/export; Child Job Details supports only metadata import/export. Pagination tools return one page, not an accumulated full history. See [job status](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/retrieve_job_status.html) and [job details](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/retrieve_job_status_details.html).
+
+Use **Upload File** before file-based imports. Input must be an authorized Sim UserFile, not an arbitrary URL. Buffered uploads and stored download outputs have a **100 MiB (104,857,600 bytes)** cap, checked against known size and actual bytes. Downloads become execution-scoped UserFile references, not inline/base64 content. Overflow stops transfer and cleans up partial storage; files are never truncated. An Oracle export can succeed even when Sim cannot materialize its oversized output. Retrieve that file outside Sim or use a narrower export definition.
+
+Repository operations exclude LCM snapshots. Upload takes a basename plus an optional inbox/outbox directory and does not overwrite an existing file. Download/delete take an exact repository path. A JSON response from Oracle's download API is an error, not a binary file. See [download](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/download.html).
+
+### Contract limitations and workflow boundaries
+
+Numeric data slices accept numbers, decimal/percentage strings (such as `"70%"`), and `"#missing"`; numeric strings are capped at 1,024 characters. They do not enable Planning Text, Date, Smart List, or supporting-detail workflows. See [Import Data Slices](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/import_dataslices.html).
+
+- Saved data, metadata, exchange-rate, journal, and report definitions must already exist in Oracle. Their names, runtime prompts, and required overrides depend on the tenant. This is input configuration, not an undocumented response schema. Preserve parameter casing and use the documented parameters for the selected job family.
+- Consolidation/translation wrappers use the seeded `Consolidate`, `ForceConsolidate`, `Translate`, and `ForceTranslate` rules with `Entity`, `Period`, `Scenario`, and `Year`. Other deployed rules remain available through Run Rule. See Oracle's [automation rules table](https://docs.oracle.com/en/cloud/saas/financial-consolidation-cloud/agfcc/appendix_integrations_automated_integ_table.html).
+- Application/member outputs project stable documented fields, without guessed application-type enums or tenant metadata. Journal Detail is deferred because Oracle's documented line-item structure is incomplete; Application Summary is excluded because its format is unstable.
+- Oracle's journal request tables show a `parameters` object, while nearby sample inputs are flat. This integration follows the formal parameter tables. Journal Period Update accepts either the documented status/detail result or the documented scenario/year/period/action echo and verifies the requested period. Tenant verification of these inconsistent examples remains advisable.
+- Configurable-consolidation import/export return only the documented text submission acknowledgment—no job ID or completion result is fabricated. Inspect Oracle's Job Console for completion and artifact information. See [ruleset export](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fccs_export_consol_rules.html) and [ruleset import](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fccs_import_consol_rules.html).
+- Intercompany support runs an existing matching report; it does not invent a reconciliation or approval API. The integration excludes Fusion Financials, Planning-specific workflows, Data Integration pipelines/mappings, Enterprise Journals, Supplemental Data Manager, Task Manager, environment administration, and triggers.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect Financial Consolidation and Close using an Oracle EPM service account. Discover applications and metadata, run consolidation and translation rules, transfer data and journals, generate intercompany matching reports, and retrieve bounded repository files. Uses Cloud EPM APIs; excludes Fusion Financials, Data Integration, Planning workflows, environment administration, and LCM snapshots.
+
+
+
+## Actions
+
+### Oracle EPM FCCS List Applications
+
+List applications visible to the Oracle EPM credential. Choose an FCCS application; application types are tenant-dependent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Applications assigned to the credential; select an FCCS application |
+|   ↳ `name` | string | Application name |
+|   ↳ `type` | string | Oracle application type code |
+|   ↳ `appType` | string | Oracle business-process type label; no fixed enum is assumed |
+|   ↳ `appStorage` | string | Oracle application storage label |
+
+### Oracle EPM FCCS List Cubes
+
+List the cubes (plan types) in an FCCS application.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Application cubes |
+|   ↳ `planTypeName` | string | Value used as cube input |
+|   ↳ `cubeName` | string | Cube display name |
+|   ↳ `planType` | number | planType |
+|   ↳ `numDimensions` | number | numDimensions |
+|   ↳ `cubeType` | number | cubeType |
+
+### Oracle EPM FCCS List Dimensions
+
+List one bounded page of cube dimensions, with optional Oracle dimension filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `cube` | string | Yes | Cube planTypeName from List Cubes |
+| `offset` | number | No | Zero-based starting record index |
+| `limit` | number | No | Page size, 1–1000 \(default 25\); requests one page only |
+| `filter` | json | No | Documented dimension query object \(for example \{"dimType":"Entity"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of dimensions |
+|   ↳ `id` | string | Dimension ID |
+|   ↳ `name` | string | Dimension name |
+|   ↳ `dimType` | string | Dimension type |
+|   ↳ `objectType` | string | Object type |
+|   ↳ `level` | number | Hierarchy level |
+| `totalResults` | number | Total matching dimensions |
+| `hasMore` | boolean | More pages exist |
+
+### Oracle EPM FCCS Get Dimension
+
+Retrieve a bounded dimension hierarchy with member names, aliases, and paths. Oversized hierarchies require manual member input.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `cube` | string | Yes | Cube planTypeName from List Cubes |
+| `dimension` | string | Yes | Exact dimension name |
+| `aliasTableName` | string | No | Alias table name for hierarchy labels |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Dimension name |
+| `id` | string | Dimension ID |
+| `path` | string | Hierarchy path |
+| `alias` | string | Alias |
+| `children` | array | Recursive child hierarchy; bounded to 10,000 nodes and 64 levels |
+|   ↳ `name` | string | Member name |
+|   ↳ `id` | string | Member ID |
+|   ↳ `path` | string | Hierarchy path |
+|   ↳ `alias` | string | Alias |
+|   ↳ `children` | array | Further child members with the same documented shape |
+
+### Oracle EPM FCCS Get Member
+
+Read documented properties of one dimension member; does not invent the undocumented children structure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `dimension` | string | Yes | Exact dimension name |
+| `member` | string | Yes | Exact member name; for Add Member, the new dynamic child name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Member name |
+| `description` | string | description |
+| `parentName` | string | parentName |
+| `dataType` | string | dataType |
+| `dataStorage` | string | dataStorage |
+| `dimName` | string | dimName |
+| `objectType` | number | Oracle object type code |
+| `twoPass` | boolean | Two-pass calculation attribute |
+
+### Oracle EPM FCCS Add Member
+
+Create a member beneath a parent enabled for dynamic children.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `dimension` | string | Yes | Exact dimension name |
+| `member` | string | Yes | Exact member name; for Add Member, the new dynamic child name |
+| `parentName` | string | Yes | Parent enabled for dynamic children after a cube refresh |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Member name |
+| `description` | string | description |
+| `parentName` | string | parentName |
+| `dataType` | string | dataType |
+| `dataStorage` | string | dataStorage |
+| `dimName` | string | dimName |
+| `objectType` | number | Oracle object type code |
+| `twoPass` | boolean | Two-pass calculation attribute |
+
+### Oracle EPM FCCS Validate Metadata
+
+Validate FCCS metadata and return warning/error counts and the CSV report filename.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `logFileName` | string | No | Validation log filename; sent in the documented resource query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `numWarnings` | number | numWarnings |
+| `numInfo` | number | numInfo |
+| `numErrors` | number | numErrors |
+| `outPutFileName` | string | CSV validation report name |
+| `status` | string | Validation process status text; not an execution job ID |
+
+### Oracle EPM FCCS List Job Definitions
+
+List configured job definitions within supported FCCS job families; does not list execution instances.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobType` | string | No | FCCS job family: RULES, RULESET, IMPORT_DATA, EXPORT_DATA, IMPORT_METADATA, EXPORT_METADATA, IMPORT_EXCHANGE_RATES, JOBCONSOLE_EXPORT, Clear_Data, Copy_Data, IMPORT_JOURNAL, EXPORT_JOURNAL, GENERATE_INTERCOMPANY_REPORT |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Supported configured FCCS job definitions |
+|   ↳ `jobType` | string | Job type |
+|   ↳ `jobName` | string | Exact job name |
+
+### Oracle EPM FCCS Execute Job
+
+Submit a configured job within the approved FCCS families. Excludes environment administration and Data Integration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobType` | string | Yes | FCCS job family: RULES, RULESET, IMPORT_DATA, EXPORT_DATA, IMPORT_METADATA, EXPORT_METADATA, IMPORT_EXCHANGE_RATES, JOBCONSOLE_EXPORT, Clear_Data, Copy_Data, IMPORT_JOURNAL, EXPORT_JOURNAL, GENERATE_INTERCOMPANY_REPORT |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Run Rule
+
+Submit a deployed business rule with case-sensitive tenant runtime prompts. Wire jobId to Wait for Job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `rule` | string | Yes | Exact deployed business rule name |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Run Ruleset
+
+Submit a deployed business ruleset with tenant-defined runtime prompts. Wire jobId to Wait for Job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `ruleset` | string | Yes | Exact deployed business ruleset name |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Run Consolidation
+
+Submit the seeded Consolidate or ForceConsolidate rule for an entity, period, scenario, and year.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `entity` | string | Yes | Entity member or rule-supported member selection expression |
+| `period` | string | Yes | Period member |
+| `scenario` | string | Yes | Scenario member |
+| `year` | string | Yes | Year member, such as FY26 |
+| `force` | boolean | No | Use ForceConsolidate or ForceTranslate \(default false\); requires applicable Oracle permissions |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Run Translation
+
+Submit the seeded Translate or ForceTranslate rule for an entity, period, scenario, and year.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `entity` | string | Yes | Entity member or rule-supported member selection expression |
+| `period` | string | Yes | Period member |
+| `scenario` | string | Yes | Scenario member |
+| `year` | string | Yes | Year member, such as FY26 |
+| `force` | boolean | No | Use ForceConsolidate or ForceTranslate \(default false\); requires applicable Oracle permissions |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Get Job
+
+Read one execution job status, normalizing Oracle jobId/jobID to a string jobId.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobId` | string | Yes | Execution job ID from submission output; not a saved job definition ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Wait For Job
+
+Wait for an execution job through bounded, cancellable polling. Terminal failures retain job diagnostics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobId` | string | Yes | Execution job ID from submission output; not a saved job definition ID |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds, 1–86400 \(default 300\), also bounded by the workflow deadline |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+| `attempts` | number | Number of status reads |
+
+### Oracle EPM FCCS Get Job Details
+
+Read one page of diagnostics for a data or metadata import/export job; expose validated child-job IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobId` | string | Yes | Execution job ID from submission output; not a saved job definition ID |
+| `detailJobType` | string | Yes | Original job family: IMPORT_DATA, EXPORT_DATA, IMPORT_METADATA, or EXPORT_METADATA |
+| `offset` | number | No | Zero-based starting record index |
+| `limit` | number | No | Page size, 1–1000 \(default 25\); requests one page only |
+| `messageType` | string | No | Optional message filter: ERROR, WARNING, or INFO |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of supported job diagnostics |
+|   ↳ `recordsRead` | number | recordsRead |
+|   ↳ `recordsRejected` | number | recordsRejected |
+|   ↳ `recordsProcessed` | number | recordsProcessed |
+|   ↳ `dimensionName` | string | Dimension |
+|   ↳ `loadType` | string | Load type |
+|   ↳ `childJobId` | string | Child ID from a validated Oracle child-job-details link |
+| `hasMore` | boolean | Oracle returned a validated next-page link |
+| `nextOffset` | number | Next page offset from that link |
+
+### Oracle EPM FCCS Get Child Job Details
+
+Read one page of child-job messages for a metadata import/export execution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobId` | string | Yes | Execution job ID from submission output; not a saved job definition ID |
+| `childJobId` | string | Yes | Child job ID from Get Job Details |
+| `childJobType` | string | Yes | Original job family: IMPORT_METADATA or EXPORT_METADATA |
+| `offset` | number | No | Zero-based starting record index |
+| `limit` | number | No | Page size, 1–1000 \(default 25\); requests one page only |
+| `messageType` | string | No | Optional message filter: ERROR, WARNING, or INFO |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of metadata child-job messages |
+|   ↳ `msgType` | string | Message type |
+|   ↳ `msgCategory` | string | Message category |
+|   ↳ `msgText` | string | Message text |
+| `hasMore` | boolean | Oracle returned a validated next-page link |
+| `nextOffset` | number | Next page offset from that link |
+
+### Oracle EPM FCCS Export Job Console
+
+Submit an export of the FCCS job console. Retrieve the resulting ZIP with repository file tools after completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | No | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Export Data Slice
+
+Export a numeric Essbase data grid for a cube and explicit point of view; excludes Planning cell notes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `cube` | string | Yes | Cube planTypeName from List Cubes |
+| `gridDefinition` | json | Yes | Essbase region: pov \{dimensions?,members:string\[\]\[\]\}, columns/rows arrays of the same axes; optional suppressMissingBlocks/Rows/Columns |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pov` | array | Point-of-view members |
+| `columns` | array | Column member arrays |
+| `rows` | array | Exported data rows |
+|   ↳ `headers` | array | Row members |
+|   ↳ `data` | array | Essbase numeric values encoded by Oracle as strings or numbers, including missing markers |
+
+### Oracle EPM FCCS Import Data Slice
+
+Import a numeric Essbase data grid and return accepted/rejected cell counts and documented rejection reasons.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `cube` | string | Yes | Cube planTypeName from List Cubes |
+| `dataGrid` | json | Yes | Numeric Essbase grid: pov:string\[\], columns:string\[\]\[\], rows:\{headers:string\[\],data:\(number\|decimal/percentage string\|"#missing"\)\[\]\}\[\] |
+| `aggregateEssbaseData` | boolean | No | Add to existing values instead of overwriting \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `numAcceptedCells` | number | Cells accepted |
+| `numUpdateCells` | number | Cells actually updated |
+| `numRejectedCells` | number | Cells rejected |
+| `rejectedCells` | array | First rejected cell coordinates \(Oracle maximum 100\) |
+| `rejectedCellsWithDetails` | array | Rejection reasons |
+|   ↳ `memberNames` | array | Cell members |
+|   ↳ `readOnlyReasons` | array | Read-only reasons |
+|   ↳ `otherReasons` | array | Other reasons |
+
+### Oracle EPM FCCS Clear Data Slice
+
+Clear an Essbase grid slice and return cleared/rejected cell counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `cube` | string | Yes | Cube planTypeName from List Cubes |
+| `gridDefinition` | json | Yes | Essbase region: pov \{dimensions?,members:string\[\]\[\]\}, columns/rows arrays of the same axes; optional suppressMissingBlocks/Rows/Columns |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `numClearedCells` | number | Cells cleared |
+| `numRejectedCells` | number | Cells rejected |
+| `rejectedCells` | array | Rejected cell coordinates |
+
+### Oracle EPM FCCS Clear Data Profile
+
+Submit an existing FCCS Clear Data profile by its exact tenant-defined name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `profileName` | string | Yes | Existing FCCS Clear Data or Copy Data profile name; no listing API is documented |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Copy Data Profile
+
+Submit an existing FCCS Copy Data profile by its exact tenant-defined name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `profileName` | string | Yes | Existing FCCS Clear Data or Copy Data profile name; no listing API is documented |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Export Application Data
+
+Submit a saved application-data export job with optional documented overrides.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Import Application Data
+
+Submit a saved application-data import job using files already in the Oracle repository.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Import Exchange Rates
+
+Submit a saved exchange-rate import job with optional file and metadata overrides.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Export Metadata
+
+Submit a saved metadata export job; use job status and repository file tools to retrieve the ZIP.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Import Metadata
+
+Submit a saved metadata import job with optional file, refresh, and error-report overrides.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `parameters` | json | No | Case-sensitive documented job overrides or tenant-defined rule runtime prompts as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS List Journals
+
+List one page of consolidation journal headers for a scenario, year, period, and status; journal lines are deferred.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `scenario` | string | Yes | Scenario member |
+| `year` | string | Yes | Year member, such as FY26 |
+| `period` | string | Yes | Period member |
+| `journalStatus` | string | Yes | WORKING, SUBMITTED, POSTED, or APPROVED |
+| `consolidation` | string | No | Journal consolidation member, such as FCCS_Entity Input |
+| `group` | string | No | Journal group filter |
+| `journalLabel` | string | No | Journal label |
+| `description` | string | No | Journal description filter |
+| `entity` | string | No | Entity member or rule-supported member selection expression |
+| `offset` | number | No | Zero-based starting record index |
+| `limit` | number | No | Page size, 1–1000 \(default 25\); requests one page only |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalResults` | number | Total matching journals |
+| `hasMore` | boolean | More pages exist |
+| `count` | number | Items in this page |
+| `limit` | number | Page size |
+| `offset` | number | Zero-based record offset |
+| `items` | array | Journal headers \(not journal line-item details\) |
+|   ↳ `label` | string | label |
+|   ↳ `scenario` | string | scenario |
+|   ↳ `year` | string | year |
+|   ↳ `period` | string | period |
+|   ↳ `status` | string | status |
+|   ↳ `currency` | string | currency |
+|   ↳ `createdOn` | string | createdOn |
+|   ↳ `modifiedBy` | string | modifiedBy |
+|   ↳ `journalType` | string | journalType |
+|   ↳ `createdBy` | string | createdBy |
+|   ↳ `balanceType` | string | balanceType |
+|   ↳ `postedBy` | string | postedBy |
+|   ↳ `description` | string | description |
+|   ↳ `group` | string | group |
+
+### Oracle EPM FCCS Perform Journal Action
+
+Submit, approve, post, unpost, or reject an existing consolidation journal within the selected point of view.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `journalLabel` | string | Yes | Journal label |
+| `scenario` | string | Yes | Scenario member |
+| `year` | string | Yes | Year member, such as FY26 |
+| `period` | string | Yes | Period member |
+| `journalAction` | string | Yes | SUBMIT, APPROVE, POST, UNPOST, or REJECT |
+| `consolidation` | string | No | Journal consolidation member, such as FCCS_Entity Input |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actionStatus` | number | Oracle action status; 0 means success |
+| `actionDetail` | string | Oracle action detail |
+
+### Oracle EPM FCCS Update Journal Period
+
+Open or close a consolidation journal period, accepting the two documented response alternatives.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `scenario` | string | Yes | Scenario member |
+| `year` | string | Yes | Year member, such as FY26 |
+| `period` | string | Yes | Period member |
+| `periodAction` | string | Yes | OPEN or CLOSE |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `scenario` | string | Requested scenario |
+| `year` | string | Requested year |
+| `period` | string | Requested period |
+| `action` | string | Requested action |
+| `actionStatus` | number | Oracle action status, only in the documented status response variant |
+| `actionDetail` | string | Oracle action detail, when present |
+
+### Oracle EPM FCCS Export Journals
+
+Submit an Export Journal job for an existing export definition identified by its filename.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `fileName` | string | Yes | Exact repository filename/path; do not URL encode it. Upload requires a basename |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Import Journals
+
+Submit a saved consolidation-journal import job with optional input and error filenames.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `fileName` | string | No | Exact repository filename/path; do not URL encode it. Upload requires a basename |
+| `errorFileName` | string | No | Repository filename for journal import diagnostics |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Generate Intercompany Report
+
+Submit an existing intercompany matching report with optional point-of-view and output overrides.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `jobName` | string | Yes | Exact saved job or report definition name; definitions and required overrides depend on the tenant |
+| `scenario` | string | No | Scenario member |
+| `year` | string | No | Year member, such as FY26 |
+| `period` | string | No | Period member |
+| `reportFormat` | string | No | Format accepted by the saved intercompany report \(for example HTML\) |
+| `fileName` | string | No | Exact repository filename/path; do not URL encode it. Upload requires a basename |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle execution ID normalized from jobId or jobID; wire this to Get/Wait for Job |
+| `status` | number | -1 in progress, 0 success, 1 error, 2 cancel pending, 3 cancelled, 4 invalid parameter, greater values unknown |
+| `details` | string | Documented job status details |
+| `jobName` | string | Oracle job name |
+| `descriptiveStatus` | string | Oracle status label |
+| `detailedStatus` | number | Oracle granular status code when provided |
+
+### Oracle EPM FCCS Export Consolidation Rulesets
+
+Submit configurable-consolidation ruleset export and return its text acknowledgment. Oracle returns no job ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `rules` | array | Yes | Configurable-consolidation ruleset names to export; distinct from Calculation Manager rulesets |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submitted` | boolean | Oracle acknowledged submission; completion and job ID are not returned |
+| `message` | string | Documented submission acknowledgement |
+
+### Oracle EPM FCCS Import Consolidation Rulesets
+
+Submit configurable-consolidation ruleset import from an Oracle repository XML file. Oracle returns no job ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `application` | string | Yes | Exact FCCS application name |
+| `fileName` | string | Yes | Exact repository filename/path; do not URL encode it. Upload requires a basename |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submitted` | boolean | Oracle acknowledged submission; completion and job ID are not returned |
+| `message` | string | Documented submission acknowledgement |
+
+### Oracle EPM FCCS List Files
+
+List external Oracle repository files with documented sizes and timestamps; excludes LCM snapshots.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Repository listing status |
+| `details` | string | Oracle status details |
+| `items` | array | External repository files only; excludes LCM snapshots |
+|   ↳ `name` | string | Repository filename/path |
+|   ↳ `type` | string | EXTERNAL |
+|   ↳ `size` | string | Size in bytes as an Oracle decimal string, or null when unavailable |
+|   ↳ `lastmodifiedtime` | string | Milliseconds since Unix epoch as an Oracle decimal string, or null when unavailable |
+
+### Oracle EPM FCCS Upload File
+
+Upload an authorized Sim UserFile of up to 100 MiB to the Oracle repository. Existing files are not overwritten.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `file` | file | Yes | One authorized Sim UserFile to upload, no larger than 100 MiB |
+| `fileName` | string | Yes | Exact repository filename/path; do not URL encode it. Upload requires a basename |
+| `directory` | string | No | Optional inbox or outbox directory; subdirectories supported. Omit for the default repository |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Repository operation status; 0 means success |
+| `details` | string | Oracle operation details |
+| `fileName` | string | Requested repository filename |
+
+### Oracle EPM FCCS Download File
+
+Download an external repository file as a Sim UserFile (up to 100 MiB). Oversize errors do not imply the Oracle export failed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `fileName` | string | Yes | Exact repository filename/path; do not URL encode it. Upload requires a basename |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Bounded stored Sim UserFile \(100 MiB maximum\) |
+| `fileName` | string | Oracle repository source filename |
+
+### Oracle EPM FCCS Delete File
+
+Delete an external Oracle repository file by exact path; excludes LCM snapshots.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service account credential |
+| `fileName` | string | Yes | Exact repository filename/path; do not URL encode it. Upload requires a basename |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Repository operation status; 0 means success |
+| `details` | string | Oracle operation details |
+| `fileName` | string | Requested repository filename |
+
+

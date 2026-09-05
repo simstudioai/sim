@@ -783,6 +783,48 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+const ORACLE_EPM_FCCS_TOOL_IDS = [
+  'oracle_epm_fccs_list_applications',
+  'oracle_epm_fccs_list_cubes',
+  'oracle_epm_fccs_list_dimensions',
+  'oracle_epm_fccs_get_dimension',
+  'oracle_epm_fccs_get_member',
+  'oracle_epm_fccs_add_member',
+  'oracle_epm_fccs_validate_metadata',
+  'oracle_epm_fccs_list_job_definitions',
+  'oracle_epm_fccs_execute_job',
+  'oracle_epm_fccs_run_rule',
+  'oracle_epm_fccs_run_ruleset',
+  'oracle_epm_fccs_run_consolidation',
+  'oracle_epm_fccs_run_translation',
+  'oracle_epm_fccs_get_job',
+  'oracle_epm_fccs_wait_for_job',
+  'oracle_epm_fccs_get_job_details',
+  'oracle_epm_fccs_get_child_job_details',
+  'oracle_epm_fccs_export_job_console',
+  'oracle_epm_fccs_export_data_slice',
+  'oracle_epm_fccs_import_data_slice',
+  'oracle_epm_fccs_clear_data_slice',
+  'oracle_epm_fccs_clear_data_profile',
+  'oracle_epm_fccs_copy_data_profile',
+  'oracle_epm_fccs_export_application_data',
+  'oracle_epm_fccs_import_application_data',
+  'oracle_epm_fccs_import_exchange_rates',
+  'oracle_epm_fccs_export_metadata',
+  'oracle_epm_fccs_import_metadata',
+  'oracle_epm_fccs_list_journals',
+  'oracle_epm_fccs_perform_journal_action',
+  'oracle_epm_fccs_update_journal_period',
+  'oracle_epm_fccs_export_journals',
+  'oracle_epm_fccs_import_journals',
+  'oracle_epm_fccs_generate_intercompany_report',
+  'oracle_epm_fccs_export_consolidation_rulesets',
+  'oracle_epm_fccs_import_consolidation_rulesets',
+  'oracle_epm_fccs_list_files',
+  'oracle_epm_fccs_upload_file',
+  'oracle_epm_fccs_download_file',
+  'oracle_epm_fccs_delete_file',
+] as const
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1430,6 +1472,9 @@ registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, ORACLE_EPM_FCCS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-epm-fccs/execute-tool')).executeOracleEpmFccsTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool

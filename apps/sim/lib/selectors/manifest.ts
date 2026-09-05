@@ -86,6 +86,75 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  /** FCCS product aliases use existing wire-context slots; no shared runtime changes. */
+  'oracleEpmFccs.applications': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.cubes': providerSelector(['database'], {
+    readiness: { all: ['oauthCredential', 'database'] },
+    sourceFields: { database: ['application'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.dimensions': providerSelector(['database', 'planId'], {
+    readiness: { all: ['oauthCredential', 'database', 'planId'] },
+    sourceFields: { database: ['application'], planId: ['cube'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.members': providerSelector(['database', 'planId', 'objectType'], {
+    readiness: { all: ['oauthCredential', 'database', 'planId', 'objectType'] },
+    sourceFields: { database: ['application'], planId: ['cube'], objectType: ['dimension'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.periods': providerSelector(['database', 'planId'], {
+    readiness: { all: ['oauthCredential', 'database', 'planId'] },
+    sourceFields: { database: ['application'], planId: ['cube'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.entities': providerSelector(['database', 'planId'], {
+    readiness: { all: ['oauthCredential', 'database', 'planId'] },
+    sourceFields: { database: ['application'], planId: ['cube'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.scenarios': providerSelector(['database', 'planId'], {
+    readiness: { all: ['oauthCredential', 'database', 'planId'] },
+    sourceFields: { database: ['application'], planId: ['cube'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.rules': providerSelector(['database'], {
+    readiness: { all: ['oauthCredential', 'database'] },
+    sourceFields: { database: ['application'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.ruleSets': providerSelector(['database'], {
+    readiness: { all: ['oauthCredential', 'database'] },
+    sourceFields: { database: ['application'] },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.jobDefinitions': providerSelector(['database', 'environmentType', 'objectType'], {
+    readiness: { all: ['oauthCredential', 'database'], any: ['environmentType', 'objectType'] },
+    sourceFields: {
+      database: ['application'],
+      environmentType: ['operation'],
+      objectType: ['jobType'],
+    },
+    search: true,
+    detail: true,
+  }),
+  'oracleEpmFccs.files': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    search: true,
+    detail: true,
+  }),
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },
