@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Cal, { getCalApi } from '@calcom/embed-react'
-import { trackGoogleEvent } from '@/lib/analytics/google'
+import { trackGoogleAdsConversion, trackGoogleEvent } from '@/lib/analytics/google'
 import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
@@ -102,7 +102,10 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
           booking_status: 'scheduled',
         })
       }
-      if (marketing) window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
+      if (marketing) {
+        trackGoogleAdsConversion('demo_booked')
+        window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
+      }
     }
     const api = getCalApi({ namespace: CAL_NAMESPACE, embedJsUrl: CAL_EMBED.embedJsUrl })
     api
