@@ -251,6 +251,10 @@ import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock, OpenAIBlockMeta } from '@/blocks/blocks/openai'
+import {
+  OracleFusionRiskManagementBlock,
+  OracleFusionRiskManagementBlockMeta,
+} from '@/blocks/blocks/oracle_fusion_risk_management'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
 import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock, ParallelBlockMeta } from '@/blocks/blocks/parallel'
@@ -593,6 +597,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   onepassword: OnePasswordBlock,
   openai: OpenAIBlock,
+  oracle_fusion_risk_management: OracleFusionRiskManagementBlock,
   outlook: OutlookBlock,
   pagerduty: PagerDutyBlock,
   parallel_ai: ParallelBlock,
@@ -914,6 +919,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   onedrive: OneDriveBlockMeta,
   onepassword: OnePasswordBlockMeta,
   openai: OpenAIBlockMeta,
+  oracle_fusion_risk_management: OracleFusionRiskManagementBlockMeta,
   outlook: OutlookBlockMeta,
   pagerduty: PagerDutyBlockMeta,
   parallel_ai: ParallelBlockMeta,
