@@ -1,0 +1,2094 @@
+---
+title: Oracle Fusion Sales
+description: Manage sales accounts, contacts, leads, opportunities, activities, and sales teams
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_sales"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an Oracle Fusion service-account credential to the Sales CRM REST API. Work with accounts, contacts, lead qualification and conversion, opportunities, tasks, appointments, call reports, revenue lines, and relationship teams. Lists return one bounded page. Fusion Service, Oracle B2C Service, triggers, and connectors are not included.
+
+
+
+## Actions
+
+### Oracle Fusion Sales Accept lead
+
+Accept lead using the Oracle acceptLead action. Returns the Oracle result string, not a record.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `leadId` | string | Yes | Numeric LeadId as an exact decimal string, not the opaque resource key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; inspect this status rather than assuming business success |
+
+### Oracle Fusion Sales Add activity assignee
+
+Add activity assignee in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `ownerId` | string | Yes | AssigneeId as an exact decimal string |
+| `attendeeFlag` | boolean | No | AttendeeFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `ActivityAssigneeId` | string | Activity Assignee Id as a decimal string |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActyActivityNumber` | string | Acty Activity Number |
+|   ↳ `AssigneeId` | string | Assignee Id as a decimal string |
+|   ↳ `AssigneeName` | string | Assignee Name |
+|   ↳ `AssigneePartyNumber` | string | Assignee Party Number |
+|   ↳ `AttendeeFlag` | boolean | Attendee Flag |
+|   ↳ `ResponseCode` | string | Response Code |
+|   ↳ `StatusCode` | string | Status Code |
+
+### Oracle Fusion Sales Add activity contact
+
+Add activity contact in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `contactId` | string | Yes | ContactId as an exact decimal string |
+| `attendeeFlag` | boolean | No | AttendeeFlag; null clears this field |
+| `primaryContactFlag` | boolean | No | PrimaryContactFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `ActivityContactId` | string | Activity Contact Id as a decimal string |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActyActivityNumber` | string | Acty Activity Number |
+|   ↳ `ContactId` | string | Contact Id as a decimal string |
+|   ↳ `ContactName` | string | Contact Name |
+|   ↳ `ContactEmail` | string | Contact Email |
+|   ↳ `ContactPhone` | string | Contact Phone |
+|   ↳ `AttendeeFlag` | boolean | Attendee Flag |
+|   ↳ `PrimaryContactFlag` | boolean | Primary Contact Flag |
+
+### Oracle Fusion Sales Add opportunity contact
+
+Add opportunity contact in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `contactId` | string | Yes | PERPartyId as an exact decimal string |
+| `primaryFlag` | string | No | PrimaryFlg; null clears this field |
+| `roleCode` | string | No | RoleCd; null clears this field |
+| `influenceCode` | string | No | InfluenceLvlCd; null clears this field |
+| `affinityCode` | string | No | AffinityLvlCd; null clears this field |
+| `contactedFlag` | string | No | ContactedFlg; null clears this field |
+| `comments` | string | No | Comments; null clears this field |
+| `relationshipId` | string | No | RelationshipId as an exact decimal string; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `OptyConId` | string | Opty Con Id as a decimal string |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `PERPartyId` | string | PERParty Id as a decimal string |
+|   ↳ `ContactFirstName` | string | Contact First Name |
+|   ↳ `ContactLastName` | string | Contact Last Name |
+|   ↳ `PrimaryFlg` | string | Primary Flg |
+|   ↳ `RoleCd` | string | Role Cd |
+|   ↳ `InfluenceLvlCd` | string | Influence Lvl Cd |
+|   ↳ `AffinityLvlCd` | string | Affinity Lvl Cd |
+|   ↳ `ContactedFlg` | string | Contacted Flg |
+|   ↳ `Comments` | string | Comments |
+|   ↳ `RelationshipId` | string | Relationship Id as a decimal string |
+
+### Oracle Fusion Sales Add opportunity team member
+
+Add opportunity team member in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `ownerId` | string | Yes | ResourceId as an exact decimal string |
+| `accessLevelCode` | string | No | AccessLevelCode; null clears this field |
+| `memberFunctionCode` | string | No | MemberFunctionCode; null clears this field |
+| `lockAssignmentFlag` | boolean | No | LockAssignmentFlag; null clears this field |
+| `ownerFlag` | boolean | No | OwnerFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `OptyResourceId` | string | Opty Resource Id as a decimal string |
+|   ↳ `OptyResourceNumber` | string | Opty Resource Number |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `ResourceId` | string | Resource Id as a decimal string |
+|   ↳ `PartyName` | string | Party Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `AccessLevelCode` | string | Access Level Code |
+|   ↳ `MemberFunctionCode` | string | Member Function Code |
+|   ↳ `LockAssignmentFlag` | boolean | Lock Assignment Flag |
+|   ↳ `OwnerFlag` | boolean | Owner Flag |
+
+### Oracle Fusion Sales Assign account
+
+Assign account using the Oracle runAssignment action. Returns the Oracle result string, not a record. Runs configured assignment; change a specific owner with the update tool.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `accountNumber` | string | Yes | Oracle public number returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; inspect this status rather than assuming business success |
+
+### Oracle Fusion Sales Assign lead
+
+Assign lead using the Oracle runAssignment action. Returns the Oracle result string, not a record. Runs configured assignment; change a specific owner with the update tool.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `leadId` | string | Yes | Numeric LeadId as an exact decimal string, not the opaque resource key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; inspect this status rather than assuming business success |
+
+### Oracle Fusion Sales Assign opportunity
+
+Assign opportunity using the Oracle assignOpportunity action. Returns the Oracle result string, not a record. Runs configured assignment; change a specific owner with the update tool.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Oracle public number returned by the corresponding list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; inspect this status rather than assuming business success |
+
+### Oracle Fusion Sales Convert lead
+
+Convert lead using the Oracle convertLeadToOpty action. Returns the Oracle result string, not a record. Uses convertLeadToOpty; Oracle does not return the created opportunity identifiers through this action.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `leadId` | string | Yes | Numeric LeadId as an exact decimal string, not the opaque resource key |
+| `opportunityName` | string | No | Name for the resulting opportunity |
+| `opportunityOwnerNumber` | string | No | Resource PartyNumber of the opportunity owner |
+| `attributeMap` | json | No | Documented conversion attribute name/value map; every value must be a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; inspect this status rather than assuming business success |
+
+### Oracle Fusion Sales Create account
+
+Create account in Oracle Fusion Sales using documented CRM REST fields. Address requirements depend on tenant configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `organizationName` | string | Yes | OrganizationName |
+| `accountType` | string | No | Type; null clears this field |
+| `description` | string | No | Description; null clears this field |
+| `emailAddress` | string | No | EmailAddress; null clears this field |
+| `website` | string | No | URL; null clears this field |
+| `phoneNumber` | string | No | PhoneNumber; null clears this field |
+| `phoneCountryCode` | string | No | PhoneCountryCode; null clears this field |
+| `phoneAreaCode` | string | No | PhoneAreaCode; null clears this field |
+| `ownerId` | string | No | OwnerPartyId as an exact decimal string; null clears this field |
+| `parentAccountId` | string | No | ParentAccountPartyId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactPartyId as an exact decimal string; null clears this field |
+| `addressLine1` | string | No | AddressLine1; null clears this field |
+| `addressLine2` | string | No | AddressLine2; null clears this field |
+| `city` | string | No | City; null clears this field |
+| `state` | string | No | State; null clears this field |
+| `postalCode` | string | No | PostalCode; null clears this field |
+| `country` | string | No | Country |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `OrganizationName` | string | Organization Name |
+|   ↳ `Type` | string | Type |
+|   ↳ `Description` | string | Description |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `URL` | string | URL |
+|   ↳ `PhoneNumber` | string | Phone Number |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `ParentAccountPartyId` | string | Parent Account Party Id as a decimal string |
+|   ↳ `PrimaryContactPartyId` | string | Primary Contact Party Id as a decimal string |
+|   ↳ `AddressLine1` | string | Address Line1 |
+|   ↳ `AddressLine2` | string | Address Line2 |
+|   ↳ `City` | string | City |
+|   ↳ `State` | string | State |
+|   ↳ `PostalCode` | string | Postal Code |
+|   ↳ `Country` | string | Country |
+|   ↳ `SalesProfileStatus` | string | Sales Profile Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales Create appointment
+
+Create appointment in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subject` | string | Yes | Subject |
+| `description` | string | No | ActivityDescription as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `meetingMinutes` | string | No | ActivityMtgMinutes as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `startDateTime` | string | Yes | ActivityStartDate \(ISO 8601 date-time with timezone\) |
+| `endDateTime` | string | Yes | ActivityEndDate \(ISO 8601 date-time with timezone\) |
+| `dueDate` | string | No | DueDate \(YYYY-MM-DD\); null clears this field |
+| `ownerId` | string | No | OwnerId as an exact decimal string |
+| `accountId` | string | No | AccountId as an exact decimal string; null clears this field |
+| `opportunityId` | string | No | OpportunityId as an exact decimal string; null clears this field |
+| `leadId` | string | No | LeadId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactId as an exact decimal string; null clears this field |
+| `activityTypeCode` | string | No | ActivityTypeCode; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `priorityCode` | string | No | PriorityCode; null clears this field |
+| `location` | string | No | Location; null clears this field |
+| `percentageComplete` | number | No | PercentageComplete; null clears this field |
+| `allDayFlag` | boolean | No | AllDayFlag; null clears this field |
+| `privateFlag` | boolean | No | PrivateFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActivityNumber` | string | Activity Number |
+|   ↳ `Subject` | string | Subject |
+|   ↳ `ActivityFunctionCode` | string | Activity Function Code |
+|   ↳ `ActivityPartialDescription` | string | Activity Partial Description |
+|   ↳ `PartialMtgMinutes` | string | Partial Mtg Minutes |
+|   ↳ `ActivityStartDate` | string | Activity Start Date |
+|   ↳ `ActivityEndDate` | string | Activity End Date |
+|   ↳ `DueDate` | string | Due Date |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `AccountId` | string | Account Id as a decimal string |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OpportunityId` | string | Opportunity Id as a decimal string |
+|   ↳ `OpportunityNumber` | string | Opportunity Number |
+|   ↳ `OpportunityName` | string | Opportunity Name |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `LeadName` | string | Lead Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactName` | string | Primary Contact Name |
+|   ↳ `ActivityTypeCode` | string | Activity Type Code |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `PriorityCode` | string | Priority Code |
+|   ↳ `Location` | string | Location |
+|   ↳ `PercentageComplete` | json | Percentage Complete \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `AllDayFlag` | boolean | All Day Flag |
+|   ↳ `PrivateFlag` | boolean | Private Flag |
+|   ↳ `ActivityCreationDate` | string | Activity Creation Date |
+|   ↳ `ActivityUpdateDate` | string | Activity Update Date |
+
+### Oracle Fusion Sales Create call report
+
+Create call report in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subject` | string | Yes | Subject |
+| `description` | string | No | ActivityDescription as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `meetingMinutes` | string | No | ActivityMtgMinutes as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `startDateTime` | string | Yes | ActivityStartDate \(ISO 8601 date-time with timezone\) |
+| `endDateTime` | string | Yes | ActivityEndDate \(ISO 8601 date-time with timezone\) |
+| `dueDate` | string | No | DueDate \(YYYY-MM-DD\); null clears this field |
+| `ownerId` | string | No | OwnerId as an exact decimal string |
+| `accountId` | string | No | AccountId as an exact decimal string; null clears this field |
+| `opportunityId` | string | No | OpportunityId as an exact decimal string; null clears this field |
+| `leadId` | string | No | LeadId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactId as an exact decimal string; null clears this field |
+| `activityTypeCode` | string | No | ActivityTypeCode; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `priorityCode` | string | No | PriorityCode; null clears this field |
+| `location` | string | No | Location; null clears this field |
+| `percentageComplete` | number | No | PercentageComplete; null clears this field |
+| `allDayFlag` | boolean | No | AllDayFlag; null clears this field |
+| `privateFlag` | boolean | No | PrivateFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActivityNumber` | string | Activity Number |
+|   ↳ `Subject` | string | Subject |
+|   ↳ `ActivityFunctionCode` | string | Activity Function Code |
+|   ↳ `ActivityPartialDescription` | string | Activity Partial Description |
+|   ↳ `PartialMtgMinutes` | string | Partial Mtg Minutes |
+|   ↳ `ActivityStartDate` | string | Activity Start Date |
+|   ↳ `ActivityEndDate` | string | Activity End Date |
+|   ↳ `DueDate` | string | Due Date |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `AccountId` | string | Account Id as a decimal string |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OpportunityId` | string | Opportunity Id as a decimal string |
+|   ↳ `OpportunityNumber` | string | Opportunity Number |
+|   ↳ `OpportunityName` | string | Opportunity Name |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `LeadName` | string | Lead Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactName` | string | Primary Contact Name |
+|   ↳ `ActivityTypeCode` | string | Activity Type Code |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `PriorityCode` | string | Priority Code |
+|   ↳ `Location` | string | Location |
+|   ↳ `PercentageComplete` | json | Percentage Complete \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `AllDayFlag` | boolean | All Day Flag |
+|   ↳ `PrivateFlag` | boolean | Private Flag |
+|   ↳ `ActivityCreationDate` | string | Activity Creation Date |
+|   ↳ `ActivityUpdateDate` | string | Activity Update Date |
+
+### Oracle Fusion Sales Create contact
+
+Create contact in Oracle Fusion Sales using documented CRM REST fields. Provide at least firstName or lastName; address requirements depend on tenant configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `firstName` | string | No | FirstName; null clears this field |
+| `lastName` | string | No | LastName; null clears this field |
+| `emailAddress` | string | No | EmailAddress; null clears this field |
+| `accountId` | string | No | AccountPartyId as an exact decimal string; null clears this field |
+| `ownerId` | string | No | OwnerPartyId as an exact decimal string; null clears this field |
+| `jobTitle` | string | No | JobTitle; null clears this field |
+| `department` | string | No | Department; null clears this field |
+| `workPhoneNumber` | string | No | WorkPhoneNumber; null clears this field |
+| `mobileNumber` | string | No | MobileNumber; null clears this field |
+| `addressLine1` | string | No | AddressLine1; null clears this field |
+| `city` | string | No | City; null clears this field |
+| `state` | string | No | State; null clears this field |
+| `postalCode` | string | No | PostalCode; null clears this field |
+| `country` | string | No | Country |
+| `doNotEmailFlag` | boolean | No | DoNotEmailFlag; null clears this field |
+| `doNotCallFlag` | boolean | No | DoNotCallFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `ContactName` | string | Contact Name |
+|   ↳ `FirstName` | string | First Name |
+|   ↳ `LastName` | string | Last Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `AccountPartyId` | string | Account Party Id as a decimal string |
+|   ↳ `AccountPartyNumber` | string | Account Party Number |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `JobTitle` | string | Job Title |
+|   ↳ `Department` | string | Department |
+|   ↳ `WorkPhoneNumber` | string | Work Phone Number |
+|   ↳ `MobileNumber` | string | Mobile Number |
+|   ↳ `DoNotEmailFlag` | boolean | Do Not Email Flag |
+|   ↳ `DoNotCallFlag` | boolean | Do Not Call Flag |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales Create lead
+
+Create lead in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `name` | string | Yes | Name |
+| `description` | string | No | Description; null clears this field |
+| `accountId` | string | No | CustomerId as an exact decimal string; null clears this field |
+| `ownerId` | string | No | OwnerId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactId as an exact decimal string; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `rank` | string | No | Rank; null clears this field |
+| `sourceCode` | string | No | SourceCode; null clears this field |
+| `budgetAmount` | number | No | BudgetAmount; null clears this field |
+| `budgetCurrencyCode` | string | No | BudgetCurrencyCode; null clears this field |
+| `dealAmount` | number | No | DealAmount; null clears this field |
+| `currencyCode` | string | No | CurrencyCode; null clears this field |
+| `estimatedCloseDate` | string | No | EstimatedCloseDate \(YYYY-MM-DD\); null clears this field |
+| `customerNeed` | string | No | CustomerNeed; null clears this field |
+| `contactFirstName` | string | No | PrimaryContactPersonFirstName; null clears this field |
+| `contactLastName` | string | No | PrimaryContactPersonLastName; null clears this field |
+| `contactEmail` | string | No | PrimaryContactEmailAddress; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `CustomerId` | string | Customer Id as a decimal string |
+|   ↳ `CustomerPartyName` | string | Customer Party Name |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerPartyName` | string | Owner Party Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactPartyName` | string | Primary Contact Party Name |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `Rank` | string | Rank |
+|   ↳ `SourceCode` | string | Source Code |
+|   ↳ `BudgetAmount` | json | Budget Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `BudgetCurrencyCode` | string | Budget Currency Code |
+|   ↳ `DealAmount` | json | Deal Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `EstimatedCloseDate` | string | Estimated Close Date |
+|   ↳ `LeadAcceptedFlag` | boolean | Lead Accepted Flag |
+|   ↳ `EligibleForConversionFlag` | boolean | Eligible For Conversion Flag |
+|   ↳ `LeadCreationDate` | string | Lead Creation Date |
+|   ↳ `LeadLastUpdateDate` | string | Lead Last Update Date |
+
+### Oracle Fusion Sales Create opportunity
+
+Create opportunity in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `name` | string | Yes | Name |
+| `description` | string | No | Description; null clears this field |
+| `accountId` | string | No | TargetPartyId as an exact decimal string; null clears this field |
+| `ownerId` | string | No | OwnerResourcePartyId as an exact decimal string |
+| `contactId` | string | No | KeyContactId as an exact decimal string; null clears this field |
+| `currencyCode` | string | No | CurrencyCode |
+| `businessUnitId` | string | No | PrimaryOrganizationId as an exact decimal string |
+| `salesMethodId` | string | No | SalesMethodId as an exact decimal string; null clears this field |
+| `salesStageId` | string | No | SalesStageId as an exact decimal string; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `reasonWonLostCode` | string | No | ReasonWonLostCode; null clears this field |
+| `closeDate` | string | No | EffectiveDate \(YYYY-MM-DD\); null clears this field |
+| `revenue` | number | No | Revenue; null clears this field |
+| `winProbability` | number | No | WinProb; null clears this field |
+| `comments` | string | No | Comments; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `TargetPartyId` | string | Target Party Id as a decimal string |
+|   ↳ `TargetPartyName` | string | Target Party Name |
+|   ↳ `OwnerResourcePartyId` | string | Owner Resource Party Id as a decimal string |
+|   ↳ `OwnerPartyNumber` | string | Owner Party Number |
+|   ↳ `KeyContactId` | string | Key Contact Id as a decimal string |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `PrimaryOrganizationId` | string | Primary Organization Id as a decimal string |
+|   ↳ `SalesMethodId` | string | Sales Method Id as a decimal string |
+|   ↳ `SalesMethod` | string | Sales Method |
+|   ↳ `SalesStageId` | string | Sales Stage Id as a decimal string |
+|   ↳ `SalesStage` | string | Sales Stage |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ReasonWonLostCode` | string | Reason Won Lost Code |
+|   ↳ `EffectiveDate` | string | Effective Date |
+|   ↳ `Revenue` | json | Revenue \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `WinProb` | number | Win Prob |
+|   ↳ `OptyCreationDate` | string | Opty Creation Date |
+|   ↳ `OptyLastUpdateDate` | string | Opty Last Update Date |
+
+### Oracle Fusion Sales Create opportunity revenue
+
+Create opportunity revenue in Oracle Fusion Sales using documented CRM REST fields. Provide productGroupId or both inventoryItemId and inventoryOrganizationId.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `productGroupId` | string | No | ProdGroupId as an exact decimal string; null clears this field |
+| `inventoryItemId` | string | No | InventoryItemId as an exact decimal string; null clears this field |
+| `inventoryOrganizationId` | string | No | InventoryOrgId as an exact decimal string; null clears this field |
+| `quantity` | number | No | Quantity; null clears this field |
+| `unitPrice` | number | No | UnitPrice; null clears this field |
+| `revenue` | number | No | RevnAmount; null clears this field |
+| `currencyCode` | string | No | RevnAmountCurcyCode |
+| `ownerId` | string | No | ResourcePartyId as an exact decimal string; null clears this field |
+| `closeDate` | string | No | EffectiveDate \(YYYY-MM-DD\); null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `winProbability` | number | No | WinProb; null clears this field |
+| `description` | string | No | Description; null clears this field |
+| `comments` | string | No | Comments; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `RevnId` | string | Revn Id as a decimal string |
+|   ↳ `RevnNumber` | string | Revn Number |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `ProdGroupId` | string | Prod Group Id as a decimal string |
+|   ↳ `ProdGroupName` | string | Prod Group Name |
+|   ↳ `InventoryItemId` | string | Inventory Item Id as a decimal string |
+|   ↳ `InventoryOrgId` | string | Inventory Org Id as a decimal string |
+|   ↳ `Quantity` | json | Quantity \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `UnitPrice` | json | Unit Price \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `RevnAmount` | json | Revn Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `RevnAmountCurcyCode` | string | Revn Amount Curcy Code |
+|   ↳ `ResourcePartyId` | string | Resource Party Id as a decimal string |
+|   ↳ `EffectiveDate` | string | Effective Date |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `WinProb` | number | Win Prob |
+|   ↳ `Description` | string | Description |
+|   ↳ `RevnCreationDate` | string | Revn Creation Date |
+|   ↳ `RevnLastUpdateDate` | string | Revn Last Update Date |
+
+### Oracle Fusion Sales Create task
+
+Create task in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `subject` | string | Yes | Subject |
+| `description` | string | No | ActivityDescription as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `meetingMinutes` | string | No | ActivityMtgMinutes as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `startDateTime` | string | No | ActivityStartDate \(ISO 8601 date-time with timezone\); null clears this field |
+| `endDateTime` | string | No | ActivityEndDate \(ISO 8601 date-time with timezone\); null clears this field |
+| `dueDate` | string | No | DueDate \(YYYY-MM-DD\); null clears this field |
+| `ownerId` | string | No | OwnerId as an exact decimal string |
+| `accountId` | string | No | AccountId as an exact decimal string; null clears this field |
+| `opportunityId` | string | No | OpportunityId as an exact decimal string; null clears this field |
+| `leadId` | string | No | LeadId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactId as an exact decimal string; null clears this field |
+| `activityTypeCode` | string | No | ActivityTypeCode; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `priorityCode` | string | No | PriorityCode; null clears this field |
+| `location` | string | No | Location; null clears this field |
+| `percentageComplete` | number | No | PercentageComplete; null clears this field |
+| `allDayFlag` | boolean | No | AllDayFlag; null clears this field |
+| `privateFlag` | boolean | No | PrivateFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActivityNumber` | string | Activity Number |
+|   ↳ `Subject` | string | Subject |
+|   ↳ `ActivityFunctionCode` | string | Activity Function Code |
+|   ↳ `ActivityPartialDescription` | string | Activity Partial Description |
+|   ↳ `PartialMtgMinutes` | string | Partial Mtg Minutes |
+|   ↳ `ActivityStartDate` | string | Activity Start Date |
+|   ↳ `ActivityEndDate` | string | Activity End Date |
+|   ↳ `DueDate` | string | Due Date |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `AccountId` | string | Account Id as a decimal string |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OpportunityId` | string | Opportunity Id as a decimal string |
+|   ↳ `OpportunityNumber` | string | Opportunity Number |
+|   ↳ `OpportunityName` | string | Opportunity Name |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `LeadName` | string | Lead Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactName` | string | Primary Contact Name |
+|   ↳ `ActivityTypeCode` | string | Activity Type Code |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `PriorityCode` | string | Priority Code |
+|   ↳ `Location` | string | Location |
+|   ↳ `PercentageComplete` | json | Percentage Complete \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `AllDayFlag` | boolean | All Day Flag |
+|   ↳ `PrivateFlag` | boolean | Private Flag |
+|   ↳ `ActivityCreationDate` | string | Activity Creation Date |
+|   ↳ `ActivityUpdateDate` | string | Activity Update Date |
+
+### Oracle Fusion Sales Delete account
+
+Delete account in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `accountNumber` | string | Yes | Oracle PartyNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Delete activity
+
+Delete activity in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Oracle ActivityNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Delete contact
+
+Delete contact in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `contactNumber` | string | Yes | Oracle PartyNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Delete lead
+
+Delete lead in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `leadKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Delete opportunity
+
+Delete opportunity in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Oracle OptyNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Delete opportunity revenue
+
+Delete opportunity revenue in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `revenueKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Find duplicate accounts
+
+Find duplicate accounts using Oracle Data Quality matching. Returns candidate fields and scores without merging records. Results above the integration limit of 1,000 candidates fail explicitly; refine the matching fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `matchingFields` | json | Yes | Data Quality matching field/value map; use Oracle field names and string values |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Duplicate candidates, limited to 1,000; oversized results fail without truncation |
+|   ↳ `PartyId` | string | PartyId |
+|   ↳ `PartyNumber` | string | PartyNumber |
+|   ↳ `OrganizationName` | string | OrganizationName |
+|   ↳ `FormattedAddress` | string | FormattedAddress |
+|   ↳ `EmailAddress` | string | EmailAddress |
+|   ↳ `OwnerPartyId` | string | OwnerPartyId |
+|   ↳ `OwnerName` | string | OwnerName |
+|   ↳ `MatchScore` | string | MatchScore |
+|   ↳ `MatchRule` | string | MatchRule |
+|   ↳ `MatchedAttributes` | string | MatchedAttributes |
+| `count` | number | Number of returned duplicate candidates |
+
+### Oracle Fusion Sales Find duplicate contacts
+
+Find duplicate contacts using Oracle Data Quality matching. Returns candidate fields and scores without merging records. Results above the integration limit of 1,000 candidates fail explicitly; refine the matching fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `matchingFields` | json | Yes | Data Quality matching field/value map; use Oracle field names and string values |
+| `accountNumber` | string | No | Related account PartyNumber used to narrow matching |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Duplicate candidates, limited to 1,000; oversized results fail without truncation |
+|   ↳ `PartyId` | string | PartyId |
+|   ↳ `PartyNumber` | string | PartyNumber |
+|   ↳ `FirstName` | string | FirstName |
+|   ↳ `LastName` | string | LastName |
+|   ↳ `FormattedAddress` | string | FormattedAddress |
+|   ↳ `EmailAddress` | string | EmailAddress |
+|   ↳ `AccountPartyId` | string | AccountPartyId |
+|   ↳ `AccountPartyNumber` | string | AccountPartyNumber |
+|   ↳ `AccountName` | string | AccountName |
+|   ↳ `MatchScore` | string | MatchScore |
+|   ↳ `MatchRule` | string | MatchRule |
+|   ↳ `MatchedAttributes` | string | MatchedAttributes |
+| `count` | number | Number of returned duplicate candidates |
+
+### Oracle Fusion Sales Get account
+
+Get account in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `accountNumber` | string | Yes | Oracle PartyNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `OrganizationName` | string | Organization Name |
+|   ↳ `Type` | string | Type |
+|   ↳ `Description` | string | Description |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `URL` | string | URL |
+|   ↳ `PhoneNumber` | string | Phone Number |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `ParentAccountPartyId` | string | Parent Account Party Id as a decimal string |
+|   ↳ `PrimaryContactPartyId` | string | Primary Contact Party Id as a decimal string |
+|   ↳ `AddressLine1` | string | Address Line1 |
+|   ↳ `AddressLine2` | string | Address Line2 |
+|   ↳ `City` | string | City |
+|   ↳ `State` | string | State |
+|   ↳ `PostalCode` | string | Postal Code |
+|   ↳ `Country` | string | Country |
+|   ↳ `SalesProfileStatus` | string | Sales Profile Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales Get activity
+
+Get activity in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Oracle ActivityNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActivityNumber` | string | Activity Number |
+|   ↳ `Subject` | string | Subject |
+|   ↳ `ActivityFunctionCode` | string | Activity Function Code |
+|   ↳ `ActivityPartialDescription` | string | Activity Partial Description |
+|   ↳ `PartialMtgMinutes` | string | Partial Mtg Minutes |
+|   ↳ `ActivityStartDate` | string | Activity Start Date |
+|   ↳ `ActivityEndDate` | string | Activity End Date |
+|   ↳ `DueDate` | string | Due Date |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `AccountId` | string | Account Id as a decimal string |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OpportunityId` | string | Opportunity Id as a decimal string |
+|   ↳ `OpportunityNumber` | string | Opportunity Number |
+|   ↳ `OpportunityName` | string | Opportunity Name |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `LeadName` | string | Lead Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactName` | string | Primary Contact Name |
+|   ↳ `ActivityTypeCode` | string | Activity Type Code |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `PriorityCode` | string | Priority Code |
+|   ↳ `Location` | string | Location |
+|   ↳ `PercentageComplete` | json | Percentage Complete \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `AllDayFlag` | boolean | All Day Flag |
+|   ↳ `PrivateFlag` | boolean | Private Flag |
+|   ↳ `ActivityCreationDate` | string | Activity Creation Date |
+|   ↳ `ActivityUpdateDate` | string | Activity Update Date |
+
+### Oracle Fusion Sales Get contact
+
+Get contact in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `contactNumber` | string | Yes | Oracle PartyNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `ContactName` | string | Contact Name |
+|   ↳ `FirstName` | string | First Name |
+|   ↳ `LastName` | string | Last Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `AccountPartyId` | string | Account Party Id as a decimal string |
+|   ↳ `AccountPartyNumber` | string | Account Party Number |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `JobTitle` | string | Job Title |
+|   ↳ `Department` | string | Department |
+|   ↳ `WorkPhoneNumber` | string | Work Phone Number |
+|   ↳ `MobileNumber` | string | Mobile Number |
+|   ↳ `DoNotEmailFlag` | boolean | Do Not Email Flag |
+|   ↳ `DoNotCallFlag` | boolean | Do Not Call Flag |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales Get lead
+
+Get lead in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `leadKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `CustomerId` | string | Customer Id as a decimal string |
+|   ↳ `CustomerPartyName` | string | Customer Party Name |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerPartyName` | string | Owner Party Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactPartyName` | string | Primary Contact Party Name |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `Rank` | string | Rank |
+|   ↳ `SourceCode` | string | Source Code |
+|   ↳ `BudgetAmount` | json | Budget Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `BudgetCurrencyCode` | string | Budget Currency Code |
+|   ↳ `DealAmount` | json | Deal Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `EstimatedCloseDate` | string | Estimated Close Date |
+|   ↳ `LeadAcceptedFlag` | boolean | Lead Accepted Flag |
+|   ↳ `EligibleForConversionFlag` | boolean | Eligible For Conversion Flag |
+|   ↳ `LeadCreationDate` | string | Lead Creation Date |
+|   ↳ `LeadLastUpdateDate` | string | Lead Last Update Date |
+
+### Oracle Fusion Sales Get opportunity
+
+Get opportunity in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Oracle OptyNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `TargetPartyId` | string | Target Party Id as a decimal string |
+|   ↳ `TargetPartyName` | string | Target Party Name |
+|   ↳ `OwnerResourcePartyId` | string | Owner Resource Party Id as a decimal string |
+|   ↳ `OwnerPartyNumber` | string | Owner Party Number |
+|   ↳ `KeyContactId` | string | Key Contact Id as a decimal string |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `PrimaryOrganizationId` | string | Primary Organization Id as a decimal string |
+|   ↳ `SalesMethodId` | string | Sales Method Id as a decimal string |
+|   ↳ `SalesMethod` | string | Sales Method |
+|   ↳ `SalesStageId` | string | Sales Stage Id as a decimal string |
+|   ↳ `SalesStage` | string | Sales Stage |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ReasonWonLostCode` | string | Reason Won Lost Code |
+|   ↳ `EffectiveDate` | string | Effective Date |
+|   ↳ `Revenue` | json | Revenue \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `WinProb` | number | Win Prob |
+|   ↳ `OptyCreationDate` | string | Opty Creation Date |
+|   ↳ `OptyLastUpdateDate` | string | Opty Last Update Date |
+
+### Oracle Fusion Sales Get sales resource
+
+Get sales resource in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `resourceNumber` | string | Yes | Oracle PartyNumber returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `PartyName` | string | Party Name |
+|   ↳ `PersonFirstName` | string | Person First Name |
+|   ↳ `PersonLastName` | string | Person Last Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `Username` | string | Username |
+|   ↳ `ResourceProfileId` | string | Resource Profile Id as a decimal string |
+|   ↳ `ResourceOrgRoleCode` | string | Resource Org Role Code |
+|   ↳ `ResourceOrgRoleName` | string | Resource Org Role Name |
+|   ↳ `StartDateActive` | string | Start Date Active |
+|   ↳ `EndDateActive` | string | End Date Active |
+|   ↳ `Manager` | string | Manager |
+|   ↳ `PrimaryOrganization` | string | Primary Organization |
+
+### Oracle Fusion Sales List accounts
+
+List one bounded page of accounts from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `OrganizationName` | string | Organization Name |
+|   ↳ `Type` | string | Type |
+|   ↳ `Description` | string | Description |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `URL` | string | URL |
+|   ↳ `PhoneNumber` | string | Phone Number |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `ParentAccountPartyId` | string | Parent Account Party Id as a decimal string |
+|   ↳ `PrimaryContactPartyId` | string | Primary Contact Party Id as a decimal string |
+|   ↳ `AddressLine1` | string | Address Line1 |
+|   ↳ `AddressLine2` | string | Address Line2 |
+|   ↳ `City` | string | City |
+|   ↳ `State` | string | State |
+|   ↳ `PostalCode` | string | Postal Code |
+|   ↳ `Country` | string | Country |
+|   ↳ `SalesProfileStatus` | string | Sales Profile Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales List activities
+
+List one bounded page of activities from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActivityNumber` | string | Activity Number |
+|   ↳ `Subject` | string | Subject |
+|   ↳ `ActivityFunctionCode` | string | Activity Function Code |
+|   ↳ `ActivityPartialDescription` | string | Activity Partial Description |
+|   ↳ `PartialMtgMinutes` | string | Partial Mtg Minutes |
+|   ↳ `ActivityStartDate` | string | Activity Start Date |
+|   ↳ `ActivityEndDate` | string | Activity End Date |
+|   ↳ `DueDate` | string | Due Date |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `AccountId` | string | Account Id as a decimal string |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OpportunityId` | string | Opportunity Id as a decimal string |
+|   ↳ `OpportunityNumber` | string | Opportunity Number |
+|   ↳ `OpportunityName` | string | Opportunity Name |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `LeadName` | string | Lead Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactName` | string | Primary Contact Name |
+|   ↳ `ActivityTypeCode` | string | Activity Type Code |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `PriorityCode` | string | Priority Code |
+|   ↳ `Location` | string | Location |
+|   ↳ `PercentageComplete` | json | Percentage Complete \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `AllDayFlag` | boolean | All Day Flag |
+|   ↳ `PrivateFlag` | boolean | Private Flag |
+|   ↳ `ActivityCreationDate` | string | Activity Creation Date |
+|   ↳ `ActivityUpdateDate` | string | Activity Update Date |
+
+### Oracle Fusion Sales List activity assignees
+
+List one bounded page of activity assignees from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `ActivityAssigneeId` | string | Activity Assignee Id as a decimal string |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActyActivityNumber` | string | Acty Activity Number |
+|   ↳ `AssigneeId` | string | Assignee Id as a decimal string |
+|   ↳ `AssigneeName` | string | Assignee Name |
+|   ↳ `AssigneePartyNumber` | string | Assignee Party Number |
+|   ↳ `AttendeeFlag` | boolean | Attendee Flag |
+|   ↳ `ResponseCode` | string | Response Code |
+|   ↳ `StatusCode` | string | Status Code |
+
+### Oracle Fusion Sales List activity contacts
+
+List one bounded page of activity contacts from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `ActivityContactId` | string | Activity Contact Id as a decimal string |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActyActivityNumber` | string | Acty Activity Number |
+|   ↳ `ContactId` | string | Contact Id as a decimal string |
+|   ↳ `ContactName` | string | Contact Name |
+|   ↳ `ContactEmail` | string | Contact Email |
+|   ↳ `ContactPhone` | string | Contact Phone |
+|   ↳ `AttendeeFlag` | boolean | Attendee Flag |
+|   ↳ `PrimaryContactFlag` | boolean | Primary Contact Flag |
+
+### Oracle Fusion Sales List contacts
+
+List one bounded page of contacts from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `ContactName` | string | Contact Name |
+|   ↳ `FirstName` | string | First Name |
+|   ↳ `LastName` | string | Last Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `AccountPartyId` | string | Account Party Id as a decimal string |
+|   ↳ `AccountPartyNumber` | string | Account Party Number |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `JobTitle` | string | Job Title |
+|   ↳ `Department` | string | Department |
+|   ↳ `WorkPhoneNumber` | string | Work Phone Number |
+|   ↳ `MobileNumber` | string | Mobile Number |
+|   ↳ `DoNotEmailFlag` | boolean | Do Not Email Flag |
+|   ↳ `DoNotCallFlag` | boolean | Do Not Call Flag |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales List leads
+
+List one bounded page of leads from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `CustomerId` | string | Customer Id as a decimal string |
+|   ↳ `CustomerPartyName` | string | Customer Party Name |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerPartyName` | string | Owner Party Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactPartyName` | string | Primary Contact Party Name |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `Rank` | string | Rank |
+|   ↳ `SourceCode` | string | Source Code |
+|   ↳ `BudgetAmount` | json | Budget Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `BudgetCurrencyCode` | string | Budget Currency Code |
+|   ↳ `DealAmount` | json | Deal Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `EstimatedCloseDate` | string | Estimated Close Date |
+|   ↳ `LeadAcceptedFlag` | boolean | Lead Accepted Flag |
+|   ↳ `EligibleForConversionFlag` | boolean | Eligible For Conversion Flag |
+|   ↳ `LeadCreationDate` | string | Lead Creation Date |
+|   ↳ `LeadLastUpdateDate` | string | Lead Last Update Date |
+
+### Oracle Fusion Sales List opportunities
+
+List one bounded page of opportunities from Oracle Fusion Sales. Use q, finder, and pagination to control the result. Oracle defaults may restrict results to open opportunities owned by the current user and the configured close period; use MyOpportunitiesFinder to change that scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `TargetPartyId` | string | Target Party Id as a decimal string |
+|   ↳ `TargetPartyName` | string | Target Party Name |
+|   ↳ `OwnerResourcePartyId` | string | Owner Resource Party Id as a decimal string |
+|   ↳ `OwnerPartyNumber` | string | Owner Party Number |
+|   ↳ `KeyContactId` | string | Key Contact Id as a decimal string |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `PrimaryOrganizationId` | string | Primary Organization Id as a decimal string |
+|   ↳ `SalesMethodId` | string | Sales Method Id as a decimal string |
+|   ↳ `SalesMethod` | string | Sales Method |
+|   ↳ `SalesStageId` | string | Sales Stage Id as a decimal string |
+|   ↳ `SalesStage` | string | Sales Stage |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ReasonWonLostCode` | string | Reason Won Lost Code |
+|   ↳ `EffectiveDate` | string | Effective Date |
+|   ↳ `Revenue` | json | Revenue \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `WinProb` | number | Win Prob |
+|   ↳ `OptyCreationDate` | string | Opty Creation Date |
+|   ↳ `OptyLastUpdateDate` | string | Opty Last Update Date |
+
+### Oracle Fusion Sales List opportunity contacts
+
+List one bounded page of opportunity contacts from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `OptyConId` | string | Opty Con Id as a decimal string |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `PERPartyId` | string | PERParty Id as a decimal string |
+|   ↳ `ContactFirstName` | string | Contact First Name |
+|   ↳ `ContactLastName` | string | Contact Last Name |
+|   ↳ `PrimaryFlg` | string | Primary Flg |
+|   ↳ `RoleCd` | string | Role Cd |
+|   ↳ `InfluenceLvlCd` | string | Influence Lvl Cd |
+|   ↳ `AffinityLvlCd` | string | Affinity Lvl Cd |
+|   ↳ `ContactedFlg` | string | Contacted Flg |
+|   ↳ `Comments` | string | Comments |
+|   ↳ `RelationshipId` | string | Relationship Id as a decimal string |
+
+### Oracle Fusion Sales List opportunity revenue
+
+List one bounded page of opportunity revenue from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `RevnId` | string | Revn Id as a decimal string |
+|   ↳ `RevnNumber` | string | Revn Number |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `ProdGroupId` | string | Prod Group Id as a decimal string |
+|   ↳ `ProdGroupName` | string | Prod Group Name |
+|   ↳ `InventoryItemId` | string | Inventory Item Id as a decimal string |
+|   ↳ `InventoryOrgId` | string | Inventory Org Id as a decimal string |
+|   ↳ `Quantity` | json | Quantity \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `UnitPrice` | json | Unit Price \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `RevnAmount` | json | Revn Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `RevnAmountCurcyCode` | string | Revn Amount Curcy Code |
+|   ↳ `ResourcePartyId` | string | Resource Party Id as a decimal string |
+|   ↳ `EffectiveDate` | string | Effective Date |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `WinProb` | number | Win Prob |
+|   ↳ `Description` | string | Description |
+|   ↳ `RevnCreationDate` | string | Revn Creation Date |
+|   ↳ `RevnLastUpdateDate` | string | Revn Last Update Date |
+
+### Oracle Fusion Sales List opportunity team
+
+List one bounded page of opportunity team from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `OptyResourceId` | string | Opty Resource Id as a decimal string |
+|   ↳ `OptyResourceNumber` | string | Opty Resource Number |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `ResourceId` | string | Resource Id as a decimal string |
+|   ↳ `PartyName` | string | Party Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `AccessLevelCode` | string | Access Level Code |
+|   ↳ `MemberFunctionCode` | string | Member Function Code |
+|   ↳ `LockAssignmentFlag` | boolean | Lock Assignment Flag |
+|   ↳ `OwnerFlag` | boolean | Owner Flag |
+
+### Oracle Fusion Sales List sales resources
+
+List one bounded page of sales resources from Oracle Fusion Sales. Use q, finder, and pagination to control the result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `q` | string | No | Documented Oracle q filter, up to 2,048 characters |
+| `finder` | string | No | Documented Oracle finder and bind parameters, up to 2,048 characters |
+| `orderBy` | string | No | Oracle attribute names with optional :asc or :desc, up to 1,024 characters |
+| `limit` | number | No | Records in this page \(1-100; default 50\) |
+| `offset` | number | No | Non-negative safe integer offset; default 0 |
+| `totalResults` | boolean | No | Request the estimated total matching record count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated matching total when Oracle provides it |
+| `nextOffset` | number | Offset for the next request, present only when hasMore is true |
+| `items` | array | One bounded page of Oracle Sales records |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `PartyName` | string | Party Name |
+|   ↳ `PersonFirstName` | string | Person First Name |
+|   ↳ `PersonLastName` | string | Person Last Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `Username` | string | Username |
+|   ↳ `ResourceProfileId` | string | Resource Profile Id as a decimal string |
+|   ↳ `ResourceOrgRoleCode` | string | Resource Org Role Code |
+|   ↳ `ResourceOrgRoleName` | string | Resource Org Role Name |
+|   ↳ `StartDateActive` | string | Start Date Active |
+|   ↳ `EndDateActive` | string | End Date Active |
+|   ↳ `Manager` | string | Manager |
+|   ↳ `PrimaryOrganization` | string | Primary Organization |
+
+### Oracle Fusion Sales Reject lead
+
+Reject lead using the Oracle rejectLead action. Returns the Oracle result string, not a record.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `leadId` | string | Yes | Numeric LeadId as an exact decimal string, not the opaque resource key |
+| `reason` | string | No | Tenant-configured lead rejection reason code |
+| `comments` | string | No | Lead rejection comments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Oracle action result; inspect this status rather than assuming business success |
+
+### Oracle Fusion Sales Remove activity assignee
+
+Remove activity assignee in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `assigneeKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Remove activity contact
+
+Remove activity contact in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `activityContactKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Remove opportunity contact
+
+Remove opportunity contact in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `opportunityContactId` | string | Yes | Oracle OptyConId returned by the corresponding list tool; preserve as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Remove opportunity team member
+
+Remove opportunity team member in Oracle Fusion Sales. Oracle returns no response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `teamMemberKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Oracle completed the delete request |
+
+### Oracle Fusion Sales Update account
+
+Update account in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `accountNumber` | string | Yes | Oracle PartyNumber returned by the corresponding list tool; preserve as a string |
+| `organizationName` | string | No | OrganizationName |
+| `accountType` | string | No | Type; null clears this field |
+| `description` | string | No | Description; null clears this field |
+| `emailAddress` | string | No | EmailAddress; null clears this field |
+| `website` | string | No | URL; null clears this field |
+| `phoneNumber` | string | No | PhoneNumber; null clears this field |
+| `phoneCountryCode` | string | No | PhoneCountryCode; null clears this field |
+| `phoneAreaCode` | string | No | PhoneAreaCode; null clears this field |
+| `ownerId` | string | No | OwnerPartyId as an exact decimal string; null clears this field |
+| `parentAccountId` | string | No | ParentAccountPartyId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactPartyId as an exact decimal string; null clears this field |
+| `addressLine1` | string | No | AddressLine1; null clears this field |
+| `addressLine2` | string | No | AddressLine2; null clears this field |
+| `city` | string | No | City; null clears this field |
+| `state` | string | No | State; null clears this field |
+| `postalCode` | string | No | PostalCode; null clears this field |
+| `country` | string | No | Country |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `OrganizationName` | string | Organization Name |
+|   ↳ `Type` | string | Type |
+|   ↳ `Description` | string | Description |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `URL` | string | URL |
+|   ↳ `PhoneNumber` | string | Phone Number |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `ParentAccountPartyId` | string | Parent Account Party Id as a decimal string |
+|   ↳ `PrimaryContactPartyId` | string | Primary Contact Party Id as a decimal string |
+|   ↳ `AddressLine1` | string | Address Line1 |
+|   ↳ `AddressLine2` | string | Address Line2 |
+|   ↳ `City` | string | City |
+|   ↳ `State` | string | State |
+|   ↳ `PostalCode` | string | Postal Code |
+|   ↳ `Country` | string | Country |
+|   ↳ `SalesProfileStatus` | string | Sales Profile Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales Update activity
+
+Update activity in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `activityNumber` | string | Yes | Oracle ActivityNumber returned by the corresponding list tool; preserve as a string |
+| `subject` | string | No | Subject |
+| `description` | string | No | ActivityDescription as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `meetingMinutes` | string | No | ActivityMtgMinutes as plain text \(CLOB representation in REST framework 9\); null clears this field |
+| `startDateTime` | string | No | ActivityStartDate \(ISO 8601 date-time with timezone\); null clears this field |
+| `endDateTime` | string | No | ActivityEndDate \(ISO 8601 date-time with timezone\); null clears this field |
+| `dueDate` | string | No | DueDate \(YYYY-MM-DD\); null clears this field |
+| `ownerId` | string | No | OwnerId as an exact decimal string |
+| `accountId` | string | No | AccountId as an exact decimal string; null clears this field |
+| `opportunityId` | string | No | OpportunityId as an exact decimal string; null clears this field |
+| `leadId` | string | No | LeadId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactId as an exact decimal string; null clears this field |
+| `activityTypeCode` | string | No | ActivityTypeCode; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `priorityCode` | string | No | PriorityCode; null clears this field |
+| `location` | string | No | Location; null clears this field |
+| `percentageComplete` | number | No | PercentageComplete; null clears this field |
+| `allDayFlag` | boolean | No | AllDayFlag; null clears this field |
+| `privateFlag` | boolean | No | PrivateFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `ActivityId` | string | Activity Id as a decimal string |
+|   ↳ `ActivityNumber` | string | Activity Number |
+|   ↳ `Subject` | string | Subject |
+|   ↳ `ActivityFunctionCode` | string | Activity Function Code |
+|   ↳ `ActivityPartialDescription` | string | Activity Partial Description |
+|   ↳ `PartialMtgMinutes` | string | Partial Mtg Minutes |
+|   ↳ `ActivityStartDate` | string | Activity Start Date |
+|   ↳ `ActivityEndDate` | string | Activity End Date |
+|   ↳ `DueDate` | string | Due Date |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `AccountId` | string | Account Id as a decimal string |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OpportunityId` | string | Opportunity Id as a decimal string |
+|   ↳ `OpportunityNumber` | string | Opportunity Number |
+|   ↳ `OpportunityName` | string | Opportunity Name |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `LeadName` | string | Lead Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactName` | string | Primary Contact Name |
+|   ↳ `ActivityTypeCode` | string | Activity Type Code |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `PriorityCode` | string | Priority Code |
+|   ↳ `Location` | string | Location |
+|   ↳ `PercentageComplete` | json | Percentage Complete \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `AllDayFlag` | boolean | All Day Flag |
+|   ↳ `PrivateFlag` | boolean | Private Flag |
+|   ↳ `ActivityCreationDate` | string | Activity Creation Date |
+|   ↳ `ActivityUpdateDate` | string | Activity Update Date |
+
+### Oracle Fusion Sales Update contact
+
+Update contact in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `contactNumber` | string | Yes | Oracle PartyNumber returned by the corresponding list tool; preserve as a string |
+| `firstName` | string | No | FirstName; null clears this field |
+| `lastName` | string | No | LastName; null clears this field |
+| `emailAddress` | string | No | EmailAddress; null clears this field |
+| `accountId` | string | No | AccountPartyId as an exact decimal string; null clears this field |
+| `ownerId` | string | No | OwnerPartyId as an exact decimal string; null clears this field |
+| `jobTitle` | string | No | JobTitle; null clears this field |
+| `department` | string | No | Department; null clears this field |
+| `workPhoneNumber` | string | No | WorkPhoneNumber; null clears this field |
+| `mobileNumber` | string | No | MobileNumber; null clears this field |
+| `addressLine1` | string | No | AddressLine1; null clears this field |
+| `city` | string | No | City; null clears this field |
+| `state` | string | No | State; null clears this field |
+| `postalCode` | string | No | PostalCode; null clears this field |
+| `country` | string | No | Country |
+| `doNotEmailFlag` | boolean | No | DoNotEmailFlag; null clears this field |
+| `doNotCallFlag` | boolean | No | DoNotCallFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `PartyId` | string | Party Id as a decimal string |
+|   ↳ `PartyNumber` | string | Party Number |
+|   ↳ `ContactName` | string | Contact Name |
+|   ↳ `FirstName` | string | First Name |
+|   ↳ `LastName` | string | Last Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `AccountPartyId` | string | Account Party Id as a decimal string |
+|   ↳ `AccountPartyNumber` | string | Account Party Number |
+|   ↳ `AccountName` | string | Account Name |
+|   ↳ `OwnerPartyId` | string | Owner Party Id as a decimal string |
+|   ↳ `OwnerName` | string | Owner Name |
+|   ↳ `JobTitle` | string | Job Title |
+|   ↳ `Department` | string | Department |
+|   ↳ `WorkPhoneNumber` | string | Work Phone Number |
+|   ↳ `MobileNumber` | string | Mobile Number |
+|   ↳ `DoNotEmailFlag` | boolean | Do Not Email Flag |
+|   ↳ `DoNotCallFlag` | boolean | Do Not Call Flag |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Sales Update lead
+
+Update lead in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `leadKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+| `name` | string | No | Name |
+| `description` | string | No | Description; null clears this field |
+| `accountId` | string | No | CustomerId as an exact decimal string; null clears this field |
+| `ownerId` | string | No | OwnerId as an exact decimal string; null clears this field |
+| `contactId` | string | No | PrimaryContactId as an exact decimal string; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `rank` | string | No | Rank; null clears this field |
+| `sourceCode` | string | No | SourceCode; null clears this field |
+| `budgetAmount` | number | No | BudgetAmount; null clears this field |
+| `budgetCurrencyCode` | string | No | BudgetCurrencyCode; null clears this field |
+| `dealAmount` | number | No | DealAmount; null clears this field |
+| `currencyCode` | string | No | CurrencyCode; null clears this field |
+| `estimatedCloseDate` | string | No | EstimatedCloseDate \(YYYY-MM-DD\); null clears this field |
+| `customerNeed` | string | No | CustomerNeed; null clears this field |
+| `contactFirstName` | string | No | PrimaryContactPersonFirstName; null clears this field |
+| `contactLastName` | string | No | PrimaryContactPersonLastName; null clears this field |
+| `contactEmail` | string | No | PrimaryContactEmailAddress; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `LeadId` | string | Lead Id as a decimal string |
+|   ↳ `LeadNumber` | string | Lead Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `CustomerId` | string | Customer Id as a decimal string |
+|   ↳ `CustomerPartyName` | string | Customer Party Name |
+|   ↳ `OwnerId` | string | Owner Id as a decimal string |
+|   ↳ `OwnerPartyName` | string | Owner Party Name |
+|   ↳ `PrimaryContactId` | string | Primary Contact Id as a decimal string |
+|   ↳ `PrimaryContactPartyName` | string | Primary Contact Party Name |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `Rank` | string | Rank |
+|   ↳ `SourceCode` | string | Source Code |
+|   ↳ `BudgetAmount` | json | Budget Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `BudgetCurrencyCode` | string | Budget Currency Code |
+|   ↳ `DealAmount` | json | Deal Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `EstimatedCloseDate` | string | Estimated Close Date |
+|   ↳ `LeadAcceptedFlag` | boolean | Lead Accepted Flag |
+|   ↳ `EligibleForConversionFlag` | boolean | Eligible For Conversion Flag |
+|   ↳ `LeadCreationDate` | string | Lead Creation Date |
+|   ↳ `LeadLastUpdateDate` | string | Lead Last Update Date |
+
+### Oracle Fusion Sales Update opportunity
+
+Update opportunity in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Oracle OptyNumber returned by the corresponding list tool; preserve as a string |
+| `name` | string | No | Name |
+| `description` | string | No | Description; null clears this field |
+| `accountId` | string | No | TargetPartyId as an exact decimal string; null clears this field |
+| `ownerId` | string | No | OwnerResourcePartyId as an exact decimal string |
+| `contactId` | string | No | KeyContactId as an exact decimal string; null clears this field |
+| `currencyCode` | string | No | CurrencyCode |
+| `businessUnitId` | string | No | PrimaryOrganizationId as an exact decimal string |
+| `salesMethodId` | string | No | SalesMethodId as an exact decimal string; null clears this field |
+| `salesStageId` | string | No | SalesStageId as an exact decimal string; null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `reasonWonLostCode` | string | No | ReasonWonLostCode; null clears this field |
+| `closeDate` | string | No | EffectiveDate \(YYYY-MM-DD\); null clears this field |
+| `revenue` | number | No | Revenue; null clears this field |
+| `winProbability` | number | No | WinProb; null clears this field |
+| `comments` | string | No | Comments; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `Name` | string | Name |
+|   ↳ `Description` | string | Description |
+|   ↳ `TargetPartyId` | string | Target Party Id as a decimal string |
+|   ↳ `TargetPartyName` | string | Target Party Name |
+|   ↳ `OwnerResourcePartyId` | string | Owner Resource Party Id as a decimal string |
+|   ↳ `OwnerPartyNumber` | string | Owner Party Number |
+|   ↳ `KeyContactId` | string | Key Contact Id as a decimal string |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `PrimaryOrganizationId` | string | Primary Organization Id as a decimal string |
+|   ↳ `SalesMethodId` | string | Sales Method Id as a decimal string |
+|   ↳ `SalesMethod` | string | Sales Method |
+|   ↳ `SalesStageId` | string | Sales Stage Id as a decimal string |
+|   ↳ `SalesStage` | string | Sales Stage |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ReasonWonLostCode` | string | Reason Won Lost Code |
+|   ↳ `EffectiveDate` | string | Effective Date |
+|   ↳ `Revenue` | json | Revenue \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `WinProb` | number | Win Prob |
+|   ↳ `OptyCreationDate` | string | Opty Creation Date |
+|   ↳ `OptyLastUpdateDate` | string | Opty Last Update Date |
+
+### Oracle Fusion Sales Update opportunity contact
+
+Update opportunity contact in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `opportunityContactId` | string | Yes | Oracle OptyConId returned by the corresponding list tool; preserve as a string |
+| `contactId` | string | No | PERPartyId as an exact decimal string |
+| `primaryFlag` | string | No | PrimaryFlg; null clears this field |
+| `roleCode` | string | No | RoleCd; null clears this field |
+| `influenceCode` | string | No | InfluenceLvlCd; null clears this field |
+| `affinityCode` | string | No | AffinityLvlCd; null clears this field |
+| `contactedFlag` | string | No | ContactedFlg; null clears this field |
+| `comments` | string | No | Comments; null clears this field |
+| `relationshipId` | string | No | RelationshipId as an exact decimal string; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `OptyConId` | string | Opty Con Id as a decimal string |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `PERPartyId` | string | PERParty Id as a decimal string |
+|   ↳ `ContactFirstName` | string | Contact First Name |
+|   ↳ `ContactLastName` | string | Contact Last Name |
+|   ↳ `PrimaryFlg` | string | Primary Flg |
+|   ↳ `RoleCd` | string | Role Cd |
+|   ↳ `InfluenceLvlCd` | string | Influence Lvl Cd |
+|   ↳ `AffinityLvlCd` | string | Affinity Lvl Cd |
+|   ↳ `ContactedFlg` | string | Contacted Flg |
+|   ↳ `Comments` | string | Comments |
+|   ↳ `RelationshipId` | string | Relationship Id as a decimal string |
+
+### Oracle Fusion Sales Update opportunity revenue
+
+Update opportunity revenue in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `revenueKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+| `productGroupId` | string | No | ProdGroupId as an exact decimal string; null clears this field |
+| `inventoryItemId` | string | No | InventoryItemId as an exact decimal string; null clears this field |
+| `inventoryOrganizationId` | string | No | InventoryOrgId as an exact decimal string; null clears this field |
+| `quantity` | number | No | Quantity; null clears this field |
+| `unitPrice` | number | No | UnitPrice; null clears this field |
+| `revenue` | number | No | RevnAmount; null clears this field |
+| `currencyCode` | string | No | RevnAmountCurcyCode |
+| `ownerId` | string | No | ResourcePartyId as an exact decimal string; null clears this field |
+| `closeDate` | string | No | EffectiveDate \(YYYY-MM-DD\); null clears this field |
+| `statusCode` | string | No | StatusCode; null clears this field |
+| `winProbability` | number | No | WinProb; null clears this field |
+| `description` | string | No | Description; null clears this field |
+| `comments` | string | No | Comments; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `RevnId` | string | Revn Id as a decimal string |
+|   ↳ `RevnNumber` | string | Revn Number |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `ProdGroupId` | string | Prod Group Id as a decimal string |
+|   ↳ `ProdGroupName` | string | Prod Group Name |
+|   ↳ `InventoryItemId` | string | Inventory Item Id as a decimal string |
+|   ↳ `InventoryOrgId` | string | Inventory Org Id as a decimal string |
+|   ↳ `Quantity` | json | Quantity \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `UnitPrice` | json | Unit Price \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `RevnAmount` | json | Revn Amount \(JSON number or exact numeric string under REST framework 9\) |
+|   ↳ `RevnAmountCurcyCode` | string | Revn Amount Curcy Code |
+|   ↳ `ResourcePartyId` | string | Resource Party Id as a decimal string |
+|   ↳ `EffectiveDate` | string | Effective Date |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `WinProb` | number | Win Prob |
+|   ↳ `Description` | string | Description |
+|   ↳ `RevnCreationDate` | string | Revn Creation Date |
+|   ↳ `RevnLastUpdateDate` | string | Revn Last Update Date |
+
+### Oracle Fusion Sales Update opportunity team member
+
+Update opportunity team member in Oracle Fusion Sales using documented CRM REST fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion service-account credential |
+| `opportunityNumber` | string | Yes | Parent Oracle public number, not its numeric ID |
+| `teamMemberKey` | string | Yes | Opaque resourceKey returned by the corresponding list tool; never construct it from an ID |
+| `accessLevelCode` | string | No | AccessLevelCode; null clears this field |
+| `memberFunctionCode` | string | No | MemberFunctionCode; null clears this field |
+| `lockAssignmentFlag` | boolean | No | LockAssignmentFlag; null clears this field |
+| `ownerFlag` | boolean | No | OwnerFlag; null clears this field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Documented Oracle Sales record fields |
+|   ↳ `resourceKey` | string | Opaque resource key from Oracle self link |
+|   ↳ `OptyResourceId` | string | Opty Resource Id as a decimal string |
+|   ↳ `OptyResourceNumber` | string | Opty Resource Number |
+|   ↳ `OptyId` | string | Opty Id as a decimal string |
+|   ↳ `OptyNumber` | string | Opty Number |
+|   ↳ `ResourceId` | string | Resource Id as a decimal string |
+|   ↳ `PartyName` | string | Party Name |
+|   ↳ `EmailAddress` | string | Email Address |
+|   ↳ `AccessLevelCode` | string | Access Level Code |
+|   ↳ `MemberFunctionCode` | string | Member Function Code |
+|   ↳ `LockAssignmentFlag` | boolean | Lock Assignment Flag |
+|   ↳ `OwnerFlag` | boolean | Owner Flag |
+
+

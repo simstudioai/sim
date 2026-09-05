@@ -68,6 +68,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
+  'oracle-fusion-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
@@ -100,6 +101,22 @@ const serviceAccount = (providerId: string) => ({
 })
 
 describe('service-account coverage', () => {
+  it('offers Fusion Sales reusable credentials with API-key catalog classification', () => {
+    const integration = INTEGRATIONS.find((entry) => entry.type === 'oracle_fusion_sales')
+    expect(integration?.authType).toBe('api-key')
+    expect(OAUTH_PROVIDERS.oracle_fusion_sales.services.oracle_fusion_sales).toMatchObject({
+      providerId: 'oracle_fusion_sales',
+      serviceAccountProviderId: 'oracle-fusion-service-account',
+      authType: 'service_account',
+    })
+    expect(
+      credentialProviderMatchesService(
+        'oracle-fusion-service-account',
+        OAUTH_PROVIDERS.oracle_fusion_sales.services.oracle_fusion_sales
+      )
+    ).toBe(true)
+  })
+
   it('exposes NetSuite reusable credentials without changing its API-key catalog class', () => {
     const netSuiteIntegration = INTEGRATIONS.find((integration) => integration.type === 'netsuite')
     expect(netSuiteIntegration?.authType).toBe('api-key')
