@@ -2,6 +2,8 @@ import type { ComponentType } from 'react'
 
 export const selectorContextKeys = [
   'oauthCredential',
+  'oracleFusionSupplierId',
+  'oracleFusionPOHeaderId',
   'domain',
   'teamId',
   'projectId',

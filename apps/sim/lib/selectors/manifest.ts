@@ -86,6 +86,92 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  'oracle_fusion_procurement.suppliers': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.supplierSites': providerSelector(['oracleFusionSupplierId'], {
+    readiness: { all: ['oauthCredential', 'oracleFusionSupplierId'] },
+    sourceFields: { oracleFusionSupplierId: ['supplierId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.purchaseRequisitions': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.draftPurchaseOrders': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.purchaseOrders': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.purchaseOrderHeaders': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.purchaseOrderReceipts': providerSelector(['oracleFusionPOHeaderId'], {
+    readiness: { all: ['oauthCredential', 'oracleFusionPOHeaderId'] },
+    sourceFields: { oracleFusionPOHeaderId: ['poHeaderId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.supplierNegotiations': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.supplierNegotiationIds': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.supplierNegotiationResponses': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.procurementAgents': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.buyers': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.procurementBusinessUnits': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.procurementPersons': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.purchasingDocumentStyles': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_procurement.supplierAddresses': providerSelector(['oracleFusionSupplierId'], {
+    readiness: { all: ['oauthCredential', 'oracleFusionSupplierId'] },
+    sourceFields: { oracleFusionSupplierId: ['supplierId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },

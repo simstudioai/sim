@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,181 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_procurement",
+      "slug": "oracle-fusion-procurement",
+      "name": "Oracle Fusion Procurement",
+      "description": "Manage suppliers, requisitions, purchasing documents, and sourcing",
+      "longDescription": "Connect a reusable Oracle Fusion service account for supplier and site maintenance, requisition intake, draft purchase orders, approved purchase-order actions, sourcing negotiations, supplier-visible responses, procurement agents, and procurement-facing receipt visibility. Every list returns one bounded page. Mutations are explicit: creating a draft does not submit or publish it. Receipt visibility does not perform SCM receiving transactions; invoices, payments, accounting, and banking workflows remain outside this integration. Integer identifiers must be supplied as decimal strings. Resource numeric values are returned as decimal strings to preserve framework-v9 precision; pagination values remain numbers. Updates change documented header fields only; creates also support bounded inline child records. Oracle privileges and business-unit data access are required. The business-unit picker shows purchase-order-enabled units; enter an authorized ID manually for sourcing or supplier roles. Supplier negotiation responses require the View Supplier Negotiation Response as Supplier privilege and do not provide buyer-wide bid visibility.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_procurement",
+      "operations": [
+        {
+          "name": "Create Draft Purchase Order",
+          "description": "Create Draft Purchase Order in Oracle Fusion Procurement. Create a draft without submitting or publishing it."
+        },
+        {
+          "name": "Create Purchase Requisition",
+          "description": "Create Purchase Requisition in Oracle Fusion Procurement. Create a draft without submitting or publishing it."
+        },
+        {
+          "name": "Create Supplier",
+          "description": "Create a supplier procurement profile. Oracle may generate the supplier number and party ID; optional addresses can be created inline. Does not configure banking or tax registrations."
+        },
+        {
+          "name": "Create Supplier Negotiation",
+          "description": "Create Supplier Negotiation in Oracle Fusion Procurement. Create a draft without submitting or publishing it."
+        },
+        {
+          "name": "Create Supplier Site",
+          "description": "Create a procurement site for an existing supplier address, optionally assigning client business units. Does not configure supplier payments."
+        },
+        {
+          "name": "Get Draft Purchase Order",
+          "description": "Get Draft Purchase Order in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers."
+        },
+        {
+          "name": "Get Procurement Agent",
+          "description": "Get Procurement Agent in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers."
+        },
+        {
+          "name": "Get Purchase Order",
+          "description": "Get Purchase Order in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers."
+        },
+        {
+          "name": "Get Purchase Order Lifecycle Details",
+          "description": "Read a purchase-order lifecycle summary, including receiving and payment visibility. Does not create receipts, invoices, or payments."
+        },
+        {
+          "name": "Get Purchase Order Receipt",
+          "description": "Read one procurement-facing lifecycle receipt using its self-link key and numeric POHeaderId, not ReceiptId alone."
+        },
+        {
+          "name": "Get Purchase Requisition",
+          "description": "Get Purchase Requisition in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers."
+        },
+        {
+          "name": "Get Supplier",
+          "description": "Get Supplier in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers."
+        },
+        {
+          "name": "Get Supplier Negotiation",
+          "description": "Get Supplier Negotiation in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers."
+        },
+        {
+          "name": "Get Supplier Negotiation Response",
+          "description": "Get a supplier-visible negotiation response by its opaque key. Requires View Supplier Negotiation Response as Supplier; does not grant buyer-wide bid visibility."
+        },
+        {
+          "name": "Get Supplier Site",
+          "description": "Get Supplier Site in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers."
+        },
+        {
+          "name": "Hold Purchase Order",
+          "description": "Explicitly place an approved purchase order on hold and check the Oracle action result."
+        },
+        {
+          "name": "List Draft Purchase Order Lines",
+          "description": "List Draft Purchase Order Lines in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Draft Purchase Orders",
+          "description": "List Draft Purchase Orders in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Procurement Agents",
+          "description": "List Procurement Agents in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Purchase Order Lines",
+          "description": "List Purchase Order Lines in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Purchase Order Receipts",
+          "description": "Read one page of procurement-facing purchase-order lifecycle receipts. These are receipt/schedule views, not SCM receiving transactions."
+        },
+        {
+          "name": "List Purchase Orders",
+          "description": "List Purchase Orders in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Purchase Requisition Lines",
+          "description": "List Purchase Requisition Lines in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Purchase Requisitions",
+          "description": "List Purchase Requisitions in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Supplier Negotiation Responses",
+          "description": "List one page of supplier-visible negotiation responses. Requires View Supplier Negotiation Response as Supplier; does not grant buyer-wide bid visibility. Use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Supplier Negotiations",
+          "description": "List Supplier Negotiations in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Supplier Sites",
+          "description": "List Supplier Sites in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "List Suppliers",
+          "description": "List Suppliers in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page."
+        },
+        {
+          "name": "Remove Purchase Order Hold",
+          "description": "Explicitly remove an approved purchase-order hold and check the Oracle action result."
+        },
+        {
+          "name": "Submit Draft Purchase Order",
+          "description": "Explicitly submit a draft purchase order for approval. Does not bypass approvals or retry the mutation automatically."
+        },
+        {
+          "name": "Submit Purchase Requisition",
+          "description": "Explicitly submit a purchase requisition for approval and check the documented business result."
+        },
+        {
+          "name": "Update Draft Purchase Order",
+          "description": "Update Draft Purchase Order in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged."
+        },
+        {
+          "name": "Update Purchase Requisition",
+          "description": "Update Purchase Requisition in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged."
+        },
+        {
+          "name": "Update Supplier",
+          "description": "Update Supplier in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged."
+        },
+        {
+          "name": "Update Supplier Negotiation",
+          "description": "Update Supplier Negotiation in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged."
+        },
+        {
+          "name": "Update Supplier Site",
+          "description": "Update Supplier Site in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged."
+        },
+        {
+          "name": "Validate Draft Purchase Order",
+          "description": "Retrieve draft purchase-order validation warnings and errors without submitting. An HTTP success does not mean the document is valid; inspect result and hasMessages."
+        },
+        {
+          "name": "Validate Or Publish Supplier Negotiation",
+          "description": "Explicitly validate OR publish a supplier negotiation using ActionIntent. Oracle business errors remain failures even when the HTTP request succeeds."
+        },
+        {
+          "name": "Withdraw Purchase Requisition",
+          "description": "Explicitly withdraw a purchase requisition and check the nested STATUS/CODE business result."
+        }
+      ],
+      "operationCount": 39,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",

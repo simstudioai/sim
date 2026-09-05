@@ -1,0 +1,1459 @@
+---
+title: Oracle Fusion Procurement
+description: Manage suppliers, requisitions, purchasing documents, and sourcing
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_procurement"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a reusable Oracle Fusion service account for supplier and site maintenance, requisition intake, draft purchase orders, approved purchase-order actions, sourcing negotiations, supplier-visible responses, procurement agents, and procurement-facing receipt visibility. Every list returns one bounded page. Mutations are explicit: creating a draft does not submit or publish it. Receipt visibility does not perform SCM receiving transactions; invoices, payments, accounting, and banking workflows remain outside this integration. Integer identifiers must be supplied as decimal strings. Resource numeric values are returned as decimal strings to preserve framework-v9 precision; pagination values remain numbers. Updates change documented header fields only; creates also support bounded inline child records. Oracle privileges and business-unit data access are required. The business-unit picker shows purchase-order-enabled units; enter an authorized ID manually for sourcing or supplier roles. Supplier negotiation responses require the View Supplier Negotiation Response as Supplier privilege and do not provide buyer-wide bid visibility.
+
+
+
+## Actions
+
+### Oracle Fusion Procurement Create Draft Purchase Order
+
+Create Draft Purchase Order in Oracle Fusion Procurement. Create a draft without submitting or publishing it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `buyerId` | string | Yes | Numeric buyer person ID, as a decimal string \(not the agent assignment ID\) |
+| `documentStyleId` | string | Yes | Numeric purchasing document StyleId, as a decimal string |
+| `procurementBUId` | string | Yes | Numeric procurement business-unit ID, as a decimal string. The picker shows purchase-order-enabled units; enter an authorized ID manually for other procurement roles |
+| `supplierId` | string | Yes | Numeric SupplierId, preserved as a decimal string |
+| `supplierSiteId` | string | Yes | Numeric SupplierSiteId belonging to the selected supplier, as a decimal string |
+| `body` | json | No | Additional fields as a JSON object: BuyerId, DocumentStyleId, ProcurementBUId, SupplierId, SupplierSiteId, RequisitioningBUId, CurrencyCode, Description, OrderNumber, NoteToSupplier, NoteToReceiver, DefaultShipToLocationId, BillToLocationId, BillToBUId. Supports inline lines. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. Each lines entry supports LineNumber \(required\), LineTypeId, LineType, ItemId, Item, Description, CategoryId, Quantity, UOMCode, Price, Amount, SupplierItem, NoteToSupplier, schedules. Each schedules entry supports ScheduleNumber \(required\), ShipToLocationId, ShipToOrganizationId, ShipToOrganizationCode, Quantity, Price, Amount, RequestedDeliveryDate, PromisedDeliveryDate, RequestedShipDate, PromisedShipDate, DestinationTypeCode, ReceiptRequiredFlag, InspectionRequiredFlag, ReceiptRoutingId. Each child collection is limited to 100 entries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftPurchaseOrder` | object | Draft Purchase Order fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `VersionId` | string | Version Id as an exact decimal string |
+|   ↳ `OrderNumber` | string | Order Number |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ChangeOrderStatusCode` | string | Change Order Status Code |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `DocumentStyleId` | string | Document Style Id as an exact decimal string |
+|   ↳ `DocumentStyle` | string | Document Style |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OrderedAmountBeforeAdjustments` | string | Ordered Amount Before Adjustments as a decimal string, preserving framework-v9 precision |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Create Purchase Requisition
+
+Create Purchase Requisition in Oracle Fusion Procurement. Create a draft without submitting or publishing it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `preparerId` | string | Yes | Numeric person ID of the requisition preparer, as a decimal string |
+| `requisitioningBUId` | string | Yes | Numeric requisitioning business-unit ID, as a decimal string |
+| `body` | json | No | Additional fields as a JSON object: PreparerId, RequisitioningBUId, Description, Justification, EmergencyRequisitionFlag. Supports inline lines. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. Each lines entry supports LineNumber \(required\), LineTypeId, ItemId, Item, ItemDescription, CategoryId, Quantity, UOMCode, UnitPrice, CurrencyCode, RequestedDeliveryDate, RequesterId, DeliverToLocationId, DestinationTypeCode, DestinationOrganizationId, SupplierId, SupplierSiteId, NoteToBuyer, NoteToSupplier, UrgentFlag. Each child collection is limited to 100 entries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purchaseRequisition` | object | Purchase Requisition fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `RequisitionHeaderId` | string | Requisition Header Id as an exact decimal string |
+|   ↳ `Requisition` | string | Requisition |
+|   ↳ `Description` | string | Description |
+|   ↳ `DocumentStatus` | string | Document Status |
+|   ↳ `DocumentStatusCode` | string | Document Status Code |
+|   ↳ `PreparerId` | string | Preparer Id as an exact decimal string |
+|   ↳ `Preparer` | string | Preparer |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `RequisitioningBU` | string | Requisitioning BU |
+|   ↳ `Justification` | string | Justification |
+|   ↳ `FunctionalCurrencyCode` | string | Functional Currency Code |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `FundsStatusCode` | string | Funds Status Code |
+|   ↳ `SubmissionDate` | string | Submission Date |
+|   ↳ `ApprovedDate` | string | Approved Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Create Supplier
+
+Create a supplier procurement profile. Oracle may generate the supplier number and party ID; optional addresses can be created inline. Does not configure banking or tax registrations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `supplierName` | string | Yes | Supplier name \(maximum 360 characters\) |
+| `body` | json | No | Additional fields as a JSON object: Supplier, SupplierNumber, SupplierPartyId, AlternateName, Alias, CorporateWebsite, BusinessRelationshipCode, SupplierTypeCode, TaxOrganizationTypeCode, OneTimeSupplierFlag, ParentSupplierId, InactiveDate. Supports inline addresses. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. Each addresses entry supports CountryCode \(required\), Email, AddressName, AddressLine1, AddressLine2, City, State, Province, PostalCode, AddressPurposeOrderingFlag, AddressPurposeRFQOrBiddingFlag. Each child collection is limited to 100 entries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplier` | object | Supplier fields |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierNumber` | string | Supplier Number |
+|   ↳ `SupplierPartyId` | string | Supplier Party Id as an exact decimal string |
+|   ↳ `AlternateName` | string | Alternate Name |
+|   ↳ `Alias` | string | Alias |
+|   ↳ `BusinessRelationship` | string | Business Relationship |
+|   ↳ `BusinessRelationshipCode` | string | Business Relationship Code |
+|   ↳ `SupplierType` | string | Supplier Type |
+|   ↳ `SupplierTypeCode` | string | Supplier Type Code |
+|   ↳ `Status` | string | Status |
+|   ↳ `CorporateWebsite` | string | Corporate Website |
+|   ↳ `OneTimeSupplierFlag` | boolean | One Time Supplier Flag |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Create Supplier Negotiation
+
+Create Supplier Negotiation in Oracle Fusion Procurement. Create a draft without submitting or publishing it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `procurementBUId` | string | Yes | Numeric procurement business-unit ID, as a decimal string. The picker shows purchase-order-enabled units; enter an authorized ID manually for other procurement roles |
+| `negotiationTitle` | string | Yes | Negotiation title \(maximum 80 characters\) |
+| `buyerId` | string | No | Numeric buyer person ID, as a decimal string \(not the agent assignment ID\) |
+| `body` | json | No | Additional fields as a JSON object: ProcurementBUId, BuyerId, NegotiationTitle, NegotiationType, NegotiationTypeId, NegotiationStyleId, CurrencyCode, Outcome, OpenDate, CloseDate, PreviewDate, OpenImmediatelyFlag, PreviewImmediatelyFlag, RestrictToInvitedSuppliersFlag, RequisitioningBUId, Synopsis. Supports inline lines and suppliers. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. Each lines entry supports Line, LineTypeId, ItemId, Item, LineDescription, CategoryId, Quantity, UOMCode, StartPrice, TargetPrice, RequestedDeliveryDate, ShipToLocationId, RequisitioningBUId, NoteToSuppliers. Each suppliers entry requires SupplierId and supports SupplierSiteId, SupplierContactId, AdditionalContactEmail, NotifyAllSupplierContactsFlag. Each child collection is limited to 100 entries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplierNegotiation` | object | Supplier Negotiation fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `AuctionHeaderId` | string | Auction Header Id as an exact decimal string |
+|   ↳ `Negotiation` | string | Negotiation |
+|   ↳ `NegotiationTitle` | string | Negotiation Title |
+|   ↳ `NegotiationType` | string | Negotiation Type |
+|   ↳ `NegotiationTypeId` | string | Negotiation Type Id as an exact decimal string |
+|   ↳ `NegotiationStyleId` | string | Negotiation Style Id as an exact decimal string |
+|   ↳ `NegotiationStatus` | string | Negotiation Status |
+|   ↳ `NegotiationStatusCode` | string | Negotiation Status Code |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OpenDate` | string | Open Date |
+|   ↳ `CloseDate` | string | Close Date |
+|   ↳ `AwardStatus` | string | Award Status |
+|   ↳ `SuppliersCount` | string | Suppliers Count as a decimal string, preserving framework-v9 precision |
+|   ↳ `SupplierResponses` | string | Supplier Responses as a decimal string, preserving framework-v9 precision |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Create Supplier Site
+
+Create a procurement site for an existing supplier address, optionally assigning client business units. Does not configure supplier payments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `supplierId` | string | Yes | Numeric SupplierId, preserved as a decimal string |
+| `procurementBUId` | string | Yes | Numeric procurement business-unit ID, as a decimal string. The picker shows purchase-order-enabled units; enter an authorized ID manually for other procurement roles |
+| `supplierSiteName` | string | Yes | Supplier site name \(maximum 240 characters\) |
+| `supplierAddressId` | string | Yes | Existing SupplierAddressId belonging to this supplier, as a decimal string |
+| `body` | json | No | Additional fields as a JSON object: ProcurementBUId, SupplierSite, SupplierAddressId, SupplierAddressName, SitePurposePurchasingFlag, SitePurposeSourcingOnlyFlag, Email, CommunicationMethodCode, HoldAllNewPurchasingDocumentsFlag, PurchasingHoldReason, InactiveDate. Supports inline assignments. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. Each assignments entry supports ClientBUId, BillToBUId, ShipToLocationId, BillToLocationId, InactiveDate. Each child collection is limited to 100 entries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplierSite` | object | Supplier Site fields |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `SupplierAddressId` | string | Supplier Address Id as an exact decimal string |
+|   ↳ `SupplierAddressName` | string | Supplier Address Name |
+|   ↳ `SitePurposePurchasingFlag` | boolean | Site Purpose Purchasing Flag |
+|   ↳ `SitePurposeSourcingOnlyFlag` | boolean | Site Purpose Sourcing Only Flag |
+|   ↳ `Status` | string | Status |
+|   ↳ `Email` | string | Email |
+|   ↳ `CommunicationMethodCode` | string | Communication Method Code |
+|   ↳ `HoldAllNewPurchasingDocumentsFlag` | boolean | Hold All New Purchasing Documents Flag |
+|   ↳ `PurchasingHoldReason` | string | Purchasing Hold Reason |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Get Draft Purchase Order
+
+Get Draft Purchase Order in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `draftPurchaseOrderKey` | string | Yes | Opaque draft purchase-order key from the key output; do not substitute POHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftPurchaseOrder` | object | Draft Purchase Order fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `VersionId` | string | Version Id as an exact decimal string |
+|   ↳ `OrderNumber` | string | Order Number |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ChangeOrderStatusCode` | string | Change Order Status Code |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `DocumentStyleId` | string | Document Style Id as an exact decimal string |
+|   ↳ `DocumentStyle` | string | Document Style |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OrderedAmountBeforeAdjustments` | string | Ordered Amount Before Adjustments as a decimal string, preserving framework-v9 precision |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Get Procurement Agent
+
+Get Procurement Agent in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `assignmentId` | string | Yes | Numeric procurement-agent AssignmentId, as a decimal string \(not AgentId\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `procurementAgent` | object | Procurement Agent fields |
+|   ↳ `AssignmentId` | string | Assignment Id as an exact decimal string |
+|   ↳ `AgentId` | string | Agent Id as an exact decimal string |
+|   ↳ `Agent` | string | Agent |
+|   ↳ `AgentEmail` | string | Agent Email |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `DefaultRequisitioningBUId` | string | Default Requisitioning BUId as an exact decimal string |
+|   ↳ `DefaultRequisitioningBU` | string | Default Requisitioning BU |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ManageOrdersAllowedFlag` | boolean | Manage Orders Allowed Flag |
+|   ↳ `ManageRequisitionsAllowedFlag` | boolean | Manage Requisitions Allowed Flag |
+|   ↳ `ManageSuppliersAllowedFlag` | boolean | Manage Suppliers Allowed Flag |
+|   ↳ `ManageNegotiationsAllowedFlag` | boolean | Manage Negotiations Allowed Flag |
+|   ↳ `AccessLevelToOtherAgentsOrdersCode` | string | Access Level To Other Agents Orders Code |
+
+### Oracle Fusion Procurement Get Purchase Order
+
+Get Purchase Order in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `purchaseOrderKey` | string | Yes | Opaque approved purchase-order key from the key output; do not substitute POHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purchaseOrder` | object | Purchase Order fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `OrderNumber` | string | Order Number |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `DocumentStyleId` | string | Document Style Id as an exact decimal string |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `Ordered` | string | Ordered as a decimal string, preserving framework-v9 precision |
+|   ↳ `Total` | string | Total as a decimal string, preserving framework-v9 precision |
+|   ↳ `Revision` | string | Revision as a decimal string, preserving framework-v9 precision |
+|   ↳ `FrozenFlag` | boolean | Frozen Flag |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `OrderDate` | string | Order Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Get Purchase Order Lifecycle Details
+
+Read a purchase-order lifecycle summary, including receiving and payment visibility. Does not create receipts, invoices, or payments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `poHeaderId` | string | Yes | Numeric POHeaderId from a purchase order, as a decimal string \(not its opaque key\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lifecycleDetails` | object | Lifecycle Details fields |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `OrderNumber` | string | Order Number |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OrderedAmount` | string | Ordered Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `DeliveredAmount` | string | Delivered Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `InReceivingAmount` | string | In Receiving Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `InTransitAmount` | string | In Transit Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `PaidAmount` | string | Paid Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `PartiallyPaidAmount` | string | Partially Paid Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `UnpaidAmount` | string | Unpaid Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `NetRetainage` | string | Net Retainage as a decimal string, preserving framework-v9 precision |
+|   ↳ `Retainage` | string | Retainage as a decimal string, preserving framework-v9 precision |
+|   ↳ `RetainageReleased` | string | Retainage Released as a decimal string, preserving framework-v9 precision |
+
+### Oracle Fusion Procurement Get Purchase Order Receipt
+
+Read one procurement-facing lifecycle receipt using its self-link key and numeric POHeaderId, not ReceiptId alone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `poHeaderId` | string | Yes | Numeric POHeaderId from a purchase order, as a decimal string \(not its opaque key\) |
+| `receiptKey` | string | Yes | Opaque receipt key from List Purchase Order Receipts for this POHeaderId; not ReceiptId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purchaseOrderReceipt` | object | Purchase Order Receipt fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `ReceiptId` | string | Receipt Id as an exact decimal string |
+|   ↳ `Receipt` | string | Receipt |
+|   ↳ `ReceiptDate` | string | Receipt Date |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `POLineId` | string | POLine Id as an exact decimal string |
+|   ↳ `LineLocationId` | string | Line Location Id as an exact decimal string |
+|   ↳ `LineNumber` | string | Line Number as a decimal string, preserving framework-v9 precision |
+|   ↳ `ScheduleNumber` | string | Schedule Number as a decimal string, preserving framework-v9 precision |
+|   ↳ `ItemOrScheduleDescription` | string | Item Or Schedule Description |
+|   ↳ `ReceivedBy` | string | Received By |
+|   ↳ `ReceivedQuantity` | string | Received Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `DeliveredQuantity` | string | Delivered Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `ReturnedQuantity` | string | Returned Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `ReceivedAmount` | string | Received Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `DeliveredAmount` | string | Delivered Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `UOMCode` | string | UOMCode |
+|   ↳ `ShipmentId` | string | Shipment Id as an exact decimal string |
+|   ↳ `ShipmentNumber` | string | Shipment Number |
+
+### Oracle Fusion Procurement Get Purchase Requisition
+
+Get Purchase Requisition in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `requisitionKey` | string | Yes | Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purchaseRequisition` | object | Purchase Requisition fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `RequisitionHeaderId` | string | Requisition Header Id as an exact decimal string |
+|   ↳ `Requisition` | string | Requisition |
+|   ↳ `Description` | string | Description |
+|   ↳ `DocumentStatus` | string | Document Status |
+|   ↳ `DocumentStatusCode` | string | Document Status Code |
+|   ↳ `PreparerId` | string | Preparer Id as an exact decimal string |
+|   ↳ `Preparer` | string | Preparer |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `RequisitioningBU` | string | Requisitioning BU |
+|   ↳ `Justification` | string | Justification |
+|   ↳ `FunctionalCurrencyCode` | string | Functional Currency Code |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `FundsStatusCode` | string | Funds Status Code |
+|   ↳ `SubmissionDate` | string | Submission Date |
+|   ↳ `ApprovedDate` | string | Approved Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Get Supplier
+
+Get Supplier in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `supplierId` | string | Yes | Numeric SupplierId, preserved as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplier` | object | Supplier fields |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierNumber` | string | Supplier Number |
+|   ↳ `SupplierPartyId` | string | Supplier Party Id as an exact decimal string |
+|   ↳ `AlternateName` | string | Alternate Name |
+|   ↳ `Alias` | string | Alias |
+|   ↳ `BusinessRelationship` | string | Business Relationship |
+|   ↳ `BusinessRelationshipCode` | string | Business Relationship Code |
+|   ↳ `SupplierType` | string | Supplier Type |
+|   ↳ `SupplierTypeCode` | string | Supplier Type Code |
+|   ↳ `Status` | string | Status |
+|   ↳ `CorporateWebsite` | string | Corporate Website |
+|   ↳ `OneTimeSupplierFlag` | boolean | One Time Supplier Flag |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Get Supplier Negotiation
+
+Get Supplier Negotiation in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `negotiationKey` | string | Yes | Opaque supplier-negotiation key from the key output; not AuctionHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplierNegotiation` | object | Supplier Negotiation fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `AuctionHeaderId` | string | Auction Header Id as an exact decimal string |
+|   ↳ `Negotiation` | string | Negotiation |
+|   ↳ `NegotiationTitle` | string | Negotiation Title |
+|   ↳ `NegotiationType` | string | Negotiation Type |
+|   ↳ `NegotiationTypeId` | string | Negotiation Type Id as an exact decimal string |
+|   ↳ `NegotiationStyleId` | string | Negotiation Style Id as an exact decimal string |
+|   ↳ `NegotiationStatus` | string | Negotiation Status |
+|   ↳ `NegotiationStatusCode` | string | Negotiation Status Code |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OpenDate` | string | Open Date |
+|   ↳ `CloseDate` | string | Close Date |
+|   ↳ `AwardStatus` | string | Award Status |
+|   ↳ `SuppliersCount` | string | Suppliers Count as a decimal string, preserving framework-v9 precision |
+|   ↳ `SupplierResponses` | string | Supplier Responses as a decimal string, preserving framework-v9 precision |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Get Supplier Negotiation Response
+
+Get a supplier-visible negotiation response by its opaque key. Requires View Supplier Negotiation Response as Supplier; does not grant buyer-wide bid visibility.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `responseKey` | string | Yes | Opaque supplier-negotiation-response key from the key output; not ResponseNumber |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplierNegotiationResponse` | object | Supplier Negotiation Response fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `ResponseNumber` | string | Response Number as an exact decimal string |
+|   ↳ `AuctionHeaderId` | string | Auction Header Id as an exact decimal string |
+|   ↳ `Negotiation` | string | Negotiation |
+|   ↳ `NegotiationTitle` | string | Negotiation Title |
+|   ↳ `ResponseStatus` | string | Response Status |
+|   ↳ `ResponseStatusCode` | string | Response Status Code |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `ResponseDate` | string | Response Date |
+|   ↳ `ResponseAmount` | string | Response Amount |
+|   ↳ `ResponseCurrencyCode` | string | Response Currency Code |
+|   ↳ `NegotiationCurrencyCode` | string | Negotiation Currency Code |
+|   ↳ `AwardStatus` | string | Award Status |
+|   ↳ `ShortlistFlag` | boolean | Shortlist Flag |
+|   ↳ `NoteToBuyer` | string | Note To Buyer |
+|   ↳ `CreationDate` | string | Creation Date |
+
+### Oracle Fusion Procurement Get Supplier Site
+
+Get Supplier Site in Oracle Fusion Procurement. Return selected documented fields and preserve exact Oracle identifiers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `supplierId` | string | Yes | Numeric SupplierId, preserved as a decimal string |
+| `supplierSiteId` | string | Yes | Numeric SupplierSiteId belonging to the selected supplier, as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplierSite` | object | Supplier Site fields |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `SupplierAddressId` | string | Supplier Address Id as an exact decimal string |
+|   ↳ `SupplierAddressName` | string | Supplier Address Name |
+|   ↳ `SitePurposePurchasingFlag` | boolean | Site Purpose Purchasing Flag |
+|   ↳ `SitePurposeSourcingOnlyFlag` | boolean | Site Purpose Sourcing Only Flag |
+|   ↳ `Status` | string | Status |
+|   ↳ `Email` | string | Email |
+|   ↳ `CommunicationMethodCode` | string | Communication Method Code |
+|   ↳ `HoldAllNewPurchasingDocumentsFlag` | boolean | Hold All New Purchasing Documents Flag |
+|   ↳ `PurchasingHoldReason` | string | Purchasing Hold Reason |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Hold Purchase Order
+
+Explicitly place an approved purchase order on hold and check the Oracle action result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `purchaseOrderKey` | string | Yes | Opaque approved purchase-order key from the key output; do not substitute POHeaderId |
+| `holdReason` | string | No | Reason for placing the purchase order on hold |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result |
+| `businessSuccess` | boolean | Whether Oracle explicitly reported a successful action |
+
+### Oracle Fusion Procurement List Draft Purchase Order Lines
+
+List Draft Purchase Order Lines in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+| `draftPurchaseOrderKey` | string | Yes | Opaque draft purchase-order key from the key output; do not substitute POHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of draft Purchase Order Lines |
+|   ↳ `POLineId` | string | POLine Id as an exact decimal string |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `LineNumber` | string | Line Number as a decimal string, preserving framework-v9 precision |
+|   ↳ `LineTypeId` | string | Line Type Id as an exact decimal string |
+|   ↳ `LineType` | string | Line Type |
+|   ↳ `ItemId` | string | Item Id as an exact decimal string |
+|   ↳ `Item` | string | Item |
+|   ↳ `Description` | string | Description |
+|   ↳ `Quantity` | string | Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `Price` | string | Price as a decimal string, preserving framework-v9 precision |
+|   ↳ `Amount` | string | Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `UOMCode` | string | UOMCode |
+|   ↳ `SupplierItem` | string | Supplier Item |
+|   ↳ `CategoryId` | string | Category Id as an exact decimal string |
+|   ↳ `Category` | string | Category |
+|   ↳ `CancelFlag` | boolean | Cancel Flag |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement List Draft Purchase Orders
+
+List Draft Purchase Orders in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of draft Purchase Orders |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `VersionId` | string | Version Id as an exact decimal string |
+|   ↳ `OrderNumber` | string | Order Number |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ChangeOrderStatusCode` | string | Change Order Status Code |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `DocumentStyleId` | string | Document Style Id as an exact decimal string |
+|   ↳ `DocumentStyle` | string | Document Style |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OrderedAmountBeforeAdjustments` | string | Ordered Amount Before Adjustments as a decimal string, preserving framework-v9 precision |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement List Procurement Agents
+
+List Procurement Agents in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of procurement Agents |
+|   ↳ `AssignmentId` | string | Assignment Id as an exact decimal string |
+|   ↳ `AgentId` | string | Agent Id as an exact decimal string |
+|   ↳ `Agent` | string | Agent |
+|   ↳ `AgentEmail` | string | Agent Email |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `DefaultRequisitioningBUId` | string | Default Requisitioning BUId as an exact decimal string |
+|   ↳ `DefaultRequisitioningBU` | string | Default Requisitioning BU |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ManageOrdersAllowedFlag` | boolean | Manage Orders Allowed Flag |
+|   ↳ `ManageRequisitionsAllowedFlag` | boolean | Manage Requisitions Allowed Flag |
+|   ↳ `ManageSuppliersAllowedFlag` | boolean | Manage Suppliers Allowed Flag |
+|   ↳ `ManageNegotiationsAllowedFlag` | boolean | Manage Negotiations Allowed Flag |
+|   ↳ `AccessLevelToOtherAgentsOrdersCode` | string | Access Level To Other Agents Orders Code |
+
+### Oracle Fusion Procurement List Purchase Order Lines
+
+List Purchase Order Lines in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+| `purchaseOrderKey` | string | Yes | Opaque approved purchase-order key from the key output; do not substitute POHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of purchase Order Lines |
+|   ↳ `POLineId` | string | POLine Id as an exact decimal string |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `LineNumber` | string | Line Number as a decimal string, preserving framework-v9 precision |
+|   ↳ `LineTypeId` | string | Line Type Id as an exact decimal string |
+|   ↳ `LineType` | string | Line Type |
+|   ↳ `ItemId` | string | Item Id as an exact decimal string |
+|   ↳ `Item` | string | Item |
+|   ↳ `Description` | string | Description |
+|   ↳ `Quantity` | string | Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `Price` | string | Price as a decimal string, preserving framework-v9 precision |
+|   ↳ `Ordered` | string | Ordered as a decimal string, preserving framework-v9 precision |
+|   ↳ `Total` | string | Total as a decimal string, preserving framework-v9 precision |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `UOMCode` | string | UOMCode |
+|   ↳ `SupplierItem` | string | Supplier Item |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement List Purchase Order Receipts
+
+Read one page of procurement-facing purchase-order lifecycle receipts. These are receipt/schedule views, not SCM receiving transactions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+| `poHeaderId` | string | Yes | Numeric POHeaderId from a purchase order, as a decimal string \(not its opaque key\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of purchase Order Receipts |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `ReceiptId` | string | Receipt Id as an exact decimal string |
+|   ↳ `Receipt` | string | Receipt |
+|   ↳ `ReceiptDate` | string | Receipt Date |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `POLineId` | string | POLine Id as an exact decimal string |
+|   ↳ `LineLocationId` | string | Line Location Id as an exact decimal string |
+|   ↳ `LineNumber` | string | Line Number as a decimal string, preserving framework-v9 precision |
+|   ↳ `ScheduleNumber` | string | Schedule Number as a decimal string, preserving framework-v9 precision |
+|   ↳ `ItemOrScheduleDescription` | string | Item Or Schedule Description |
+|   ↳ `ReceivedBy` | string | Received By |
+|   ↳ `ReceivedQuantity` | string | Received Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `DeliveredQuantity` | string | Delivered Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `ReturnedQuantity` | string | Returned Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `ReceivedAmount` | string | Received Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `DeliveredAmount` | string | Delivered Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `UOMCode` | string | UOMCode |
+|   ↳ `ShipmentId` | string | Shipment Id as an exact decimal string |
+|   ↳ `ShipmentNumber` | string | Shipment Number |
+
+### Oracle Fusion Procurement List Purchase Orders
+
+List Purchase Orders in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of purchase Orders |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `OrderNumber` | string | Order Number |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `DocumentStyleId` | string | Document Style Id as an exact decimal string |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `Ordered` | string | Ordered as a decimal string, preserving framework-v9 precision |
+|   ↳ `Total` | string | Total as a decimal string, preserving framework-v9 precision |
+|   ↳ `Revision` | string | Revision as a decimal string, preserving framework-v9 precision |
+|   ↳ `FrozenFlag` | boolean | Frozen Flag |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `OrderDate` | string | Order Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement List Purchase Requisition Lines
+
+List Purchase Requisition Lines in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+| `requisitionKey` | string | Yes | Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of purchase Requisition Lines |
+|   ↳ `RequisitionLineId` | string | Requisition Line Id as an exact decimal string |
+|   ↳ `RequisitionHeaderId` | string | Requisition Header Id as an exact decimal string |
+|   ↳ `LineNumber` | string | Line Number as a decimal string, preserving framework-v9 precision |
+|   ↳ `LineStatus` | string | Line Status |
+|   ↳ `ItemId` | string | Item Id as an exact decimal string |
+|   ↳ `Item` | string | Item |
+|   ↳ `ItemDescription` | string | Item Description |
+|   ↳ `Quantity` | string | Quantity as a decimal string, preserving framework-v9 precision |
+|   ↳ `UOMCode` | string | UOMCode |
+|   ↳ `UnitPrice` | string | Unit Price as a decimal string, preserving framework-v9 precision |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `Amount` | string | Amount as a decimal string, preserving framework-v9 precision |
+|   ↳ `RequestedDeliveryDate` | string | Requested Delivery Date |
+|   ↳ `RequesterId` | string | Requester Id as an exact decimal string |
+|   ↳ `Requester` | string | Requester |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `PurchaseOrder` | string | Purchase Order |
+
+### Oracle Fusion Procurement List Purchase Requisitions
+
+List Purchase Requisitions in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of purchase Requisitions |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `RequisitionHeaderId` | string | Requisition Header Id as an exact decimal string |
+|   ↳ `Requisition` | string | Requisition |
+|   ↳ `Description` | string | Description |
+|   ↳ `DocumentStatus` | string | Document Status |
+|   ↳ `DocumentStatusCode` | string | Document Status Code |
+|   ↳ `PreparerId` | string | Preparer Id as an exact decimal string |
+|   ↳ `Preparer` | string | Preparer |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `RequisitioningBU` | string | Requisitioning BU |
+|   ↳ `Justification` | string | Justification |
+|   ↳ `FunctionalCurrencyCode` | string | Functional Currency Code |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `FundsStatusCode` | string | Funds Status Code |
+|   ↳ `SubmissionDate` | string | Submission Date |
+|   ↳ `ApprovedDate` | string | Approved Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement List Supplier Negotiation Responses
+
+List one page of supplier-visible negotiation responses. Requires View Supplier Negotiation Response as Supplier; does not grant buyer-wide bid visibility. Use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+| `negotiationId` | string | No | Numeric AuctionHeaderId to filter negotiation responses, as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of supplier Negotiation Responses |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `ResponseNumber` | string | Response Number as an exact decimal string |
+|   ↳ `AuctionHeaderId` | string | Auction Header Id as an exact decimal string |
+|   ↳ `Negotiation` | string | Negotiation |
+|   ↳ `NegotiationTitle` | string | Negotiation Title |
+|   ↳ `ResponseStatus` | string | Response Status |
+|   ↳ `ResponseStatusCode` | string | Response Status Code |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `ResponseDate` | string | Response Date |
+|   ↳ `ResponseAmount` | string | Response Amount |
+|   ↳ `ResponseCurrencyCode` | string | Response Currency Code |
+|   ↳ `NegotiationCurrencyCode` | string | Negotiation Currency Code |
+|   ↳ `AwardStatus` | string | Award Status |
+|   ↳ `ShortlistFlag` | boolean | Shortlist Flag |
+|   ↳ `NoteToBuyer` | string | Note To Buyer |
+|   ↳ `CreationDate` | string | Creation Date |
+
+### Oracle Fusion Procurement List Supplier Negotiations
+
+List Supplier Negotiations in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of supplier Negotiations |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `AuctionHeaderId` | string | Auction Header Id as an exact decimal string |
+|   ↳ `Negotiation` | string | Negotiation |
+|   ↳ `NegotiationTitle` | string | Negotiation Title |
+|   ↳ `NegotiationType` | string | Negotiation Type |
+|   ↳ `NegotiationTypeId` | string | Negotiation Type Id as an exact decimal string |
+|   ↳ `NegotiationStyleId` | string | Negotiation Style Id as an exact decimal string |
+|   ↳ `NegotiationStatus` | string | Negotiation Status |
+|   ↳ `NegotiationStatusCode` | string | Negotiation Status Code |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OpenDate` | string | Open Date |
+|   ↳ `CloseDate` | string | Close Date |
+|   ↳ `AwardStatus` | string | Award Status |
+|   ↳ `SuppliersCount` | string | Suppliers Count as a decimal string, preserving framework-v9 precision |
+|   ↳ `SupplierResponses` | string | Supplier Responses as a decimal string, preserving framework-v9 precision |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement List Supplier Sites
+
+List Supplier Sites in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+| `supplierId` | string | Yes | Numeric SupplierId, preserved as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of supplier Sites |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `SupplierAddressId` | string | Supplier Address Id as an exact decimal string |
+|   ↳ `SupplierAddressName` | string | Supplier Address Name |
+|   ↳ `SitePurposePurchasingFlag` | boolean | Site Purpose Purchasing Flag |
+|   ↳ `SitePurposeSourcingOnlyFlag` | boolean | Site Purpose Sourcing Only Flag |
+|   ↳ `Status` | string | Status |
+|   ↳ `Email` | string | Email |
+|   ↳ `CommunicationMethodCode` | string | Communication Method Code |
+|   ↳ `HoldAllNewPurchasingDocumentsFlag` | boolean | Hold All New Purchasing Documents Flag |
+|   ↳ `PurchasingHoldReason` | string | Purchasing Hold Reason |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement List Suppliers
+
+List Suppliers in Oracle Fusion Procurement. Fetch one bounded page; use nextOffset explicitly for another page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Oracle q filter expression for this resource \(maximum 4096 characters\) |
+| `orderBy` | string | No | Oracle comma-separated orderBy attributes with optional :asc or :desc |
+| `limit` | number | No | One page of 1-100 records; default 100 |
+| `offset` | number | No | Zero-based page offset; at most 1000000 |
+| `totalResults` | boolean | No | Request the estimated total matching count; optional |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total when requested and returned by Oracle |
+| `nextOffset` | number | Offset for the next page, only when hasMore is true |
+| `items` | array | One page of suppliers |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierNumber` | string | Supplier Number |
+|   ↳ `SupplierPartyId` | string | Supplier Party Id as an exact decimal string |
+|   ↳ `AlternateName` | string | Alternate Name |
+|   ↳ `Alias` | string | Alias |
+|   ↳ `BusinessRelationship` | string | Business Relationship |
+|   ↳ `BusinessRelationshipCode` | string | Business Relationship Code |
+|   ↳ `SupplierType` | string | Supplier Type |
+|   ↳ `SupplierTypeCode` | string | Supplier Type Code |
+|   ↳ `Status` | string | Status |
+|   ↳ `CorporateWebsite` | string | Corporate Website |
+|   ↳ `OneTimeSupplierFlag` | boolean | One Time Supplier Flag |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Remove Purchase Order Hold
+
+Explicitly remove an approved purchase-order hold and check the Oracle action result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `purchaseOrderKey` | string | Yes | Opaque approved purchase-order key from the key output; do not substitute POHeaderId |
+| `removeHoldReason` | string | No | Reason for removing the purchase-order hold |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result |
+| `businessSuccess` | boolean | Whether Oracle explicitly reported a successful action |
+
+### Oracle Fusion Procurement Submit Draft Purchase Order
+
+Explicitly submit a draft purchase order for approval. Does not bypass approvals or retry the mutation automatically.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `draftPurchaseOrderKey` | string | Yes | Opaque draft purchase-order key from the key output; do not substitute POHeaderId |
+| `validateBeforeSubmitFlag` | boolean | No | Validate the draft purchase order before submission; Oracle defaults to false when omitted |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result |
+| `businessSuccess` | boolean | Whether Oracle explicitly reported a successful action |
+
+### Oracle Fusion Procurement Submit Purchase Requisition
+
+Explicitly submit a purchase requisition for approval and check the documented business result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `requisitionKey` | string | Yes | Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId |
+| `requestFundsOverrideFlag` | boolean | No | Explicitly request a funds override when submitting the requisition |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result |
+| `businessSuccess` | boolean | Whether Oracle explicitly reported a successful action |
+
+### Oracle Fusion Procurement Update Draft Purchase Order
+
+Update Draft Purchase Order in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `draftPurchaseOrderKey` | string | Yes | Opaque draft purchase-order key from the key output; do not substitute POHeaderId |
+| `body` | json | Yes | Header fields as a JSON object: BuyerId, SupplierSiteId, Description, NoteToSupplier, NoteToReceiver, BillToLocationId. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftPurchaseOrder` | object | Draft Purchase Order fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `POHeaderId` | string | POHeader Id as an exact decimal string |
+|   ↳ `VersionId` | string | Version Id as an exact decimal string |
+|   ↳ `OrderNumber` | string | Order Number |
+|   ↳ `Description` | string | Description |
+|   ↳ `Status` | string | Status |
+|   ↳ `StatusCode` | string | Status Code |
+|   ↳ `ChangeOrderStatusCode` | string | Change Order Status Code |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `DocumentStyleId` | string | Document Style Id as an exact decimal string |
+|   ↳ `DocumentStyle` | string | Document Style |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OrderedAmountBeforeAdjustments` | string | Ordered Amount Before Adjustments as a decimal string, preserving framework-v9 precision |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Update Purchase Requisition
+
+Update Purchase Requisition in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `requisitionKey` | string | Yes | Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId |
+| `body` | json | Yes | Header fields as a JSON object: PreparerId, RequisitioningBUId, Description, Justification, EmergencyRequisitionFlag. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purchaseRequisition` | object | Purchase Requisition fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `RequisitionHeaderId` | string | Requisition Header Id as an exact decimal string |
+|   ↳ `Requisition` | string | Requisition |
+|   ↳ `Description` | string | Description |
+|   ↳ `DocumentStatus` | string | Document Status |
+|   ↳ `DocumentStatusCode` | string | Document Status Code |
+|   ↳ `PreparerId` | string | Preparer Id as an exact decimal string |
+|   ↳ `Preparer` | string | Preparer |
+|   ↳ `RequisitioningBUId` | string | Requisitioning BUId as an exact decimal string |
+|   ↳ `RequisitioningBU` | string | Requisitioning BU |
+|   ↳ `Justification` | string | Justification |
+|   ↳ `FunctionalCurrencyCode` | string | Functional Currency Code |
+|   ↳ `FundsStatus` | string | Funds Status |
+|   ↳ `FundsStatusCode` | string | Funds Status Code |
+|   ↳ `SubmissionDate` | string | Submission Date |
+|   ↳ `ApprovedDate` | string | Approved Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Update Supplier
+
+Update Supplier in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `supplierId` | string | Yes | Numeric SupplierId, preserved as a decimal string |
+| `body` | json | Yes | Header fields as a JSON object: Supplier, AlternateName, Alias, CorporateWebsite, SupplierTypeCode, OneTimeSupplierFlag, ParentSupplierId, InactiveDate. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplier` | object | Supplier fields |
+|   ↳ `SupplierId` | string | Supplier Id as an exact decimal string |
+|   ↳ `Supplier` | string | Supplier |
+|   ↳ `SupplierNumber` | string | Supplier Number |
+|   ↳ `SupplierPartyId` | string | Supplier Party Id as an exact decimal string |
+|   ↳ `AlternateName` | string | Alternate Name |
+|   ↳ `Alias` | string | Alias |
+|   ↳ `BusinessRelationship` | string | Business Relationship |
+|   ↳ `BusinessRelationshipCode` | string | Business Relationship Code |
+|   ↳ `SupplierType` | string | Supplier Type |
+|   ↳ `SupplierTypeCode` | string | Supplier Type Code |
+|   ↳ `Status` | string | Status |
+|   ↳ `CorporateWebsite` | string | Corporate Website |
+|   ↳ `OneTimeSupplierFlag` | boolean | One Time Supplier Flag |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Update Supplier Negotiation
+
+Update Supplier Negotiation in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `negotiationKey` | string | Yes | Opaque supplier-negotiation key from the key output; not AuctionHeaderId |
+| `body` | json | Yes | Header fields as a JSON object: NegotiationTitle, CurrencyCode, OpenDate, CloseDate, PreviewDate, OpenImmediatelyFlag, PreviewImmediatelyFlag, RestrictToInvitedSuppliersFlag, RequisitioningBUId, Synopsis. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplierNegotiation` | object | Supplier Negotiation fields |
+|   ↳ `key` | string | Authoritative opaque resource key from the Oracle self link |
+|   ↳ `AuctionHeaderId` | string | Auction Header Id as an exact decimal string |
+|   ↳ `Negotiation` | string | Negotiation |
+|   ↳ `NegotiationTitle` | string | Negotiation Title |
+|   ↳ `NegotiationType` | string | Negotiation Type |
+|   ↳ `NegotiationTypeId` | string | Negotiation Type Id as an exact decimal string |
+|   ↳ `NegotiationStyleId` | string | Negotiation Style Id as an exact decimal string |
+|   ↳ `NegotiationStatus` | string | Negotiation Status |
+|   ↳ `NegotiationStatusCode` | string | Negotiation Status Code |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `BuyerId` | string | Buyer Id as an exact decimal string |
+|   ↳ `Buyer` | string | Buyer |
+|   ↳ `CurrencyCode` | string | Currency Code |
+|   ↳ `OpenDate` | string | Open Date |
+|   ↳ `CloseDate` | string | Close Date |
+|   ↳ `AwardStatus` | string | Award Status |
+|   ↳ `SuppliersCount` | string | Suppliers Count as a decimal string, preserving framework-v9 precision |
+|   ↳ `SupplierResponses` | string | Supplier Responses as a decimal string, preserving framework-v9 precision |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Update Supplier Site
+
+Update Supplier Site in Oracle Fusion Procurement. Update only the supplied documented header fields. Unspecified fields are left unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `supplierId` | string | Yes | Numeric SupplierId, preserved as a decimal string |
+| `supplierSiteId` | string | Yes | Numeric SupplierSiteId belonging to the selected supplier, as a decimal string |
+| `body` | json | Yes | Header fields as a JSON object: SupplierSite, SitePurposePurchasingFlag, SitePurposeSourcingOnlyFlag, Email, CommunicationMethodCode, HoldAllNewPurchasingDocumentsFlag, PurchasingHoldReason, InactiveDate. Use decimal strings for integer IDs; unsupported fields are rejected. Explicit inputs override matching body fields. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `supplierSite` | object | Supplier Site fields |
+|   ↳ `SupplierSiteId` | string | Supplier Site Id as an exact decimal string |
+|   ↳ `SupplierSite` | string | Supplier Site |
+|   ↳ `ProcurementBUId` | string | Procurement BUId as an exact decimal string |
+|   ↳ `ProcurementBU` | string | Procurement BU |
+|   ↳ `SupplierAddressId` | string | Supplier Address Id as an exact decimal string |
+|   ↳ `SupplierAddressName` | string | Supplier Address Name |
+|   ↳ `SitePurposePurchasingFlag` | boolean | Site Purpose Purchasing Flag |
+|   ↳ `SitePurposeSourcingOnlyFlag` | boolean | Site Purpose Sourcing Only Flag |
+|   ↳ `Status` | string | Status |
+|   ↳ `Email` | string | Email |
+|   ↳ `CommunicationMethodCode` | string | Communication Method Code |
+|   ↳ `HoldAllNewPurchasingDocumentsFlag` | boolean | Hold All New Purchasing Documents Flag |
+|   ↳ `PurchasingHoldReason` | string | Purchasing Hold Reason |
+|   ↳ `InactiveDate` | string | Inactive Date |
+|   ↳ `CreationDate` | string | Creation Date |
+|   ↳ `LastUpdateDate` | string | Last Update Date |
+
+### Oracle Fusion Procurement Validate Draft Purchase Order
+
+Retrieve draft purchase-order validation warnings and errors without submitting. An HTTP success does not mean the document is valid; inspect result and hasMessages.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `draftPurchaseOrderKey` | string | Yes | Opaque draft purchase-order key from the key output; do not substitute POHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | array | Documented validation messages as string-valued dictionaries; inspect every warning or error before submitting |
+| `hasMessages` | boolean | Whether validation returned warnings or errors; false means no messages were returned |
+
+### Oracle Fusion Procurement Validate Or Publish Supplier Negotiation
+
+Explicitly validate OR publish a supplier negotiation using ActionIntent. Oracle business errors remain failures even when the HTTP request succeeds.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `negotiationKey` | string | Yes | Opaque supplier-negotiation key from the key output; not AuctionHeaderId |
+| `actionIntent` | string | Yes | Explicit action intent: Validate or Publish. Validation does not publish the negotiation |
+| `buyerId` | string | No | Numeric buyer person ID, as a decimal string \(not the agent assignment ID\) |
+| `ignoreWarnings` | boolean | No | Explicitly ignore negotiation publishing warnings \(true maps to Y, false to N\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | object | Projected validation or publication result from the documented 26C examples |
+|   ↳ `Status` | string | Oracle business status, such as SUCCESS or ERROR |
+|   ↳ `Message` | string | Oracle business-result message |
+|   ↳ `Negotiation` | string | Negotiation number, normalized to a string |
+|   ↳ `ErrorsListId` | string | Oracle validation error-list identifier |
+| `businessSuccess` | boolean | Whether Oracle reported Status SUCCESS, not merely an HTTP success |
+
+### Oracle Fusion Procurement Withdraw Purchase Requisition
+
+Explicitly withdraw a purchase requisition and check the nested STATUS/CODE business result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `requisitionKey` | string | Yes | Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | Documented dynamic dictionary of arrays of string-valued objects; result.STATUS contains CODE |
+| `businessSuccess` | boolean | Whether result.STATUS reports CODE SUCCESS |
+
+

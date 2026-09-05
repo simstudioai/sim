@@ -960,6 +960,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  oracle_fusion_procurement: {
+    name: 'Oracle Fusion Procurement',
+    icon: NetSuiteIcon,
+    services: {
+      oracle_fusion_procurement: {
+        name: 'Oracle Fusion Procurement',
+        description:
+          'Manage suppliers, requisitions, purchasing documents, and sourcing in Oracle Fusion.',
+        providerId: 'oracle_fusion_procurement',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_procurement',
+  },
   netsuite: {
     name: 'Oracle NetSuite',
     icon: NetSuiteIcon,
