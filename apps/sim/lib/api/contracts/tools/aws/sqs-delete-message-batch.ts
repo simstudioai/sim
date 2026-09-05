@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import {
+  hasDistinctBatchEntryIds,
+  SQS_DISTINCT_BATCH_ENTRY_IDS_MESSAGE,
   SQS_MAX_BATCH_ENTRIES,
   sqsBatchEntryIdSchema,
   sqsBatchResultErrorEntrySchema,
@@ -24,7 +26,8 @@ const DeleteMessageBatchSchema = z.object({
       })
     )
     .min(1, 'At least one entry is required')
-    .max(SQS_MAX_BATCH_ENTRIES, `A batch can hold at most ${SQS_MAX_BATCH_ENTRIES} entries`),
+    .max(SQS_MAX_BATCH_ENTRIES, `A batch can hold at most ${SQS_MAX_BATCH_ENTRIES} entries`)
+    .refine(hasDistinctBatchEntryIds, SQS_DISTINCT_BATCH_ENTRY_IDS_MESSAGE),
 })
 
 const DeleteMessageBatchResponseSchema = z.object({

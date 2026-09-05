@@ -273,7 +273,7 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
         enabled: true,
         prompt:
           'Generate an array of at most 10 Amazon SQS batch send entries. Each entry is an object with a unique "id" (letters, digits, hyphens, underscores) and a "data" JSON object holding the message body. Optional per-entry keys are delaySeconds, messageGroupId, messageDeduplicationId, and messageAttributes. Return ONLY the JSON array.',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -306,7 +306,7 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
         enabled: true,
         prompt:
           'Generate an array of at most 10 Amazon SQS delete-message batch entries. Each entry is an object with a unique "id" and the "receiptHandle" of a received message. Return ONLY the JSON array.',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -321,7 +321,7 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
         enabled: true,
         prompt:
           'Generate an array of at most 10 Amazon SQS change-message-visibility batch entries. Each entry is an object with a unique "id", the "receiptHandle" of a received message, and an optional "visibilityTimeout" in seconds between 0 and 43200. Return ONLY the JSON array.',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -617,10 +617,17 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
           return undefined
         }
 
+        /**
+         * `Number.parseInt` stops at the first non-digit, so `1.5` and `10abc`
+         * would forward `1` and `10` — a different setting than the one typed.
+         * `Number` rejects both by producing a non-integer or `NaN`.
+         */
         const parseInteger = (value: unknown, fieldName: string) => {
           if (value === undefined || value === null || value === '') return undefined
-          const parsed = Number.parseInt(String(value), 10)
-          if (Number.isNaN(parsed)) {
+          const text = String(value).trim()
+          if (!text) return undefined
+          const parsed = Number(text)
+          if (!Number.isInteger(parsed)) {
             throw new Error(`${fieldName} must be a whole number`)
           }
           return parsed

@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import {
   sqsConnectionFields,
-  sqsQueueAttributesSchema,
   sqsQueueUrlField,
+  sqsSetQueueAttributesSchema,
 } from '@/lib/api/contracts/tools/aws/sqs-shared'
 import type {
   ContractBody,
@@ -14,7 +14,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const SetQueueAttributesSchema = z.object({
   ...sqsConnectionFields,
   queueUrl: sqsQueueUrlField,
-  attributes: sqsQueueAttributesSchema.refine(
+  attributes: sqsSetQueueAttributesSchema.refine(
     (value) => Object.keys(value).length > 0,
     'At least one queue attribute is required'
   ),

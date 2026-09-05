@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
   sqsConnectionFields,
-  sqsQueueAttributesSchema,
+  sqsCreateQueueAttributesSchema,
   sqsQueueNameField,
   sqsTagsSchema,
 } from '@/lib/api/contracts/tools/aws/sqs-shared'
@@ -15,7 +15,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const CreateQueueSchema = z.object({
   ...sqsConnectionFields,
   queueName: sqsQueueNameField,
-  attributes: sqsQueueAttributesSchema.nullish(),
+  attributes: sqsCreateQueueAttributesSchema.nullish(),
   tags: sqsTagsSchema.nullish(),
 })
 
