@@ -10,6 +10,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[AWS CloudTrail](https://aws.amazon.com/cloudtrail/) records who did what in your AWS accounts. Every API call — from the console, the CLI, an SDK, or another AWS service — is captured as an event with the calling identity, source IP, parameters, and result. It is the system of record for security investigation, compliance evidence, and answering "what changed?"
+
+With AWS CloudTrail, you can:
+
+- **Look up recent activity**: Search the last 90 days of management events by user, event name, resource, or event source
+- **Inspect trail configuration**: Describe trails, check logging status, and read the event and Insights selectors that decide what gets captured
+- **Query history with SQL**: Run CloudTrail Lake queries across event data stores for analysis that reaches further back than event lookup
+- **Confirm coverage**: Verify that logging is actually enabled and that multi-region and organization trails are delivering
+
+In Sim, CloudTrail is the audit half of the AWS story. Where IAM and Identity Center answer *who has access*, CloudTrail answers *what they actually did with it* — so an agent can take a suspicious permission change and trace it back to the principal, the source IP, and the moment it happened, then hand a written timeline to whoever needs to act on it.
+
+This block is read-only with one narrow exception: `Cancel Query` stops a running CloudTrail Lake query. It never enables or disables logging, alters trail configuration, or deletes a trail, so it can be granted a `cloudtrail:Describe*/Get*/List*/LookupEvents/StartQuery` policy with no residual write risk. Note that `Start Query` is billed per GB scanned and consumes your account's concurrent-query quota.
+
+`Lookup Events` is limited by AWS to two requests per second per account per Region. The block paces itself against that limit automatically, so broad searches take longer rather than failing.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan. Requires AWS access key and secret access key.

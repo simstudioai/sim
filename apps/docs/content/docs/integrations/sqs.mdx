@@ -21,11 +21,14 @@ With Amazon SQS, you can:
 - **Ensure reliability**: Built-in redundancy and high availability
 - **Support FIFO queues**: Maintain strict message ordering and exactly-once processing
 
-In Sim, the SQS integration enables your agents to send messages to Amazon SQS queues securely and programmatically. Supported operations include:
+In Sim, the SQS integration gives your agents both sides of the queue — producing work and consuming it. Supported operations cover:
 
-- **Send Message**: Send messages to SQS queues with optional message group ID and deduplication ID for FIFO queues
+- **Messages**: Send one message or a batch of up to 10, receive with long polling, delete individually or in batches, and extend visibility timeouts while work is still in flight
+- **Queues**: Create, delete, and purge queues, look up a queue URL by name, and read or update queue attributes
+- **Dead-letter handling**: List the source queues feeding a dead-letter queue, then start, monitor, and cancel message move tasks to redrive failed messages back
+- **Tags**: List, add, and remove queue tags for cost allocation and ownership tracking
 
-This integration allows your agents to automate message sending workflows without manual intervention. By connecting Sim with Amazon SQS, you can build agents that publish messages to queues within your workflows—all without handling queue infrastructure or connections.
+Because an agent can now drain a queue rather than only fill it, SQS becomes a way to hand work to Sim as well as from it. A workflow can long-poll a queue for jobs, process each message, delete it on success, and let the visibility timeout return anything it fails to finish — the standard reliable-consumer pattern, without running a worker of your own.
 {/* MANUAL-CONTENT-END */}
 
 
