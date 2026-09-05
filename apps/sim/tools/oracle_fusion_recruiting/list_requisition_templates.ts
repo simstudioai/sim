@@ -1,4 +1,9 @@
-import { credentials, internalExecution, page, search } from '@/tools/oracle_fusion_recruiting/common'
+import {
+  credentials,
+  internalExecution,
+  page,
+  search,
+} from '@/tools/oracle_fusion_recruiting/common'
 import {
   LIST_REQUISITION_TEMPLATES_OUTPUTS,
   type OracleFusionRecruitingListRequisitionTemplatesParams,

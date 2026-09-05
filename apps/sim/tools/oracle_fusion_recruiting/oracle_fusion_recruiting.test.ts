@@ -89,7 +89,10 @@ describe('Recruiting block and tools', () => {
     const map = OracleFusionRecruitingBlock.tools.config.params
     if (!map) throw new Error('Expected mapping')
     expect(
-      map({ operation: 'update_requisition', requisitionBody: '{"RecruiterId":"9007199254740993"}' })
+      map({
+        operation: 'update_requisition',
+        requisitionBody: '{"RecruiterId":"9007199254740993"}',
+      })
     ).toMatchObject({ body: { RecruiterId: '9007199254740993' } })
   })
 })

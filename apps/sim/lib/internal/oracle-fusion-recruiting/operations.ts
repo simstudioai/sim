@@ -212,6 +212,12 @@ async function resolveCandidate(
     input,
     'recruitingCandidates',
     CANDIDATE_FIELDS,
+    'CandidateNumber',
+    input.candidateNumber,
+    projectors.projectCandidate,
+    (value) => value.candidateNumber,
+    signal
+  )
 }
 
 async function resolveRequisition(

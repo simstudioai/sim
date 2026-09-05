@@ -542,5 +542,4 @@ describe('Recruiting provider operations', () => {
     )
     expect(mocks.json).toHaveBeenCalledOnce()
   })
-
 })
