@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { cloudtrailTrailNameOrArnSchema } from '@/lib/api/contracts/tools/aws/cloudtrail-shared'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -6,22 +7,6 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
-
-/**
- * A trail name (3-128 chars, ASCII alphanumerics plus non-adjacent `.`, `_`, `-`,
- * starting and ending alphanumeric) or a full trail ARN. Shadow trails and
- * organization trails in another Region can only be addressed by ARN.
- * @see https://docs.aws.amazon.com/awscloudtrail/latest/APIReference/API_GetTrail.html
- */
-const trailNameOrArnSchema = z
-  .string()
-  .trim()
-  .min(3, 'Trail name must be at least 3 characters')
-  .max(256, 'Trail name or ARN is too long')
-  .regex(
-    /^(?:arn:aws[a-zA-Z0-9-]*:cloudtrail:[a-z0-9-]+:\d{12}:trail\/[\w.\-/]+|[a-zA-Z0-9](?:[._-]?[a-zA-Z0-9]+)+)$/,
-    'Must be a valid trail name or trail ARN'
-  )
 
 /**
  * The ARN, or the ID suffix of the ARN, of a CloudTrail Lake event data store.
@@ -44,7 +29,7 @@ const GetInsightSelectorsSchema = z
       }),
     accessKeyId: z.string().min(1, 'AWS access key ID is required'),
     secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-    trailName: trailNameOrArnSchema.optional(),
+    trailName: cloudtrailTrailNameOrArnSchema.optional(),
     eventDataStore: eventDataStoreSchema.optional(),
   })
   .refine((v) => Boolean(v.trailName) !== Boolean(v.eventDataStore), {

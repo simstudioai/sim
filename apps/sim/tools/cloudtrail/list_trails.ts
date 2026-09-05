@@ -71,16 +71,20 @@ export const listTrailsTool: InternalToolConfig<
       items: {
         type: 'object',
         properties: {
-          trailArn: { type: 'string', description: 'ARN of the trail' },
-          name: { type: 'string', description: 'Trail name' },
-          homeRegion: { type: 'string', description: 'Region in which the trail was created' },
+          trailArn: { type: 'string', description: 'ARN of the trail', nullable: true },
+          name: { type: 'string', description: 'Trail name', nullable: true },
+          homeRegion: {
+            type: 'string',
+            description: 'Region in which the trail was created',
+            nullable: true,
+          },
         },
       },
     },
     nextToken: {
       type: 'string',
-      description: 'Pagination token for the next page of trails',
-      optional: true,
+      description: 'Pagination token for the next page of trails, or null on the last page',
+      nullable: true,
     },
   },
 }

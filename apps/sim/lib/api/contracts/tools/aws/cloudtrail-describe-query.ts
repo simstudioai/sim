@@ -7,6 +7,12 @@ import type {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
+/**
+ * `DescribeQuery` requires either `QueryId` or `QueryAlias`. AWS documents `RefreshId` as
+ * something you "provide along with `QueryAlias`" to read a dashboard refresh, so it is
+ * rejected when the query is addressed by ID.
+ * @see https://docs.aws.amazon.com/awscloudtrail/latest/APIReference/API_DescribeQuery.html
+ */
 const DescribeQuerySchema = z
   .object({
     region: z
@@ -44,9 +50,21 @@ const DescribeQuerySchema = z
       .regex(/^\d+$/, 'Account ID must be numeric')
       .optional(),
   })
-  .refine((v) => Boolean(v.queryId) !== Boolean(v.queryAlias), {
-    message: 'Specify exactly one of queryId or queryAlias',
-    path: ['queryId'],
+  .superRefine((v, ctx) => {
+    if (Boolean(v.queryId) === Boolean(v.queryAlias)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Specify exactly one of queryId or queryAlias',
+        path: ['queryId'],
+      })
+    }
+    if (v.refreshId && !v.queryAlias) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'refreshId identifies a dashboard refresh and is only valid with queryAlias',
+        path: ['refreshId'],
+      })
+    }
   })
 
 const DescribeQueryResponseSchema = z.object({
