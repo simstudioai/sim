@@ -58,11 +58,17 @@ function revealBubbleMenu(editor: Editor, key: PluginKey): void {
   editor.commands.setMeta(key, 'updatePosition')
 }
 
-/** Selects a caret's complete link so the bookmark, URL, and active controls share one target. */
-function linkSelectionBookmark(editor: Editor): SelectionBookmark | null {
+interface LinkSelection {
+  target: SelectionBookmark
+  original: SelectionBookmark
+}
+
+/** Keep the editing target separate from the selection restored when the user cancels. */
+function captureLinkSelection(editor: Editor): LinkSelection | null {
+  const original = editor.state.selection.getBookmark()
   if (editor.state.selection.empty) editor.commands.extendMarkRange('link')
   const { selection } = editor.state
-  return selection.empty ? null : selection.getBookmark()
+  return selection.empty ? null : { target: selection.getBookmark(), original }
 }
 
 interface EditorBubbleMenuProps {
@@ -86,7 +92,7 @@ export function EditorBubbleMenu({
 }: EditorBubbleMenuProps) {
   const [linkValue, setLinkValue] = useState<string | null>(null)
   const linkInputRef = useRef<HTMLInputElement>(null)
-  const linkRangeRef = useRef<SelectionBookmark | null>(null)
+  const linkSelectionRef = useRef<LinkSelection | null>(null)
   const isEditingLink = linkValue !== null
 
   const [bubbleMenuKey] = useState(() => new PluginKey('markdownBubbleMenu'))
@@ -129,18 +135,25 @@ export function EditorBubbleMenu({
       transaction: Transaction
       appendedTransactions?: Transaction[]
     }) => {
-      let bookmark = linkRangeRef.current
-      if (!bookmark) return
-      for (const change of [transaction, ...appendedTransactions])
-        bookmark = bookmark.map(change.mapping)
-      const selection = bookmark.resolve(editor.state.doc)
-      linkRangeRef.current =
-        selection instanceof TextSelection && !selection.empty ? bookmark : null
-      if (!linkRangeRef.current) setLinkValue(null)
+      let captured = linkSelectionRef.current
+      if (!captured) return
+      for (const change of [transaction, ...appendedTransactions]) {
+        captured = {
+          target: captured.target.map(change.mapping),
+          original: captured.original.map(change.mapping),
+        }
+      }
+      const selection = captured.target.resolve(editor.state.doc)
+      linkSelectionRef.current =
+        selection instanceof TextSelection && !selection.empty ? captured : null
+      if (!linkSelectionRef.current) setLinkValue(null)
     }
     const exitOnCollapse = () => {
       const { from, to } = editor.state.selection
-      if (from === to) setLinkValue(null)
+      if (from === to) {
+        linkSelectionRef.current = null
+        setLinkValue(null)
+      }
     }
     editor.on('selectionUpdate', exitOnCollapse)
     editor.on('transaction', mapLinkRange)
@@ -184,9 +197,9 @@ export function EditorBubbleMenu({
 
   const openLinkEditor = () => {
     if (!editor.isEditable || editor.isActive('codeBlock') || editor.isActive('code')) return
-    const bookmark = linkSelectionBookmark(editor)
-    if (!bookmark) return
-    linkRangeRef.current = bookmark
+    const captured = captureLinkSelection(editor)
+    if (!captured) return
+    linkSelectionRef.current = captured
     setLinkValue(editor.getAttributes('link').href ?? '')
   }
 
@@ -204,10 +217,10 @@ export function EditorBubbleMenu({
         return
       if (event.key?.toLowerCase() !== 'k') return
       if (editor.isActive('codeBlock') || editor.isActive('code')) return
-      const bookmark = linkSelectionBookmark(editor)
-      if (!bookmark) return
+      const captured = captureLinkSelection(editor)
+      if (!captured) return
       event.preventDefault()
-      linkRangeRef.current = bookmark
+      linkSelectionRef.current = captured
       setLinkValue(editor.getAttributes('link').href ?? '')
     }
     dom.addEventListener('keydown', openLinkOnShortcut)
@@ -218,18 +231,27 @@ export function EditorBubbleMenu({
 
   const commitCapturedLink = (href: string) => {
     if (editor.isDestroyed || !editor.isEditable) return
-    const selection = linkRangeRef.current?.resolve(editor.state.doc)
+    const selection = linkSelectionRef.current?.target.resolve(editor.state.doc)
     if (selection instanceof TextSelection && !selection.empty) {
       applyLink(
         editor.chain().focus().setTextSelection({ from: selection.from, to: selection.to }),
         href
       )
     }
-    linkRangeRef.current = null
+    linkSelectionRef.current = null
     setLinkValue(null)
   }
   const commitLink = () => commitCapturedLink(linkValue ?? '')
   const removeLink = () => commitCapturedLink('')
+
+  const cancelLink = () => {
+    const captured = linkSelectionRef.current
+    linkSelectionRef.current = null
+    setLinkValue(null)
+    if (!captured || editor.isDestroyed) return
+    editor.view.dispatch(editor.state.tr.setSelection(captured.original.resolve(editor.state.doc)))
+    editor.commands.focus()
+  }
 
   const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
   const canFocus = useCallback(
@@ -241,6 +263,7 @@ export function EditorBubbleMenu({
     pluginKey: bubbleMenuKey,
     roving: !isEditingLink,
     canFocus,
+    onEscape: isEditingLink ? cancelLink : undefined,
   })
 
   const shouldShow = useCallback(
@@ -279,7 +302,7 @@ export function EditorBubbleMenu({
               value={linkValue ?? ''}
               onChange={setLinkValue}
               onCommit={commitLink}
-              onCancel={() => setLinkValue(null)}
+              onCancel={cancelLink}
             />
             {active.link && (
               <ToolbarButton icon={Unlink} label='Remove link' onClick={removeLink} />

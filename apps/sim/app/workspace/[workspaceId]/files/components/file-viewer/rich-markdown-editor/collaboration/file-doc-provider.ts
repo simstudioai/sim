@@ -170,8 +170,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private updateFlushInProgress = false
   private recoveryApplied = false
   private recoveryQueued = false
-  private recoveryDocId: string | null = null
-  private pendingChangesDiscarded = false
   private beforeUnloadProtected = false
   private readonly journal: PendingFileDocUpdateJournal | null
   private readonly journalLoad: ReturnType<PendingFileDocUpdateJournal['load']>
@@ -434,7 +432,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
 
     if (recovered !== null && !this.recoveryApplied) {
-      this.recoveryDocId = recovered.docId
       const validationDoc = new Y.Doc()
       try {
         if (recovered.recoverySnapshot) {
@@ -442,10 +439,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
         }
         Y.applyUpdate(validationDoc, recovered.pendingUpdate)
       } catch {
-        this.failFatally(
-          'The local recovery copy is damaged. Download the current draft before discarding it.',
-          'INVALID_UPDATE'
-        )
+        this.failFatally('The local recovery copy is damaged.', 'INVALID_UPDATE')
         return
       } finally {
         validationDoc.destroy()
@@ -456,10 +450,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
         }
         Y.applyUpdate(this.doc, recovered.pendingUpdate, RECOVERY_ORIGIN)
       } catch {
-        this.failFatally(
-          'The local recovery copy could not be restored. Download the current draft before discarding it.',
-          'INVALID_UPDATE'
-        )
+        this.failFatally('The local recovery copy could not be restored.', 'INVALID_UPDATE')
         return
       }
       this.recoveryApplied = true
@@ -760,16 +751,13 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
         ? Y.mergeUpdates([this.inFlightUpdate.update, update])
         : update
       const saved = await this.journal?.save(docId, journalUpdate, Y.encodeStateAsUpdate(this.doc))
-      if (this.disposed || this.fatal || this.pendingChangesDiscarded) {
-        if (!this.pendingChangesDiscarded) this.queuePendingUpdate(update)
+      if (this.disposed || this.fatal) {
+        this.queuePendingUpdate(update)
         return
       }
       if (saved?.status === 'limit-exceeded') {
         this.queuePendingUpdate(update)
-        this.failFatally(
-          'Local edits exceeded the safe recovery limit; download your draft before reloading',
-          'PENDING_UPDATE_LIMIT'
-        )
+        this.failFatally('Local edits exceeded the safe recovery limit.', 'PENDING_UPDATE_LIMIT')
         return
       }
       const durableUpdate = saved?.pendingUpdate ?? update
@@ -881,7 +869,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private persistPendingSnapshot(): Promise<void> | undefined {
-    if (this.pendingChangesDiscarded) return
     const update = this.pendingJournalUpdate()
     const docId = this.docId()
     if (!update || !docId || !this.journal) return
@@ -901,7 +888,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (typeof window === 'undefined') return
     const shouldProtect =
       !this.disposed &&
-      !this.pendingChangesDiscarded &&
       (this.pendingUpdateBatch.length > 0 ||
         this.inFlightUpdate !== null ||
         this.updateFlushInProgress)
@@ -909,17 +895,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.beforeUnloadProtected = shouldProtect
     if (shouldProtect) window.addEventListener('beforeunload', this.handleBeforeUnload)
     else window.removeEventListener('beforeunload', this.handleBeforeUnload)
-  }
-
-  /** Remove the stale recovery record before deliberately loading a replacement document. */
-  discardPendingChanges(): Promise<void> {
-    this.pendingChangesDiscarded = true
-    this.clearUpdateTimers()
-    this.pendingUpdateBatch = []
-    this.inFlightUpdate = null
-    this.updateBeforeUnloadProtection()
-    const docId = this.recoveryDocId ?? this.docId()
-    return docId ? (this.journal?.discard(docId) ?? Promise.resolve()) : Promise.resolve()
   }
 
   private clearBufferedMessages(): void {

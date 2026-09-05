@@ -17,10 +17,9 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor'
 
-const { collaborationRef, uploadFile, saveBlob } = vi.hoisted(() => ({
+const { collaborationRef, uploadFile } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
   uploadFile: vi.fn(),
-  saveBlob: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -32,7 +31,6 @@ vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
 }))
 vi.mock('@/hooks/use-add-to-chat', () => ({ useAddToChat: () => vi.fn() }))
-vi.mock('@/lib/uploads/client/download', () => ({ saveBlob }))
 vi.mock('@/hooks/use-file-content-source', () => ({
   useFileContentSource: () => ({ resolveImageSrc: (src: string) => src }),
 }))
@@ -103,7 +101,6 @@ const onChange = vi.fn()
 const onEditSource = vi.fn()
 const onClientAutosaveChange = vi.fn()
 const onSaveShortcut = vi.fn()
-const onDownloadDraft = vi.fn()
 const onSuspendedRender = vi.fn()
 const pendingRender = new Promise<void>(() => {})
 
@@ -122,7 +119,6 @@ function SuspendAfterEditor({ active }: SuspendAfterEditorProps) {
 class FakeFileDocProvider {
   synced = false
   joinError: JoinFileDocError | null = null
-  discardPendingChanges = vi.fn(() => Promise.resolve())
   private readonly listeners = new Map<string, Set<(value: unknown) => void>>()
 
   on(event: string, listener: (value: unknown) => void) {
@@ -182,7 +178,6 @@ async function render(
             onEditSource={onEditSource}
             onClientAutosaveChange={onClientAutosaveChange}
             onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
-            onDownloadDraft={onDownloadDraft}
           />
           <SuspendAfterEditor active={options.suspend ?? false} />
         </Suspense>
@@ -261,9 +256,13 @@ describe('loaded rich editor lifecycle', () => {
     expect(editor.isEditable).toBe(true)
     expect(editor.view.dom.getAttribute('aria-readonly')).toBe('false')
     expect(container.textContent).not.toContain('Reconnecting…')
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
   })
 
-  it('keeps a revoked unacknowledged draft visible, read-only, and downloadable', async () => {
+  it('keeps revoked pending edits visible and read-only without draft-management prompts', async () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
@@ -294,7 +293,13 @@ describe('loaded rich editor lifecycle', () => {
     expect(editor.view.dom.closest('.hidden')).toBeNull()
     expect(container.textContent).not.toContain('stale opening snapshot')
     expect(container.textContent).not.toContain('Reconnecting…')
-    expect(container.textContent).toContain('Download local draft')
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      'You no longer have edit access to this document.'
+    )
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('[role="alert"], [role="dialog"]')).toBeNull()
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
   })
 
   it('shows stored content read-only when collaboration fails before the first sync', async () => {
@@ -326,7 +331,7 @@ describe('loaded rich editor lifecycle', () => {
   })
 
   it.each(['DOCUMENT_REPLACED', 'PENDING_UPDATE_LIMIT', 'INVALID_UPDATE'])(
-    'keeps a local draft downloadable before offering a destructive reload for %s',
+    'preserves pending edits with only a passive status for %s',
     async (code) => {
       const provider = new FakeFileDocProvider()
       const doc = new Y.Doc()
@@ -350,21 +355,15 @@ describe('loaded rich editor lifecycle', () => {
         })
       )
 
-      const buttons = [...container.querySelectorAll('button')]
-      const download = buttons.find((button) => button.textContent === 'Download local draft')
-      expect(download).toBeDefined()
-      expect(buttons.some((button) => button.textContent === 'Discard draft')).toBe(true)
-      await act(async () => download?.click())
-      expect(onDownloadDraft).not.toHaveBeenCalled()
-      expect(saveBlob).toHaveBeenCalledOnce()
-      const downloaded = saveBlob.mock.calls[0][0] as Blob
-      const downloadedText = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result))
-        reader.onerror = () => reject(reader.error)
-        reader.readAsText(downloaded)
-      })
-      expect(downloadedText).toContain('preserved local change')
+      expect(container.querySelector('[role="status"]')?.textContent).toBe(
+        'Live editing is unavailable.'
+      )
+      expect(container.querySelector('button')).toBeNull()
+      expect(container.querySelector('[role="alert"], [role="dialog"]')).toBeNull()
+      expect(container.textContent).not.toContain('Reconnecting…')
+      expect(toast.warning).not.toHaveBeenCalled()
+      expect(toast.info).not.toHaveBeenCalled()
+      expect(getEditor().isEditable).toBe(false)
       expect(getEditor().getText()).toContain('preserved local change')
     }
   )

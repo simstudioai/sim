@@ -178,19 +178,7 @@ export class PendingFileDocUpdateJournal {
     )
   }
 
-  /** Deliberately abandon one recovery identity after the user has preserved its local draft. */
-  discard(docId: string): Promise<void> {
-    return this.enqueue(
-      () =>
-        updateValue<unknown>(this.key, (value) =>
-          record(liveDocuments(value, Date.now()).filter((document) => document.docId !== docId))
-        ),
-      undefined,
-      true
-    )
-  }
-
-  private enqueue<T>(operation: () => Promise<T>, fallback: T, rethrow = false): Promise<T> {
+  private enqueue<T>(operation: () => Promise<T>, fallback: T): Promise<T> {
     const result = this.mutationQueue.then(operation, operation)
     this.mutationQueue = result.then(
       () => undefined,
@@ -198,7 +186,6 @@ export class PendingFileDocUpdateJournal {
     )
     return result.catch((error) => {
       logger.warn('Failed to persist pending file edits', { error })
-      if (rethrow) throw error
       return fallback
     })
   }
