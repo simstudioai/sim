@@ -1,75 +1,158 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { cn, Tooltip } from '@sim/emcn'
-import {
-  ArrowRight,
-  ArrowUp,
-  Duplicate,
-  Mic,
-  Paperclip,
-  Plus,
-  Slash,
-  ThumbsDown,
-  ThumbsUp,
-} from '@sim/emcn/icons'
-import { ThinkingLoader } from '@/components/ui'
+import { useEffect, useRef, useState } from 'react'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Mic, Paperclip, Plus, Slash, X } from '@sim/emcn/icons'
+import { HeroChatWelcome } from '@/app/(landing)/components/hero/components/hero-chat-welcome'
 import { HERO_TOOLTIP_OFFSET } from '@/app/(landing)/components/hero/components/hero-platform-loop/sidebar-hotspots'
+import {
+  AgentGroup,
+  type AgentGroupItem,
+  ChatContent,
+  PendingTagIndicator,
+  QuestionDisplay,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components'
+import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { SendButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/send-button/send-button'
+import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
-/** The conversation the loop plays - mirrors the seeded capture chat. */
-const USER_MESSAGE = 'When a new lead signs up, enrich it with company data and post it to #sales.'
-const REPLY_MESSAGE =
-  "On it. I'll build a workflow that enriches each new signup with firmographics, scores it, and posts a summary to your #sales channel in Slack."
-const REPLY_WORDS = REPLY_MESSAGE.split(' ')
 /** Word-reveal cadence for the streamed reply. */
 const STREAM_WORD_MS = 55
-/** Follow-up suggestions shown once the reply completes, like the real chat. */
-const FOLLOW_UPS = [
-  'Run a test with a sample lead',
-  'Deploy the workflow',
-  'Add lead scoring criteria',
-] as const
+const WORKFLOW_AGENT_ITEMS: AgentGroupItem[] = [
+  {
+    type: 'tool',
+    data: {
+      id: 'hero-read-slack',
+      toolName: 'call_integration_tool',
+      displayTitle: 'Read Slack',
+      status: ToolCallStatus.success,
+      params: { toolId: 'slack_get_channel_history' },
+    },
+  },
+  {
+    type: 'tool',
+    data: {
+      id: 'hero-create-workflow',
+      toolName: 'edit_workflow',
+      displayTitle: 'Creating Lead enrichment',
+      status: ToolCallStatus.success,
+    },
+  },
+  {
+    type: 'tool',
+    data: {
+      id: 'hero-read-table',
+      toolName: 'read',
+      displayTitle: 'Reading Tables',
+      status: ToolCallStatus.success,
+      params: { path: 'components/blocks/table.json' },
+    },
+  },
+  {
+    type: 'text',
+    content: 'Connected the Slack and Tables steps',
+  },
+  {
+    type: 'tool',
+    data: {
+      id: 'hero-edit-workflow',
+      toolName: 'edit_workflow',
+      displayTitle: 'Editing workflow',
+      status: ToolCallStatus.success,
+    },
+  },
+]
+
+const WORKFLOW_AGENT_BUILDING_ITEMS: AgentGroupItem[] = WORKFLOW_AGENT_ITEMS.map((item) => {
+  if (item.type !== 'tool' || item.data.id !== 'hero-edit-workflow') return item
+  return { ...item, data: { ...item.data, status: ToolCallStatus.executing } }
+})
+
+const SIM_ITEMS: AgentGroupItem[] = [
+  {
+    type: 'tool',
+    data: {
+      id: 'hero-read-workflow',
+      toolName: 'read',
+      displayTitle: 'Reading workflow',
+      status: ToolCallStatus.success,
+      params: { path: 'workflows/Lead%20enrichment/state.json' },
+    },
+  },
+]
+
+const FOLLOW_UP_QUESTION: QuestionItem[] = [
+  {
+    type: 'single_select',
+    prompt: 'What would you like to do next?',
+    options: [
+      { id: 'test', label: 'Run a test with a sample lead' },
+      { id: 'deploy', label: 'Deploy the workflow' },
+    ],
+  },
+]
 
 /** Where the chat pane is within one loop pass. */
-export type HeroChatPhase = 'idle' | 'user' | 'thinking' | 'reply'
+export type HeroChatPhase =
+  | 'idle'
+  | 'compose'
+  | 'user'
+  | 'thinking'
+  | 'dispatching'
+  | 'building'
+  | 'reply'
 
 interface HeroChatLoopProps {
-  /** Current phase, driven by the parent {@link HeroPlatformLoop} clock. */
+  /** Current phase, driven by the landing-safe product adapter. */
   phase: HeroChatPhase
-  /** True during the brief fade-out before the cycle restarts. */
+  /** True during a visual reset. */
   fading: boolean
+  userMessage: string
+  replyMessage: string
+  composerValue: string
+  isSending: boolean
+  onComposerValueChange: (value: string) => void
+  onComposerFocus?: () => void
+  showWelcome?: boolean
+  onOpenWorkflowResource: () => void
+  onFollowUpSelect: (value: string) => void
+  onSubmit: () => void
+  onStopGeneration: () => void
 }
 
 /**
- * The Mothership chat pane of the hero's live layer - purely presentational;
- * the loop clock lives in `HeroPlatformLoop` so the chat and the workflow
- * stage animate off one timeline. Replays one exchange: the user message
- * slides in, the goo {@link ThinkingLoader} cycles while the Mothership
- * thinks, the reply lands with its action row.
- *
- * Visuals mirror the real chat pane (`--bg` column, grey user bubble, bare
- * reply text, the real composer chrome - 28px round icon buttons, mic + the
- * `#808080` send disc on the right cluster) so the seam with the surrounding
- * screenshot is invisible. The reply STREAMS in word by word (the way the
- * real Mothership streams its responses); once the text completes, the
- * "Suggested follow-ups" block (the real special-tags markup: numbered
- * `--border`-ruled rows with a trailing arrow) and the action row land
- * together; under `prefers-reduced-motion` it appears whole.
- * The content column is centered and capped (like the real full-width
- * MothershipChat) so it reads right both full-width (stage collapsed) and at
- * half width (stage open). Only the conversation fades on reset - the pane
- * and composer are persistent chrome.
+ * A landing-safe adapter for Sim's real Mothership chat presentation. It
+ * preserves the production composer dimensions and send control while all
+ * messages, attachments, follow-ups, and workflow-build state remain local to
+ * the browser preview.
  */
-export function HeroChatLoop({ phase, fading }: HeroChatLoopProps) {
-  const showUser = phase !== 'idle'
-  const showThinking = phase === 'thinking'
+export function HeroChatLoop({
+  phase,
+  fading,
+  userMessage,
+  replyMessage,
+  composerValue,
+  isSending,
+  onComposerValueChange,
+  onComposerFocus,
+  showWelcome = false,
+  onOpenWorkflowResource,
+  onFollowUpSelect,
+  onSubmit,
+  onStopGeneration,
+}: HeroChatLoopProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const showUser = phase !== 'idle' && phase !== 'compose'
+  const welcome = showWelcome && !showUser
+  const showThinking = phase === 'thinking' || phase === 'dispatching'
+  const showBuilding = phase === 'building'
   const showReply = phase === 'reply'
+  const replyWordCount = replyMessage.trim().split(/\s+/).length
   const [revealedWords, setRevealedWords] = useState(0)
+  const [attachedFileName, setAttachedFileName] = useState<string | null>(null)
 
-  // Stream the reply word by word while the phase holds on 'reply'; any other
-  // phase (the next cycle's reset) rewinds it for the following pass. The
-  // count derives from ELAPSED time, not tick count, so throttled background
-  // tabs catch up in chunks instead of stalling mid-sentence.
   useEffect(() => {
     if (!showReply) {
       setRevealedWords(0)
@@ -83,20 +166,16 @@ export function HeroChatLoop({ phase, fading }: HeroChatLoopProps) {
       const startedAt = performance.now()
       interval = setInterval(() => {
         const elapsed = performance.now() - startedAt
-        const n = Math.min(Math.floor(elapsed / STREAM_WORD_MS) + 1, REPLY_WORDS.length)
+        const n = Math.min(Math.floor(elapsed / STREAM_WORD_MS) + 1, replyWordCount)
         setRevealedWords(n)
-        if (n >= REPLY_WORDS.length && interval) clearInterval(interval)
+        if (n >= replyWordCount && interval) clearInterval(interval)
       }, STREAM_WORD_MS)
     }
 
-    // Re-synced on 'change' (not just on mount) so toggling the preference
-    // mid-stream - e.g. HeroPlatformLoop's showFinished setting phase to
-    // 'reply' while it's already 'reply' - still snaps the reply to complete
-    // instead of leaving it mid-word until the running interval catches up.
     const syncMotionPreference = () => {
       if (interval) clearInterval(interval)
       if (media.matches) {
-        setRevealedWords(REPLY_WORDS.length)
+        setRevealedWords(replyWordCount)
         return
       }
       stream()
@@ -108,126 +187,239 @@ export function HeroChatLoop({ phase, fading }: HeroChatLoopProps) {
       media.removeEventListener('change', syncMotionPreference)
       if (interval) clearInterval(interval)
     }
-  }, [showReply])
+  }, [replyWordCount, showReply])
 
-  const replyComplete = revealedWords >= REPLY_WORDS.length
+  const replyComplete = revealedWords >= replyWordCount
+  const canSubmit = composerValue.trim().length > 0 || attachedFileName !== null
+
+  const updateComposer = (value: string) => {
+    onComposerValueChange(value)
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  const submitComposer = () => {
+    if (!canSubmit) return
+    onSubmit()
+    setAttachedFileName(null)
+  }
+
+  const selectFollowUp = (message: string) => {
+    const answer = parseQuestionAnswerMessage(FOLLOW_UP_QUESTION, message)?.[0]
+    onFollowUpSelect(answer ?? message)
+  }
 
   return (
-    <div className='flex h-full w-full flex-col bg-[var(--bg)]'>
+    <div
+      className='relative flex h-full w-full flex-col bg-[var(--bg)]'
+      data-chat-view={welcome ? 'welcome' : 'conversation'}
+      data-chat-phase={phase}
+    >
       <div
+        inert={welcome}
+        aria-hidden={welcome}
         className={cn(
-          'mx-auto flex min-h-0 w-full max-w-[640px] flex-1 flex-col gap-6 overflow-hidden px-6 pt-6 transition-opacity duration-300 ease-out',
-          fading ? 'opacity-0' : 'opacity-100'
+          'mx-auto flex min-h-0 w-full max-w-chat flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden px-6 pt-4 transition-opacity duration-300 ease-out [scrollbar-gutter:stable_both-edges] motion-reduce:transition-none',
+          showWelcome && (attachedFileName ? 'mb-[144px]' : 'mb-[110px]'),
+          fading || welcome ? 'opacity-0' : 'opacity-100'
         )}
       >
         <div
           className={cn(
-            'max-w-[82%] self-end rounded-2xl bg-[var(--surface-3)] px-4 py-3 text-[15px] text-[var(--text-primary)] leading-[1.5] transition-[opacity,transform] duration-200 ease-out',
+            'max-w-[70%] shrink-0 self-end overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2 text-[var(--text-primary)] text-sm leading-5 transition-[opacity,transform] duration-200 ease-out',
             showUser ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
           )}
         >
-          {USER_MESSAGE}
+          {userMessage}
         </div>
-
-        {showThinking && <ThinkingLoader size={26} phase labelRatio={0.58} className='mt-1' />}
 
         <div
           className={cn(
-            'flex flex-col gap-4 transition-opacity duration-200 ease-out',
-            showReply ? 'opacity-100' : 'opacity-0'
+            'flex flex-col gap-[10px] transition-opacity duration-200 ease-out',
+            showThinking || showBuilding || showReply ? 'opacity-100' : 'opacity-0'
           )}
         >
-          <p className='text-[15px] text-[var(--text-primary)] leading-[1.6]'>
-            {REPLY_WORDS.slice(0, revealedWords).join(' ')}
-          </p>
-          <div
-            className={cn(
-              'flex flex-col gap-4 transition-opacity duration-200 ease-out',
-              replyComplete ? 'opacity-100' : 'opacity-0'
-            )}
-          >
-            <div className='flex flex-col'>
-              <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
-              <div className='mt-1.5 flex flex-col'>
-                {FOLLOW_UPS.map((title, i) => (
-                  <span
-                    key={title}
-                    className={cn(
-                      'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left',
-                      i > 0 && 'border-t'
-                    )}
-                  >
-                    <span className='flex size-[16px] shrink-0 items-center justify-center'>
-                      <span className='text-[var(--text-icon)] text-sm'>{i + 1}</span>
-                    </span>
-                    <span className='flex-1 text-[var(--text-body)] text-sm'>{title}</span>
-                    <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className='flex items-center gap-3 text-[var(--text-icon)]'>
-              <Duplicate className='size-[14px]' />
-              <ThumbsUp className='size-[14px]' />
-              <ThumbsDown className='size-[14px]' />
-            </div>
-          </div>
+          {showThinking && (
+            <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking…'} />
+          )}
+          {showBuilding && (
+            <AgentGroup
+              agentName='workflow'
+              agentLabel='Workflow Agent'
+              items={WORKFLOW_AGENT_BUILDING_ITEMS}
+              isStreaming
+              isCurrentSection
+              isLaneOpen
+              defaultExpanded
+              autoScrollActivity={false}
+            />
+          )}
+          {showReply && (
+            <>
+              <AgentGroup
+                agentName='workflow'
+                agentLabel='Workflow Agent'
+                items={WORKFLOW_AGENT_ITEMS}
+                defaultExpanded
+              />
+              <AgentGroup
+                agentName='mothership'
+                agentLabel='Sim'
+                items={SIM_ITEMS}
+                defaultExpanded
+              />
+              <ChatContent
+                content={replyMessage}
+                messageId='landing-hero-reply'
+                isStreaming={!replyComplete}
+                onWorkspaceResourceSelect={onOpenWorkflowResource}
+              />
+              {replyComplete && (
+                <QuestionDisplay
+                  data={FOLLOW_UP_QUESTION}
+                  onSelect={selectFollowUp}
+                  onDismiss={() => undefined}
+                />
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      <div className='pointer-events-auto mx-auto mb-5 w-[calc(100%-40px)] max-w-[600px] shrink-0 rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2'>
-        <p className='px-1.5 pt-1 text-[15px] text-[var(--text-muted)]'>Send message to Sim</p>
-        <div className='mt-2 flex items-center gap-1.5'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span
-                className='flex size-[28px] items-center justify-center rounded-full transition-colors hover-hover:bg-[var(--surface-hover)]'
-                aria-label='Add resources'
-              >
-                <Plus className='size-[16px] text-[var(--text-icon)]' />
-              </span>
-            </Tooltip.Trigger>
-            <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>Add resources</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span
-                className='flex size-[28px] items-center justify-center rounded-full transition-colors hover-hover:bg-[var(--surface-hover)]'
-                aria-label='Attach file'
-              >
-                <Paperclip className='size-[16px] text-[var(--text-icon)]' />
-              </span>
-            </Tooltip.Trigger>
-            <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>Attach file</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span
-                className='flex size-[28px] items-center justify-center rounded-full transition-colors hover-hover:bg-[var(--surface-hover)]'
-                aria-label='Skills'
-              >
-                <Slash className='size-[16px] text-[var(--text-icon)]' />
-              </span>
-            </Tooltip.Trigger>
-            <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>Skills</Tooltip.Content>
-          </Tooltip.Root>
-          <span className='ml-auto flex items-center gap-1.5'>
+      <div
+        data-preview-outline='frame'
+        data-preview-composer=''
+        className={cn(
+          'mx-auto w-[calc(100%-48px)] max-w-chat rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+          showWelcome
+            ? 'absolute inset-x-0 transition-[bottom,transform] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none max-sm:w-[calc(100%-24px)]'
+            : 'mb-4 shrink-0',
+          showWelcome &&
+            (welcome
+              ? 'bottom-[52%] translate-y-1/2 shadow-xs max-sm:bottom-[42%]'
+              : 'bottom-4 translate-y-0')
+        )}
+      >
+        {showWelcome && <HeroChatWelcome visible={welcome} onSelect={updateComposer} />}
+        {attachedFileName && (
+          <div className='mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-md border border-[var(--border-1)] bg-[var(--surface-2)] py-1 pr-1 pl-2 text-[var(--text-body)] text-xs'>
+            <Paperclip className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+            <span className='truncate'>{attachedFileName}</span>
+            <Button
+              type='button'
+              variant='ghost'
+              aria-label='Remove attachment'
+              onClick={() => setAttachedFileName(null)}
+              className='size-[22px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+            >
+              <X className='size-[12px] text-[var(--text-icon)]' />
+            </Button>
+          </div>
+        )}
+        <textarea
+          ref={textareaRef}
+          value={composerValue}
+          rows={welcome ? 2 : 1}
+          onFocus={onComposerFocus}
+          aria-label='Ask Sim'
+          placeholder='Ask Sim to '
+          onChange={(event) => onComposerValueChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              submitComposer()
+            }
+          }}
+          className={cn(
+            'm-0 block max-h-[96px] w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 font-body text-[14px] text-[var(--text-primary)] leading-[24px] tracking-[-0.015em] outline-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0',
+            welcome ? 'min-h-[56px]' : 'min-h-[32px]'
+          )}
+        />
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-1'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <span
-                  className='flex size-[28px] items-center justify-center rounded-full transition-colors hover-hover:bg-[var(--surface-hover)]'
-                  aria-label='Voice input'
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => updateComposer(`${composerValue}@Knowledge Base `)}
+                  aria-label='Add resources'
+                  className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
                 >
-                  <Mic className='size-[16px] text-[var(--text-icon)]' />
+                  <Plus className='size-[16px] text-[var(--text-icon)]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>Add resources</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label='Attach file'
+                  className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+                >
+                  <Paperclip className='size-[16px] text-[var(--text-icon)]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>Attach file</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => updateComposer(`${composerValue}/`)}
+                  aria-label='Skills'
+                  className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+                >
+                  <Slash className='size-[16px] text-[var(--text-icon)]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>Skills</Tooltip.Content>
+            </Tooltip.Root>
+          </div>
+          <div className='flex items-center gap-1.5'>
+            {welcome && (
+              <span className='mr-2 text-[14px] text-[var(--text-body)] max-sm:hidden'>Build</span>
+            )}
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    disabled
+                    aria-label='Voice input requires the signed-in workspace'
+                    className='size-[28px] rounded-full p-0'
+                  >
+                    <Mic className='size-[16px] text-[var(--text-icon)]' />
+                  </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>Voice input</Tooltip.Content>
+              <Tooltip.Content offset={HERO_TOOLTIP_OFFSET}>
+                Voice input is available in the workspace
+              </Tooltip.Content>
             </Tooltip.Root>
-            <span className='flex size-[28px] items-center justify-center rounded-full bg-[#808080]'>
-              <ArrowUp className='size-[16px] text-white' />
-            </span>
-          </span>
+            <SendButton
+              isSending={isSending}
+              canSubmit={canSubmit}
+              onSubmit={submitComposer}
+              onStopGeneration={onStopGeneration}
+            />
+          </div>
         </div>
+        <input
+          ref={fileInputRef}
+          type='file'
+          className='hidden'
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (!file) return
+            setAttachedFileName(file.name)
+            if (!composerValue.trim()) updateComposer(`Review ${file.name}`)
+          }}
+        />
       </div>
     </div>
   )

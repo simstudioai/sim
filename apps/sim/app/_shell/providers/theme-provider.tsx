@@ -32,28 +32,34 @@ const NON_LANDING_LIGHT_SEGMENTS = [
 /**
  * Path segments rendered light regardless of the visitor's theme.
  *
- * `LandingShell`, `AuthShell` and the rest pin `light` on a wrapper *inside* the
- * page, which leaves `<html>` on the visitor's theme. Forcing the theme here
- * puts the same layer on `<html>`, so root-level chrome — scrollbars,
- * `color-scheme`, and anything portalled to `<body>` such as the cookie consent
- * banner — matches the page it sits on instead of contradicting it.
+ * `AuthShell` and the rest pin `light` on a wrapper *inside* the page, which
+ * leaves `<html>` on the visitor's theme. Forcing the theme here puts the same
+ * layer on `<html>`, so root-level chrome — scrollbars, `color-scheme`, and
+ * anything portalled to `<body>` such as the cookie consent banner — matches
+ * the page it sits on instead of contradicting it.
  */
-const LIGHT_MODE_SEGMENTS: ReadonlySet<string> = new Set([
-  ...LANDING_ROUTES,
-  ...NON_LANDING_LIGHT_SEGMENTS,
-])
+const LIGHT_MODE_SEGMENTS: ReadonlySet<string> = new Set(NON_LANDING_LIGHT_SEGMENTS)
+
+/**
+ * The marketing surface: the root plus every `app/(landing)` segment. These
+ * pages follow the visitor's stored theme the way the app does — the landing
+ * footer's theme toggle writes it — but a visitor who has never chosen one
+ * gets light, the landing family's design baseline, rather than the app's
+ * `system` default.
+ */
+const LANDING_SEGMENTS: ReadonlySet<string> = new Set(LANDING_ROUTES)
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()
 
   const firstSegment = pathname.split('/')[1]
-  const forcedTheme =
-    firstSegment === '' || LIGHT_MODE_SEGMENTS.has(firstSegment) ? 'light' : undefined
+  const isLanding = firstSegment === '' || LANDING_SEGMENTS.has(firstSegment)
+  const forcedTheme = LIGHT_MODE_SEGMENTS.has(firstSegment) ? 'light' : undefined
 
   return (
     <NextThemesProvider
       attribute='class'
-      defaultTheme='system'
+      defaultTheme={isLanding ? 'light' : 'system'}
       enableSystem
       disableTransitionOnChange
       storageKey='sim-theme'

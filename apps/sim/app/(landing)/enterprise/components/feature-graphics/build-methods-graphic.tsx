@@ -4,8 +4,16 @@ import { useEffect, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowUp, FolderCode, Mic, Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
+import { LANDING_STAGE_WINDOW_RADIUS } from '@/app/(landing)/components/landing-layout'
+import {
+  FeatureGraphicShell,
+  type FeatureGraphicVariant,
+} from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import { FeaturePlatformPanel } from '@/app/(landing)/enterprise/components/feature-graphics/feature-platform-panel'
+
+interface BuildMethodsGraphicProps {
+  variant?: FeatureGraphicVariant
+}
 
 interface CodeSegment {
   text: string
@@ -126,7 +134,8 @@ function renderCodeLine(segments: CodeSegment[], visibleChars: number) {
  * landing loops; under `prefers-reduced-motion` it renders the finished
  * editor + composer as a static frame.
  */
-export function BuildMethodsGraphic() {
+export function BuildMethodsGraphic({ variant = 'tile' }: BuildMethodsGraphicProps) {
+  const portrait = variant === 'portrait'
   const [phase, setPhase] = useState<BuildMethodsPhase>('idle')
   const [typedCodeChars, setTypedCodeChars] = useState(0)
   const [typedPromptChars, setTypedPromptChars] = useState(0)
@@ -236,23 +245,32 @@ export function BuildMethodsGraphic() {
   )
 
   return (
-    <FeatureGraphicShell>
+    <FeatureGraphicShell variant={variant}>
       <div
         className={cn(
-          'absolute inset-0 transition-opacity duration-300 ease-out motion-reduce:transition-none',
+          'absolute transition-opacity duration-300 ease-out motion-reduce:transition-none',
+          portrait ? 'inset-[10px]' : 'inset-0',
           phase === 'fade' ? 'opacity-0' : 'opacity-100'
         )}
       >
         <FeaturePlatformPanel
+          framed={portrait}
           className={cn(
-            'top-5 bg-[var(--white)] transition-[transform,opacity] [transition-duration:380ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+            'bg-[var(--white)] transition-[transform,opacity] [transition-duration:380ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none dark:bg-[var(--surface-4)]',
+            portrait && 'flex flex-col',
+            !portrait && 'top-5',
             phase === 'idle' && 'transition-none',
             editorExited ? 'translate-y-16 opacity-0' : 'translate-y-0 opacity-100'
           )}
           icon={FolderCode}
           title='support-agent.ts'
         >
-          <div className='min-h-[190px] space-y-2 p-4 font-mono text-caption leading-[1.7]'>
+          <div
+            className={cn(
+              'space-y-2 font-mono text-caption leading-[1.7]',
+              portrait ? 'min-h-0 flex-1 p-5' : 'min-h-[190px] p-4'
+            )}
+          >
             {CODE_LINES.map((line, index) =>
               typedCodeChars > CODE_LINE_STARTS[index] ? (
                 <div key={index} className='flex gap-3'>
@@ -274,12 +292,15 @@ export function BuildMethodsGraphic() {
         <div
           aria-hidden='true'
           className={cn(
-            'absolute top-5 right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--white)] shadow-xs transition-[transform,opacity] [transition-duration:420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+            'absolute overflow-hidden bg-[var(--white)] shadow-xs transition-[transform,opacity] [transition-duration:420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none dark:bg-[var(--surface-4)]',
+            portrait
+              ? cn('inset-0 border border-[var(--border-1)]', LANDING_STAGE_WINDOW_RADIUS)
+              : 'top-5 right-0 bottom-0 left-0 rounded-tl-xl border-[var(--border-1)] border-t border-l',
             phase === 'idle' && 'transition-none',
             chatOpen ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
           )}
         >
-          <div className='flex flex-col gap-3 p-4'>
+          <div className={cn('flex flex-col gap-3', portrait ? 'p-5' : 'p-4')}>
             <div className='max-w-[80%] self-end rounded-lg bg-[var(--surface-3)] px-3 py-2 text-[var(--text-primary)] text-caption leading-[1.5]'>
               {PROMPT}
             </div>
@@ -297,7 +318,8 @@ export function BuildMethodsGraphic() {
 
         <div
           className={cn(
-            'absolute right-3 bottom-5 left-5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs transition-transform [transition-duration:450ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+            'absolute z-10 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs transition-transform [transition-duration:450ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none dark:bg-[var(--surface-4)]',
+            portrait ? 'right-4 bottom-4 left-4' : 'right-3 bottom-5 left-5',
             phase === 'idle' && 'transition-none',
             composerVisible ? 'translate-y-0' : 'translate-y-[130%]'
           )}

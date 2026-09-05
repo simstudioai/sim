@@ -243,7 +243,7 @@ export function BuildChatAnimation() {
           >
             <div
               className={cn(
-                'w-full rounded-2xl bg-[var(--white)] transition-[height,transform,margin-bottom] duration-500 ease-out motion-reduce:transition-none',
+                'w-full rounded-2xl bg-[var(--white)] transition-[height,transform,margin-bottom] duration-500 ease-out motion-reduce:transition-none dark:bg-[var(--surface-4)]',
                 chatOpen ? 'translate-y-0' : 'translate-y-5'
               )}
               style={{
@@ -251,18 +251,21 @@ export function BuildChatAnimation() {
                 marginBottom: chatOpen ? SPLIT_GAP_PX : 0,
               }}
             />
-            <div className='w-full rounded-2xl bg-[var(--white)]' style={{ height: composerH }} />
+            <div
+              className='w-full rounded-2xl bg-[var(--white)] dark:bg-[var(--surface-4)]'
+              style={{ height: composerH }}
+            />
           </div>
         )}
 
         <div className='relative z-10 flex h-full flex-col justify-end'>
           <section
             className={cn(
-              'w-full overflow-hidden rounded-2xl bg-[var(--white)]',
+              'w-full overflow-hidden rounded-2xl bg-[var(--white)] dark:bg-[var(--surface-4)]',
               !reducedMotion &&
                 (chatOpen ? CHAT_SURFACE_TRANSITION_OPEN : CHAT_SURFACE_TRANSITION_MERGE),
               chatOpen
-                ? 'translate-y-0 opacity-100 shadow-[0_24px_80px_color-mix(in_srgb,var(--text-primary)_14%,transparent),0_0_0_1px_var(--border-1)]'
+                ? 'translate-y-0 opacity-100 shadow-[0_24px_80px_color-mix(in_srgb,var(--text-primary)_14%,transparent),0_0_0_1px_var(--border-1)] dark:shadow-[0_24px_80px_rgba(0,0,0,0.45),0_0_0_1px_var(--border-1)]'
                 : 'translate-y-5 opacity-0 shadow-[0_24px_80px_transparent,0_0_0_1px_transparent]'
             )}
             style={{
@@ -323,7 +326,7 @@ export function BuildChatAnimation() {
 
           <div
             ref={composerRef}
-            className='h-[94px] w-full rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 shadow-[0_18px_60px_color-mix(in_srgb,var(--text-primary)_12%,transparent)]'
+            className='h-[94px] w-full rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 shadow-[0_18px_60px_color-mix(in_srgb,var(--text-primary)_12%,transparent)] dark:bg-[var(--surface-4)] dark:shadow-[0_18px_60px_rgba(0,0,0,0.45)]'
           >
             <p
               className={cn(
@@ -347,8 +350,8 @@ export function BuildChatAnimation() {
                 <span className='flex size-[28px] items-center justify-center rounded-full'>
                   <Mic className='size-[16px] text-[var(--text-icon)]' />
                 </span>
-                <span className='flex size-[28px] items-center justify-center rounded-full bg-[#808080]'>
-                  <ArrowUp className='size-[16px] text-[var(--surface-1)]' />
+                <span className='flex size-[28px] items-center justify-center rounded-full bg-[#808080] dark:bg-[#808080]'>
+                  <ArrowUp className='size-[16px] text-white dark:text-black' />
                 </span>
               </span>
             </div>

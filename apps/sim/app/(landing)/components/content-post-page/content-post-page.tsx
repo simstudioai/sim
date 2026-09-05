@@ -48,13 +48,13 @@ export function ContentPostPage({
   return (
     <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/BlogPosting'>
       <JsonLd data={graphJsonLd} />
-      <header className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <header className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='mb-6'>
           <BackLink href={basePath} label={backLabel} />
         </div>
 
-        <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
-          <div className='w-full shrink-0 md:w-[450px]'>
+        <div className='flex min-w-0 flex-col gap-8 lg:flex-row lg:gap-12'>
+          <div className='w-full shrink-0 lg:w-[40%] lg:max-w-[450px]'>
             <div className='relative w-full overflow-hidden rounded-[5px]'>
               <Image
                 src={post.ogImage}
@@ -62,7 +62,7 @@ export function ContentPostPage({
                 width={450}
                 height={360}
                 className='h-auto w-full'
-                sizes='(max-width: 768px) 100vw, 450px'
+                sizes='(max-width: 1023px) calc(100vw - 64px), 450px'
                 priority
                 fetchPriority='high'
                 itemProp='image'
@@ -70,7 +70,7 @@ export function ContentPostPage({
               />
             </div>
           </div>
-          <div className='flex flex-1 flex-col justify-between'>
+          <div className='flex min-w-0 flex-1 flex-col justify-between'>
             <div>
               <h1
                 className='text-balance text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] md:text-[44px] lg:text-[52px]'
@@ -143,7 +143,7 @@ export function ContentPostPage({
 
       <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-      <div className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'>
+      <div className='mx-auto w-full max-w-[1728px] px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='border-[var(--border)] border-x'>
           <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
             <div className='prose prose-lg max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-muted)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>

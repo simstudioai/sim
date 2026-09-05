@@ -1,23 +1,7 @@
-import type { CSSProperties } from 'react'
 import { ChipTag, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn'
 import { CircleCheck, Lock } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
-import styles from '@/app/(landing)/enterprise/components/feature-graphics/deploy-graphic.module.css'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
-
-/**
- * The ThinkingLoader's light-grey material (its dark-surface theme from
- * `thinking-loader.module.css`), asserted inline because the always-light
- * landing would otherwise ink the loader dark — invisible on the dark
- * Deploy button.
- */
-const DEPLOY_LOADER_INK = {
-  '--tl-grad-inner': '#a7a7a7',
-  '--tl-grad-outer': '#d6d6d6',
-  '--tl-glow': 'rgba(255, 255, 255, 0.9)',
-} as CSSProperties
-
 /**
  * The moment of a one-click deploy, told top to bottom: the agent being
  * shipped, the Deploy button, and a
@@ -67,6 +51,13 @@ const DEPLOY_LOADER_INK = {
  * Support-agent deploy byte-identical. Geometry, motion, and inks never
  * change with the copy.
  */
+import {
+  INVERSE_LOADER_INK_CLASS,
+  INVERSE_LOADER_INK_STYLE,
+} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
+import styles from '@/app/(landing)/enterprise/components/feature-graphics/deploy-graphic.module.css'
+import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
+
 interface DeployGraphicProps {
   /** Agent pill label. */
   agentName?: string
@@ -116,7 +107,12 @@ export function DeployGraphic({
             'mx-0 mt-2.5 inline-flex h-9 rounded-[10px] bg-[var(--text-muted)] px-3 text-[var(--text-inverse)]'
           )}
         >
-          <ThinkingLoader variant='relay' size={18} style={DEPLOY_LOADER_INK} />
+          <ThinkingLoader
+            variant='relay'
+            size={18}
+            className={INVERSE_LOADER_INK_CLASS}
+            style={INVERSE_LOADER_INK_STYLE}
+          />
           <span className={cn(chipContentLabelClass, 'text-[15px] text-current')}>
             {buttonLabel}
           </span>

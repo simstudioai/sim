@@ -1,94 +1,99 @@
-import { BuildCallout } from '@/app/(landing)/components/features/components/build-callout'
-import { FeatureCard } from '@/app/(landing)/components/features/components/feature-card'
-import { IntegrationsCallout } from '@/app/(landing)/components/features/components/integrations-callout/integrations-callout'
-import { KnowledgeCallout } from '@/app/(landing)/components/features/components/knowledge-callout/knowledge-callout'
-import { LogsCallout } from '@/app/(landing)/components/features/components/logs-callout'
+import { cn } from '@sim/emcn'
+import { CoreFeatureCard } from '@/app/(landing)/components/features/components/core-feature-card'
+import { FeaturesRail } from '@/app/(landing)/components/features/components/features-rail'
+import {
+  HOME_INSET,
+  HOME_TYPE,
+  LANDING_CONTENT_WIDTH,
+  LANDING_GUTTER,
+} from '@/app/(landing)/components/landing-layout'
+import { BuildMethodsGraphic } from '@/app/(landing)/enterprise/components/feature-graphics'
+import { FileLibraryGraphic } from '@/app/(landing)/files/components/feature-graphics/file-library-graphic'
+import { ConnectorSyncGraphic } from '@/app/(landing)/knowledge/components/feature-graphics/connector-sync-graphic'
+import { RunTraceGraphic } from '@/app/(landing)/logs/components/feature-graphics'
+import { TableGridGraphic } from '@/app/(landing)/tables/components/feature-graphics'
+import { WorkflowCanvasGraphic } from '@/app/(landing)/workflows/components/feature-graphics'
 
 /**
- * Landing features - how Sim works, as a platform lifecycle. Four beats, in the
- * order you actually use Sim: bring your tools in (Integrate), give it data to
- * reason over (Context), build the agent logic (Build), then watch it run
- * (Monitor). Each beat is a Cursor-style {@link FeatureCard}: one large
- * outlined card holding a media stage (backdrop painting + elevated real-UI
- * callout) and a copy column, with the media side alternating card to card.
- *
- * The section's `<h2>` is `sr-only` - each beat carries its own visible `<h3>`,
- * so the section heading exists only to anchor the heading hierarchy and give AI
- * crawlers an atomic summary.
- *
- * Inter-section spacing is owned by the `<main>` flex `gap` in `landing.tsx`;
- * this section carries no vertical padding. The section itself is FULL-WIDTH so
- * its bottom rule can bleed to the browser edges; the card grid inside carries
- * the shared gutter (`px-20`) and the `max-w-[1460px]` cap. The last card
- * squares its bottom corners (`flushBottom`) and sits exactly on the rule, so
- * its outline merges into the full-bleed divider.
- *
- * The cards stack in a single column at every width on a 112px rhythm
- * (matching Cursor's spacing between feature cards). Below `lg` each card
- * internally reflows media-over-copy.
- *
- * Per-beat icons are still abstract placeholders (text eyebrows); distinct
- * abstract glyphs land in a later pass.
+ * Homepage product suite - six tall editorial modules built from the same
+ * product-faithful UI illustrations used across Sim's platform pages.
+ */
+const CORE_FEATURES = [
+  {
+    title: 'Chat',
+    description: 'Talk to Sim to build and manage agents in natural language.',
+    href: '/signup',
+    tone: 'mid',
+    visual: <BuildMethodsGraphic variant='portrait' />,
+  },
+  {
+    title: 'Workflows',
+    description: 'Sim connects blocks, models, and integrations into agent logic.',
+    href: '/workflows',
+    tone: 'light',
+    visual: <WorkflowCanvasGraphic variant='portrait' />,
+  },
+  {
+    title: 'Knowledge Base',
+    description: 'Sim gives every agent trusted memory from synced sources.',
+    href: '/knowledge',
+    tone: 'mid',
+    visual: <ConnectorSyncGraphic variant='portrait' />,
+  },
+  {
+    title: 'Tables',
+    description: 'Sim stores the structured data agents read and update between runs.',
+    href: '/tables',
+    tone: 'light',
+    visual: <TableGridGraphic variant='portrait' />,
+  },
+  {
+    title: 'Files',
+    description: 'Sim keeps team uploads and agent outputs in one shared store.',
+    href: '/files',
+    tone: 'mid',
+    visual: <FileLibraryGraphic variant='portrait' />,
+  },
+  {
+    title: 'Logs',
+    description: 'Sim traces every agent run block by block, including failures.',
+    href: '/logs',
+    tone: 'light',
+    visual: <RunTraceGraphic variant='portrait' tone='light' />,
+  },
+] as const
+
+/**
+ * Six product modules on one horizontally scrolling rail. The heading keeps
+ * the page measure; the rail runs flush to the screen edges and loops - see
+ * {@link FeaturesRail}. The section is the rail's size container.
  */
 export function Features() {
   return (
-    <section id='features' aria-labelledby='features-heading' className='relative w-full'>
-      <h2 id='features-heading' className='sr-only'>
-        Integrate your tools, give Sim context, build agents, and monitor every run.
-      </h2>
+    <section
+      id='features'
+      aria-labelledby='features-heading'
+      className='flex flex-col [container-type:inline-size]'
+    >
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+        <div className={HOME_INSET}>
+          <h2
+            id='features-heading'
+            className={cn(
+              'mb-16 max-w-[20ch] text-balance text-[var(--text-primary)] max-sm:mb-10 max-lg:mb-12',
+              HOME_TYPE.h2
+            )}
+          >
+            Everything AI agents need to do real work
+          </h2>
 
-      <div className='mx-auto grid w-full max-w-[1460px] grid-cols-1 gap-28 px-20 max-sm:gap-12 max-sm:px-5 max-lg:px-8'>
-        {/* Integrate: bring your stack in. */}
-        <FeatureCard
-          eyebrow='Integrate'
-          title='Connect the tools your work runs on.'
-          description='Plug in 1,000+ integrations like Slack, HubSpot, Salesforce, and Notion, so Sim agents act across the stack you already use.'
-          href='/integrations'
-          linkLabel='Explore integrations'
-          backdropSrc='/landing/feature-integrate-backdrop.jpg'
-        >
-          <IntegrationsCallout />
-        </FeatureCard>
-
-        {/* Context: store data semantically. */}
-        <FeatureCard
-          eyebrow='Context'
-          title='Give Sim data it can reason over.'
-          description='Sim stores your data in tables, files, and knowledge bases, the semantic memory agents read to ground every answer.'
-          backdropSrc='/landing/feature-context-backdrop.jpg'
-          mediaSide='right'
-        >
-          <KnowledgeCallout />
-        </FeatureCard>
-
-        {/* Build: wire agent logic in the visual builder. */}
-        <FeatureCard
-          eyebrow='Build'
-          title='Build agents that solve real problems.'
-          description="Wire blocks, models, and integrations into agent logic on Sim's visual builder, from one agent to many working in parallel."
-          href='/workflows'
-          linkLabel='Explore the AI workflow builder'
-        >
-          <BuildCallout />
-        </FeatureCard>
-
-        {/* Monitor: watch every run. */}
-        <FeatureCard
-          eyebrow='Monitor'
-          title='Watch every run, end to end.'
-          description='Sim traces each run block by block, with full logs and the real cost.'
-          backdropSrc='/landing/feature-monitor-backdrop.jpg'
-          mediaSide='right'
-          flushBottom
-        >
-          <LogsCallout />
-        </FeatureCard>
+          <FeaturesRail label='Core Sim features'>
+            {CORE_FEATURES.map((feature) => (
+              <CoreFeatureCard key={feature.title} {...feature} />
+            ))}
+          </FeaturesRail>
+        </div>
       </div>
-
-      {/* Full-bleed rule the last card's squared bottom edge merges into -
-          spans the whole browser, past the content cap and gutter (the section
-          itself is full-width; only the card grid above is capped). */}
-      <div aria-hidden='true' className='absolute inset-x-0 bottom-0 h-px bg-[var(--border)]' />
     </section>
   )
 }

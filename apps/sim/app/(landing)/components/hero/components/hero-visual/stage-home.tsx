@@ -9,11 +9,11 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
-import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block-content'
 import {
   ANSWER_TEXT,
   BLOCK_WIDTH,
   BLOCKS,
+  blockHeight,
   HOME_GREETING,
   PROMPT_ATOMS,
   type PromptAtom,
@@ -38,15 +38,16 @@ import {
  * - `thinking` - conversation layout (user bubble + an empty reply slot whose
  *   height the loader will occupy), shown as the loader slides/docks there.
  * - `answering` - the typed reply fills the reply slot.
- * - `block` - the card morphs into the first workflow block (the chat shell
- *   resizes and its content becomes the block's), handing off to the workflow.
+ * - `block` - the card morphs into the first workflow block: the chat content
+ *   fades and the shell resizes to the production card's footprint, while the
+ *   parent fades the real card in on top of it in scene space.
  */
 export type HomeMode = 'compose' | 'morphing' | 'sending' | 'thinking' | 'answering' | 'block'
 
-/** The first workflow block, shown inside the card during the morph. */
+/** The first workflow block - the footprint the card morphs into. */
 const FIRST_BLOCK = BLOCKS[0]
-/** GitHub block content's natural (unscaled) height in px. */
-const GH_CONTENT_HEIGHT = 77
+/** The first block's production card height, unscaled. */
+const FIRST_BLOCK_HEIGHT = blockHeight(FIRST_BLOCK)
 /** The chat card's width (compose/conversation). */
 const CHAT_CARD_WIDTH = 460
 /**
@@ -57,12 +58,13 @@ const CHAT_CARD_WIDTH = 460
  */
 const COMPOSE_CARD_HEIGHT = 84
 /**
- * Card width/height once morphed into the first block (block content × focus
- * scale). Deliberately smaller than the chat card so the morph reads as a
- * visible SHRINK + reshape, not a same-size content crossfade.
+ * Card width/height once morphed into the first block (the production card ×
+ * focus scale) - exactly the box the parent's scene-space card occupies, so
+ * the hand-off is invisible. Deliberately smaller than the chat card so the
+ * morph reads as a visible SHRINK + reshape, not a same-size crossfade.
  */
 const BLOCK_CARD_WIDTH = BLOCK_WIDTH * WORKFLOW_FOCUS_SCALE
-const BLOCK_CARD_HEIGHT = GH_CONTENT_HEIGHT * WORKFLOW_FOCUS_SCALE
+const BLOCK_CARD_HEIGHT = FIRST_BLOCK_HEIGHT * WORKFLOW_FOCUS_SCALE
 
 interface StageHomeProps {
   /** Which beat of the chat to render. */
@@ -230,21 +232,22 @@ export function StageHome({
           )}
         >
           {showGreeting ? (
-            <p className='text-[30px] text-[var(--text-primary)] leading-[40px] [animation:hero-stage-fade_1200ms_cubic-bezier(0.23,1,0.32,1)_both]'>
+            <p className='animate-[hero-stage-fade_1200ms_cubic-bezier(0.23,1,0.32,1)_both] text-[30px] text-[var(--text-primary)] leading-[40px]'>
               {HOME_GREETING}
             </p>
           ) : null}
         </div>
 
         {/* White card - the SAME shell throughout: it hugs the active chat content,
-            then resizes and rounds down to become the first workflow block (the
-            chat → workflow morph happens on this one continuous element). */}
+            then resizes to the first workflow block's footprint. Its rounded
+            hairline is the production card's own silhouette, so the real card
+            the parent fades in over it reads as this same element. */}
         <div
           ref={cardRef}
           className={cn(
             // The chat input's aesthetic (rounded-2xl, border, soft shadow) is
-            // kept THROUGHOUT - including once morphed into the workflow block -
-            // so it stays the same white card, just resized.
+            // kept THROUGHOUT - including once resized to the workflow block's
+            // footprint - so it stays the same white card, just resized.
             'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-xs',
             // While the height is held (the parent-driven send-bubble grow, and the
             // loader slide where the card keeps its size), do NOT CSS-transition
@@ -345,14 +348,14 @@ export function StageHome({
                 ref={sendRef}
                 aria-hidden='true'
                 className={cn(
-                  'flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[#383838] transition-[opacity,transform,background-color] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+                  'flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[#383838] transition-[opacity,transform,background-color] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] dark:bg-[#E0E0E0]',
                   // Visible only while composing; once send is hit the root loader's
                   // settled orb takes its place (it stays laid out as the loader's
                   // measure + slide-from target).
                   isCompose ? 'opacity-100' : 'opacity-0',
                   // Subtle interaction: lighten on hover, dip in size on press -
                   // both for a real cursor and for the animation's click beat.
-                  isCompose && 'hover:bg-[#484848] active:scale-90',
+                  isCompose && 'hover:bg-[#484848] active:scale-90 dark:hover:bg-[#CFCFCF]',
                   pressed && 'scale-90'
                 )}
               >
@@ -375,34 +378,6 @@ export function StageHome({
                   />
                 </svg>
               </div>
-            </div>
-          </div>
-
-          {/* Block layer: the card has morphed into the first workflow block.
-              Same content as the workflow stage's focused block, at the focus
-              scale, so handing off to the canvas is seamless. Top-anchored to
-              match the workflow block's origin. */}
-          <div
-            aria-hidden='true'
-            className={cn(
-              'absolute inset-x-0 top-0 transition-opacity duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
-              // Hold off until the chat content (≈220ms fade) is gone, then fade in.
-              isBlock ? 'opacity-100 [transition-delay:280ms]' : 'pointer-events-none opacity-0'
-            )}
-          >
-            <div
-              className='relative'
-              style={{
-                width: BLOCK_WIDTH,
-                transform: `scale(${WORKFLOW_FOCUS_SCALE})`,
-                transformOrigin: 'top left',
-              }}
-            >
-              <WorkflowBlockContent block={FIRST_BLOCK} />
-              <span
-                aria-hidden
-                className='-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)]'
-              />
             </div>
           </div>
         </div>

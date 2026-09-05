@@ -1,0 +1,36 @@
+/**
+ * A soft central cutout lets painted sky rise alongside the overlapping copy.
+ * The vertical mask dissolves the outer boundaries into the theme canvas;
+ * the landscape retains its full detail below the content.
+ */
+.plate {
+  --plate-mask: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0) 0%,
+    rgb(0 0 0 / 0.074) 1.7%,
+    rgb(0 0 0 / 0.259) 3.3%,
+    rgb(0 0 0 / 0.5) 5%,
+    rgb(0 0 0 / 0.741) 6.7%,
+    rgb(0 0 0 / 0.926) 8.3%,
+    rgb(0 0 0 / 1) 10%,
+    rgb(0 0 0 / 1) 80%,
+    rgb(0 0 0 / 0.926) 83.3%,
+    rgb(0 0 0 / 0.741) 86.7%,
+    rgb(0 0 0 / 0.5) 90%,
+    rgb(0 0 0 / 0.259) 93.3%,
+    rgb(0 0 0 / 0.074) 96.7%,
+    rgb(0 0 0 / 0) 100%
+  );
+  --copy-mask: radial-gradient(
+    ellipse 52% 38% at 50% 0%,
+    rgb(0 0 0 / 0) 24%,
+    rgb(0 0 0 / 0.08) 40%,
+    rgb(0 0 0 / 0.35) 58%,
+    rgb(0 0 0 / 0.75) 78%,
+    rgb(0 0 0 / 1) 100%
+  );
+  -webkit-mask-image: var(--plate-mask), var(--copy-mask);
+  mask-image: var(--plate-mask), var(--copy-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}

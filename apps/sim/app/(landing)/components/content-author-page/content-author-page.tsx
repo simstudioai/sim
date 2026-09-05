@@ -2,7 +2,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import type { ContentMeta } from '@/lib/content/schema'
 import { BackLink } from '@/app/(landing)/components/back-link'
-import { Cta } from '@/app/(landing)/components/cta/cta'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 interface ContentAuthorPageProps {
@@ -36,7 +35,7 @@ export function ContentAuthorPage({
       <section className='bg-[var(--bg)]'>
         {graphJsonLd && <JsonLd data={graphJsonLd} />}
 
-        <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
           <div className='mb-6'>
             <BackLink href={basePath} label={`Back to ${sectionName}`} />
           </div>
@@ -60,7 +59,7 @@ export function ContentAuthorPage({
 
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-        <div className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'>
+        <div className='mx-auto w-full max-w-[1728px] px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'>
           <div className='border-[var(--border)] border-x'>
             {posts.map((p) => (
               <div key={p.slug}>
@@ -113,10 +112,6 @@ export function ContentAuthorPage({
 
         <div className='-mt-px h-px w-full bg-[var(--border)]' />
       </section>
-
-      <div className='mt-[120px] max-sm:mt-16 max-lg:mt-[88px]'>
-        <Cta />
-      </div>
     </>
   )
 }

@@ -1,37 +1,31 @@
-/**
- * The FileLibraryGraphic's motion: the library rows stamp in top to
- * bottom one after another — the audit tile's one-shot settle, never
- * re-played, since the library is filled once. Under
- * prefers-reduced-motion the rows render fully settled.
- */
-
-.row0,
-.row1,
-.row2,
-.row3 {
-  animation: file-library-row-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+/** The folders settle first, followed by the individual files; the sequence runs once. */
+.item0,
+.item1,
+.item2,
+.item3 {
+  animation: file-library-item-in 0.5s ease-out backwards;
 }
 
-.row0 {
-  animation-delay: 0.35s;
+.item0 {
+  animation-delay: 0.2s;
 }
 
-.row1 {
+.item1 {
+  animation-delay: 0.3s;
+}
+
+.item2 {
+  animation-delay: 0.4s;
+}
+
+.item3 {
   animation-delay: 0.5s;
 }
 
-.row2 {
-  animation-delay: 0.65s;
-}
-
-.row3 {
-  animation-delay: 0.8s;
-}
-
-@keyframes file-library-row-in {
+@keyframes file-library-item-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -40,10 +34,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .row0,
-  .row1,
-  .row2,
-  .row3 {
+  .item0,
+  .item1,
+  .item2,
+  .item3 {
     animation: none;
   }
 }

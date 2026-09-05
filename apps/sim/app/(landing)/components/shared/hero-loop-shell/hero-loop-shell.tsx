@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { cn } from '@sim/emcn'
 import { PLATFORM_LOOP_DESIGN } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import {
@@ -19,16 +20,16 @@ interface HeroLoopShellProps {
   workflows: readonly string[]
   /** Sidebar row to highlight; unset keeps New chat active. */
   activeItem?: EnterpriseSidebarProps['activeItem']
+  /** Native keeps product chrome at its real CSS size; scaled fits fixed captures. */
+  mode?: 'native' | 'scaled'
   /** The workspace pane's contents, rendered inside the inset pane gutter. */
   children: ReactNode
 }
 
 /**
- * The platform heroes' shared responsive stage. The whole preview remains
- * ordinary HTML, fitted from its fixed 1280x735 design space by
- * {@link ResponsiveDesignStage}; SVG is reserved for native workflow paths.
- * This keeps the sidebar and every animated descendant in one browser-safe
- * layout coordinate system across Safari, Chromium, and Firefox.
+ * Shared product shell for landing previews. Scaled mode preserves fixed
+ * product captures; native mode lets the homepage use real CSS dimensions so
+ * the 238px sidebar and 14px product type are never magnified.
  */
 export function HeroLoopShell({
   workspaceName = 'Brightwave',
@@ -36,8 +37,30 @@ export function HeroLoopShell({
   chats,
   workflows,
   activeItem,
+  mode = 'scaled',
   children,
 }: HeroLoopShellProps) {
+  const workspace = (
+    <>
+      <div data-preview-sidebar='' className={cn(mode === 'native' && 'max-md:hidden')}>
+        <EnterpriseSidebar
+          workspaceName={workspaceName}
+          profileName={profileName}
+          chats={chats}
+          workflows={workflows}
+          activeItem={activeItem}
+        />
+      </div>
+      <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px] max-md:pl-[8px]'>{children}</div>
+    </>
+  )
+
+  if (mode === 'native') {
+    return (
+      <div className='absolute inset-0 flex overflow-hidden bg-[var(--surface-1)]'>{workspace}</div>
+    )
+  }
+
   return (
     <ResponsiveDesignStage
       width={PLATFORM_LOOP_DESIGN.width}
@@ -46,14 +69,7 @@ export function HeroLoopShell({
       className='pointer-events-none absolute inset-0'
       contentClassName='flex bg-[var(--surface-1)]'
     >
-      <EnterpriseSidebar
-        workspaceName={workspaceName}
-        profileName={profileName}
-        chats={chats}
-        workflows={workflows}
-        activeItem={activeItem}
-      />
-      <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>{children}</div>
+      {workspace}
     </ResponsiveDesignStage>
   )
 }

@@ -1,40 +1,25 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink, cn } from '@sim/emcn'
 import Link from 'next/link'
+import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import {
+  AnnouncementBanner,
   GitHubChip,
   LogoMark,
   MobileNav,
   NAV_MENUS,
+  NavbarAuthPill,
   NavbarShell,
-  NavMenuChip,
+  NavMenuCluster,
   SimWordmark,
 } from '@/app/(landing)/components/navbar/components'
-import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
+import { DEMO_HREF } from '@/app/(landing)/constants'
 
 /**
- * Landing navbar.
- *
- * Sticky `<header><nav>` landmark with `SiteNavigationElement` schema.org
- * markup. Server Component - the dropdown triggers, GitHub chip, and the
- * {@link NavbarShell} (which frosts the bar to glass on scroll) are isolated
- * client leaves, so the wordmark and links stay zero-hydration, crawlable HTML.
- *
- * Every item is a bare emcn chip. Chips carry no margin of their own, so both
- * clusters' `gap-1` is the full 4px between pills, and the nav's own `gap-4`
- * is the full 16px between the wordmark and the first menu chip - twice the
- * inter-chip gap. Only that first gap is live: the trailing cluster is `ml-auto`.
- * Horizontal padding (`px-20`, 48px) matches every section's edge gutter,
- * and the bar content is capped and centered at the shared
- * `max-w-[1460px]` (1300px content + the two 80px gutters) so the wordmark
- * aligns with the contained section content on wide screens - the frosted
- * `<header>` shell stays full-bleed. Slightly taller vertical padding. Text
- * weight is the platform default (400).
- *
- * Layout (left → right): Sim wordmark (18px glyph centered in a
- * chip-height slot, chip-text color) → the {@link NAV_MENUS} mega-menus
- * (pure-CSS hover/focus dropdowns) → Pricing → GitHub stars. Right side: Log in
- * (default chip), Contact sales (outline chip), Sign up (filled chip).
- * Enterprise lives inside the Resources mega-menu, not as a standalone chip.
+ * Shared landing navigation with centered product links, a divided account pill
+ * for Log in and Start building, and the filled demo CTA.
+ * Below `xl`, the mobile sheet keeps the wider auth cluster clear of navigation
+ * links. The shell owns sticky positioning, menu state, and the frosted surface.
  */
 
 interface NavbarProps {
@@ -55,13 +40,23 @@ interface NavbarProps {
 export function Navbar({ stars, logoOnly = false }: NavbarProps) {
   return (
     <NavbarShell>
+      {!logoOnly && <AnnouncementBanner />}
       <nav
         aria-label='Primary navigation'
         itemScope
         itemType='https://schema.org/SiteNavigationElement'
-        className='relative mx-auto flex w-full max-w-[1460px] items-center gap-4 px-20 py-4 max-sm:px-5 max-lg:px-8'
+        className={cn(
+          'relative flex items-center justify-between py-4',
+          LANDING_CONTENT_WIDTH,
+          LANDING_GUTTER
+        )}
       >
-        <Link href='/' aria-label='Sim home' itemProp='url' className='flex h-[30px] items-center'>
+        <Link
+          href='/'
+          aria-label='Sim home'
+          itemProp='url'
+          className='relative z-10 flex h-[30px] shrink-0 items-center'
+        >
           <span itemProp='name' className='sr-only'>
             Sim
           </span>
@@ -72,26 +67,21 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
 
         {!logoOnly && (
           <>
-            <div className='hidden items-center gap-1 lg:flex'>
-              {NAV_MENUS.map((menu) => (
-                <NavMenuChip key={menu.label} menu={menu} />
-              ))}
-              <ChipLink href='/pricing' itemProp='url'>
-                Pricing
-              </ChipLink>
-              {stars !== undefined && <GitHubChip stars={stars} />}
+            <div className='absolute inset-x-0 hidden items-center justify-center gap-1 xl:flex'>
+              <NavMenuCluster menus={NAV_MENUS} />
+              <div className='relative z-10 flex items-center gap-1'>
+                <ChipLink href='/pricing' itemProp='url' className='rounded-full px-3'>
+                  Pricing
+                </ChipLink>
+                {stars !== undefined && <GitHubChip stars={stars} />}
+              </div>
             </div>
 
-            <div className='ml-auto hidden items-center gap-1 lg:flex'>
-              <ChipLink href='/login' prefetch={false}>
-                Log in
-              </ChipLink>
-              <ChipLink variant='border' href={DEMO_HREF}>
-                Contact sales
-              </ChipLink>
-              <ChipLink variant='primary' href={SIGNUP_HREF} prefetch={false}>
-                Sign up
-              </ChipLink>
+            <div className='relative z-10 hidden shrink-0 items-center gap-2 xl:flex'>
+              <NavbarAuthPill />
+              <LandingCtaLink href={DEMO_HREF} size='compact' withArrow>
+                Request a demo
+              </LandingCtaLink>
             </div>
 
             <MobileNav stars={stars ?? '0'} />

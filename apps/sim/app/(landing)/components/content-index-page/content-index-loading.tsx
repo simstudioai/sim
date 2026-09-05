@@ -7,8 +7,8 @@ const LIST_SKELETON_COUNT = 5
 export function ContentIndexLoading() {
   return (
     <section className='bg-[var(--bg)]'>
-      <div className='mx-auto w-full max-w-[1460px]'>
-        <div className='px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <div className='mx-auto w-full max-w-[1728px]'>
+        <div className='px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
           <Skeleton className='mb-5 h-[20px] w-[60px] rounded-md bg-[var(--surface-hover)]' />
           <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
             <Skeleton className='h-[40px] w-[240px] rounded-[4px] bg-[var(--surface-hover)]' />
