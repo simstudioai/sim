@@ -91,6 +91,8 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
     oauth: {
       required: true,
       provider: 'slack',
+      /** Slack enforces the required scope for the target conversation type. */
+      requiredScopes: [],
       authoritativeParams: ['credentialType'],
     },
 

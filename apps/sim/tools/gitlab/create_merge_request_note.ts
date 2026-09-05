@@ -10,6 +10,7 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
   GitLabCreateNoteResponse
 > = {
   id: 'gitlab_create_merge_request_note',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Create Merge Request Comment',
   description: 'Add a comment to a GitLab merge request',
   version: '1.0.0',

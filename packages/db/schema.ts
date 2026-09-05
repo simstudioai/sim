@@ -4315,6 +4315,7 @@ export const credentialTypeEnum = pgEnum('credential_type', [
   'env_workspace',
   'env_personal',
   'service_account',
+  'personal_token',
 ])
 
 export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential_status', [
@@ -4359,6 +4360,8 @@ export const credential = pgTable(
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
+    /** Encrypted provider token bound immutably to createdBy, providerSubjectId, and providerTenantId. */
+    encryptedPersonalToken: text('encrypted_personal_token'),
     authorizationAppId: text('authorization_app_id'),
     credentialGroupEnrollmentId: text('credential_group_enrollment_id').references(
       (): AnyPgColumn => credentialGroupEnrollment.id,
@@ -4411,6 +4414,36 @@ export const credential = pgTable(
     workspacePersonalEnvUnique: uniqueIndex('credential_workspace_personal_env_unique')
       .on(table.workspaceId, table.type, table.envKey, table.envOwnerUserId)
       .where(sql`type = 'env_personal'`),
+    personalTokenIdentityUnique: uniqueIndex('credential_personal_token_identity_unique')
+      .on(
+        table.workspaceId,
+        table.createdBy,
+        table.providerId,
+        table.providerTenantId,
+        table.providerSubjectId
+      )
+      .where(sql`type = 'personal_token'`),
+    personalTokenSourceConstraint: check(
+      'credential_personal_token_source_check',
+      sql`(type::text <> 'personal_token') OR (
+        created_by IS NOT NULL
+        AND provider_id IS NOT NULL
+        AND provider_id = 'gitlab'
+        AND provider_subject_id IS NOT NULL
+        AND provider_tenant_id IS NOT NULL
+        AND encrypted_personal_token IS NOT NULL
+        AND granted_scopes IS NOT NULL
+        AND cardinality(granted_scopes) > 0
+        AND account_id IS NULL
+        AND env_key IS NULL
+        AND env_owner_user_id IS NULL
+        AND credential_group_enrollment_id IS NULL
+        AND authorization_app_id IS NULL
+        AND encrypted_oauth_token_set IS NULL
+        AND encrypted_service_account_key IS NULL
+        AND unredacted = false
+      )`
+    ),
     oauthSourceConstraint: check(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`

@@ -128,6 +128,17 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
+vi.mock('@/tools/metadata', () => ({
+  getToolMetadata: (id: string) =>
+    id === 'gmail_send'
+      ? {
+          id,
+          params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
+          oauth: { required: true, provider: 'google-email' },
+        }
+      : undefined,
+}))
+
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   trackChatUpload: mockTrackChatUpload,
 }))
@@ -581,5 +592,54 @@ describe('buildCopilotRequestPayload', () => {
       { selectedModel: 'claude-opus-4-8' }
     )
     expect(withoutEntitlements).not.toHaveProperty('entitlements')
+  })
+})
+
+describe('Assistant payload', () => {
+  beforeEach(() => {
+    resetEnvFlagsMock()
+    mockGetUserPermissionConfig.mockResolvedValue(null)
+    mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
+    mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
+    mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
+  })
+  it('keeps the shared search scope and only personally authenticated integrations', async () => {
+    clearIntegrationToolSchemaCacheForTests()
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Find it and update it',
+        userId: 'user-1',
+        userMessageId: 'assistant-message',
+        mode: 'assistant',
+        model: '',
+        workspaceId: 'ws-1',
+        workflowId: 'forbidden-workflow',
+        assistantSearch: { source: 'slack', documentIds: ['document-1'] },
+        contexts: [{ type: 'skill', content: 'Build instructions' }],
+        commands: ['run_function'],
+        mcpServerIds: ['shared-server'],
+        desktopLocalFilesystem: true,
+        browser: true,
+        terminalCapable: true,
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.mode).toBe('assistant')
+    expect(payload.assistantSearch).toEqual({ source: 'slack', documentIds: ['document-1'] })
+    for (const field of [
+      'context',
+      'commands',
+      'mothershipTools',
+      'desktopCapabilities',
+      'workflowId',
+    ]) {
+      expect(payload).not.toHaveProperty(field)
+    }
+    expect(payload.integrationTools).toEqual([
+      expect.objectContaining({
+        name: 'gmail_send',
+        oauth: { required: true, provider: 'google-email' },
+      }),
+    ])
   })
 })

@@ -10,6 +10,7 @@ export const gitlabGetMergeRequestTool: ToolConfig<
   GitLabGetMergeRequestResponse
 > = {
   id: 'gitlab_get_merge_request',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Get Merge Request',
   description: 'Get details of a specific GitLab merge request',
   version: '1.0.0',

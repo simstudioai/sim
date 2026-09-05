@@ -112,4 +112,79 @@ describe('executeOAuthGetAuthLink', () => {
     expect(result.success).toBe(true)
     expect(mocks.execute).toHaveBeenCalledOnce()
   })
+
+  it('requires personal credentials from trusted mode, ignoring model-supplied policy', async () => {
+    const assistant = { ...context, requestMode: 'assistant' }
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'gmail', personalOnly: false },
+      assistant
+    )
+    expect(result.success).toBe(true)
+    expect(mocks.execute).toHaveBeenCalledWith(assistant, useCases.prepare, {
+      workspaceId: 'workspace-1',
+      providerName: 'gmail',
+      credentialId: undefined,
+      personalOnly: true,
+    })
+  })
+
+  it('opens the existing GitLab integration form for a personal token', async () => {
+    mocks.execute.mockResolvedValue({
+      kind: 'personal_token',
+      providerId: 'gitlab',
+      serviceName: 'GitLab',
+    })
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'gitlab' },
+      { ...context, requestMode: 'assistant' }
+    )
+    expect(result.success).toBe(true)
+    const output = result.output as { oauth_url: string; instructions: string }
+    const url = new URL(output.oauth_url)
+    expect(url.origin).toBe('https://sim.test')
+    expect(url.pathname).toBe('/workspace/workspace-1/integrations/gitlab')
+    expect(url.searchParams.get('connect')).toBe('personal-token')
+    expect(output.instructions).toContain('connection form')
+  })
+
+  it('opens existing account enrollment for Slack instead of bot OAuth', async () => {
+    mocks.execute.mockResolvedValue({
+      kind: 'managed_oauth',
+      providerId: 'slack',
+      serviceName: 'Slack',
+    })
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'slack' },
+      { ...context, requestMode: 'assistant' }
+    )
+    const output = result.output as { oauth_url: string; message: string }
+    const url = new URL(output.oauth_url)
+    expect(url.pathname).toBe('/workspace/workspace-1/search')
+    expect(url.searchParams.get('search')).toBe('Slack')
+    expect(output.message).toContain('your Slack account')
+  })
+
+  it('does not offer a service-account card or fallback link in Assistant', async () => {
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'slack custom bot' },
+      { ...context, requestMode: 'assistant' }
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('your own connected accounts')
+    expect(result.output).not.toHaveProperty('oauth_url')
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('does not attach a reconnect URL after rejecting another person’s credential', async () => {
+    mocks.execute.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Assistant can only reconnect your own account.')
+    )
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'gmail', credentialId: 'other-account' },
+      { ...context, requestMode: 'assistant' }
+    )
+    expect(result.success).toBe(false)
+    expect(result.output).not.toHaveProperty('oauth_url')
+    expect(result.error).toContain('own account')
+  })
 })

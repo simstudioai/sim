@@ -11,6 +11,7 @@ export const slackDownloadTool: InternalToolConfig<SlackDownloadParams, SlackDow
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['files:read'],
   },
 
   params: {

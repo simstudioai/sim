@@ -21,6 +21,7 @@ import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -33,10 +34,6 @@ import {
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
-import {
-  searchedKnowledgeBases,
-  withSearchedKnowledgeContexts,
-} from '@/lib/sim-search/knowledge-bases'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 /**
  * Imported from its own folder, not the components barrel: the workflow copilot
@@ -63,9 +60,7 @@ import {
   searchQueryParam,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
-import { fetchKnowledgeBases } from '@/hooks/queries/kb/knowledge'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useMemberAccessAvailable } from '@/hooks/use-member-access'
@@ -479,7 +474,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       text: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
-      modeOverride?: MothershipMode
+      modeOverride?: MothershipMode,
+      assistantSearch?: WorkspaceSearchFilters
     ) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
@@ -515,29 +511,11 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       }
 
       prepareResourceViewForAgentTurn()
-      /**
-       * An Assistant turn is grounded in the searched bases, read from the
-       * query cache the Search panel shares: instant once loaded, and awaited
-       * the one time a question is typed before the list has arrived.
-       */
-      const turnContexts = answering
-        ? withSearchedKnowledgeContexts(
-            contexts,
-            searchedKnowledgeBases(
-              await queryClient.ensureQueryData({
-                queryKey: knowledgeKeys.list(workspaceId, 'active'),
-                queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, 'active', signal),
-                staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
-              }),
-              workspaceId
-            )
-          )
-        : contexts
       sendMessage(
         trimmed || 'Analyze the attached file(s).',
         fileAttachments,
-        turnContexts,
-        answering ? { requestMode: 'ask' } : undefined
+        contexts,
+        answering ? { requestMode: 'assistant', assistantSearch } : undefined
       )
     },
     [
@@ -548,7 +526,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       editingQueuedId,
       cancelQueueEdit,
       prepareResourceViewForAgentTurn,
-      queryClient,
       sendMessage,
       setSearchQuery,
     ]
@@ -561,7 +538,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    */
   const restoreQueuedMode = useCallback(
     (requestMode: QueuedMessage['requestMode']) => {
-      void setComposerMode(requestMode === 'ask' ? 'assistant' : 'build')
+      void setComposerMode(requestMode === 'assistant' ? 'assistant' : 'build')
     },
     [setComposerMode]
   )
@@ -578,11 +555,19 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    * box is emptied as a send empties it, so the query does not linger as a
    * draft under the answer.
    */
-  const handleSummarize = (prompt: string) => {
+  const handleSummarize = (prompt: string, assistantSearch: WorkspaceSearchFilters) => {
+    if (resolvedChatId) {
+      MothershipHandoffStorage.store(
+        { message: prompt, requestMode: 'assistant', assistantSearch },
+        workspaceId
+      )
+      router.push(`/workspace/${workspaceId}/home?mode=assistant`)
+      return
+    }
     void setComposerMode('assistant')
     initialViewUserInputRef.current?.clear()
     chatViewUserInputRef.current?.clear()
-    void handleSubmit(prompt, undefined, undefined, 'assistant')
+    void handleSubmit(prompt, undefined, undefined, 'assistant', assistantSearch)
   }
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (
@@ -608,6 +593,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
         ...(detail.requestMode ? { requestMode: detail.requestMode } : {}),
+        ...(detail.assistantSearch ? { assistantSearch: detail.assistantSearch } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -643,6 +629,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
         ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+        ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
       return
     }

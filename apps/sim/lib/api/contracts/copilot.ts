@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -151,6 +152,8 @@ export const copilotChatAbortBodySchema = z.object({
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
 export const copilotToolExecuteInternalBodySchema = z.object({
+  requestMode: z.enum(['assistant', 'agent', 'build', 'plan']).optional(),
+  assistantSearch: workspaceSearchFiltersSchema.optional(),
   toolCallId: z.string().min(1, 'toolCallId is required'),
   toolName: z.string().min(1, 'toolName is required'),
   params: z.record(z.string(), z.unknown()).default({}),

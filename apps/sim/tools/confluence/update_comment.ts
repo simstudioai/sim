@@ -41,7 +41,7 @@ export const confluenceUpdateCommentTool: InternalToolConfig<
     domain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
     },
     commentId: {

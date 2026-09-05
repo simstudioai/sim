@@ -13,6 +13,7 @@ export const slackGetUserPresenceTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['users:read'],
   },
 
   params: {

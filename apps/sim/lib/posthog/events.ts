@@ -340,6 +340,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -351,6 +352,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -362,6 +364,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     role: 'admin' | 'member'
     workspace_id: string
   }
@@ -373,6 +376,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     workspace_id: string
   }
 
@@ -806,6 +810,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id?: string
   }

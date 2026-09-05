@@ -1,10 +1,12 @@
 import type { CursorKey } from '@/lib/api/list-query'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 
 export const CHUNK_SORT_FIELDS = ['chunkIndex', 'tokenCount', 'enabled'] as const
 
 export type ChunkSortBy = (typeof CHUNK_SORT_FIELDS)[number]
 
 export interface ChunkFilters {
+  documentFilters?: WorkspaceSearchFilters
   search?: string
   enabled?: 'true' | 'false' | 'all'
   limit?: number

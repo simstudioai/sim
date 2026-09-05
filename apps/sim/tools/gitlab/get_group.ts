@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabGetGroupTool: ToolConfig<GitLabGetGroupParams, GitLabGetGroupResponse> = {
   id: 'gitlab_get_group',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Get Group',
   description: 'Get details of a specific GitLab group',
   version: '1.0.0',

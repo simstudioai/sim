@@ -6,19 +6,34 @@ import { NuqsTestingAdapter, type UrlUpdateEvent } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, mockLeaveSearch } = vi.hoisted(() => ({
+const { mockCaptureEvent, mockModeChange, mockPush, navigation } = vi.hoisted(() => ({
   mockCaptureEvent: vi.fn(),
-  mockLeaveSearch: vi.fn(),
+  mockModeChange: vi.fn(),
+  mockPush: vi.fn(),
+  navigation: {
+    pathname: '/workspace/workspace-1/home',
+    chatId: undefined as string | undefined,
+    requestMode: undefined as 'agent' | 'assistant' | undefined,
+  },
 }))
 const mockUrlUpdate = vi.fn<(event: UrlUpdateEvent) => void>()
 
 vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
+  useParams: () => ({ workspaceId: 'workspace-1', chatId: navigation.chatId }),
+  usePathname: () => navigation.pathname,
+  useRouter: () => ({ push: mockPush }),
 }))
 /** The switcher renders only where Search mode exists, so these tests are that workspace. */
 vi.mock('@/hooks/use-member-access', () => ({ useMemberAccessAvailable: () => true }))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
+vi.mock('@/hooks/queries/mothership-chats', () => ({
+  useMothershipChatHistory: () => ({
+    data: navigation.chatId
+      ? { messages: [{ role: 'user', requestMode: navigation.requestMode }] }
+      : undefined,
+  }),
+}))
 
 import { ModeSwitcher } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mode-switcher/mode-switcher'
 
@@ -33,7 +48,7 @@ function mount(searchParams = '') {
   act(() =>
     root?.render(
       <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mockUrlUpdate}>
-        <ModeSwitcher onLeaveSearch={mockLeaveSearch} />
+        <ModeSwitcher onModeChange={mockModeChange} />
       </NuqsTestingAdapter>
     )
   )
@@ -65,8 +80,12 @@ async function select(index: number) {
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  navigation.pathname = '/workspace/workspace-1/home'
+  navigation.chatId = undefined
+  navigation.requestMode = undefined
+  mockPush.mockClear()
+  mockModeChange.mockClear()
   mockCaptureEvent.mockClear()
-  mockLeaveSearch.mockClear()
   mockUrlUpdate.mockClear()
 })
 
@@ -114,7 +133,6 @@ describe('ModeSwitcher', () => {
       mode: 'search',
     })
     expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.get('mode')).toBe('search')
-    expect(mockLeaveSearch).not.toHaveBeenCalled()
   })
 
   it('reads the mode from the URL on mount', () => {
@@ -124,23 +142,70 @@ describe('ModeSwitcher', () => {
     expect(trigger().getAttribute('aria-label')).toBe('Mode: Assistant')
   })
 
+  it.each(['', '?mode=build'])('restores Assistant from the conversation with URL %s', (params) => {
+    navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
+    navigation.chatId = 'existing-chat'
+    navigation.requestMode = 'assistant'
+    mount(params)
+
+    expect(trigger().getAttribute('aria-label')).toBe('Mode: Assistant')
+    expect(mockUrlUpdate).not.toHaveBeenCalled()
+  })
+
+  it('does not turn a Build conversation into Assistant through a URL parameter', () => {
+    navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
+    navigation.chatId = 'existing-chat'
+    navigation.requestMode = 'agent'
+    mount('?mode=assistant')
+
+    expect(trigger().getAttribute('aria-label')).toBe('Mode: Build')
+  })
+
+  it('opens a fresh Build chat when leaving a restored Assistant conversation', async () => {
+    navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
+    navigation.chatId = 'existing-chat'
+    navigation.requestMode = 'assistant'
+    mount()
+    openMenu()
+    await select(0)
+
+    expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1/home')
+    expect(mockUrlUpdate).not.toHaveBeenCalled()
+  })
+
   it('clears the composer and search parameters together when leaving Search', async () => {
     mount('?mode=search&q=budget&source=upload&updated=7d&resource=report')
     openMenu()
     await select(0)
 
     expect(trigger().textContent).toBe('Build')
-    expect(mockLeaveSearch).toHaveBeenCalledOnce()
+    expect(mockModeChange).toHaveBeenCalledOnce()
     expect(mockUrlUpdate).toHaveBeenCalledOnce()
     expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe('resource=report')
     expect(mockUrlUpdate.mock.lastCall?.[0].options).toMatchObject({
       history: 'replace',
       scroll: false,
     })
-    expect(mockLeaveSearch.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mockModeChange.mock.invocationCallOrder[0]).toBeLessThan(
       mockUrlUpdate.mock.invocationCallOrder[0]
     )
   })
+
+  it.each([
+    ['', 2, '/workspace/workspace-1/home?mode=assistant'],
+    ['?mode=assistant', 0, '/workspace/workspace-1/home'],
+  ] as const)(
+    'starts a fresh chat when switching between Build and Assistant',
+    async (params, index, target) => {
+      navigation.pathname = '/workspace/workspace-1/chat/existing-chat'
+      mount(params)
+      openMenu()
+      await select(index)
+      expect(mockPush).toHaveBeenCalledWith(target)
+      expect(mockModeChange).toHaveBeenCalledOnce()
+      expect(mockUrlUpdate).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not report re-selecting the active mode', async () => {
     mount()
@@ -149,6 +214,5 @@ describe('ModeSwitcher', () => {
 
     expect(trigger().textContent).toBe('Build')
     expect(mockCaptureEvent).not.toHaveBeenCalled()
-    expect(mockLeaveSearch).not.toHaveBeenCalled()
   })
 })

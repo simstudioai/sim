@@ -42,6 +42,7 @@ export interface VisibleWorkspaceCredential {
   accountId: string | null
   envKey: string | null
   envOwnerUserId: string | null
+  providerTenantId?: string | null
   createdBy: string
   createdAt: Date
   updatedAt: Date
@@ -137,6 +138,7 @@ export async function listVisibleWorkspaceCredentials(params: {
     eq(credential.workspaceId, workspaceId),
     notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
     isNotNull(credential.createdBy),
+    or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, userId)),
   ]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
@@ -155,9 +157,14 @@ export async function listVisibleWorkspaceCredentials(params: {
     ? or(
         isNotNull(credentialMember.id),
         inArray(credential.type, SHARED_CREDENTIAL_TYPES),
-        eq(credential.envOwnerUserId, userId)
+        eq(credential.envOwnerUserId, userId),
+        and(eq(credential.type, 'personal_token'), eq(credential.createdBy, userId))
       )
-    : or(isNotNull(credentialMember.id), eq(credential.envOwnerUserId, userId))
+    : or(
+        isNotNull(credentialMember.id),
+        eq(credential.envOwnerUserId, userId),
+        and(eq(credential.type, 'personal_token'), eq(credential.createdBy, userId))
+      )
 
   const query = db
     .select({
@@ -171,6 +178,7 @@ export async function listVisibleWorkspaceCredentials(params: {
       accountId: credential.accountId,
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
+      providerTenantId: credential.providerTenantId,
       createdBy: credential.createdBy,
       createdAt: credential.createdAt,
       updatedAt: credential.updatedAt,
@@ -211,6 +219,7 @@ export async function listVisibleWorkspaceCredentials(params: {
        */
       role:
         (rest.type === 'env_personal' && rest.envOwnerUserId === userId) ||
+        (rest.type === 'personal_token' && rest.createdBy === userId) ||
         (isWorkspaceAdmin && isSharedCredentialType(rest.type))
           ? ('admin' as const)
           : (memberRole ?? ('member' as const)),
@@ -316,6 +325,7 @@ export async function getWorkspaceCredential(params: {
 export async function findWorkspaceCredentialLookup(params: {
   workspaceId: string
   credentialId: string
+  userId?: string
 }): Promise<WorkspaceCredentialLookup | null> {
   const projection = {
     id: credential.id,
@@ -330,7 +340,10 @@ export async function findWorkspaceCredentialLookup(params: {
       and(
         eq(credential.id, params.credentialId),
         eq(credential.workspaceId, params.workspaceId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+        params.userId
+          ? or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, params.userId))
+          : sql`${credential.type} <> 'personal_token'`
       )
     )
     .limit(1)
@@ -343,7 +356,10 @@ export async function findWorkspaceCredentialLookup(params: {
       and(
         eq(credential.accountId, params.credentialId),
         eq(credential.workspaceId, params.workspaceId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+        params.userId
+          ? or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, params.userId))
+          : sql`${credential.type} <> 'personal_token'`
       )
     )
     .limit(1)

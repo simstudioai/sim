@@ -1,7 +1,7 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import {
   InsufficientWorkspacePermissionsError,
@@ -25,6 +25,7 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { createKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { findWorkspaceSearchIndex } from '@/lib/knowledge/search/search-index'
 import {
   canConnectPersonally,
   missingSetupFields,
@@ -66,7 +67,7 @@ async function findSimSearchConnector(input: ConnectSimSearchConnectorInput) {
     .where(
       and(
         eq(knowledgeBase.workspaceId, input.workspaceId),
-        inArray(knowledgeBase.id, searchKnowledgeBaseQuery(input.workspaceId)),
+        eq(knowledgeBase.isSearchIndex, true),
         isNull(knowledgeBase.deletedAt),
         eq(knowledgeConnector.connectorType, input.connectorType),
         input.connectorId ? eq(knowledgeConnector.id, input.connectorId) : undefined,
@@ -98,25 +99,6 @@ async function findSimSearchConnector(input: ConnectSimSearchConnectorInput) {
   return match ? { knowledgeBaseId: match.knowledgeBaseId, connectorId: match.connectorId } : null
 }
 
-function searchKnowledgeBaseQuery(workspaceId: string) {
-  return db
-    .select({ id: knowledgeBase.id })
-    .from(knowledgeBase)
-    .where(
-      and(
-        eq(knowledgeBase.workspaceId, workspaceId),
-        eq(knowledgeBase.isSearchIndex, true),
-        isNull(knowledgeBase.deletedAt)
-      )
-    )
-    .limit(1)
-}
-
-async function findSimSearchKnowledgeBase(workspaceId: string) {
-  const [row] = await searchKnowledgeBaseQuery(workspaceId)
-  return row ?? null
-}
-
 /** Resolves the current workspace search index without creating one. */
 export const readSearchIndex = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readSearchIndex,
@@ -125,7 +107,7 @@ export const readSearchIndex = defineAuthorizedKnowledgeUseCase({
   async execute({ context }) {
     return {
       workspaceId: context.workspaceId,
-      knowledgeBaseId: (await findSimSearchKnowledgeBase(context.workspaceId))?.id ?? null,
+      knowledgeBaseId: (await findWorkspaceSearchIndex(context.workspaceId))?.id ?? null,
     }
   },
 })
@@ -137,7 +119,7 @@ async function ensureSearchKnowledgeBase(
   request?: OrchestrationRequestContext
 ): Promise<string> {
   return coalesceLocally(`sim-search:base:${workspaceId}`, async () => {
-    const existing = await findSimSearchKnowledgeBase(workspaceId)
+    const existing = await findWorkspaceSearchIndex(workspaceId)
     if (existing) return existing.id
     try {
       const [legacy] = await db
@@ -166,7 +148,7 @@ async function ensureSearchKnowledgeBase(
       })
       return created.knowledgeBase.id
     } catch (error) {
-      const concurrent = await findSimSearchKnowledgeBase(workspaceId)
+      const concurrent = await findWorkspaceSearchIndex(workspaceId)
       if (concurrent) return concurrent.id
       throw error
     }

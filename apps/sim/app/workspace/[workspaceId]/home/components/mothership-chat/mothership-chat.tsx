@@ -212,6 +212,7 @@ interface AssistantMessageRowProps {
   isStreaming: boolean
   isLast: boolean
   precedingUserContent: string | undefined
+  requestMode?: ChatMessage['requestMode']
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
@@ -229,6 +230,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   isStreaming,
   isLast,
   precedingUserContent,
+  requestMode,
   questionAnswers,
   credentialSubmission,
   credentialAbandoned,
@@ -296,6 +298,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     <div className={cn(rowClassName, showsInteractionCard && 'pb-3')}>
       <MessageContent
         messageId={message.id}
+        requestMode={message.requestMode ?? requestMode}
         blocks={blocks}
         fallbackContent={message.content}
         isStreaming={isStreaming}
@@ -565,12 +568,12 @@ export function MothershipChat({
     return out
   }, [messages])
 
-  const precedingUserContentByIndex = useMemo(() => {
-    const out: Array<string | undefined> = []
-    let lastUserContent: string | undefined
+  const precedingUserByIndex = useMemo(() => {
+    const out: Array<ChatMessage | undefined> = []
+    let lastUser: ChatMessage | undefined
     for (const [index, message] of messages.entries()) {
-      out[index] = lastUserContent
-      if (message.role === 'user') lastUserContent = message.content
+      out[index] = lastUser
+      if (message.role === 'user') lastUser = message
     }
     return out
   }, [messages])
@@ -822,7 +825,8 @@ export function MothershipChat({
                         prepareContentForCopy={prepareContentForCopy}
                         isStreaming={isStreamActive && isLast}
                         isLast={isLast}
-                        precedingUserContent={precedingUserContentByIndex[index]}
+                        precedingUserContent={precedingUserByIndex[index]?.content}
+                        requestMode={precedingUserByIndex[index]?.requestMode}
                         questionAnswers={interactionPairing.answersByIndex[index]}
                         credentialSubmission={interactionPairing.credentialSubmissionByIndex[index]}
                         credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
@@ -855,21 +859,23 @@ export function MothershipChat({
               onEdit={handleEditQueued}
               onCancelEdit={onCancelQueueEdit}
             />
-            <UserInput
-              key={draftScopeKey}
-              ref={userInputRef}
-              defaultValue={searchQuery}
-              onSubmit={onSubmit}
-              canSearch={canSearch}
-              clearOnSubmit={clearOnSubmit}
-              onCleared={onCleared}
-              isSending={isStreamActive}
-              onStopGeneration={onStopGeneration}
-              isInitialView={false}
-              onSendQueuedHead={handleSendQueuedHead}
-              onEditQueuedTail={handleEditQueuedTail}
-              draftScopeKey={draftScopeKey}
-            />
+            {!isLoading && (
+              <UserInput
+                key={draftScopeKey}
+                ref={userInputRef}
+                defaultValue={searchQuery}
+                onSubmit={onSubmit}
+                canSearch={canSearch}
+                clearOnSubmit={clearOnSubmit}
+                onCleared={onCleared}
+                isSending={isStreamActive}
+                onStopGeneration={onStopGeneration}
+                isInitialView={false}
+                onSendQueuedHead={handleSendQueuedHead}
+                onEditQueuedTail={handleEditQueuedTail}
+                draftScopeKey={draftScopeKey}
+              />
+            )}
           </div>
         </div>
       </div>

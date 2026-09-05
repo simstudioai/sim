@@ -22,12 +22,14 @@ export const workspaceCredentialTypeSchema = z.enum([
   'env_workspace',
   'env_personal',
   'service_account',
+  'personal_token',
 ])
 const creatableWorkspaceCredentialTypeSchema = z.enum([
   'oauth',
   'env_workspace',
   'env_personal',
   'service_account',
+  'personal_token',
 ])
 export const workspaceCredentialRoleSchema = z.enum(['admin', 'member'])
 export const workspaceCredentialMemberStatusSchema = z.enum(['active', 'pending', 'revoked'])
@@ -43,6 +45,7 @@ export const workspaceCredentialSchema = z.object({
   accountId: z.string().nullable(),
   envKey: z.string().nullable(),
   envOwnerUserId: z.string().nullable(),
+  instanceUrl: z.string().url().optional(),
   createdBy: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -192,6 +195,28 @@ export const createCredentialBodySchema = z
           path: ['displayName'],
         })
       }
+      return
+    }
+
+    if (data.type === 'personal_token') {
+      if (data.providerId !== 'gitlab')
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Personal tokens are supported for GitLab',
+          path: ['providerId'],
+        })
+      if (!data.apiToken || data.apiToken.length > 4096)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a GitLab personal access token',
+          path: ['apiToken'],
+        })
+      if (data.domain && data.domain.length > 255)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'GitLab host is too long',
+          path: ['domain'],
+        })
       return
     }
 

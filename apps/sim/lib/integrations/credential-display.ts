@@ -12,6 +12,7 @@
 
 import type { ComponentType } from 'react'
 import integrationsJson from '@sim/deployment-config/integrations.json'
+import { GitlabIcon } from '@/components/icons'
 import { getServiceAccountConnectNoun } from '@/lib/credentials/service-account-provider-ids'
 import { CANONICAL_SERVICE_ACCOUNT_SLUGS } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
@@ -207,6 +208,20 @@ export interface CredentialDisplay {
 export function resolveCredentialDisplay(credential: DisplayableCredential): CredentialDisplay {
   const providerId = credential.providerId
   const isServiceAccount = credential.type === 'service_account'
+  if (credential.type === 'personal_token' && providerId === 'gitlab') {
+    const integration = INTEGRATION_BY_SLUG.get('gitlab') ?? null
+    return {
+      service: null,
+      integration,
+      blockType: 'gitlab',
+      icon: GitlabIcon,
+      familyName: null,
+      coveredIntegrations: integration ? [integration] : [],
+      subtitle: 'Your personal GitLab account',
+      detailTitle: 'GitLab',
+      detailSubtitle: 'Only you can use this connection.',
+    }
+  }
 
   if (!providerId) {
     return {

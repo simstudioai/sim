@@ -14,17 +14,17 @@ export async function executeOAuthGetAuthLink(
   const credentialId = rawCredentialId ? String(rawCredentialId) : undefined
   const baseUrl = getBaseUrl()
 
-  // A service account is not an OAuth provider. Catch it here — before the fuzzy
-  // resolver's substring match can swallow e.g. `slack-custom-bot` into the
-  // Slack OAuth service — and return a coherent failure directly rather than
-  // throwing into the generic catch below, which would attach a contradicting
-  // workspace `oauth_url` and "connect manually" message. Normalize spaces and
-  // underscores so a readable form ("slack custom bot") is caught too.
+  /** Reject service-account aliases before the provider resolver's fuzzy OAuth match. */
   const serviceAccountId = providerName
     .toLowerCase()
     .trim()
     .replace(/[\s_]+/g, '-')
   if (isServiceAccountProviderId(serviceAccountId)) {
+    if (context.requestMode === 'assistant') {
+      const message =
+        'Assistant uses your own connected accounts. A service account cannot be used here.'
+      return { success: false, error: message, output: { message } }
+    }
     const message =
       `"${providerName}" is a service account, not an OAuth provider. ` +
       `Emit a service_account credential tag with the service's OAuth provider ` +
@@ -39,7 +39,39 @@ export async function executeOAuthGetAuthLink(
       workspaceId,
       providerName,
       credentialId,
+      ...(context.requestMode === 'assistant' ? { personalOnly: true } : {}),
     })
+    if (result.kind === 'personal_token') {
+      const accountsUrl = new URL(
+        `/workspace/${workspaceId}/integrations/${result.providerId}`,
+        baseUrl
+      )
+      accountsUrl.searchParams.set('connect', 'personal-token')
+      return {
+        success: true,
+        output: {
+          message: `Connect your ${result.serviceName} account with a personal access token.`,
+          oauth_url: accountsUrl.toString(),
+          instructions: `Open ${accountsUrl.toString()} and enter your instance URL and personal access token in the connection form.`,
+          provider: result.serviceName,
+          providerId: result.providerId,
+        },
+      }
+    }
+    if (result.kind === 'managed_oauth') {
+      const accountsUrl = new URL(`/workspace/${workspaceId}/search`, baseUrl)
+      accountsUrl.searchParams.set('search', result.serviceName)
+      return {
+        success: true,
+        output: {
+          message: `Connect or reconnect your ${result.serviceName} account in Your accounts.`,
+          oauth_url: accountsUrl.toString(),
+          instructions: `Open ${accountsUrl.toString()} and connect your account. If sign-in is not configured, ask a workspace admin to enable it in Connected accounts.`,
+          provider: result.serviceName,
+          providerId: result.providerId,
+        },
+      }
+    }
     const callbackURL = context.workflowId
       ? `${baseUrl}/workspace/${workspaceId}/w/${context.workflowId}`
       : context.chatId
@@ -66,6 +98,9 @@ export async function executeOAuthGetAuthLink(
     }
   } catch (err) {
     const message = messageForCopilotApplicationError(err)
+    if (context.requestMode === 'assistant') {
+      return { success: false, error: message, output: { message } }
+    }
     const workspaceUrl = context.workspaceId
       ? `${baseUrl}/workspace/${context.workspaceId}`
       : `${baseUrl}/workspace`

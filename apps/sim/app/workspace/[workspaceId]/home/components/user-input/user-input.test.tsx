@@ -16,7 +16,11 @@ const { mockSubmit, mockResetTranscript, mockMemberAccessAvailable } = vi.hoiste
   mockMemberAccessAvailable: vi.fn(() => true),
 }))
 
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ workspaceId: 'workspace-1' }),
+  usePathname: () => '/workspace/workspace-1/home',
+  useRouter: () => ({ push: vi.fn() }),
+}))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: vi.fn() }))
 vi.mock('@/hooks/use-member-access', () => ({
@@ -30,6 +34,9 @@ vi.mock('@/hooks/use-speech-to-text', () => ({
 }))
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
+vi.mock('@/hooks/queries/mothership-chats', () => ({
+  useMothershipChatHistory: () => ({ data: undefined }),
+}))
 vi.mock('@/blocks/integration-matcher', () => ({
   getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
   mentionifyIntegrations: (text: string) => text,
@@ -127,7 +134,7 @@ function mount(requestMode?: QueuedMessage['requestMode']) {
         <button
           type='button'
           onClick={() => {
-            void setMode(requestMode === 'ask' ? 'assistant' : 'build')
+            void setMode(requestMode === 'assistant' ? 'assistant' : 'build')
             inputRef.current?.loadQueuedMessage({ ...QUEUED_MESSAGE, requestMode })
           }}
         >
@@ -221,12 +228,14 @@ describe('search composer transitions', () => {
     await selectMode(mode)
 
     expect(textarea().value).toBe('')
-    expect(textarea().placeholder).toBe('Ask Sim to ')
+    expect(textarea().placeholder).toBe(
+      mode === 'Assistant' ? 'Ask about your documents or take action…' : 'Ask Sim to '
+    )
     expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.has('q')).toBe(false)
     expect(mockSubmit).not.toHaveBeenCalled()
   })
 
-  it.each([undefined, 'ask'] as const)(
+  it.each([undefined, 'assistant'] as const)(
     'retains queued content and files after restoring request mode %s',
     async (requestMode) => {
       mount(requestMode)
@@ -236,24 +245,24 @@ describe('search composer transitions', () => {
       expect(textarea().value).toBe(QUEUED_MESSAGE.content)
       expect(container?.querySelector('output')?.textContent).not.toContain('build:budget')
       expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe(
-        requestMode === 'ask' ? 'mode=assistant&resource=report' : 'resource=report'
+        requestMode === 'assistant' ? 'mode=assistant&resource=report' : 'resource=report'
       )
       await clickButton('Send')
       expect(mockSubmit).toHaveBeenCalledWith(
         QUEUED_MESSAGE.content,
-        QUEUED_MESSAGE.fileAttachments,
+        requestMode === 'assistant' ? undefined : QUEUED_MESSAGE.fileAttachments,
         undefined
       )
     }
   )
 
-  it('keeps files available when leaving Search', async () => {
+  it('starts a clean composer when changing modes', async () => {
     const inputRef = mount()
     act(() => inputRef.current?.loadQueuedMessage({ ...QUEUED_MESSAGE, content: 'budget' }))
 
     await selectMode('Build')
     await clickButton('Send')
 
-    expect(mockSubmit).toHaveBeenCalledWith('', QUEUED_MESSAGE.fileAttachments, undefined)
+    expect(mockSubmit).toHaveBeenCalledWith('', undefined, undefined)
   })
 })

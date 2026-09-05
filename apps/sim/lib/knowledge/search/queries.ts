@@ -6,6 +6,8 @@ import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
+import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
 import {
   coerceTagFilterValue,
@@ -167,6 +169,7 @@ export interface SearchParams {
   /** What the caller may read; every leg applies it. Required so no leg can be written without it. */
   access: KnowledgeAccessScope
   structuredFilters?: StructuredFilter[]
+  filters?: WorkspaceSearchFilters
   queryVector?: KnowledgeQueryVector
   distanceThreshold?: number
 }
@@ -394,7 +397,7 @@ const FTS_CONFIG = 'english'
  * overlaps the caller's tokens. Every leg spreads this helper rather than
  * listing the predicates itself, so no leg can drift from the others.
  */
-function getVisibilityConditions(access: KnowledgeAccessScope) {
+function getVisibilityConditions(access: KnowledgeAccessScope, filters?: WorkspaceSearchFilters) {
   return [
     eq(embedding.enabled, true),
     eq(document.enabled, true),
@@ -403,6 +406,7 @@ function getVisibilityConditions(access: KnowledgeAccessScope) {
     isNull(document.archivedAt),
     isNull(document.deletedAt),
     knowledgeAccessCondition(access),
+    ...workspaceSearchFilterConditions(filters),
   ]
 }
 
@@ -447,7 +451,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
         .where(
           and(
             eq(embedding.knowledgeBaseId, kbId),
-            ...getVisibilityConditions(access),
+            ...getVisibilityConditions(access, params.filters),
             ...tagFilterConditions
           )
         )
@@ -465,7 +469,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
-        ...getVisibilityConditions(access),
+        ...getVisibilityConditions(access, params.filters),
         ...tagFilterConditions
       )
     )
@@ -489,7 +493,11 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
-        and(kbScope, ...getVisibilityConditions(access), sql`${distance} < ${distanceThreshold}`)
+        and(
+          kbScope,
+          ...getVisibilityConditions(access, params.filters),
+          sql`${distance} < ${distanceThreshold}`
+        )
       )
       .orderBy(distance)
       .limit(limit)
@@ -524,6 +532,7 @@ export interface KeywordSearchParams {
   /** Query embedding, so keyword-only hits still carry a real cosine distance. */
   queryVector: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
+  filters?: WorkspaceSearchFilters
 }
 
 /**
@@ -566,7 +575,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
   const rankConditions = (kbScope: SQL | undefined) =>
     and(
       kbScope,
-      ...getVisibilityConditions(access),
+      ...getVisibilityConditions(access, params.filters),
       sql`${embedding.contentTsv} @@ ${tsQuery}`,
       ...tagFilterConditions
     )
@@ -608,7 +617,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     )
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
-    .where(and(inArray(embedding.id, topIds), ...getVisibilityConditions(access)))
+    .where(and(inArray(embedding.id, topIds), ...getVisibilityConditions(access, params.filters)))
 
   const rowById = new Map(hydrated.map((row) => [row.id, row]))
   return topIds.map((id) => rowById.get(id)).filter((row): row is SearchResult => row !== undefined)
@@ -717,7 +726,7 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
       .where(
         and(
           inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
-          ...getVisibilityConditions(access),
+          ...getVisibilityConditions(access, params.filters),
           ...tagFilterConditions,
           sql`${distance} < ${distanceThreshold}`
         )
@@ -747,6 +756,7 @@ export interface ExecuteKnowledgeSearchParams {
   /** Required whenever `query` is present. */
   queryVector?: KnowledgeQueryVector
   structuredFilters?: StructuredFilter[]
+  filters?: WorkspaceSearchFilters
 }
 
 /**
@@ -775,7 +785,13 @@ export async function executeKnowledgeSearch(
     if (!hasFilters) {
       throw new Error('A search query or tag filters are required')
     }
-    return await handleTagOnlySearch({ knowledgeBaseIds, topK, structuredFilters, access })
+    return await handleTagOnlySearch({
+      knowledgeBaseIds,
+      topK,
+      structuredFilters,
+      access,
+      filters: params.filters,
+    })
   }
 
   if (!queryVector) {
@@ -798,6 +814,7 @@ export async function executeKnowledgeSearch(
         queryVector,
         distanceThreshold,
         access,
+        filters: params.filters,
       })
     : handleVectorOnlySearch({
         knowledgeBaseIds,
@@ -805,6 +822,7 @@ export async function executeKnowledgeSearch(
         queryVector,
         distanceThreshold,
         access,
+        filters: params.filters,
       })
 
   if (searchMode === 'vector') {
@@ -823,6 +841,7 @@ export async function executeKnowledgeSearch(
     queryVector,
     structuredFilters,
     access,
+    filters: params.filters,
   }).catch((error) => {
     logger.warn('Keyword search leg failed; falling back to vector-only results', {
       error: getErrorMessage(error, 'Unknown error'),

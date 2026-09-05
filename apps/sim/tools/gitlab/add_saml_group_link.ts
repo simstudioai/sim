@@ -10,6 +10,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
   GitLabSamlGroupLinkResponse
 > = {
   id: 'gitlab_add_saml_group_link',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Add SAML Group Link',
   description:
     'Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level (GitLab Premium/Ultimate)',

@@ -60,7 +60,14 @@ const OUTPUTS_PATH = resolve(GENERATED_DIR, 'tool-outputs.ts')
  * `hosting` is excluded but not lost: `hostedApiKey` below carries the one bit
  * of it a caller needs, derived into plain data.
  */
-const METADATA_FIELDS = ['name', 'description', 'version', 'params', 'oauth'] as const
+const METADATA_FIELDS = [
+  'name',
+  'description',
+  'version',
+  'params',
+  'oauth',
+  'personalToken',
+] as const
 
 type ToolRecord = Record<string, ToolConfig>
 

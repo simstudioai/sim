@@ -10,6 +10,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
   GitLabGetMergeRequestChangesResponse
 > = {
   id: 'gitlab_get_merge_request_changes',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Get Merge Request Changes',
   description: 'Get the file changes (diffs) of a GitLab merge request',
   version: '1.0.0',

@@ -27,6 +27,7 @@ import type {
 } from '@/lib/knowledge/chunks/types'
 import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
+import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
 import { replaceKnowledgeEmbeddingSecretProvenanceInTx } from '@/lib/knowledge/secret-provenance'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
@@ -98,7 +99,11 @@ export async function queryChunks(
    * scope; the join repeats the check at the row so a revocation between the
    * two reads still hides the content.
    */
-  const conditions = [eq(embedding.documentId, documentId), knowledgeAccessCondition(access)]
+  const conditions = [
+    eq(embedding.documentId, documentId),
+    knowledgeAccessCondition(access),
+    ...workspaceSearchFilterConditions(filters.documentFilters),
+  ]
 
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))

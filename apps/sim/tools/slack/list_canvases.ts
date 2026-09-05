@@ -13,6 +13,7 @@ export const slackListCanvasesTool: ToolConfig<SlackListCanvasesParams, SlackLis
     oauth: {
       required: true,
       provider: 'slack',
+      requiredScopes: ['files:read'],
     },
 
     params: {
