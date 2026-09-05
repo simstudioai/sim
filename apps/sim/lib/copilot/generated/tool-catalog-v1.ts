@@ -1352,6 +1352,12 @@ export const BrowserReload: ToolCatalogEntry = {
   resultSchema: {
     type: 'object',
     properties: {
+      notices: {
+        type: 'array',
+        description:
+          'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+        items: { type: 'string' },
+      },
       title: { type: 'string', description: 'Top-page title when available.' },
       url: { type: 'string', description: 'Top-page URL.' },
     },
@@ -4485,7 +4491,7 @@ export const QueryUserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
+              'Predicate filter object for query_rows. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are absolute whole Unix epoch seconds, never milliseconds. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}.',
           },
           limit: {
             type: 'number',
@@ -5753,7 +5759,7 @@ export const TableColumns: ToolCatalogEntry = {
           column: {
             type: 'object',
             description:
-              'Column definition for add_column: { name, type, unique?, position? }; select (enum) columns also take { options: [names], multiple?: true } — options is required for select.',
+              'Column definition for add_column: { name, type, unique?, position? }; type may be string, number, boolean, date, json, select, or ttl. Select (enum) columns also take { options: [names], multiple?: true } — options is required for select. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
           },
           columnName: {
             type: 'string',
@@ -5775,7 +5781,7 @@ export const TableColumns: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type for update_column: string, number, boolean, date, json, select. Converting to select also requires options; conversion fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell.',
+              'New column type for update_column: string, number, boolean, date, json, select, ttl. Converting to select also requires options; conversion fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are absolute whole Unix epoch seconds, not milliseconds.',
           },
           options: {
             type: 'array',
@@ -5954,7 +5960,7 @@ export const TableManage: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              'Table schema with a columns array (required for create). Each column: { name, type, unique? }; a select (enum) column also requires options (display names) and takes multiple?.',
+              'Table schema with a columns array (required for create). Each column: { name, type, unique? }; types are string, number, boolean, date, json, select, and ttl. A select (enum) column also requires options (display names) and takes multiple?. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
           },
           tableId: {
             type: 'string',
@@ -6000,12 +6006,12 @@ export const TableRows: ToolCatalogEntry = {
           data: {
             type: 'object',
             description:
-              'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME.',
+              'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME. TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds. On insert_row, a missing or null TTL means no expiration. On update_row and update_rows_by_filter, omit the TTL to preserve its current value or set it to null to clear the expiration.',
           },
           filter: {
             type: 'object',
             description:
-              'Predicate filter for update_rows_by_filter / delete_rows_by_filter: {"all":[...]} (AND) or {"any":[...]} (OR) of {field, op, value} leaves or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (* wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array. Single-select columns match by eq/ne/in/nin; multiple-select by contains/ncontains — values are option NAMES.',
+              'Predicate filter for update_rows_by_filter / delete_rows_by_filter: {"all":[...]} (AND) or {"any":[...]} (OR) of {field, op, value} leaves or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (* wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array. Single-select columns match by eq/ne/in/nin; multiple-select by contains/ncontains — values are option NAMES. TTL filter values are absolute whole Unix epoch seconds.',
           },
           limit: {
             type: 'number',
@@ -6030,14 +6036,15 @@ export const TableRows: ToolCatalogEntry = {
           },
           rows: {
             type: 'array',
-            description: 'Array of row data objects (required for batch_insert_rows)',
+            description:
+              'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
             items: { type: 'object' },
           },
           tableId: { type: 'string', description: 'Table ID (required for every operation)' },
           updates: {
             type: 'array',
             description:
-              'Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a)',
+              "Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
             items: {
               type: 'object',
               properties: { data: { type: 'object' }, rowId: { type: 'string' } },
@@ -6047,7 +6054,7 @@ export const TableRows: ToolCatalogEntry = {
           values: {
             type: 'object',
             description:
-              'Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName)',
+              "Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName). For a TTL column, values are absolute whole Unix epoch seconds, never JavaScript milliseconds; set a row's value to null to clear its expiration, and omit the row from the map to leave it unchanged.",
           },
         },
         required: ['tableId'],
@@ -6373,7 +6380,7 @@ export const UserTable: ToolCatalogEntry = {
           column: {
             type: 'object',
             description:
-              'Column definition for add_column: { name, type, unique?, position? }. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
+              'Column definition for add_column: { name, type, unique?, position? }. Type may be string, number, boolean, date, json, select, or ttl. For a select (enum) column also pass { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
           },
           columnName: {
             type: 'string',
@@ -6393,7 +6400,8 @@ export const UserTable: ToolCatalogEntry = {
           },
           data: {
             type: 'object',
-            description: 'Row data as key-value pairs (required for insert_row, update_row)',
+            description:
+              'Row data as key-value pairs (required for insert_row, update_row). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds. On insert_row, a missing or null TTL means no expiration. On update_row, omit the TTL to preserve its current value or set it to null to clear the expiration.',
           },
           dependencies: {
             type: 'object',
@@ -6422,7 +6430,7 @@ export const UserTable: ToolCatalogEntry = {
           filter: {
             type: 'object',
             description:
-              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
+              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. TTL filter values are absolute whole Unix epoch seconds, never milliseconds. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
           },
           groupId: {
             type: 'string',
@@ -6511,7 +6519,7 @@ export const UserTable: ToolCatalogEntry = {
           newType: {
             type: 'string',
             description:
-              'New column type (optional for update_column). Types: string, number, boolean, date, json, select. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips.',
+              'New column type (optional for update_column). Types: string, number, boolean, date, json, select, ttl. Converting a column to select also requires options; the conversion fails if any existing cell value doesn\'t match one of them. Converting to a multiple: true select also accepts a comma-separated cell ("Open, Urgent"), which is the form a multi column converts to text as — so multiselect → text → multiselect round-trips. Converting to ttl enables row expiration and fails if the table already has another ttl column; TTL values are absolute whole Unix epoch seconds, not milliseconds.',
           },
           options: {
             type: 'array',
@@ -6597,7 +6605,8 @@ export const UserTable: ToolCatalogEntry = {
           },
           rows: {
             type: 'array',
-            description: 'Array of row data objects (required for batch_insert_rows)',
+            description:
+              'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
             items: { type: 'object' },
           },
           runMode: {
@@ -6609,7 +6618,7 @@ export const UserTable: ToolCatalogEntry = {
           schema: {
             type: 'object',
             description:
-              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select.',
+              'Table schema with columns array (required for \'create\'). Each column: { name, type, unique? }. Types are string, number, boolean, date, json, select, and ttl. A select (enum) column also takes { options: ["Open", "Closed"], multiple?: true } — options is a list of display names and is required for select. A table may have at most one ttl column; adding it enables row expiration, with cell values stored as absolute whole Unix epoch seconds rather than milliseconds.',
           },
           scope: {
             type: 'string',
@@ -6634,7 +6643,7 @@ export const UserTable: ToolCatalogEntry = {
           updates: {
             type: 'array',
             description:
-              'Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows)',
+              "Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
             items: {
               type: 'object',
               properties: { data: { type: 'object' }, rowId: { type: 'string' } },
@@ -6644,7 +6653,7 @@ export const UserTable: ToolCatalogEntry = {
           values: {
             type: 'object',
             description:
-              'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName)',
+              'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName). For a TTL column, values are absolute whole Unix epoch seconds, never JavaScript milliseconds; set a row\'s value to null to clear its expiration, and omit the row from the map to leave it unchanged.',
           },
           workflowId: {
             type: 'string',

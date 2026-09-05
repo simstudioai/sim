@@ -929,6 +929,14 @@ function browserElementStateMatches(
           : targetState.ariaChecked === 'false' || targetState.ariaPressed === 'false'
             ? false
             : undefined
+  const expanded =
+    typeof targetState.open === 'boolean'
+      ? targetState.open
+      : targetState.ariaExpanded === 'true'
+        ? true
+        : targetState.ariaExpanded === 'false'
+          ? false
+          : undefined
   const selected =
     typeof targetState.selected === 'boolean'
       ? targetState.selected
@@ -956,9 +964,9 @@ function browserElementStateMatches(
     case 'unchecked':
       return present && checked === false
     case 'expanded':
-      return present && targetState.ariaExpanded === 'true'
+      return present && expanded === true
     case 'collapsed':
-      return present && targetState.ariaExpanded === 'false'
+      return present && expanded === false
     case 'selected':
       return present && selected === true
     case 'unselected':
@@ -2560,6 +2568,25 @@ async function executeToolInner(
         )
       }
       assertCaptureIsCurrent()
+      if (elementId !== undefined && elementClip) {
+        const currentClip = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              contents,
+              getElementScreenshotRect,
+              [elementId],
+              false,
+              executionDeadline
+            )
+          )
+        )
+        assertCaptureIsCurrent()
+        if (['x', 'y', 'width', 'height'].some((key) => currentClip[key] !== elementClip[key])) {
+          throw new ToolError(
+            'The element moved while its screenshot was being captured. Retry browser_screenshot before using image coordinates.'
+          )
+        }
+      }
       if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
@@ -3646,6 +3673,15 @@ async function executeToolInner(
           await execInPage(target, readCheckableElementState, [elementId], false, executionDeadline)
         )
       )
+      if (before.checked === checked) {
+        return {
+          checked,
+          changed: false,
+          dispatched: false,
+          element: before.kind,
+          refRecovered: before.refRecovered === true,
+        }
+      }
       if (before.disabled === true) throw new ToolError('That control is disabled.')
       if (before.readOnly === true) throw new ToolError('That control is read-only.')
       if (
@@ -3655,15 +3691,6 @@ async function executeToolInner(
           before.kind === 'role:menuitemradio')
       ) {
         throw new ToolError('Radio buttons cannot be unchecked directly. Select another option.')
-      }
-      if (before.checked === checked) {
-        return {
-          checked,
-          changed: false,
-          dispatched: false,
-          element: before.kind,
-          refRecovered: before.refRecovered === true,
-        }
       }
 
       const clickResult = toRecord(

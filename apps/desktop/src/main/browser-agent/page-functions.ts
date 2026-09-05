@@ -29,7 +29,10 @@
 declare global {
   interface Window {
     __simAgentElements?: Element[]
-    __simAgentResolveElement?: (id: number) => { element: Element; recovered: boolean } | null
+    __simAgentResolveElement?: (
+      id: number,
+      allowRecovery?: boolean
+    ) => { element: Element; recovered: boolean } | null
     __simAgentMutationStates?: Array<{
       root: Node
       observer: MutationObserver
@@ -56,7 +59,7 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     elementId === undefined
       ? undefined
       : resolver
-        ? resolver(elementId)?.element
+        ? resolver(elementId, false)?.element
         : window.__simAgentElements?.[elementId]
   if (elementId !== undefined) {
     if (!scopedRoot?.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
@@ -642,7 +645,7 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
    * fingerprint still identify one candidate; a weak or ambiguous match is a
    * real stale ref, never permission to click something nearby.
    */
-  window.__simAgentResolveElement = (id: number) => {
+  window.__simAgentResolveElement = (id: number, allowRecovery = true) => {
     if (scopedRoot && !scopedRoot.isConnected) {
       window.__simAgentStaleReason = 'the scoped snapshot root left the DOM'
       return null
@@ -777,6 +780,11 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
         window.__simAgentStaleReason = undefined
         return { element: current, recovered: false }
       }
+    }
+
+    if (!allowRecovery) {
+      window.__simAgentStaleReason = 'the original snapshot node is detached or hidden'
+      return null
     }
 
     // Past this point the original node is gone or hidden, so anything returned
@@ -2150,6 +2158,20 @@ export function readPageActionState(
     return true
   }
 
+  let disabled = observedElement?.matches(':disabled') === true
+  for (let ancestor = observedElement; ancestor && !disabled; ) {
+    disabled = ancestor.getAttribute('aria-disabled') === 'true'
+    const root = ancestor.getRootNode()
+    ancestor = ancestor.parentElement ?? ('host' in root ? (root.host as Element) : null)
+  }
+  const observedTag = observedElement?.tagName.toUpperCase()
+  const disclosure =
+    observedTag === 'DETAILS' || observedTag === 'DIALOG'
+      ? observedElement
+      : observedTag === 'SUMMARY' &&
+          observedElement?.parentElement?.tagName.toUpperCase() === 'DETAILS'
+        ? observedElement.parentElement
+        : undefined
   const targetState =
     typeof elementId !== 'number'
       ? undefined
@@ -2162,20 +2184,18 @@ export function readPageActionState(
             ariaPressed: observedElement.getAttribute('aria-pressed'),
             ariaChecked: observedElement.getAttribute('aria-checked'),
             checked:
-              observedElement.tagName !== 'INPUT' ||
+              observedTag !== 'INPUT' ||
               !['checkbox', 'radio'].includes((observedElement as HTMLInputElement).type)
                 ? undefined
                 : (observedElement as HTMLInputElement).indeterminate === true
                   ? 'mixed'
                   : Boolean((observedElement as HTMLInputElement).checked),
-            disabled:
-              observedElement.matches(':disabled') ||
-              observedElement.closest('[aria-disabled="true"]') !== null,
+            disabled,
             selected:
               'selected' in observedElement
                 ? Boolean((observedElement as HTMLOptionElement).selected)
                 : undefined,
-            open: observedElement.hasAttribute('open'),
+            open: disclosure?.hasAttribute('open'),
             hidden:
               observedElement.hasAttribute('hidden') ||
               observedElement.getAttribute('aria-hidden') === 'true',
@@ -2682,10 +2702,15 @@ export function readCheckableElementState(id: number): unknown {
       : ariaChecked === 'false'
         ? false
         : ariaChecked
+  let disabled = candidate.matches(':disabled')
+  for (let ancestor: Element | null = candidate; ancestor && !disabled; ) {
+    disabled = ancestor.getAttribute('aria-disabled') === 'true'
+    const root = ancestor.getRootNode()
+    ancestor = ancestor.parentElement ?? ('host' in root ? (root.host as Element) : null)
+  }
   return {
     checked,
-    disabled:
-      candidate.matches(':disabled') || candidate.closest('[aria-disabled="true"]') !== null,
+    disabled,
     readOnly:
       (candidate as Element & { readOnly?: boolean }).readOnly === true ||
       candidate.getAttribute('aria-readonly') === 'true',
@@ -2696,7 +2721,7 @@ export function readCheckableElementState(id: number): unknown {
 
 export function getElementScreenshotRect(id: number): unknown {
   const resolver = window.__simAgentResolveElement
-  const resolved = resolver?.(id)
+  const resolved = resolver?.(id, false)
   const element = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
   if (!element || !element.isConnected) {
     return { error: 'stale', reason: window.__simAgentStaleReason }

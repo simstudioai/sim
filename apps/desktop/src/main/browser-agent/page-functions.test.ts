@@ -994,6 +994,29 @@ describe('semantic control state', () => {
     expect(collectSnapshot(10, 0)).toEqual({ error: 'framed-snapshot' })
   })
 
+  it.each(['detached', 'hidden', 'renamed'])(
+    'rejects a %s root before scoped capture without adopting a lookalike',
+    (change) => {
+      document.body.innerHTML =
+        '<div id="card" tabindex="0" aria-label="Selected card"><button>Save card</button></div>'
+      for (const element of document.querySelectorAll('*')) visible(element)
+      const root = document.querySelector('#card')!
+      const rootRef = refFor(outlineOf(collectSnapshot()), 'Selected card')
+      const replacement = root.cloneNode(true) as HTMLElement
+      for (const element of [replacement, ...replacement.querySelectorAll('*')]) visible(element)
+      if (change === 'detached') root.replaceWith(replacement)
+      else {
+        root.after(replacement)
+        if (change === 'hidden') root.setAttribute('hidden', '')
+        else root.setAttribute('aria-label', 'Different card')
+      }
+
+      expect(runSerialized(collectSnapshot, [100, rootRef])).toMatchObject({ error: 'stale' })
+      expect(window.__simAgentElements?.[rootRef]).toBe(root)
+      expect(runSerialized(collectSnapshot, [100, rootRef])).toMatchObject({ error: 'stale' })
+    }
+  )
+
   it('marks unreadable scoped frame content truncated', () => {
     const root = visible(document.createElement('div'))
     const frame = visible(document.createElement('iframe'))
@@ -1063,6 +1086,43 @@ describe('semantic control state', () => {
     expect(readPageActionState(false, 1, 'registered')).toEqual({ error: 'stale' })
   })
 
+  it.each([true, false])(
+    'reports native disclosure state as %s without inventing it on other elements',
+    (open) => {
+      document.body.innerHTML =
+        '<details><summary>Details</summary></details><dialog></dialog><button>Other</button>'
+      const details = document.querySelector('details')!
+      const dialog = document.querySelector('dialog')!
+      details.open = open
+      dialog.open = open
+      const elements = [
+        details,
+        document.querySelector('summary')!,
+        dialog,
+        document.querySelector('button')!,
+      ]
+      register(...elements.map(visible))
+      for (let id = 0; id < elements.length; id++) {
+        expect(runSerialized(readPageActionState, [false, id, 'registered'])).toMatchObject({
+          targetState: { open: id === 3 ? undefined : open },
+        })
+      }
+    }
+  )
+
+  it.each(['checkbox', 'radio'])('reads native %s state with XHTML tag casing', (type) => {
+    const input = visible(document.createElement('input'))
+    input.type = type
+    input.checked = true
+    Object.defineProperty(input, 'tagName', { value: 'input' })
+    document.body.append(input)
+    register(input)
+
+    expect(runSerialized(readPageActionState, [false, 0, 'registered'])).toMatchObject({
+      targetState: { checked: true },
+    })
+  })
+
   it('preserves native and ARIA mixed states instead of reporting unchecked', () => {
     document.body.innerHTML =
       '<input type="checkbox" /><div role="checkbox" aria-checked="mixed"></div>'
@@ -1085,6 +1145,26 @@ describe('semantic control state', () => {
     expect(readCheckableElementState(0)).toMatchObject({ disabled: true })
     expect(readCheckableElementState(1)).toMatchObject({ disabled: true })
   })
+
+  it.each([true, false])(
+    'reads ARIA-disabled=%s across shadow boundaries for waits and checked state',
+    (disabled) => {
+      const host = visible(document.createElement('div'))
+      host.setAttribute('aria-disabled', String(disabled))
+      const nestedHost = visible(document.createElement('div'))
+      host.attachShadow({ mode: 'open' }).append(nestedHost)
+      const checkbox = visible(document.createElement('input'))
+      checkbox.type = 'checkbox'
+      nestedHost.attachShadow({ mode: 'open' }).append(checkbox)
+      document.body.append(host)
+      register(checkbox)
+
+      expect(runSerialized(readCheckableElementState, [0])).toMatchObject({ disabled })
+      expect(runSerialized(readPageActionState, [false, 0, 'registered'])).toMatchObject({
+        targetState: { disabled },
+      })
+    }
+  )
 
   it('reads native and ARIA checkable controls without mutating them', () => {
     document.body.innerHTML = `
@@ -1133,6 +1213,19 @@ describe('semantic control state', () => {
       element: 'button',
     })
     expect(button.scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('rejects a replacement screenshot target even when its geometry matches', () => {
+    const button = visible(document.createElement('button'))
+    button.id = 'save'
+    button.textContent = 'Save'
+    document.body.append(button)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Save')
+    expect(getElementScreenshotRect(ref)).toMatchObject({ width: 100, height: 20 })
+    button.replaceWith(visible(button.cloneNode(true) as HTMLElement))
+
+    expect(runSerialized(getElementScreenshotRect, [ref])).toMatchObject({ error: 'stale' })
+    expect(window.__simAgentElements?.[ref]).toBe(button)
   })
 
   it('rejects same-origin frame crops rather than using frame-local coordinates', () => {

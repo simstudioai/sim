@@ -3363,26 +3363,46 @@ describe('credential protection', () => {
     expect(contents.executeJavaScript).not.toHaveBeenCalled()
   })
 
-  it('does not click a checkable control already in the requested state', async () => {
+  it.each([
+    { kind: 'input:checkbox', checked: true, disabled: false, readOnly: false },
+    { kind: 'input:radio', checked: false, disabled: false, readOnly: false },
+    { kind: 'role:radio', checked: false, disabled: false, readOnly: false },
+    { kind: 'role:menuitemradio', checked: false, disabled: false, readOnly: false },
+    { kind: 'input:checkbox', checked: true, disabled: true, readOnly: false },
+    { kind: 'input:checkbox', checked: true, disabled: false, readOnly: true },
+  ])('does not click a control already in the requested state: %j', async (before) => {
     const contents = await openPage()
     respondWith(contents, {
-      readCheckableElementState: {
-        checked: true,
-        disabled: false,
-        readOnly: false,
-        kind: 'input:checkbox',
-      },
+      readCheckableElementState: before,
     })
 
     const result = await driver.executeTool('chat-test', 'browser_set_checked', {
       elementId: 0,
-      checked: true,
+      checked: before.checked,
     })
 
     expect(result).toMatchObject({
       ok: true,
-      result: { checked: true, changed: false, dispatched: false },
+      result: { checked: before.checked, changed: false, dispatched: false },
     })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it.each([
+    { checked: true, kind: 'input:radio', error: 'cannot be unchecked' },
+    { checked: true, kind: 'role:radio', error: 'cannot be unchecked' },
+    { checked: true, kind: 'role:menuitemradio', error: 'cannot be unchecked' },
+    { checked: false, kind: 'input:checkbox', disabled: true, error: 'disabled' },
+    { checked: false, kind: 'input:checkbox', readOnly: true, error: 'read-only' },
+  ])('rejects a prohibited state change: %j', async (before) => {
+    const contents = await openPage()
+    respondWith(contents, { readCheckableElementState: before })
+    const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+      elementId: 0,
+      checked: !before.checked,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain(before.error)
     expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
   })
 
@@ -3527,6 +3547,8 @@ describe('credential protection', () => {
 
   it.each([
     ['detached', { present: true, rendered: false }],
+    ['collapsed', { present: true, rendered: true }],
+    ['expanded', { present: true, rendered: true }],
     ['unchecked', { present: true, rendered: true, checked: 'mixed' }],
     ['unchecked', { present: true, rendered: true }],
   ])('does not satisfy %s from an incompatible element state', async (state, targetState) => {
@@ -3545,6 +3567,55 @@ describe('credential protection', () => {
       vi.useRealTimers()
     }
   })
+
+  it.each([
+    ['expanded', { open: true }],
+    ['collapsed', { open: false }],
+    ['expanded', { ariaExpanded: 'true' }],
+    ['collapsed', { ariaExpanded: 'false' }],
+  ])('waits for %s on native and ARIA disclosure controls', async (state, semanticState) => {
+    const contents = await openPage()
+    respondWith(contents, {
+      readPageActionState: { targetState: { present: true, rendered: true, ...semanticState } },
+    })
+    await expect(
+      driver.executeTool('chat-test', 'browser_wait_for', {
+        elementId: 0,
+        state,
+        timeoutMs: 100,
+      })
+    ).resolves.toMatchObject({ ok: true, result: { found: true } })
+  })
+
+  it.each(['x', 'y', 'width', 'height', 'detached'])(
+    'rejects an element screenshot when %s changes during capture',
+    async (change) => {
+      const contents = await openPage()
+      let captured = false
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+        if (!isPageCall(expression, 'getElementScreenshotRect')) return undefined
+        if (captured && change === 'detached') return { error: 'stale' }
+        return { x: 20, y: 30, width: 200, height: 100, ...(captured ? { [change]: 50 } : {}) }
+      })
+      const capture = vi.spyOn(cdp, 'captureScreenshot').mockImplementation(async () => {
+        captured = true
+        return {
+          dataUrl: 'data:image/jpeg;base64,c2lt',
+          scale: 1,
+          viewport: { width: 800, height: 600 },
+          imageSize: { width: 200, height: 100 },
+        }
+      })
+      try {
+        const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
+        expect(result.ok).toBe(false)
+        expect(result.error).toMatch(change === 'detached' ? /stale/ : /element moved/)
+        expect(capture).toHaveBeenCalledTimes(1)
+      } finally {
+        capture.mockRestore()
+      }
+    }
+  )
 
   it('crops an element screenshot without changing the live viewport', async () => {
     const contents = await openPage()
