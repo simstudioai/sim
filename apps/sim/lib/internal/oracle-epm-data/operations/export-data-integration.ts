@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   executeOracleEpmDataOperation,
   oracleEpmDataEndpoints,
@@ -12,12 +13,12 @@ export const executeOracleEpmDataExportDataIntegrationOperation: InternalToolOpe
 > = (params, signal) =>
   executeOracleEpmDataOperation('export_data_integration', params, signal, async (input) => {
     const response = await requestOracleEpmDataJson(input, oracleEpmDataEndpoints.snapshot, {
-      json: {
+      json: filterUndefined({
         action: 'EXPORT',
         snapshotType: input.snapshotType,
         fileName: input.fileName,
         overwriteFile: input.overwriteFile,
-      },
+      }),
       signal,
     })
     return finishOracleEpmDataJob(input, response, input.waitForCompletion, signal)

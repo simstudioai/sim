@@ -1,12 +1,24 @@
+import { utf8ByteLength } from '@sim/utils/paste'
 import { NetSuiteIcon } from '@/components/icons'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
+function assertJsonInputSize(value: unknown, label: string): void {
+  if (
+    typeof value === 'string' &&
+    utf8ByteLength(value, MAX_INLINE_MATERIALIZATION_BYTES) > MAX_INLINE_MATERIALIZATION_BYTES
+  ) {
+    throw new Error(`${label} exceeds the 16 MiB inline JSON limit`)
+  }
+}
+
 function parseJson(value: unknown, label: string): unknown {
   if (value === undefined || value === null || value === '') return undefined
   if (typeof value !== 'string') return value
+  assertJsonInputSize(value, label)
   try {
     return JSON.parse(value)
   } catch {
@@ -1137,6 +1149,7 @@ export const OracleEpmDataBlock: BlockConfig = {
         const operation = params.operation
         // Agent calls already use canonical typed tool inputs, without an editor operation.
         if (!operation) return params
+        if (operation === 'upload_file') assertJsonInputSize(params.file, 'File Reference')
         const fileName = [
           'run_integration',
           'run_data_rule',

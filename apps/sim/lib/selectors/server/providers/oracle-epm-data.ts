@@ -12,10 +12,10 @@ import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
-  SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
 import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,
@@ -64,13 +64,19 @@ async function execute(args: ExecuteServerSelectorArgs, auth: OracleEpmDataAuthP
   let options: SafeSelectorOption[]
   if (args.selectorKey === 'oracle_epm_data.connections') {
     const result = await executeOracleEpmDataListConnectionsOperation(auth, args.signal)
-    if (!result.success) throw new SelectorOptionsUnavailableError()
+    if (!result.success) {
+      const status = result.output.httpStatus
+      throw selectorProviderStatusError(Number.isInteger(status) ? status : 502)
+    }
     options = oracleEpmDataConnectionsSchema.shape.response
       .parse(result.output.connections)
       .map((item) => ({ id: item.connectionName, label: item.connectionName }))
   } else if (args.selectorKey === 'oracle_epm_data.files') {
     const result = await executeOracleEpmDataListFilesOperation(auth, args.signal)
-    if (!result.success) throw new SelectorOptionsUnavailableError()
+    if (!result.success) {
+      const status = result.output.httpStatus
+      throw selectorProviderStatusError(Number.isInteger(status) ? status : 502)
+    }
     options = oracleEpmDataFilesSchema.shape.items.parse(result.output.files).map((item) => ({
       id: item.name,
       label: item.name,
@@ -83,7 +89,10 @@ async function execute(args: ExecuteServerSelectorArgs, auth: OracleEpmDataAuthP
       { ...auth, application, period, category },
       args.signal
     )
-    if (!result.success) throw new SelectorOptionsUnavailableError()
+    if (!result.success) {
+      const status = result.output.httpStatus
+      throw selectorProviderStatusError(Number.isInteger(status) ? status : 502)
+    }
     /** Oracle includes application-summary records whose location equals the application name. */
     options = oracleEpmDataPovSchema.shape.response
       .parse(result.output.povs)

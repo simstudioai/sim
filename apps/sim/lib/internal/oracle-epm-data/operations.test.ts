@@ -184,7 +184,7 @@ describe('Data Integration provider operations', () => {
     ).toEqual({ success: true, output: { httpStatus: 202, data: synthetic } })
     expect(mocks.request).toHaveBeenCalledOnce()
     expect(mocks.request).toHaveBeenCalledWith(endpoints.submitJob, {
-      json: { ...input, jobType: 'INTEGRATION', fileName: undefined },
+      json: { ...input, jobType: 'INTEGRATION' },
       signal: undefined,
     })
   })
@@ -240,9 +240,7 @@ describe('Data Integration provider operations', () => {
     expect(
       mocks.request.mock.calls.map(([endpoint, input]) => {
         expect(endpoint).toBe(endpoints.submitJob)
-        return Object.fromEntries(
-          Object.entries(input.json).filter(([, value]) => value !== undefined)
-        )
+        return input.json
       })
     ).toEqual([
       {

@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   executeOracleEpmDataOperation,
   oracleEpmDataEndpoints,
@@ -12,7 +13,7 @@ export const executeOracleEpmDataRunDataRuleOperation: InternalToolOperationImpl
 > = (params, signal) =>
   executeOracleEpmDataOperation('run_data_rule', params, signal, async (input) => {
     const response = await requestOracleEpmDataJson(input, oracleEpmDataEndpoints.submitJob, {
-      json: {
+      json: filterUndefined({
         jobType: 'DATARULE',
         jobName: input.jobName,
         startPeriod: input.startPeriod,
@@ -20,7 +21,7 @@ export const executeOracleEpmDataRunDataRuleOperation: InternalToolOperationImpl
         importMode: input.importMode,
         exportMode: input.exportMode,
         fileName: input.fileName,
-      },
+      }),
       signal,
     })
     return finishOracleEpmDataJob(input, response, input.waitForCompletion, signal)

@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   executeOracleEpmDataOperation,
   oracleEpmDataEndpoints,
@@ -12,7 +13,7 @@ export const executeOracleEpmDataRunIntegrationOperation: InternalToolOperationI
 > = (params, signal) =>
   executeOracleEpmDataOperation('run_integration', params, signal, async (input) => {
     const response = await requestOracleEpmDataJson(input, oracleEpmDataEndpoints.submitJob, {
-      json: {
+      json: filterUndefined({
         jobType: 'INTEGRATION',
         jobName: input.jobName,
         periodName: input.periodName,
@@ -22,7 +23,7 @@ export const executeOracleEpmDataRunIntegrationOperation: InternalToolOperationI
         executionMode: input.executionMode,
         sourceFilters: input.sourceFilters,
         targetOptions: input.targetOptions,
-      },
+      }),
       signal,
     })
     return { success: true, output: { httpStatus: response.status, data: response.data } }

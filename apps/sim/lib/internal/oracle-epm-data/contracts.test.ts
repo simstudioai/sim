@@ -19,6 +19,12 @@ import {
   oracleEpmDataStatusSchema,
   projectOracleEpmDataResult,
 } from '@/lib/internal/oracle-epm-data/contracts'
+import { executeOracleEpmDataExportDataIntegrationOperation } from '@/lib/internal/oracle-epm-data/operations/export-data-integration'
+import { executeOracleEpmDataImportMappingsOperation } from '@/lib/internal/oracle-epm-data/operations/import-mappings'
+import { executeOracleEpmDataRunDataRuleOperation } from '@/lib/internal/oracle-epm-data/operations/run-data-rule'
+import { executeOracleEpmDataRunIntegrationOperation } from '@/lib/internal/oracle-epm-data/operations/run-integration'
+import { executeOracleEpmDataRunPipelineOperation } from '@/lib/internal/oracle-epm-data/operations/run-pipeline'
+import { executeOracleEpmDataSetPovLockOperation } from '@/lib/internal/oracle-epm-data/operations/set-pov-lock'
 
 const auth = {
   oauthCredential: 'credential',
@@ -81,6 +87,135 @@ describe('Data Integration foundation contracts', () => {
       })
     ).rejects.toThrow()
     expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'integration',
+      run: () =>
+        executeOracleEpmDataRunIntegrationOperation({
+          ...auth,
+          jobName: 'Load',
+          periodName: '{Jan-26}',
+          importMode: 'Replace',
+          exportMode: 'Merge',
+        }),
+      body: {
+        jobType: 'INTEGRATION',
+        jobName: 'Load',
+        periodName: '{Jan-26}',
+        importMode: 'Replace',
+        exportMode: 'Merge',
+      },
+      response: { synthetic: 'opaque response' },
+    },
+    {
+      name: 'pipeline',
+      run: () => executeOracleEpmDataRunPipelineOperation({ ...auth, pipelineCode: 'Load26' }),
+      body: { jobType: 'PIPELINE', jobName: 'Load26' },
+      response: { synthetic: 'opaque response' },
+    },
+    {
+      name: 'data rule',
+      run: () =>
+        executeOracleEpmDataRunDataRuleOperation({
+          ...auth,
+          jobName: 'Rule',
+          startPeriod: 'Jan-26',
+          endPeriod: 'Jan-26',
+          importMode: 'APPEND',
+          exportMode: 'NONE',
+        }),
+      body: {
+        jobType: 'DATARULE',
+        jobName: 'Rule',
+        startPeriod: 'Jan-26',
+        endPeriod: 'Jan-26',
+        importMode: 'APPEND',
+        exportMode: 'NONE',
+      },
+      response: { status: 0, jobId: 42 },
+    },
+    {
+      name: 'mapping import',
+      run: () =>
+        executeOracleEpmDataImportMappingsOperation({
+          ...auth,
+          dimension: 'ALL',
+          fileName: 'map.csv',
+        }),
+      body: { jobType: 'MAPPINGIMPORT', jobName: 'ALL', fileName: 'map.csv' },
+      response: { status: 0, jobId: 42 },
+    },
+    {
+      name: 'snapshot export',
+      run: () =>
+        executeOracleEpmDataExportDataIntegrationOperation({
+          ...auth,
+          snapshotType: 'ALL',
+          fileName: 'snapshot.zip',
+        }),
+      body: { action: 'EXPORT', snapshotType: 'ALL', fileName: 'snapshot.zip' },
+      response: { status: 0, jobId: 42 },
+    },
+    {
+      name: 'application POV lock',
+      run: () =>
+        executeOracleEpmDataSetPovLockOperation({
+          ...auth,
+          period: 'Jan-26',
+          category: 'Actual',
+          application: 'Plan',
+          lockType: 'application',
+          lockOperation: 'lock',
+        }),
+      body: {
+        period: 'Jan-26',
+        category: 'Actual',
+        application: 'Plan',
+        locktype: 'application',
+        operation: 'lock',
+      },
+      response: { status: 0, response: 'Synthetic result' },
+    },
+  ])(
+    'serializes $name without absent optional fields through the real foundation',
+    async ({ run, body, response }) => {
+      mocks.fetch.mockResolvedValue(Response.json(response))
+      expect(await run()).toMatchObject({ success: true })
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toEqual(body)
+    }
+  )
+
+  it('preserves explicit false and empty option values at the transport boundary', async () => {
+    mocks.fetch.mockImplementation(async () => Response.json({ status: 0, jobId: 42 }))
+    expect(
+      await executeOracleEpmDataImportMappingsOperation({
+        ...auth,
+        dimension: 'ALL',
+        fileName: 'map.csv',
+        validationMode: false,
+      })
+    ).toMatchObject({ success: true })
+    expect(JSON.parse(mocks.fetch.mock.calls[0][2].body)).toEqual({
+      jobType: 'MAPPINGIMPORT',
+      jobName: 'ALL',
+      fileName: 'map.csv',
+      validationMode: false,
+    })
+    expect(
+      await executeOracleEpmDataRunPipelineOperation({
+        ...auth,
+        pipelineCode: 'Load26',
+        variables: { OPTIONAL: '' },
+      })
+    ).toMatchObject({ success: true })
+    expect(JSON.parse(mocks.fetch.mock.calls[1][2].body)).toEqual({
+      jobType: 'PIPELINE',
+      jobName: 'Load26',
+      variables: { OPTIONAL: '' },
+    })
   })
 
   it('normalizes documented numeric strings without inventing missing job IDs', () => {

@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { NetSuiteIcon } from '@/components/icons'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { selectorManifest } from '@/lib/selectors/manifest'
 import {
@@ -246,6 +247,34 @@ describe('Oracle EPM Data Integration block and tools', () => {
       waitForCompletion: true,
     }
     expect(map(params)).toMatchObject(params)
+  })
+
+  it.each([
+    ['run_pipeline', 'variables'],
+    ['run_integration', 'sourceFilters'],
+    ['run_integration', 'targetOptions'],
+    ['execute_report', 'parameters'],
+    ['update_connection', 'sourceSystemOptions'],
+    ['upload_file', 'file'],
+  ])('bounds %s resolved %s before parsing', (operation, field) => {
+    const oversized = `${' '.repeat(MAX_INLINE_MATERIALIZATION_BYTES)}{}`
+    expect(() => map({ operation, [field]: oversized })).toThrow(/exceeds.*16 MiB/)
+  })
+
+  it('ignores inactive JSON values without parsing or materializing them', () => {
+    const oversized = `${' '.repeat(MAX_INLINE_MATERIALIZATION_BYTES)}{}`
+    expect(map({ operation: 'run_batch', variables: oversized })).toMatchObject({
+      variables: undefined,
+    })
+  })
+
+  it('accepts the exact inline JSON byte limit and rejects multibyte overflow', () => {
+    const atLimit = `${' '.repeat(MAX_INLINE_MATERIALIZATION_BYTES - 2)}{}`
+    expect(map({ operation: 'run_pipeline', variables: atLimit })).toMatchObject({ variables: {} })
+    const multibyteOverflow = `"${'é'.repeat(MAX_INLINE_MATERIALIZATION_BYTES / 2)}"`
+    expect(() => map({ operation: 'run_pipeline', variables: multibyteOverflow })).toThrow(
+      /exceeds.*16 MiB/
+    )
   })
 
   it('normalizes one resolved UserFile and rejects multiple uploads', () => {

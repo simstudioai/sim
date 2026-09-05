@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   executeOracleEpmDataOperation,
   oracleEpmDataEndpoints,
@@ -13,7 +14,7 @@ export const executeOracleEpmDataSetPovLockOperation: InternalToolOperationImple
 > = (params, signal) =>
   executeOracleEpmDataOperation('set_pov_lock', params, signal, async (input) => {
     const response = await requestOracleEpmDataJson(input, oracleEpmDataEndpoints.setPov, {
-      json: {
+      json: filterUndefined({
         period: input.period,
         category: input.category,
         locktype: input.lockType,
@@ -21,7 +22,7 @@ export const executeOracleEpmDataSetPovLockOperation: InternalToolOperationImple
         ...(input.lockType === 'application'
           ? { application: input.application, unlockbylocation: input.unlockByLocation }
           : { location: input.locationName }),
-      },
+      }),
       signal,
     })
     return projectOracleEpmDataResult(response, oracleEpmDataMessageSchema, (data) => data)

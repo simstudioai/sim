@@ -188,6 +188,41 @@ describe('Data Integration server selectors', () => {
     )
   })
 
+  it.each([
+    [401, new SelectorConnectionUnavailableError(401)],
+    [403, new SelectorConnectionUnavailableError(403)],
+    [429, new SelectorOptionsUnavailableError(429)],
+    [500, new SelectorOptionsUnavailableError(502)],
+    [200, new SelectorOptionsUnavailableError(502)],
+  ])(
+    'preserves safe HTTP %s categories without exposing provider bodies',
+    async (httpStatus, expected) => {
+      const result = {
+        success: false,
+        output: { httpStatus, status: 401, details: 'synthetic-private-canary' },
+        error: 'synthetic-private-canary',
+      }
+      mocks.connections.mockResolvedValue(result)
+      mocks.files.mockResolvedValue(result)
+      mocks.pov.mockResolvedValue(result)
+      for (const key of [
+        'oracle_epm_data.connections',
+        'oracle_epm_data.files',
+        'oracle_epm_data.locations',
+      ] as const) {
+        await expect(
+          attachments[key].execute(
+            {
+              ...args(key),
+              context: { application: 'Plan', period: 'Jan-26', category: 'Actual' },
+            },
+            auth
+          )
+        ).rejects.toEqual(expected)
+      }
+    }
+  )
+
   it('honors cancellation before calling an operation', async () => {
     await expect(
       attachments['oracle_epm_data.connections'].execute(

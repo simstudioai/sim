@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import {
   executeOracleEpmDataOperation,
   oracleEpmDataEndpoints,
@@ -12,14 +13,14 @@ export const executeOracleEpmDataImportMappingsOperation: InternalToolOperationI
 > = (params, signal) =>
   executeOracleEpmDataOperation('import_mappings', params, signal, async (input) => {
     const response = await requestOracleEpmDataJson(input, oracleEpmDataEndpoints.submitJob, {
-      json: {
+      json: filterUndefined({
         jobType: 'MAPPINGIMPORT',
         jobName: input.dimension,
         fileName: input.fileName,
         importMode: input.importMode,
         validationMode: input.validationMode,
         locationName: input.locationName,
-      },
+      }),
       signal,
     })
     return finishOracleEpmDataJob(input, response, input.waitForCompletion, signal)
