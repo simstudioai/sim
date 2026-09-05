@@ -19,7 +19,7 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
     sentences: {
       byOperation: {
         list_instances: ['List all instances', { text: 'in', field: 'region' }],
-        list_accounts: ['List organization accounts', { text: 'in', field: 'region' }],
+        list_accounts: ['List every account in the organization'],
         describe_account: [{ text: 'Read details of account', field: 'accountId', core: true }],
         list_permission_sets: ['List permission sets', { text: 'in', field: 'region' }],
         get_user: [{ text: 'Look up the user with email', field: 'email', core: true }],
@@ -41,7 +41,16 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
         ],
         list_account_assignments: [
           'List account assignments',
-          { text: 'for', field: 'principalId' },
+          { text: 'for principal', field: 'principalId' },
+        ],
+        list_assignments_for_account: [
+          { text: 'List assignments on account', field: 'accountId', core: true },
+          { text: 'for permission set', field: 'permissionSetArn' },
+        ],
+        describe_user: [{ text: 'Look up the user with ID', field: 'userId', core: true }],
+        describe_group: [{ text: 'Look up the group with ID', field: 'groupId', core: true }],
+        list_group_memberships: [
+          { text: 'List the members of group', field: 'groupId', core: true },
         ],
       },
     },
@@ -58,13 +67,17 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
         { label: 'Describe Account', id: 'describe_account' },
         { label: 'List Permission Sets', id: 'list_permission_sets' },
         { label: 'Get User', id: 'get_user' },
+        { label: 'Describe User', id: 'describe_user' },
         { label: 'Get Group', id: 'get_group' },
+        { label: 'Describe Group', id: 'describe_group' },
         { label: 'List Groups', id: 'list_groups' },
+        { label: 'List Group Memberships', id: 'list_group_memberships' },
         { label: 'Create Account Assignment', id: 'create_account_assignment' },
         { label: 'Delete Account Assignment', id: 'delete_account_assignment' },
         { label: 'Check Assignment Status', id: 'check_assignment_status' },
         { label: 'Check Assignment Deletion Status', id: 'check_assignment_deletion_status' },
-        { label: 'List Account Assignments', id: 'list_account_assignments' },
+        { label: 'List Account Assignments For Principal', id: 'list_account_assignments' },
+        { label: 'List Assignments For Account', id: 'list_assignments_for_account' },
       ],
       value: () => 'list_instances',
     },
@@ -104,7 +117,10 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
           'get_user',
           'get_group',
           'describe_account',
+          'describe_user',
+          'describe_group',
           'list_groups',
+          'list_group_memberships',
         ],
         not: true,
       },
@@ -116,7 +132,10 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
           'get_user',
           'get_group',
           'describe_account',
+          'describe_user',
+          'describe_group',
           'list_groups',
+          'list_group_memberships',
         ],
         not: true,
       },
@@ -126,8 +145,28 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
       title: 'Identity Store ID',
       type: 'short-input',
       placeholder: 'd-1234567890',
-      condition: { field: 'operation', value: ['get_user', 'get_group', 'list_groups'] },
-      required: { field: 'operation', value: ['get_user', 'get_group', 'list_groups'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_user',
+          'get_group',
+          'list_groups',
+          'describe_user',
+          'describe_group',
+          'list_group_memberships',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_user',
+          'get_group',
+          'list_groups',
+          'describe_user',
+          'describe_group',
+          'list_group_memberships',
+        ],
+      },
     },
     {
       id: 'email',
@@ -146,17 +185,43 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
       required: { field: 'operation', value: 'get_group' },
     },
     {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Identity Store user ID',
+      condition: { field: 'operation', value: 'describe_user' },
+      required: { field: 'operation', value: 'describe_user' },
+    },
+    {
+      id: 'groupId',
+      title: 'Group ID',
+      type: 'short-input',
+      placeholder: 'Identity Store group ID',
+      condition: { field: 'operation', value: ['describe_group', 'list_group_memberships'] },
+      required: { field: 'operation', value: ['describe_group', 'list_group_memberships'] },
+    },
+    {
       id: 'accountId',
       title: 'AWS Account ID',
       type: 'short-input',
       placeholder: '123456789012',
       condition: {
         field: 'operation',
-        value: ['create_account_assignment', 'delete_account_assignment', 'describe_account'],
+        value: [
+          'create_account_assignment',
+          'delete_account_assignment',
+          'describe_account',
+          'list_assignments_for_account',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['create_account_assignment', 'delete_account_assignment', 'describe_account'],
+        value: [
+          'create_account_assignment',
+          'delete_account_assignment',
+          'describe_account',
+          'list_assignments_for_account',
+        ],
       },
     },
     {
@@ -166,11 +231,19 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
       placeholder: 'arn:aws:sso:::permissionSet/ssoins-.../ps-...',
       condition: {
         field: 'operation',
-        value: ['create_account_assignment', 'delete_account_assignment'],
+        value: [
+          'create_account_assignment',
+          'delete_account_assignment',
+          'list_assignments_for_account',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['create_account_assignment', 'delete_account_assignment'],
+        value: [
+          'create_account_assignment',
+          'delete_account_assignment',
+          'list_assignments_for_account',
+        ],
       },
     },
     {
@@ -239,7 +312,7 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
       id: 'maxResults',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: '20',
+      placeholder: '1-100 (List Accounts allows at most 20)',
       condition: {
         field: 'operation',
         value: [
@@ -247,7 +320,9 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
           'list_accounts',
           'list_permission_sets',
           'list_account_assignments',
+          'list_assignments_for_account',
           'list_groups',
+          'list_group_memberships',
         ],
       },
       required: false,
@@ -265,7 +340,9 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
           'list_accounts',
           'list_permission_sets',
           'list_account_assignments',
+          'list_assignments_for_account',
           'list_groups',
+          'list_group_memberships',
         ],
       },
       required: false,
@@ -279,13 +356,17 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
       'identity_center_describe_account',
       'identity_center_list_permission_sets',
       'identity_center_get_user',
+      'identity_center_describe_user',
       'identity_center_get_group',
+      'identity_center_describe_group',
       'identity_center_list_groups',
+      'identity_center_list_group_memberships',
       'identity_center_create_account_assignment',
       'identity_center_delete_account_assignment',
       'identity_center_check_assignment_status',
       'identity_center_check_assignment_deletion_status',
       'identity_center_list_account_assignments',
+      'identity_center_list_assignments_for_account',
     ],
     config: {
       tool: (params) => {
@@ -300,10 +381,16 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
             return 'identity_center_list_permission_sets'
           case 'get_user':
             return 'identity_center_get_user'
+          case 'describe_user':
+            return 'identity_center_describe_user'
           case 'get_group':
             return 'identity_center_get_group'
+          case 'describe_group':
+            return 'identity_center_describe_group'
           case 'list_groups':
             return 'identity_center_list_groups'
+          case 'list_group_memberships':
+            return 'identity_center_list_group_memberships'
           case 'create_account_assignment':
             return 'identity_center_create_account_assignment'
           case 'delete_account_assignment':
@@ -314,6 +401,8 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
             return 'identity_center_check_assignment_deletion_status'
           case 'list_account_assignments':
             return 'identity_center_list_account_assignments'
+          case 'list_assignments_for_account':
+            return 'identity_center_list_assignments_for_account'
           default:
             throw new Error(`Invalid Identity Center operation: ${params.operation}`)
         }
@@ -359,9 +448,26 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
             result.identityStoreId = rest.identityStoreId
             result.email = rest.email
             break
+          case 'describe_user':
+            result.identityStoreId = rest.identityStoreId
+            result.userId = rest.userId
+            break
           case 'get_group':
             result.identityStoreId = rest.identityStoreId
             result.displayName = rest.displayName
+            break
+          case 'describe_group':
+            result.identityStoreId = rest.identityStoreId
+            result.groupId = rest.groupId
+            break
+          case 'list_group_memberships':
+            result.identityStoreId = rest.identityStoreId
+            result.groupId = rest.groupId
+            if (maxResults) {
+              const parsed = Number.parseInt(String(maxResults), 10)
+              if (!Number.isNaN(parsed)) result.maxResults = parsed
+            }
+            if (rest.nextToken) result.nextToken = rest.nextToken
             break
           case 'list_groups':
             result.identityStoreId = rest.identityStoreId
@@ -394,6 +500,16 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
             }
             if (rest.nextToken) result.nextToken = rest.nextToken
             break
+          case 'list_assignments_for_account':
+            result.instanceArn = rest.instanceArn
+            result.accountId = rest.accountId
+            result.permissionSetArn = rest.permissionSetArn
+            if (maxResults) {
+              const parsed = Number.parseInt(String(maxResults), 10)
+              if (!Number.isNaN(parsed)) result.maxResults = parsed
+            }
+            if (rest.nextToken) result.nextToken = rest.nextToken
+            break
         }
 
         return result
@@ -413,8 +529,13 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
     permissionSetArn: { type: 'string', description: 'Permission set ARN' },
     principalType: { type: 'string', description: 'Principal type: USER or GROUP' },
     principalId: { type: 'string', description: 'Identity Store user or group ID' },
+    userId: { type: 'string', description: 'Identity Store user ID' },
+    groupId: { type: 'string', description: 'Identity Store group ID' },
     requestId: { type: 'string', description: 'Assignment creation/deletion request ID' },
-    maxResults: { type: 'number', description: 'Maximum number of results to return' },
+    maxResults: {
+      type: 'number',
+      description: 'Maximum number of results to return (1-100; List Accounts allows at most 20)',
+    },
     nextToken: { type: 'string', description: 'Pagination token from previous request' },
   },
   outputs: {
@@ -422,24 +543,35 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
     instances: {
       type: 'json',
       description:
-        'List of Identity Center instances (instanceArn, identityStoreId, name, status, statusReason)',
+        'List of Identity Center instances (instanceArn, identityStoreId, name, status, statusReason, ownerAccountId, createdDate)',
     },
     accounts: {
       type: 'json',
-      description: 'List of AWS accounts (id, arn, name, email, status)',
+      description: 'List of AWS accounts (id, arn, name, email, status, joinedTimestamp)',
     },
     permissionSets: {
       type: 'json',
-      description: 'List of permission sets (permissionSetArn, name, description, sessionDuration)',
+      description:
+        'List of permission sets (permissionSetArn, name, description, sessionDuration, createdDate)',
     },
     groups: {
       type: 'json',
-      description: 'List of Identity Store groups (groupId, displayName, description)',
+      description: 'List of Identity Store groups (groupId, displayName, description, externalIds)',
+    },
+    memberships: {
+      type: 'json',
+      description: 'List of group memberships (membershipId, groupId, userId)',
     },
     userId: { type: 'string', description: 'Identity Store user ID (use as principalId)' },
     userName: { type: 'string', description: 'Username in the Identity Store' },
     displayName: { type: 'string', description: 'Display name of the user or group' },
     email: { type: 'string', description: 'Email address of the user' },
+    userStatus: { type: 'string', description: 'User account status (ENABLED or DISABLED)' },
+    title: { type: 'string', description: 'Job title of the user' },
+    externalIds: {
+      type: 'json',
+      description: 'External identity provider IDs on the user or group (issuer, id)',
+    },
     groupId: { type: 'string', description: 'Identity Store group ID (use as principalId)' },
     description: { type: 'string', description: 'Group description' },
     id: { type: 'string', description: 'AWS account ID (from describe_account)' },
@@ -555,14 +687,14 @@ export const IdentityCenterBlockMeta = {
       description:
         'Remove a permission set assignment from a user or group in Identity Center and confirm deletion. Use to wind down temporary or expired access.',
       content:
-        '# Revoke Access\n\nRemove an account assignment to revoke access.\n\n## Steps\n1. List account assignments to confirm the principal currently holds the permission set on the account.\n2. Delete the account assignment for that principal, permission set, and account.\n3. Poll check assignment deletion status until it reports SUCCEEDED.\n4. Re-list assignments to verify the grant is gone.\n\n## Output\nConfirm what was revoked and the final deletion status. Note if the assignment did not exist.',
+        '# Revoke Access\n\nRemove an account assignment to revoke access.\n\n## Steps\n1. List account assignments for principal to confirm the principal currently holds the permission set on the account.\n2. Delete the account assignment for that principal, permission set, and account.\n3. Poll check assignment deletion status until it reports SUCCEEDED.\n4. Re-list assignments to verify the grant is gone.\n\n## Output\nConfirm what was revoked and the final deletion status. Note if the assignment did not exist.',
     },
     {
       name: 'access-audit-report',
       description:
-        'Enumerate permission sets, group memberships, and account assignments in Identity Center to produce an access report. Use for compliance and periodic reviews.',
+        'Enumerate permission sets, account assignments, and group memberships in Identity Center to produce an access report. Use for compliance and periodic reviews.',
       content:
-        '# Access Audit Report\n\nReport who has access to what across accounts.\n\n## Steps\n1. List instances and accounts to scope the report.\n2. List permission sets and, per account, list account assignments.\n3. Resolve users and groups behind each assignment with get user and get group.\n4. Compile assignments grouped by account and permission set.\n\n## Output\nAn access report: per account, which principals hold which permission sets, with anything unexpected flagged for review.',
+        '# Access Audit Report\n\nReport who has access to what across accounts.\n\n## Steps\n1. List instances and accounts to scope the report, and note the instance ARN and Identity Store ID.\n2. List permission sets for the instance.\n3. For every account and permission set pair, list assignments for account to collect the assigned principals.\n4. Resolve each principal by ID — describe user for USER principals, describe group for GROUP principals — and expand groups with list group memberships.\n5. Compile assignments grouped by account and permission set.\n\n## Output\nAn access report: per account, which principals hold which permission sets, with anything unexpected flagged for review.',
     },
   ],
 } as const satisfies BlockMeta

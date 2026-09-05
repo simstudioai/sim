@@ -36,7 +36,7 @@ export const listAccountsTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of accounts to return',
+      description: 'Maximum number of accounts to return (1-20; the AWS Organizations ceiling)',
     },
     nextToken: {
       type: 'string',
@@ -73,8 +73,23 @@ export const listAccountsTool: InternalToolConfig<
 
   outputs: {
     accounts: {
-      type: 'json',
-      description: 'List of AWS accounts with id, arn, name, email, status',
+      type: 'array',
+      description: 'Accounts in the AWS organization',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'AWS account ID' },
+          arn: { type: 'string', description: 'AWS account ARN' },
+          name: { type: 'string', description: 'Account name' },
+          email: { type: 'string', description: 'Root email address of the account' },
+          status: { type: 'string', description: 'Account status (e.g., ACTIVE, SUSPENDED)' },
+          joinedTimestamp: {
+            type: 'string',
+            description: 'ISO 8601 date the account joined the organization',
+            nullable: true,
+          },
+        },
+      },
     },
     nextToken: {
       type: 'string',

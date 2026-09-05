@@ -1,17 +1,17 @@
 import type {
-  IdentityCenterListAccountAssignmentsParams,
   IdentityCenterListAccountAssignmentsResponse,
+  IdentityCenterListAssignmentsForAccountParams,
 } from '@/tools/identity_center/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const listAccountAssignmentsTool: InternalToolConfig<
-  IdentityCenterListAccountAssignmentsParams,
+export const listAssignmentsForAccountTool: InternalToolConfig<
+  IdentityCenterListAssignmentsForAccountParams,
   IdentityCenterListAccountAssignmentsResponse
 > = {
-  id: 'identity_center_list_account_assignments',
-  name: 'Identity Center List Account Assignments For Principal',
+  id: 'identity_center_list_assignments_for_account',
+  name: 'Identity Center List Assignments For Account',
   description:
-    'List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals.',
+    'List every principal assigned a specific permission set on a specific AWS account. Use for per-account access reviews.',
   version: '1.0.0',
 
   params: {
@@ -39,17 +39,17 @@ export const listAccountAssignmentsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'ARN of the Identity Center instance',
     },
-    principalId: {
+    accountId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Identity Store ID of the user or group',
+      description: 'AWS account ID to list assignments for (12 digits)',
     },
-    principalType: {
+    permissionSetArn: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Type of principal: USER or GROUP',
+      description: 'ARN of the permission set to list assignments for',
     },
     maxResults: {
       type: 'number',
@@ -71,8 +71,8 @@ export const listAccountAssignmentsTool: InternalToolConfig<
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       instanceArn: params.instanceArn,
-      principalId: params.principalId,
-      principalType: params.principalType,
+      accountId: params.accountId,
+      permissionSetArn: params.permissionSetArn,
       maxResults: params.maxResults,
       nextToken: params.nextToken,
     }),
@@ -81,7 +81,7 @@ export const listAccountAssignmentsTool: InternalToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to list account assignments')
+      throw new Error(data.error || 'Failed to list assignments for account')
     }
     return {
       success: true,
@@ -96,14 +96,18 @@ export const listAccountAssignmentsTool: InternalToolConfig<
   outputs: {
     assignments: {
       type: 'array',
-      description: 'Accounts and permission sets the principal is assigned',
+      description: 'Principals assigned this permission set on the account',
       items: {
         type: 'object',
         properties: {
           accountId: { type: 'string', description: 'AWS account ID' },
           permissionSetArn: { type: 'string', description: 'Permission set ARN' },
           principalType: { type: 'string', description: 'Principal type (USER or GROUP)' },
-          principalId: { type: 'string', description: 'Identity Store user or group ID' },
+          principalId: {
+            type: 'string',
+            description:
+              'Identity Store user or group ID — resolve with Describe User or Describe Group',
+          },
         },
       },
     },

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-04",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -2299,12 +2299,24 @@
           "description": "Look up a user in the Identity Store by email address"
         },
         {
+          "name": "Describe User",
+          "description": "Resolve an Identity Store user ID to the user behind it. Use to turn the principalId on an account assignment into a name and email."
+        },
+        {
           "name": "Get Group",
           "description": "Look up a group in the Identity Store by display name"
         },
         {
+          "name": "Describe Group",
+          "description": "Resolve an Identity Store group ID to the group behind it. Use to turn the principalId on an account assignment into a group name."
+        },
+        {
           "name": "List Groups",
           "description": "List all groups in the Identity Store"
+        },
+        {
+          "name": "List Group Memberships",
+          "description": "List the users who belong to an Identity Store group"
         },
         {
           "name": "Create Account Assignment",
@@ -2323,11 +2335,15 @@
           "description": "Check the deprovisioning status of an account assignment deletion request"
         },
         {
-          "name": "List Account Assignments",
-          "description": "List all account assignments for a specific user or group across all accounts"
+          "name": "List Account Assignments For Principal",
+          "description": "List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals."
+        },
+        {
+          "name": "List Assignments For Account",
+          "description": "List every principal assigned a specific permission set on a specific AWS account. Use for per-account access reviews."
         }
       ],
-      "operationCount": 12,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
