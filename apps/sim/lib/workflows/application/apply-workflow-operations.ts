@@ -54,6 +54,7 @@ import {
 } from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { assertAgentToolPermissionModeEnabled } from '@/lib/workflows/tool-input/usage-control.server'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
@@ -347,6 +348,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       loops: generateLoopBlocks(blocks),
       parallels: generateParallelBlocks(blocks),
     }
+    await assertAgentToolPermissionModeEnabled(Object.values(graph.blocks))
 
     /**
      * Linted on the graph that is about to be persisted, so every finding

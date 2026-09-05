@@ -27,6 +27,7 @@ import {
   replaceWorkflowNormalizedState,
 } from '@/lib/workflows/persistence/replace-normalized-state'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { assertAgentToolPermissionModeEnabled } from '@/lib/workflows/tool-input/usage-control.server'
 
 const logger = createLogger('ReplaceWorkflowState')
 
@@ -127,6 +128,7 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       blocks: sanitized.blocks as Record<string, BlockState>,
       edges: sanitized.edges as WorkflowState['edges'],
     }
+    await assertAgentToolPermissionModeEnabled(Object.values(graph.blocks))
 
     /**
      * Linted before the write so a dry run and a committed write report the

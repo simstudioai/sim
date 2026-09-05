@@ -2,10 +2,11 @@
  * @vitest-environment node
  */
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { workflowAuthzMockFns } from '@sim/testing'
+import { createAgentBlock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  isFeatureEnabled: vi.fn(),
   recordAudit: vi.fn(),
   resolveContext: vi.fn(),
   resolvePermission: vi.fn(),
@@ -16,6 +17,10 @@ const mocks = vi.hoisted(() => ({
   assertIdsUnclaimed: vi.fn(),
   validate: vi.fn(),
   needsRedeployment: vi.fn(),
+}))
+
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: mocks.isFeatureEnabled,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -87,6 +92,7 @@ const input = { workflowId: 'workflow-1', blocks: { 'block-1': BLOCK }, edges: [
 describe('replaceWorkflowState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isFeatureEnabled.mockResolvedValue(false)
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
@@ -103,6 +109,42 @@ describe('replaceWorkflowState', () => {
     mocks.collectGraphIds.mockReturnValue({ blockIds: ['block-1'], edgeIds: [], subflowIds: [] })
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
   })
+
+  it.each([false, true])(
+    'gates variable tool modes before a replacement (dryRun=%s)',
+    async (dryRun) => {
+      const agent = createAgentBlock({
+        id: 'agent',
+        subBlocks: {
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [{ type: 'function', usageControlExpression: '<start.toolMode>' }],
+          },
+        },
+      })
+      await expect(
+        replaceWorkflowState.execute({
+          principal: sessionPrincipal,
+          input: { ...input, blocks: { agent }, dryRun },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: 'Variable agent tool permission modes are disabled',
+      })
+      expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(mocks.notify).not.toHaveBeenCalled()
+
+      mocks.isFeatureEnabled.mockResolvedValue(true)
+      await expect(
+        replaceWorkflowState.execute({
+          principal: sessionPrincipal,
+          input: { ...input, blocks: { agent }, dryRun },
+        })
+      ).resolves.toMatchObject({ dryRun })
+    }
+  )
 
   /**
    * Two things this pins that a same-shape input and output cannot: the write

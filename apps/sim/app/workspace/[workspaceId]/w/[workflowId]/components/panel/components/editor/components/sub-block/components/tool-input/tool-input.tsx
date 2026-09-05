@@ -1582,8 +1582,7 @@ export const ToolInput = memo(function ToolInput({
           const hasOperations =
             !isCustomTool && !isMcpFamily && hasMultipleOperations(toolBlock ?? undefined)
           const showToolControl = supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool))
-          const showCanonicalToolControl =
-            showToolControl && (permissionModeEnabled || toolUsageControlMode === 'advanced')
+          const showCanonicalToolControl = showToolControl && permissionModeEnabled
           const hasToolBody =
             showCanonicalToolControl || hasOperations || displaySubBlocks.length > 0
 

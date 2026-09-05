@@ -30,6 +30,7 @@ import {
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { assertAgentToolPermissionModeEnabled } from '@/lib/workflows/tool-input/usage-control.server'
 import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -273,6 +274,7 @@ async function executeImportWorkflowIntoWorkspace(
   }
 
   const workflowState: WorkflowState = { ...parsedState, ...preparedState }
+  await assertAgentToolPermissionModeEnabled(Object.values(workflowState.blocks))
 
   /**
    * Nothing has been written yet, which is why the check sits here: an import

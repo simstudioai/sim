@@ -48,8 +48,8 @@ interface FeatureFlagDefinition {
 const FEATURE_FLAGS = {
   'agent-tool-permission-mode': {
     description:
-      'Enable the selector/variable Permission Mode editor for new agent tool configurations. ' +
-      'Global on/off only; existing variable configurations remain editable and executable.',
+      'Enable variable agent tool Permission Mode inputs in the editor and workflow writes. ' +
+      'Global on/off only.',
     fallback: 'AGENT_TOOL_PERMISSION_MODE',
   },
   'trigger-eu-region': {

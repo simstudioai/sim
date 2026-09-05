@@ -2,10 +2,11 @@
  * @vitest-environment node
  */
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { workflowAuthzMockFns } from '@sim/testing'
+import { createAgentBlock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  isFeatureEnabled: vi.fn(),
   recordAudit: vi.fn(),
   resolveContext: vi.fn(),
   resolvePermission: vi.fn(),
@@ -24,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   collectToolReferences: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
   collectGraphIds: vi.fn(),
+}))
+
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: mocks.isFeatureEnabled,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -171,6 +176,7 @@ const GRAPH_IDS = { blockIds: ['block-1'], edgeIds: [], subflowIds: [] }
 describe('applyWorkflowOperations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isFeatureEnabled.mockResolvedValue(false)
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
@@ -193,6 +199,52 @@ describe('applyWorkflowOperations', () => {
     mocks.collectGraphIds.mockReturnValue(GRAPH_IDS)
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
   })
+
+  it.each([
+    {
+      principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+      dryRun: false,
+    },
+    {
+      principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+      dryRun: true,
+    },
+    { principal: copilotPrincipal, dryRun: false },
+    { principal: copilotPrincipal, dryRun: true },
+  ])(
+    'gates variable mode edits for $principal.kind (dryRun=$dryRun)',
+    async ({ principal, dryRun }) => {
+      const agent = createAgentBlock({
+        id: 'agent',
+        subBlocks: {
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [{ type: 'function', usageControlExpression: '<start.toolMode>' }],
+          },
+        },
+        data: { canonicalModes: { '0:agentToolUsageControl': 'advanced' } },
+      })
+      mocks.applyOperations.mockReturnValue({
+        state: graph({ agent }),
+        validationErrors: [],
+        skippedItems: [],
+      })
+      const input = { workflowId: 'workflow-1', operations, layout: 'none' as const, dryRun }
+      await expect(applyWorkflowOperations.execute({ principal, input })).rejects.toMatchObject({
+        code: 'validation',
+        message: 'Variable agent tool permission modes are disabled',
+      })
+      expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(mocks.notify).not.toHaveBeenCalled()
+
+      mocks.isFeatureEnabled.mockResolvedValue(true)
+      await expect(applyWorkflowOperations.execute({ principal, input })).resolves.toMatchObject({
+        dryRun,
+      })
+    }
+  )
 
   it('writes once, through the shared persistence primitive', async () => {
     const result = await applyWorkflowOperations.execute({
