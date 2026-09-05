@@ -9,8 +9,8 @@ describe('selector manifest', () => {
     const count = (classification: (typeof classifications)[number]) =>
       classifications.filter((value) => value === classification).length
 
-    expect(Object.keys(selectorManifest)).toHaveLength(95)
-    expect(count('provider-server')).toBe(82)
+    expect(Object.keys(selectorManifest)).toHaveLength(97)
+    expect(count('provider-server')).toBe(84)
     expect(count('internal-server')).toBe(12)
     expect(count('local')).toBe(1)
     expect(classifications).not.toContain('provider-legacy')
@@ -36,7 +36,7 @@ describe('selector manifest', () => {
     const rawConnectionKeys = providerKeys.filter(
       (key) => !serverSelectorRegistry[key as keyof typeof serverSelectorRegistry].credential
     )
-    expect(providerKeys).toHaveLength(82)
+    expect(providerKeys).toHaveLength(84)
     expect(rawConnectionKeys.sort()).toEqual([
       'cloudwatch.logGroups',
       'cloudwatch.logStreams',
@@ -57,6 +57,25 @@ describe('selector manifest', () => {
       'sharepoint',
       'microsoft-excel',
     ])
+  })
+
+  it('binds the paginated native OCI selectors to their own service', () => {
+    for (const key of [
+      'oci_object_storage_native.buckets',
+      'oci_object_storage_native.objects',
+    ] as const) {
+      expect(selectorManifest[key].listMode).toBe('paginated')
+      expect(selectorManifest[key].supportsSearch).toBe(false)
+      expect(serverSelectorRegistry[key].credential?.serviceIds).toEqual([
+        'oci_object_storage_native',
+      ])
+      expect(serverSelectorRegistry[key].integrationBlockTypes).toEqual([
+        'oci_object_storage_native',
+      ])
+      expect(serverSelectorRegistry[key].destination).toEqual(
+        expect.objectContaining({ kind: 'credential-bound' })
+      )
+    }
   })
 
   it('declares both CloudWatch selectors as paginated', () => {
@@ -98,7 +117,7 @@ describe('selector manifest', () => {
       (attachment) => attachment.destination !== 'fixed'
     )
 
-    expect(preparedDestinations).toHaveLength(13)
+    expect(preparedDestinations).toHaveLength(15)
     for (const attachment of preparedDestinations) {
       expect(attachment.destination).toEqual(
         expect.objectContaining({

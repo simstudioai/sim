@@ -1,0 +1,1149 @@
+---
+title: OCI Object Storage (Native)
+description: Manage OCI buckets, objects, versions, lifecycle policies, multipart uploads and access grants
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_object_storage_native"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Use native OCI API signing-key credentials to discover namespaces and buckets, read and write objects, manage versions and archive restoration, replace lifecycle policies, complete multipart uploads, and deliberately grant or revoke pre-authenticated access. File transfers are limited to 100 MiB. Inline text must fit within the 8 MiB JSON request budget, including escaping and other fields. JSON responses are limited to 8 MiB and listings to one page of at most 1000 items. Bucket creation is private. Copy is asynchronous and returns a work-request ID. This integration coexists with the S3-compatible OCI integration and does not use Customer Secret Keys.
+
+
+
+## Actions
+
+### OCI Object Storage Native Abort Multipart Upload
+
+Abort an unfinished multipart upload and discard its uploaded parts. Requires OBJECT_DELETE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `uploadId` | string | Yes | Native multipart upload identifier |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+| `uploadId` | string | Multipart upload identifier |
+| `aborted` | boolean | Upload aborted and parts discarded |
+
+### OCI Object Storage Native Batch Delete Objects
+
+Delete up to 1000 explicitly named current objects. Preserve individual failures even when OCI returns HTTP 200. Version IDs are not supported by this API. Requires OBJECT_DELETE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objects` | array | Yes | 1–1000 entries containing objectName and optional ifMatch; no versionId |
+| `isSkipDeletedResult` | boolean | No | Omit successfully deleted entries from the result; failures remain visible |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `deleted` | array | Successful entries: objectName and timeLastModified |
+|   ↳ `objectName` | string | Object name |
+|   ↳ `timeLastModified` | string | Time last modified |
+| `failed` | array | Failed entries: objectName, statusCode and errorMessage |
+|   ↳ `objectName` | string | Object name |
+|   ↳ `statusCode` | number | Status code |
+|   ↳ `errorMessage` | string | Error message |
+| `allSucceeded` | boolean | False when any object deletion failed |
+
+### OCI Object Storage Native Commit Multipart Upload
+
+Commit an explicit manifest of up to 10000 unique partNum/etag entries, with optional non-overlapping exclusions. Requires BUCKET_READ, OBJECT_CREATE, OBJECT_READ and OBJECT_OVERWRITE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `uploadId` | string | Yes | Native multipart upload identifier |
+| `partsToCommit` | array | Yes | 1–10000 unique \{partNum, etag\} entries in the completion manifest |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+| `ifNoneMatch` | string | No | Set to * to apply only when the destination does not exist |
+| `partsToExclude` | array | No | Unique part numbers to exclude, disjoint from partsToCommit |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+| `uploadId` | string | Multipart upload identifier |
+
+### OCI Object Storage Native Copy Object
+
+Start an asynchronous native object copy and return its work-request ID. Requires source OBJECT_READ, destination OBJECT_CREATE/OBJECT_OVERWRITE, and regional Object Storage service permissions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `destinationRegion` | string | Yes | Destination OCI region |
+| `destinationNamespace` | string | Yes | Destination Object Storage namespace |
+| `destinationBucket` | string | Yes | Destination bucket name |
+| `destinationObjectName` | string | Yes | Exact destination object name |
+| `sourceVersionId` | string | No | Source object version to copy |
+| `sourceObjectIfMatchETag` | string | No | Require the source object ETag |
+| `destinationObjectIfMatchETag` | string | No | Require the destination object ETag |
+| `destinationObjectIfNoneMatchETag` | string | No | Set to * to prevent overwriting the copy destination |
+| `destinationObjectMetadata` | json | No | Replacement metadata with unprefixed keys, up to 4000 bytes |
+| `destinationObjectStorageTier` | string | No | Standard, InfrequentAccess, or Archive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Object name |
+| `accepted` | boolean | Copy request accepted; completion is asynchronous |
+| `workRequestId` | string | Identifier for get_work_request |
+
+### OCI Object Storage Native Create Bucket
+
+Create a private bucket. Requires BUCKET_CREATE. Versioning defaults to Disabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `compartmentId` | string | Yes | OCI compartment OCID |
+| `metadata` | json | No | Custom metadata object; object uploads use unprefixed header-safe keys and at most 4000 UTF-8 bytes including header names |
+| `freeformTags` | json | No | Freeform tag name/value object |
+| `definedTags` | json | No | Defined tag namespaces and values |
+| `autoTiering` | string | No | Disabled or InfrequentAccess |
+| `objectEventsEnabled` | boolean | No | Emit events for object state changes |
+| `versioning` | string | No | Create: Enabled or Disabled; update: Enabled or Suspended |
+| `storageTier` | string | No | Standard, InfrequentAccess, or Archive; bucket creation supports Standard or Archive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `bucket` | object | Bucket configuration, including namespace, name, compartmentId, versioning, storageTier, metadata and tags |
+|   ↳ `namespace` | string | Namespace |
+|   ↳ `name` | string | Name |
+|   ↳ `compartmentId` | string | Compartment id |
+|   ↳ `createdBy` | string | Created by |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `etag` | string | Etag |
+|   ↳ `metadata` | json | Metadata |
+|   ↳ `freeformTags` | json | Freeform tags |
+|   ↳ `definedTags` | json | Defined tags |
+|   ↳ `storageTier` | string | Storage tier |
+|   ↳ `versioning` | string | Versioning |
+|   ↳ `autoTiering` | string | Auto tiering |
+|   ↳ `objectEventsEnabled` | boolean | Object events enabled |
+|   ↳ `approximateCount` | number | Approximate count |
+|   ↳ `approximateSize` | number | Approximate size |
+|   ↳ `isReadOnly` | boolean | Is read only |
+|   ↳ `publicAccessType` | string | Public access type |
+|   ↳ `objectLifecyclePolicyEtag` | string | Object lifecycle policy etag |
+| `etag` | string | Bucket entity tag |
+
+### OCI Object Storage Native Create Multipart Upload
+
+Initiate a native multipart upload. Save uploadId for uploading parts and committing or aborting. Requires OBJECT_CREATE and OBJECT_OVERWRITE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `contentType` | string | No | Content MIME type; inferred for files, text/plain for inline content |
+| `contentLanguage` | string | No | Content-Language header |
+| `contentEncoding` | string | No | Content-Encoding header |
+| `contentDisposition` | string | No | Content-Disposition header |
+| `cacheControl` | string | No | Cache-Control header |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+| `ifNoneMatch` | string | No | Set to * to apply only when the destination does not exist |
+| `metadata` | json | No | Custom metadata object; object uploads use unprefixed header-safe keys and at most 4000 UTF-8 bytes including header names |
+| `storageTier` | string | No | Standard, InfrequentAccess, or Archive; bucket creation supports Standard or Archive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `upload` | object | Multipart upload: namespace, bucket, object, uploadId, timeCreated and storageTier |
+|   ↳ `namespace` | string | Namespace |
+|   ↳ `bucket` | string | Bucket |
+|   ↳ `object` | string | Object |
+|   ↳ `uploadId` | string | Upload id |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `storageTier` | string | Storage tier |
+
+### OCI Object Storage Native Create Pre-Authenticated Request
+
+Grant unauthenticated access to an object, prefix, or bucket until an explicit expiry. Anyone holding accessUrl receives the chosen access. Listing defaults to Deny. Requires PAR_MANAGE and the creator permissions for the granted access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `name` | string | Yes | Display name for the pre-authenticated access grant |
+| `scope` | string | Yes | Required grant scope: object, prefix, or bucket |
+| `accessType` | string | Yes | ObjectRead/ObjectWrite/ObjectReadWrite for object scope; AnyObjectRead/AnyObjectWrite/AnyObjectReadWrite for prefix or bucket scope |
+| `timeExpires` | string | Yes | Required future ISO 8601 expiry timestamp with timezone |
+| `objectName` | string | No | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `bucketListingAction` | string | No | Deny \(default\) or ListObjects; listing requires bucket or prefix read scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `request` | object | Access grant identity, scope and expiry |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `accessType` | string | Access type |
+|   ↳ `objectName` | string | Object name |
+|   ↳ `timeExpires` | string | Time expires |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `bucketListingAction` | string | Bucket listing action |
+| `accessUrl` | string | Sensitive unauthenticated access-grant URL; returned only at creation |
+
+### OCI Object Storage Native Delete Bucket
+
+Delete an empty bucket. Remove all versions, multipart uploads, and pre-authenticated requests first. Requires BUCKET_DELETE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `deleted` | boolean | Resource deleted or access revoked |
+
+### OCI Object Storage Native Delete Lifecycle Policy
+
+Delete the complete lifecycle policy. Requires BUCKET_UPDATE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `deleted` | boolean | Resource deleted or access revoked |
+
+### OCI Object Storage Native Delete Object
+
+Delete the current object or permanently delete an explicit version. Versioned current-object deletion creates a delete marker. Requires OBJECT_DELETE; explicit versions require OBJECT_VERSION_DELETE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `versionId` | string | No | Explicit object version ID; deletion permanently removes this version |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+| `deleted` | boolean | Resource deleted or access revoked |
+
+### OCI Object Storage Native Delete Pre-Authenticated Request
+
+Revoke a pre-authenticated request and its access URL. Requires PAR_MANAGE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `parId` | string | Yes | Pre-authenticated request identifier to inspect or revoke |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `deleted` | boolean | Resource deleted or access revoked |
+| `parId` | string | Revoked access-grant identifier |
+
+### OCI Object Storage Native Download Object
+
+Download at most 100 MiB into a normal workflow file. Requires OBJECT_READ. Archived objects must be restored first.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `versionId` | string | No | Explicit object version ID; deletion permanently removes this version |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+| `file` | file | Downloaded file persisted in execution storage |
+
+### OCI Object Storage Native Get Bucket
+
+Get bucket configuration and approximate object count and size. Requires BUCKET_READ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `bucket` | object | Bucket configuration, including namespace, name, compartmentId, versioning, storageTier, metadata and tags |
+|   ↳ `namespace` | string | Namespace |
+|   ↳ `name` | string | Name |
+|   ↳ `compartmentId` | string | Compartment id |
+|   ↳ `createdBy` | string | Created by |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `etag` | string | Etag |
+|   ↳ `metadata` | json | Metadata |
+|   ↳ `freeformTags` | json | Freeform tags |
+|   ↳ `definedTags` | json | Defined tags |
+|   ↳ `storageTier` | string | Storage tier |
+|   ↳ `versioning` | string | Versioning |
+|   ↳ `autoTiering` | string | Auto tiering |
+|   ↳ `objectEventsEnabled` | boolean | Object events enabled |
+|   ↳ `approximateCount` | number | Approximate count |
+|   ↳ `approximateSize` | number | Approximate size |
+|   ↳ `isReadOnly` | boolean | Is read only |
+|   ↳ `publicAccessType` | string | Public access type |
+|   ↳ `objectLifecyclePolicyEtag` | string | Object lifecycle policy etag |
+| `etag` | string | Bucket entity tag |
+
+### OCI Object Storage Native Get Lifecycle Policy
+
+Read the complete bucket lifecycle policy. Requires BUCKET_READ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `rules` | array | Complete lifecycle rules |
+|   ↳ `name` | string | Name |
+|   ↳ `action` | string | Action |
+|   ↳ `timeAmount` | number | Time amount |
+|   ↳ `timeUnit` | string | Time unit |
+|   ↳ `isEnabled` | boolean | Is enabled |
+|   ↳ `target` | string | Target |
+|   ↳ `objectNameFilter` | object | Object-name matching conditions |
+|     ↳ `inclusionPrefixes` | array | inclusionPrefixes |
+|     ↳ `inclusionPatterns` | array | inclusionPatterns |
+|     ↳ `exclusionPatterns` | array | exclusionPatterns |
+| `timeCreated` | string | Policy creation time |
+| `etag` | string | Policy entity tag |
+
+### OCI Object Storage Native Get Namespace
+
+Get the Object Storage namespace. A compartment query requires OBJECTSTORAGE_NAMESPACE_READ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `compartmentId` | string | No | OCI compartment OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+
+### OCI Object Storage Native Get Pre-Authenticated Request
+
+Get a pre-authenticated request summary; its secret access URL cannot be retrieved again. Requires PAR_MANAGE or BUCKET_READ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `parId` | string | Yes | Pre-authenticated request identifier to inspect or revoke |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `request` | object | Access-grant summary without the secret URL |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `accessType` | string | Access type |
+|   ↳ `objectName` | string | Object name |
+|   ↳ `timeExpires` | string | Time expires |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `bucketListingAction` | string | Bucket listing action |
+
+### OCI Object Storage Native Get Work Request
+
+Poll a work request once. Copy status completes with COMPLETED or FAILED; this tool does not wait. Requires permission to read the affected resource.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `workRequestId` | string | Yes | Work-request identifier returned by copy |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `workRequest` | object | id, compartmentId, operationType, status, percentComplete and timestamps |
+|   ↳ `id` | string | Id |
+|   ↳ `compartmentId` | string | Compartment id |
+|   ↳ `operationType` | string | Operation type |
+|   ↳ `status` | string | ACCEPTED, IN_PROGRESS, FAILED, COMPLETED, CANCELING or CANCELED |
+|   ↳ `percentComplete` | number | Percent complete |
+|   ↳ `timeAccepted` | string | Time accepted |
+|   ↳ `timeStarted` | string | Time started |
+|   ↳ `timeFinished` | string | Time finished |
+| `resources` | array | Affected resource identifiers and actions |
+|   ↳ `entityType` | string | Entity type |
+|   ↳ `actionType` | string | Action type |
+|   ↳ `entityUri` | string | Entity uri |
+|   ↳ `identifier` | string | Identifier |
+| `retryAfter` | string | Provider retry guidance, when available |
+
+### OCI Object Storage Native Head Object
+
+Read object metadata and custom headers without downloading bytes. Requires OBJECT_READ or OBJECT_INSPECT.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `versionId` | string | No | Explicit object version ID; deletion permanently removes this version |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+
+### OCI Object Storage Native List Buckets
+
+List one page of buckets in a compartment. Requires BUCKET_INSPECT.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `compartmentId` | string | Yes | OCI compartment OCID |
+| `limit` | number | No | One-page result limit, default 100, maximum 1000 |
+| `page` | string | No | Opaque nextPage token from the previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `buckets` | array | Bucket summaries |
+|   ↳ `namespace` | string | Namespace |
+|   ↳ `name` | string | Name |
+|   ↳ `compartmentId` | string | Compartment id |
+|   ↳ `createdBy` | string | Created by |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `etag` | string | Etag |
+|   ↳ `metadata` | json | Metadata |
+|   ↳ `freeformTags` | json | Freeform tags |
+|   ↳ `definedTags` | json | Defined tags |
+|   ↳ `storageTier` | string | Storage tier |
+|   ↳ `versioning` | string | Versioning |
+|   ↳ `autoTiering` | string | Auto tiering |
+|   ↳ `objectEventsEnabled` | boolean | Object events enabled |
+|   ↳ `approximateCount` | number | Approximate count |
+|   ↳ `approximateSize` | number | Approximate size |
+|   ↳ `isReadOnly` | boolean | Is read only |
+|   ↳ `publicAccessType` | string | Public access type |
+|   ↳ `objectLifecyclePolicyEtag` | string | Object lifecycle policy etag |
+| `nextPage` | string | Opaque token for the next page |
+
+### OCI Object Storage Native List Multipart Parts
+
+List one page of uploaded parts and their ETags. Requires OBJECT_INSPECT.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `uploadId` | string | Yes | Native multipart upload identifier |
+| `limit` | number | No | One-page result limit, default 100, maximum 1000 |
+| `page` | string | No | Opaque nextPage token from the previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Object name |
+| `parts` | array | Uploaded parts: partNumber, etag, md5 and size |
+|   ↳ `partNumber` | number | Part number |
+|   ↳ `etag` | string | Etag |
+|   ↳ `md5` | string | Md5 |
+|   ↳ `size` | number | Size |
+| `nextPage` | string | Opaque next-page token |
+
+### OCI Object Storage Native List Multipart Uploads
+
+List one page of active multipart uploads. Requires BUCKET_READ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `limit` | number | No | One-page result limit, default 100, maximum 1000 |
+| `page` | string | No | Opaque nextPage token from the previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `uploads` | array | Active multipart uploads |
+|   ↳ `namespace` | string | Namespace |
+|   ↳ `bucket` | string | Bucket |
+|   ↳ `object` | string | Object |
+|   ↳ `uploadId` | string | Upload id |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `storageTier` | string | Storage tier |
+| `nextPage` | string | Opaque next-page token |
+
+### OCI Object Storage Native List Object Versions
+
+List one page of object versions and delete markers. Continue with nextPage as page. Requires OBJECT_INSPECT.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `prefix` | string | No | Exact object-name prefix; whitespace is significant |
+| `start` | string | No | Inclusive object-name start; use nextStartWith here |
+| `end` | string | No | Exclusive object-name end |
+| `startAfter` | string | No | Exclusive object-name start; do not use for nextStartWith |
+| `delimiter` | string | No | Set to / to group object prefixes |
+| `limit` | number | No | One-page result limit, default 100, maximum 1000 |
+| `page` | string | No | Opaque nextPage token from the previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `versions` | array | Object versions with versionId and isDeleteMarker |
+|   ↳ `name` | string | Name |
+|   ↳ `size` | number | Size |
+|   ↳ `etag` | string | Etag |
+|   ↳ `md5` | string | Md5 |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `timeModified` | string | Time modified |
+|   ↳ `storageTier` | string | Storage tier |
+|   ↳ `archivalState` | string | Archival state |
+|   ↳ `versionId` | string | Version id |
+|   ↳ `isDeleteMarker` | boolean | Is delete marker |
+| `prefixes` | array | Common prefixes |
+| `nextPage` | string | Opaque next-page token |
+
+### OCI Object Storage Native List Objects
+
+List one page of objects and prefixes. Pass nextStartWith into start for the next page. Requires OBJECT_INSPECT.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `prefix` | string | No | Exact object-name prefix; whitespace is significant |
+| `start` | string | No | Inclusive object-name start; use nextStartWith here |
+| `end` | string | No | Exclusive object-name end |
+| `startAfter` | string | No | Exclusive object-name start; do not use for nextStartWith |
+| `delimiter` | string | No | Set to / to group object prefixes |
+| `limit` | number | No | One-page result limit, default 100, maximum 1000 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objects` | array | Objects with name, size, etag, md5, timestamps, storageTier and archivalState |
+|   ↳ `name` | string | Name |
+|   ↳ `size` | number | Size |
+|   ↳ `etag` | string | Etag |
+|   ↳ `md5` | string | Md5 |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `timeModified` | string | Time modified |
+|   ↳ `storageTier` | string | Storage tier |
+|   ↳ `archivalState` | string | Archival state |
+| `prefixes` | array | Common prefixes for the delimiter |
+| `nextStartWith` | string | Next inclusive start value |
+
+### OCI Object Storage Native List Pre-Authenticated Requests
+
+List one page of pre-authenticated request summaries. Access URLs are returned only at creation. Requires PAR_MANAGE or BUCKET_READ.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `limit` | number | No | One-page result limit, default 100, maximum 1000 |
+| `page` | string | No | Opaque nextPage token from the previous response |
+| `objectNamePrefix` | string | No | Filter pre-authenticated requests by exact object-name prefix |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `requests` | array | Access-grant summaries without secret URLs |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `accessType` | string | Access type |
+|   ↳ `objectName` | string | Object name |
+|   ↳ `timeExpires` | string | Time expires |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `bucketListingAction` | string | Bucket listing action |
+| `nextPage` | string | Opaque next-page token |
+
+### OCI Object Storage Native Put Lifecycle Policy
+
+Replace the entire lifecycle policy with up to 1000 rules. An empty array clears its rules. Requires BUCKET_UPDATE, OBJECT_CREATE, OBJECT_DELETE and regional service permissions for rule actions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `rules` | array | Yes | Complete replacement lifecycle rule array, maximum 1000. Each rule: name, action, timeAmount, timeUnit, isEnabled; optional target and objectNameFilter. ABORT requires multipart-uploads target. Pattern lists support at most 20 entries. |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+| `ifNoneMatch` | string | No | Set to * to apply only when the destination does not exist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `rules` | array | Complete lifecycle rules |
+|   ↳ `name` | string | Name |
+|   ↳ `action` | string | Action |
+|   ↳ `timeAmount` | number | Time amount |
+|   ↳ `timeUnit` | string | Time unit |
+|   ↳ `isEnabled` | boolean | Is enabled |
+|   ↳ `target` | string | Target |
+|   ↳ `objectNameFilter` | object | Object-name matching conditions |
+|     ↳ `inclusionPrefixes` | array | inclusionPrefixes |
+|     ↳ `inclusionPatterns` | array | inclusionPatterns |
+|     ↳ `exclusionPatterns` | array | exclusionPatterns |
+| `timeCreated` | string | Policy creation time |
+| `etag` | string | Policy entity tag |
+
+### OCI Object Storage Native Rename Object
+
+Rename the current object in the same bucket. Previous versions cannot be renamed. Requires OBJECT_CREATE and OBJECT_OVERWRITE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `newName` | string | Yes | Exact new object name in the same bucket |
+| `srcObjIfMatchETag` | string | No | Require this source ETag before renaming |
+| `newObjIfMatchETag` | string | No | Require this destination ETag before renaming |
+| `newObjIfNoneMatchETag` | string | No | Set to * to prevent overwriting the rename destination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+
+### OCI Object Storage Native Restore Object
+
+Request temporary access to an archived object for 1–240 hours (default 24). Restoration is asynchronous. Requires OBJECT_RESTORE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `versionId` | string | No | Explicit object version ID; deletion permanently removes this version |
+| `hours` | number | No | Restore duration in hours, 1–240, default 24 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Object name |
+| `accepted` | boolean | Restore request accepted; restoration can still be in progress |
+| `versionId` | string | Requested version |
+
+### OCI Object Storage Native Update Bucket
+
+Update bucket settings. Versioning can be Enabled or Suspended, never Disabled after enabling. Requires BUCKET_UPDATE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `metadata` | json | No | Custom metadata object; object uploads use unprefixed header-safe keys and at most 4000 UTF-8 bytes including header names |
+| `freeformTags` | json | No | Freeform tag name/value object |
+| `definedTags` | json | No | Defined tag namespaces and values |
+| `autoTiering` | string | No | Disabled or InfrequentAccess |
+| `objectEventsEnabled` | boolean | No | Emit events for object state changes |
+| `versioning` | string | No | Create: Enabled or Disabled; update: Enabled or Suspended |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `bucket` | object | Bucket configuration, including namespace, name, compartmentId, versioning, storageTier, metadata and tags |
+|   ↳ `namespace` | string | Namespace |
+|   ↳ `name` | string | Name |
+|   ↳ `compartmentId` | string | Compartment id |
+|   ↳ `createdBy` | string | Created by |
+|   ↳ `timeCreated` | string | Time created |
+|   ↳ `etag` | string | Etag |
+|   ↳ `metadata` | json | Metadata |
+|   ↳ `freeformTags` | json | Freeform tags |
+|   ↳ `definedTags` | json | Defined tags |
+|   ↳ `storageTier` | string | Storage tier |
+|   ↳ `versioning` | string | Versioning |
+|   ↳ `autoTiering` | string | Auto tiering |
+|   ↳ `objectEventsEnabled` | boolean | Object events enabled |
+|   ↳ `approximateCount` | number | Approximate count |
+|   ↳ `approximateSize` | number | Approximate size |
+|   ↳ `isReadOnly` | boolean | Is read only |
+|   ↳ `publicAccessType` | string | Public access type |
+|   ↳ `objectLifecyclePolicyEtag` | string | Object lifecycle policy etag |
+| `etag` | string | Bucket entity tag |
+
+### OCI Object Storage Native Update Object Storage Tier
+
+Change an object or version to Standard, InfrequentAccess, or Archive. Requires OBJECT_UPDATE_TIER.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `storageTier` | string | Yes | Standard, InfrequentAccess, or Archive; bucket creation supports Standard or Archive |
+| `versionId` | string | No | Explicit object version ID; deletion permanently removes this version |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Object name |
+| `accepted` | boolean | Storage-tier change accepted |
+| `versionId` | string | Requested version |
+
+### OCI Object Storage Native Upload Object
+
+Upload exactly one file up to 100 MiB or UTF-8 text within the 8 MiB JSON request limit. Empty text is supported. Requires OBJECT_CREATE or OBJECT_OVERWRITE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `file` | file | No | Uploaded workflow file; exactly one of file or content, maximum 100 MiB |
+| `content` | string | No | Inline UTF-8 text, including empty text; the complete JSON request must fit within 8 MiB, including escaping and other fields. Use a file for larger uploads. |
+| `contentType` | string | No | Content MIME type; inferred for files, text/plain for inline content |
+| `contentLanguage` | string | No | Content-Language header |
+| `contentEncoding` | string | No | Content-Encoding header |
+| `contentDisposition` | string | No | Content-Disposition header |
+| `cacheControl` | string | No | Cache-Control header |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+| `ifNoneMatch` | string | No | Set to * to apply only when the destination does not exist |
+| `metadata` | json | No | Custom metadata object; object uploads use unprefixed header-safe keys and at most 4000 UTF-8 bytes including header names |
+| `storageTier` | string | No | Standard, InfrequentAccess, or Archive; bucket creation supports Standard or Archive |
+| `contentMd5` | string | No | Optional base64 MD5 checksum of the exact uploaded bytes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+| `size` | number | Uploaded byte length |
+
+### OCI Object Storage Native Upload Part
+
+Upload one part numbered 1–10000 from a file up to 100 MiB or UTF-8 text within the 8 MiB JSON request limit. Save the returned ETag for commit. Requires OBJECT_CREATE and OBJECT_OVERWRITE.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region override in the credential realm; defaults to the credential region |
+| `namespace` | string | No | Object Storage namespace; omitted values are discovered with GetNamespace |
+| `bucketName` | string | Yes | OCI bucket name |
+| `objectName` | string | Yes | Exact object name; preserve spaces, Unicode, separators and percent characters |
+| `uploadId` | string | Yes | Native multipart upload identifier |
+| `partNumber` | number | Yes | Multipart part number, 1–10000 |
+| `file` | file | No | Uploaded workflow file; exactly one of file or content, maximum 100 MiB |
+| `content` | string | No | Inline UTF-8 text, including empty text; the complete JSON request must fit within 8 MiB, including escaping and other fields. Use a file for larger uploads. |
+| `contentType` | string | No | Content MIME type; inferred for files, text/plain for inline content |
+| `contentMd5` | string | No | Optional base64 MD5 checksum of the exact uploaded bytes |
+| `ifMatch` | string | No | Apply only if the entity tag matches |
+| `ifNoneMatch` | string | No | Set to * to apply only when the destination does not exist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Oracle request identifier |
+| `namespace` | string | Object Storage namespace |
+| `bucketName` | string | Bucket name |
+| `objectName` | string | Exact object name |
+| `etag` | string | Entity tag for conditional operations |
+| `versionId` | string | Object version ID |
+| `isDeleteMarker` | boolean | Whether this result identifies a delete marker |
+| `contentLength` | number | Object byte length, when supplied by OCI |
+| `contentType` | string | Content MIME type |
+| `lastModified` | string | Last-Modified HTTP date |
+| `contentMd5` | string | Content MD5 header |
+| `opcContentMd5` | string | Oracle content MD5 checksum |
+| `multipartMd5` | string | Oracle multipart MD5 checksum |
+| `contentEncoding` | string | Content encoding |
+| `contentLanguage` | string | Content language |
+| `contentDisposition` | string | Content disposition |
+| `cacheControl` | string | Cache-Control value |
+| `storageTier` | string | Standard, InfrequentAccess, or Archive |
+| `archivalState` | string | Archived, Restoring, or Restored |
+| `timeOfArchival` | string | Time the object was archived |
+| `metadata` | json | Custom object metadata with opc-meta- prefixes removed |
+| `size` | number | Uploaded byte length |
+| `uploadId` | string | Multipart upload identifier |
+| `partNumber` | number | Uploaded part number |
+
+

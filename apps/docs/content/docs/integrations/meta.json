@@ -185,6 +185,7 @@
     "notion",
     "notion-service-account",
     "obsidian",
+    "oci_object_storage_native",
     "okta",
     "onedrive",
     "onepassword",
