@@ -15,9 +15,9 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import {
   type AllMembersConflict,
-  acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
   findAllMembersWorkspaceConflict,
   findScopeConflicts,
