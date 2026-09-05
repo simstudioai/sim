@@ -434,11 +434,9 @@ async function requeueWebhookExecutionAfterSetupFailure(
 }
 
 /**
- * Restores the terminal failed execution-log row for a setup failure whose
- * replacement enqueue failed. Attempts headed for a requeue suppress their
- * failure row so the retry can reuse the execution id; once the requeue is
- * known to have failed, no retry will run, so the row must be written here or
- * the delivery faults without any execution record. Best-effort by design:
+ * Records a terminal setup failure when no replacement will run and setup
+ * either never reached preprocessing or suppressed its failure row for a retry.
+ * Best-effort by design:
  * the same infrastructure outage that broke setup may also break this write,
  * in which case the faulted run remains the only signal — matching how
  * preprocessing's own error logging degrades.
@@ -470,14 +468,11 @@ async function recordSetupFailureWithoutRequeue(
       skipCost: true,
     })
   } catch (loggingError) {
-    logger.error(
-      `[${correlation.requestId}] Failed to record webhook setup failure after requeue failure`,
-      {
-        workflowId: payload.workflowId,
-        executionId: correlation.executionId,
-        error: loggingError,
-      }
-    )
+    logger.error(`[${correlation.requestId}] Failed to record terminal webhook setup failure`, {
+      workflowId: payload.workflowId,
+      executionId: correlation.executionId,
+      error: loggingError,
+    })
   }
 }
 
@@ -536,16 +531,23 @@ export async function executeWebhookJob(
     ),
     externalAbortSignal
   )
+  let operationStarted = false
 
   try {
     const executionDeadlineAt = getExecutionDeadlineAt(timeoutController.signal)?.getTime()
-    const admissionCompleted =
-      executionDeadlineAt === undefined
-        ? true
-        : await refreshExecutionSlotExpiry(
-            executionId,
-            executionDeadlineAt + RESERVATION_TTL_BUFFER_MS
-          )
+    let admissionCompleted = true
+    if (executionDeadlineAt !== undefined) {
+      try {
+        admissionCompleted = await refreshExecutionSlotExpiry(
+          executionId,
+          executionDeadlineAt + RESERVATION_TTL_BUFFER_MS
+        )
+      } catch (error) {
+        if (!isRetryableInfrastructureError(error)) throw error
+        /** No idempotency claim or workflow block exists yet; only the usage lease was refreshed. */
+        throw new RetryableSetupError(toError(error).message, { cause: error })
+      }
+    }
     if (!admissionCompleted) {
       logger.warn('Queued webhook reservation expired; repeating usage admission', {
         workflowId: authenticatedPayload.workflowId,
@@ -569,7 +571,6 @@ export async function executeWebhookJob(
         authenticatedPayload.provider
       )
 
-      let operationStarted = false
       const runOperation = async () => {
         operationStarted = true
         return await executeWebhookJobInternal(
@@ -581,53 +582,53 @@ export async function executeWebhookJob(
         )
       }
 
-      try {
-        const result = await webhookIdempotency.executeWithIdempotency(
-          authenticatedPayload.provider,
-          idempotencyKey,
-          runOperation,
-          undefined,
-          {
-            inProgressExpiresAt:
-              executionDeadlineAt === undefined
-                ? Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000
-                : executionDeadlineAt + RESERVATION_TTL_BUFFER_MS,
-          }
-        )
-        if (!operationStarted) {
-          await releaseExecutionSlot(executionId)
+      const result = await webhookIdempotency.executeWithIdempotency(
+        authenticatedPayload.provider,
+        idempotencyKey,
+        runOperation,
+        undefined,
+        {
+          inProgressExpiresAt:
+            executionDeadlineAt === undefined
+              ? Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000
+              : executionDeadlineAt + RESERVATION_TTL_BUFFER_MS,
         }
-        return result
-      } catch (error) {
+      )
+      if (!operationStarted) {
         await releaseExecutionSlot(executionId)
-
-        /**
-         * A typed setup failure certifies no block ran and the idempotency
-         * claim was released, so requeueing the same delivery cannot double
-         * run it; the retry re-admits usage and re-claims from scratch. When
-         * the requeue enqueue itself fails, restore the terminal failure row
-         * the retry-bound attempt suppressed, then fall through to the throw
-         * so the run fails loudly rather than dropping the delivery silently.
-         */
-        if (isRetryableSetupError(error) && hasRemainingWebhookInfraRetry(authenticatedPayload)) {
-          if (
-            await requeueWebhookExecutionAfterSetupFailure(authenticatedPayload, correlation, error)
-          ) {
-            return {
-              success: false,
-              requeued: true,
-              workflowId: authenticatedPayload.workflowId,
-              executionId,
-              output: {},
-              executedAt: new Date().toISOString(),
-              provider: authenticatedPayload.provider,
-            }
-          }
-          await recordSetupFailureWithoutRequeue(authenticatedPayload, correlation, error)
-        }
-        throw error
       }
+      return result
     })
+  } catch (error) {
+    await releaseExecutionSlot(executionId)
+
+    /**
+     * Only typed setup failures certify that no block ran and any idempotency
+     * claim was released (or never acquired). The replacement re-admits usage
+     * and reclaims the same delivery; arbitrary execution errors must not replay.
+     */
+    if (isRetryableSetupError(error)) {
+      const hasRemainingRetry = hasRemainingWebhookInfraRetry(authenticatedPayload)
+      if (
+        hasRemainingRetry &&
+        !timeoutController.signal.aborted &&
+        (await requeueWebhookExecutionAfterSetupFailure(authenticatedPayload, correlation, error))
+      ) {
+        return {
+          success: false,
+          requeued: true,
+          workflowId: authenticatedPayload.workflowId,
+          executionId,
+          output: {},
+          executedAt: new Date().toISOString(),
+          provider: authenticatedPayload.provider,
+        }
+      }
+      if (!operationStarted || hasRemainingRetry) {
+        await recordSetupFailureWithoutRequeue(authenticatedPayload, correlation, error)
+      }
+    }
+    throw error
   } finally {
     timeoutController.cleanup()
   }
