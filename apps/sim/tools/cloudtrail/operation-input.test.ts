@@ -53,4 +53,24 @@ describe('cloudtrail operation input', () => {
 
     expect(input.queryParameters).toEqual(['us-east-1', '2026-01-01'])
   })
+
+  it('preserves empty positional slots in start_query query parameters', () => {
+    const input = startQueryTool.operation.input({
+      ...CONNECTION,
+      queryAlias: 'top-errors',
+      queryParameters: 'us-east-1,,2026-01-01',
+    })
+
+    expect(input.queryParameters).toEqual(['us-east-1', '', '2026-01-01'])
+  })
+
+  it('omits queryParameters entirely when it is blank', () => {
+    const input = startQueryTool.operation.input({
+      ...CONNECTION,
+      queryAlias: 'top-errors',
+      queryParameters: '   ',
+    })
+
+    expect(input.queryParameters).toBeUndefined()
+  })
 })

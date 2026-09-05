@@ -68,11 +68,17 @@ export const startQueryTool: InternalToolConfig<
   },
 
   operation: {
+    /**
+     * `QueryParameters` is positional: CloudTrail substitutes each entry into the query
+     * template by index. Empty slots are preserved rather than dropped, so a malformed
+     * list such as `a,,c` fails the contract's per-entry minimum length instead of
+     * silently shifting `c` into the second position.
+     */
     input: (params) => {
-      const queryParameters = (params.queryParameters ?? '')
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean)
+      const rawQueryParameters = (params.queryParameters ?? '').trim()
+      const queryParameters = rawQueryParameters
+        ? rawQueryParameters.split(',').map((value) => value.trim())
+        : []
       return {
         region: params.awsRegion,
         accessKeyId: params.awsAccessKeyId,

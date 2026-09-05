@@ -64,17 +64,17 @@ export const getEventDataStoreTool: InternalToolConfig<
     eventDataStoreArn: {
       type: 'string',
       description: 'ARN of the event data store',
-      optional: true,
+      nullable: true,
     },
     name: {
       type: 'string',
       description: 'Name of the event data store',
-      optional: true,
+      nullable: true,
     },
     status: {
       type: 'string',
       description: 'CREATED, ENABLED, PENDING_DELETION, or an ingestion state',
-      optional: true,
+      nullable: true,
     },
     advancedEventSelectors: {
       type: 'array',
@@ -82,7 +82,11 @@ export const getEventDataStoreTool: InternalToolConfig<
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Name of the advanced event selector' },
+          name: {
+            type: 'string',
+            description: 'Name of the advanced event selector',
+            nullable: true,
+          },
           fieldSelectors: {
             type: 'array',
             description:
@@ -94,52 +98,52 @@ export const getEventDataStoreTool: InternalToolConfig<
     multiRegionEnabled: {
       type: 'boolean',
       description: 'Whether the store collects events from all Regions',
-      optional: true,
+      nullable: true,
     },
     organizationEnabled: {
       type: 'boolean',
       description: 'Whether the store collects events for the organization',
-      optional: true,
+      nullable: true,
     },
     retentionPeriod: {
       type: 'number',
       description: 'Retention period in days',
-      optional: true,
+      nullable: true,
     },
     terminationProtectionEnabled: {
       type: 'boolean',
       description: 'Whether termination protection is enabled',
-      optional: true,
+      nullable: true,
     },
     createdTimestamp: {
       type: 'string',
       description: 'When the store was created (ISO 8601)',
-      optional: true,
+      nullable: true,
     },
     updatedTimestamp: {
       type: 'string',
       description: 'When the store was last updated (ISO 8601)',
-      optional: true,
+      nullable: true,
     },
     kmsKeyId: {
       type: 'string',
       description: 'KMS key used to encrypt the store',
-      optional: true,
+      nullable: true,
     },
     billingMode: {
       type: 'string',
       description: 'EXTENDABLE_RETENTION_PRICING or FIXED_RETENTION_PRICING',
-      optional: true,
+      nullable: true,
     },
     federationStatus: {
       type: 'string',
       description: 'Lake Formation federation status',
-      optional: true,
+      nullable: true,
     },
     federationRoleArn: {
       type: 'string',
       description: 'ARN of the role used for Lake Formation federation',
-      optional: true,
+      nullable: true,
     },
     partitionKeys: {
       type: 'array',
