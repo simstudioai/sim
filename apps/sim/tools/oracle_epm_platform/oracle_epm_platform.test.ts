@@ -13,6 +13,7 @@ vi.mock('@/tools/metadata', () => toolsMetadataMock)
 vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 import { NetSuiteIcon } from '@/components/icons'
+import { inputSchemas } from '@/lib/internal/oracle-epm-platform/schemas'
 import {
   getInternalToolOperationHandler,
   isInternalToolOperationRegistered,
@@ -97,12 +98,12 @@ function serialized(
     subBlocks: Object.fromEntries(
       block.subBlocks.map((sub) => [
         sub.id,
-        { id: sub.id, type: sub.type, value: values[sub.id] ?? null },
+        { id: sub.id, type: sub.type, value: values[sub.id] ?? sub.defaultValue ?? null },
       ])
     ),
     data: { canonicalModes },
   } as BlockState
-  return JSON.parse(JSON.stringify(extractBlockParams(state))) as Record<string, unknown>
+  return extractBlockParams(state)
 }
 
 describe('Oracle EPM Platform integration surface', () => {
@@ -154,17 +155,19 @@ describe('Oracle EPM Platform integration surface', () => {
     expect(selector.dependsOn).toEqual(expect.arrayContaining(['credential', 'manualCredential']))
   })
 
-  it('keeps references intact during serialization and normalizes only resolved execution inputs', () => {
-    const result = serialized(
-      {
-        operation: 'oracle_epm_platform_upload_snapshot',
-        credential: 'credential-1',
-        snapshotFileUpload: [file],
-        snapshotFileReference: '<previous.file>',
-        uploadSnapshotName: '<previous.name>',
-      },
-      { snapshotFile: 'advanced' }
-    )
+  it('keeps references intact during serialization and normalizes only resolved execution inputs', async () => {
+    const result = await Response.json(
+      serialized(
+        {
+          operation: 'oracle_epm_platform_upload_snapshot',
+          credential: 'credential-1',
+          snapshotFileUpload: [file],
+          snapshotFileReference: '<previous.file>',
+          uploadSnapshotName: '<previous.name>',
+        },
+        { snapshotFile: 'advanced' }
+      )
+    ).json()
     expect(result.snapshotFile).toBe('<previous.file>')
     expect(result.snapshotName).toBeUndefined()
     expect(result.uploadSnapshotName).toBe('<previous.name>')
@@ -229,6 +232,25 @@ describe('Oracle EPM Platform integration surface', () => {
       importUsers: true,
       resetPassword: true,
     })
+  })
+
+  it('uses a groups example accepted for both creating and deleting groups', () => {
+    const groups = JSON.parse(block.subBlocks.find((sub) => sub.id === 'groups')!.placeholder!)
+    const auth = {
+      oauthCredential: 'credential',
+      accessToken: 'token',
+      instanceUrl: 'https://epm.example.com',
+    }
+    expect(inputSchemas.create_groups.safeParse({ ...auth, groups }).success).toBe(true)
+    expect(inputSchemas.delete_groups.safeParse({ ...auth, groups }).success).toBe(true)
+  })
+
+  it('serializes boolean defaults without enabling maintenance skipping, imports, or waiting', () => {
+    const defaults = (operation: string) =>
+      params(serialized({ operation, credential: 'credential-1' }))
+    expect(defaults('oracle_epm_platform_run_daily_maintenance').skipNext).toBe(false)
+    expect(defaults('oracle_epm_platform_import_snapshot').importUsers).toBe(false)
+    expect(defaults('oracle_epm_platform_get_admin_job_status').waitForCompletion).toBe(false)
   })
 
   it('shows only operation-relevant file fields and enforces different input limits', () => {

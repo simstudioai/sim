@@ -16305,7 +16305,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["security", "automation", "monitoring"]
+      "tags": ["identity", "automation", "monitoring"]
     },
     {
       "type": "netsuite",

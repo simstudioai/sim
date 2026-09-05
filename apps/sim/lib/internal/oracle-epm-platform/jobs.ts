@@ -13,7 +13,16 @@ import {
   statusOutput,
   tasksSchema,
 } from '@/lib/internal/oracle-epm-platform/responses'
-import { jobEndpoints, jobLinkPolicies } from '@/lib/internal/oracle-epm-platform/routes'
+import {
+  jobEndpoints,
+  jobLinkPolicies,
+  repositoryUploadStatusEndpoint,
+  repositoryUploadStatusPolicy,
+} from '@/lib/internal/oracle-epm-platform/routes'
+import {
+  LEGACY_UPLOAD_JOB_PREFIX,
+  legacyUploadJobFileName,
+} from '@/lib/internal/oracle-epm-platform/schemas'
 import type { OracleEpmAdminJobKind, OracleEpmJob } from '@/tools/oracle_epm_platform/types'
 
 export interface OracleEpmJobLink {
@@ -61,19 +70,56 @@ export function projectJob(
   }
 }
 
+/**
+ * The legacy repository upload uses a filename-addressed extraction status, unlike v1 uploads.
+ * Preserve immediate starter semantics with a tagged Sim reference, never a serialized URL/handle.
+ */
+export function projectRepositoryUploadJob(
+  client: OracleEpmClient,
+  value: unknown,
+  fileName: string
+): OracleEpmJob {
+  const status = readStatus(value)
+  if (status !== -1) return { ...statusOutput(status), completed: true }
+  const links = parseResponse(linksSchema, value).links.filter((link) => link.rel === 'Job Status')
+  if (links.length !== 1) throw new OracleEpmPlatformResponseError()
+  const link = links[0]
+  client.validateReturnedLink(repositoryUploadStatusPolicy, {
+    rel: link.rel,
+    href: link.href,
+    method: link.action,
+  })
+  const returnedName = decodeURIComponent(new URL(link.href).pathname.split('/').at(-3) ?? '')
+  if (returnedName !== fileName) throw new OracleEpmPlatformResponseError()
+  const jobId = LEGACY_UPLOAD_JOB_PREFIX + encodeURIComponent(returnedName)
+  if (legacyUploadJobFileName(jobId) === undefined) throw new OracleEpmPlatformResponseError()
+  return { ...statusOutput(status), completed: false, jobId, jobKind: 'snapshot_upload' }
+}
+
 /** Bounded waiting is opt-in. A normal status tool invocation makes just one status read. */
 export async function getAdminJobStatus(
   client: OracleEpmClient,
   input: { jobId: string; jobKind: OracleEpmAdminJobKind; waitForCompletion?: boolean },
   signal?: AbortSignal
 ): Promise<OracleEpmJob> {
+  const repositoryFileName =
+    input.jobKind === 'snapshot_upload' ? legacyUploadJobFileName(input.jobId) : undefined
   const read = async (readSignal?: AbortSignal) => {
     const value = jsonBody(
-      await client.request(jobEndpoints[input.jobKind], {
-        pathParams: { jobId: input.jobId },
-        signal: readSignal,
-      })
+      await client.request(
+        repositoryFileName === undefined
+          ? jobEndpoints[input.jobKind]
+          : repositoryUploadStatusEndpoint,
+        {
+          pathParams:
+            repositoryFileName === undefined
+              ? { jobId: input.jobId }
+              : { fileName: repositoryFileName },
+          signal: readSignal,
+        }
+      )
     )
+    readSignal?.throwIfAborted()
     return projectJob(client, value, input.jobKind, input.jobId)
   }
   if (!input.waitForCompletion) return read(signal)

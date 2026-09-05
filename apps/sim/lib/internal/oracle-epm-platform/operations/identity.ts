@@ -12,7 +12,7 @@ import {
 } from '@/lib/internal/oracle-epm-platform/responses'
 import { endpoints } from '@/lib/internal/oracle-epm-platform/routes'
 
-export const identityOperations = {
+export const identityToolHandlers = {
   list_users: async (input, { client, signal }) => {
     const value = jsonBody(
       await client.request(endpoints.list_users, {

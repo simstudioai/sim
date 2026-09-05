@@ -27,12 +27,113 @@ beforeEach(() => {
 })
 
 import { afterEach } from 'vitest'
-import { getAdminJobStatus, projectJob } from '@/lib/internal/oracle-epm-platform/jobs'
+import {
+  getAdminJobStatus,
+  projectJob,
+  projectRepositoryUploadJob,
+} from '@/lib/internal/oracle-epm-platform/jobs'
+import { inputSchemas } from '@/lib/internal/oracle-epm-platform/schemas'
 import type { OracleEpmAdminJobKind } from '@/tools/oracle_epm_platform/types'
 
 afterEach(() => vi.useRealTimers())
 
 describe('Oracle EPM administrative jobs', () => {
+  it.each(['Artifact Snapshot.zip', 'folder/report #1.zip', 'literal%20name.zip'])(
+    'round-trips the exact legacy extraction reference for %s into a fixed status request',
+    async (fileName) => {
+      const statusUrl =
+        'https://epm.example.com/gateway/interop/rest/11.1.2.3.600/applicationsnapshots/' +
+        encodeURIComponent(fileName) +
+        '/contents/status'
+      const starter = projectRepositoryUploadJob(
+        client,
+        {
+          status: -1,
+          links: [{ rel: 'Job Status', action: 'GET', href: statusUrl }],
+        },
+        fileName
+      )
+      const reference = await Response.json(starter).json()
+      expect(reference).toMatchObject({
+        completed: false,
+        jobKind: 'snapshot_upload',
+        jobId: `repository:${encodeURIComponent(fileName)}`,
+      })
+      expect(inputSchemas.get_admin_job_status.safeParse({ ...auth, ...reference }).success).toBe(
+        true
+      )
+      mockSecureFetch.mockImplementation(async () => Response.json({ status: 0, details: null }))
+      expect(await getAdminJobStatus(client, reference)).toMatchObject({
+        completed: true,
+        status: 0,
+        jobId: reference.jobId,
+      })
+      expect(mockSecureFetch.mock.calls.map(([url, , options]) => [url, options.method])).toEqual([
+        [statusUrl, 'GET'],
+      ])
+    }
+  )
+
+  it.each([
+    ['migration', 'repository:Snapshot.zip'],
+    ['snapshot_upload', 'repository:'],
+    ['snapshot_upload', 'repository:folder%2ffile.zip'],
+    ['snapshot_upload', 'repository:../other.zip'],
+    ['snapshot_upload', 'repository:%ED%A0%80'],
+    ['snapshot_upload', 'repository:https%3A%2F%2Funtrusted.example%2Fjob'],
+  ])('rejects ambiguous or malformed legacy reference %s / %s', (jobKind, jobId) => {
+    expect(inputSchemas.get_admin_job_status.safeParse({ ...auth, jobKind, jobId }).success).toBe(
+      false
+    )
+  })
+
+  it.each([
+    { name: 'Other.zip', action: 'GET', version: '11.1.2.3.600' },
+    { name: 'Artifact%20Snapshot.zip', action: 'GET', version: '11.1.2.3.600' },
+    { name: 'Artifact Snapshot.zip', action: 'POST', version: '11.1.2.3.600' },
+    { name: 'Artifact Snapshot.zip', action: 'GET', version: 'v1' },
+  ])(
+    'rejects a legacy status link for the wrong file, encoding, method, or version: $name $action $version',
+    ({ name, action, version }) => {
+      const href =
+        'https://epm.example.com/gateway/interop/rest/' +
+        version +
+        '/applicationsnapshots/' +
+        encodeURIComponent(name) +
+        '/contents/status'
+      expect(() =>
+        projectRepositoryUploadJob(
+          client,
+          {
+            status: -1,
+            links: [{ rel: 'Job Status', action, href }],
+          },
+          'Artifact Snapshot.zip'
+        )
+      ).toThrow()
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('bounds optional legacy extraction waiting and returns terminal failure without replaying upload', async () => {
+    vi.useFakeTimers()
+    mockSecureFetch
+      .mockImplementationOnce(async () => Response.json({ status: -1 }))
+      .mockImplementationOnce(async () => Response.json({ status: 8 }))
+    const pending = getAdminJobStatus(client, {
+      jobKind: 'snapshot_upload',
+      jobId: 'repository:Snapshot.zip',
+      waitForCompletion: true,
+    })
+    const checked = expect(pending).resolves.toMatchObject({ status: 8, completed: true })
+    await vi.advanceTimersByTimeAsync(5000)
+    await checked
+    expect(mockSecureFetch.mock.calls.map(([, , options]) => options.method)).toEqual([
+      'GET',
+      'GET',
+    ])
+  })
+
   it.each([
     ['migration', 'v2/status/migration'],
     ['maintenance', 'v2/status/service/maintenancewindow'],

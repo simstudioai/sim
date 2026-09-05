@@ -690,7 +690,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
       required: true,
     },
     {
-      value: () => false,
+      defaultValue: false,
       id: 'skipNext',
       title: 'Skip Next Scheduled Maintenance',
       type: 'switch',
@@ -701,7 +701,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
       mode: 'advanced',
     },
     {
-      value: () => false,
+      defaultValue: false,
       id: 'enabled',
       title: 'Enable Setting',
       type: 'switch',
@@ -743,7 +743,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
         field: 'operation',
         value: ['oracle_epm_platform_create_groups', 'oracle_epm_platform_delete_groups'],
       },
-      placeholder: '[{"groupname":"Finance","description":"Finance team"}]',
+      placeholder: '[{"groupname":"Finance"}]',
       required: true,
       rows: 4,
     },
@@ -882,7 +882,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
       mode: 'advanced',
     },
     {
-      value: () => false,
+      defaultValue: false,
       id: 'importUsers',
       title: 'Import Identity-domain Users and Roles',
       type: 'switch',
@@ -908,7 +908,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
       },
     },
     {
-      value: () => true,
+      defaultValue: true,
       id: 'resetPassword',
       title: 'Require Password Reset at First Login',
       type: 'switch',
@@ -930,7 +930,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
         field: 'operation',
         value: ['oracle_epm_platform_get_admin_job_status'],
       },
-      placeholder: 'Numeric ID returned by a starter',
+      placeholder: 'Exact jobId returned by a starter',
       required: true,
     },
     {
@@ -959,7 +959,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
       ],
     },
     {
-      value: () => false,
+      defaultValue: false,
       id: 'waitForCompletion',
       title: 'Wait for Completion',
       type: 'switch',
@@ -1093,7 +1093,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
     startTime: {
       type: 'string',
       description:
-        'Whole-hour start time: HH:00, optionally followed by a space and a time zone such as 19:00 America/Los_Angeles',
+        'Start time from 00:00 through 23:59 (HH:MM), optionally followed by a space and a standard time zone such as 14:35 America/Los_Angeles',
     },
     skipNext: {
       type: 'boolean',
@@ -1189,7 +1189,8 @@ export const OracleEpmPlatformBlock: BlockConfig<
     },
     jobId: {
       type: 'string',
-      description: 'Numeric job ID returned by an administrative starter',
+      description:
+        'Exact jobId returned by a starter: an Oracle numeric ID or a tagged Sim repository-upload reference',
     },
     jobKind: {
       type: 'string',
@@ -1531,7 +1532,7 @@ export const OracleEpmPlatformBlock: BlockConfig<
 }
 
 export const OracleEpmPlatformBlockMeta = {
-  tags: ['security', 'automation', 'monitoring'],
+  tags: ['identity', 'automation', 'monitoring'],
   url: 'https://www.oracle.com/performance-management/',
   templates: [
     {

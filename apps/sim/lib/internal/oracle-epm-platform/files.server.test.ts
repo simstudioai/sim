@@ -259,14 +259,56 @@ describe('Oracle EPM source files and chunked uploads', () => {
     })
   })
 
-  it('rejects repository size mismatch before sending a mutation', async () => {
-    await expect(
-      uploadRepositoryFile(
-        { ...auth, file: { ...file, size: 4 }, fileName: 'data.csv' },
+  it.each([2, 4])(
+    'rejects repository declared size %s mismatch before sending a mutation',
+    async (size) => {
+      await expect(
+        uploadRepositoryFile(
+          { ...auth, file: { ...file, size }, fileName: 'data.csv' },
+          fileContext
+        )
+      ).rejects.toThrow('declared file size')
+      expect(mockSecureFetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('copies repository source chunks directly into the bounded upload body', async () => {
+    storage.downloadFileStream.mockImplementation(async () =>
+      Readable.from([Buffer.from('a'), Buffer.from('bc')])
+    )
+    await uploadRepositoryFile({ ...auth, file, fileName: 'data.csv' }, fileContext)
+    expect(mockSecureFetch.mock.calls[0][2].body).toEqual(Buffer.from('abc'))
+  })
+
+  it('returns an immediate legacy extraction reference after a repository snapshot upload', async () => {
+    mockSecureFetch.mockImplementation(async () =>
+      Response.json({
+        status: -1,
+        links: [
+          {
+            rel: 'Job Status',
+            action: 'GET',
+            href: 'https://epm.example.com/gateway/interop/rest/11.1.2.3.600/applicationsnapshots/Artifact%20Snapshot.zip/contents/status',
+          },
+        ],
+      })
+    )
+    expect(
+      await uploadRepositoryFile(
+        {
+          ...auth,
+          file,
+          fileName: 'Artifact Snapshot.zip',
+        },
         fileContext
       )
-    ).rejects.toThrow('declared file size')
-    expect(mockSecureFetch).not.toHaveBeenCalled()
+    ).toMatchObject({
+      bytesUploaded: 3,
+      completed: false,
+      jobKind: 'snapshot_upload',
+      jobId: 'repository:Artifact%20Snapshot.zip',
+    })
+    expect(mockSecureFetch.mock.calls.map(([, , options]) => options.method)).toEqual(['POST'])
   })
 
   it('uses inclusive contiguous ranges, one-based chunk numbers, and empty init/finalize control bodies', async () => {
@@ -405,6 +447,26 @@ describe('Oracle EPM source files and chunked uploads', () => {
     ).toBe(true)
   })
 
+  it('rejects late cancellation after finalization without deleting the accepted snapshot', async () => {
+    const controller = new AbortController()
+    mockSecureFetch.mockImplementation(async (url: string) => {
+      const response = Response.json({ status: 0 })
+      if (JSON.parse(new URL(url).searchParams.get('q') ?? '{}').isLast) {
+        response.json = async () => {
+          controller.abort(new DOMException('Cancelled', 'AbortError'))
+          return { status: 0 }
+        }
+      }
+      return response
+    })
+    await expect(
+      uploadSnapshot(snapshotInput(), { ...fileContext, signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockSecureFetch.mock.calls.some(([url]) => String(url).endsWith('/files/delete'))).toBe(
+      false
+    )
+  })
+
   it('cancels an interrupted source and uses a separate bounded signal for owned cleanup', async () => {
     const controller = new AbortController()
     storage.downloadFileStream.mockImplementation(async () =>
@@ -533,5 +595,26 @@ describe('Oracle EPM v2 streamed downloads', () => {
     expect(mockSecureFetch.mock.calls.some(([, , options]) => options.method === 'DELETE')).toBe(
       true
     )
+  })
+
+  it('removes its completed local output when cancellation overlaps remote cleanup', async () => {
+    const controller = new AbortController()
+    setDownload()
+    const provider = mockSecureFetch.getMockImplementation()!
+    mockSecureFetch.mockImplementation(async (...args) => {
+      const response = await provider(...args)
+      if (args[2].method === 'DELETE') {
+        expect(storage.complete).toHaveBeenCalled()
+        controller.abort(new DOMException('Cancelled', 'AbortError'))
+      }
+      return response
+    })
+    await expect(
+      downloadRepositoryFile(downloadInput, { ...fileContext, signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(storage.deleteFile).toHaveBeenCalledWith({
+      key: 'execution/result.zip',
+      context: 'execution',
+    })
   })
 })

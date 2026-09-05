@@ -5,7 +5,7 @@ import {
 } from '@/lib/internal/oracle-epm/client.server'
 import { OracleEpmError } from '@/lib/internal/oracle-epm/errors'
 import { listRepositoryFiles } from '@/lib/internal/oracle-epm-platform/files.server'
-import { identityOperations } from '@/lib/internal/oracle-epm-platform/operations/identity'
+import { identityToolHandlers } from '@/lib/internal/oracle-epm-platform/operations/identity'
 import type { OracleEpmPlatformInput } from '@/lib/internal/oracle-epm-platform/schemas'
 import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
@@ -103,7 +103,7 @@ async function execute(args: ExecuteServerSelectorArgs, prepared: PreparedDestin
         break
       }
       case 'oracle_epm_platform.groups': {
-        const result = await identityOperations.list_groups(prepared.auth, context)
+        const result = await identityToolHandlers.list_groups(prepared.auth, context)
         items = options(
           result.groups.map((group) => ({
             name: group.groupname,
@@ -113,7 +113,7 @@ async function execute(args: ExecuteServerSelectorArgs, prepared: PreparedDestin
         break
       }
       case 'oracle_epm_platform.roles': {
-        const result = await identityOperations.list_roles(prepared.auth, context)
+        const result = await identityToolHandlers.list_roles(prepared.auth, context)
         // The mutation APIs accept the role NAME, not its HP/HUB identifier.
         items = options(result.roles.map((role) => ({ name: role.name, detail: role.id })))
         break

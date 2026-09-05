@@ -52,10 +52,11 @@ export const oracleEpmPlatformGetRoleAssignmentsTool: InternalToolConfig<
           ...ORACLE_EPM_USER_PROPERTIES,
           roles: {
             type: 'array',
+            description: 'Role assignments for this user',
             items: {
               type: 'object',
               properties: {
-                rolename: { type: 'string' },
+                rolename: { type: 'string', description: 'Assigned role name' },
                 roletype: { type: 'string', description: 'Application or Granular' },
                 grantedthroughgroup: {
                   type: 'string',

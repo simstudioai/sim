@@ -79,21 +79,25 @@ export const oracleEpmPlatformListUsersTool: InternalToolConfig<
           epmgroups: {
             type: 'array',
             optional: true,
+            description: 'Requested EPM group memberships',
             items: { type: 'object', properties: ORACLE_EPM_GROUP_SUMMARY_PROPERTIES },
           },
           idcsgroups: {
             type: 'array',
             optional: true,
+            description: 'Requested identity-domain group memberships',
             items: { type: 'object', properties: ORACLE_EPM_GROUP_SUMMARY_PROPERTIES },
           },
           granularroles: {
             type: 'array',
             optional: true,
+            description: 'Requested granular role assignments',
             items: { type: 'object', properties: ORACLE_EPM_ASSIGNED_ROLE_PROPERTIES },
           },
           applicationroles: {
             type: 'array',
             optional: true,
+            description: 'Requested application role assignments',
             items: { type: 'object', properties: ORACLE_EPM_ASSIGNED_ROLE_PROPERTIES },
           },
         },

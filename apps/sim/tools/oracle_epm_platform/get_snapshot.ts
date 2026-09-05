@@ -34,12 +34,24 @@ export const oracleEpmPlatformGetSnapshotTool: InternalToolConfig<
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string' },
+          name: { type: 'string', description: 'Snapshot name' },
           type: { type: 'string', description: 'LCM or EXTERNAL' },
-          canExport: { type: 'boolean' },
-          canImport: { type: 'boolean' },
-          canUpload: { type: 'boolean' },
-          canDownload: { type: 'boolean' },
+          canExport: {
+            type: 'boolean',
+            description: 'Whether Oracle permits exporting this snapshot',
+          },
+          canImport: {
+            type: 'boolean',
+            description: 'Whether Oracle permits importing this snapshot',
+          },
+          canUpload: {
+            type: 'boolean',
+            description: 'Whether Oracle permits uploading this snapshot',
+          },
+          canDownload: {
+            type: 'boolean',
+            description: 'Whether Oracle permits downloading this snapshot',
+          },
         },
       },
     },

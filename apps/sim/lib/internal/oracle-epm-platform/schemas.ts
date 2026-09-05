@@ -12,6 +12,7 @@ const path = z
   .refine(
     (value) =>
       Buffer.byteLength(value, 'utf8') <= 255 &&
+      !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value) &&
       !/[\\\\\u0000-\u001f\u007f]/.test(value) &&
       value
         .split('/')
@@ -23,6 +24,26 @@ const snapshotName = path.refine(
   'Provide a snapshot name, not a path'
 )
 const userReference = z.object({ userlogin: name }).strict()
+// Delete Files v3 takes a JSON filename, not a URL path, and explicitly supports backslashes.
+// https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/delete_files_v3.html
+const deleteFileName = z
+  .string()
+  .refine((value) => path.safeParse(value.replaceAll('\\', '/')).success)
+export const LEGACY_UPLOAD_JOB_PREFIX = 'repository:'
+
+/** Sim's serializable reference for Oracle's filename-addressed legacy extraction status. */
+export function legacyUploadJobFileName(reference: string): string | undefined {
+  if (!reference.startsWith(LEGACY_UPLOAD_JOB_PREFIX) || reference.length > 800) return undefined
+  const encoded = reference.slice(LEGACY_UPLOAD_JOB_PREFIX.length)
+  try {
+    const decoded = decodeURIComponent(encoded)
+    if (encodeURIComponent(decoded) !== encoded || !path.safeParse(decoded).success)
+      return undefined
+    return decoded
+  } catch {
+    return undefined
+  }
+}
 const groupReference = z.object({ groupname: name }).strict()
 const userReferences = z.array(userReference).min(1).max(1000)
 const groupReferences = z.array(groupReference).min(1).max(1000)
@@ -45,7 +66,7 @@ export const inputSchemas = {
   }),
   set_maintenance_window: z.object({
     ...auth,
-    startTime: z.string().regex(/^(?:[01][0-9]|2[0-3]):00(?: [A-Za-z][A-Za-z0-9_+\\/-]*)?$/),
+    startTime: z.string().regex(/^(?:[01][0-9]|2[0-3]):[0-5][0-9](?: [A-Za-z][A-Za-z0-9_+/-]*)?$/),
   }),
   run_daily_maintenance: z.object({ ...auth, skipNext: z.boolean().optional() }),
   get_restricted_data_access: empty,
@@ -140,7 +161,7 @@ export const inputSchemas = {
   get_role_assignments: z.object({ ...auth, ...filters, rolename: name.optional() }),
   get_user_group_report: z.object({ ...auth, ...filters, groupname: name.optional() }),
   list_files: empty,
-  delete_file: z.object({ ...auth, fileName: path }),
+  delete_file: z.object({ ...auth, fileName: deleteFileName }),
   upload_repository_file: z.object({
     ...auth,
     file,
@@ -181,12 +202,22 @@ export const inputSchemas = {
       'Snapshot upload name must end in .zip'
     ),
   }),
-  get_admin_job_status: z.object({
-    ...auth,
-    jobId: z.string().regex(/^[0-9]{1,64}$/),
-    jobKind: z.enum(['migration', 'maintenance', 'snapshot_upload']),
-    waitForCompletion: z.boolean().optional(),
-  }),
+  get_admin_job_status: z
+    .object({
+      ...auth,
+      jobId: z
+        .string()
+        .max(800)
+        .refine(
+          (value) => /^[0-9]{1,64}$/.test(value) || legacyUploadJobFileName(value) !== undefined
+        ),
+      jobKind: z.enum(['migration', 'maintenance', 'snapshot_upload']),
+      waitForCompletion: z.boolean().optional(),
+    })
+    .refine(
+      (value) =>
+        !value.jobId.startsWith(LEGACY_UPLOAD_JOB_PREFIX) || value.jobKind === 'snapshot_upload'
+    ),
 } satisfies Record<OracleEpmPlatformOperation, z.ZodType>
 
 export type OracleEpmPlatformInput<K extends OracleEpmPlatformOperation> = z.output<

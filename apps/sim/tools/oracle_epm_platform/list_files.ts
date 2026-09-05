@@ -28,7 +28,10 @@ export const oracleEpmPlatformListFilesTool: InternalToolConfig<
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string' },
+          name: {
+            type: 'string',
+            description: 'Exact repository filename or snapshot name returned by Oracle',
+          },
           type: { type: 'string', description: 'LCM or EXTERNAL' },
           size: { type: 'number', nullable: true, description: 'Bytes; null for LCM snapshots' },
           lastModifiedTime: {

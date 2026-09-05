@@ -121,8 +121,17 @@ describe('Oracle EPM Platform in-process execution', () => {
     },
     { operation: 'get_admin_job_status', input: { jobKind: 'planning', jobId: '12' } },
     { operation: 'delete_file', input: { fileName: '../other' } },
+    { operation: 'delete_file', input: { fileName: 'inbox\\..\\other' } },
+    { operation: 'delete_file', input: { fileName: 'inbox\\\\other' } },
+    { operation: 'delete_file', input: { fileName: 'C:\\other' } },
+    { operation: 'delete_file', input: { fileName: 'inbox/\uD800.csv' } },
+    { operation: 'get_snapshot', input: { snapshotName: '\uDC00' } },
+    { operation: 'set_maintenance_window', input: { startTime: '24:00' } },
+    { operation: 'set_maintenance_window', input: { startTime: '23:60' } },
+    { operation: 'set_maintenance_window', input: { startTime: '14:35 Bad\\Zone' } },
     { operation: 'create_users', input: { users: [{ userlogin: 'u', password: 'input-secret' }] } },
     { operation: 'update_users', input: { users: [{ userlogin: 'u', password: 'input-secret' }] } },
+    { operation: 'update_users', input: { users: [{ userlogin: 'u' }] } },
     {
       operation: 'import_snapshot',
       input: { snapshotName: 'Snapshot', userPassword: 'input-secret', importUsers: false },
@@ -136,6 +145,40 @@ describe('Oracle EPM Platform in-process execution', () => {
       retryable: false,
     })
     expect(mockSecureFetch).not.toHaveBeenCalled()
+  })
+
+  it.each(['00:00', '23:59', '14:35 America/Los_Angeles'])(
+    'accepts documented maintenance time %s unchanged',
+    async (startTime) => {
+      expect((await execute('set_maintenance_window', { ...auth, startTime })).status).toBe(200)
+      expect(JSON.parse(mockSecureFetch.mock.calls[0][2].body)).toEqual({ startTime })
+    }
+  )
+
+  it.each(['inbox\\file1.csv', 'inbox/report📄.csv'])(
+    'preserves the exact JSON delete filename %s, including valid Unicode pairs',
+    async (fileName) => {
+      expect((await execute('delete_file', { ...auth, fileName })).status).toBe(200)
+      expect(mockSecureFetch.mock.calls[0][0]).toBe(
+        'https://epm.example.com/gateway/interop/rest/v3/files/delete'
+      )
+      expect(JSON.parse(mockSecureFetch.mock.calls[0][2].body)).toEqual({ fileName })
+    }
+  )
+
+  it('does not report success when the caller cancels during response projection', async () => {
+    const controller = new AbortController()
+    mockSecureFetch.mockImplementation(async () => {
+      const response = Response.json({ status: 0, items: [] })
+      response.json = async () => {
+        controller.abort(new DOMException('Cancelled', 'AbortError'))
+        return { status: 0, items: [] }
+      }
+      return response
+    })
+    await expect(execute('list_files', auth, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
   })
 
   it('reports identity partial failure as tool failure while retaining structured item results', async () => {

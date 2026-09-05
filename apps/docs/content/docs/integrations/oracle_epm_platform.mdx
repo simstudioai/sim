@@ -23,6 +23,8 @@ The existing credential provider binds Basic authentication to one environment. 
 
 ## Compatibility
 
+Direct tool calls must supply the canonical `oauthCredential` selection. The shared executor does not currently map a `credentialId`-only call into this required field; the block's credential controls already supply it correctly.
+
 “Common” does not mean every operation exists in every product. Oracle's [compatibility matrix](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/all_rest_apis_table.html) distinguishes the following groups:
 
 | Selected operations | Documented product coverage |
@@ -56,7 +58,11 @@ Restricted Data Access controls snapshot submission through Provide Feedback, no
 
 Selectors use the same listing APIs as tools and may be capped; they are not exhaustive inventories. Advanced manual values remain available. Listings preserve documented nullable metadata and optional expansions. Migration history returns report error/warning counts, not undocumented nested message payloads.
 
-Returned links must satisfy the documented method, relation, origin, route, and version. Malformed or contradictory links in Oracle examples are not repaired or followed. If an environment returns a different contract, provide a sanitized response for investigation. State-changing requests are not automatically replayed after uncertain failures; inspect job/repository state before retrying.
+Legacy repository uploads can return a filename-addressed extraction job. For these, `jobId` is a Sim reference of the form `repository:<encoded filename>`, not an Oracle numeric ID; pass it unchanged with `jobKind: snapshot_upload`. The status tool selects a fixed legacy endpoint. V1 snapshot uploads still return numeric IDs. See Oracle's [legacy upload example](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/appendix_postman_upload_snapshot.html) and [Java status helper](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/common_helper_functions_for_java.html).
+
+Delete File preserves the exact repository name, including documented backslash separators. JSON encoding is handled by the integration; do not manually double-escape a name entered in the block. URL-based uploads continue to use the foundation's stricter path rules.
+
+Returned links must satisfy the documented method, relation, origin, route, and version. Malformed or contradictory links in Oracle examples are not repaired or followed. If an environment returns a different contract, provide a sanitized response for investigation. The EPM transport does not automatically replay state-changing requests after uncertain failures. **Leave workflow block-level retries disabled for mutations and partial batches**: explicitly enabled workflow retries are a separate, general execution policy. Inspect job/repository state before retrying.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -134,7 +140,7 @@ Set the environment daily maintenance start time. Requires Service Administrator
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
-| `startTime` | string | Yes | Whole-hour start time: HH:00, optionally followed by a space and a time zone such as 19:00 America/Los_Angeles |
+| `startTime` | string | Yes | Start time from 00:00 through 23:59 \(HH:MM\), optionally followed by a space and a standard time zone such as 14:35 America/Los_Angeles |
 
 #### Output
 
@@ -160,7 +166,7 @@ Start daily maintenance now, which can make the environment unavailable. Optiona
 | --------- | ---- | ----------- |
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
-| `jobId` | string | Serializable job ID for Get Admin Job Status; present when an asynchronous job is identified |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
 | `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
 | `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
 | `tasks` | array | Documented migration task summaries, when returned |
@@ -268,18 +274,18 @@ List environment users, optionally including their groups and roles. Requires Se
 |   ↳ `firstname` | string | First name; may be empty |
 |   ↳ `lastname` | string | Last name |
 |   ↳ `email` | string | Email address |
-|   ↳ `epmgroups` | array | epmgroups output from the tool |
+|   ↳ `epmgroups` | array | Requested EPM group memberships |
 |     ↳ `groupname` | string | Group name |
 |     ↳ `description` | string | Group description |
 |     ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
-|   ↳ `idcsgroups` | array | idcsgroups output from the tool |
+|   ↳ `idcsgroups` | array | Requested identity-domain group memberships |
 |     ↳ `groupname` | string | Group name |
 |     ↳ `description` | string | Group description |
 |     ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
-|   ↳ `granularroles` | array | granularroles output from the tool |
+|   ↳ `granularroles` | array | Requested granular role assignments |
 |     ↳ `rolename` | string | Product-specific role name |
 |     ↳ `id` | string | Role identifier |
-|   ↳ `applicationroles` | array | applicationroles output from the tool |
+|   ↳ `applicationroles` | array | Requested application role assignments |
 |     ↳ `rolename` | string | Product-specific role name |
 |     ↳ `id` | string | Role identifier |
 
@@ -310,12 +316,12 @@ Create users in the identity domain, not just this environment. Requires Identit
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform Update Users
 
@@ -344,12 +350,12 @@ Update identity-domain users. Changes affect every environment in that identity 
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform Delete Users
 
@@ -378,12 +384,12 @@ Remove users from the identity domain, affecting every environment in that domai
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform List Groups
 
@@ -409,12 +415,17 @@ List environment groups and optionally members and roles. Requires Service Admin
 |   ↳ `description` | string | Group description |
 |   ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
 |   ↳ `identity` | string | Opaque provider identity; not a URL to fetch |
-|   ↳ `members` | object | members output from the tool |
-|     ↳ `userlogin` | string | User login |
-|     ↳ `firstname` | string | First name; may be empty |
-|     ↳ `lastname` | string | Last name |
-|     ↳ `email` | string | Email address |
-|   ↳ `roles` | array | roles output from the tool |
+|   ↳ `members` | object | Requested user and group memberships |
+|     ↳ `users` | array | User members of the group |
+|       ↳ `userlogin` | string | User login |
+|       ↳ `firstname` | string | First name; may be empty |
+|       ↳ `lastname` | string | Last name |
+|       ↳ `email` | string | Email address |
+|     ↳ `groups` | array | Group members of the group |
+|       ↳ `groupname` | string | Group name |
+|       ↳ `description` | string | Group description |
+|       ↳ `type` | string | Provider group type, such as EPM, IDCS, or PREDEFINED |
+|   ↳ `roles` | array | Requested granular role assignments |
 |     ↳ `rolename` | string | Product-specific role name |
 |     ↳ `id` | string | Role identifier |
 
@@ -445,12 +456,12 @@ Create EPM groups and optionally add existing user/group members. Requires Servi
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform Delete Groups
 
@@ -479,12 +490,12 @@ Delete EPM groups. Requires Service Administrator or Access Control - Manage wit
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform Add Users to Group
 
@@ -514,12 +525,12 @@ Add existing users to an EPM group. Requires Service Administrator or Access Con
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform Remove Users from Group
 
@@ -549,12 +560,12 @@ Remove users from an EPM group without deleting their identity-domain accounts. 
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform List Roles
 
@@ -605,12 +616,12 @@ Assign an application or granular role to existing users. Application roles requ
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform Unassign Role
 
@@ -640,12 +651,12 @@ Unassign an application or granular role from users. Application roles require S
 |   ↳ `groupname` | string | Failed group name |
 |   ↳ `errorcode` | string | Oracle EPMCSS item error code |
 |   ↳ `erroritems` | object | Nested Add Groups member failures when returned |
-|     ↳ `users` | array | users output from the tool |
-|       ↳ `userlogin` | string | userlogin output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
-|     ↳ `groups` | array | groups output from the tool |
-|       ↳ `groupname` | string | groupname output from the tool |
-|       ↳ `errorcode` | string | errorcode output from the tool |
+|     ↳ `users` | array | Failed user membership additions |
+|       ↳ `userlogin` | string | Failed user login |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
+|     ↳ `groups` | array | Failed group membership additions |
+|       ↳ `groupname` | string | Failed group name |
+|       ↳ `errorcode` | string | Oracle EPMCSS member error code |
 
 ### Oracle EPM Platform Get Role Assignments
 
@@ -671,7 +682,8 @@ Get environment role assignments. A report filtered to one user can lag recent c
 |   ↳ `firstname` | string | First name; may be empty |
 |   ↳ `lastname` | string | Last name |
 |   ↳ `email` | string | Email address |
-|   ↳ `roles` | array | roles output from the tool |
+|   ↳ `roles` | array | Role assignments for this user |
+|     ↳ `rolename` | string | Assigned role name |
 |     ↳ `roletype` | string | Application or Granular |
 |     ↳ `grantedthroughgroup` | string | Granting group path; empty for direct assignments |
 
@@ -699,7 +711,8 @@ Report direct and indirect environment group memberships. Requires Service Admin
 |   ↳ `firstname` | string | First name; may be empty |
 |   ↳ `lastname` | string | Last name |
 |   ↳ `email` | string | Email address |
-|   ↳ `groups` | array | groups output from the tool |
+|   ↳ `groups` | array | Group memberships for this user |
+|     ↳ `groupname` | string | Group name |
 |     ↳ `direct` | boolean | True for direct membership; false for indirect membership |
 
 ### Oracle EPM Platform List Files
@@ -719,6 +732,7 @@ List repository files and Migration snapshots with documented sizes and timestam
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
 | `files` | array | Repository files and snapshots |
+|   ↳ `name` | string | Exact repository filename or snapshot name returned by Oracle |
 |   ↳ `type` | string | LCM or EXTERNAL |
 |   ↳ `size` | number | Bytes; null for LCM snapshots |
 |   ↳ `lastModifiedTime` | number | Unix epoch milliseconds; null for LCM snapshots |
@@ -760,7 +774,7 @@ Upload one authorized Sim UserFile of at most 100 MiB to the repository. Existin
 | --------- | ---- | ----------- |
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
-| `jobId` | string | Serializable job ID for Get Admin Job Status; present when an asynchronous job is identified |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
 | `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
 | `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
 | `tasks` | array | Documented migration task summaries, when returned |
@@ -808,7 +822,12 @@ Read documented snapshot capabilities (export, import, upload, download). Requir
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
 | `snapshots` | array | Requested snapshot capabilities |
+|   ↳ `name` | string | Snapshot name |
 |   ↳ `type` | string | LCM or EXTERNAL |
+|   ↳ `canExport` | boolean | Whether Oracle permits exporting this snapshot |
+|   ↳ `canImport` | boolean | Whether Oracle permits importing this snapshot |
+|   ↳ `canUpload` | boolean | Whether Oracle permits uploading this snapshot |
+|   ↳ `canDownload` | boolean | Whether Oracle permits downloading this snapshot |
 
 ### Oracle EPM Platform Export Snapshot
 
@@ -827,7 +846,7 @@ Repeat an export using the existing snapshot export settings configured in Migra
 | --------- | ---- | ----------- |
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
-| `jobId` | string | Serializable job ID for Get Admin Job Status; present when an asynchronous job is identified |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
 | `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
 | `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
 | `tasks` | array | Documented migration task summaries, when returned |
@@ -855,7 +874,7 @@ Import a Migration snapshot into this environment. Requires Service Administrato
 | --------- | ---- | ----------- |
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
-| `jobId` | string | Serializable job ID for Get Admin Job Status; present when an asynchronous job is identified |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
 | `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
 | `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
 | `tasks` | array | Documented migration task summaries, when returned |
@@ -899,9 +918,19 @@ List artifact migration history and per-component error/warning counts. Requires
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
 | `migrations` | array | Migration history |
+|   ↳ `action` | string | Migration action |
+|   ↳ `duration` | string | Provider-formatted elapsed duration |
+|   ↳ `status` | string | Provider migration status text |
+|   ↳ `user` | string | User who initiated the migration |
+|   ↳ `snapshot` | string | Migration snapshot name |
 |   ↳ `startTime` | string | Provider-formatted start time; not normalized to UTC |
 |   ↳ `endTime` | string | Provider-formatted end time; not normalized to UTC |
-|   ↳ `report` | array | report output from the tool |
+|   ↳ `report` | array | Component migration summaries; undocumented error details are not returned |
+|     ↳ `destination` | string | Destination component |
+|     ↳ `source` | string | Source component |
+|     ↳ `status` | string | Component migration status text |
+|     ↳ `errorCount` | number | Number of reported errors |
+|     ↳ `warningCount` | number | Number of reported warnings |
 
 ### Oracle EPM Platform Upload Snapshot
 
@@ -921,7 +950,7 @@ Upload a Migration snapshot ZIP from an authorized Sim UserFile, up to 5 GiB, in
 | --------- | ---- | ----------- |
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
-| `jobId` | string | Serializable job ID for Get Admin Job Status; present when an asynchronous job is identified |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
 | `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
 | `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
 | `tasks` | array | Documented migration task summaries, when returned |
@@ -940,7 +969,7 @@ Read an administrative migration, maintenance, or snapshot-upload extraction job
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for this environment |
-| `jobId` | string | Yes | Numeric job ID returned by an administrative starter |
+| `jobId` | string | Yes | Exact jobId returned by a starter: an Oracle numeric ID or a tagged Sim repository-upload reference |
 | `jobKind` | string | Yes | Job kind: migration, maintenance, or snapshot_upload |
 | `waitForCompletion` | boolean | No | Wait for terminal status within bounded attempts/deadlines; defaults to false |
 
@@ -950,7 +979,7 @@ Read an administrative migration, maintenance, or snapshot-upload extraction job
 | --------- | ---- | ----------- |
 | `status` | number | Oracle operation status: 0 completed, -1 in progress, positive values failed; not an HTTP status |
 | `message` | string | Safe operation summary without provider error text or passwords |
-| `jobId` | string | Serializable job ID for Get Admin Job Status; present when an asynchronous job is identified |
+| `jobId` | string | Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads |
 | `jobKind` | string | migration, maintenance, or snapshot_upload; use together with jobId |
 | `completed` | boolean | Whether processing ended; inspect status to distinguish success from failure |
 | `tasks` | array | Documented migration task summaries, when returned |

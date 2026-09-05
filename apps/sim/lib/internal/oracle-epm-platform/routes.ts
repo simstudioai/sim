@@ -174,6 +174,7 @@ export const endpoints = {
     response: 'json',
     timeoutMs: 30_000,
     maxResponseBytes: JSON_LIMIT,
+    retry: { maxAttempts: 2, statuses: [429, 503], initialDelayMs: 500, maxDelayMs: 2000 },
   }),
   // upload.html: the complete repository path is encoded as ONE path parameter.
   upload_repository_file: interop.defineEndpoint({
@@ -215,6 +216,30 @@ function statusEndpoint(version: string, path: string) {
 }
 
 // Prefer the task tables' GET contract; contradictory POST links are rejected, not repaired.
+// Oracle's legacy upload example addresses extraction by filename, not a v1 numeric job ID.
+// appendix_postman_upload_snapshot.html and common_helper_functions_for_java.html
+export const repositoryUploadStatusEndpoint = interop.defineEndpoint({
+  version: '11.1.2.3.600',
+  method: 'GET',
+  path: [
+    oracleEpmLiteral('applicationsnapshots'),
+    fileName,
+    oracleEpmLiteral('contents'),
+    oracleEpmLiteral('status'),
+  ],
+  body: 'none',
+  response: 'json',
+  timeoutMs: 30_000,
+  maxResponseBytes: JSON_LIMIT,
+  retry: { maxAttempts: 2, statuses: [429, 503], initialDelayMs: 500, maxDelayMs: 2000 },
+})
+export const repositoryUploadStatusPolicy = interop.defineReturnedLinkPolicy({
+  relation: 'Job Status',
+  method: 'GET',
+  endpoint: repositoryUploadStatusEndpoint,
+  preserveGatewayBasePath: true,
+})
+
 export const jobEndpoints = {
   migration: statusEndpoint('v2', 'status/migration'),
   maintenance: statusEndpoint('v2', 'status/service/maintenancewindow'),

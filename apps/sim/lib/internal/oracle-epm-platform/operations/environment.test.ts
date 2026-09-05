@@ -26,7 +26,7 @@ beforeEach(() => {
   mockSecureFetch.mockImplementation(async () => Response.json({ status: 0 }))
 })
 
-import { environmentOperations as operations } from '@/lib/internal/oracle-epm-platform/operations/environment'
+import { environmentToolHandlers as operations } from '@/lib/internal/oracle-epm-platform/operations/environment'
 
 describe('Oracle EPM environment operations', () => {
   it.each([
@@ -64,12 +64,12 @@ describe('Oracle EPM environment operations', () => {
       name: 'set_maintenance_window',
       run: () =>
         operations.set_maintenance_window(
-          { ...auth, startTime: '03:00 America/Los_Angeles' },
+          { ...auth, startTime: '14:35 America/Los_Angeles' },
           context
         ),
       method: 'PUT',
       path: 'maintenance/setdailymaintenancestarttime',
-      body: { startTime: '03:00 America/Los_Angeles' },
+      body: { startTime: '14:35 America/Los_Angeles' },
     },
     {
       name: 'run_daily_maintenance',
@@ -140,7 +140,7 @@ describe('Oracle EPM environment operations', () => {
       })
     )
     const result = await operations.run_daily_maintenance({ ...auth, skipNext: true }, context)
-    expect(JSON.parse(JSON.stringify(result))).toMatchObject({
+    expect(await Response.json(result).json()).toMatchObject({
       status: -1,
       completed: false,
       jobId: '19',

@@ -255,7 +255,7 @@ export const ORACLE_EPM_JOB_OUTPUTS = {
     type: 'string',
     optional: true,
     description:
-      'Serializable job ID for Get Admin Job Status; present when an asynchronous job is identified',
+      'Exact reference for Get Admin Job Status: Oracle numeric ID or repository: plus an encoded filename for legacy repository uploads',
   },
   jobKind: {
     type: 'string',
@@ -325,22 +325,24 @@ export const ORACLE_EPM_BATCH_OUTPUTS = {
             users: {
               type: 'array',
               optional: true,
+              description: 'Failed user membership additions',
               items: {
                 type: 'object',
                 properties: {
-                  userlogin: { type: 'string' },
-                  errorcode: { type: 'string' },
+                  userlogin: { type: 'string', description: 'Failed user login' },
+                  errorcode: { type: 'string', description: 'Oracle EPMCSS member error code' },
                 },
               },
             },
             groups: {
               type: 'array',
               optional: true,
+              description: 'Failed group membership additions',
               items: {
                 type: 'object',
                 properties: {
-                  groupname: { type: 'string' },
-                  errorcode: { type: 'string' },
+                  groupname: { type: 'string', description: 'Failed group name' },
+                  errorcode: { type: 'string', description: 'Oracle EPMCSS member error code' },
                 },
               },
             },
@@ -365,4 +367,17 @@ export const ORACLE_EPM_GROUP_SUMMARY_PROPERTIES = {
 export const ORACLE_EPM_ASSIGNED_ROLE_PROPERTIES = {
   rolename: { type: 'string', description: 'Product-specific role name' },
   id: { type: 'string', description: 'Role identifier' },
+} satisfies Record<string, ToolOutputProperty>
+
+export const ORACLE_EPM_GROUP_MEMBERS_PROPERTIES = {
+  users: {
+    type: 'array',
+    description: 'User members of the group',
+    items: { type: 'object', properties: ORACLE_EPM_USER_PROPERTIES },
+  },
+  groups: {
+    type: 'array',
+    description: 'Group members of the group',
+    items: { type: 'object', properties: ORACLE_EPM_GROUP_SUMMARY_PROPERTIES },
+  },
 } satisfies Record<string, ToolOutputProperty>

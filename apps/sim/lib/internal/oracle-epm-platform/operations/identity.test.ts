@@ -26,7 +26,7 @@ beforeEach(() => {
   mockSecureFetch.mockImplementation(async () => Response.json({ status: 0 }))
 })
 
-import { identityOperations as operations } from '@/lib/internal/oracle-epm-platform/operations/identity'
+import { identityToolHandlers as operations } from '@/lib/internal/oracle-epm-platform/operations/identity'
 
 const user = {
   userlogin: 'reader',

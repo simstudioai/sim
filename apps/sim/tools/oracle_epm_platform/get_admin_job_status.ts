@@ -22,7 +22,8 @@ export const oracleEpmPlatformGetAdminJobStatusTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Numeric job ID returned by an administrative starter',
+      description:
+        'Exact jobId returned by a starter: an Oracle numeric ID or a tagged Sim repository-upload reference',
     },
     jobKind: {
       type: 'string',

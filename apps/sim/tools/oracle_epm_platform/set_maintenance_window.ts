@@ -23,7 +23,7 @@ export const oracleEpmPlatformSetMaintenanceWindowTool: InternalToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Whole-hour start time: HH:00, optionally followed by a space and a time zone such as 19:00 America/Los_Angeles',
+        'Start time from 00:00 through 23:59 (HH:MM), optionally followed by a space and a standard time zone such as 14:35 America/Los_Angeles',
     },
   },
   operation: { input: createInternalToolOperationInput },

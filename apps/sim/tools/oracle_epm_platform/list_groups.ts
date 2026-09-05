@@ -5,9 +5,9 @@ import type {
 } from '@/tools/oracle_epm_platform/types'
 import {
   ORACLE_EPM_ASSIGNED_ROLE_PROPERTIES,
+  ORACLE_EPM_GROUP_MEMBERS_PROPERTIES,
   ORACLE_EPM_GROUP_SUMMARY_PROPERTIES,
   ORACLE_EPM_STATUS_OUTPUTS,
-  ORACLE_EPM_USER_PROPERTIES,
 } from '@/tools/oracle_epm_platform/types'
 import { oracleEpmPlatformAuthParams } from '@/tools/oracle_epm_platform/utils'
 import type { InternalToolConfig } from '@/tools/types'
@@ -56,20 +56,13 @@ export const oracleEpmPlatformListGroupsTool: InternalToolConfig<
           members: {
             type: 'object',
             optional: true,
-            properties: {
-              users: {
-                type: 'array',
-                items: { type: 'object', properties: ORACLE_EPM_USER_PROPERTIES },
-              },
-              groups: {
-                type: 'array',
-                items: { type: 'object', properties: ORACLE_EPM_GROUP_SUMMARY_PROPERTIES },
-              },
-            },
+            description: 'Requested user and group memberships',
+            properties: ORACLE_EPM_GROUP_MEMBERS_PROPERTIES,
           },
           roles: {
             type: 'array',
             optional: true,
+            description: 'Requested granular role assignments',
             items: { type: 'object', properties: ORACLE_EPM_ASSIGNED_ROLE_PROPERTIES },
           },
         },

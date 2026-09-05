@@ -52,10 +52,11 @@ export const oracleEpmPlatformGetUserGroupReportTool: InternalToolConfig<
           ...ORACLE_EPM_USER_PROPERTIES,
           groups: {
             type: 'array',
+            description: 'Group memberships for this user',
             items: {
               type: 'object',
               properties: {
-                groupname: { type: 'string' },
+                groupname: { type: 'string', description: 'Group name' },
                 direct: {
                   type: 'boolean',
                   description: 'True for direct membership; false for indirect membership',

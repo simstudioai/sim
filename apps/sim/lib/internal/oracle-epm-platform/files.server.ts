@@ -7,7 +7,11 @@ import {
   storeOracleEpmDownload,
 } from '@/lib/internal/oracle-epm/files.server'
 import { pollOracleEpmJob } from '@/lib/internal/oracle-epm/jobs'
-import { projectJob, readJobLink } from '@/lib/internal/oracle-epm-platform/jobs'
+import {
+  projectJob,
+  projectRepositoryUploadJob,
+  readJobLink,
+} from '@/lib/internal/oracle-epm-platform/jobs'
 import type { OracleEpmPlatformOperationContext } from '@/lib/internal/oracle-epm-platform/operations'
 import {
   filesSchema,
@@ -30,6 +34,7 @@ import {
   SNAPSHOT_FILE_LIMIT,
 } from '@/lib/internal/oracle-epm-platform/routes'
 import type { OracleEpmPlatformInput } from '@/lib/internal/oracle-epm-platform/schemas'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import type { UserFile } from '@/executor/types'
 import type {
   OracleEpmPlatformOutputMap,
@@ -141,14 +146,17 @@ export async function uploadRepositoryFile(
   // Generic uploads are bounded to 100 MiB and use the documented single-request API.
   const bytes = Buffer.alloc(input.file.size)
   let offset = 0
-  for await (const chunk of verifiedChunks(
-    source.chunks,
-    input.file.size,
-    SNAPSHOT_CHUNK_LIMIT,
-    signal
-  )) {
+  for await (const chunk of source.chunks) {
+    signal?.throwIfAborted()
+    if (offset + chunk.byteLength > input.file.size) {
+      throw new OracleEpmPlatformFileError('Source file bytes exceed the declared file size')
+    }
     bytes.set(chunk, offset)
-    offset += chunk.length
+    offset += chunk.byteLength
+  }
+  signal?.throwIfAborted()
+  if (offset !== input.file.size) {
+    throw new OracleEpmPlatformFileError('Source file bytes do not match the declared file size')
   }
   const value = jsonBody(
     await client.request(endpoints.upload_repository_file, {
@@ -158,9 +166,10 @@ export async function uploadRepositoryFile(
       signal,
     })
   )
+  signal?.throwIfAborted()
   // The upload reference also permits asynchronous extraction of an LCM artifact.
   return {
-    ...projectJob(client, value, 'snapshot_upload'),
+    ...projectRepositoryUploadJob(client, value, input.fileName),
     fileName: input.fileName,
     bytesUploaded: offset,
   }
@@ -231,6 +240,7 @@ export async function uploadSnapshot(
     }
     finalizing = true
     const value = await send({ isFirst: false, chunkSize: 14, fileSize, isLast: true })
+    signal?.throwIfAborted()
     return {
       ...projectJob(client, value, 'snapshot_upload'),
       snapshotName: input.snapshotName,
@@ -379,6 +389,12 @@ export async function downloadRepositoryFile(
         signal
       )
     }
+  }
+  if (signal?.aborted) {
+    // Storage completed before remote cleanup began; only this newly created output is ours.
+    // Match the foundation's completed-download cancellation cleanup.
+    if (file?.key) await deleteFile({ key: file.key, context: 'execution' }).catch(() => undefined)
+    signal.throwIfAborted()
   }
   if (!file) throw new OracleEpmPlatformResponseError()
   return {

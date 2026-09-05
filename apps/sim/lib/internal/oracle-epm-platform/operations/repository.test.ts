@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSecureFetch, mockValidateUrl } = vi.hoisted(() => ({
   mockSecureFetch: vi.fn(),
@@ -20,13 +20,14 @@ const auth = {
 }
 const client = createOracleEpmClient(auth)
 const context = { client }
+afterEach(() => vi.useRealTimers())
 beforeEach(() => {
   vi.clearAllMocks()
   mockValidateUrl.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
   mockSecureFetch.mockImplementation(async () => Response.json({ status: 0 }))
 })
 
-import { repositoryOperations as operations } from '@/lib/internal/oracle-epm-platform/operations/repository'
+import { repositoryToolHandlers as operations } from '@/lib/internal/oracle-epm-platform/operations/repository'
 
 describe('Oracle EPM repository and migration operations', () => {
   it('list_files preserves nullable snapshot size and decodes external-file metadata', async () => {
@@ -97,6 +98,21 @@ describe('Oracle EPM repository and migration operations', () => {
     expect(mockSecureFetch.mock.calls[0][0]).toBe(
       'https://epm.example.com/gateway/interop/rest/11.1.2.3.600/applicationsnapshots/Artifact%20Snapshot'
     )
+  })
+
+  it.each([429, 503])('retries a transient %s snapshot read once', async (status) => {
+    vi.useFakeTimers()
+    mockSecureFetch
+      .mockImplementationOnce(async () => new Response(null, { status }))
+      .mockImplementationOnce(async () => Response.json({ status: 0, items: [] }))
+    const pending = operations.get_snapshot({ ...auth, snapshotName: 'Snapshot' }, context)
+    const checked = expect(pending).resolves.toMatchObject({ status: 0, snapshots: [] })
+    await vi.advanceTimersByTimeAsync(3000)
+    await checked
+    expect(mockSecureFetch.mock.calls.map(([, , options]) => options.method)).toEqual([
+      'GET',
+      'GET',
+    ])
   })
 
   it('export_snapshot uses existing tenant settings and returns the migration job without polling', async () => {

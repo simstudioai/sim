@@ -2,7 +2,7 @@ import { ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client
 import { createOracleEpmClient } from '@/lib/internal/oracle-epm/client.server'
 import { OracleEpmError } from '@/lib/internal/oracle-epm/errors'
 import { OracleEpmPlatformFileError } from '@/lib/internal/oracle-epm-platform/files.server'
-import { oracleEpmPlatformOperations } from '@/lib/internal/oracle-epm-platform/operations'
+import { oracleEpmPlatformToolHandlers } from '@/lib/internal/oracle-epm-platform/operations'
 import {
   OracleEpmPlatformResponseError,
   OracleEpmPlatformStatusError,
@@ -56,11 +56,12 @@ async function executeOperation<K extends OracleEpmPlatformOperation>(
     accessToken: input.accessToken,
     instanceUrl: input.instanceUrl,
   })
-  const output = await oracleEpmPlatformOperations[operation](input, {
+  const output = await oracleEpmPlatformToolHandlers[operation](input, {
     client,
     signal: request.signal,
     execution: request.context,
   })
+  request.signal?.throwIfAborted()
   const success = output.status <= 0 && !('partialFailure' in output && output.partialFailure)
   return Response.json({
     success,

@@ -28,11 +28,11 @@ export const oracleEpmPlatformListMigrationsTool: InternalToolConfig<
       items: {
         type: 'object',
         properties: {
-          action: { type: 'string' },
-          duration: { type: 'string' },
-          status: { type: 'string' },
-          user: { type: 'string' },
-          snapshot: { type: 'string' },
+          action: { type: 'string', description: 'Migration action' },
+          duration: { type: 'string', description: 'Provider-formatted elapsed duration' },
+          status: { type: 'string', description: 'Provider migration status text' },
+          user: { type: 'string', description: 'User who initiated the migration' },
+          snapshot: { type: 'string', description: 'Migration snapshot name' },
           startTime: {
             type: 'string',
             description: 'Provider-formatted start time; not normalized to UTC',
@@ -43,14 +43,16 @@ export const oracleEpmPlatformListMigrationsTool: InternalToolConfig<
           },
           report: {
             type: 'array',
+            description:
+              'Component migration summaries; undocumented error details are not returned',
             items: {
               type: 'object',
               properties: {
-                destination: { type: 'string' },
-                source: { type: 'string' },
-                status: { type: 'string' },
-                errorCount: { type: 'number' },
-                warningCount: { type: 'number' },
+                destination: { type: 'string', description: 'Destination component' },
+                source: { type: 'string', description: 'Source component' },
+                status: { type: 'string', description: 'Component migration status text' },
+                errorCount: { type: 'number', description: 'Number of reported errors' },
+                warningCount: { type: 'number', description: 'Number of reported warnings' },
               },
             },
           },

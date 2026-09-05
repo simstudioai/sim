@@ -11,7 +11,7 @@ import {
 } from '@/lib/internal/oracle-epm-platform/responses'
 import { endpoints } from '@/lib/internal/oracle-epm-platform/routes'
 
-export const environmentOperations = {
+export const environmentToolHandlers = {
   get_environment_info: async (_input, { client, signal }) => {
     const value = jsonBody(
       await client.request(endpoints.get_environment_info, {

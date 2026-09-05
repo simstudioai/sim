@@ -16,7 +16,7 @@ import {
 } from '@/lib/internal/oracle-epm-platform/responses'
 import { endpoints } from '@/lib/internal/oracle-epm-platform/routes'
 
-export const repositoryOperations = {
+export const repositoryToolHandlers = {
   list_files: async (_input, { client, signal }) => ({
     ...statusOutput(0),
     files: await listRepositoryFiles(client, signal),
