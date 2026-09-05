@@ -1237,12 +1237,86 @@ export type CreateCredentialConnectionQuery = Record<string, unknown>
 export type CreateCredentialConnectionBody =
   | {
       workspaceId: string
-      providerId: string
       displayName: string
+      providerId: 'quickbooks'
+      oauthClientConfig: {
+        clientId: string
+        clientSecret: string
+        environment: 'sandbox' | 'production'
+        webhookVerifierToken: string
+      }
+    }
+  | {
+      workspaceId: string
+      displayName: string
+      providerId:
+        | 'google-email'
+        | 'google-drive'
+        | 'google-docs'
+        | 'google-sheets'
+        | 'google-forms'
+        | 'google-calendar'
+        | 'google-contacts'
+        | 'google-ads'
+        | 'google-bigquery'
+        | 'google-tasks'
+        | 'google-vault'
+        | 'google-groups'
+        | 'google-chat'
+        | 'google-meet'
+        | 'vertex-ai'
+        | 'microsoft-ad'
+        | 'microsoft-dataverse'
+        | 'microsoft-excel'
+        | 'microsoft-planner'
+        | 'microsoft-teams'
+        | 'microsoft-word'
+        | 'outlook'
+        | 'onedrive'
+        | 'sharepoint'
+        | 'x'
+        | 'tiktok'
+        | 'confluence'
+        | 'jira'
+        | 'airtable'
+        | 'bitbucket'
+        | 'notion'
+        | 'clickup'
+        | 'linear'
+        | 'manageengine-sdp'
+        | 'monday'
+        | 'box'
+        | 'dropbox'
+        | 'shopify'
+        | 'slack'
+        | 'reddit'
+        | 'wealthbox'
+        | 'webflow'
+        | 'trello'
+        | 'asana'
+        | 'attio'
+        | 'calcom'
+        | 'docusign'
+        | 'pipedrive'
+        | 'hubspot'
+        | 'linkedin'
+        | 'instagram'
+        | 'salesforce'
+        | 'salesforce-sandbox'
+        | 'zoho-desk'
+        | 'zoom'
+        | 'wordpress'
+        | 'spotify'
     }
   | {
       workspaceId: string
       credentialId: string
+      oauthClientConfig?: {
+        clientId: string
+        clientSecret: string
+        environment: 'sandbox' | 'production'
+        webhookVerifierToken: string
+      }
     }
 
 type CreateCredentialConnectionResponseRef0 = {
@@ -5479,6 +5553,20 @@ type ListCredentialProvidersResponseRef0 =
       authorizationOptions: Array<{
         providerId: string
         label: string
+      }>
+      fields: Array<{
+        id: string
+        label: string
+        placeholder: string
+        required: boolean
+        secret: boolean
+        multiline: boolean
+        requiredForAuthMethods?: Array<string>
+        options?: Array<{
+          value: string
+          label: string
+        }>
+        hint?: string
       }>
     }
   | {
@@ -9925,13 +10013,6 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Credential Connection',
     personalKeyOnly: true,
-    body: {
-      workspaceId: {
-        kind: 'string',
-        required: true,
-        describe: 'Workspace that will own the credential.',
-      },
-    },
     opaqueBody: true,
   },
   createCustomTool: {

@@ -7498,6 +7498,90 @@
                   "additionalProperties": false
                 },
                 "description": "Authorization servers available for this OAuth service."
+              },
+              "fields": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Exact create-body field name."
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Human-readable field label."
+                    },
+                    "placeholder": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000,
+                      "description": "Suggested input placeholder."
+                    },
+                    "required": {
+                      "type": "boolean",
+                      "description": "Whether the field is required for the selected flow."
+                    },
+                    "secret": {
+                      "type": "boolean",
+                      "description": "Whether the submitted field is write-only secret material."
+                    },
+                    "multiline": {
+                      "type": "boolean",
+                      "description": "Whether the field is intended for multi-line input."
+                    },
+                    "requiredForAuthMethods": {
+                      "description": "Authentication methods for which this field is required.",
+                      "minItems": 1,
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "options": {
+                      "description": "Fixed values accepted by a selector field.",
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255,
+                            "description": "Submitted option value."
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255,
+                            "description": "Human-readable option label."
+                          }
+                        },
+                        "required": ["value", "label"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "hint": {
+                      "description": "Provider-specific setup guidance.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": ["id", "label", "placeholder", "required", "secret", "multiline"],
+                  "additionalProperties": false
+                },
+                "description": "Write-only setup fields required before starting this OAuth flow."
               }
             },
             "required": [
@@ -7508,7 +7592,8 @@
               "providerFamily",
               "available",
               "supportsReconnect",
-              "authorizationOptions"
+              "authorizationOptions",
+              "fields"
             ],
             "additionalProperties": false
           },
@@ -7710,6 +7795,7 @@
                 "providerFamily": "salesforce",
                 "available": true,
                 "supportsReconnect": true,
+                "fields": [],
                 "authorizationOptions": [
                   {
                     "providerId": "salesforce",
@@ -7886,29 +7972,147 @@
       "CreateCredentialConnectionBody": {
         "anyOf": [
           {
-            "type": "object",
-            "properties": {
-              "workspaceId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Workspace that will own the credential."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Workspace that will own the credential."
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "Name shown for the new credential in Sim."
+                  },
+                  "providerId": {
+                    "type": "string",
+                    "const": "quickbooks",
+                    "description": "QuickBooks OAuth provider ID returned by credential-provider discovery."
+                  },
+                  "oauthClientConfig": {
+                    "type": "object",
+                    "properties": {
+                      "clientId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "Client ID for the caller-managed Intuit OAuth application."
+                      },
+                      "clientSecret": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "description": "Write-only client secret for the caller-managed Intuit OAuth application.",
+                        "writeOnly": true
+                      },
+                      "environment": {
+                        "type": "string",
+                        "enum": ["sandbox", "production"],
+                        "description": "Intuit company environment used for authorization and API requests."
+                      },
+                      "webhookVerifierToken": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "description": "Write-only verifier token for webhook signatures from the caller-managed app.",
+                        "writeOnly": true
+                      }
+                    },
+                    "required": ["clientId", "clientSecret", "environment", "webhookVerifierToken"],
+                    "additionalProperties": false,
+                    "description": "Write-only caller-managed Intuit OAuth app configuration."
+                  }
+                },
+                "required": ["workspaceId", "displayName", "providerId", "oauthClientConfig"],
+                "additionalProperties": false
               },
-              "providerId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 255,
-                "description": "Exact OAuth provider ID returned by credential-provider discovery."
-              },
-              "displayName": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 255,
-                "description": "Name shown for the new credential in Sim."
+              {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Workspace that will own the credential."
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "Name shown for the new credential in Sim."
+                  },
+                  "providerId": {
+                    "type": "string",
+                    "enum": [
+                      "google-email",
+                      "google-drive",
+                      "google-docs",
+                      "google-sheets",
+                      "google-forms",
+                      "google-calendar",
+                      "google-contacts",
+                      "google-ads",
+                      "google-bigquery",
+                      "google-tasks",
+                      "google-vault",
+                      "google-groups",
+                      "google-chat",
+                      "google-meet",
+                      "vertex-ai",
+                      "microsoft-ad",
+                      "microsoft-dataverse",
+                      "microsoft-excel",
+                      "microsoft-planner",
+                      "microsoft-teams",
+                      "microsoft-word",
+                      "outlook",
+                      "onedrive",
+                      "sharepoint",
+                      "x",
+                      "tiktok",
+                      "confluence",
+                      "jira",
+                      "airtable",
+                      "bitbucket",
+                      "notion",
+                      "clickup",
+                      "linear",
+                      "manageengine-sdp",
+                      "monday",
+                      "box",
+                      "dropbox",
+                      "shopify",
+                      "slack",
+                      "reddit",
+                      "wealthbox",
+                      "webflow",
+                      "trello",
+                      "asana",
+                      "attio",
+                      "calcom",
+                      "docusign",
+                      "pipedrive",
+                      "hubspot",
+                      "linkedin",
+                      "instagram",
+                      "salesforce",
+                      "salesforce-sandbox",
+                      "zoho-desk",
+                      "zoom",
+                      "wordpress",
+                      "spotify"
+                    ],
+                    "description": "Exact OAuth provider ID returned by credential-provider discovery."
+                  }
+                },
+                "required": ["workspaceId", "displayName", "providerId"],
+                "additionalProperties": false
               }
-            },
-            "required": ["workspaceId", "providerId", "displayName"],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -7923,7 +8127,40 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 255,
-                "description": "Existing OAuth credential to reconnect in place."
+                "description": "Existing OAuth credential to reconnect in place. QuickBooks reconnects also require oauthClientConfig with the Intuit client ID, client secret, environment, and webhook verifier token."
+              },
+              "oauthClientConfig": {
+                "description": "Write-only Intuit OAuth app configuration. Required when credentialId identifies a QuickBooks credential; omit it for other providers.",
+                "type": "object",
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "Client ID for the caller-managed Intuit OAuth application."
+                  },
+                  "clientSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "description": "Write-only client secret for the caller-managed Intuit OAuth application.",
+                    "writeOnly": true
+                  },
+                  "environment": {
+                    "type": "string",
+                    "enum": ["sandbox", "production"],
+                    "description": "Intuit company environment used for authorization and API requests."
+                  },
+                  "webhookVerifierToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "description": "Write-only verifier token for webhook signatures from the caller-managed app.",
+                    "writeOnly": true
+                  }
+                },
+                "required": ["clientId", "clientSecret", "environment", "webhookVerifierToken"],
+                "additionalProperties": false
               }
             },
             "required": ["workspaceId", "credentialId"],

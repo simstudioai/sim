@@ -68,8 +68,8 @@ const RESOLVER_GUARANTEED = 'accessToken'
  * Token-response fields a tool may declare its credential supplies.
  *
  * These are assigned conditionally — `idToken`, `instanceUrl`, `apiDomain`,
- * `cloudId`, `domain`, `authStyle` under `if (data.X)`, and `credentialType`
- * additionally only when listed here. Whether a given credential carries one
+ * `cloudId`, `domain`, `realmId`, `authStyle` under `if (data.X)`, and
+ * `credentialType` additionally only when listed here. Whether a given credential carries one
  * is a fact about the provider, not the resolver, and the resolver cannot
  * vouch for it. The tool can: `oauth.authoritativeParams` is the declaration
  * that the token response supplies the named field, so a required hidden
@@ -87,6 +87,8 @@ const TOKEN_RESPONSE_FIELDS = new Set([
   'apiDomain',
   'cloudId',
   'domain',
+  'realmId',
+  'quickBooksEnvironment',
   'authStyle',
 ])
 

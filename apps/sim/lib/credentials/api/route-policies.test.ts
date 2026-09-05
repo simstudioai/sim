@@ -4,6 +4,12 @@
 import { describe, expect, it } from 'vitest'
 import { internalCredentialErrorPolicy } from '@/lib/credentials/api/route-policies'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import {
+  OAuthDisconnectConfigurationError,
+  OAuthDisconnectLimitError,
+  OAuthDisconnectPartialFailureError,
+  OAuthProviderRevocationError,
+} from '@/lib/credentials/oauth-accounts'
 
 function project(error: unknown) {
   return internalCredentialErrorPolicy.project(error)
@@ -32,6 +38,50 @@ describe('internalCredentialErrorPolicy', () => {
 
     expect(response?.status).toBe(400)
     expect(response?.headers).toBeUndefined()
+  })
+
+  it('renders an OAuth revocation outage as retryable without exposing the provider response', () => {
+    const response = project(
+      new OAuthProviderRevocationError('QuickBooks', new Error('upstream token detail'))
+    )
+
+    expect(response?.status).toBe(503)
+    expect(response?.headers).toEqual({ 'Retry-After': '5' })
+    expect(response?.body).toEqual({
+      error: 'Unable to revoke QuickBooks access. Please try again.',
+    })
+  })
+
+  it('renders a disconnect size limit as a caller-fixable 400', () => {
+    const response = project(new OAuthDisconnectLimitError('Too many linked accounts'))
+
+    expect(response?.status).toBe(400)
+    expect(response?.headers).toBeUndefined()
+    expect(response?.body).toEqual({ error: 'Too many linked accounts' })
+  })
+
+  it('renders a local QuickBooks configuration problem as a non-retryable 400', () => {
+    const response = project(
+      new OAuthDisconnectConfigurationError('Reconnect the QuickBooks account and try again.')
+    )
+
+    expect(response?.status).toBe(400)
+    expect(response?.headers).toBeUndefined()
+    expect(response?.body).toEqual({ error: 'Reconnect the QuickBooks account and try again.' })
+  })
+
+  it('keeps a later revocation outage retryable after an earlier account was deleted', () => {
+    const revocation = new OAuthProviderRevocationError(
+      'QuickBooks',
+      new Error('upstream token detail')
+    )
+    const response = project(new OAuthDisconnectPartialFailureError([], revocation))
+
+    expect(response?.status).toBe(503)
+    expect(response?.headers).toEqual({ 'Retry-After': '5' })
+    expect(response?.body).toEqual({
+      error: 'Unable to revoke QuickBooks access. Please try again.',
+    })
   })
 
   it('defers anything that is not a provider failure to the base policy', () => {

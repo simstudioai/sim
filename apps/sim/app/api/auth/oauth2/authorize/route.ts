@@ -7,12 +7,16 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
 import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
-import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
+import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
+import { QUICKBOOKS_AUTHORIZATION_URL } from '@/lib/oauth/quickbooks-constants'
+import { createQuickBooksOAuthState } from '@/lib/oauth/quickbooks-state'
+import { getCanonicalScopesForProvider, getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuth2Authorize')
 
@@ -43,6 +47,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     let fromConnectionDraft = false
     let connectionDraftId: string | undefined
+    let encryptedQuickBooksClientConfig: string | null | undefined
     if (draftId) {
       try {
         const { draft } = await launchCredentialConnection.execute({
@@ -54,6 +59,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         workspaceId = draft.workspaceId
         credentialId = draft.credentialId ?? undefined
         connectionDraftId = draft.id
+        encryptedQuickBooksClientConfig = draft.oauthConfig
         fromConnectionDraft = true
       } catch (error) {
         if (!(error instanceof OrchestrationError)) throw error
@@ -65,13 +71,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!providerId || !workspaceId) {
       throw new Error('Validated OAuth authorization request is missing its target')
     }
-
-    requireConfiguredOAuthClient(providerId)
+    if (providerId !== 'quickbooks') {
+      requireConfiguredOAuthClient(providerId)
+    }
 
     const connectionCompleteUrl = new URL('/oauth/credential-connected', baseUrl)
     connectionCompleteUrl.searchParams.set('result', 'connected')
     const callbackURL = fromConnectionDraft
-      ? connectionCompleteUrl.toString()
+      ? requestedCallback && isSameOrigin(requestedCallback)
+        ? requestedCallback
+        : connectionCompleteUrl.toString()
       : requestedCallback?.startsWith(`${baseUrl}/`)
         ? requestedCallback
         : `${baseUrl}/workspace`
@@ -114,6 +123,34 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!connectionDraftId) {
       throw new Error('OAuth authorization is missing its credential draft id')
+    }
+
+    if (providerId === 'quickbooks') {
+      if (!encryptedQuickBooksClientConfig) {
+        const { draft } = await launchCredentialConnection.execute({
+          principal,
+          input: { draftId: connectionDraftId },
+          request,
+        })
+        encryptedQuickBooksClientConfig = draft.oauthConfig
+      }
+      if (!encryptedQuickBooksClientConfig) {
+        throw new Error('QuickBooks OAuth client configuration is missing')
+      }
+      const clientConfig = await decryptQuickBooksOAuthClientConfig(encryptedQuickBooksClientConfig)
+      const redirectUri = `${baseUrl}/api/auth/oauth2/callback/quickbooks`
+      const state = createQuickBooksOAuthState({
+        userId,
+        draftId: connectionDraftId,
+        returnUrl: callbackURL,
+      })
+      const authorizeUrl = new URL(QUICKBOOKS_AUTHORIZATION_URL)
+      authorizeUrl.searchParams.set('client_id', clientConfig.clientId)
+      authorizeUrl.searchParams.set('response_type', 'code')
+      authorizeUrl.searchParams.set('scope', getCanonicalScopesForProvider(providerId).join(' '))
+      authorizeUrl.searchParams.set('redirect_uri', redirectUri)
+      authorizeUrl.searchParams.set('state', state)
+      return NextResponse.redirect(authorizeUrl)
     }
 
     if (providerId === 'trello' || providerId === 'instagram' || providerId === 'shopify') {

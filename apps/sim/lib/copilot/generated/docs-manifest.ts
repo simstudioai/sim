@@ -264,6 +264,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/pulse.mdx',
   'integrations/qdrant.mdx',
   'integrations/quartr.mdx',
+  'integrations/quickbooks.mdx',
   'integrations/quiver.mdx',
   'integrations/rabbitmq.mdx',
   'integrations/railway.mdx',

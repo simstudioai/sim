@@ -27,7 +27,7 @@ describe('credential-bound webhook deactivation', () => {
     resetDbChainMock()
   })
 
-  it('deactivates TikTok and Slack webhook registrations when a credential is removed', async () => {
+  it('deactivates QuickBooks, TikTok, and Slack webhook registrations when a credential is removed', async () => {
     await clearCredentialRefs('credential-1', 'workspace-1')
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.webhook)
@@ -35,6 +35,7 @@ describe('credential-bound webhook deactivation', () => {
       expect.objectContaining({ isActive: false, updatedAt: expect.any(Date) })
     )
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.webhook.provider, 'tiktok')
+    expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.webhook.provider, 'quickbooks')
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.webhook.provider, 'slack_app')
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.webhook.provider, 'slack')
   })

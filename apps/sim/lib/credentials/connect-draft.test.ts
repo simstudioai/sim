@@ -4,11 +4,15 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateId } = vi.hoisted(() => ({
+const { mockEncryptQuickBooksOAuthClientConfig, mockGenerateId } = vi.hoisted(() => ({
+  mockEncryptQuickBooksOAuthClientConfig: vi.fn(),
   mockGenerateId: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({ generateId: mockGenerateId }))
+vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
+  encryptQuickBooksOAuthClientConfig: mockEncryptQuickBooksOAuthClientConfig,
+}))
 
 import { createConnectDraft } from '@/lib/credentials/connect-draft'
 
@@ -17,6 +21,7 @@ describe('createConnectDraft', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockGenerateId.mockReturnValue('new-draft-id')
+    mockEncryptQuickBooksOAuthClientConfig.mockResolvedValue('encrypted-client-config')
   })
 
   it('supersedes an active connection intent with a new exact draft id', async () => {
@@ -84,5 +89,64 @@ describe('createConnectDraft', () => {
         displayName: 'Existing Gmail',
       })
     ).rejects.toThrow('Failed to create OAuth credential draft')
+  })
+
+  it('encrypts QuickBooks app credentials before storing the draft', async () => {
+    const expiresAt = new Date('2026-08-13T20:15:00.000Z')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'new-draft-id', expiresAt }])
+    const oauthClientConfig = {
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      environment: 'sandbox' as const,
+      webhookVerifierToken: 'verifier-token',
+    }
+
+    await createConnectDraft({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      providerId: 'quickbooks',
+      displayName: 'QuickBooks Sandbox',
+      oauthClientConfig,
+    })
+
+    expect(mockEncryptQuickBooksOAuthClientConfig).toHaveBeenCalledWith(oauthClientConfig)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oauthConfig: 'encrypted-client-config',
+      })
+    )
+    expect(dbChainMockFns.values).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        oauthConfig: expect.stringContaining('client-secret'),
+      })
+    )
+  })
+
+  it('requires app credentials for QuickBooks and rejects them for other providers', async () => {
+    await expect(
+      createConnectDraft({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        providerId: 'quickbooks',
+        displayName: 'QuickBooks',
+      })
+    ).rejects.toThrow(
+      'QuickBooks requires an OAuth client ID, client secret, environment, and webhook verifier token'
+    )
+
+    await expect(
+      createConnectDraft({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        providerId: 'google-email',
+        displayName: 'Gmail',
+        oauthClientConfig: {
+          clientId: 'client-id',
+          clientSecret: 'client-secret',
+          environment: 'production',
+          webhookVerifierToken: 'verifier-token',
+        },
+      })
+    ).rejects.toThrow('OAuth client configuration is not supported for provider google-email')
   })
 })

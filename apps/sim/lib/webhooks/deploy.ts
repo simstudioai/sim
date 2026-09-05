@@ -21,6 +21,7 @@ import {
   projectDesiredWebhookProviderConfig,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import { fetchSlackTeamId } from '@/lib/webhooks/providers/slack'
 import {
   prepareStableWebhookRegistrations,
@@ -677,6 +678,30 @@ export async function resolveWebhookConfigForBlock(input: {
 
     effectivePath = null
     routingKey = openId
+  }
+
+  const handler = getProviderHandler(triggerDef.provider)
+  if (handler?.prepareDeploymentConfig) {
+    try {
+      const prepared = await handler.prepareDeploymentConfig({
+        credentialId,
+        providerConfig,
+        requestId: input.requestId,
+        triggerId,
+      })
+      effectiveProvider = prepared.provider ?? effectiveProvider
+      Object.assign(providerConfig, prepared.providerConfigUpdates)
+      if (prepared.triggerPath !== undefined) effectivePath = prepared.triggerPath
+      if (prepared.routingKey !== undefined) routingKey = prepared.routingKey
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
+          status: error instanceof WebhookDeploymentConfigurationError ? 400 : 500,
+        },
+      }
+    }
   }
 
   return {
