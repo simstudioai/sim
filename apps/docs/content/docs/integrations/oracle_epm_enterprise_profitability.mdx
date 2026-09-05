@@ -512,7 +512,7 @@ Run an existing saved metadata import. ZIP entries must match configured dimensi
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
 | `applicationName` | string | Yes | Exact EPCM application name |
-| `jobName` | string | Yes | Exact saved exchange-job name; optional only with complete ad hoc data parameters |
+| `jobName` | string | Yes | Exact saved metadata import job name; an existing job is required |
 | `fileName` | string | No | Optional repository ZIP filename overriding the saved job's files |
 | `refreshCube` | boolean | No | Override the saved job's cube refresh option |
 
@@ -537,7 +537,7 @@ Run an existing saved metadata export to a repository ZIP file.
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
 | `applicationName` | string | Yes | Exact EPCM application name |
-| `jobName` | string | Yes | Exact saved exchange-job name; optional only with complete ad hoc data parameters |
+| `jobName` | string | Yes | Exact saved metadata export job name; an existing job is required |
 | `fileName` | string | No | Optional output ZIP filename; existing output may be replaced by Oracle |
 
 #### Output

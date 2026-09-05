@@ -60,15 +60,31 @@ export function assertOracleEpcmJsonBudget(value: unknown, label: string): void 
         throw new Error(`${label} exceeds the 4 MB input limit`)
       }
       bytes += encoder.encode(next.value).length + 2
-    } else if (next.value && typeof next.value === 'object') {
-      const entries = Object.entries(next.value)
-      if (entries.length + pending.length + nodes > 200_000) {
+    } else if (Array.isArray(next.value)) {
+      if (next.value.length + pending.length + nodes > 200_000) {
         throw new Error(`${label} exceeds the supported JSON complexity`)
       }
-      bytes += entries.length * 4
-      for (const [key, child] of entries) {
-        bytes += key.length
-        pending.push({ value: child, depth: next.depth + 1 })
+      bytes += next.value.length * 2
+      for (let index = 0; index < next.value.length; index++) {
+        const descriptor = Object.getOwnPropertyDescriptor(next.value, index)
+        if (descriptor?.get || descriptor?.set) throw new Error(`${label} must be plain JSON`)
+        pending.push({ value: descriptor?.value, depth: next.depth + 1 })
+      }
+    } else if (next.value && typeof next.value === 'object') {
+      // Enumerate incrementally: Object.entries would copy every property before admission.
+      for (const key in next.value) {
+        if (!Object.hasOwn(next.value, key)) continue
+        if (pending.length + nodes >= 200_000) {
+          throw new Error(`${label} exceeds the supported JSON complexity`)
+        }
+        if (key.length > 4 * 1024 * 1024) {
+          throw new Error(`${label} exceeds the 4 MB input limit`)
+        }
+        bytes += encoder.encode(key).length + 4
+        if (bytes > 4 * 1024 * 1024) throw new Error(`${label} exceeds the 4 MB input limit`)
+        const descriptor = Object.getOwnPropertyDescriptor(next.value, key)
+        if (descriptor?.get || descriptor?.set) throw new Error(`${label} must be plain JSON`)
+        pending.push({ value: descriptor?.value, depth: next.depth + 1 })
       }
     } else {
       bytes += 8

@@ -1315,6 +1315,7 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -1329,6 +1330,7 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -1631,6 +1633,11 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
       id: 'rowMembers',
       title: 'Row Members',
       type: 'long-input',
+      wandConfig: {
+        enabled: true,
+        prompt: `Format the user's explicitly supplied EPCM export row selections as a comma-separated member list, for example Revenue,Expenses, or preserve a supplied expression such as ILvl0Descendants(&RowMembers). Preserve exact tenant names, expressions, and substitution variables. Do not invent selections. Return only the list or expression, without JSON quotes, markdown, or explanation.`,
+        placeholder: 'Provide the exact row members or member expression',
+      },
       condition: {
         field: 'operation',
         value: ['oracle_epm_enterprise_profitability_export_data'],
@@ -1641,6 +1648,11 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
       id: 'columnMembers',
       title: 'Column Members',
       type: 'long-input',
+      wandConfig: {
+        enabled: true,
+        prompt: `Format the user's explicitly supplied EPCM export column selections as a comma-separated member list, for example Jan,Feb, or preserve a supplied expression such as ILvl0Descendants(&ColumnMembers). Preserve exact tenant names, expressions, and substitution variables. Do not invent selections. Return only the list or expression, without JSON quotes, markdown, or explanation.`,
+        placeholder: 'Provide the exact column members or member expression',
+      },
       condition: {
         field: 'operation',
         value: ['oracle_epm_enterprise_profitability_export_data'],
@@ -1649,8 +1661,13 @@ export const OracleEpcmBlock: BlockConfig<OracleEpcmResponse> = {
     },
     {
       id: 'povMembers',
-      title: 'Pov Members',
+      title: 'POV Members',
       type: 'long-input',
+      wandConfig: {
+        enabled: true,
+        prompt: `Format the user's explicitly supplied EPCM export POV selections as a comma-separated member list, for example Actual,FY26,Working,&Entity. Preserve exact tenant names, member expressions, substitution variables, and dimension order. Do not invent selections. Return only the list or expression, without JSON quotes, markdown, or explanation.`,
+        placeholder: 'Provide the exact POV members in cube dimension order',
+      },
       condition: {
         field: 'operation',
         value: ['oracle_epm_enterprise_profitability_export_data'],

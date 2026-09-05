@@ -32,4 +32,8 @@ describe('Oracle EPCM resolved input helpers', () => {
     expect(() => assertOracleEpcmJsonBudget(nested, 'Grid')).toThrow('complexity')
     expect(() => assertOracleEpcmJsonBudget(Array(200_001).fill(0), 'Grid')).toThrow('complexity')
   })
+
+  it('counts sparse array slots before schema validation or serialization materializes them', () => {
+    expect(() => assertOracleEpcmJsonBudget(new Array(200_001), 'Grid')).toThrow('complexity')
+  })
 })

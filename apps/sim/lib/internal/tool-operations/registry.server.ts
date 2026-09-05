@@ -1454,12 +1454,12 @@ registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
 })
+registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
 registerFamily(handlerLoaders, ORACLE_EPCM_TOOL_IDS, async () => {
   return (await import('@/lib/internal/oracle-epm-enterprise-profitability/execute-tool'))
     .executeOracleEpcmTool
-})
-registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool

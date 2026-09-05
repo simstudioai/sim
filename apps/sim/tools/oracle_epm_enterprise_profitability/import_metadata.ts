@@ -32,8 +32,7 @@ export const oracleEpcmImportMetadataTool: InternalToolConfig<
     jobName: {
       type: 'string',
       required: true,
-      description:
-        'Exact saved exchange-job name; optional only with complete ad hoc data parameters',
+      description: 'Exact saved metadata import job name; an existing job is required',
       visibility: 'user-or-llm',
     },
     fileName: {
