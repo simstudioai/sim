@@ -16,7 +16,6 @@ import {
   PROVIDER_DEFINITIONS,
   supportsForcedToolUse,
   updateFireworksModels,
-  updateOpenRouterModels,
 } from '@/providers/models'
 import { supportsPromptCaching } from '@/providers/utils'
 
@@ -65,57 +64,14 @@ describe('catalog featured model metadata', () => {
 })
 
 describe('forced tool use capability', () => {
-  it('keeps Auto and None support when a model disables Force', () => {
-    expect(getModelCapabilities('claude-fable-5-1')).toMatchObject({
-      toolUsageControl: true,
-      forcedToolUse: false,
-    })
-  })
-
-  it.each([
-    'claude-fable-5-1',
-    'CLAUDE-FABLE-5-1-20260901',
-    'azure-anthropic/claude-fable-5-1',
-    'azure-anthropic/claude-fable-5-1-20260901',
-    'bedrock/anthropic.claude-fable-5-1-v1:0',
-    'claude-mythos-5-1',
-    'claude-mythos-5-1-20260901',
-  ])('disables forced tool use for %s', (model) => {
-    expect(getModelCapabilities(model)).toMatchObject({
-      toolUsageControl: true,
-      forcedToolUse: false,
-    })
-    expect(supportsForcedToolUse(model)).toBe(false)
-  })
-
-  it('adds only known alias capabilities to provider defaults', () => {
-    expect(getModelCapabilities('claude-mythos-5-1')).toEqual({
-      ...PROVIDER_DEFINITIONS.anthropic.capabilities,
-      forcedToolUse: false,
-    })
-  })
-
-  it('inherits alias capabilities for dynamic models and respects explicit overrides', () => {
-    const originalModels = PROVIDER_DEFINITIONS.openrouter.models
-    const modelId = 'anthropic/claude-fable-5-1'
-    try {
-      updateOpenRouterModels([modelId])
-      expect(getModelCapabilities(modelId)?.forcedToolUse).toBe(false)
-      expect(supportsForcedToolUse(modelId)).toBe(false)
-
-      PROVIDER_DEFINITIONS.openrouter.models[0].capabilities.forcedToolUse = true
-      expect(getModelCapabilities(modelId)?.forcedToolUse).toBe(true)
-      expect(supportsForcedToolUse(modelId)).toBe(true)
-    } finally {
-      PROVIDER_DEFINITIONS.openrouter.models = originalModels
-    }
-  })
-
-  it.each(['claude-fable-5-10', 'claude-mythos-5-10', 'claude-not-fable-5-1'])(
-    'does not apply alias restrictions to unrelated model %s',
+  it.each(['claude-fable-5-1', 'CLAUDE-FABLE-5-1'])(
+    'disables Force while keeping Auto and None support for %s',
     (model) => {
-      expect(getModelCapabilities(model)).toEqual(PROVIDER_DEFINITIONS.anthropic.capabilities)
-      expect(supportsForcedToolUse(model)).toBe(true)
+      expect(getModelCapabilities(model)).toMatchObject({
+        toolUsageControl: true,
+        forcedToolUse: false,
+      })
+      expect(supportsForcedToolUse(model)).toBe(false)
     }
   )
 

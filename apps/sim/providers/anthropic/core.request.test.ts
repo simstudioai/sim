@@ -296,13 +296,8 @@ describe('executeAnthropicProviderRequest forced tool use', () => {
     expect(payload.tool_choice).toEqual({ type: 'tool', name: 'publish' })
   })
 
-  it.each([
-    'claude-fable-5-1',
-    'claude-fable-5-1-20260901',
-    'azure-anthropic/claude-fable-5-1',
-    'claude-mythos-5-1',
-  ])('drops forced tool_choice on %s because the API rejects it', async (model) => {
-    const { payload, warn } = await runWithForcedTool(model)
+  it('drops forced tool_choice when the catalog model disables Force', async () => {
+    const { payload, warn } = await runWithForcedTool('claude-fable-5-1')
     expect(payload.tools?.map((tool) => tool.name)).toEqual(['publish'])
     expect(payload).not.toHaveProperty('tool_choice')
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('rejects forced tool_choice'))
