@@ -3406,6 +3406,41 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleEpmAccountReconciliationAddUsersToTeamTool,
+  oracleEpmAccountReconciliationArchiveMatchedTransactionsTool,
+  oracleEpmAccountReconciliationCreateReconciliationsTool,
+  oracleEpmAccountReconciliationDeleteFileTool,
+  oracleEpmAccountReconciliationDeleteProfileTool,
+  oracleEpmAccountReconciliationDownloadCommentAttachmentTool,
+  oracleEpmAccountReconciliationDownloadFileTool,
+  oracleEpmAccountReconciliationExportUserDetailsReportTool,
+  oracleEpmAccountReconciliationGetComplianceJobStatusTool,
+  oracleEpmAccountReconciliationGetMatchingJobStatusTool,
+  oracleEpmAccountReconciliationImportBalancesTool,
+  oracleEpmAccountReconciliationImportComplianceTransactionsTool,
+  oracleEpmAccountReconciliationImportMatchingTransactionsTool,
+  oracleEpmAccountReconciliationImportPremappedBalancesTool,
+  oracleEpmAccountReconciliationImportProfilesTool,
+  oracleEpmAccountReconciliationImportRatesTool,
+  oracleEpmAccountReconciliationImportReconciliationAttributesTool,
+  oracleEpmAccountReconciliationListFilesTool,
+  oracleEpmAccountReconciliationListPeriodsTool,
+  oracleEpmAccountReconciliationListReconciliationCommentsTool,
+  oracleEpmAccountReconciliationListUsersTool,
+  oracleEpmAccountReconciliationMonitorReconciliationsTool,
+  oracleEpmAccountReconciliationPurgeArchivedTransactionsTool,
+  oracleEpmAccountReconciliationPurgeMatchedTransactionsTool,
+  oracleEpmAccountReconciliationRemoveUsersFromTeamTool,
+  oracleEpmAccountReconciliationRunAutoAlertTool,
+  oracleEpmAccountReconciliationRunAutoMatchTool,
+  oracleEpmAccountReconciliationRunProfileRulesTool,
+  oracleEpmAccountReconciliationRunReconciliationRulesTool,
+  oracleEpmAccountReconciliationSetPeriodStatusTool,
+  oracleEpmAccountReconciliationUnmatchAutoMatchJobTool,
+  oracleEpmAccountReconciliationUnmatchTransactionsTool,
+  oracleEpmAccountReconciliationUploadFileTool,
+} from '@/tools/oracle_epm_account_reconciliation'
+import {
   outlookCalendarCreateEventTool,
   outlookCalendarDeleteEventTool,
   outlookCalendarGetEventTool,
@@ -9887,6 +9922,62 @@ export const tools: Record<string, ExecutableToolConfig> = {
   microsoft_teams_list_chats: microsoftTeamsListChatsTool,
   microsoft_teams_list_channels: microsoftTeamsListChannelsTool,
   outlook_read: outlookReadTool,
+  oracle_epm_account_reconciliation_add_users_to_team:
+    oracleEpmAccountReconciliationAddUsersToTeamTool,
+  oracle_epm_account_reconciliation_archive_matched_transactions:
+    oracleEpmAccountReconciliationArchiveMatchedTransactionsTool,
+  oracle_epm_account_reconciliation_create_reconciliations:
+    oracleEpmAccountReconciliationCreateReconciliationsTool,
+  oracle_epm_account_reconciliation_delete_file: oracleEpmAccountReconciliationDeleteFileTool,
+  oracle_epm_account_reconciliation_delete_profile: oracleEpmAccountReconciliationDeleteProfileTool,
+  oracle_epm_account_reconciliation_download_comment_attachment:
+    oracleEpmAccountReconciliationDownloadCommentAttachmentTool,
+  oracle_epm_account_reconciliation_download_file: oracleEpmAccountReconciliationDownloadFileTool,
+  oracle_epm_account_reconciliation_export_user_details_report:
+    oracleEpmAccountReconciliationExportUserDetailsReportTool,
+  oracle_epm_account_reconciliation_get_compliance_job_status:
+    oracleEpmAccountReconciliationGetComplianceJobStatusTool,
+  oracle_epm_account_reconciliation_get_matching_job_status:
+    oracleEpmAccountReconciliationGetMatchingJobStatusTool,
+  oracle_epm_account_reconciliation_import_balances:
+    oracleEpmAccountReconciliationImportBalancesTool,
+  oracle_epm_account_reconciliation_import_compliance_transactions:
+    oracleEpmAccountReconciliationImportComplianceTransactionsTool,
+  oracle_epm_account_reconciliation_import_matching_transactions:
+    oracleEpmAccountReconciliationImportMatchingTransactionsTool,
+  oracle_epm_account_reconciliation_import_premapped_balances:
+    oracleEpmAccountReconciliationImportPremappedBalancesTool,
+  oracle_epm_account_reconciliation_import_profiles:
+    oracleEpmAccountReconciliationImportProfilesTool,
+  oracle_epm_account_reconciliation_import_rates: oracleEpmAccountReconciliationImportRatesTool,
+  oracle_epm_account_reconciliation_import_reconciliation_attributes:
+    oracleEpmAccountReconciliationImportReconciliationAttributesTool,
+  oracle_epm_account_reconciliation_list_files: oracleEpmAccountReconciliationListFilesTool,
+  oracle_epm_account_reconciliation_list_periods: oracleEpmAccountReconciliationListPeriodsTool,
+  oracle_epm_account_reconciliation_list_reconciliation_comments:
+    oracleEpmAccountReconciliationListReconciliationCommentsTool,
+  oracle_epm_account_reconciliation_list_users: oracleEpmAccountReconciliationListUsersTool,
+  oracle_epm_account_reconciliation_monitor_reconciliations:
+    oracleEpmAccountReconciliationMonitorReconciliationsTool,
+  oracle_epm_account_reconciliation_purge_archived_transactions:
+    oracleEpmAccountReconciliationPurgeArchivedTransactionsTool,
+  oracle_epm_account_reconciliation_purge_matched_transactions:
+    oracleEpmAccountReconciliationPurgeMatchedTransactionsTool,
+  oracle_epm_account_reconciliation_remove_users_from_team:
+    oracleEpmAccountReconciliationRemoveUsersFromTeamTool,
+  oracle_epm_account_reconciliation_run_auto_alert: oracleEpmAccountReconciliationRunAutoAlertTool,
+  oracle_epm_account_reconciliation_run_auto_match: oracleEpmAccountReconciliationRunAutoMatchTool,
+  oracle_epm_account_reconciliation_run_profile_rules:
+    oracleEpmAccountReconciliationRunProfileRulesTool,
+  oracle_epm_account_reconciliation_run_reconciliation_rules:
+    oracleEpmAccountReconciliationRunReconciliationRulesTool,
+  oracle_epm_account_reconciliation_set_period_status:
+    oracleEpmAccountReconciliationSetPeriodStatusTool,
+  oracle_epm_account_reconciliation_unmatch_auto_match_job:
+    oracleEpmAccountReconciliationUnmatchAutoMatchJobTool,
+  oracle_epm_account_reconciliation_unmatch_transactions:
+    oracleEpmAccountReconciliationUnmatchTransactionsTool,
+  oracle_epm_account_reconciliation_upload_file: oracleEpmAccountReconciliationUploadFileTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,
   outlook_forward: outlookForwardTool,

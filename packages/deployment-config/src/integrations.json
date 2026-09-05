@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,157 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_account_reconciliation",
+      "slug": "oracle-epm-account-reconciliation",
+      "name": "Oracle EPM Account Reconciliation",
+      "description": "Automate reconciliation, transaction matching, imports, and audit evidence",
+      "longDescription": "Connect an Oracle EPM service-account credential to automate Reconciliation Compliance and Transaction Matching. Stage files explicitly, import profiles, balances, rates and transactions, run rules and matching jobs, manage period status and team membership, and retrieve comments, attachments and user reports. Operations require their documented Oracle roles and enabled features. Jobs launch without waiting by default; a requested wait is bounded to 5–300 seconds. Files are limited to 100 MB. This integration does not provide general reconciliation or profile CRUD, generic report execution, or machine-learning operations.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_account_reconciliation",
+      "operations": [
+        {
+          "name": "Add Users to Team",
+          "description": "Add Users to Team using a staged CSV file and an existing team."
+        },
+        {
+          "name": "Archive Matched Transactions",
+          "description": "Archive matched transactions older than the specified age, optionally filtered by account ID."
+        },
+        {
+          "name": "Create Reconciliations",
+          "description": "Create reconciliations for a period, optionally limited by a public profile filter."
+        },
+        {
+          "name": "Delete File",
+          "description": "Delete the specified file from the EPM repository."
+        },
+        {
+          "name": "Delete Profile",
+          "description": "Delete the profile identified by its account ID."
+        },
+        {
+          "name": "Download Comment Attachment",
+          "description": "Download a FILE reference belonging to the specified reconciliation as a Sim file."
+        },
+        {
+          "name": "Download File",
+          "description": "Download a repository file as a Sim file (maximum 100 MB)."
+        },
+        {
+          "name": "Export User Details Report",
+          "description": "Generate, wait for, and download a user-details report as a Sim file."
+        },
+        {
+          "name": "Get Compliance Job Status",
+          "description": "Read the status of one Reconciliation Compliance job."
+        },
+        {
+          "name": "Get Matching Job Status",
+          "description": "Read one Transaction Matching job status and validated artifact filenames."
+        },
+        {
+          "name": "Import Balances",
+          "description": "Run an existing data-load definition to import balances for a period."
+        },
+        {
+          "name": "Import Compliance Transactions",
+          "description": "Import pre-mapped Reconciliation Compliance transactions from a staged file."
+        },
+        {
+          "name": "Import Matching Transactions",
+          "description": "Import pre-mapped transactions into a Transaction Matching data source."
+        },
+        {
+          "name": "Import Premapped Balances",
+          "description": "Import pre-mapped source-system or subsystem balances from a staged file."
+        },
+        {
+          "name": "Import Profiles",
+          "description": "Import profile or child-profile definitions from a staged CSV file."
+        },
+        {
+          "name": "Import Rates",
+          "description": "Import currency rates from a staged file for a period and rate type."
+        },
+        {
+          "name": "Import Reconciliation Attributes",
+          "description": "Load attribute values from a staged file into existing reconciliations."
+        },
+        {
+          "name": "List Files",
+          "description": "List repository files and application snapshots."
+        },
+        {
+          "name": "List Periods",
+          "description": "List Account Reconciliation periods with a selected status."
+        },
+        {
+          "name": "List Reconciliation Comments",
+          "description": "Read comments and attachment references for a reconciliation."
+        },
+        {
+          "name": "List Users",
+          "description": "List environment users and optionally their groups and roles."
+        },
+        {
+          "name": "Monitor Reconciliations",
+          "description": "Check whether all reconciliations selected by a public filter are closed."
+        },
+        {
+          "name": "Purge Archived Transactions",
+          "description": "Permanently purge transactions from a completed archive job."
+        },
+        {
+          "name": "Purge Matched Transactions",
+          "description": "Permanently purge matched transactions older than the specified age."
+        },
+        {
+          "name": "Remove Users from Team",
+          "description": "Remove Users from Team using a staged CSV file and an existing team."
+        },
+        {
+          "name": "Run Auto Alert",
+          "description": "Run automatic alerts for a Transaction Matching match type."
+        },
+        {
+          "name": "Run Auto Match",
+          "description": "Run automatic matching for a Transaction Matching match type."
+        },
+        {
+          "name": "Run Profile Rules",
+          "description": "Run applicable profile rules, optionally limited by a public profile filter."
+        },
+        {
+          "name": "Run Reconciliation Rules",
+          "description": "Run reconciliation rules for a period and optional public filter."
+        },
+        {
+          "name": "Set Period Status",
+          "description": "Change a period status and optionally wait for its reconciliation-opening job."
+        },
+        {
+          "name": "Unmatch Auto Match Job",
+          "description": "Unmatch all transactions matched by a specified auto-match job."
+        },
+        {
+          "name": "Unmatch Transactions",
+          "description": "Unmatch up to 10,000 specified matches in a match type."
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload a Sim file to the EPM repository without overwriting an existing file."
+        }
+      ],
+      "operationCount": 33,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",
