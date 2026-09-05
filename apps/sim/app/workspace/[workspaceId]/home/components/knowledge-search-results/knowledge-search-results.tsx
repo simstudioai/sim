@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Button, Chip, OverflowText } from '@sim/emcn'
+import { Chip, OverflowText } from '@sim/emcn'
 import { FileText } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
@@ -153,8 +153,6 @@ interface KnowledgeSearchResultsProps {
   query: string
   /** Asks the agent about one document; the prompt names it and links to it. */
   onSummarize: (prompt: string) => void
-  /** Asks the agent the query itself, for a prose answer with citations. */
-  onAnswer: (query: string) => void
 }
 
 /**
@@ -170,7 +168,6 @@ export function KnowledgeSearchResults({
   workspaceId,
   query,
   onSummarize,
-  onAnswer,
 }: KnowledgeSearchResultsProps) {
   const {
     data: knowledgeBases = [],
@@ -255,9 +252,6 @@ export function KnowledgeSearchResults({
           {' · searched as you'}
           {indexingNote && <span className='block'>{indexingNote}</span>}
         </span>
-        <Button variant='ghost' size='sm' onClick={() => onAnswer(query)}>
-          Answer with Sim
-        </Button>
       </div>
       {showFilters && (
         <div className='flex flex-wrap items-center gap-1.5 px-2 pb-2'>
