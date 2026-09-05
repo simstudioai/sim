@@ -69,29 +69,18 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+/**
+ * The mode's ordinary read/write behavior is covered through the UI in
+ * `mode-switcher.test.tsx`; one write stands here as the control the
+ * per-member-access cases are read against.
+ */
 describe('useMothershipMode', () => {
-  it('defaults to Build and reads the mode the URL names', () => {
-    mount()
-    expect(mode()).toBe('build')
-
-    act(() => root?.unmount())
-    mount('?mode=search')
-    expect(mode()).toBe('search')
-  })
-
   it('writes the chosen mode to the URL', async () => {
     mount()
     await setMode('search')
 
     expect(mode()).toBe('search')
     expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.get('mode')).toBe('search')
-  })
-
-  it('drops the query and its filters on every mode but Search', async () => {
-    mount('?mode=search&q=budget&source=upload&updated=7d')
-    await setMode('assistant')
-
-    expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe('mode=assistant')
   })
 
   describe('without per-member access', () => {

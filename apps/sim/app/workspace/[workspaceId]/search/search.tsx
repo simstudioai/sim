@@ -124,9 +124,8 @@ export function Search() {
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability } = usePermissionConfig()
   /**
-   * Judged by the workspace, as the server judges it: with per-member access
-   * off, every connect is refused, so the rows say so instead of offering
-   * one and the memberships are not fetched.
+   * With per-member access off, every connect is refused, so the rows say so
+   * and the memberships are not fetched.
    */
   const memberAccessAvailable = useMemberAccessAvailable()
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)

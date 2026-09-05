@@ -140,10 +140,7 @@ interface SearchSourcesProps {
  */
 export function SearchSources({ workspaceId }: SearchSourcesProps) {
   const { integrationAvailability } = usePermissionConfig()
-  /**
-   * Judged by the workspace, as the server judges it: with per-member access
-   * off, a connect is refused, so the chips say so instead of offering one.
-   */
+  /** With per-member access off, a connect is refused, so the chips say so instead. */
   const memberAccessAvailable = useMemberAccessAvailable()
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
   /** The first connect of a source turns it on for the workspace, which takes an admin. */

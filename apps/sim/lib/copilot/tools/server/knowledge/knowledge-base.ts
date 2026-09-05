@@ -20,6 +20,7 @@ import {
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import {
@@ -64,6 +65,12 @@ const DEFAULT_QUERY_TOP_K = 5
  * How the model cites a knowledge result in its reply. The `<source>` tag is
  * what the chat renders as a link back to the document, so a result without
  * a source URL is quoted by name instead.
+ *
+ * Asked for only where per-member access is on. The chip and the sources strip
+ * that render the tag arrived with Sim Search, so a workspace without the
+ * feature must not be told to emit one: the gate belongs here, at the emission,
+ * because a client that merely declined to render the tag would leave the raw
+ * `<source>{...}</source>` JSON sitting in the visible reply.
  */
 const KNOWLEDGE_CITATION_INSTRUCTION =
   'Cite each result you use inline, right after the sentence it supports, as <source>{"url":"<sourceUrl>","title":"<documentName>","siteName":"<knowledgeBaseName>","connectorType":"<connectorType>","snippet":"<the sentence or two of content you relied on>","updatedAt":"<sourceModifiedAt>","author":"<author>"}</source> with every value JSON-escaped; leave out any optional field whose value is null or unknown, and omit the tag for a result whose sourceUrl is null and name the document instead.'
@@ -436,13 +443,16 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 'Failed to query knowledge base: Knowledge result secret provenance is unavailable',
             }
           }
-          const searchResult = await executeCopilotKnowledgeUseCase(context, searchKnowledge, {
-            workspaceId,
-            knowledgeBaseIds: [args.knowledgeBaseId],
-            query: modelQuery,
-            topK,
-            resultSecretRegistry: context.resolvedSecretTraceRegistry,
-          })
+          const [searchResult, citable] = await Promise.all([
+            executeCopilotKnowledgeUseCase(context, searchKnowledge, {
+              workspaceId,
+              knowledgeBaseIds: [args.knowledgeBaseId],
+              query: modelQuery,
+              topK,
+              resultSecretRegistry: context.resolvedSecretTraceRegistry,
+            }),
+            isKnowledgeMemberAccessAvailable({ workspaceId }),
+          ])
           const results = searchResult.results
           const knowledgeBase = searchResult.knowledgeBases[0]
           if (!knowledgeBase)
@@ -455,9 +465,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             userId: context.userId,
           })
 
+          const foundMessage = `Found ${results.length} result(s) for query "${truncate(args.query, 50)}".`
+
           return {
             success: true,
-            message: `Found ${results.length} result(s) for query "${truncate(args.query, 50)}". ${KNOWLEDGE_CITATION_INSTRUCTION}`,
+            message: citable ? `${foundMessage} ${KNOWLEDGE_CITATION_INSTRUCTION}` : foundMessage,
             data: {
               knowledgeBaseId: args.knowledgeBaseId,
               knowledgeBaseName: knowledgeBase.name,

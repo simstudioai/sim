@@ -186,9 +186,8 @@ export function KnowledgeSearchResults({
     error,
   } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
   /**
-   * Judged by the workspace, as the server judges it: with per-member access
-   * off, member-scoped documents are hidden, so no source is indexing anything
-   * the viewer will see, and the list is not worth asking for.
+   * With per-member access off, member-scoped documents are hidden, so the
+   * indexing list is not worth asking for.
    */
   const memberAccessAvailable = useMemberAccessAvailable()
   const { data: memberConnectorRows } = useWorkspaceMemberConnectors(workspaceId, {
