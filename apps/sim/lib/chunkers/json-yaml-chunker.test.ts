@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { JsonYamlChunker } from './json-yaml-chunker'
+import { JsonYamlChunker } from '@/lib/chunkers/json-yaml-chunker'
 
 vi.mock('@/lib/tokenization', () => ({
   getAccurateTokenCount: (text: string) => Math.ceil(text.length / 4),
@@ -37,30 +37,96 @@ describe('JsonYamlChunker', () => {
     expect(chunks.every((chunk) => chunk.tokenCount <= 100)).toBe(true)
   })
 
-  describe('isStructuredData', () => {
-    it('should detect valid JSON', () => {
-      expect(JsonYamlChunker.isStructuredData('{"key": "value"}')).toBe(true)
+  describe('chunkStructured', () => {
+    it('chunks valid JSON', async () => {
+      await expect(JsonYamlChunker.chunkStructured('{"key": "value"}')).resolves.not.toBeNull()
     })
 
-    it('should detect valid JSON array', () => {
-      expect(JsonYamlChunker.isStructuredData('[1, 2, 3]')).toBe(true)
+    it('chunks a valid JSON array', async () => {
+      await expect(JsonYamlChunker.chunkStructured('[1, 2, 3]')).resolves.not.toBeNull()
     })
 
-    it('should detect valid YAML', () => {
-      expect(JsonYamlChunker.isStructuredData('key: value\nother: data')).toBe(true)
+    it('chunks valid YAML', async () => {
+      await expect(
+        JsonYamlChunker.chunkStructured('key: value\nother: data')
+      ).resolves.not.toBeNull()
     })
 
-    it('should return false for plain text parsed as YAML scalar', () => {
-      expect(JsonYamlChunker.isStructuredData('Hello, this is plain text.')).toBe(false)
+    it('declines plain text that parses as a YAML scalar', async () => {
+      await expect(
+        JsonYamlChunker.chunkStructured('Hello, this is plain text.')
+      ).resolves.toBeNull()
     })
 
-    it('should return false for invalid JSON/YAML with unbalanced braces', () => {
-      expect(JsonYamlChunker.isStructuredData('{invalid: json: content: {{')).toBe(false)
+    it('declines invalid JSON/YAML with unbalanced braces', async () => {
+      await expect(
+        JsonYamlChunker.chunkStructured('{invalid: json: content: {{')
+      ).resolves.toBeNull()
     })
 
-    it('should detect nested JSON objects', () => {
+    it('chunks nested JSON objects', async () => {
       const nested = JSON.stringify({ level1: { level2: { level3: 'value' } } })
-      expect(JsonYamlChunker.isStructuredData(nested)).toBe(true)
+      await expect(JsonYamlChunker.chunkStructured(nested)).resolves.not.toBeNull()
+    })
+
+    it('declines an alias-expansion bomb instead of expanding it', async () => {
+      const lines = ['a0: &a0 "lol"']
+      for (let level = 1; level <= 7; level++) {
+        lines.push(
+          `a${level}: &a${level} [${Array(7)
+            .fill(`*a${level - 1}`)
+            .join(',')}]`
+        )
+      }
+      lines.push('top: *a7')
+      const bomb = lines.join('\n')
+
+      const chunks = await JsonYamlChunker.chunkStructured(bomb, {
+        chunkSize: 1024,
+        minCharactersPerChunk: 1,
+        maxChunks: 5000,
+      })
+
+      expect(chunks).toBeNull()
+    })
+
+    it('never parses source larger than one output budget', async () => {
+      const oversized = JSON.stringify({ value: 'x'.repeat(5 * 1024 * 1024) })
+      const parse = vi.spyOn(JSON, 'parse')
+
+      try {
+        await expect(
+          JsonYamlChunker.chunkStructured(oversized, {
+            chunkSize: 1024,
+            minCharactersPerChunk: 1,
+            maxChunks: 1024,
+          })
+        ).resolves.toBeNull()
+        expect(parse).not.toHaveBeenCalled()
+      } finally {
+        parse.mockRestore()
+      }
+    })
+
+    it('chunks with default options', async () => {
+      const chunks = await JsonYamlChunker.chunkStructured(JSON.stringify({ test: 'value' }))
+
+      expect(chunks?.length).toBeGreaterThan(0)
+    })
+
+    it('honors a custom chunk size', async () => {
+      const largeObject: Record<string, string> = {}
+      for (let i = 0; i < 50; i++) {
+        largeObject[`key${i}`] = `value${i}`.repeat(20)
+      }
+      const json = JSON.stringify(largeObject)
+
+      const chunksSmall = await JsonYamlChunker.chunkStructured(json, { chunkSize: 50 })
+      const chunksLarge = await JsonYamlChunker.chunkStructured(json, { chunkSize: 500 })
+
+      expect(chunksSmall).not.toBeNull()
+      expect(chunksLarge).not.toBeNull()
+      expect(chunksSmall?.length).toBeGreaterThan(chunksLarge?.length as number)
     })
   })
 
@@ -365,28 +431,6 @@ server:
       const chunks = await chunker.chunk(json)
 
       expect(chunks.length).toBeGreaterThan(0)
-    })
-  })
-
-  describe('static chunkJsonYaml method', () => {
-    it.concurrent('should work with default options', async () => {
-      const json = JSON.stringify({ test: 'value' })
-      const chunks = await JsonYamlChunker.chunkJsonYaml(json)
-
-      expect(chunks.length).toBeGreaterThan(0)
-    })
-
-    it.concurrent('should accept custom options', async () => {
-      const largeObject: Record<string, string> = {}
-      for (let i = 0; i < 50; i++) {
-        largeObject[`key${i}`] = `value${i}`.repeat(20)
-      }
-      const json = JSON.stringify(largeObject)
-
-      const chunksSmall = await JsonYamlChunker.chunkJsonYaml(json, { chunkSize: 50 })
-      const chunksLarge = await JsonYamlChunker.chunkJsonYaml(json, { chunkSize: 500 })
-
-      expect(chunksSmall.length).toBeGreaterThan(chunksLarge.length)
     })
   })
 
