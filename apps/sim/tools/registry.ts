@@ -3373,6 +3373,47 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleFusionProcurementCreateDraftPurchaseOrderTool,
+  oracleFusionProcurementCreatePurchaseRequisitionTool,
+  oracleFusionProcurementCreateSupplierNegotiationTool,
+  oracleFusionProcurementCreateSupplierSiteTool,
+  oracleFusionProcurementCreateSupplierTool,
+  oracleFusionProcurementGetDraftPurchaseOrderTool,
+  oracleFusionProcurementGetProcurementAgentTool,
+  oracleFusionProcurementGetPurchaseOrderLifecycleDetailsTool,
+  oracleFusionProcurementGetPurchaseOrderReceiptTool,
+  oracleFusionProcurementGetPurchaseOrderTool,
+  oracleFusionProcurementGetPurchaseRequisitionTool,
+  oracleFusionProcurementGetSupplierNegotiationResponseTool,
+  oracleFusionProcurementGetSupplierNegotiationTool,
+  oracleFusionProcurementGetSupplierSiteTool,
+  oracleFusionProcurementGetSupplierTool,
+  oracleFusionProcurementHoldPurchaseOrderTool,
+  oracleFusionProcurementListDraftPurchaseOrderLinesTool,
+  oracleFusionProcurementListDraftPurchaseOrdersTool,
+  oracleFusionProcurementListProcurementAgentsTool,
+  oracleFusionProcurementListPurchaseOrderLinesTool,
+  oracleFusionProcurementListPurchaseOrderReceiptsTool,
+  oracleFusionProcurementListPurchaseOrdersTool,
+  oracleFusionProcurementListPurchaseRequisitionLinesTool,
+  oracleFusionProcurementListPurchaseRequisitionsTool,
+  oracleFusionProcurementListSupplierNegotiationResponsesTool,
+  oracleFusionProcurementListSupplierNegotiationsTool,
+  oracleFusionProcurementListSupplierSitesTool,
+  oracleFusionProcurementListSuppliersTool,
+  oracleFusionProcurementRemovePurchaseOrderHoldTool,
+  oracleFusionProcurementSubmitDraftPurchaseOrderTool,
+  oracleFusionProcurementSubmitPurchaseRequisitionTool,
+  oracleFusionProcurementUpdateDraftPurchaseOrderTool,
+  oracleFusionProcurementUpdatePurchaseRequisitionTool,
+  oracleFusionProcurementUpdateSupplierNegotiationTool,
+  oracleFusionProcurementUpdateSupplierSiteTool,
+  oracleFusionProcurementUpdateSupplierTool,
+  oracleFusionProcurementValidateDraftPurchaseOrderTool,
+  oracleFusionProcurementValidateOrPublishSupplierNegotiationTool,
+  oracleFusionProcurementWithdrawPurchaseRequisitionTool,
+} from '@/tools/oracle_fusion_procurement'
+import {
   outlookCalendarCreateEventTool,
   outlookCalendarDeleteEventTool,
   outlookCalendarGetEventTool,
@@ -9822,6 +9863,73 @@ export const tools: Record<string, ExecutableToolConfig> = {
   microsoft_teams_list_teams: microsoftTeamsListTeamsTool,
   microsoft_teams_list_chats: microsoftTeamsListChatsTool,
   microsoft_teams_list_channels: microsoftTeamsListChannelsTool,
+  oracle_fusion_procurement_create_draft_purchase_order:
+    oracleFusionProcurementCreateDraftPurchaseOrderTool,
+  oracle_fusion_procurement_create_purchase_requisition:
+    oracleFusionProcurementCreatePurchaseRequisitionTool,
+  oracle_fusion_procurement_create_supplier: oracleFusionProcurementCreateSupplierTool,
+  oracle_fusion_procurement_create_supplier_negotiation:
+    oracleFusionProcurementCreateSupplierNegotiationTool,
+  oracle_fusion_procurement_create_supplier_site: oracleFusionProcurementCreateSupplierSiteTool,
+  oracle_fusion_procurement_get_draft_purchase_order:
+    oracleFusionProcurementGetDraftPurchaseOrderTool,
+  oracle_fusion_procurement_get_procurement_agent: oracleFusionProcurementGetProcurementAgentTool,
+  oracle_fusion_procurement_get_purchase_order: oracleFusionProcurementGetPurchaseOrderTool,
+  oracle_fusion_procurement_get_purchase_order_lifecycle_details:
+    oracleFusionProcurementGetPurchaseOrderLifecycleDetailsTool,
+  oracle_fusion_procurement_get_purchase_order_receipt:
+    oracleFusionProcurementGetPurchaseOrderReceiptTool,
+  oracle_fusion_procurement_get_purchase_requisition:
+    oracleFusionProcurementGetPurchaseRequisitionTool,
+  oracle_fusion_procurement_get_supplier: oracleFusionProcurementGetSupplierTool,
+  oracle_fusion_procurement_get_supplier_negotiation:
+    oracleFusionProcurementGetSupplierNegotiationTool,
+  oracle_fusion_procurement_get_supplier_negotiation_response:
+    oracleFusionProcurementGetSupplierNegotiationResponseTool,
+  oracle_fusion_procurement_get_supplier_site: oracleFusionProcurementGetSupplierSiteTool,
+  oracle_fusion_procurement_hold_purchase_order: oracleFusionProcurementHoldPurchaseOrderTool,
+  oracle_fusion_procurement_list_draft_purchase_order_lines:
+    oracleFusionProcurementListDraftPurchaseOrderLinesTool,
+  oracle_fusion_procurement_list_draft_purchase_orders:
+    oracleFusionProcurementListDraftPurchaseOrdersTool,
+  oracle_fusion_procurement_list_procurement_agents:
+    oracleFusionProcurementListProcurementAgentsTool,
+  oracle_fusion_procurement_list_purchase_order_lines:
+    oracleFusionProcurementListPurchaseOrderLinesTool,
+  oracle_fusion_procurement_list_purchase_order_receipts:
+    oracleFusionProcurementListPurchaseOrderReceiptsTool,
+  oracle_fusion_procurement_list_purchase_orders: oracleFusionProcurementListPurchaseOrdersTool,
+  oracle_fusion_procurement_list_purchase_requisition_lines:
+    oracleFusionProcurementListPurchaseRequisitionLinesTool,
+  oracle_fusion_procurement_list_purchase_requisitions:
+    oracleFusionProcurementListPurchaseRequisitionsTool,
+  oracle_fusion_procurement_list_supplier_negotiation_responses:
+    oracleFusionProcurementListSupplierNegotiationResponsesTool,
+  oracle_fusion_procurement_list_supplier_negotiations:
+    oracleFusionProcurementListSupplierNegotiationsTool,
+  oracle_fusion_procurement_list_supplier_sites: oracleFusionProcurementListSupplierSitesTool,
+  oracle_fusion_procurement_list_suppliers: oracleFusionProcurementListSuppliersTool,
+  oracle_fusion_procurement_remove_purchase_order_hold:
+    oracleFusionProcurementRemovePurchaseOrderHoldTool,
+  oracle_fusion_procurement_submit_draft_purchase_order:
+    oracleFusionProcurementSubmitDraftPurchaseOrderTool,
+  oracle_fusion_procurement_submit_purchase_requisition:
+    oracleFusionProcurementSubmitPurchaseRequisitionTool,
+  oracle_fusion_procurement_update_draft_purchase_order:
+    oracleFusionProcurementUpdateDraftPurchaseOrderTool,
+  oracle_fusion_procurement_update_purchase_requisition:
+    oracleFusionProcurementUpdatePurchaseRequisitionTool,
+  oracle_fusion_procurement_update_supplier: oracleFusionProcurementUpdateSupplierTool,
+  oracle_fusion_procurement_update_supplier_negotiation:
+    oracleFusionProcurementUpdateSupplierNegotiationTool,
+  oracle_fusion_procurement_update_supplier_site: oracleFusionProcurementUpdateSupplierSiteTool,
+  oracle_fusion_procurement_validate_draft_purchase_order:
+    oracleFusionProcurementValidateDraftPurchaseOrderTool,
+  oracle_fusion_procurement_validate_or_publish_supplier_negotiation:
+    oracleFusionProcurementValidateOrPublishSupplierNegotiationTool,
+  oracle_fusion_procurement_withdraw_purchase_requisition:
+    oracleFusionProcurementWithdrawPurchaseRequisitionTool,
+
   outlook_read: outlookReadTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,

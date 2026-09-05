@@ -752,6 +752,48 @@ const MANAGED_AGENT_TOOL_IDS = [
 
 const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
 
+const ORACLE_FUSION_PROCUREMENT_TOOL_IDS = [
+  'oracle_fusion_procurement_create_draft_purchase_order',
+  'oracle_fusion_procurement_create_purchase_requisition',
+  'oracle_fusion_procurement_create_supplier',
+  'oracle_fusion_procurement_create_supplier_negotiation',
+  'oracle_fusion_procurement_create_supplier_site',
+  'oracle_fusion_procurement_get_draft_purchase_order',
+  'oracle_fusion_procurement_get_procurement_agent',
+  'oracle_fusion_procurement_get_purchase_order',
+  'oracle_fusion_procurement_get_purchase_order_lifecycle_details',
+  'oracle_fusion_procurement_get_purchase_order_receipt',
+  'oracle_fusion_procurement_get_purchase_requisition',
+  'oracle_fusion_procurement_get_supplier',
+  'oracle_fusion_procurement_get_supplier_negotiation',
+  'oracle_fusion_procurement_get_supplier_negotiation_response',
+  'oracle_fusion_procurement_get_supplier_site',
+  'oracle_fusion_procurement_hold_purchase_order',
+  'oracle_fusion_procurement_list_draft_purchase_order_lines',
+  'oracle_fusion_procurement_list_draft_purchase_orders',
+  'oracle_fusion_procurement_list_procurement_agents',
+  'oracle_fusion_procurement_list_purchase_order_lines',
+  'oracle_fusion_procurement_list_purchase_order_receipts',
+  'oracle_fusion_procurement_list_purchase_orders',
+  'oracle_fusion_procurement_list_purchase_requisition_lines',
+  'oracle_fusion_procurement_list_purchase_requisitions',
+  'oracle_fusion_procurement_list_supplier_negotiation_responses',
+  'oracle_fusion_procurement_list_supplier_negotiations',
+  'oracle_fusion_procurement_list_supplier_sites',
+  'oracle_fusion_procurement_list_suppliers',
+  'oracle_fusion_procurement_remove_purchase_order_hold',
+  'oracle_fusion_procurement_submit_draft_purchase_order',
+  'oracle_fusion_procurement_submit_purchase_requisition',
+  'oracle_fusion_procurement_update_draft_purchase_order',
+  'oracle_fusion_procurement_update_purchase_requisition',
+  'oracle_fusion_procurement_update_supplier',
+  'oracle_fusion_procurement_update_supplier_negotiation',
+  'oracle_fusion_procurement_update_supplier_site',
+  'oracle_fusion_procurement_validate_draft_purchase_order',
+  'oracle_fusion_procurement_validate_or_publish_supplier_negotiation',
+  'oracle_fusion_procurement_withdraw_purchase_requisition',
+] as const
+
 const NETSUITE_TOOL_IDS = [
   'netsuite_attach_record',
   'netsuite_batch_create_records',
@@ -1425,6 +1467,11 @@ registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
   return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
 })
+registerFamily(handlerLoaders, ORACLE_FUSION_PROCUREMENT_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-procurement/execute-tool'))
+    .executeOracleFusionProcurementTool
+})
+
 registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
 })
