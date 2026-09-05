@@ -28,6 +28,7 @@ const CONNECTION = {
 const QUERY_ID = 'abcdef01-2345-6789-abcd-ef0123456789'
 const LONGEST_VALID_NAME = 'a'.repeat(128)
 const TOO_LONG_NAME = 'a'.repeat(129)
+const LONG_INVALID_NAME = `${'a'.repeat(128)}!`
 const LONG_TRAIL_ARN = `arn:aws:cloudtrail:us-east-1:123456789012:trail/${'a'.repeat(100)}`
 
 describe('cloudtrail start query contract', () => {
@@ -100,6 +101,15 @@ describe('cloudtrail trail name bounds', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+
+  it('rejects a long malformed trail name', () => {
+    const result = awsCloudtrailGetTrailStatusContract.body.safeParse({
+      ...CONNECTION,
+      name: LONG_INVALID_NAME,
+    })
+
+    expect(result.success).toBe(false)
   })
 
   it('accepts a trail ARN longer than 128 characters on get trail status', () => {

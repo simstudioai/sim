@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import {
-  Button,
   ButtonGroup,
   ButtonGroupItem,
+  Chip,
   ChipCombobox,
+  ChipLink,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -56,10 +57,10 @@ import {
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 
 const logger = createLogger('EditConnectorModal')
 
-/** What the apply button says, and what it warns will happen, per mode. */
 const SWITCH_LABEL: Record<ConnectorAccessMode, string> = {
   workspace: 'Switch to workspace access',
   members: 'Switch to per-member access',
@@ -82,11 +83,6 @@ const CANONICAL_MODES_KEY = '_canonicalModes'
 /** The access a connector row currently has, as the Access field edits it. */
 function currentAccess(connector: ConnectorData): ConnectorAccessSelection {
   if (connector.accessMode === 'members') return { accessMode: 'members' }
-  /**
-   * Named rather than folded into the fallback: an unrecognised mode showing as
-   * Workspace would tell an admin their documents are visible to everyone when
-   * they are not, and would silently rewrite the mode on the next save.
-   */
   if (connector.accessMode === 'admin') return { accessMode: 'admin' }
   return { accessMode: 'workspace' }
 }
@@ -250,13 +246,7 @@ export function EditConnectorModal({
   const { mutate: updateConnector, isPending: isSavingSettings } = useUpdateConnector()
   const { mutate: updateAccess, isPending: isSwitchingAccess } = useUpdateConnectorAccess()
   const isSaving = isSavingSettings || isSwitchingAccess
-  /**
-   * The field shows where either flag is on. A connector already in a
-   * non-workspace mode keeps it where its flag has since been turned off, so
-   * an admin can still bring it back to workspace mode; that mode cannot be
-   * re-chosen.
-   */
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const persistedAccess = currentAccess(connector)
   const searchSourceSupported = !isSearchIndex || connectorConfig?.search === true
@@ -268,6 +258,7 @@ export function EditConnectorModal({
     : !searchAccessAllowed
       ? 'Choose Member accounts or Source permissions for Search.'
       : null
+  /** Keep existing permission-scoped settings visible after their feature is disabled. */
   const showAccessField =
     memberAccessAvailable || mirroredAccessAvailable || persistedAccess.accessMode !== 'workspace'
 
@@ -601,9 +592,9 @@ function SettingsTab({
             canReenableMemberSync ? (
               <div className='flex flex-col gap-2'>
                 <div>
-                  <Button variant='primary' size='sm' onClick={onApplyAccess} disabled={isSaving}>
+                  <Chip variant='primary' onClick={onApplyAccess} disabled={isSaving}>
                     {isSwitchingAccess ? 'Re-enabling…' : 'Re-enable per-member sync'}
-                  </Button>
+                  </Chip>
                 </div>
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
                   Members and their documents are kept; the next sync restores their access.
@@ -629,9 +620,8 @@ function SettingsTab({
                   </>
                 )}
                 <div className='flex items-center gap-2'>
-                  <Button
+                  <Chip
                     variant='primary'
-                    size='sm'
                     onClick={onApplyAccess}
                     disabled={!accessComplete || isSaving}
                   >
@@ -640,10 +630,10 @@ function SettingsTab({
                       : isContentCredentialChange
                         ? 'Change indexing account'
                         : SWITCH_LABEL[access.accessMode]}
-                  </Button>
-                  <Button variant='default' size='sm' onClick={onResetAccess} disabled={isSaving}>
+                  </Chip>
+                  <Chip onClick={onResetAccess} disabled={isSaving}>
                     Cancel
-                  </Button>
+                  </Chip>
                 </div>
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
                   {isContentCredentialChange
@@ -781,22 +771,20 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                   {doc.sourceUrl && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
-                        <a
+                        <ChipLink
                           href={doc.sourceUrl}
                           target='_blank'
                           rel='noopener noreferrer'
-                          className='flex size-5 shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
-                        >
-                          <SquareArrowUpRight className='size-3' />
-                        </a>
+                          leftIcon={SquareArrowUpRight}
+                          aria-label='Open source document'
+                        />
                       </Tooltip.Trigger>
                       <Tooltip.Content>Open source document</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 </div>
-                <Button
-                  variant='ghost-secondary'
-                  size='sm'
+                <Chip
+                  leftIcon={doc.userExcluded ? RefreshCw : undefined}
                   className='shrink-0'
                   disabled={doc.userExcluded ? isRestoring : isExcluding}
                   onClick={() =>
@@ -805,27 +793,14 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                       : excludeDoc({ knowledgeBaseId, connectorId, documentIds: [doc.id] })
                   }
                 >
-                  {doc.userExcluded ? (
-                    <>
-                      <RefreshCw className='mr-1 size-3' />
-                      Restore
-                    </>
-                  ) : (
-                    'Exclude'
-                  )}
-                </Button>
+                  {doc.userExcluded ? 'Restore' : 'Exclude'}
+                </Chip>
               </div>
             ))}
             {hasMoreVisibleDocuments && (
-              <Button
-                variant='ghost-secondary'
-                size='sm'
-                className='w-full'
-                disabled={isFetchingNextPage}
-                onClick={() => fetchNextPage()}
-              >
+              <Chip fullWidth disabled={isFetchingNextPage} onClick={() => fetchNextPage()}>
                 {isFetchingNextPage ? 'Loading…' : 'Load more documents'}
-              </Button>
+              </Chip>
             )}
           </div>
         )}

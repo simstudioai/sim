@@ -43,6 +43,7 @@ import {
 } from '@/hooks/queries/kb/connectors'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import {
   CONNECTABLE_MEMBERSHIPS,
   describeMembership,
@@ -117,7 +118,7 @@ function SourceRow({
       title={connector.meta.name}
       description={
         setupHref && !unavailable
-          ? 'Set up Slack once for this workspace. Then each person connects their own account.'
+          ? 'Set up your Slack app, then let people connect their accounts.'
           : description
       }
       disabled={unavailable || !personal}
@@ -151,11 +152,10 @@ export function Search() {
   const { integrationAvailability } = usePermissionConfig()
   const { features } = useWorkspaceHostContext()
   /**
-   * Judged by the workspace, as the server judges it: with per-member access
-   * off, every connect is refused, so the rows say so instead of offering
-   * one and the memberships are not fetched.
+   * With per-member access off, every connect is refused, so the rows say so
+   * and the memberships are not fetched.
    */
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
   /** The first connect of a source turns it on for the workspace, which takes an admin. */
   const canCreate = workspacePermissions?.viewer?.isAdmin ?? false
@@ -274,9 +274,6 @@ export function Search() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <div className='flex flex-col gap-2'>
             <h1 className='text-[var(--text-body)] text-base'>Connect sources to Search</h1>
-            <p className='text-[var(--text-muted)] text-small leading-relaxed'>
-              Connect an account, choose what to sync, and search your documents in Sim.
-            </p>
           </div>
           <ChipInput
             icon={SearchIcon}
@@ -298,7 +295,7 @@ export function Search() {
               <IntegrationSection
                 label={CONNECTORS_LABEL}
                 layout='list'
-                description='Connect your own account to search documents you can access. Each teammate connects separately; connecting does not share your private documents with the workspace.'
+                description='Search the documents you can access. Each person connects their own account.'
               >
                 {visibleConnectors.map((connector) => {
                   const connections = (connectionByType.get(connector.type) ?? [undefined]).filter(

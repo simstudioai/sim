@@ -10,7 +10,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }))
 
-import { SearchMcpSetup } from '@/app/workspace/[workspaceId]/search/components/search-mcp-setup'
 import { SearchSetupReturn } from '@/app/workspace/[workspaceId]/search/components/search-setup-return'
 
 let root: Root | undefined
@@ -43,7 +42,6 @@ describe('returning to Search setup', () => {
   it.each([
     ['slack', '/workspace/workspace-1/search?addConnector=slack'],
     ['search', '/workspace/workspace-1/search'],
-    ['mcp', '/workspace/workspace-1/search?connect-mcp=true'],
   ])('returns to the original %s setup', async (source, href) => {
     await render(<SearchSetupReturn workspaceId='workspace-1' />, `?search-setup=${source}`)
     await act(async () => container.querySelector('button')?.click())
@@ -70,12 +68,5 @@ describe('returning to Search setup', () => {
     )
     expect(container.querySelector('button')).toBeNull()
     expect(push).not.toHaveBeenCalled()
-  })
-
-  it('reopens MCP instructions after returning from API-key settings', async () => {
-    await render(<SearchMcpSetup workspaceId='workspace-1' />, '?connect-mcp=true')
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-      'Connect Search via MCP'
-    )
   })
 })

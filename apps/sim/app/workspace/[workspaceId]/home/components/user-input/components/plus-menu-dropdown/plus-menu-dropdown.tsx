@@ -52,7 +52,6 @@ const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-
  * (`ADD_RESOURCE_EXCLUDED_TYPES` in `resource-tabs`).
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
-const NON_ATTACHABLE_RESOURCE_TYPES = new Set<MothershipResourceType>(['browser'])
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 
@@ -121,17 +120,11 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
-    // The `+` browse menu hides non-attachable and mention-only resource types.
-    // `@` mode exposes the full catalog and adds each live Browser/Terminal tab
-    // after its always-present whole-resource row.
     const visibleResources = useMemo(() => {
       if (isMention) {
         return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
       }
-      const attachable = availableResources.filter(
-        ({ type }) => !NON_ATTACHABLE_RESOURCE_TYPES.has(type)
-      )
-      return attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
+      return availableResources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
     }, [availableResources, browserTabs, isMention, terminalTabs])
 
     const treeSections = useResourceTreeSections({

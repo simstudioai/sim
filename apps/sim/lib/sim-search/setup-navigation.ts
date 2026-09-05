@@ -1,6 +1,5 @@
 import {
   type SearchSetupReturnSource,
-  searchMcpSetupParam,
   searchSetupParam,
   searchSetupReturnParam,
 } from '@/app/workspace/[workspaceId]/search/search-params'
@@ -17,8 +16,6 @@ export function searchSetupReturnHref(
   source: SearchSetupReturnSource
 ): string {
   const path = `/workspace/${workspaceId}/search`
-  if (source === 'mcp')
-    return `${path}?${new URLSearchParams({ [searchMcpSetupParam.key]: 'true' })}`
   return source === 'search'
     ? path
     : `${path}?${new URLSearchParams({ [searchSetupParam.key]: source })}`

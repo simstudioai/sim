@@ -86,7 +86,7 @@ export function ManagedSearchSources({
     <IntegrationSection
       label='Workspace sources'
       layout='list'
-      description='For admins setting up search for a team. Connect an administrator or service account to sync content and its permissions. Each person sees only documents they can access in the source.'
+      description='Connect an administrator or service account for your team.'
     >
       {visible.map(({ type, meta }) => {
         const configured =
@@ -100,7 +100,7 @@ export function ManagedSearchSources({
             ? 'Ask a workspace admin to connect this source.'
             : type === 'gitlab'
               ? 'Self-managed GitLab. Requires an instance administrator token with read_api access.'
-              : 'Connect an administrator or service account. Each person keeps their access to the source.'
+              : 'Source permissions determine what each person can search.'
         return (
           <SettingsResourceRow
             key={type}

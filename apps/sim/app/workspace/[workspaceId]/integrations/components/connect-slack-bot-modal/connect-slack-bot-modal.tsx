@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   Button,
   Chip,
@@ -10,7 +10,6 @@ import {
   ChipModalField,
   Code,
   CopyCodeButton,
-  Label,
   SecretInput,
   Wizard,
 } from '@sim/emcn'
@@ -167,7 +166,7 @@ export function ConnectSlackBotModal({
 
   // Shared server-side derivation: uses the app public base (not
   // window.location.origin) so Slack's servers can reach it.
-  const requestUrl = useMemo(() => buildSlackCustomBotRequestUrl(credentialId), [credentialId])
+  const requestUrl = buildSlackCustomBotRequestUrl(credentialId)
 
   const descriptionError = getAgentDescriptionError(appDescription)
   const slashCommandsError = getSlashCommandsError(slashCommands)
@@ -204,7 +203,7 @@ export function ConnectSlackBotModal({
   ])
 
   const capabilityIds = useMemo(() => [...selected], [selected])
-  const setCapabilityIds = useCallback((next: string[]) => setSelected(new Set(next)), [])
+  const setCapabilityIds = (next: string[]) => setSelected(new Set(next))
 
   const isPending = createCredential.isPending || updateCredential.isPending
 
@@ -495,10 +494,7 @@ function StepCreate({ manifestJson }: StepCreateProps) {
           <div className='mt-2 overflow-hidden rounded-md border border-[var(--border-1)]'>
             <div className='flex items-center justify-between border-[var(--border-1)] border-b bg-[var(--surface-4)] px-3 py-1'>
               <span className='font-sans text-[var(--text-tertiary)] text-xs'>manifest.json</span>
-              <CopyCodeButton
-                code={manifestJson}
-                className='text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]'
-              />
+              <CopyCodeButton code={manifestJson} />
             </div>
             <Code.Viewer code={manifestJson} language='json' wrapText className='max-h-[180px]' />
           </div>
@@ -579,10 +575,9 @@ interface SecretFieldProps {
 }
 function SecretField({ label, value, onChange, placeholder }: SecretFieldProps) {
   return (
-    <div className='flex flex-col gap-[9px]'>
-      <Label className='text-[var(--text-muted)] text-small'>{label}</Label>
+    <ChipModalField type='custom' title={label}>
       <SecretInput value={value} onChange={onChange} placeholder={placeholder} />
-    </div>
+    </ChipModalField>
   )
 }
 
@@ -605,9 +600,7 @@ function StepDone({ pending, created, error, onRetry }: StepDoneProps) {
     return (
       <div className='flex flex-col items-center gap-3 py-10 text-center'>
         <p className='max-w-sm text-[var(--text-error)] text-sm leading-relaxed'>{error}</p>
-        <Button variant='default' onClick={onRetry}>
-          Try again
-        </Button>
+        <Chip onClick={onRetry}>Try again</Chip>
       </div>
     )
   }

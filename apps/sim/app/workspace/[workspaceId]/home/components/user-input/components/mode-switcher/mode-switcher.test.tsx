@@ -15,6 +15,8 @@ const mockUrlUpdate = vi.fn<(event: UrlUpdateEvent) => void>()
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
+/** The switcher renders only where Search mode exists, so these tests are that workspace. */
+vi.mock('@/hooks/use-member-access', () => ({ useMemberAccessAvailable: () => true }))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
 

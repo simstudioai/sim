@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { SearchSetupReturn } from '@/app/workspace/[workspaceId]/search/components/search-setup-return'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { CredentialGroupDetail } from '@/ee/credential-groups/components/credential-group-detail'
@@ -40,6 +41,7 @@ function WorkspaceAccounts({ workspaceId }: CredentialGroupsSettingsProps) {
   const error = accounts.error ?? setupError
   return (
     <SettingsPanel>
+      <SearchSetupReturn workspaceId={workspaceId} />
       {error ? (
         <SettingsQueryErrorState
           error={error}

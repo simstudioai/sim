@@ -10,7 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, cn, Paperclip, Plus, Slash, Tooltip, toast } from '@sim/emcn'
+import { Chip, cn, Tooltip, toast } from '@sim/emcn'
+import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
@@ -698,43 +699,34 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         <div className='flex items-center gap-1'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                type='button'
-                variant='ghost'
+              <Chip
+                shape='round'
+                leftIcon={Plus}
                 onClick={handlePlusClick}
                 aria-label='Add resources'
-                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
-              >
-                <Plus className='size-[16px] text-[var(--text-icon)]' />
-              </Button>
+              />
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Add resources</Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                type='button'
-                variant='ghost'
+              <Chip
+                shape='round'
+                leftIcon={Paperclip}
                 onClick={handleFileSelectStable}
                 aria-label='Attach file'
-                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
-              >
-                <Paperclip className='size-[16px] text-[var(--text-icon)]' />
-              </Button>
+              />
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Attach file</Tooltip.Content>
           </Tooltip.Root>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                type='button'
-                variant='ghost'
+              <Chip
+                shape='round'
+                leftIcon={Slash}
                 onClick={handleSlashTriggerClick}
                 aria-label='Skills'
-                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
-              >
-                <Slash className='size-[16px] text-[var(--text-icon)]' />
-              </Button>
+              />
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Skills</Tooltip.Content>
           </Tooltip.Root>

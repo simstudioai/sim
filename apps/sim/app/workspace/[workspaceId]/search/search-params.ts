@@ -1,4 +1,4 @@
-import { parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 /** Null closes setup; an empty value opens the picker, and a source type resumes its form. */
 export const searchSetupParam = {
@@ -15,7 +15,7 @@ export const managedSourceParam = {
 /** A setup detour carries intent, never an arbitrary redirect URL. */
 export const searchSetupReturnParam = {
   key: 'search-setup',
-  parser: parseAsStringLiteral(['google_drive', 'confluence', 'gitlab', 'slack', 'mcp', 'search']),
+  parser: parseAsStringLiteral(['google_drive', 'confluence', 'gitlab', 'slack', 'search']),
 } as const
 
 export type SearchSetupSource = NonNullable<ReturnType<typeof searchSetupParam.parser.parse>>
@@ -34,12 +34,6 @@ export const connectorSearchParam = {
 export const connectorSearchUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
-} as const
-
-/** Keeps the MCP instructions open when returning from API key settings. */
-export const searchMcpSetupParam = {
-  key: 'connect-mcp',
-  parser: parseAsBoolean.withDefault(false),
 } as const
 
 export type SearchSetupReturnSource = NonNullable<

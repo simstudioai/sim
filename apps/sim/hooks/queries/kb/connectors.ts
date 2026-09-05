@@ -267,6 +267,13 @@ async function createConnector({
   return result.data
 }
 
+function invalidateConnectorAccounts(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.workspaces() }),
+    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
+  ])
+}
+
 export function useCreateConnector() {
   const queryClient = useQueryClient()
 
@@ -281,6 +288,7 @@ export function useCreateConnector() {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      void invalidateConnectorAccounts(queryClient)
     },
   })
 }
@@ -415,7 +423,11 @@ export function useWorkspaceMemberConnectors(
 
 /** Mints the viewer's enrollment link for a per-member connector; the caller navigates to it. */
 export function useStartConnectorMemberEnrollment() {
-  return useMutation({ mutationFn: startConnectorMemberEnrollment })
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: startConnectorMemberEnrollment,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: credentialGroupKeys.details() }),
+  })
 }
 
 /**
@@ -441,6 +453,8 @@ export function useUpdateConnectorAccess() {
       /** The base list says whether any connector syncs per member, and the Search tab lists them. */
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
+      void invalidateConnectorAccounts(queryClient)
     },
   })
 }
@@ -491,6 +505,7 @@ export function useDeleteConnector() {
         queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentDetails(knowledgeBaseId) })
       }
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
     },
   })
 }
@@ -642,6 +657,7 @@ function invalidateConnectorDocumentChange(
   })
   queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
   queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId), exact: true })
+  queryClient.invalidateQueries({ queryKey: knowledgeKeys.searches() })
 
   /**
    * One pass over the cache rather than one per id — `documentIds` reaches
@@ -725,7 +741,7 @@ export function useConnectSimSearchConnector() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.workspaces() })
+      void invalidateConnectorAccounts(queryClient)
     },
   })
 }

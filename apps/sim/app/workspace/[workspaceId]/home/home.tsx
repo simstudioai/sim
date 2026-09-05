@@ -68,6 +68,7 @@ import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -184,15 +185,19 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [setSearchQueryParam, setSearchFilters]
   )
+  const memberAccessAvailable = useMemberAccessAvailable()
   const [composerMode, setComposerMode] = useMothershipMode()
   /**
    * A link that carries a query but no mode opens in Search with the query in
    * the box; the composer follows the live query the same way (below), so the
-   * box and the results never show two different queries.
+   * box and the results never show two different queries. Where per-member
+   * access is off there is no Search to open into, so the query stays a plain
+   * Build draft rather than a mode write `useMothershipMode` would drop.
    */
   useEffect(() => {
+    if (!memberAccessAvailable) return
     if (searchQuery.trim() && composerMode === 'build') void setComposerMode('search')
-  }, [searchQuery, composerMode, setComposerMode])
+  }, [memberAccessAvailable, searchQuery, composerMode, setComposerMode])
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
@@ -490,8 +495,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
        * Search lists documents, not a turn of the agent, and only a query can
        * be searched: attachments alone have nothing to search for. Assistant
        * makes the query a turn of the agent grounded in the sources.
+       *
+       * The override skips `useMothershipMode`, so the gate is applied again
+       * where the mode is consumed: both modes answer from the workspace's
+       * indexed sources, and neither is offered where those do not exist.
        */
-      const mode = modeOverride ?? composerMode
+      const requestedMode = modeOverride ?? composerMode
+      const mode = requestedMode !== 'build' && !memberAccessAvailable ? 'build' : requestedMode
       const answering = mode === 'assistant'
       if (mode === 'search') {
         /** A search sends nothing, so an edit in progress is released rather than left waiting. */
@@ -534,6 +544,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       workspaceId,
       chatId,
       composerMode,
+      memberAccessAvailable,
       editingQueuedId,
       cancelQueueEdit,
       prepareResourceViewForAgentTurn,
@@ -802,7 +813,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                     defaultValue={initialPrompt || searchQuery}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
-                    canSearch
+                    canSearch={memberAccessAvailable}
                     clearOnSubmit={composerMode !== 'search'}
                     onCleared={clearSearch}
                     isSending={isSending}
@@ -834,7 +845,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
-            canSearch
+            canSearch={memberAccessAvailable}
             clearOnSubmit={composerMode !== 'search'}
             onCleared={clearSearch}
             onStopGeneration={handleStopGeneration}

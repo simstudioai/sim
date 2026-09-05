@@ -29,6 +29,7 @@ const {
 
 vi.mock('@sim/emcn/icons', () => ({
   ChevronDown: icon('chevron-down'),
+  ChevronUp: icon('chevron-up'),
   CircleAlert: icon('circle-alert'),
   CircleCheck: icon('circle-check'),
   CircleX: icon('circle-x'),
@@ -43,12 +44,17 @@ vi.mock('@sim/emcn/icons', () => ({
 
 vi.mock('@sim/emcn', () => ({
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Button: ({
+  Chip: ({
     children,
     variant: _variant,
-    size: _size,
+    leftIcon: _leftIcon,
+    fullWidth: _fullWidth,
     ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => (
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: string
+    leftIcon?: unknown
+    fullWidth?: boolean
+  }) => (
     <button type='button' {...props}>
       {children}
     </button>

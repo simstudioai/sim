@@ -15,9 +15,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  Search,
+  OverflowText,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import {
   getCanonicalScopesForProvider,
@@ -56,6 +56,7 @@ import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
@@ -140,7 +141,7 @@ export function AddConnectorModal({
   )
   const { ownerBilling, features } = useWorkspaceHostContext()
   const { canAdmin } = useUserPermissionsContext()
-  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const memberAccessAvailable = useMemberAccessAvailable()
   const mirroredAccessAvailable = features?.knowledgeSourceMirroredAccess === true
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
@@ -149,10 +150,7 @@ export function AddConnectorModal({
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
-  const hiddenCapFieldIds = useMemo(
-    () => derivedAclCapFieldIds(connectorConfig, access.accessMode),
-    [connectorConfig, access.accessMode]
-  )
+  const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
   /** True when the connector declares its key optional (public sources need none). */
   const isApiKeyOptional =
     connectorConfig?.auth.mode === 'apiKey' && connectorConfig.auth.optional === true
@@ -567,9 +565,10 @@ export function AddConnectorModal({
                                 })
                               }}
                             />
-                            <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
-                              {tagDef.displayName}
-                            </span>
+                            <OverflowText
+                              label={tagDef.displayName}
+                              className='flex-1 text-[var(--text-body)]'
+                            />
                             <span className='shrink-0 text-[var(--text-muted)] text-xs'>
                               ({tagDef.fieldType})
                             </span>

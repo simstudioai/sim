@@ -21,6 +21,11 @@ interface CredentialGroupInviteModalProps {
   groupId: string
 }
 
+function validateEmail(email: string): string | null {
+  const result = quickValidateEmail(email)
+  return result.isValid ? null : (result.reason ?? 'Invalid email')
+}
+
 export function CredentialGroupInviteModal({
   open,
   onOpenChange,
@@ -31,11 +36,6 @@ export function CredentialGroupInviteModal({
   const [emails, setEmails] = useState<string[]>([])
   const [deliveryError, setDeliveryError] = useState<string | null>(null)
   const canSubmit = emails.length > 0 && !invite.isPending
-
-  const validateEmail = useCallback((email: string): string | null => {
-    const result = quickValidateEmail(email)
-    return result.isValid ? null : (result.reason ?? 'Invalid email')
-  }, [])
 
   const handleEmailsChange = useCallback((next: string[]) => {
     setEmails(next)

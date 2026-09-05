@@ -69,6 +69,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
+  useOptionalWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({ canAdmin: mocks.canAdmin }),

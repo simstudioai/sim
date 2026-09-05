@@ -75,23 +75,30 @@ export function prefersInPlaceNavigation(): boolean {
  * reads availability synchronously while the shell only answers over async
  * IPC. An unread value uses the shell default (enabled).
  *
- * The cache is authoritative at call time, which is what tool execution and
- * capability reporting need. React trees that read it in a memo settle on the
- * next mount — flipping a switch happens on a settings route, so the chat view
- * has unmounted by then anyway.
+ * Synchronous callers read the cache at call time. React consumers subscribe
+ * to the same snapshot so asynchronous initialization and settings changes
+ * update mounted UI without keeping a second copy of the preferences.
  */
 let devicePreferences: DesktopPreferences | null = null
 let devicePreferencesLoad: Promise<void> | null = null
+const devicePreferencesListeners = new Set<() => void>()
 
 function loadDevicePreferences(): Promise<void> {
   devicePreferencesLoad ??=
     getDesktopBridge()
       ?.settings.getPreferences()
-      .then((preferences) => {
-        devicePreferences = preferences
-      })
+      .then(setDesktopPreferencesSnapshot)
       .catch(() => {}) ?? Promise.resolve()
   return devicePreferencesLoad
+}
+
+/** Subscribes React consumers to the shared desktop-preference snapshot. */
+export function subscribeDesktopPreferences(listener: () => void): () => void {
+  devicePreferencesListeners.add(listener)
+  void loadDevicePreferences()
+  return () => {
+    devicePreferencesListeners.delete(listener)
+  }
 }
 
 function isSurfaceSwitchedOn(key: 'browserEnabled' | 'terminalEnabled'): boolean {
@@ -106,6 +113,7 @@ function isSurfaceSwitchedOn(key: 'browserEnabled' | 'terminalEnabled'): boolean
 export function setDesktopPreferencesSnapshot(preferences: DesktopPreferences): void {
   devicePreferences = preferences
   devicePreferencesLoad = Promise.resolve()
+  for (const listener of devicePreferencesListeners) listener()
 }
 
 /** True when the agent browser is installed and switched on for this device. */
