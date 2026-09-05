@@ -120,12 +120,11 @@ export function parseOracleFusionCollection<T>(
   }
 }
 
-function getOnlySelfLink(value: unknown): URL {
-  const resource = asObject(value, 'Oracle resource')
-  if (!Array.isArray(resource.links)) {
+function readSelfLink(links: unknown): { href: string; url: URL } {
+  if (!Array.isArray(links)) {
     throw new Error('Oracle response must include exactly one self link')
   }
-  const selfLinks = resource.links.filter((link) => {
+  const selfLinks = links.filter((link) => {
     if (!link || typeof link !== 'object' || Array.isArray(link)) return false
     return (link as Record<string, unknown>).rel === 'self'
   })
@@ -143,10 +142,26 @@ function getOnlySelfLink(value: unknown): URL {
     throw new Error('Oracle self link is malformed')
   }
   try {
-    return new URL(href)
+    return { href, url: new URL(href) }
   } catch {
     throw new Error('Oracle self link is malformed')
   }
+}
+
+function getOnlySelfLink(value: unknown): URL {
+  const resource = asObject(value, 'Oracle resource')
+  const context = Object.hasOwn(resource, '@context')
+    ? asObject(resource['@context'], 'Oracle resource context')
+    : undefined
+  const legacyLink = Object.hasOwn(resource, 'links') ? readSelfLink(resource.links) : undefined
+  const contextLink =
+    context && Object.hasOwn(context, 'links') ? readSelfLink(context.links) : undefined
+  if (legacyLink && contextLink && legacyLink.href !== contextLink.href) {
+    throw new Error('Oracle response self-link representations conflict')
+  }
+  const link = contextLink ?? legacyLink
+  if (!link) throw new Error('Oracle response must include exactly one self link')
+  return link.url
 }
 
 function validateSelfLinkBase(link: URL, instanceUrl: string): void {

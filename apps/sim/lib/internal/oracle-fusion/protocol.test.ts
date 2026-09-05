@@ -13,10 +13,6 @@ const ORIGIN = 'https://vision.fa.us2.oraclecloud.com'
 const COLLECTION = '/hcmRestApi/resources/11.13.18.05/workers'
 const COLLECTION_ADDRESS = { family: 'hcm', relativePath: 'workers' } as const
 
-function resource(href: unknown, links: unknown[] = []): Record<string, unknown> {
-  return { links: [{ rel: 'self', href }, ...links] }
-}
-
 describe('parseOracleFusionCollection', () => {
   it('projects a valid page and calculates the next offset', () => {
     expect(
@@ -132,7 +128,17 @@ describe('parseOracleFusionCollection', () => {
   })
 })
 
-describe('Oracle self links', () => {
+describe.each(['legacy', 'context', 'both'] as const)('Oracle %s self links', (representation) => {
+  function resource(href: unknown, otherLinks: unknown[] = []): Record<string, unknown> {
+    const links = [{ rel: 'self', href }, ...otherLinks]
+    return {
+      ...(representation !== 'context' ? { links } : {}),
+      ...(representation !== 'legacy'
+        ? { '@context': { key: 'not-the-resource-key', links } }
+        : {}),
+    }
+  }
+
   it('accepts exactly one same-origin self link for the expected path', () => {
     expect(() =>
       validateOracleFusionSelfLink(resource(`${ORIGIN}${COLLECTION}/abc`), ORIGIN, {
@@ -140,6 +146,42 @@ describe('Oracle self links', () => {
         relativePath: 'workers/abc',
       })
     ).not.toThrow()
+  })
+
+  it('extracts item keys from a collection without trusting context keys or collection links', () => {
+    const address = { family: 'fscm', relativePath: 'invoices' } as const
+    const collectionPath = '/fscmRestApi/resources/11.13.18.05/invoices'
+    const key = 'invoice:123,installment=2'
+    const encodedKey = encodeOracleFusionPathSegment(key)
+    const page = parseOracleFusionCollection(
+      {
+        items: [resource(`${ORIGIN}${collectionPath}/${encodedKey}`)],
+        count: 1,
+        limit: 25,
+        offset: 0,
+        hasMore: false,
+        links: [{ rel: 'self', href: `${ORIGIN}${collectionPath}` }],
+      },
+      (item) => {
+        validateOracleFusionSelfLink(item, ORIGIN, {
+          ...address,
+          relativePath: `invoices/${encodedKey}`,
+        })
+        return extractOracleFusionOpaqueKey(item, ORIGIN, address)
+      }
+    )
+
+    expect(page.items).toEqual([key])
+  })
+
+  it('continues ignoring unrelated link relations and non-link entries', () => {
+    const value = resource(`${ORIGIN}${COLLECTION}/abc`, [
+      null,
+      'not a link',
+      [],
+      { rel: 'canonical', href: 'unrelated' },
+    ])
+    expect(extractOracleFusionOpaqueKey(value, ORIGIN, COLLECTION_ADDRESS)).toBe('abc')
   })
 
   it.each([
@@ -153,6 +195,11 @@ describe('Oracle self links', () => {
     [resource('not a URL'), 'malformed'],
     [resource(`https://evil.example${COLLECTION}/abc`), 'credential-bound origin'],
     [resource(`${ORIGIN}${COLLECTION}/abc?secret=value`), 'credential-bound origin'],
+    [resource(`${ORIGIN}${COLLECTION}/abc#fragment`), 'credential-bound origin'],
+    [
+      resource(`${ORIGIN.replace('https://', 'https://user:password@')}${COLLECTION}/abc`),
+      'credential-bound origin',
+    ],
     [resource(`${ORIGIN}${COLLECTION}/other`), 'requested resource path'],
   ])('rejects missing, duplicate, malformed, or unbound self links %#', (value, message) => {
     expect(() =>
@@ -256,5 +303,91 @@ describe('Oracle self links', () => {
     expect(() => extractOracleFusionOpaqueKey(resource(href), ORIGIN, COLLECTION_ADDRESS)).toThrow(
       message
     )
+  })
+})
+
+describe('Oracle self-link representation compatibility', () => {
+  const href = `${ORIGIN}${COLLECTION}/abc`
+  const links = [{ rel: 'self', href }]
+  const detailAddress = { family: 'hcm', relativePath: 'workers/abc' } as const
+
+  it('accepts legacy links alongside context metadata without a links property', () => {
+    const value = { links, '@context': { key: 'not-the-resource-key', headers: { ETag: 'etag' } } }
+    expect(extractOracleFusionOpaqueKey(value, ORIGIN, COLLECTION_ADDRESS)).toBe('abc')
+    expect(() => validateOracleFusionSelfLink(value, ORIGIN, detailAddress)).not.toThrow()
+  })
+
+  it.each([undefined, null, [], 'context', 1].map((context) => ({ context })))(
+    'rejects malformed context %# despite valid legacy links',
+    ({ context }) => {
+      const value = { links, '@context': context }
+      expect(() => extractOracleFusionOpaqueKey(value, ORIGIN, COLLECTION_ADDRESS)).toThrow(
+        'Oracle resource context must be an object'
+      )
+      expect(() => validateOracleFusionSelfLink(value, ORIGIN, detailAddress)).toThrow(
+        'Oracle resource context must be an object'
+      )
+    }
+  )
+
+  it.each([{}, { '@context': {} }, { '@context': { key: 'abc' } }, { '@context': { links: [] } }])(
+    'rejects missing self links without deriving a key from context %#',
+    (value) => {
+      expect(() => extractOracleFusionOpaqueKey(value, ORIGIN, COLLECTION_ADDRESS)).toThrow(
+        'exactly one'
+      )
+      expect(() => validateOracleFusionSelfLink(value, ORIGIN, detailAddress)).toThrow(
+        'exactly one'
+      )
+    }
+  )
+
+  describe.each(['legacy', 'context'] as const)('invalid %s links', (representation) => {
+    it.each([
+      { links: undefined, error: 'exactly one' },
+      { links: null, error: 'exactly one' },
+      { links: {}, error: 'exactly one' },
+      { links: [], error: 'exactly one' },
+      { links: [...links, ...links], error: 'exactly one' },
+      { links: [{ rel: 'self' }], error: 'malformed' },
+      { links: [{ rel: 'self', href: 'not a URL' }], error: 'malformed' },
+      {
+        links: [{ rel: 'self', href: `${ORIGIN}${COLLECTION}/parent/../abc` }],
+        error: 'malformed',
+      },
+    ])(
+      'does not fall back to the other valid representation %#',
+      ({ links: invalidLinks, error }) => {
+        const value = {
+          links: representation === 'legacy' ? invalidLinks : links,
+          '@context': { links: representation === 'context' ? invalidLinks : links },
+        }
+        expect(() => extractOracleFusionOpaqueKey(value, ORIGIN, COLLECTION_ADDRESS)).toThrow(error)
+        expect(() => validateOracleFusionSelfLink(value, ORIGIN, detailAddress)).toThrow(error)
+      }
+    )
+  })
+
+  it.each([
+    `${ORIGIN}${COLLECTION}/other`,
+    `https://other.fa.us2.oraclecloud.com${COLLECTION}/abc`,
+    `${ORIGIN.toUpperCase()}${COLLECTION}/abc`,
+    `${ORIGIN}${COLLECTION}/%61bc`,
+  ])('rejects conflicting href strings without normalizing or reflecting them %#', (otherHref) => {
+    for (const [legacyHref, contextHref] of [
+      [href, otherHref],
+      [otherHref, href],
+    ]) {
+      const value = {
+        links: [{ rel: 'self', href: legacyHref }],
+        '@context': { links: [{ rel: 'self', href: contextHref }] },
+      }
+      expect(() => extractOracleFusionOpaqueKey(value, ORIGIN, COLLECTION_ADDRESS)).toThrow(
+        new Error('Oracle response self-link representations conflict')
+      )
+      expect(() => validateOracleFusionSelfLink(value, ORIGIN, detailAddress)).toThrow(
+        new Error('Oracle response self-link representations conflict')
+      )
+    }
   })
 })
