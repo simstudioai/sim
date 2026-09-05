@@ -207,14 +207,10 @@ async function fetchChatDeploymentStatus(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<ChatDeploymentStatus> {
-  const data = await requestJson(getChatDeploymentStatusContract, {
+  return requestJson(getChatDeploymentStatusContract, {
     params: { id: workflowId },
     signal,
   })
-  return {
-    isDeployed: data.isDeployed ?? false,
-    deployment: data.deployment ?? null,
-  }
 }
 
 /**
