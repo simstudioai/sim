@@ -144,7 +144,6 @@ export const FindBar = memo(function FindBar({
           className={replace ? 'min-w-0 flex-1' : 'w-[200px]'}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          /** Whitespace may not match, but the user must still be able to clear it. */
           endAdornment={
             query.length > 0 ? (
               <Button
