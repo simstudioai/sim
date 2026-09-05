@@ -708,12 +708,34 @@ describe('credential-bound OCI client', () => {
     expect(JSON.stringify(failure)).not.toContain('authorization')
   })
 
-  it('returns only selected safe headers and bounded Uint8Array bodies', async () => {
+  it.each([true, false])('keeps additional response headers opt-in: %s', async (requested) => {
+    const additionalHeaders = {
+      'opc-next-cursor': 'opaque/next+cursor==%2F',
+      'content-length': '3',
+      'last-modified': 'Sat, 05 Sep 2026 12:00:00 GMT',
+      'content-md5': 'content-md5==',
+      'opc-content-md5': 'opc-content-md5==',
+      'opc-multipart-md5': 'multipart-md5==',
+      'content-encoding': 'identity',
+      'content-language': 'en',
+      'content-disposition': 'attachment; filename="report.csv"',
+      'cache-control': 'private, max-age=60',
+      'storage-tier': 'Archive',
+      'archival-state': 'Restored',
+      'time-of-archival': '2026-09-06T12:00:00Z',
+      'version-id': 'opaque-version-id',
+      'is-delete-marker': 'false',
+    }
+    const defaultHeaders = {
+      'content-type': 'application/octet-stream',
+      etag: 'etag-1',
+      'opc-request-id': 'request-1',
+    }
     mocks.secureFetch.mockResolvedValueOnce(
       secureResponse({
         status: 200,
         body: new Uint8Array([1, 2, 3]),
-        headers: { etag: 'etag-1', 'x-provider-secret': 'hidden' },
+        headers: { ...additionalHeaders, ...defaultHeaders, 'x-provider-secret': 'hidden' },
       })
     )
     const { client, endpoint } = await createPreparedClient()
@@ -721,13 +743,198 @@ describe('credential-bound OCI client', () => {
       endpoint,
       method: 'GET',
       encodedPath: '/v1/test',
-      responseHeaders: ['etag'],
+      responseHeaders: requested
+        ? ['ETAG', ...Object.keys(additionalHeaders).map((name) => name.toUpperCase())]
+        : undefined,
       timeoutMs: 10_000,
       maxResponseBytes: 3,
     })
     expect([...result.body]).toEqual([1, 2, 3])
-    expect(result.headers.etag).toBe('etag-1')
-    expect(result.headers).not.toHaveProperty('x-provider-secret')
+    expect(result.headers).toEqual({
+      ...defaultHeaders,
+      ...(requested ? additionalHeaders : {}),
+    })
+    expect(Object.isFrozen(result.headers)).toBe(true)
+  })
+
+  it('retains an opaque next cursor when the message batch is empty', async () => {
+    const cursor = 'opaque/next+cursor==%2F'
+    mocks.secureFetch.mockResolvedValueOnce(
+      secureResponse({
+        body: '[]',
+        headers: { 'opc-next-cursor': cursor, 'opc-next-page': 'not-a-message-cursor' },
+      })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    const result = await client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/messages',
+      responseHeaders: ['opc-next-cursor'],
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    expect(new TextDecoder().decode(result.body)).toBe('[]')
+    expect(result.headers).toEqual({ 'opc-next-cursor': cursor })
+  })
+
+  it('projects HEAD metadata without applying the body limit to the object size', async () => {
+    mocks.secureFetch.mockResolvedValueOnce(
+      secureResponse({
+        headers: { 'content-length': '1099511627776', 'opc-meta-source': 'head metadata' },
+      })
+    )
+    const { client, endpoint } = await createPreparedClient()
+    const result = await client.request({
+      endpoint,
+      method: 'HEAD',
+      encodedPath: '/v1/object',
+      responseHeaders: ['content-length', 'opc-meta-*'],
+      timeoutMs: 10_000,
+      maxResponseBytes: 1,
+    })
+    expect(result.body.byteLength).toBe(0)
+    expect(result.headers).toEqual({
+      'content-length': '1099511627776',
+      'opc-meta-source': 'head metadata',
+    })
+  })
+
+  it.each([true, false])(
+    'projects only explicitly requested object metadata: %s',
+    async (requested) => {
+      mocks.secureFetch.mockResolvedValueOnce(
+        secureResponse({
+          headers: {
+            'OPC-Meta-Source': 'Mixed CASE / café',
+            'opc-meta-empty': '',
+            'opc-meta-': 'missing suffix',
+            'x-opc-meta-secret': 'excluded',
+            'set-cookie': 'excluded=secret',
+            authorization: 'Bearer excluded-secret',
+          },
+        })
+      )
+      const { client, endpoint } = await createPreparedClient()
+      const result = await client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/object',
+        responseHeaders: requested ? ['OPC-META-*', 'opc-meta-*'] : [],
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+      expect(result.headers).toEqual(
+        requested
+          ? {
+              'opc-meta-source': 'Mixed CASE / café',
+              'opc-meta-empty': '',
+            }
+          : {}
+      )
+      expect(Object.isFrozen(result.headers)).toBe(true)
+    }
+  )
+
+  it.each([4096, 4097])('bounds projected object metadata entries: %i', async (count) => {
+    const headers: Record<string, string> = {}
+    for (let index = 0; index < count; index += 1) {
+      headers[`opc-meta-${index}`] = ''
+    }
+    mocks.secureFetch.mockResolvedValueOnce(secureResponse({ headers }))
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/object',
+      responseHeaders: ['opc-meta-*'],
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    if (count === 4096) {
+      const result = await pending
+      expect(result.headers).toEqual(headers)
+      expect(Object.isFrozen(result.headers)).toBe(true)
+    } else {
+      await expect(pending).rejects.toMatchObject({
+        code: 'response_too_large',
+        message: 'OCI response exceeded the configured limit',
+      })
+    }
+    expect(mocks.secureFetch).toHaveBeenCalledOnce()
+  })
+
+  it.each([65536, 65537])('bounds metadata names and values by UTF-8 bytes: %i', async (bytes) => {
+    const name = 'opc-meta-test'
+    const valueBytes = bytes - Buffer.byteLength(name, 'utf8')
+    const value = 'é'.repeat(Math.floor(valueBytes / 2)) + 'x'.repeat(valueBytes % 2)
+    expect(Buffer.byteLength(name + value, 'utf8')).toBe(bytes)
+    mocks.secureFetch.mockResolvedValueOnce(secureResponse({ headers: { [name]: value } }))
+    const { client, endpoint } = await createPreparedClient()
+    const pending = client.request({
+      endpoint,
+      method: 'GET',
+      encodedPath: '/v1/object',
+      responseHeaders: ['opc-meta-*'],
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    })
+    if (bytes === 65536) {
+      expect((await pending).headers).toEqual({ [name]: value })
+    } else {
+      await expect(pending).rejects.toMatchObject({
+        code: 'response_too_large',
+        message: 'OCI response exceeded the configured limit',
+      })
+    }
+  })
+
+  it('applies the metadata byte limit across entries only when requested', async () => {
+    const headers = {
+      'opc-meta-first': 'a'.repeat(40_000),
+      'opc-meta-second': 'b'.repeat(40_000),
+    }
+    mocks.secureFetch.mockResolvedValue(secureResponse({ headers }))
+    const { client, endpoint } = await createPreparedClient()
+    const request = {
+      endpoint,
+      method: 'GET' as const,
+      encodedPath: '/v1/object',
+      timeoutMs: 10_000,
+      maxResponseBytes: 1024,
+    }
+    expect((await client.request(request)).headers).toEqual({})
+    mocks.secureFetch.mockResolvedValueOnce(secureResponse({ headers }))
+    await expect(
+      client.request({ ...request, responseHeaders: ['opc-meta-*'] })
+    ).rejects.toMatchObject({
+      code: 'response_too_large',
+      message: 'OCI response exceeded the configured limit',
+    })
+  })
+
+  it.each([
+    '*',
+    'opc-*',
+    'opc-meta-*suffix',
+    'opc-meta-',
+    'opc-meta-name',
+    'set-cookie',
+    'x-provider-secret',
+  ])('rejects unsupported header selectors before DNS or transport: %s', async (name) => {
+    const { client, endpoint } = await createPreparedClient()
+    await expect(
+      client.request({
+        endpoint,
+        method: 'GET',
+        encodedPath: '/v1/object',
+        responseHeaders: [name],
+        timeoutMs: 10_000,
+        maxResponseBytes: 1024,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_request' })
+    expect(mocks.validateUrl).not.toHaveBeenCalled()
+    expect(mocks.secureFetch).not.toHaveBeenCalled()
   })
 
   it('cancels and classifies a success body beyond the operation limit', async () => {
