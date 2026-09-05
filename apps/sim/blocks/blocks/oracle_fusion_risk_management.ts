@@ -1,7 +1,7 @@
 import { NetSuiteIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 import {
   RISK_OPERATIONS,
@@ -454,6 +454,7 @@ export const OracleFusionRiskManagementBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/oracle_fusion_risk_management',
   category: 'tools',
   integrationType: IntegrationType.Security,
+  authMode: AuthMode.ApiKey,
   bgColor: '#FFFFFF',
   icon: NetSuiteIcon,
   canvasPresentation: {

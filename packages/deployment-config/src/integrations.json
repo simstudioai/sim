@@ -16482,8 +16482,7 @@
       "operationCount": 115,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "oauth",
-      "oauthServiceId": "oracle_fusion_risk_management",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
       "tags": ["automation", "data-analytics"]

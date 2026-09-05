@@ -8,6 +8,7 @@ import {
   OracleFusionRiskManagementBlock,
   OracleFusionRiskManagementBlockMeta,
 } from '@/blocks/blocks/oracle_fusion_risk_management'
+import { AuthMode } from '@/blocks/types'
 import * as riskTools from '@/tools/oracle_fusion_risk_management'
 
 const block = OracleFusionRiskManagementBlock
@@ -60,6 +61,11 @@ describe('Risk Management block contracts', () => {
   })
 
   it('binds selectors to the shared service and credential context', () => {
+    expect(block.authMode).toBe(AuthMode.ApiKey)
+    expect(block.subBlocks.find((field) => field.type === 'oauth-input')).toMatchObject({
+      credentialKind: 'service-account',
+      serviceId: 'oracle_fusion_risk_management',
+    })
     for (const field of block.subBlocks) {
       if (!field.selectorKey) continue
       const manifest = selectorManifest[field.selectorKey]
