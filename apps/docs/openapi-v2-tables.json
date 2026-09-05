@@ -6098,7 +6098,7 @@
       },
       "TablePredicate": {
         "title": "Table predicate",
-        "description": "Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls and absent cells, multi-select included. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.",
+        "description": "Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.",
         "type": "object",
         "oneOf": [
           {
@@ -6512,7 +6512,7 @@
       },
       "TablePredicateInput": {
         "title": "Table predicate input",
-        "description": "One condition or a recursive `all`/`any` group, normalized to a grouped predicate. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls and absent cells, multi-select included. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.",
+        "description": "One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.",
         "oneOf": [
           {
             "type": "object",

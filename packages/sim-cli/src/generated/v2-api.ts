@@ -9814,7 +9814,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.',
+          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from an all-scope cancellation.' },
     },
@@ -10505,7 +10505,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.',
+          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
       limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
@@ -11049,7 +11049,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.',
+          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
       rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
@@ -13599,7 +13599,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
       limit: {
@@ -13627,7 +13627,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
     },
   },
@@ -14102,7 +14102,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.',
+          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
     },
@@ -14562,7 +14562,7 @@ export const V2_OPERATIONS = {
         kind: 'unknown',
         required: true,
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. Negating operators include null or absent cells. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.',
+          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       data: {
         kind: 'object',

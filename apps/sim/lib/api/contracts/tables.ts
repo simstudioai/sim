@@ -666,11 +666,13 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  * false and the negation true — the same include-nulls behaviour as every other
  * negation. Pinned by `__tests__/sql.test.ts`.
  */
-const PREDICATE_LIMITS_DESCRIPTION = `At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`
+const PREDICATE_LIMITS_DESCRIPTION = `Limits: ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels, and ${MAX_PREDICATE_NODES} nodes.`
 const PREDICATE_NEGATION_DESCRIPTION =
-  'The negating operators include nulls and absent cells, multi-select included. Combine them with `isNotNull`, or `isNotEmpty` for multi-select, to exclude nulls. Operator-specific operands and wildcard rules are documented on `op`.'
-const PREDICATE_TREE_DESCRIPTION = `Recursive non-empty \`all\`/\`any\` groups containing groups or conditions; the root cannot be a condition. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION}`
-const PREDICATE_INPUT_DESCRIPTION = `One condition or a recursive \`all\`/\`any\` group, normalized to a grouped predicate. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION}`
+  'The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them.'
+const PREDICATE_OPERATOR_SUMMARY =
+  'Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.'
+const PREDICATE_TREE_DESCRIPTION = `Recursive non-empty \`all\`/\`any\` groups containing groups or conditions; the root cannot be a condition. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION} ${PREDICATE_OPERATOR_SUMMARY}`
+const PREDICATE_INPUT_DESCRIPTION = `One condition or a recursive \`all\`/\`any\` group, normalized to a grouped predicate. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION} ${PREDICATE_OPERATOR_SUMMARY}`
 
 /**
  * The canonical grouped predicate schema for dual-grammar boundaries. Keeping
