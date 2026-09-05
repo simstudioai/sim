@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "integrations": [
     {
       "type": "onepassword",
@@ -16151,6 +16151,133 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_epm_tax_reporting",
+      "slug": "oracle-epm-tax-reporting",
+      "name": "Oracle EPM Tax Reporting",
+      "description": "Run tax rules, manage metadata and supplemental data, inspect jobs, and generate reports",
+      "longDescription": "Connect a reusable Oracle EPM service-account credential using your HTTPS environment URL and Oracle username/password. Use an account permitted to authenticate with Basic authentication; MFA-only interactive login is not supported. Most administrative operations and discovery require Service Administrator; rule launch and supplemental features have their own role prerequisites. This integration provides 27 Tax Reporting operations for deployed rules, saved copy/clear profiles, metadata ZIP jobs, bounded core data slices, supplemental collections and templates, reports, and repository files. Scenarios, years, periods, entities, jurisdictions, countries, cubes, profile names, and runtime prompts are tenant-specific: use exact names or workflow references, not assumed defaults. Job definitions are distinct from submitted job IDs. Choose standalone-launchable deployed rules; many seeded Tax Automation rules are internal and cannot run independently. General bulk data movement belongs in Data Integration. Requests submit mutations once; optional waiting is bounded to 120 seconds, and local cancellation never cancels the Oracle job. Uploads are limited to 10 MiB and stored downloads to 100 MiB, subject to platform limits. Report generation uses its returned status-route family; Oracle documents the standalone /arm report-status endpoint separately, with inconsistent examples that require tenant verification. Documentation and tests use official API contracts; no live tenant validation is implied.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_epm_tax_reporting",
+      "operations": [
+        {
+          "name": "Get API Version",
+          "description": "Inspect the supported v3 Tax Reporting API version."
+        },
+        {
+          "name": "List Applications",
+          "description": "List applications assigned to the service account (at most 1,000). Requires Service Administrator."
+        },
+        {
+          "name": "List Job Definitions",
+          "description": "List deployed job definitions (not submitted job instances), optionally filtering supported Tax Reporting job types. Requires Service Administrator."
+        },
+        {
+          "name": "Get Member",
+          "description": "Look up a dimension member by its exact name. Requires Service Administrator."
+        },
+        {
+          "name": "Add Member",
+          "description": "Add a member under a dynamic-child-enabled parent after a cube refresh. Requires Service Administrator."
+        },
+        {
+          "name": "Export Data Slice",
+          "description": "Export a bounded core data grid for cells the account can access. Does not export cell notes or supporting details. Use Data Integration for general bulk movement."
+        },
+        {
+          "name": "Import Data Slice",
+          "description": "Import a bounded core JSON data grid and inspect rejected cells. Does not import cell notes or supporting details. Use Data Integration for general bulk movement."
+        },
+        {
+          "name": "Clear Data Slice",
+          "description": "Clear the explicit data region. Numeric data is cleared by default; planning details are retained unless requested. Requires Service Administrator."
+        },
+        {
+          "name": "Copy Data",
+          "description": "Run an existing Tax Reporting copy data profile. Requires Service Administrator."
+        },
+        {
+          "name": "Clear Data",
+          "description": "Run an existing Tax Reporting clear data profile. Its configured POV is deleted. Requires Service Administrator."
+        },
+        {
+          "name": "Run Rule",
+          "description": "Launch a standalone-launchable deployed business rule (many seeded Tax Automation rules are internal and cannot be launched independently), with exact runtime prompts. Requires Service Administrator or Power User with Rules launch permission."
+        },
+        {
+          "name": "Run Ruleset",
+          "description": "Launch a deployed ruleset with exact runtime prompts. Preserve fully qualified prompt names. Requires Service Administrator or Power User with Rules launch permission."
+        },
+        {
+          "name": "Execute Job",
+          "description": "Execute a discovered RULES, RULESET, EXPORT_METADATA, or IMPORT_METADATA definition only. Requires Service Administrator. No arbitrary EPM jobs or general bulk data movement."
+        },
+        {
+          "name": "Get Job Status",
+          "description": "Inspect a submitted planning or supplemental job using its correct route family. Optionally wait without resubmitting."
+        },
+        {
+          "name": "Get Job Details",
+          "description": "Retrieve one page of metadata import/export job details, including child-job-detail links. Requires Service Administrator."
+        },
+        {
+          "name": "Get Child Job Details",
+          "description": "Retrieve one page of child-job diagnostic messages. Requires Service Administrator."
+        },
+        {
+          "name": "Export Metadata",
+          "description": "Run a saved metadata export job to create a repository ZIP. Download it separately after successful completion. Requires Service Administrator."
+        },
+        {
+          "name": "Import Metadata",
+          "description": "Run a saved metadata import job using an already uploaded ZIP, optionally refreshing the cube. Requires Service Administrator."
+        },
+        {
+          "name": "Import Supplemental Collection Data",
+          "description": "Import an uploaded collection CSV for a year, period, and configured frequency dimensions. Requires Service Administrator and Supplemental Data."
+        },
+        {
+          "name": "Deploy Form Templates",
+          "description": "Deploy Supplemental Data templates for a collection interval. Empty templates deploys all; resetWorkflows resets existing workflows. Requires Service Administrator or Power User."
+        },
+        {
+          "name": "Import Supplemental Dimension Members",
+          "description": "Import an uploaded CSV into a Supplemental Data dimension. Replace is destructive. Requires Service Administrator or Power User."
+        },
+        {
+          "name": "Generate Report",
+          "description": "Generate a Task Manager or Supplemental Data report asynchronously. Requires the feature and report access. Existing output files may be overwritten."
+        },
+        {
+          "name": "Generate User Details Report",
+          "description": "Generate a CSV or XLS report of Task Manager and Supplemental Data user assignments. Requires Service Administrator."
+        },
+        {
+          "name": "Get Report Status",
+          "description": "Inspect a report job using the documented standalone route or the distinct route family returned by generation. Optionally download a completed report."
+        },
+        {
+          "name": "List Files",
+          "description": "List repository file and snapshot metadata (at most 1,000). Requires Service Administrator or Migrations - Administer."
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload an authorized Sim file to the Oracle repository (10 MiB maximum). Existing files are not overwritten. Requires Service Administrator or Migrations - Administer."
+        },
+        {
+          "name": "Download File",
+          "description": "Stream an Oracle repository file into a canonical Sim UserFile (100 MiB maximum, subject to platform limits). Requires Service Administrator or Migrations - Administer."
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["automation", "data-analytics"]
     },
     {
       "type": "netsuite",

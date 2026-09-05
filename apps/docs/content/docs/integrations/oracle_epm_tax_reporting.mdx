@@ -1,0 +1,758 @@
+---
+title: Oracle EPM Tax Reporting
+description: Run tax rules, manage metadata and supplemental data, inspect jobs, and generate reports
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_tax_reporting"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a reusable Oracle EPM service-account credential using your HTTPS environment URL and Oracle username/password. Use an account permitted to authenticate with Basic authentication; MFA-only interactive login is not supported. Most administrative operations and discovery require Service Administrator; rule launch and supplemental features have their own role prerequisites. This integration provides 27 Tax Reporting operations for deployed rules, saved copy/clear profiles, metadata ZIP jobs, bounded core data slices, supplemental collections and templates, reports, and repository files. Scenarios, years, periods, entities, jurisdictions, countries, cubes, profile names, and runtime prompts are tenant-specific: use exact names or workflow references, not assumed defaults. Job definitions are distinct from submitted job IDs. Choose standalone-launchable deployed rules; many seeded Tax Automation rules are internal and cannot run independently. General bulk data movement belongs in Data Integration. Requests submit mutations once; optional waiting is bounded to 120 seconds, and local cancellation never cancels the Oracle job. Uploads are limited to 10 MiB and stored downloads to 100 MiB, subject to platform limits. Report generation uses its returned status-route family; Oracle documents the standalone /arm report-status endpoint separately, with inconsistent examples that require tenant verification. Documentation and tests use official API contracts; no live tenant validation is implied.
+
+
+
+## Actions
+
+### Oracle EPM Tax Reporting Get API Version
+
+Inspect the supported v3 Tax Reporting API version.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | API version |
+| `lifecycle` | string | API lifecycle |
+| `isLatest` | boolean | Whether this is the latest API version |
+
+### Oracle EPM Tax Reporting List Applications
+
+List applications assigned to the service account (at most 1,000). Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Accessible applications \(bounded to 1,000\) |
+|   ↳ `name` | string | Application name |
+|   ↳ `type` | string | Product type |
+|   ↳ `appType` | string | Business process type |
+|   ↳ `appStorage` | string | Storage type |
+|   ↳ `unicode` | boolean | Unicode enabled |
+|   ↳ `adminMode` | json | Oracle boolean or documented string boolean indicating administrator-only access |
+
+### Oracle EPM Tax Reporting List Job Definitions
+
+List deployed job definitions (not submitted job instances), optionally filtering supported Tax Reporting job types. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobType` | string | No | Supported saved job type: RULES, RULESET, EXPORT_METADATA, or IMPORT_METADATA. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Deployed definitions, not running jobs \(bounded to 1,000\) |
+|   ↳ `jobName` | string | Exact deployed job name |
+|   ↳ `jobType` | string | Oracle job type |
+
+### Oracle EPM Tax Reporting Get Member
+
+Look up a dimension member by its exact name. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `dimension` | string | Yes | Exact dimension name, such as Entity or Jurisdiction, as configured in this tenant. |
+| `memberName` | string | Yes | Exact dimension member name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Member name |
+| `parentName` | string | Parent member |
+| `description` | string | Member description |
+| `dataType` | string | Member data type |
+| `objectType` | number | Oracle object type |
+| `dataStorage` | string | Storage attribute |
+| `dimName` | string | Dimension name |
+| `twoPass` | boolean | Two-pass calculation attribute |
+
+### Oracle EPM Tax Reporting Add Member
+
+Add a member under a dynamic-child-enabled parent after a cube refresh. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `dimension` | string | Yes | Exact dimension name, such as Entity or Jurisdiction, as configured in this tenant. |
+| `memberName` | string | Yes | Exact dimension member name. |
+| `parentName` | string | Yes | Parent member enabled for dynamic children, after a cube refresh. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Member name |
+| `parentName` | string | Parent member |
+| `description` | string | Member description |
+| `dataType` | string | Member data type |
+| `objectType` | number | Oracle object type |
+| `dataStorage` | string | Storage attribute |
+| `dimName` | string | Dimension name |
+| `twoPass` | boolean | Two-pass calculation attribute |
+
+### Oracle EPM Tax Reporting Export Data Slice
+
+Export a bounded core data grid for cells the account can access. Does not export cell notes or supporting details. Use Data Integration for general bulk movement.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `planType` | string | Yes | Exact Tax Reporting cube/plan type name configured in the application. |
+| `gridDefinition` | json | Yes | JSON region with pov: \{dimensions?: string\[\], members: string\[\]\[\]\}, columns and rows arrays of the same axis shape. Use exact tenant dimension/member names or documented member-selection expressions. Optional suppressMissingBlocks, suppressMissingRows, suppressMissingColumns booleans. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pov` | array | Point-of-view member names |
+| `columns` | array | Arrays of column member names |
+| `rows` | array | Core data rows \(up to 1,000\) |
+|   ↳ `headers` | array | Row member names |
+|   ↳ `data` | array | Text or numeric cell values |
+
+### Oracle EPM Tax Reporting Import Data Slice
+
+Import a bounded core JSON data grid and inspect rejected cells. Does not import cell notes or supporting details. Use Data Integration for general bulk movement.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `planType` | string | Yes | Exact Tax Reporting cube/plan type name configured in the application. |
+| `dataGrid` | json | Yes | JSON grid with pov: string\[\], columns: string\[\]\[\], rows: \[\{headers: string\[\], data: \(string \| number\)\[\]\}\]. Values overwrite existing cells by default; #missing clears a cell. Cell notes and supporting details are not handled by this tool. |
+| `aggregateEssbaseData` | boolean | No | Add numeric values to existing values when true; overwrite when false. Do not retry an uncertain additive import. |
+| `dateFormat` | string | No | Data slices: MM-DD-YYYY, DD-MM-YYYY, YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or YYYY/MM/DD. Supplemental member import: the tenant CSV date format \(Oracle default MM-dd-yyyy\). |
+| `strictDateValidation` | boolean | No | Reject dates that do not match dateFormat \(Oracle default true\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `numAcceptedCells` | number | Cells accepted for save |
+| `numUpdateCells` | number | Cells actually updated |
+| `numRejectedCells` | number | Rejected cells |
+| `rejectedCells` | array | First 100 rejected cell intersections |
+| `rejectedCellsWithDetails` | array | First 100 rejection diagnostics |
+|   ↳ `memberNames` | array | Intersection members |
+|   ↳ `readOnlyReasons` | array | Read-only reasons |
+|   ↳ `otherReasons` | array | Other rejection reasons |
+
+### Oracle EPM Tax Reporting Clear Data Slice
+
+Clear the explicit data region. Numeric data is cleared by default; planning details are retained unless requested. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `planType` | string | Yes | Exact Tax Reporting cube/plan type name configured in the application. |
+| `gridDefinition` | json | Yes | JSON region with pov: \{dimensions?: string\[\], members: string\[\]\[\]\}, columns and rows arrays of the same axis shape. Use exact tenant dimension/member names or documented member-selection expressions. Optional suppressMissingBlocks, suppressMissingRows, suppressMissingColumns booleans. |
+| `clearEssbaseData` | boolean | No | Clear numeric cube data \(default true\). This is destructive. |
+| `clearPlanningData` | boolean | No | Delete cell notes, attachments, and supporting details \(default false\). This is destructive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `numClearedCells` | number | Cleared cells |
+| `numRejectedCells` | number | Rejected cells |
+| `rejectedCells` | array | Rejected cell intersections |
+
+### Oracle EPM Tax Reporting Copy Data
+
+Run an existing Tax Reporting copy data profile. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `profileName` | string | Yes | Name of an existing Tax Reporting copy or clear data profile; its saved configuration determines the affected POV. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Clear Data
+
+Run an existing Tax Reporting clear data profile. Its configured POV is deleted. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `profileName` | string | Yes | Name of an existing Tax Reporting copy or clear data profile; its saved configuration determines the affected POV. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Run Rule
+
+Launch a standalone-launchable deployed business rule (many seeded Tax Automation rules are internal and cannot be launched independently), with exact runtime prompts. Requires Service Administrator or Power User with Rules launch permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobName` | string | Yes | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `parameters` | json | No | JSON object of documented job parameters or tenant-defined runtime prompts. Rule prompt values must be strings; preserve exact prompt names. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Run Ruleset
+
+Launch a deployed ruleset with exact runtime prompts. Preserve fully qualified prompt names. Requires Service Administrator or Power User with Rules launch permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobName` | string | Yes | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `parameters` | json | No | JSON object of documented job parameters or tenant-defined runtime prompts. Rule prompt values must be strings; preserve exact prompt names. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Execute Job
+
+Execute a discovered RULES, RULESET, EXPORT_METADATA, or IMPORT_METADATA definition only. Requires Service Administrator. No arbitrary EPM jobs or general bulk data movement.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobType` | string | Yes | Supported saved job type: RULES, RULESET, EXPORT_METADATA, or IMPORT_METADATA. |
+| `jobName` | string | Yes | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `parameters` | json | No | JSON object of documented job parameters or tenant-defined runtime prompts. Rule prompt values must be strings; preserve exact prompt names. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Get Job Status
+
+Inspect a submitted planning or supplemental job using its correct route family. Optionally wait without resubmitting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | No | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobId` | string | Yes | Submitted Oracle job instance ID, not a job definition name. |
+| `jobFamily` | string | No | planning \(default\), supplemental_collection \(fcmjobs\), or supplemental_dimension \(sdm/jobs\). Use the family that submitted the job. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+| `detail` | string | Supplemental deployment details when returned under singular detail |
+
+### Oracle EPM Tax Reporting Get Job Details
+
+Retrieve one page of metadata import/export job details, including child-job-detail links. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobId` | string | Yes | Submitted Oracle job instance ID, not a job definition name. |
+| `limit` | number | No | Page size, 1-100 \(default 25\). One page is returned. |
+| `offset` | number | No | Zero-based offset, 0-100000 \(default 0\). No automatic fetch-all. |
+| `messageType` | string | No | Filter detailed messages by INFO, ERROR, or WARNING. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of job detail records |
+|   ↳ `recordsRead` | number | Records read |
+|   ↳ `recordsRejected` | number | Rejected records |
+|   ↳ `recordsProcessed` | number | Processed records |
+|   ↳ `dimensionName` | string | Dimension name |
+|   ↳ `loadType` | string | Load type |
+|   ↳ `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|     ↳ `rel` | string | Exact relationship |
+|     ↳ `href` | string | Provider-returned link target |
+|     ↳ `action` | string | HTTP method |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+
+### Oracle EPM Tax Reporting Get Child Job Details
+
+Retrieve one page of child-job diagnostic messages. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobId` | string | Yes | Submitted Oracle job instance ID, not a job definition name. |
+| `childJobId` | string | Yes | Child job ID from the parent job details child-job-details link. |
+| `limit` | number | No | Page size, 1-100 \(default 25\). One page is returned. |
+| `offset` | number | No | Zero-based offset, 0-100000 \(default 0\). No automatic fetch-all. |
+| `messageType` | string | No | Filter detailed messages by INFO, ERROR, or WARNING. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | One page of child-job messages |
+|   ↳ `msgType` | string | Message type |
+|   ↳ `msgCategory` | string | Message category |
+|   ↳ `msgText` | string | Diagnostic message |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+
+### Oracle EPM Tax Reporting Export Metadata
+
+Run a saved metadata export job to create a repository ZIP. Download it separately after successful completion. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobName` | string | Yes | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `exportZipFileName` | string | No | Optional ZIP output filename for the saved metadata export job. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Import Metadata
+
+Run a saved metadata import job using an already uploaded ZIP, optionally refreshing the cube. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `jobName` | string | Yes | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `importZipFileName` | string | No | Optional ZIP filename already uploaded to the Oracle repository for the saved metadata import job. |
+| `refreshCube` | boolean | No | Refresh the cube after importing metadata when true. |
+| `errorFile` | string | No | ZIP filename for metadata import errors; an existing file of the same name is overwritten. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle status: -1 pending, 0 success; other statuses depend on job family. 2 means cancellation pending for planning jobs. |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `jobName` | string | Oracle job name |
+| `details` | string | Oracle job details |
+| `descriptiveStatus` | string | Oracle status description |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `detailedStatus` | number | Oracle granular job status code, when returned. |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Import Supplemental Collection Data
+
+Import an uploaded collection CSV for a year, period, and configured frequency dimensions. Requires Service Administrator and Supplemental Data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `fileName` | string | Yes | Exact Oracle repository filename/path. Supply raw names, not pre-encoded URL text. Upload fails if a file already exists. |
+| `collection` | string | Yes | Exact Supplemental Data collection name. Supplemental Data must be enabled. |
+| `year` | string | Yes | Collection year member, for example FY26; tenant-specific. |
+| `period` | string | Yes | Collection period member, for example Jan; tenant-specific. |
+| `frequencyDimensions` | json | No | JSON object of additional collection-interval frequency dimension names and member strings. Preserve case. For template deployment supply all configured dimensions \(up to four\), including Year/Period when applicable. |
+| `jobName` | string | No | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status: -1 in progress, 0 success, any positive value is failure. |
+| `details` | string | Oracle job details |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `detail` | string | Supplemental deployment details when returned under singular detail |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Deploy Form Templates
+
+Deploy Supplemental Data templates for a collection interval. Empty templates deploys all; resetWorkflows resets existing workflows. Requires Service Administrator or Power User.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `application` | string | Yes | Exact Tax Reporting application name; use application discovery or a tenant-specific reference. |
+| `collectionIntervalName` | string | Yes | Existing Supplemental Data collection interval name. |
+| `templates` | array | Yes | Template name array. An explicit empty array deploys ALL templates for the interval; use named templates to limit scope. |
+| `frequencyDimensions` | json | No | JSON object of additional collection-interval frequency dimension names and member strings. Preserve case. For template deployment supply all configured dimensions \(up to four\), including Year/Period when applicable. |
+| `resetWorkflows` | boolean | No | Reset existing form workflows during deployment \(default false\). |
+| `jobName` | string | No | Exact deployed rule, ruleset, or saved job definition name. Names are case-sensitive. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status: -1 in progress, 0 success, any positive value is failure. |
+| `details` | string | Oracle job details |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `detail` | string | Supplemental deployment details when returned under singular detail |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Import Supplemental Dimension Members
+
+Import an uploaded CSV into a Supplemental Data dimension. Replace is destructive. Requires Service Administrator or Power User.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `dimension` | string | Yes | Exact dimension name, such as Entity or Jurisdiction, as configured in this tenant. |
+| `fileName` | string | Yes | Exact Oracle repository filename/path. Supply raw names, not pre-encoded URL text. Upload fails if a file already exists. |
+| `importMode` | string | No | Replace \(default\) or Update supplemental dimension members. Replace can remove existing members. |
+| `delimiter` | string | No | Single-character supplemental CSV delimiter \(Oracle default comma\). |
+| `dateFormat` | string | No | Data slices: MM-DD-YYYY, DD-MM-YYYY, YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or YYYY/MM/DD. Supplemental member import: the tenant CSV date format \(Oracle default MM-dd-yyyy\). |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status: -1 in progress, 0 success, any positive value is failure. |
+| `details` | string | Oracle job details |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `detail` | string | Supplemental deployment details when returned under singular detail |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Generate Report
+
+Generate a Task Manager or Supplemental Data report asynchronously. Requires the feature and report access. Existing output files may be overwritten.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `groupName` | string | Yes | Configured report group, such as Task Manager. |
+| `reportName` | string | Yes | Exact existing report name. Provide all parameters required by that report. |
+| `generatedReportFileName` | string | No | Output filename with matching extension. Existing files with this name are overwritten. Defaults to the report name in Oracle. |
+| `parameters` | json | No | JSON object of documented job parameters or tenant-defined runtime prompts. Rule prompt values must be strings; preserve exact prompt names. |
+| `format` | string | No | HTML, PDF \(default\), XLSX, or CSV. |
+| `module` | string | Yes | Report generation: FCM \(Task Manager\) or SDM. Report status: FCCS \(Task Manager\) or SDM. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status: -1 in progress, 0 success, any positive value is failure. |
+| `details` | string | Oracle job details |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `type` | string | Report or job type |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Generate User Details Report
+
+Generate a CSV or XLS report of Task Manager and Supplemental Data user assignments. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact Oracle repository filename/path. Supply raw names, not pre-encoded URL text. Upload fails if a file already exists. |
+| `format` | string | No | CSV \(default\) or XLS. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status: -1 in progress, 0 success, any positive value is failure. |
+| `details` | string | Oracle job details |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `type` | string | Report or job type |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+
+### Oracle EPM Tax Reporting Get Report Status
+
+Inspect a report job using the documented standalone route or the distinct route family returned by generation. Optionally download a completed report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `jobId` | string | Yes | Submitted Oracle job instance ID, not a job definition name. |
+| `module` | string | No | Report generation: FCM \(Task Manager\) or SDM. Report status: FCCS \(Task Manager\) or SDM. |
+| `reportStatusRoute` | string | No | standalone \(default\): documented /arm job endpoint; generated_report: route used by Generate Report Job Status links; user_details: route used by User Details Job Status links. They are not interchangeable. |
+| `waitForCompletion` | boolean | No | Wait at most 120 seconds, subject to the execution deadline. Default false. Timeout or local cancellation does not cancel the Oracle job; check its status before resubmitting. |
+| `downloadReport` | boolean | No | Store the completed report as a Sim file using its validated report-content link \(default false\). Requires a workflow execution context. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status: -1 in progress, 0 success, any positive value is failure. |
+| `details` | string | Oracle job details |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+| `jobId` | string | Submitted job ID, normalized from documented jobId/jobID when returned. |
+| `type` | string | Report or job type |
+| `waitOutcome` | string | Sim local wait outcome: incomplete means waiting stopped before observing completion. The last Oracle snapshot is retained; inspect jobId or Job Status links before any resubmission. This is not an Oracle status or cancellation. |
+| `file` | file | Stored report as a canonical Sim UserFile when explicitly requested and complete |
+
+### Oracle EPM Tax Reporting List Files
+
+List repository file and snapshot metadata (at most 1,000). Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status \(0 success\) |
+| `details` | string | Oracle file-list details |
+| `items` | array | Repository files and snapshots \(up to 1,000\) |
+|   ↳ `name` | string | Raw repository path |
+|   ↳ `type` | string | LCM or EXTERNAL |
+|   ↳ `size` | json | Byte size as documented numeric string or number; null for snapshots |
+|   ↳ `lastmodifiedtime` | json | Milliseconds since epoch as documented numeric string or number; null for snapshots |
+
+### Oracle EPM Tax Reporting Upload File
+
+Upload an authorized Sim file to the Oracle repository (10 MiB maximum). Existing files are not overwritten. Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `file` | file | Yes | One authorized Sim UserFile to upload, up to 10 MiB. URLs alone are not accepted. |
+| `fileName` | string | Yes | Exact Oracle repository filename/path. Supply raw names, not pre-encoded URL text. Upload fails if a file already exists. |
+| `directory` | string | No | Optional Oracle inbox or outbox directory, including a subdirectory. Other EPM product directories are not supported. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Oracle migration status: -1 in progress, 0 success, any positive value is failure. |
+| `details` | string | Oracle job details |
+| `links` | array | Documented Oracle links; returned links must be validated before authenticated use. |
+|   ↳ `rel` | string | Exact relationship |
+|   ↳ `href` | string | Provider-returned link target |
+|   ↳ `action` | string | HTTP method |
+
+### Oracle EPM Tax Reporting Download File
+
+Stream an Oracle repository file into a canonical Sim UserFile (100 MiB maximum, subject to platform limits). Requires Service Administrator or Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `fileName` | string | Yes | Exact Oracle repository filename/path. Supply raw names, not pre-encoded URL text. Upload fails if a file already exists. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded canonical Sim UserFile with authorized storage key, name, type, size, and temporary URL |
+
+
