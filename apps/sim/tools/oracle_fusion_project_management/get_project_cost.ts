@@ -26,7 +26,7 @@ export const oracleFusionProjectManagementGetProjectCostTool: InternalToolConfig
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Opaque project-cost key returned by list or get; not the numeric costId',
+      description: 'Opaque project-cost key returned by list or get; not the numeric CostId',
     },
   },
   operation: { input: createInternalToolOperationInput },

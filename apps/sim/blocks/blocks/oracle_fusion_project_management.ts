@@ -6,7 +6,7 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { OracleFusionProjectManagementResponse } from '@/tools/oracle_fusion_project_management/types'
+import type { OracleFusionProjectManagementResponse as ProjectManagementResponse } from '@/tools/oracle_fusion_project_management/types'
 
 // Editor-only operation/input routing; no runtime registry or provider client imports.
 const operationInputs: Record<string, readonly string[]> = {
@@ -457,7 +457,7 @@ function requireOperation(value: unknown): string {
   return value
 }
 
-export const OracleFusionProjectManagementBlock: BlockConfig<OracleFusionProjectManagementResponse> = {
+export const OracleFusionProjectManagementBlock: BlockConfig<ProjectManagementResponse> = {
   type: 'oracle_fusion_project_management',
   name: 'Oracle Fusion Project Management',
   description:
@@ -738,7 +738,7 @@ export const OracleFusionProjectManagementBlock: BlockConfig<OracleFusionProject
           { text: 'with adjustment type', field: 'adjustmentType', core: true },
         ],
         oracle_fusion_project_management_refresh_project_budget_rates: [
-          { text: 'Refreshe project budget rates for', field: 'planVersionId', core: true },
+          { text: 'Refresh project budget rates for', field: 'planVersionId', core: true },
         ],
         oracle_fusion_project_management_list_project_contract_invoices: [
           'List project contract invoices',
@@ -1438,14 +1438,8 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'sourceTemplateId',
       title: 'Source Template ID',
       type: 'short-input',
-      description: 'ISO int64: 2026-09-04T09:00:00Z',
-      placeholder: '2026-09-04T09:00:00Z',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Return ONLY an ISO int64 value such as 2026-09-04T09:00:00Z, without explanations or code fences.',
-        placeholder: 'Describe the date',
-      },
+      description: 'Source project template ID as an exact decimal string',
+      placeholder: '300100123456789',
       condition: { field: 'operation', value: ['oracle_fusion_project_management_create_project'] },
       required: false,
     },
@@ -1590,14 +1584,8 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'taskLevel',
       title: 'Task Level',
       type: 'short-input',
-      description: 'ISO int32: 2026-09-04T09:00:00Z',
-      placeholder: '2026-09-04T09:00:00Z',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Return ONLY an ISO int32 value such as 2026-09-04T09:00:00Z, without explanations or code fences.',
-        placeholder: 'Describe the date',
-      },
+      description: 'Task hierarchy level from 1 to 999; level 0 is reserved for the project rollup',
+      placeholder: '1',
       condition: {
         field: 'operation',
         value: [
@@ -1635,14 +1623,8 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'parentTaskId',
       title: 'Parent Task ID',
       type: 'short-input',
-      description: 'ISO int64: 2026-09-04T09:00:00Z',
-      placeholder: '2026-09-04T09:00:00Z',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Return ONLY an ISO int64 value such as 2026-09-04T09:00:00Z, without explanations or code fences.',
-        placeholder: 'Describe the date',
-      },
+      description: 'Parent task ID as an exact decimal string',
+      placeholder: '300100123456789',
       condition: {
         field: 'operation',
         value: [
@@ -2126,7 +2108,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       serviceId: 'oracle_fusion_project_management',
       selectorKey: 'oracleFusionProjectManagement.resources',
       dependsOn: ['credential'],
-      description: 'person Email (null is accepted by the documented API)',
+      description: 'Enterprise resource email; required when adding a project team member',
       condition: {
         field: 'operation',
         value: ['oracle_fusion_project_management_create_project_team_member'],
@@ -2142,7 +2124,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       type: 'short-input',
       canonicalParamId: 'personEmail',
       mode: 'advanced',
-      description: 'person Email (null is accepted by the documented API)',
+      description: 'Enterprise resource email; required when adding a project team member',
       condition: {
         field: 'operation',
         value: ['oracle_fusion_project_management_create_project_team_member'],
@@ -2161,7 +2143,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       serviceId: 'oracle_fusion_project_management',
       selectorKey: 'oracleFusionProjectManagement.roles',
       dependsOn: ['credential'],
-      description: 'project Role (null is accepted by the documented API)',
+      description: 'Project role name; required when adding a project team member',
       condition: {
         field: 'operation',
         value: ['oracle_fusion_project_management_create_project_team_member'],
@@ -2177,7 +2159,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       type: 'short-input',
       canonicalParamId: 'projectRole',
       mode: 'advanced',
-      description: 'project Role (null is accepted by the documented API)',
+      description: 'Project role name; required when adding a project team member',
       condition: {
         field: 'operation',
         value: ['oracle_fusion_project_management_create_project_team_member'],
@@ -2365,7 +2347,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       selectorKey: 'oracleFusionProjectManagement.resources',
       dependsOn: ['credential'],
       description:
-        'resource Email (null is accepted by the documented API); provide exactly one email or labor-resource ID for assignment create/update',
+        'Enterprise resource email; provide exactly one resource email or ID; provide exactly one email or labor-resource ID for assignment create/update',
       condition: {
         field: 'operation',
         value: [
@@ -2382,7 +2364,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       canonicalParamId: 'resourceEmail',
       mode: 'advanced',
       description:
-        'resource Email (null is accepted by the documented API); provide exactly one email or labor-resource ID for assignment create/update',
+        'Enterprise resource email; provide exactly one resource email or ID; provide exactly one email or labor-resource ID for assignment create/update',
       condition: {
         field: 'operation',
         value: [
@@ -2396,14 +2378,8 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'laborResourceId',
       title: 'Labor Resource ID',
       type: 'short-input',
-      description: 'ISO int64: 2026-09-04T09:00:00Z',
-      placeholder: '2026-09-04T09:00:00Z',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Return ONLY an ISO int64 value such as 2026-09-04T09:00:00Z, without explanations or code fences.',
-        placeholder: 'Describe the date',
-      },
+      description: 'Labor resource ID as an exact decimal string; provide exactly one resource email or ID',
+      placeholder: '300100123456789',
       condition: {
         field: 'operation',
         value: [
@@ -2642,7 +2618,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'adjustmentTypeCode',
       title: 'Adjustment Type Code',
       type: 'short-input',
-      description: 'adjustment Type Code (null is accepted by the documented API)',
+      description: 'Tenant-supported project cost adjustment code; required for the adjustment',
       condition: {
         field: 'operation',
         value: ['oracle_fusion_project_management_adjust_project_cost'],
@@ -3021,7 +2997,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'adjustmentPercentage',
       title: 'Adjustment Percentage',
       type: 'short-input',
-      description: 'adjustment Percentage (null is accepted by the documented API)',
+      description: 'Percentage by which to adjust the budget; required for the adjustment',
       condition: {
         field: 'operation',
         value: ['oracle_fusion_project_management_adjust_project_budget'],
@@ -3046,7 +3022,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
       id: 'adjustmentType',
       title: 'Adjustment Type',
       type: 'short-input',
-      description: 'adjustment Type (null is accepted by the documented API)',
+      description: 'Tenant-supported budget adjustment type; required for the adjustment',
       condition: {
         field: 'operation',
         value: ['oracle_fusion_project_management_adjust_project_budget'],
@@ -3379,7 +3355,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
     orderBy: {
       type: 'string',
       description:
-        'Oracle sort attributes, for example ProjectId:asc; use a stable order when paging',
+        'Documented sort attributes for this collection; use a stable order when paging',
     },
     limit: { type: 'number', description: 'One page of 1–1000 items; default 100' },
     offset: {
@@ -3509,11 +3485,11 @@ Return ONLY the filter expression, without explanations or code fences.`,
     teamMemberId: { type: 'string', description: 'team Member ID as a decimal string' },
     personEmail: {
       type: 'string',
-      description: 'person Email (null is accepted by the documented API)',
+      description: 'Enterprise resource email; required when adding a project team member',
     },
     projectRole: {
       type: 'string',
-      description: 'project Role (null is accepted by the documented API)',
+      description: 'Project role name; required when adding a project team member',
     },
     startDate: {
       type: 'string',
@@ -3546,7 +3522,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
     assignmentId: { type: 'string', description: 'assignment ID as a decimal string' },
     resourceEmail: {
       type: 'string',
-      description: 'resource Email (null is accepted by the documented API)',
+      description: 'Enterprise resource email; provide exactly one resource email or ID',
     },
     laborResourceId: {
       type: 'string',
@@ -3624,7 +3600,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
     },
     adjustmentTypeCode: {
       type: 'string',
-      description: 'adjustment Type Code (null is accepted by the documented API)',
+      description: 'Tenant-supported project cost adjustment code; required for the adjustment',
     },
     justification: {
       type: 'string',
@@ -3728,7 +3704,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
     },
     adjustmentPercentage: {
       type: 'number',
-      description: 'adjustment Percentage (null is accepted by the documented API)',
+      description: 'Percentage by which to adjust the budget; required for the adjustment',
     },
     fromPeriod: {
       type: 'string',
@@ -3736,7 +3712,7 @@ Return ONLY the filter expression, without explanations or code fences.`,
     },
     adjustmentType: {
       type: 'string',
-      description: 'adjustment Type (null is accepted by the documented API)',
+      description: 'Tenant-supported budget adjustment type; required for the adjustment',
     },
     toPeriod: { type: 'string', description: 'to Period (null is accepted by the documented API)' },
     createNewWorkingVersion: {

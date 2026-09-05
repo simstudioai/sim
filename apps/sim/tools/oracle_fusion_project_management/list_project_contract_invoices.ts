@@ -65,7 +65,11 @@ export const oracleFusionProjectManagementListProjectContractInvoicesTool: Inter
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    items: { type: 'array', description: 'This page of invoice records', items: { type: 'object', properties: oracleFusionInvoiceOutput } },
+    items: {
+      type: 'array',
+      description: 'This page of invoice records',
+      items: { type: 'object', properties: oracleFusionInvoiceOutput },
+    },
     count: { type: 'number', description: 'Items in this page' },
     hasMore: { type: 'boolean', description: 'Whether Oracle reports another page' },
     limit: { type: 'number', description: 'Page size used by Oracle' },

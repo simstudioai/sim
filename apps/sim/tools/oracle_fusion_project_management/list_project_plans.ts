@@ -59,7 +59,11 @@ export const oracleFusionProjectManagementListProjectPlansTool: InternalToolConf
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    items: { type: 'array', description: 'This page of plan records', items: { type: 'object', properties: oracleFusionPlanOutput } },
+    items: {
+      type: 'array',
+      description: 'This page of plan records',
+      items: { type: 'object', properties: oracleFusionPlanOutput },
+    },
     count: { type: 'number', description: 'Items in this page' },
     hasMore: { type: 'boolean', description: 'Whether Oracle reports another page' },
     limit: { type: 'number', description: 'Page size used by Oracle' },

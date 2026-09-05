@@ -185,7 +185,8 @@ describe('Oracle Project Management block', () => {
       },
     ]
     expect(
-      map('create_project_budget', { planningResources: JSON.stringify(resources) }).planningResources
+      map('create_project_budget', { planningResources: JSON.stringify(resources) })
+        .planningResources
     ).toEqual(resources)
   })
 
@@ -211,6 +212,18 @@ describe('Oracle Project Management block', () => {
         invoiceDate: '2026-09-04',
       }).invoiceDate
     ).toBe('2026-09-04')
+  })
+
+  it('keeps numeric IDs and task levels distinct from date/time input formats', () => {
+    for (const id of ['sourceTemplateId', 'parentTaskId', 'laborResourceId', 'taskLevel']) {
+      const field = block.subBlocks.find((input) => input.id === id)!
+      expect(field.wandConfig).toBeUndefined()
+      expect(field.description).not.toContain('ISO int')
+      expect(field.placeholder).not.toContain('2026-09-04T')
+    }
+    const plannedStart = block.subBlocks.find((input) => input.id === 'plannedStartDateTime')!
+    expect(plannedStart.wandConfig?.enabled).toBe(true)
+    expect(plannedStart.placeholder).toBe('2026-09-04T09:00:00Z')
   })
 
   it.each([

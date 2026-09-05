@@ -127,7 +127,7 @@ export const oracleFusionProjectManagementCreateProjectBudgetTool: InternalToolC
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Budget lines with rbsElementId and taskId as strings, and optional planningAmounts; no HCM person IDs',
+        'Budget lines with RbsElementId and TaskId as strings, and optional PlanningAmounts; no HCM person IDs',
       items: oracleFusionBudgetResourceItemSchema,
       maxItems: 100,
     },

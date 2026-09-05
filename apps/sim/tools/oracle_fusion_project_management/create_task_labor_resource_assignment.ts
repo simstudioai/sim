@@ -45,8 +45,7 @@ export const oracleFusionProjectManagementCreateTaskLaborResourceAssignmentTool:
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Labor resource ID as an exact decimal ID string',
+      description: 'Labor resource ID as an exact decimal ID string',
     },
     plannedEffortinHours: {
       type: 'number',

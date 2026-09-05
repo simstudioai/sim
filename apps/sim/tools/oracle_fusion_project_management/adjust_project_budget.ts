@@ -55,7 +55,7 @@ export const oracleFusionProjectManagementAdjustProjectBudgetTool: InternalToolC
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Create new working version (null is accepted by the documented API)',
+      description: 'Y creates a new working version; N adjusts the existing version',
     },
   },
   operation: { input: createInternalToolOperationInput },

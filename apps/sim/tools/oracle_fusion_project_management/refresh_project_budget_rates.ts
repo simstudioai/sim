@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleFusionRefreshProjectBudgetRatesParams,
   OracleFusionProjectManagementResponse,
+  OracleFusionRefreshProjectBudgetRatesParams,
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
@@ -31,19 +31,19 @@ export const oracleFusionProjectManagementRefreshProjectBudgetRatesTool: Interna
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Retain rate override (null is accepted by the documented API)',
+      description: 'Y retains rate overrides; N allows rates to be refreshed',
     },
     refreshOnlyConversionRates: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Refresh only conversion rates (null is accepted by the documented API)',
+      description: 'Y refreshes only currency conversion rates; N refreshes all applicable rates',
     },
     refreshRatesPeriodForward: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Refresh rates period forward (null is accepted by the documented API)',
+      description: 'Period name from which to refresh rates, using the project financial calendar',
     },
   },
   operation: { input: createInternalToolOperationInput },

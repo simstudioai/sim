@@ -140,7 +140,8 @@ function contextId(value: unknown): string {
 }
 
 function queryString(value: string): string {
-  if (value.length > 240 || /[\u0000-\u001f\u007f]/.test(value)) throw new SelectorContextUnavailableError()
+  if (value.length > 240 || /[\u0000-\u001f\u007f]/.test(value))
+    throw new SelectorContextUnavailableError()
   return `'${value.replace(/'/g, "''")}'`
 }
 
@@ -175,8 +176,11 @@ function optionFromRecord(record: unknown, lookup: Lookup, key: string): SafeSel
   if (!isPlainRecord(record)) throw new SelectorOptionsUnavailableError()
   const rawId = record[lookup.id]
   // Some enterprise resources have no email and cannot be used by these email-bound inputs.
-  if (key === 'oracleFusionProjectManagement.resources' && (rawId === null || rawId === '')) return null
-  const id = lookup.numeric ? normalizeOracleFusionDecimalIdentifier(rawId, { maxDigits: 18 }) : rawId
+  if (key === 'oracleFusionProjectManagement.resources' && (rawId === null || rawId === ''))
+    return null
+  const id = lookup.numeric
+    ? normalizeOracleFusionDecimalIdentifier(rawId, { maxDigits: 18 })
+    : rawId
   if (typeof id !== 'string' || !id.trim() || id.length > 240) {
     throw new SelectorOptionsUnavailableError()
   }

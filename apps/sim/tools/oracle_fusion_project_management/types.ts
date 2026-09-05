@@ -304,7 +304,8 @@ export interface OracleFusionUpdateProjectParams extends OracleFusionProjectMana
   projectCurrencyCode?: string
 }
 
-export interface OracleFusionListProjectStatusesParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectStatusesParams
+  extends OracleFusionProjectManagementAuthParams {
   q?: string
   orderBy?: string
   limit?: number
@@ -313,7 +314,8 @@ export interface OracleFusionListProjectStatusesParams extends OracleFusionProje
   statusObjectCode?: string
 }
 
-export interface OracleFusionListProjectStatusHistoryParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectStatusHistoryParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   q?: string
   orderBy?: string
@@ -322,7 +324,8 @@ export interface OracleFusionListProjectStatusHistoryParams extends OracleFusion
   totalResults?: boolean
 }
 
-export interface OracleFusionListProjectPlansParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectPlansParams
+  extends OracleFusionProjectManagementAuthParams {
   q?: string
   orderBy?: string
   limit?: number
@@ -425,7 +428,8 @@ export interface OracleFusionCreateMilestoneParams extends OracleFusionProjectMa
   actualHours?: number | null
 }
 
-export interface OracleFusionListTaskStatusHistoryParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListTaskStatusHistoryParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   taskId: string
   q?: string
@@ -435,7 +439,8 @@ export interface OracleFusionListTaskStatusHistoryParams extends OracleFusionPro
   totalResults?: boolean
 }
 
-export interface OracleFusionListDeliverablesParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListDeliverablesParams
+  extends OracleFusionProjectManagementAuthParams {
   q?: string
   orderBy?: string
   limit?: number
@@ -447,7 +452,8 @@ export interface OracleFusionGetDeliverableParams extends OracleFusionProjectMan
   deliverableId: string
 }
 
-export interface OracleFusionCreateDeliverableParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionCreateDeliverableParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableName: string
   shortName: string
   description?: string | null
@@ -458,7 +464,8 @@ export interface OracleFusionCreateDeliverableParams extends OracleFusionProject
   deliverableTypeId: string
 }
 
-export interface OracleFusionUpdateDeliverableParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionUpdateDeliverableParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableId: string
   deliverableName?: string
   shortName?: string
@@ -470,11 +477,13 @@ export interface OracleFusionUpdateDeliverableParams extends OracleFusionProject
   deliverableTypeId?: string
 }
 
-export interface OracleFusionDeleteDeliverableParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionDeleteDeliverableParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableId: string
 }
 
-export interface OracleFusionListDeliverableTaskAssociationsParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListDeliverableTaskAssociationsParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableId: string
   q?: string
   orderBy?: string
@@ -483,30 +492,35 @@ export interface OracleFusionListDeliverableTaskAssociationsParams extends Oracl
   totalResults?: boolean
 }
 
-export interface OracleFusionGetDeliverableTaskAssociationParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionGetDeliverableTaskAssociationParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableId: string
   associationId: string
 }
 
-export interface OracleFusionCreateDeliverableTaskAssociationParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionCreateDeliverableTaskAssociationParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableId: string
   projectId: string | null
   taskId: string
 }
 
-export interface OracleFusionUpdateDeliverableTaskAssociationParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionUpdateDeliverableTaskAssociationParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableId: string
   associationId: string
   projectId?: string | null
   taskId?: string
 }
 
-export interface OracleFusionDeleteDeliverableTaskAssociationParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionDeleteDeliverableTaskAssociationParams
+  extends OracleFusionProjectManagementAuthParams {
   deliverableId: string
   associationId: string
 }
 
-export interface OracleFusionListProjectTeamMembersParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectTeamMembersParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   q?: string
   orderBy?: string
@@ -515,12 +529,14 @@ export interface OracleFusionListProjectTeamMembersParams extends OracleFusionPr
   totalResults?: boolean
 }
 
-export interface OracleFusionGetProjectTeamMemberParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionGetProjectTeamMemberParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   teamMemberId: string
 }
 
-export interface OracleFusionCreateProjectTeamMemberParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionCreateProjectTeamMemberParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   personEmail: string | null
   projectRole: string | null
@@ -533,7 +549,8 @@ export interface OracleFusionCreateProjectTeamMemberParams extends OracleFusionP
   trackTimeFlag?: boolean | null
 }
 
-export interface OracleFusionUpdateProjectTeamMemberParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionUpdateProjectTeamMemberParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   teamMemberId: string
   startDate?: string | null
@@ -545,12 +562,14 @@ export interface OracleFusionUpdateProjectTeamMemberParams extends OracleFusionP
   trackTimeFlag?: boolean | null
 }
 
-export interface OracleFusionDeleteProjectTeamMemberParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionDeleteProjectTeamMemberParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   teamMemberId: string
 }
 
-export interface OracleFusionListTaskLaborResourceAssignmentsParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListTaskLaborResourceAssignmentsParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   q?: string
   orderBy?: string
@@ -560,12 +579,14 @@ export interface OracleFusionListTaskLaborResourceAssignmentsParams extends Orac
   taskId?: string
 }
 
-export interface OracleFusionGetTaskLaborResourceAssignmentParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionGetTaskLaborResourceAssignmentParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   assignmentId: string
 }
 
-export interface OracleFusionCreateTaskLaborResourceAssignmentParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionCreateTaskLaborResourceAssignmentParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   taskId: string
   resourceEmail?: string | null
@@ -580,7 +601,8 @@ export interface OracleFusionCreateTaskLaborResourceAssignmentParams extends Ora
   effectiveCostRate?: number | null
 }
 
-export interface OracleFusionUpdateTaskLaborResourceAssignmentParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionUpdateTaskLaborResourceAssignmentParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   assignmentId: string
   resourceEmail?: string | null
@@ -595,12 +617,14 @@ export interface OracleFusionUpdateTaskLaborResourceAssignmentParams extends Ora
   effectiveCostRate?: number | null
 }
 
-export interface OracleFusionDeleteTaskLaborResourceAssignmentParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionDeleteTaskLaborResourceAssignmentParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   assignmentId: string
 }
 
-export interface OracleFusionListProjectEnterpriseResourcesParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectEnterpriseResourcesParams
+  extends OracleFusionProjectManagementAuthParams {
   q?: string
   orderBy?: string
   limit?: number
@@ -608,7 +632,8 @@ export interface OracleFusionListProjectEnterpriseResourcesParams extends Oracle
   totalResults?: boolean
 }
 
-export interface OracleFusionListProjectCostsParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectCostsParams
+  extends OracleFusionProjectManagementAuthParams {
   q?: string
   orderBy?: string
   limit?: number
@@ -621,7 +646,8 @@ export interface OracleFusionGetProjectCostParams extends OracleFusionProjectMan
   costKey: string
 }
 
-export interface OracleFusionUpdateProjectCostParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionUpdateProjectCostParams
+  extends OracleFusionProjectManagementAuthParams {
   costKey: string
   externalBillRate?: number | null
   externalBillRateCurrency?: string | null
@@ -634,7 +660,8 @@ export interface OracleFusionUpdateProjectCostParams extends OracleFusionProject
   payrollCostedCode?: string | null
 }
 
-export interface OracleFusionAdjustProjectCostParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionAdjustProjectCostParams
+  extends OracleFusionProjectManagementAuthParams {
   costKey: string
   adjustmentTypeCode: string | null
   justification?: string | null
@@ -650,7 +677,8 @@ export interface OracleFusionAdjustProjectCostParams extends OracleFusionProject
   transactionCurrencyCode?: string | null
 }
 
-export interface OracleFusionListProjectBudgetsParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectBudgetsParams
+  extends OracleFusionProjectManagementAuthParams {
   q?: string
   orderBy?: string
   limit?: number
@@ -659,11 +687,13 @@ export interface OracleFusionListProjectBudgetsParams extends OracleFusionProjec
   projectId?: string
 }
 
-export interface OracleFusionGetProjectBudgetParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionGetProjectBudgetParams
+  extends OracleFusionProjectManagementAuthParams {
   planVersionId: string
 }
 
-export interface OracleFusionCreateProjectBudgetParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionCreateProjectBudgetParams
+  extends OracleFusionProjectManagementAuthParams {
   projectId: string
   projectName: string
   projectNumber: string
@@ -683,7 +713,8 @@ export interface OracleFusionCreateProjectBudgetParams extends OracleFusionProje
   planningResources?: OracleFusionBudgetResourceInput[]
 }
 
-export interface OracleFusionUpdateProjectBudgetParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionUpdateProjectBudgetParams
+  extends OracleFusionProjectManagementAuthParams {
   planVersionId: string
   planVersionName?: string
   planVersionDescription?: string | null
@@ -692,11 +723,13 @@ export interface OracleFusionUpdateProjectBudgetParams extends OracleFusionProje
   lockedFlag?: boolean | null
 }
 
-export interface OracleFusionDeleteProjectBudgetParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionDeleteProjectBudgetParams
+  extends OracleFusionProjectManagementAuthParams {
   planVersionId: string
 }
 
-export interface OracleFusionAdjustProjectBudgetParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionAdjustProjectBudgetParams
+  extends OracleFusionProjectManagementAuthParams {
   planVersionId: string
   adjustmentPercentage: number | null
   fromPeriod?: string | null
@@ -705,14 +738,16 @@ export interface OracleFusionAdjustProjectBudgetParams extends OracleFusionProje
   createNewWorkingVersion?: string | null
 }
 
-export interface OracleFusionRefreshProjectBudgetRatesParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionRefreshProjectBudgetRatesParams
+  extends OracleFusionProjectManagementAuthParams {
   planVersionId: string
   retainRateOverride?: string | null
   refreshOnlyConversionRates?: string | null
   refreshRatesPeriodForward?: string | null
 }
 
-export interface OracleFusionListProjectContractInvoicesParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionListProjectContractInvoicesParams
+  extends OracleFusionProjectManagementAuthParams {
   q?: string
   orderBy?: string
   limit?: number
@@ -721,11 +756,13 @@ export interface OracleFusionListProjectContractInvoicesParams extends OracleFus
   projectId?: string
 }
 
-export interface OracleFusionGetProjectContractInvoiceParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionGetProjectContractInvoiceParams
+  extends OracleFusionProjectManagementAuthParams {
   invoiceId: string
 }
 
-export interface OracleFusionUpdateProjectContractInvoiceParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionUpdateProjectContractInvoiceParams
+  extends OracleFusionProjectManagementAuthParams {
   invoiceId: string
   invoiceComment?: string | null
   invoiceDate?: string | null
@@ -733,11 +770,13 @@ export interface OracleFusionUpdateProjectContractInvoiceParams extends OracleFu
   unreleaseComments?: string | null
 }
 
-export interface OracleFusionDeleteDraftProjectContractInvoiceParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionDeleteDraftProjectContractInvoiceParams
+  extends OracleFusionProjectManagementAuthParams {
   invoiceId: string
 }
 
-export interface OracleFusionTransitionProjectContractInvoiceParams extends OracleFusionProjectManagementAuthParams {
+export interface OracleFusionTransitionProjectContractInvoiceParams
+  extends OracleFusionProjectManagementAuthParams {
   invoiceId: string
   receivablesNumber?: string | null
   creditMemoReasonCode?: string | null
@@ -762,7 +801,21 @@ export interface OracleFusionProjectManagementResponse extends ToolResponse {
     invoice?: OracleFusionInvoice
     status?: OracleFusionStatus
     history?: OracleFusionHistory
-    items?: Array<OracleFusionProject | OracleFusionPlan | OracleFusionTask | OracleFusionDeliverable | OracleFusionAssociation | OracleFusionTeamMember | OracleFusionLaborAssignment | OracleFusionResource | OracleFusionCost | OracleFusionBudget | OracleFusionInvoice | OracleFusionStatus | OracleFusionHistory>
+    items?: Array<
+      | OracleFusionProject
+      | OracleFusionPlan
+      | OracleFusionTask
+      | OracleFusionDeliverable
+      | OracleFusionAssociation
+      | OracleFusionTeamMember
+      | OracleFusionLaborAssignment
+      | OracleFusionResource
+      | OracleFusionCost
+      | OracleFusionBudget
+      | OracleFusionInvoice
+      | OracleFusionStatus
+      | OracleFusionHistory
+    >
     count?: number
     hasMore?: boolean
     limit?: number
@@ -774,4 +827,3 @@ export interface OracleFusionProjectManagementResponse extends ToolResponse {
     id?: string
   }
 }
-

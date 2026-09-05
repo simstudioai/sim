@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleFusionUpdateTaskLaborResourceAssignmentParams,
   OracleFusionProjectManagementResponse,
+  OracleFusionUpdateTaskLaborResourceAssignmentParams,
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
@@ -45,8 +45,7 @@ export const oracleFusionProjectManagementUpdateTaskLaborResourceAssignmentTool:
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Labor resource ID as an exact decimal ID string',
+      description: 'Labor resource ID as an exact decimal ID string',
     },
     plannedEffortinHours: {
       type: 'number',

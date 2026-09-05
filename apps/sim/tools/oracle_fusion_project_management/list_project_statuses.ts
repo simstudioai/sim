@@ -66,7 +66,11 @@ export const oracleFusionProjectManagementListProjectStatusesTool: InternalToolC
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    items: { type: 'array', description: 'This page of status records', items: { type: 'object', properties: oracleFusionStatusOutput } },
+    items: {
+      type: 'array',
+      description: 'This page of status records',
+      items: { type: 'object', properties: oracleFusionStatusOutput },
+    },
     count: { type: 'number', description: 'Items in this page' },
     hasMore: { type: 'boolean', description: 'Whether Oracle reports another page' },
     limit: { type: 'number', description: 'Page size used by Oracle' },

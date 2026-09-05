@@ -435,13 +435,19 @@ export const executeOracleFusionProjectManagementTool: InternalToolOperationHand
           )
         )
       default:
-        return Response.json({ success: false, error: 'Unsupported Oracle Project Management tool' }, { status: 400 })
+        return Response.json(
+          { success: false, error: 'Unsupported Oracle Project Management tool' },
+          { status: 400 }
+        )
     }
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof OracleFusionProjectManagementInputError) {
       return Response.json({ success: false, error: error.message }, { status: 400 })
     }
-    return Response.json({ success: false, error: 'Oracle Project Management operation failed' }, { status: 500 })
+    return Response.json(
+      { success: false, error: 'Oracle Project Management operation failed' },
+      { status: 500 }
+    )
   }
 }

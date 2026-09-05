@@ -71,7 +71,11 @@ export const oracleFusionProjectManagementListTaskStatusHistoryTool: InternalToo
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    items: { type: 'array', description: 'This page of history records', items: { type: 'object', properties: oracleFusionHistoryOutput } },
+    items: {
+      type: 'array',
+      description: 'This page of history records',
+      items: { type: 'object', properties: oracleFusionHistoryOutput },
+    },
     count: { type: 'number', description: 'Items in this page' },
     hasMore: { type: 'boolean', description: 'Whether Oracle reports another page' },
     limit: { type: 'number', description: 'Page size used by Oracle' },

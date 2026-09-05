@@ -958,7 +958,7 @@ Get project cost in Oracle Fusion Cloud Project Management.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric costId |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
 
 #### Output
 
@@ -975,7 +975,7 @@ Update project-cost bill-rate metadata. Use Adjust Project Cost for billable/cap
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric costId |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
 | `externalBillRate` | number | No | External bill rate \(null is accepted by the documented API\) |
 | `externalBillRateCurrency` | string | No | External bill rate currency \(null is accepted by the documented API\) |
 | `externalBillRateSourceName` | string | No | External bill rate source name \(null is accepted by the documented API\) |
@@ -1001,7 +1001,7 @@ Perform a project-cost adjustment using a configured PJC_ADJUSTMENT_TYPE code. O
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
-| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric costId |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
 | `adjustmentTypeCode` | string | Yes | Adjustment type code |
 | `justification` | string | No | Justification \(null is accepted by the documented API\) |
 | `comment` | string | No | Comment \(null is accepted by the documented API\) |
@@ -1091,7 +1091,7 @@ Create or copy a project budget version synchronously, optionally with resource/
 | `sourcePlanVersionStatus` | string | No | Source plan version status \(null is accepted by the documented API\) |
 | `copyAdjustmentPercentage` | number | No | Copy adjustment percentage \(null is accepted by the documented API\) |
 | `deferFinancialPlanCreation` | string | No | Only N is supported: create the budget synchronously and return its version; deferred creation is not supported |
-| `planningResources` | array | No | Budget lines with rbsElementId and taskId as strings, and optional planningAmounts; no HCM person IDs |
+| `planningResources` | array | No | Budget lines with RbsElementId and TaskId as strings, and optional PlanningAmounts; no HCM person IDs |
 
 #### Output
 
@@ -1153,7 +1153,7 @@ Adjust project budget in Oracle Fusion Cloud Project Management.
 | `fromPeriod` | string | No | From period \(null is accepted by the documented API\) |
 | `adjustmentType` | string | Yes | Adjustment type |
 | `toPeriod` | string | No | To period \(null is accepted by the documented API\) |
-| `createNewWorkingVersion` | string | No | Create new working version \(null is accepted by the documented API\) |
+| `createNewWorkingVersion` | string | No | Y creates a new working version; N adjusts the existing version |
 
 #### Output
 
@@ -1171,9 +1171,9 @@ Refresh project budget rates in Oracle Fusion Cloud Project Management.
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
 | `planVersionId` | string | Yes | Plan version ID as a decimal string |
-| `retainRateOverride` | string | No | Retain rate override \(null is accepted by the documented API\) |
-| `refreshOnlyConversionRates` | string | No | Refresh only conversion rates \(null is accepted by the documented API\) |
-| `refreshRatesPeriodForward` | string | No | Refresh rates period forward \(null is accepted by the documented API\) |
+| `retainRateOverride` | string | No | Y retains rate overrides; N allows rates to be refreshed |
+| `refreshOnlyConversionRates` | string | No | Y refreshes only currency conversion rates; N refreshes all applicable rates |
+| `refreshRatesPeriodForward` | string | No | Period name from which to refresh rates, using the project financial calendar |
 
 #### Output
 

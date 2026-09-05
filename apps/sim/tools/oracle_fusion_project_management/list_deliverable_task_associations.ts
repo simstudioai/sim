@@ -65,7 +65,11 @@ export const oracleFusionProjectManagementListDeliverableTaskAssociationsTool: I
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    items: { type: 'array', description: 'This page of association records', items: { type: 'object', properties: oracleFusionAssociationOutput } },
+    items: {
+      type: 'array',
+      description: 'This page of association records',
+      items: { type: 'object', properties: oracleFusionAssociationOutput },
+    },
     count: { type: 'number', description: 'Items in this page' },
     hasMore: { type: 'boolean', description: 'Whether Oracle reports another page' },
     limit: { type: 'number', description: 'Page size used by Oracle' },

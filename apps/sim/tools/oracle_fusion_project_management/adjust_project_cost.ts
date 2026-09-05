@@ -26,7 +26,7 @@ export const oracleFusionProjectManagementAdjustProjectCostTool: InternalToolCon
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Opaque project-cost key returned by list or get; not the numeric costId',
+      description: 'Opaque project-cost key returned by list or get; not the numeric CostId',
     },
     adjustmentTypeCode: {
       type: 'string',

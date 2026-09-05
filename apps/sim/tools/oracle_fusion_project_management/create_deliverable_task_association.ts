@@ -32,8 +32,7 @@ export const oracleFusionProjectManagementCreateDeliverableTaskAssociationTool: 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Project ID as an exact decimal ID string',
+      description: 'Project ID as an exact decimal ID string',
     },
     taskId: {
       type: 'string',

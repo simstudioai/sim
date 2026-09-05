@@ -59,7 +59,11 @@ export const oracleFusionProjectManagementListDeliverablesTool: InternalToolConf
   },
   operation: { input: createInternalToolOperationInput },
   outputs: {
-    items: { type: 'array', description: 'This page of deliverable records', items: { type: 'object', properties: oracleFusionDeliverableOutput } },
+    items: {
+      type: 'array',
+      description: 'This page of deliverable records',
+      items: { type: 'object', properties: oracleFusionDeliverableOutput },
+    },
     count: { type: 'number', description: 'Items in this page' },
     hasMore: { type: 'boolean', description: 'Whether Oracle reports another page' },
     limit: { type: 'number', description: 'Page size used by Oracle' },

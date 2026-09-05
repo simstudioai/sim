@@ -1,7 +1,7 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
-  OracleFusionUpdateProjectCostParams,
   OracleFusionProjectManagementResponse,
+  OracleFusionUpdateProjectCostParams,
 } from '@/tools/oracle_fusion_project_management/types'
 import {
   ORACLE_FUSION_PROJECT_MANAGEMENT_OAUTH_CONFIG,
@@ -27,7 +27,7 @@ export const oracleFusionProjectManagementUpdateProjectCostTool: InternalToolCon
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Opaque project-cost key returned by list or get; not the numeric costId',
+      description: 'Opaque project-cost key returned by list or get; not the numeric CostId',
     },
     externalBillRate: {
       type: 'number',

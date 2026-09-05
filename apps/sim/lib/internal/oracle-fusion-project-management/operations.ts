@@ -1226,7 +1226,11 @@ function parseValue(value: unknown, rule: FieldRule, field: string): unknown {
   ) {
     invalid(field, 'must be a finite, safely represented number')
   }
-  if (/percent|allocation/i.test(field) && !/adjustment/i.test(field) && (value < 0 || value > 100)) {
+  if (
+    /percent|allocation/i.test(field) &&
+    !/adjustment/i.test(field) &&
+    (value < 0 || value > 100)
+  ) {
     invalid(field, 'must be between 0 and 100')
   }
   if (field === 'taskLevel' && (value < 1 || value > 999)) {
@@ -1250,17 +1254,29 @@ function parseBudgetResources(value: unknown): unknown[] {
   }
   return value.map((line) => {
     if (!isPlainRecord(line)) invalid('planningResources', 'must contain objects')
-    const allowed = ['RbsElementId', 'TaskId', 'PlanningStartDate', 'PlanningEndDate', 'PlanningAmounts']
+    const allowed = [
+      'RbsElementId',
+      'TaskId',
+      'PlanningStartDate',
+      'PlanningEndDate',
+      'PlanningAmounts',
+    ]
     if (Object.keys(line).some((key) => !allowed.includes(key))) {
       invalid('planningResources', 'contains an unsupported line field')
     }
     const result: Record<string, unknown> = {
-      RbsElementId: oracleFusionExactInteger(requireProjectManagementId(line.RbsElementId, 'RbsElementId')),
+      RbsElementId: oracleFusionExactInteger(
+        requireProjectManagementId(line.RbsElementId, 'RbsElementId')
+      ),
       TaskId: oracleFusionExactInteger(requireProjectManagementId(line.TaskId, 'TaskId')),
     }
     for (const key of ['PlanningStartDate', 'PlanningEndDate']) {
       if (line[key] !== undefined) {
-        result[key] = parseValue(line[key], { kind: 'string', format: 'date-time', nullable: true }, key)
+        result[key] = parseValue(
+          line[key],
+          { kind: 'string', format: 'date-time', nullable: true },
+          key
+        )
       }
     }
     if (line.PlanningAmounts !== undefined) {
@@ -1278,7 +1294,10 @@ function parseBudgetResources(value: unknown): unknown[] {
           invalid('Currency', 'is required for each planning amount')
         }
         return Object.fromEntries(
-          Object.entries(amount).map(([key, entry]) => [key, parseValue(entry, amountFields[key], key)])
+          Object.entries(amount).map(([key, entry]) => [
+            key,
+            parseValue(entry, amountFields[key], key),
+          ])
         )
       })
     }
@@ -1286,7 +1305,13 @@ function parseBudgetResources(value: unknown): unknown[] {
   })
 }
 
-function pageInteger(value: unknown, name: string, fallback: number, min: number, max: number): number {
+function pageInteger(
+  value: unknown,
+  name: string,
+  fallback: number,
+  min: number,
+  max: number
+): number {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min || value > max) {
     invalid(name, `must be an integer between ${min} and ${max}`)
@@ -1399,8 +1424,14 @@ export async function executeOracleFusionProjectManagementOperation(
   }
   if (operation === 'create_project_budget') {
     // Oracle documents a returned budget version only for synchronous creation.
-    if (input.deferFinancialPlanCreation !== undefined && input.deferFinancialPlanCreation !== 'N') {
-      invalid('deferFinancialPlanCreation', 'must be N; deferred budget responses are not supported')
+    if (
+      input.deferFinancialPlanCreation !== undefined &&
+      input.deferFinancialPlanCreation !== 'N'
+    ) {
+      invalid(
+        'deferFinancialPlanCreation',
+        'must be N; deferred budget responses are not supported'
+      )
     }
     body.DeferFinancialPlanCreation = 'N'
   }
@@ -1408,8 +1439,10 @@ export async function executeOracleFusionProjectManagementOperation(
     operation === 'create_task_labor_resource_assignment' ||
     operation === 'update_task_labor_resource_assignment'
   ) {
-    const hasEmail = typeof input.resourceEmail === 'string' && input.resourceEmail.trim().length > 0
-    const hasId = typeof input.laborResourceId === 'string' && input.laborResourceId.trim().length > 0
+    const hasEmail =
+      typeof input.resourceEmail === 'string' && input.resourceEmail.trim().length > 0
+    const hasId =
+      typeof input.laborResourceId === 'string' && input.laborResourceId.trim().length > 0
     if (hasEmail === hasId || input.resourceEmail === null || input.laborResourceId === null) {
       invalid('Resource', 'requires exactly one of resourceEmail and laborResourceId')
     }
@@ -1436,7 +1469,11 @@ export async function executeOracleFusionProjectManagementOperation(
     query.offset = pageInteger(input.offset, 'offset', 0, 0, 1_000_000_000)
     query.orderBy = optionalQuery(input.orderBy, 'orderBy') ?? `${responseIds[spec.family]}:asc`
     if (input.totalResults !== undefined) {
-      query.totalResults = parseValue(input.totalResults, { kind: 'boolean' }, 'totalResults') as boolean
+      query.totalResults = parseValue(
+        input.totalResults,
+        { kind: 'boolean' },
+        'totalResults'
+      ) as boolean
     }
     const filters: string[] = spec.filter ? [spec.filter] : []
     if (
@@ -1505,7 +1542,10 @@ export async function executeOracleFusionProjectManagementOperation(
       )
       return { success: true, output: page }
     }
-    return { success: true, output: { [spec.family]: projectRecord(spec.family, data, credential) } }
+    return {
+      success: true,
+      output: { [spec.family]: projectRecord(spec.family, data, credential) },
+    }
   } catch (error) {
     signal?.throwIfAborted()
     return {
