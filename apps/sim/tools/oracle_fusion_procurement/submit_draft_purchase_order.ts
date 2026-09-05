@@ -11,7 +11,10 @@ export const oracleFusionProcurementSubmitDraftPurchaseOrderTool = createProcure
     'Explicitly submit a draft purchase order for approval. Does not bypass approvals or retry the mutation automatically.',
   params: {
     draftPurchaseOrderKey: procurementParamFields.draftPurchaseOrderKey,
-    validateBeforeSubmitFlag: { ...procurementParamFields.validateBeforeSubmitFlag, required: false },
+    validateBeforeSubmitFlag: {
+      ...procurementParamFields.validateBeforeSubmitFlag,
+      required: false,
+    },
   },
   outputs: PROCUREMENT_STRING_ACTION_OUTPUTS,
 })

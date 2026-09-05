@@ -11,7 +11,10 @@ export const oracleFusionProcurementSubmitPurchaseRequisitionTool = createProcur
     'Explicitly submit a purchase requisition for approval and check the documented business result.',
   params: {
     requisitionKey: procurementParamFields.requisitionKey,
-    requestFundsOverrideFlag: { ...procurementParamFields.requestFundsOverrideFlag, required: false },
+    requestFundsOverrideFlag: {
+      ...procurementParamFields.requestFundsOverrideFlag,
+      required: false,
+    },
   },
   outputs: PROCUREMENT_STRING_ACTION_OUTPUTS,
 })

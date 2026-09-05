@@ -76,6 +76,139 @@ function page(items: unknown[], offset = 0, hasMore = false) {
   return { items, count: items.length, limit: 100, offset, hasMore }
 }
 
+interface SelectorContract {
+  name: string
+  path: string
+  itemKey: string
+  fields: Record<string, unknown>
+  option: { id: string; label: string; meta?: { detail: string } }
+  filter?: string
+  context?: { supplierId?: string; poHeaderId?: string }
+}
+
+/** Independent Oracle endpoint and option contracts, including numeric-ID query lookups. */
+const SELECTOR_CONTRACTS: SelectorContract[] = [
+  {
+    name: 'suppliers',
+    path: 'suppliers',
+    itemKey: ID,
+    fields: { SupplierId: ID, Supplier: 'Acme', SupplierNumber: 'S100' },
+    option: { id: ID, label: 'Acme', meta: { detail: 'S100' } },
+  },
+  {
+    name: 'supplierSites',
+    path: `suppliers/${ID}/child/sites`,
+    itemKey: '123',
+    fields: { SupplierSiteId: '123', SupplierSite: 'Headquarters' },
+    option: { id: '123', label: 'Headquarters' },
+    context: { supplierId: ID },
+  },
+  {
+    name: 'purchaseRequisitions',
+    path: 'purchaseRequisitions',
+    itemKey: KEY,
+    fields: { RequisitionHeaderId: ID, Requisition: 'REQ100' },
+    option: { id: KEY, label: 'REQ100' },
+  },
+  {
+    name: 'draftPurchaseOrders',
+    path: 'draftPurchaseOrders',
+    itemKey: KEY,
+    fields: { POHeaderId: ID, OrderNumber: 'DRAFT100' },
+    option: { id: KEY, label: 'DRAFT100' },
+  },
+  {
+    name: 'purchaseOrders',
+    path: 'purchaseOrders',
+    itemKey: KEY,
+    fields: { POHeaderId: ID, OrderNumber: 'PO100' },
+    option: { id: KEY, label: 'PO100' },
+  },
+  {
+    name: 'purchaseOrderHeaders',
+    path: 'purchaseOrders',
+    itemKey: KEY,
+    fields: { POHeaderId: ID, OrderNumber: 'PO100' },
+    option: { id: ID, label: 'PO100' },
+    filter: `POHeaderId=${ID}`,
+  },
+  {
+    name: 'purchaseOrderReceipts',
+    path: `purchaseOrderLifeCycleDetails/${ID}/child/receipts`,
+    itemKey: KEY,
+    fields: { ReceiptId: '123', POHeaderId: ID, Receipt: 'RCV100' },
+    option: { id: KEY, label: 'RCV100' },
+    context: { poHeaderId: ID },
+  },
+  {
+    name: 'supplierNegotiations',
+    path: 'supplierNegotiations',
+    itemKey: KEY,
+    fields: { AuctionHeaderId: ID, Negotiation: 'N100', NegotiationTitle: 'Equipment' },
+    option: { id: KEY, label: 'N100', meta: { detail: 'Equipment' } },
+  },
+  {
+    name: 'supplierNegotiationIds',
+    path: 'supplierNegotiations',
+    itemKey: KEY,
+    fields: { AuctionHeaderId: ID, Negotiation: 'N100' },
+    option: { id: ID, label: 'N100' },
+    filter: `AuctionHeaderId=${ID}`,
+  },
+  {
+    name: 'supplierNegotiationResponses',
+    path: 'supplierNegotiationResponses',
+    itemKey: KEY,
+    fields: { ResponseNumber: ID, AuctionHeaderId: '123', Supplier: 'Acme' },
+    option: { id: KEY, label: ID, meta: { detail: 'Acme' } },
+  },
+  {
+    name: 'procurementAgents',
+    path: 'procurementAgents',
+    itemKey: ID,
+    fields: { AssignmentId: ID, AgentId: '555', Agent: 'Buyer' },
+    option: { id: ID, label: 'Buyer' },
+  },
+  {
+    name: 'buyers',
+    path: 'procurementAgents',
+    itemKey: ID,
+    fields: { AssignmentId: ID, AgentId: '555', Agent: 'Buyer' },
+    option: { id: '555', label: 'Buyer' },
+    filter: 'AgentId=555',
+  },
+  {
+    name: 'procurementBusinessUnits',
+    path: 'procurementBusinessUnitsLOV',
+    itemKey: ID,
+    fields: { ProcurementBUId: ID, ProcurementBU: 'West', AgentAction: 'MANAGE_PURCHASE_ORDERS' },
+    option: { id: ID, label: 'West', meta: { detail: 'MANAGE_PURCHASE_ORDERS' } },
+    filter: `ProcurementBUId=${ID}`,
+  },
+  {
+    name: 'procurementPersons',
+    path: 'procurementPersonsLOV',
+    itemKey: ID,
+    fields: { PersonId: ID, DisplayName: 'Preparer', PersonNumber: 'P100' },
+    option: { id: ID, label: 'Preparer', meta: { detail: 'P100' } },
+  },
+  {
+    name: 'purchasingDocumentStyles',
+    path: 'purchasingDocumentStylesLOV',
+    itemKey: ID,
+    fields: { StyleId: ID, DisplayName: 'Purchase order', StyleName: 'Standard' },
+    option: { id: ID, label: 'Purchase order', meta: { detail: 'Standard' } },
+  },
+  {
+    name: 'supplierAddresses',
+    path: `suppliers/${ID}/child/addresses`,
+    itemKey: '123',
+    fields: { SupplierAddressId: '123', AddressName: 'Ordering' },
+    option: { id: '123', label: 'Ordering' },
+    context: { supplierId: ID },
+  },
+]
+
 describe('Oracle Fusion Procurement selectors', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -86,13 +219,48 @@ describe('Oracle Fusion Procurement selectors', () => {
     mocks.bundle.mockResolvedValue(PREPARED)
   })
 
+  it.each(SELECTOR_CONTRACTS)('$name lists and resolves the correct workflow value', async (entry) => {
+    const input = args(entry.name)
+    Object.assign(input.context, entry.context)
+    const item = resource(`${entry.path}/${entry.itemKey}`, entry.fields)
+    mocks.request.mockResolvedValue(page([item]))
+    expect(await attachment(input).execute(input, PREPARED)).toEqual({
+      kind: 'list',
+      items: [entry.option],
+    })
+    expect(mocks.request.mock.lastCall![1]).toMatchObject({
+      method: 'GET',
+      address: { family: 'fscm', relativePath: entry.path },
+      query: { limit: 100, offset: 0 },
+    })
+    mocks.request.mockClear()
+    mocks.request.mockResolvedValue(entry.filter ? page([item]) : item)
+    input.request = { kind: 'detail', id: entry.option.id }
+    expect(await attachment(input).execute(input, PREPARED)).toEqual({
+      kind: 'detail',
+      item: entry.option,
+    })
+    expect(mocks.request).toHaveBeenCalledTimes(1)
+    expect(mocks.request.mock.lastCall![1].address.relativePath).toBe(
+      entry.filter ? entry.path : `${entry.path}/${entry.itemKey}`
+    )
+    if (entry.filter) {
+      expect(mocks.request.mock.lastCall![1].query).toMatchObject({
+        q: entry.filter,
+        limit: 1,
+        offset: 0,
+      })
+    }
+  })
+
   it('prepares the destination exclusively from the authorized Fusion credential', async () => {
     const input = args('suppliers')
     mocks.request.mockResolvedValue(page([]))
     await attachment(input).execute(input)
     expect(mocks.resolveAccount).toHaveBeenCalledWith('fusion-credential')
     expect(mocks.bundle).toHaveBeenCalledWith({
-      credential: input.credential, protectedValues: input.protectedValues,
+      credential: input.credential,
+      protectedValues: input.protectedValues,
     })
     expect(mocks.request.mock.calls[0][0]).toEqual(PREPARED)
   })
@@ -124,28 +292,40 @@ describe('Oracle Fusion Procurement selectors', () => {
   it.each([
     ['purchaseOrders', 'key', KEY],
     ['purchaseOrderHeaders', 'POHeaderId', ID],
-  ])('projects %s identifiers without substituting opaque and numeric keys', async (name, field, expected) => {
-    mocks.request.mockResolvedValue(page([
-      resource(`purchaseOrders/${KEY}`, { POHeaderId: ID, OrderNumber: 'PO100', Supplier: 'Acme' }),
-    ]))
-    const input = args(name)
-    const result = await attachment(input).execute(input, PREPARED)
-    expect(result).toEqual({
-      kind: 'list',
-      items: [{ id: expected, label: 'PO100', meta: { detail: 'Acme' } }],
-    })
-    expect(JSON.stringify(result)).not.toContain('provider-secret-canary')
-    expect(mocks.request.mock.calls[0][1].query.fields).toContain(field === 'key' ? 'POHeaderId' : field)
-  })
+  ])(
+    'projects %s identifiers without substituting opaque and numeric keys',
+    async (name, field, expected) => {
+      mocks.request.mockResolvedValue(
+        page([
+          resource(`purchaseOrders/${KEY}`, {
+            POHeaderId: ID,
+            OrderNumber: 'PO100',
+            Supplier: 'Acme',
+          }),
+        ])
+      )
+      const input = args(name)
+      const result = await attachment(input).execute(input, PREPARED)
+      expect(result).toEqual({
+        kind: 'list',
+        items: [{ id: expected, label: 'PO100', meta: { detail: 'Acme' } }],
+      })
+      expect(JSON.stringify(result)).not.toContain('provider-secret-canary')
+      expect(mocks.request.mock.calls[0][1].query.fields).toContain(
+        field === 'key' ? 'POHeaderId' : field
+      )
+    }
+  )
 
   it('uses numeric ID filters for opaque-resource detail lookups', async () => {
-    mocks.request.mockResolvedValue(page([
-      resource(`purchaseOrders/${KEY}`, { POHeaderId: ID, OrderNumber: 'PO100' }),
-    ]))
+    mocks.request.mockResolvedValue(
+      page([resource(`purchaseOrders/${KEY}`, { POHeaderId: ID, OrderNumber: 'PO100' })])
+    )
     const input = args('purchaseOrderHeaders')
     input.request = { kind: 'detail', id: ID }
     expect(await attachment(input).execute(input, PREPARED)).toEqual({
-      kind: 'detail', item: { id: ID, label: 'PO100' },
+      kind: 'detail',
+      item: { id: ID, label: 'PO100' },
     })
     expect(mocks.request.mock.calls[0][1]).toMatchObject({
       address: { family: 'fscm', relativePath: 'purchaseOrders' },
@@ -154,11 +334,14 @@ describe('Oracle Fusion Procurement selectors', () => {
   })
 
   it('uses the opaque key when resolving a purchase-order selection by key', async () => {
-    mocks.request.mockResolvedValue(resource(`purchaseOrders/${KEY}`, { POHeaderId: ID, OrderNumber: 'PO100' }))
+    mocks.request.mockResolvedValue(
+      resource(`purchaseOrders/${KEY}`, { POHeaderId: ID, OrderNumber: 'PO100' })
+    )
     const input = args('purchaseOrders')
     input.request = { kind: 'detail', id: KEY }
     expect(await attachment(input).execute(input, PREPARED)).toMatchObject({
-      kind: 'detail', item: { id: KEY, label: 'PO100' },
+      kind: 'detail',
+      item: { id: KEY, label: 'PO100' },
     })
     expect(mocks.request.mock.calls[0][1].address.relativePath).toBe(`purchaseOrders/${KEY}`)
   })
@@ -168,14 +351,21 @@ describe('Oracle Fusion Procurement selectors', () => {
       ['supplierSites', 'sites', 'SupplierSiteId', 'SupplierSite'],
       ['supplierAddresses', 'addresses', 'SupplierAddressId', 'AddressName'],
     ]) {
-      mocks.request.mockResolvedValue(page([
-        resource(`suppliers/${ID}/child/${child}/123`, { [idField]: '123', [labelField]: 'Headquarters' }),
-      ]))
+      mocks.request.mockResolvedValue(
+        page([
+          resource(`suppliers/${ID}/child/${child}/123`, {
+            [idField]: '123',
+            [labelField]: 'Headquarters',
+          }),
+        ])
+      )
       const input = args(selector)
-      input.context.oracleFusionSupplierId = ID
+      input.context.supplierId = ID
       const result = await attachment(input).execute(input, PREPARED)
       expect(result).toMatchObject({ kind: 'list', items: [{ id: '123', label: 'Headquarters' }] })
-      expect(mocks.request.mock.lastCall![1].address.relativePath).toBe(`suppliers/${ID}/child/${child}`)
+      expect(mocks.request.mock.lastCall![1].address.relativePath).toBe(
+        `suppliers/${ID}/child/${child}`
+      )
     }
   })
 
@@ -185,14 +375,19 @@ describe('Oracle Fusion Procurement selectors', () => {
       name: 'SelectorContextUnavailableError',
     })
     expect(mocks.request).not.toHaveBeenCalled()
-    input.context.oracleFusionPOHeaderId = ID
-    mocks.request.mockResolvedValue(page([
-      resource(`purchaseOrderLifeCycleDetails/${ID}/child/receipts/${KEY}`, {
-        ReceiptId: '123', Receipt: 'RCV100', POHeaderId: ID,
-      }),
-    ]))
+    input.context.poHeaderId = ID
+    mocks.request.mockResolvedValue(
+      page([
+        resource(`purchaseOrderLifeCycleDetails/${ID}/child/receipts/${KEY}`, {
+          ReceiptId: '123',
+          Receipt: 'RCV100',
+          POHeaderId: ID,
+        }),
+      ])
+    )
     expect(await attachment(input).execute(input, PREPARED)).toMatchObject({
-      kind: 'list', items: [{ id: KEY, label: 'RCV100' }],
+      kind: 'list',
+      items: [{ id: KEY, label: 'RCV100' }],
     })
     expect(mocks.request.mock.calls[0][1].address.relativePath).toBe(
       `purchaseOrderLifeCycleDetails/${ID}/child/receipts`
@@ -204,11 +399,13 @@ describe('Oracle Fusion Procurement selectors', () => {
     const input = args('suppliers')
     input.signal = controller.signal
     input.request = { kind: 'list', cursor: '100' }
-    mocks.request.mockResolvedValue(page([
-      resource(`suppliers/${ID}`, { SupplierId: ID, Supplier: 'Acme' }),
-    ], 100, true))
+    mocks.request.mockResolvedValue(
+      page([resource(`suppliers/${ID}`, { SupplierId: ID, Supplier: 'Acme' })], 100, true)
+    )
     expect(await attachment(input).execute(input, PREPARED)).toMatchObject({
-      kind: 'list', nextCursor: '101', items: [{ id: ID, label: 'Acme' }],
+      kind: 'list',
+      nextCursor: '101',
+      items: [{ id: ID, label: 'Acme' }],
     })
     expect(mocks.request).toHaveBeenCalledTimes(1)
     expect(mocks.request.mock.calls[0][2]).toBe(controller.signal)
@@ -216,19 +413,26 @@ describe('Oracle Fusion Procurement selectors', () => {
     await expect(attachment(input).execute(input, PREPARED)).rejects.toThrow('Stopped')
   })
 
-  it.each(['-1', '1e3', '1000001', 'https://example.com', '01'])('rejects unsafe cursor %s', async (cursor) => {
-    const input = args('suppliers')
-    input.request = { kind: 'list', cursor }
-    await expect(attachment(input).execute(input, PREPARED)).rejects.toMatchObject({
-      name: 'SelectorContextUnavailableError',
-    })
-    expect(mocks.request).not.toHaveBeenCalled()
-  })
+  it.each(['-1', '1e3', '1000001', 'https://example.com', '01'])(
+    'rejects unsafe cursor %s',
+    async (cursor) => {
+      const input = args('suppliers')
+      input.request = { kind: 'list', cursor }
+      await expect(attachment(input).execute(input, PREPARED)).rejects.toMatchObject({
+        name: 'SelectorContextUnavailableError',
+      })
+      expect(mocks.request).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects an oversized provider page instead of silently truncating it', async () => {
-    mocks.request.mockResolvedValue(page(Array.from({ length: 101 }, () =>
-      resource(`suppliers/${ID}`, { SupplierId: ID, Supplier: 'Acme' })
-    )))
+    mocks.request.mockResolvedValue(
+      page(
+        Array.from({ length: 101 }, () =>
+          resource(`suppliers/${ID}`, { SupplierId: ID, Supplier: 'Acme' })
+        )
+      )
+    )
     const input = args('suppliers')
     await expect(attachment(input).execute(input, PREPARED)).rejects.toMatchObject({
       name: 'SelectorOptionsUnavailableError',
@@ -236,24 +440,40 @@ describe('Oracle Fusion Procurement selectors', () => {
   })
 
   it('deduplicates buyer person IDs across assignments, without returning assignment IDs as buyers', async () => {
-    mocks.request.mockResolvedValue(page([
-      resource('procurementAgents/1', { AssignmentId: '1', AgentId: ID, Agent: 'Buyer', ProcurementBU: 'West' }),
-      resource('procurementAgents/2', { AssignmentId: '2', AgentId: ID, Agent: 'Buyer', ProcurementBU: 'East' }),
-    ]))
+    mocks.request.mockResolvedValue(
+      page([
+        resource('procurementAgents/1', {
+          AssignmentId: '1',
+          AgentId: ID,
+          Agent: 'Buyer',
+          ProcurementBU: 'West',
+        }),
+        resource('procurementAgents/2', {
+          AssignmentId: '2',
+          AgentId: ID,
+          Agent: 'Buyer',
+          ProcurementBU: 'East',
+        }),
+      ])
+    )
     const input = args('buyers')
     expect(await attachment(input).execute(input, PREPARED)).toEqual({
-      kind: 'list', items: [{ id: ID, label: 'Buyer', meta: { detail: 'West' } }],
+      kind: 'list',
+      items: [{ id: ID, label: 'Buyer', meta: { detail: 'West' } }],
     })
   })
 
   it('does not turn nullable person identifiers into selectable values', async () => {
-    mocks.request.mockResolvedValue(page([
-      resource('procurementPersonsLOV/1', { PersonId: null, DisplayName: 'Not selectable' }),
-      resource(`procurementPersonsLOV/${ID}`, { PersonId: ID, DisplayName: 'Preparer' }),
-    ]))
+    mocks.request.mockResolvedValue(
+      page([
+        resource('procurementPersonsLOV/1', { PersonId: null, DisplayName: 'Not selectable' }),
+        resource(`procurementPersonsLOV/${ID}`, { PersonId: ID, DisplayName: 'Preparer' }),
+      ])
+    )
     const input = args('procurementPersons')
     expect(await attachment(input).execute(input, PREPARED)).toEqual({
-      kind: 'list', items: [{ id: ID, label: 'Preparer' }],
+      kind: 'list',
+      items: [{ id: ID, label: 'Preparer' }],
     })
   })
 
@@ -261,7 +481,10 @@ describe('Oracle Fusion Procurement selectors', () => {
     const input = args('suppliers')
     mocks.request.mockRejectedValue(new OracleFusionProviderError('upstream secret', 403))
     await expect(attachment(input).execute(input, PREPARED)).rejects.toEqual(
-      expect.objectContaining({ name: 'SelectorConnectionUnavailableError', message: 'Connection unavailable' })
+      expect.objectContaining({
+        name: 'SelectorConnectionUnavailableError',
+        message: 'Connection unavailable',
+      })
     )
     mocks.request.mockRejectedValue(new OracleFusionProviderError('upstream secret', 404))
     input.request = { kind: 'detail', id: ID }
@@ -277,7 +500,9 @@ describe('Oracle Fusion Procurement selectors', () => {
       supplierIdManual: ID,
       poHeaderIdSelector: 'stale-purchase-order',
     }
-    const field = OracleFusionProcurementBlock.subBlocks.find((item) => item.id === 'supplierSiteIdSelector')!
+    const field = OracleFusionProcurementBlock.subBlocks.find(
+      (item) => item.id === 'supplierSiteIdSelector'
+    )!
     const context = buildSelectorContextFromValues({
       selectorKey: field.selectorKey!,
       contextConfigs: getSelectorContextSubBlocks(OracleFusionProcurementBlock.subBlocks, values),
@@ -285,17 +510,22 @@ describe('Oracle Fusion Procurement selectors', () => {
       dependsOn: field.dependsOn,
       canonicalModes: { supplierId: 'advanced', oauthCredential: 'basic' },
     })
-    expect(context).toEqual({ oauthCredential: 'active-credential', oracleFusionSupplierId: ID })
+    expect(context).toEqual({ oauthCredential: 'active-credential', supplierId: ID })
   })
 
   it('attaches all 16 selectors through the same prepared credential-bound architecture', () => {
     expect(Object.keys(oracleFusionProcurementSelectorAttachments)).toHaveLength(16)
     for (const value of Object.values(oracleFusionProcurementSelectorAttachments)) {
       expect(value.credential).toMatchObject({
-        kind: 'stored', field: 'oauthCredential', serviceIds: ['oracle_fusion_procurement'],
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['oracle_fusion_procurement'],
       })
       expect(value.integrationBlockTypes).toEqual(['oracle_fusion_procurement'])
-      expect(value.destination).toMatchObject({ kind: 'credential-bound', prepare: expect.any(Function) })
+      expect(value.destination).toMatchObject({
+        kind: 'credential-bound',
+        prepare: expect.any(Function),
+      })
     }
   })
 })

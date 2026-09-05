@@ -11,8 +11,8 @@ import {
 import {
   PROCUREMENT_MAX_OFFSET,
   PROCUREMENT_PAGE_SIZE,
-  procurementIdentifierSchema,
   type ProcurementResource,
+  procurementIdentifierSchema,
 } from '@/lib/internal/oracle-fusion-procurement/schema'
 import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
@@ -157,8 +157,8 @@ function parentParams(args: ExecuteServerSelectorArgs, definition: SelectorDefin
   if (!definition.parent) return {}
   const value =
     definition.parent === 'supplierId'
-      ? args.context.oracleFusionSupplierId
-      : args.context.oracleFusionPOHeaderId
+      ? args.context.supplierId
+      : args.context.poHeaderId
   const result = procurementIdentifierSchema.safeParse(value)
   if (!result.success) throw new SelectorContextUnavailableError()
   return { [definition.parent]: result.data }
@@ -167,7 +167,8 @@ function parentParams(args: ExecuteServerSelectorArgs, definition: SelectorDefin
 function parseOffset(cursor: string | undefined): number {
   if (cursor === undefined) return 0
   if (!/^(?:0|[1-9][0-9]{0,6})$/.test(cursor)) throw new SelectorContextUnavailableError()
-  const offset = Number(cursor) // Pagination only; Oracle business identifiers never use Number().
+  /** Pagination only; Oracle business identifiers never use Number(). */
+  const offset = Number(cursor)
   if (offset > PROCUREMENT_MAX_OFFSET) throw new SelectorContextUnavailableError()
   return offset
 }
@@ -177,7 +178,7 @@ function projectOption(
   definition: SelectorDefinition
 ): SafeSelectorOption | null {
   const id = item[definition.id]
-  // The procurement-person schema permits an absent/null ID; it cannot become a selectable option.
+  /** The procurement-person schema permits an absent/null ID; it cannot become a selectable option. */
   if (id === null) return null
   if (typeof id !== 'string' || !id) throw new SelectorOptionsUnavailableError()
   const labels = definition.labels
@@ -272,4 +273,4 @@ export const oracleFusionProcurementSelectorAttachments = {
   'oracle_fusion_procurement.procurementPersons': attachment(),
   'oracle_fusion_procurement.purchasingDocumentStyles': attachment(),
   'oracle_fusion_procurement.supplierAddresses': attachment(),
-} satisfies ServerSelectorAttachmentMap
+} satisfies ServerSelectorAttachmentMap<ProcurementSelectorKey>

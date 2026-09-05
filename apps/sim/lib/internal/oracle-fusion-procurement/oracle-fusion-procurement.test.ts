@@ -12,7 +12,10 @@ import {
   getInternalToolOperationHandler,
   getRegisteredInternalToolOperationIds,
 } from '@/lib/internal/tool-operations/registry.server'
-import { buildCanonicalIndex, evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+} from '@/lib/workflows/subblocks/visibility'
 import {
   OracleFusionProcurementBlock,
   OracleFusionProcurementBlockMeta,
@@ -49,7 +52,12 @@ const fixtureFields: Record<string, Record<string, unknown>> = {
   supplierSites: { SupplierSiteId: ID, SupplierSite: 'Headquarters', ProcurementBUId: ID },
   purchaseRequisitions: { RequisitionHeaderId: ID, Requisition: 'REQ100', Description: null },
   purchaseRequisitionLines: { RequisitionLineId: ID, RequisitionHeaderId: ID, LineNumber: 1 },
-  draftPurchaseOrders: { POHeaderId: ID, OrderNumber: 'PO100', VersionId: ID, Status: 'Incomplete' },
+  draftPurchaseOrders: {
+    POHeaderId: ID,
+    OrderNumber: 'PO100',
+    VersionId: ID,
+    Status: 'Incomplete',
+  },
   draftPurchaseOrderLines: { POLineId: ID, POHeaderId: ID, LineNumber: 1, Quantity: 0 },
   purchaseOrders: { POHeaderId: ID, OrderNumber: 'PO100', FrozenFlag: false },
   purchaseOrderLines: { POLineId: ID, POHeaderId: ID, LineNumber: 1, Quantity: 0 },
@@ -57,17 +65,32 @@ const fixtureFields: Record<string, Record<string, unknown>> = {
   purchaseOrderReceipts: { ReceiptId: ID, POHeaderId: ID, Receipt: 'RCV100', ReceivedQuantity: 0 },
   supplierNegotiations: { AuctionHeaderId: ID, Negotiation: 'N100', NegotiationTitle: 'Equipment' },
   supplierNegotiationResponses: {
-    ResponseNumber: ID, AuctionHeaderId: ID, ResponseAmount: '1200.00', ResponseStatus: 'Active',
+    ResponseNumber: ID,
+    AuctionHeaderId: ID,
+    ResponseAmount: '1200.00',
+    ResponseStatus: 'Active',
   },
-  procurementAgents: { AssignmentId: ID, AgentId: ID, Agent: 'Buyer', ManageOrdersAllowedFlag: false },
+  procurementAgents: {
+    AssignmentId: ID,
+    AgentId: ID,
+    Agent: 'Buyer',
+    ManageOrdersAllowedFlag: false,
+  },
 }
 
 const projectedFixtureFields = {
   ...fixtureFields,
   purchaseRequisitionLines: { ...fixtureFields.purchaseRequisitionLines, LineNumber: '1' },
-  draftPurchaseOrderLines: { ...fixtureFields.draftPurchaseOrderLines, LineNumber: '1', Quantity: '0' },
+  draftPurchaseOrderLines: {
+    ...fixtureFields.draftPurchaseOrderLines,
+    LineNumber: '1',
+    Quantity: '0',
+  },
   purchaseOrderLines: { ...fixtureFields.purchaseOrderLines, LineNumber: '1', Quantity: '0' },
-  purchaseOrderLifecycleDetails: { ...fixtureFields.purchaseOrderLifecycleDetails, DeliveredAmount: '0' },
+  purchaseOrderLifecycleDetails: {
+    ...fixtureFields.purchaseOrderLifecycleDetails,
+    DeliveredAmount: '0',
+  },
   purchaseOrderReceipts: { ...fixtureFields.purchaseOrderReceipts, ReceivedQuantity: '0' },
 } satisfies Record<string, Record<string, unknown>>
 
@@ -82,7 +105,7 @@ interface ContractCase {
   params: Record<string, unknown>
 }
 
-// Independent endpoint/verb matrix checked against the official 26C operation pages.
+/** Independent endpoint/verb matrix checked against the official 26C operation pages. */
 const CONTRACTS: ContractCase[] = [
   {
     slug: 'create_draft_purchase_order',
@@ -119,7 +142,7 @@ const CONTRACTS: ContractCase[] = [
     resource: 'suppliers',
     wrapper: 'supplier',
     params: {
-      supplierName: "Example",
+      supplierName: 'Example',
     },
   },
   {
@@ -131,7 +154,7 @@ const CONTRACTS: ContractCase[] = [
     wrapper: 'supplierNegotiation',
     params: {
       procurementBUId: ID,
-      negotiationTitle: "Example",
+      negotiationTitle: 'Example',
     },
   },
   {
@@ -144,7 +167,7 @@ const CONTRACTS: ContractCase[] = [
     params: {
       supplierId: ID,
       procurementBUId: ID,
-      supplierSiteName: "Example",
+      supplierSiteName: 'Example',
       supplierAddressId: ID,
     },
   },
@@ -286,9 +309,7 @@ const CONTRACTS: ContractCase[] = [
     path: `draftPurchaseOrders`,
     kind: 'list',
     resource: 'draftPurchaseOrders',
-    params: {
-
-    },
+    params: {},
   },
   {
     slug: 'list_procurement_agents',
@@ -296,9 +317,7 @@ const CONTRACTS: ContractCase[] = [
     path: `procurementAgents`,
     kind: 'list',
     resource: 'procurementAgents',
-    params: {
-
-    },
+    params: {},
   },
   {
     slug: 'list_purchase_order_lines',
@@ -326,9 +345,7 @@ const CONTRACTS: ContractCase[] = [
     path: `purchaseOrders`,
     kind: 'list',
     resource: 'purchaseOrders',
-    params: {
-
-    },
+    params: {},
   },
   {
     slug: 'list_purchase_requisition_lines',
@@ -346,9 +363,7 @@ const CONTRACTS: ContractCase[] = [
     path: `purchaseRequisitions`,
     kind: 'list',
     resource: 'purchaseRequisitions',
-    params: {
-
-    },
+    params: {},
   },
   {
     slug: 'list_supplier_negotiation_responses',
@@ -356,9 +371,7 @@ const CONTRACTS: ContractCase[] = [
     path: `supplierNegotiationResponses`,
     kind: 'list',
     resource: 'supplierNegotiationResponses',
-    params: {
-
-    },
+    params: {},
   },
   {
     slug: 'list_supplier_negotiations',
@@ -366,9 +379,7 @@ const CONTRACTS: ContractCase[] = [
     path: `supplierNegotiations`,
     kind: 'list',
     resource: 'supplierNegotiations',
-    params: {
-
-    },
+    params: {},
   },
   {
     slug: 'list_supplier_sites',
@@ -386,9 +397,7 @@ const CONTRACTS: ContractCase[] = [
     path: `suppliers`,
     kind: 'list',
     resource: 'suppliers',
-    params: {
-
-    },
+    params: {},
   },
   {
     slug: 'remove_purchase_order_hold',
@@ -533,16 +542,24 @@ function responseFor(testCase: ContractCase): unknown {
     if (testCase.actionKind === 'withdraw') return { result: { STATUS: [{ CODE: 'SUCCESS' }] } }
     if (testCase.actionKind === 'validation') return { result: [] }
     if (testCase.actionKind === 'negotiation') {
-      return { result: { Status: 'SUCCESS', Message: 'Validated', Negotiation: 43653, ErrorsListId: null } }
+      return {
+        result: { Status: 'SUCCESS', Message: 'Validated', Negotiation: 43653, ErrorsListId: null },
+      }
     }
     return { result: 'SUCCESS' }
   }
   const opaque = [
-    'purchaseRequisitions', 'draftPurchaseOrders', 'purchaseOrders',
-    'purchaseOrderReceipts', 'supplierNegotiations', 'supplierNegotiationResponses',
+    'purchaseRequisitions',
+    'draftPurchaseOrders',
+    'purchaseOrders',
+    'purchaseOrderReceipts',
+    'supplierNegotiations',
+    'supplierNegotiationResponses',
   ].includes(testCase.resource!)
-  const itemPath = testCase.kind === 'list' || testCase.kind === 'create'
-    ? `${testCase.path}/${opaque ? KEY : ID}` : testCase.path
+  const itemPath =
+    testCase.kind === 'list' || testCase.kind === 'create'
+      ? `${testCase.path}/${opaque ? KEY : ID}`
+      : testCase.path
   const item = resourceItem(testCase.resource!, itemPath)
   return testCase.kind === 'list' ? page([item]) : item
 }
@@ -560,7 +577,7 @@ async function invoke(slug: string, params: Record<string, unknown> = {}, signal
     requestId: 'request',
     signal,
   })
-  return { status: response.status, result: await response.json() as ToolResponse }
+  return { status: response.status, result: (await response.json()) as ToolResponse }
 }
 
 function mappedBlockInputs(params: Record<string, unknown>) {
@@ -576,42 +593,51 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     })
   })
 
-  it.each(CONTRACTS)('$slug uses the documented method, resource and response contract', async (contract) => {
-    mocks.request.mockResolvedValue(responseFor(contract))
-    const controller = new AbortController()
-    const { status, result } = await invoke(contract.slug, contract.params, controller.signal)
-    expect(status).toBe(200)
-    expect(result.success, JSON.stringify(result)).toBe(true)
-    expect(mocks.request).toHaveBeenCalledTimes(1)
-    const [credential, request, signal] = mocks.request.mock.calls[0] as [
-      typeof AUTH, OracleFusionRequest, AbortSignal,
-    ]
-    expect(credential).toEqual({ instanceUrl: ORIGIN, accessToken: AUTH.accessToken })
-    expect(signal).toBe(controller.signal)
-    expect(request.method).toBe(contract.method)
-    expect(request.address).toEqual({ family: 'fscm', relativePath: contract.path })
-    if (contract.method !== 'GET') {
-      expect(request.mediaType).toBe(contract.kind === 'action'
-        ? 'application/vnd.oracle.adf.action+json'
-        : 'application/vnd.oracle.adf.resourceitem+json')
-      expect(serializeOracleFusionJsonBody(request.body)).not.toContain('[object Object]')
-    } else {
-      expect(request).not.toHaveProperty('body')
-      expect(request.query?.fields).toBeTruthy()
-      expect(request.query).not.toHaveProperty('onlyData')
+  it.each(CONTRACTS)(
+    '$slug uses the documented method, resource and response contract',
+    async (contract) => {
+      mocks.request.mockResolvedValue(responseFor(contract))
+      const controller = new AbortController()
+      const { status, result } = await invoke(contract.slug, contract.params, controller.signal)
+      expect(status).toBe(200)
+      expect(result.success, JSON.stringify(result)).toBe(true)
+      expect(mocks.request).toHaveBeenCalledTimes(1)
+      const [credential, request, signal] = mocks.request.mock.calls[0] as [
+        typeof AUTH,
+        OracleFusionRequest,
+        AbortSignal,
+      ]
+      expect(credential).toEqual({ instanceUrl: ORIGIN, accessToken: AUTH.accessToken })
+      expect(signal).toBe(controller.signal)
+      expect(request.method).toBe(contract.method)
+      expect(request.address).toEqual({ family: 'fscm', relativePath: contract.path })
+      if (contract.method !== 'GET') {
+        expect(request.mediaType).toBe(
+          contract.kind === 'action'
+            ? 'application/vnd.oracle.adf.action+json'
+            : 'application/vnd.oracle.adf.resourceitem+json'
+        )
+        expect(serializeOracleFusionJsonBody(request.body)).not.toContain('[object Object]')
+      } else {
+        expect(request).not.toHaveProperty('body')
+        expect(request.query?.fields).toBeTruthy()
+        expect(request.query).not.toHaveProperty('onlyData')
+      }
+      if (contract.kind === 'list') {
+        expect(request.query).toMatchObject({ limit: 100, offset: 0 })
+        expect(result.output).toMatchObject({ count: 1, hasMore: false, offset: 0 })
+        expect(result.output).not.toHaveProperty('nextOffset')
+        expect(result.output.items[0]).toMatchObject(projectedFixtureFields[contract.resource!])
+      } else if (contract.wrapper) {
+        expect(result.output[contract.wrapper]).toMatchObject(
+          projectedFixtureFields[contract.resource!]
+        )
+      }
+      expect(JSON.stringify(result)).not.toContain('must-not-be-projected')
+      expect(JSON.stringify(result)).not.toContain('TaxpayerId')
+      expect(JSON.stringify(result)).not.toContain('@context')
     }
-    if (contract.kind === 'list') {
-      expect(request.query).toMatchObject({ limit: 100, offset: 0 })
-      expect(result.output).toMatchObject({ count: 1, hasMore: false, offset: 0 })
-      expect(result.output).not.toHaveProperty('nextOffset')
-      expect(result.output.items[0]).toMatchObject(projectedFixtureFields[contract.resource!])
-    } else if (contract.wrapper) {
-      expect(result.output[contract.wrapper]).toMatchObject(projectedFixtureFields[contract.resource!])
-    }
-    expect(JSON.stringify(result)).not.toContain('must-not-be-projected')
-    expect(JSON.stringify(result)).not.toContain('TaxpayerId')
-    expect(JSON.stringify(result)).not.toContain('@context')
-  })
+  )
 
   it.each([
     {
@@ -647,7 +673,12 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     const original = structuredClone(body)
     mocks.request.mockResolvedValue(resourceItem('draftPurchaseOrders', `draftPurchaseOrders/${KEY}`))
     const response = await invoke('create_draft_purchase_order', {
-      buyerId: ID, documentStyleId: ID, procurementBUId: ID, supplierId: ID, supplierSiteId: ID, body,
+      buyerId: ID,
+      documentStyleId: ID,
+      procurementBUId: ID,
+      supplierId: ID,
+      supplierSiteId: ID,
+      body,
     })
     expect(response.result.success).toBe(true)
     expect(body).toEqual(original)
@@ -672,7 +703,8 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     'rejects imprecise or invalid request identifier %s before transport',
     async (badId) => {
       const { status } = await invoke('create_purchase_requisition', {
-        preparerId: ID, requisitioningBUId: ID,
+        preparerId: ID,
+        requisitioningBUId: ID,
         body: { lines: [{ LineNumber: 1, RequesterId: badId }] },
       })
       expect(status).toBe(400)
@@ -681,10 +713,19 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   )
 
   it('rejects unknown write fields, oversized child arrays and empty updates', async () => {
-    for (const body of [{ StatusCode: 'OPEN' }, { lines: Array.from({ length: 101 }, () => ({ LineNumber: 1 })) }]) {
-      expect((await invoke('create_purchase_requisition', {
-        preparerId: ID, requisitioningBUId: ID, body,
-      })).status).toBe(400)
+    for (const body of [
+      { StatusCode: 'OPEN' },
+      { lines: Array.from({ length: 101 }, () => ({ LineNumber: 1 })) },
+    ]) {
+      expect(
+        (
+          await invoke('create_purchase_requisition', {
+            preparerId: ID,
+            requisitioningBUId: ID,
+            body,
+          })
+        ).status
+      ).toBe(400)
     }
     expect((await invoke('update_supplier', { supplierId: ID, body: {} })).status).toBe(400)
     expect(mocks.request).not.toHaveBeenCalled()
@@ -693,19 +734,25 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   it('distinguishes numeric negotiation filtering from opaque resource keys', async () => {
     mocks.request.mockResolvedValue(page([]))
     await invoke('list_supplier_negotiation_responses', {
-      negotiationId: ID, q: "ResponseStatusCode='ACTIVE'", limit: 25, offset: 0, totalResults: false,
+      negotiationId: ID,
+      q: "ResponseStatusCode='ACTIVE'",
+      limit: 25,
+      offset: 0,
+      totalResults: false,
     })
     const request = mocks.request.mock.calls[0][1]
     expect(request.query).toMatchObject({
       q: `AuctionHeaderId=${ID};ResponseStatusCode='ACTIVE'`,
-      limit: 25, offset: 0, totalResults: false,
+      limit: 25,
+      offset: 0,
+      totalResults: false,
     })
   })
 
   it('returns only the requested page and a usable next offset', async () => {
-    mocks.request.mockResolvedValue(page([
-      resourceItem('suppliers', `suppliers/${ID}`),
-    ], 50, true))
+    mocks.request.mockResolvedValue(
+      page([resourceItem('suppliers', `suppliers/${ID}`)], 50, true)
+    )
     const { result } = await invoke('list_suppliers', { offset: 50, limit: 100 })
     expect(result.output).toMatchObject({ count: 1, offset: 50, hasMore: true, nextOffset: 51 })
     expect(mocks.request).toHaveBeenCalledTimes(1)
@@ -722,9 +769,9 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   })
 
   it.each([true, false])('uses authoritative self links for opaque keys (v9=%s)', async (v9) => {
-    mocks.request.mockResolvedValue(page([
-      resourceItem('purchaseOrders', `purchaseOrders/${KEY}`, v9),
-    ]))
+    mocks.request.mockResolvedValue(
+      page([resourceItem('purchaseOrders', `purchaseOrders/${KEY}`, v9)])
+    )
     const { result } = await invoke('list_purchase_orders')
     expect(result.output.items[0]).toMatchObject({ key: KEY, POHeaderId: ID })
     expect(result.output.items[0].key).not.toBe(ID)
@@ -734,7 +781,17 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     const good = resourceItem('purchaseOrders', `purchaseOrders/${KEY}`)
     for (const invalid of [
       { ...fixtureFields.purchaseOrders },
-      { ...good, '@context': { links: [{ rel: 'self', href: `https://other.fa.us2.oraclecloud.com${ROOT}purchaseOrders/${KEY}` }] } },
+      {
+        ...good,
+        '@context': {
+          links: [
+            {
+              rel: 'self',
+              href: `https://other.fa.us2.oraclecloud.com${ROOT}purchaseOrders/${KEY}`,
+            },
+          ],
+        },
+      },
       resourceItem('purchaseOrders', 'purchaseOrders/OTHER'),
     ]) {
       mocks.request.mockResolvedValue(invalid)
@@ -744,9 +801,14 @@ describe('Oracle Fusion Procurement integration contracts', () => {
 
   it('checks that PATCH returns the same document', async () => {
     mocks.request.mockResolvedValue(resourceItem('draftPurchaseOrders', 'draftPurchaseOrders/OTHER'))
-    expect((await invoke('update_draft_purchase_order', {
-      draftPurchaseOrderKey: KEY, body: { Description: 'Update' },
-    })).status).toBe(502)
+    expect(
+      (
+        await invoke('update_draft_purchase_order', {
+          draftPurchaseOrderKey: KEY,
+          body: { Description: 'Update' },
+        })
+      ).status
+    ).toBe(502)
   })
 
   it('preserves framework-v9 decimal strings while normalizing low-precision numbers', async () => {
@@ -764,11 +826,15 @@ describe('Oracle Fusion Procurement integration contracts', () => {
       Revision: '0',
       FrozenFlag: false,
     })
-    mocks.request.mockResolvedValue(page([{
-      ...resourceItem('purchaseOrderLines', `purchaseOrders/${KEY}/child/lines/${ID}`, true),
-      Quantity: '1.234567890123456789E-20',
-      Price: null,
-    }]))
+    mocks.request.mockResolvedValue(
+      page([
+        {
+          ...resourceItem('purchaseOrderLines', `purchaseOrders/${KEY}/child/lines/${ID}`, true),
+          Quantity: '1.234567890123456789E-20',
+          Price: null,
+        },
+      ])
+    )
     const lines = await invoke('list_purchase_order_lines', { purchaseOrderKey: KEY })
     expect(lines.result.success).toBe(true)
     expect(lines.result.output.items[0]).toMatchObject({
@@ -800,11 +866,24 @@ describe('Oracle Fusion Procurement integration contracts', () => {
 
   it.each([
     ['submit_purchase_requisition', { requisitionKey: KEY }, { result: 'FAILURE' }],
-    ['withdraw_purchase_requisition', { requisitionKey: KEY }, { result: { STATUS: [{ CODE: 'FAILURE' }] } }],
+    [
+      'withdraw_purchase_requisition',
+      { requisitionKey: KEY },
+      { result: { STATUS: [{ CODE: 'FAILURE' }] } },
+    ],
     ['hold_purchase_order', { purchaseOrderKey: KEY }, { result: 'Failure' }],
-    ['validate_or_publish_supplier_negotiation', { negotiationKey: KEY, actionIntent: 'Validate' }, {
-      result: { Status: 'ERROR', Message: 'Resolve validation errors', ErrorsListId: '513428', Negotiation: '35340' },
-    }],
+    [
+      'validate_or_publish_supplier_negotiation',
+      { negotiationKey: KEY, actionIntent: 'Validate' },
+      {
+        result: {
+          Status: 'ERROR',
+          Message: 'Resolve validation errors',
+          ErrorsListId: '513428',
+          Negotiation: '35340',
+        },
+      },
+    ],
   ])('does not confuse HTTP success with business success for %s', async (slug, params, raw) => {
     mocks.request.mockResolvedValue(raw)
     const { status, result } = await invoke(slug as string, params as Record<string, unknown>)
@@ -823,22 +902,32 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   })
 
   it('requires explicit negotiation action intent and keeps action BuyerId a JSON string', async () => {
-    expect((await invoke('validate_or_publish_supplier_negotiation', { negotiationKey: KEY })).status).toBe(400)
+    expect(
+      (await invoke('validate_or_publish_supplier_negotiation', { negotiationKey: KEY })).status
+    ).toBe(400)
     expect(mocks.request).not.toHaveBeenCalled()
     mocks.request.mockResolvedValue({
       result: { Status: 'SUCCESS', Message: 'Published', ErrorsListId: null, Negotiation: 43653 },
     })
     const { result } = await invoke('validate_or_publish_supplier_negotiation', {
-      negotiationKey: KEY, actionIntent: 'Publish', buyerId: ID, ignoreWarnings: false,
+      negotiationKey: KEY,
+      actionIntent: 'Publish',
+      buyerId: ID,
+      ignoreWarnings: false,
     })
     expect(mocks.request.mock.calls[0][1].body).toEqual({
-      ActionIntent: 'Publish', BuyerId: ID, IgnoreWarning: 'N',
+      ActionIntent: 'Publish',
+      BuyerId: ID,
+      IgnoreWarning: 'N',
     })
     expect(result.output.result.Negotiation).toBe('43653')
   })
 
   it('binds execution to the Fusion service-account family before any Oracle request', async () => {
-    mocks.resolveAccount.mockResolvedValue({ credentialType: 'service_account', providerId: 'netsuite-service-account' })
+    mocks.resolveAccount.mockResolvedValue({
+      credentialType: 'service_account',
+      providerId: 'netsuite-service-account',
+    })
     expect((await invoke('list_suppliers')).status).toBe(403)
     expect(mocks.request).not.toHaveBeenCalled()
   })
@@ -852,9 +941,13 @@ describe('Oracle Fusion Procurement integration contracts', () => {
   })
 
   it('rejects undeclared internal-operation inputs', async () => {
-    await expect(executeProcurementOperation('oracle_fusion_procurement_list_suppliers', {
-      ...AUTH, _context: { userId: 'forged' }, path: 'invoices',
-    })).rejects.toThrow()
+    await expect(
+      executeProcurementOperation('oracle_fusion_procurement_list_suppliers', {
+        ...AUTH,
+        _context: { userId: 'forged' },
+        path: 'invoices',
+      })
+    ).rejects.toThrow()
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
@@ -863,7 +956,11 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     expect(ids).toHaveLength(39)
     expect([...toolById.keys()].sort()).toEqual(ids)
     expect([...OracleFusionProcurementBlock.tools.access].sort()).toEqual(ids)
-    expect(getRegisteredInternalToolOperationIds().filter((id) => id.startsWith('oracle_fusion_procurement_')).sort()).toEqual(ids)
+    expect(
+      getRegisteredInternalToolOperationIds()
+        .filter((id) => id.startsWith('oracle_fusion_procurement_'))
+        .sort()
+    ).toEqual(ids)
     const options = OracleFusionProcurementBlock.subBlocks.find(
       (block) => block.id === 'operation'
     )!.options!
@@ -875,7 +972,8 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     for (const id of ids) {
       expect(hasToolId(id)).toBe(true)
       expect(toolMetadata[id]?.oauth).toMatchObject({
-        provider: 'oracle_fusion_procurement', credentialKind: 'service-account',
+        provider: 'oracle_fusion_procurement',
+        credentialKind: 'service-account',
         authoritativeParams: ['instanceUrl'],
       })
       expect(await getInternalToolOperationHandler(id)).toBe(executeOracleFusionProcurementTool)
@@ -886,14 +984,20 @@ describe('Oracle Fusion Procurement integration contracts', () => {
     const block = OracleFusionProcurementBlock
     for (const tool of Object.values(procurementTools) as InternalToolConfig[]) {
       const values = { operation: tool.id }
-      const active = block.subBlocks.filter((field) => evaluateSubBlockCondition(field.condition, values))
+      const active = block.subBlocks.filter((field) =>
+        evaluateSubBlockCondition(field.condition, values)
+      )
       const accepted = new Set(active.map((field) => field.canonicalParamId ?? field.id))
       for (const field of active) {
         if (field.id === 'operation') continue
         const paramId = field.canonicalParamId ?? field.id
         expect(tool.params, `${tool.id} field ${paramId}`).toHaveProperty(paramId)
-        const required = typeof field.required === 'boolean'
-          ? field.required : field.required ? evaluateSubBlockCondition(field.required, values) : false
+        const required =
+          typeof field.required === 'boolean'
+            ? field.required
+            : field.required
+              ? evaluateSubBlockCondition(field.required, values)
+              : false
         if (required) expect(tool.params[paramId].required).toBe(true)
       }
       for (const [id, param] of Object.entries(tool.params)) {
@@ -902,7 +1006,8 @@ describe('Oracle Fusion Procurement integration contracts', () => {
       }
       const produced = Object.entries(block.outputs)
         .filter(([, field]) => evaluateSubBlockCondition(field.condition, values))
-        .map(([id]) => id).sort()
+        .map(([id]) => id)
+        .sort()
       expect(produced, tool.id).toEqual(Object.keys(tool.outputs ?? {}).sort())
     }
   })
@@ -919,11 +1024,18 @@ describe('Oracle Fusion Procurement integration contracts', () => {
       expect(members[0].required).toEqual(members[1].required)
     }
     const mapped = mappedBlockInputs({
-      ...AUTH, operation: 'oracle_fusion_procurement_list_suppliers',
-      supplierId: ID, body: { Supplier: 'Stale' }, actionIntent: 'Publish', limit: '25', offset: '0',
+      ...AUTH,
+      operation: 'oracle_fusion_procurement_list_suppliers',
+      supplierId: ID,
+      body: { Supplier: 'Stale' },
+      actionIntent: 'Publish',
+      limit: '25',
+      offset: '0',
     })
     expect(mapped).toMatchObject({ limit: 25, offset: 0 })
-    const projected = procurementTools.oracleFusionProcurementListSuppliersTool.operation.input(mapped as typeof AUTH)
+    const projected = procurementTools.oracleFusionProcurementListSuppliersTool.operation.input(
+      mapped as typeof AUTH
+    )
     expect(projected).not.toHaveProperty('body')
     expect(projected).not.toHaveProperty('supplierId')
     expect(projected).not.toHaveProperty('actionIntent')
@@ -932,12 +1044,16 @@ describe('Oracle Fusion Procurement integration contracts', () => {
 
   it('preserves exact block identifiers and typed agent inputs without an editor operation', () => {
     const mapped = mappedBlockInputs({
-      operation: 'oracle_fusion_procurement_get_supplier', supplierId: ID,
+      operation: 'oracle_fusion_procurement_get_supplier',
+      supplierId: ID,
     })
     expect(mapped.supplierId).toBe(ID)
-    expect(() => mappedBlockInputs({
-      operation: 'oracle_fusion_procurement_get_supplier', supplierId: 9007199254740992,
-    })).toThrow('must be a string')
+    expect(() =>
+      mappedBlockInputs({
+        operation: 'oracle_fusion_procurement_get_supplier',
+        supplierId: 9007199254740992,
+      })
+    ).toThrow('must be a string')
     const typed = { ...AUTH, supplierId: ID, body: { OneTimeSupplierFlag: false } }
     expect(mappedBlockInputs(typed)).toEqual(typed)
   })

@@ -99,9 +99,7 @@ const NEGOTIATION_KEY_OPERATIONS = [
   'oracle_fusion_procurement_update_supplier_negotiation',
   'oracle_fusion_procurement_validate_or_publish_supplier_negotiation',
 ]
-const NEGOTIATION_ID_OPERATIONS = [
-  'oracle_fusion_procurement_list_supplier_negotiation_responses',
-]
+const NEGOTIATION_ID_OPERATIONS = ['oracle_fusion_procurement_list_supplier_negotiation_responses']
 const RESPONSE_KEY_OPERATIONS = ['oracle_fusion_procurement_get_supplier_negotiation_response']
 const ASSIGNMENT_ID_OPERATIONS = ['oracle_fusion_procurement_get_procurement_agent']
 const SUPPLIER_NAME_OPERATIONS = ['oracle_fusion_procurement_create_supplier']
@@ -113,9 +111,7 @@ const PROCUREMENT_BUID_OPERATIONS = [
   'oracle_fusion_procurement_create_supplier_site',
 ]
 const PREPARER_ID_OPERATIONS = ['oracle_fusion_procurement_create_purchase_requisition']
-const REQUISITIONING_BUID_OPERATIONS = [
-  'oracle_fusion_procurement_create_purchase_requisition',
-]
+const REQUISITIONING_BUID_OPERATIONS = ['oracle_fusion_procurement_create_purchase_requisition']
 const BUYER_ID_OPERATIONS = [
   'oracle_fusion_procurement_create_draft_purchase_order',
   'oracle_fusion_procurement_create_supplier_negotiation',
@@ -132,7 +128,9 @@ const REMOVE_HOLD_REASON_OPERATIONS = ['oracle_fusion_procurement_remove_purchas
 const REQUEST_FUNDS_OVERRIDE_FLAG_OPERATIONS = [
   'oracle_fusion_procurement_submit_purchase_requisition',
 ]
-const VALIDATE_BEFORE_SUBMIT_FLAG_OPERATIONS = ['oracle_fusion_procurement_submit_draft_purchase_order']
+const VALIDATE_BEFORE_SUBMIT_FLAG_OPERATIONS = [
+  'oracle_fusion_procurement_submit_draft_purchase_order',
+]
 const IGNORE_WARNINGS_OPERATIONS = [
   'oracle_fusion_procurement_validate_or_publish_supplier_negotiation',
 ]
@@ -689,7 +687,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'requisitionKey',
       mode: 'advanced',
-      placeholder: 'Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId',
+      placeholder:
+        'Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId',
       condition: { field: 'operation', value: REQUISITION_KEY_OPERATIONS },
       required: true,
     },
@@ -712,7 +711,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'draftPurchaseOrderKey',
       mode: 'advanced',
-      placeholder: 'Opaque draft purchase-order key from the key output; do not substitute POHeaderId',
+      placeholder:
+        'Opaque draft purchase-order key from the key output; do not substitute POHeaderId',
       condition: { field: 'operation', value: DRAFT_PURCHASE_ORDER_KEY_OPERATIONS },
       required: true,
     },
@@ -735,7 +735,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'purchaseOrderKey',
       mode: 'advanced',
-      placeholder: 'Opaque approved purchase-order key from the key output; do not substitute POHeaderId',
+      placeholder:
+        'Opaque approved purchase-order key from the key output; do not substitute POHeaderId',
       condition: { field: 'operation', value: PURCHASE_ORDER_KEY_OPERATIONS },
       required: true,
     },
@@ -758,7 +759,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'poHeaderId',
       mode: 'advanced',
-      placeholder: 'Numeric POHeaderId from a purchase order, as a decimal string (not its opaque key)',
+      placeholder:
+        'Numeric POHeaderId from a purchase order, as a decimal string (not its opaque key)',
       condition: { field: 'operation', value: PO_HEADER_ID_OPERATIONS },
       required: true,
     },
@@ -781,7 +783,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'receiptKey',
       mode: 'advanced',
-      placeholder: 'Opaque receipt key from List Purchase Order Receipts for this POHeaderId; not ReceiptId',
+      placeholder:
+        'Opaque receipt key from List Purchase Order Receipts for this POHeaderId; not ReceiptId',
       condition: { field: 'operation', value: RECEIPT_KEY_OPERATIONS },
       required: true,
     },
@@ -850,7 +853,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'responseKey',
       mode: 'advanced',
-      placeholder: 'Opaque supplier-negotiation-response key from the key output; not ResponseNumber',
+      placeholder:
+        'Opaque supplier-negotiation-response key from the key output; not ResponseNumber',
       condition: { field: 'operation', value: RESPONSE_KEY_OPERATIONS },
       required: true,
     },
@@ -1197,7 +1201,7 @@ export const OracleFusionProcurementBlock: BlockConfig = {
           if (!active) {
             result[field] = undefined
           } else if (field === 'body') {
-            // Keep JSON strings intact; the server rejects already-imprecise numeric IDs.
+            /** Keep JSON strings intact; the server rejects already-imprecise numeric IDs. */
             result[field] = params[field] === '' ? undefined : params[field]
           } else if (field === 'limit' || field === 'offset') {
             result[field] = parseOptionalNumberInput(params[field], field, {
@@ -1205,10 +1209,15 @@ export const OracleFusionProcurementBlock: BlockConfig = {
               min: field === 'limit' ? 1 : 0,
               max: field === 'limit' ? 100 : 1_000_000,
             })
-          } else if ([
-            'totalResults', 'requestFundsOverrideFlag', 'validateBeforeSubmitFlag', 'ignoreWarnings',
-          ].includes(field)) {
-            result[field] = parseOptionalBooleanInput(params[field], field)
+          } else if (
+            [
+              'totalResults',
+              'requestFundsOverrideFlag',
+              'validateBeforeSubmitFlag',
+              'ignoreWarnings',
+            ].includes(field)
+          ) {
+            result[field] = parseOptionalBooleanInput(params[field])
           } else {
             result[field] = optionalString(params[field], field)
           }
@@ -1230,23 +1239,28 @@ export const OracleFusionProcurementBlock: BlockConfig = {
     },
     requisitionKey: {
       type: 'string',
-      description: 'Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId',
+      description:
+        'Opaque purchase-requisition key from the key output; do not substitute RequisitionHeaderId',
     },
     draftPurchaseOrderKey: {
       type: 'string',
-      description: 'Opaque draft purchase-order key from the key output; do not substitute POHeaderId',
+      description:
+        'Opaque draft purchase-order key from the key output; do not substitute POHeaderId',
     },
     purchaseOrderKey: {
       type: 'string',
-      description: 'Opaque approved purchase-order key from the key output; do not substitute POHeaderId',
+      description:
+        'Opaque approved purchase-order key from the key output; do not substitute POHeaderId',
     },
     poHeaderId: {
       type: 'string',
-      description: 'Numeric POHeaderId from a purchase order, as a decimal string (not its opaque key)',
+      description:
+        'Numeric POHeaderId from a purchase order, as a decimal string (not its opaque key)',
     },
     receiptKey: {
       type: 'string',
-      description: 'Opaque receipt key from List Purchase Order Receipts for this POHeaderId; not ReceiptId',
+      description:
+        'Opaque receipt key from List Purchase Order Receipts for this POHeaderId; not ReceiptId',
     },
     negotiationKey: {
       type: 'string',
@@ -1258,7 +1272,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
     },
     responseKey: {
       type: 'string',
-      description: 'Opaque supplier-negotiation-response key from the key output; not ResponseNumber',
+      description:
+        'Opaque supplier-negotiation-response key from the key output; not ResponseNumber',
     },
     assignmentId: {
       type: 'string',
@@ -1302,7 +1317,8 @@ export const OracleFusionProcurementBlock: BlockConfig = {
     },
     actionIntent: {
       type: 'string',
-      description: 'Explicit action intent: Validate or Publish. Validation does not publish the negotiation',
+      description:
+        'Explicit action intent: Validate or Publish. Validation does not publish the negotiation',
     },
     holdReason: {
       type: 'string',
@@ -1318,13 +1334,17 @@ export const OracleFusionProcurementBlock: BlockConfig = {
     },
     validateBeforeSubmitFlag: {
       type: 'boolean',
-      description: 'Validate the draft purchase order before submission; Oracle defaults to false when omitted',
+      description:
+        'Validate the draft purchase order before submission; Oracle defaults to false when omitted',
     },
     ignoreWarnings: {
       type: 'boolean',
       description: 'Explicitly ignore negotiation publishing warnings (true maps to Y, false to N)',
     },
-    body: { type: 'json', description: 'Documented fields for the selected create or header update' },
+    body: {
+      type: 'json',
+      description: 'Documented fields for the selected create or header update',
+    },
     q: { type: 'string', description: 'Oracle resource filter expression' },
     orderBy: { type: 'string', description: 'Comma-separated ordering attributes' },
     limit: { type: 'number', description: 'Page size from 1 through 100' },
@@ -1439,9 +1459,7 @@ export const OracleFusionProcurementBlock: BlockConfig = {
         'Agent assignment (AssignmentId, person AgentId, Agent, ProcurementBUId, Status, procurement permissions)',
       condition: {
         field: 'operation',
-        value: [
-          'oracle_fusion_procurement_get_procurement_agent',
-        ],
+        value: ['oracle_fusion_procurement_get_procurement_agent'],
       },
     },
     purchaseOrder: {
@@ -1450,9 +1468,7 @@ export const OracleFusionProcurementBlock: BlockConfig = {
         'Purchase order (opaque key, numeric POHeaderId, OrderNumber, Status, SupplierId, SupplierSiteId, Ordered, Total, CurrencyCode)',
       condition: {
         field: 'operation',
-        value: [
-          'oracle_fusion_procurement_get_purchase_order',
-        ],
+        value: ['oracle_fusion_procurement_get_purchase_order'],
       },
     },
     lifecycleDetails: {
@@ -1461,9 +1477,7 @@ export const OracleFusionProcurementBlock: BlockConfig = {
         'Purchase-order lifecycle summary (POHeaderId, OrderNumber, CurrencyCode, ordered, delivered, receiving, transit, and payment amounts)',
       condition: {
         field: 'operation',
-        value: [
-          'oracle_fusion_procurement_get_purchase_order_lifecycle_details',
-        ],
+        value: ['oracle_fusion_procurement_get_purchase_order_lifecycle_details'],
       },
     },
     purchaseOrderReceipt: {
@@ -1472,9 +1486,7 @@ export const OracleFusionProcurementBlock: BlockConfig = {
         'Receipt visibility (opaque key, numeric ReceiptId and POHeaderId, Receipt, ReceiptDate, received/delivered/returned quantities)',
       condition: {
         field: 'operation',
-        value: [
-          'oracle_fusion_procurement_get_purchase_order_receipt',
-        ],
+        value: ['oracle_fusion_procurement_get_purchase_order_receipt'],
       },
     },
     supplierNegotiationResponse: {
@@ -1483,9 +1495,7 @@ export const OracleFusionProcurementBlock: BlockConfig = {
         'Supplier-visible response (opaque key, numeric ResponseNumber and AuctionHeaderId, Supplier, ResponseStatus, string ResponseAmount, ResponseCurrencyCode)',
       condition: {
         field: 'operation',
-        value: [
-          'oracle_fusion_procurement_get_supplier_negotiation_response',
-        ],
+        value: ['oracle_fusion_procurement_get_supplier_negotiation_response'],
       },
     },
     result: {
@@ -1510,8 +1520,10 @@ export const OracleFusionProcurementBlock: BlockConfig = {
   },
 }
 
-// Workflow precedents: Oracle 26C supplier/requisition/draft-order create examples,
-// purchasing hold and lifecycle APIs, and ValidateAndPublishNegotiation examples.
+/**
+ * Workflow precedents: Oracle 26C supplier/requisition/draft-order create examples,
+ * purchasing hold and lifecycle APIs, and ValidateAndPublishNegotiation examples.
+ */
 export const OracleFusionProcurementBlockMeta = {
   tags: ['automation', 'data-analytics'],
   url: 'https://www.oracle.com/erp/procurement/',

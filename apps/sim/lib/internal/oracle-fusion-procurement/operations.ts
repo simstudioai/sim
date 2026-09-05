@@ -12,16 +12,16 @@ import {
   validateOracleFusionSelfLink,
 } from '@/lib/internal/oracle-fusion/protocol'
 import {
-  parseProcurementBody,
   PROCUREMENT_MAX_OFFSET,
-  procurementIdentifierSchema,
   ProcurementInputError,
-  procurementKeySchema,
-  procurementPagingSchema,
   type ProcurementResource,
   ProcurementResponseError,
-  procurementResourceSchemas,
   type ProcurementWriteOperation,
+  parseProcurementBody,
+  procurementIdentifierSchema,
+  procurementKeySchema,
+  procurementPagingSchema,
+  procurementResourceSchemas,
   procurementWriteSchemas,
 } from '@/lib/internal/oracle-fusion-procurement/schema'
 import type { ToolResponse } from '@/tools/types'
@@ -448,7 +448,8 @@ function detailAddress(
   params: Record<string, unknown>
 ): OracleFusionResourceAddress {
   const definition = resourceDefinition(resource)
-  if (!definition.keyParam) throw new ProcurementInputError('This resource has no direct detail lookup')
+  if (!definition.keyParam)
+    throw new ProcurementInputError('This resource has no direct detail lookup')
   const key = definition.opaque
     ? procurementKeySchema.parse(params[definition.keyParam])
     : procurementIdentifierSchema.parse(params[definition.keyParam])
@@ -470,7 +471,7 @@ function projectResource(
   collection: OracleFusionResourceAddress
 ): Record<string, unknown> {
   try {
-    // The raw self link is authoritative, including REST framework v9 @context.links.
+    /** The raw self link is authoritative, including REST framework v9 @context.links. */
     const key = resourceDefinition(resource).opaque
       ? extractOracleFusionOpaqueKey(raw, credential.instanceUrl, collection)
       : undefined
@@ -682,11 +683,13 @@ const actionDefinitions = {
 
 const stringActionSchema = z.object({ result: z.string() })
 const withdrawActionSchema = z.object({
-  result: z.record(z.array(z.record(z.string()))),
+  result: z.record(z.string(), z.array(z.record(z.string(), z.string()))),
 })
-const validationActionSchema = z.object({ result: z.array(z.record(z.string())) })
-// Oracle's 26C examples explicitly differ from the generic dictionary schema:
-// ErrorsListId may be null; Negotiation may be a JSON integer or a string.
+const validationActionSchema = z.object({ result: z.array(z.record(z.string(), z.string())) })
+/**
+ * Oracle's 26C examples explicitly differ from the generic dictionary schema:
+ * ErrorsListId may be null; Negotiation may be a JSON integer or a string.
+ */
 const negotiationActionSchema = z.object({
   result: z.object({
     Status: z.string(),

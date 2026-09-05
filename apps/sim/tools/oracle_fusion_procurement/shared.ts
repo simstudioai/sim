@@ -99,8 +99,7 @@ export const procurementParamFields = {
     type: 'string',
     required: true,
     visibility: 'user-or-llm',
-    description:
-      'Opaque supplier-negotiation-response key from the key output; not ResponseNumber',
+    description: 'Opaque supplier-negotiation-response key from the key output; not ResponseNumber',
   },
   assignmentId: {
     type: 'string',
@@ -233,7 +232,6 @@ export const procurementListParams = {
   },
 } satisfies ToolConfig['params']
 
-
 interface ProcurementToolDefinition {
   id: string
   name: string
@@ -253,8 +251,10 @@ export function createProcurementTool(
     params,
     oauth: ORACLE_FUSION_PROCUREMENT_OAUTH_CONFIG,
     operation: {
-      // Project this operation's declared inputs only. Inactive block fields and executor
-      // control values must not become product inputs or mutation fields.
+      /**
+       * Project this operation's declared inputs only. Inactive block fields and executor
+       * control values must not become product inputs or mutation fields.
+       */
       input: (input) =>
         Object.fromEntries(
           Object.keys(params)

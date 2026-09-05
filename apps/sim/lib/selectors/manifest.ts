@@ -91,9 +91,9 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
-  'oracle_fusion_procurement.supplierSites': providerSelector(['oracleFusionSupplierId'], {
-    readiness: { all: ['oauthCredential', 'oracleFusionSupplierId'] },
-    sourceFields: { oracleFusionSupplierId: ['supplierId'] },
+  'oracle_fusion_procurement.supplierSites': providerSelector(['supplierId'], {
+    readiness: { all: ['oauthCredential', 'supplierId'] },
+    sourceFields: { supplierId: ['supplierId'] },
     listMode: 'paginated',
     detail: true,
     unknownDetail: true,
@@ -118,9 +118,9 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
-  'oracle_fusion_procurement.purchaseOrderReceipts': providerSelector(['oracleFusionPOHeaderId'], {
-    readiness: { all: ['oauthCredential', 'oracleFusionPOHeaderId'] },
-    sourceFields: { oracleFusionPOHeaderId: ['poHeaderId'] },
+  'oracle_fusion_procurement.purchaseOrderReceipts': providerSelector(['poHeaderId'], {
+    readiness: { all: ['oauthCredential', 'poHeaderId'] },
+    sourceFields: { poHeaderId: ['poHeaderId'] },
     listMode: 'paginated',
     detail: true,
     unknownDetail: true,
@@ -165,9 +165,9 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
-  'oracle_fusion_procurement.supplierAddresses': providerSelector(['oracleFusionSupplierId'], {
-    readiness: { all: ['oauthCredential', 'oracleFusionSupplierId'] },
-    sourceFields: { oracleFusionSupplierId: ['supplierId'] },
+  'oracle_fusion_procurement.supplierAddresses': providerSelector(['supplierId'], {
+    readiness: { all: ['oauthCredential', 'supplierId'] },
+    sourceFields: { supplierId: ['supplierId'] },
     listMode: 'paginated',
     detail: true,
     unknownDetail: true,

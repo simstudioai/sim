@@ -26,7 +26,7 @@ export type OracleFusionProcurementDetailResponse<Wrapper extends string> = Tool
   output: Record<Wrapper, Record<string, unknown>>
 }
 
-// Explicit 26C projections. Uppercase constants in types.ts follow the shared docs parser contract.
+/** Explicit 26C projections. Uppercase constants in types.ts follow the shared docs parser contract. */
 export const SUPPLIER_OUTPUT_PROPERTIES = {
   SupplierId: {
     type: 'string',
@@ -490,7 +490,8 @@ export const DRAFT_PURCHASE_ORDER_OUTPUT_PROPERTIES = {
   },
   OrderedAmountBeforeAdjustments: {
     type: 'string',
-    description: 'Ordered Amount Before Adjustments as a decimal string, preserving framework-v9 precision',
+    description:
+      'Ordered Amount Before Adjustments as a decimal string, preserving framework-v9 precision',
     nullable: true,
   },
   FundsStatus: {

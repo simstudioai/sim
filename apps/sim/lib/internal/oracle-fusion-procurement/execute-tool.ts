@@ -26,7 +26,11 @@ export const executeOracleFusionProcurementTool: InternalToolOperationHandler = 
       account.providerId !== ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
     ) {
       return Response.json(
-        { success: false, output: {}, error: 'Oracle Fusion service-account credential is unavailable' },
+        {
+          success: false,
+          output: {},
+          error: 'Oracle Fusion service-account credential is unavailable',
+        },
         { status: 403 }
       )
     }
