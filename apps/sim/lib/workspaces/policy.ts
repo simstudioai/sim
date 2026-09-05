@@ -16,8 +16,11 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   capabilityRefusal,
+  isEntitledOrganizationCapabilityWithheld,
   isOrganizationCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
@@ -122,44 +125,61 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
 }
 
 /**
- * permission-group-enforced: workspace.create — the creation gate, deliberately
- * OUTSIDE the creation transaction.
+ * The organization whose permission-group regime governs this creation, or
+ * `null` when none does.
  *
- * This resolves the organization's entitlement and default group, which is up to
- * four sequential reads. Running it inside {@link lockWorkspaceCreationContext}
- * checked out a SECOND pooled connection while that transaction already held one
- * plus three advisory locks — the pool deadlock `packages/db/tx-tripwire.ts`
- * exists to detect — and added those round trips to a lock hold that serializes
- * every organization mutation, which is what pushed concurrent creates past the
- * 5s `lock_timeout` and answered them as a generic 500.
- *
- * Nothing is given up by moving it out. The re-read was never serialized against
- * permission-group writes: those take `permission_group:<org>`
- * (`organizations/[id]/permission-groups/utils.ts`) while creation takes
- * `organization-mutation:<org>` (`billing/organizations/membership.ts`). Those
- * are different advisory-lock ids and never contend, so holding the lock while
- * reading bought no exclusion. What the check actually provides is RECENCY
- * against the caller's earlier preflight, and that holds identically here.
- *
- * The governing organization is `organizationId ?? observedOrganizationId`,
- * both known before the transaction. That is equivalent to the membership read
- * this previously used, because {@link lockWorkspaceCreationContext} throws
- * `WorkspaceCreationContextChangedError` unless live membership still equals
- * `observedOrganizationId` — so a verdict computed here can never be applied to
- * an organization other than the one that commits.
+ * Governed by the organization the caller belongs to even when the resulting
+ * workspace would be personal: a personal workspace is precisely the escape a
+ * scoped group would otherwise leave open, so exempting it would leave the gate
+ * answering only the case it is not for. `observedOrganizationId` carries that
+ * membership, and {@link lockWorkspaceCreationContext} refuses to commit unless
+ * live membership still equals it — so a verdict reached for this organization
+ * can never be applied to a different one.
  */
-export async function assertWorkspaceCreationCapability({
+function governingOrganizationIdFor({
   organizationId,
   observedOrganizationId,
 }: {
   organizationId: string | null
   observedOrganizationId: string | null
-}): Promise<void> {
-  const governingOrganizationId = organizationId ?? observedOrganizationId
-  if (!governingOrganizationId) return
-  if (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create')) {
-    throw new WorkspaceCreationCapabilityWithheldError()
-  }
+}): string | null {
+  return organizationId ?? observedOrganizationId
+}
+
+/**
+ * Whether permission groups govern this creation at all — resolved BEFORE the
+ * transaction opens, and passed into {@link lockWorkspaceCreationContext} as
+ * `permissionGroupsGovernCreation`.
+ *
+ * Only the entitlement half of the decision is answered here, and it is answered
+ * here because it cannot be answered anywhere else:
+ * {@link isOrganizationPermissionRegimeActive} bottoms out in the `cache()`d
+ * `isOrganizationOnEnterprisePlan`, which admits no executor by design
+ * (`billing/core/subscription.ts` — an options object would miss the memo, and
+ * bypassing it turns a read failure into `config: null`, meaning every
+ * capability ALLOWED). Running it inside the transaction is what checked out a
+ * SECOND pooled connection while three advisory locks were held — the pool
+ * deadlock `packages/db/tx-tripwire.ts` fires on.
+ *
+ * Nothing is lost by settling it early. `permission_group:<org>` serializes
+ * permission-group writes, not subscription changes, so holding it across this
+ * read never excluded anything. A concurrent entitlement LAPSE resolves to
+ * applying the group's config for one more request, which refuses rather than
+ * permits; a concurrent GRANT resolves to skipping the group for one more
+ * request, which is the same answer the route's own preflight gave microseconds
+ * earlier.
+ *
+ * The mutable half — the default group's `workspace.create` capability — is NOT
+ * decided here. It is re-read inside the transaction under the permission-group
+ * lock, which is what actually closes the revocation window.
+ */
+export async function isWorkspaceCreationGovernedByPermissionGroups(params: {
+  organizationId: string | null
+  observedOrganizationId: string | null
+}): Promise<boolean> {
+  const governingOrganizationId = governingOrganizationIdFor(params)
+  if (!governingOrganizationId) return false
+  return isOrganizationPermissionRegimeActive(governingOrganizationId)
 }
 
 /**
@@ -168,12 +188,22 @@ export async function assertWorkspaceCreationCapability({
  * billing owner. The caller must invoke this in the same transaction as the
  * insert.
  *
- * The permission-group gate is NOT here — see
- * {@link assertWorkspaceCreationCapability}, which the caller runs before
- * opening the transaction. This function still enforces the invariant that
- * verdict depends on: it throws {@link WorkspaceCreationContextChangedError}
- * unless live membership still equals the `observedOrganizationId` the gate
- * was evaluated against.
+ * permission-group-enforced: workspace.create — the capability is re-read here,
+ * under `permission_group:<org>`, the same advisory lock every permission-group
+ * mutation takes. That is the whole point of doing it inside the transaction:
+ * reading it anywhere else leaves a window in which an admin's revocation
+ * commits between the check and the insert. The caller supplies
+ * `permissionGroupsGovernCreation` because the entitlement half of that decision
+ * cannot run on a transaction executor — see
+ * {@link isWorkspaceCreationGovernedByPermissionGroups}.
+ *
+ * LOCK ORDER: `organization-mutation:<org>` → `user-billing-identity:<user>` →
+ * `<user>:<org>` → `permission_group:<org>`. The permission-group lock is taken
+ * LAST, and safely so: it is a leaf everywhere it is held (see
+ * `lib/permission-groups/locks.ts`), so no transaction holding it can be waiting
+ * on any of the three above it, and no cycle can form. It is also taken only
+ * AFTER live membership has been confirmed, so a caller who turns out not to
+ * belong to the organization never serializes against its admins.
  */
 export async function lockWorkspaceCreationContext(
   tx: DbOrTx,
@@ -181,10 +211,12 @@ export async function lockWorkspaceCreationContext(
     userId,
     organizationId,
     observedOrganizationId,
+    permissionGroupsGovernCreation,
   }: {
     userId: string
     organizationId: string | null
     observedOrganizationId: string | null
+    permissionGroupsGovernCreation: boolean
   }
 ): Promise<{ billedAccountUserId: string }> {
   await acquireOrganizationUserMutationLocks(tx, {
@@ -197,6 +229,23 @@ export async function lockWorkspaceCreationContext(
     (organizationId !== null && currentMembership?.organizationId !== organizationId)
   ) {
     throw new WorkspaceCreationContextChangedError()
+  }
+
+  const governingOrganizationId = governingOrganizationIdFor({
+    organizationId,
+    observedOrganizationId,
+  })
+  if (permissionGroupsGovernCreation && governingOrganizationId) {
+    await acquirePermissionGroupOrgLock(tx, governingOrganizationId)
+    if (
+      await isEntitledOrganizationCapabilityWithheld(
+        governingOrganizationId,
+        'workspace.create',
+        tx
+      )
+    ) {
+      throw new WorkspaceCreationCapabilityWithheldError()
+    }
   }
 
   if (!organizationId) return { billedAccountUserId: userId }

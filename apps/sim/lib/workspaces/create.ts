@@ -8,8 +8,8 @@ import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 import {
-  assertWorkspaceCreationCapability,
   getWorkspaceInvitePolicy,
+  isWorkspaceCreationGovernedByPermissionGroups,
   lockWorkspaceCreationContext,
   resolveInviteFlags,
   WORKSPACE_MODE,
@@ -53,21 +53,25 @@ export function emitWorkspaceCreatedPlatformEvent(params: {
   } catch {}
 }
 
+/** {@link CreateWorkspaceParams} plus the pre-transaction entitlement answer. */
+export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParams {
+  /**
+   * Whether permission groups govern this creation, from
+   * {@link isWorkspaceCreationGovernedByPermissionGroups}. Required rather than
+   * defaulted: the `workspace.create` capability is enforced under the
+   * permission-group lock inside this transaction, and a silently-defaulted
+   * `false` would skip that gate rather than fail to compile.
+   */
+  permissionGroupsGovernCreation: boolean
+}
+
 /**
  * Canonical transaction-enlisted workspace creation primitive.
  *
  * The caller supplies the creation-policy snapshot. This function revalidates
- * that snapshot under the shared organization/user locks before inserting the
- * workspace, owner permission, and optional starter workflow atomically.
- */
-/**
- * The workspace.create capability gate is the CALLER's responsibility, because
- * it must not run inside this transaction — see
- * {@link assertWorkspaceCreationCapability}. `createWorkspace` calls it before
- * opening its transaction; the only other entry point,
- * {@link createDefaultPersonalWorkspaceInTransaction}, passes both
- * `organizationId` and `observedOrganizationId` as `null` by construction, so
- * the gate is a no-op on that path rather than a skipped check.
+ * that snapshot — including the `workspace.create` capability, under the
+ * permission-group advisory lock — before inserting the workspace, owner
+ * permission, and optional starter workflow atomically.
  */
 export async function createWorkspaceInTransaction(
   tx: DbOrTx,
@@ -80,7 +84,8 @@ export async function createWorkspaceInTransaction(
     organizationId,
     workspaceMode,
     billedAccountUserId,
-  }: CreateWorkspaceParams
+    permissionGroupsGovernCreation,
+  }: TransactionalCreateWorkspaceParams
 ): Promise<CreatedWorkspace> {
   const workspaceId = generateId()
   const workflowId = generateId()
@@ -90,6 +95,7 @@ export async function createWorkspaceInTransaction(
     userId,
     organizationId,
     observedOrganizationId,
+    permissionGroupsGovernCreation,
   })
   const committedBilledAccountUserId =
     workspaceMode === WORKSPACE_MODE.ORGANIZATION
@@ -178,20 +184,21 @@ export async function createWorkspaceInTransaction(
 /** Creates a workspace through the canonical lock-and-insert transaction. */
 export async function createWorkspace(params: CreateWorkspaceParams) {
   /**
-   * Gate before opening the transaction, never inside it — see
-   * {@link assertWorkspaceCreationCapability} for why the lock never protected
-   * this read. Its `WorkspaceCreationCapabilityWithheldError` is thrown from the
-   * same call stack as before, so `app/api/workspaces/route.ts` still projects
-   * the identical capability refusal.
+   * Resolved before the transaction opens because the entitlement read it
+   * performs cannot run on a transaction executor — see
+   * {@link isWorkspaceCreationGovernedByPermissionGroups}. The capability itself
+   * is enforced inside the transaction, under the permission-group lock.
    */
-  await assertWorkspaceCreationCapability({
+  const permissionGroupsGovernCreation = await isWorkspaceCreationGovernedByPermissionGroups({
     organizationId: params.organizationId,
     observedOrganizationId: params.observedOrganizationId,
   })
 
   let created: CreatedWorkspace
   try {
-    created = await db.transaction((tx) => createWorkspaceInTransaction(tx, params))
+    created = await db.transaction((tx) =>
+      createWorkspaceInTransaction(tx, { ...params, permissionGroupsGovernCreation })
+    )
   } catch (error) {
     logger.error('Failed to create workspace', { userId: params.userId, error })
     throw error
@@ -223,7 +230,16 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
   }
 }
 
-/** The same default personal workspace a first visit would create. */
+/**
+ * The same default personal workspace a first visit would create.
+ *
+ * Runs inside an EXTERNAL transaction (the enterprise owner claim). Both
+ * `organizationId` and `observedOrganizationId` are `null` by construction, so
+ * no organization governs this creation, `permissionGroupsGovernCreation` is
+ * `false` on evidence rather than by omission, and the permission-group lock is
+ * never taken — which is also why this path cannot deadlock against the locks
+ * the enclosing transaction already holds.
+ */
 export async function createDefaultPersonalWorkspaceInTransaction(
   tx: DbOrTx,
   params: { userId: string; userName: string | null | undefined }
@@ -236,5 +252,6 @@ export async function createDefaultPersonalWorkspaceInTransaction(
     organizationId: null,
     workspaceMode: WORKSPACE_MODE.PERSONAL,
     billedAccountUserId: params.userId,
+    permissionGroupsGovernCreation: false,
   })
 }

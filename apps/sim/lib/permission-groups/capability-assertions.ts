@@ -1,3 +1,4 @@
+import type { DbOrTx } from '@/lib/db/types'
 import {
   CAPABILITY_RULES,
   refuseCapability,
@@ -5,7 +6,10 @@ import {
 } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+import {
+  getEntitledOrganizationPermissionConfig,
+  getUserPermissionConfigForOrganization,
+} from '@/lib/permission-groups/resolve.server'
 
 /**
  * Re-exported so a caller that gates inline reaches the refusal sentence and the
@@ -88,5 +92,31 @@ export async function isOrganizationCapabilityWithheld(
   return capabilityDeniedBy(
     capability,
     await getUserPermissionConfigForOrganization(organizationId)
+  )
+}
+
+/**
+ * {@link isOrganizationCapabilityWithheld} for an organization whose regime the
+ * caller has ALREADY established with `isOrganizationPermissionRegimeActive`,
+ * reading the group on the given executor.
+ *
+ * For the one caller that must answer this question inside the transaction that
+ * commits the governed act, under `acquirePermissionGroupOrgLock`, so an admin
+ * cannot revoke the capability in the check-to-write window. Splitting the
+ * entitlement half off is what lets the remaining read run on the transaction's
+ * own connection instead of checking out a second pooled one.
+ *
+ * Passing an executor without having checked entitlement would read a stale
+ * default group as authoritative for an organization the regime no longer
+ * governs, so that check is the caller's obligation, not an optional one.
+ */
+export async function isEntitledOrganizationCapabilityWithheld(
+  organizationId: string,
+  capability: StaticPermissionGroupCapability,
+  executor: DbOrTx
+): Promise<boolean> {
+  return capabilityDeniedBy(
+    capability,
+    await getEntitledOrganizationPermissionConfig(organizationId, executor)
   )
 }
