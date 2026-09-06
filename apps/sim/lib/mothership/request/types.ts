@@ -3,6 +3,7 @@ import {
   type MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { StreamActivityReceipt } from '@/lib/mothership/generated/protocol'
 import type { RequestTraceV1Span } from '@/lib/mothership/generated/request-trace-v1'
 import type { StreamEvent } from '@/lib/mothership/request/session'
 import type { TraceCollector } from '@/lib/mothership/request/trace'
@@ -168,6 +169,7 @@ export interface StreamingContext {
   runId?: string
   messageId: string
   accumulatedContent: string
+  receivedActivity?: StreamActivityReceipt
   finalAssistantContent: string
   sawMainToolCall: boolean
   contentBlocks: ContentBlock[]

@@ -17,6 +17,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type {
+  StreamActivityCheckpoint,
   StreamTextCompletion,
   StreamTextPosition,
   StreamToolReplay,
@@ -44,10 +45,12 @@ type EnvelopeToStreamEvent<T> = T extends {
       payload: TType extends 'text'
         ? TPayload & StreamTextPosition
         : TType extends 'complete'
-          ? TPayload & StreamTextCompletion
+          ? TPayload & StreamTextCompletion & StreamActivityCheckpoint
           : TType extends 'tool'
             ? TPayload & StreamToolReplay
-            : TPayload
+            : TType extends 'run'
+              ? TPayload & StreamActivityCheckpoint
+              : TPayload
       scope?: Exclude<TScope, undefined>
       /** Wire ordering key, carried off the envelope; absent on synthetic events. */
       seq?: number
@@ -311,8 +314,26 @@ function isValidResourcePayload(payload: JsonRecord): boolean {
  * live turn. The contract is the list. */
 const CONTRACT_RUN_KINDS = new Set<string>(Object.values(MothershipStreamV1RunKind))
 
+function isValidActivityCheckpoint(payload: JsonRecord): boolean {
+  const receipt = payload.activityReceipt
+  return (
+    receipt === undefined ||
+    (isRecordLike(receipt) &&
+      typeof receipt.emitterId === 'string' &&
+      receipt.emitterId.length > 0 &&
+      receipt.emitterId.length <= 128 &&
+      typeof receipt.sequence === 'number' &&
+      Number.isSafeInteger(receipt.sequence) &&
+      receipt.sequence >= 0)
+  )
+}
+
 function isValidRunPayload(payload: JsonRecord): boolean {
-  return typeof payload.kind === 'string' && CONTRACT_RUN_KINDS.has(payload.kind)
+  return (
+    typeof payload.kind === 'string' &&
+    CONTRACT_RUN_KINDS.has(payload.kind) &&
+    isValidActivityCheckpoint(payload)
+  )
 }
 
 function isValidErrorPayload(payload: JsonRecord): boolean {
@@ -320,7 +341,7 @@ function isValidErrorPayload(payload: JsonRecord): boolean {
 }
 
 function isValidCompletePayload(payload: JsonRecord): boolean {
-  return typeof payload.status === 'string'
+  return typeof payload.status === 'string' && isValidActivityCheckpoint(payload)
 }
 
 function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnvelope {

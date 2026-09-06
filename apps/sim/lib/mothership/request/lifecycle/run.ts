@@ -27,7 +27,7 @@ import {
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamTextReceipt } from '@/lib/mothership/generated/protocol'
+import type { StreamResponseReceipt } from '@/lib/mothership/generated/protocol'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
@@ -983,7 +983,8 @@ async function runCheckpointLoop(
             ...(route === '/api/mothership' || route === '/api/copilot' || isResume
               ? ({
                   receivedTextChars: context.accumulatedContent.length,
-                } satisfies StreamTextReceipt)
+                  receivedActivity: context.receivedActivity,
+                } satisfies StreamResponseReceipt)
               : {}),
           }),
         },

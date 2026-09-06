@@ -559,6 +559,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           const nativeFetch = globalThis.fetch
           const workerRequests: string[] = []
           const receivedTextCounts: number[] = []
+          const activityReceipts: unknown[] = []
+          let replayedToolFrames = 0
           let responseDropped = false
           vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = new URL(input instanceof Request ? input.url : input)
@@ -569,6 +571,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             let streamId: string | undefined
             if (typeof init?.body === 'string') {
               const payload: unknown = JSON.parse(init.body)
+              if (payload && typeof payload === 'object' && 'receivedActivity' in payload) {
+                activityReceipts.push(payload.receivedActivity)
+              }
               if (
                 payload &&
                 typeof payload === 'object' &&
@@ -756,6 +761,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               interactive: false,
               clientToolPickupExpected: false,
               flushAfterEvent: false,
+              onEvent: (event) => {
+                if (event.type === 'tool' && event.payload.replay) replayedToolFrames++
+              },
               abortSignal: AbortSignal.timeout(20_000),
               executionContext: {
                 userId: 'run-reader',
@@ -787,6 +795,17 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           )
           if (connection === 'relay-terminal-lost')
             expect(receivedTextCounts).toContain(result.content.length)
+          expect(activityReceipts.length).toBeGreaterThan(0)
+          for (const receipt of activityReceipts) {
+            expect(receipt).toMatchObject({
+              emitterId: expect.any(String),
+              sequence: expect.any(Number),
+            })
+            expect(JSON.stringify(receipt).length).toBeLessThan(200)
+          }
+          if (['connected', 'child-connected', 'child-failed-check'].includes(connection)) {
+            expect(replayedToolFrames).toBe(0)
+          }
           const report: unknown = JSON.parse(result.content)
           expect(report).toMatchObject({
             blockId,
