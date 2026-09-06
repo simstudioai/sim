@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchSecretMap } = vi.hoisted(() => ({ mockFetchSecretMap: vi.fn() }))
 
@@ -11,6 +11,7 @@ import {
   assertSyncableKeys,
   resolveTriggerEnvVars,
   SECRET_ID_BY_ENVIRONMENT,
+  TriggerEnvSyncUnavailableError,
   WORKER_SECRET_KEYS,
 } from '@/lib/core/config/trigger-env-sync'
 
@@ -23,6 +24,11 @@ function byName(vars: { name: string; value: string; isSecret: boolean }[]) {
 describe('resolveTriggerEnvVars', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.SIM_TRIGGER_ENV_SYNC_REQUIRED = undefined
+  })
+
+  afterEach(() => {
+    process.env.SIM_TRIGGER_ENV_SYNC_REQUIRED = undefined
   })
 
   it('reads the secret mapped to the environment', async () => {
@@ -65,23 +71,46 @@ describe('resolveTriggerEnvVars', () => {
     expect(resolved.get('DB_APP_NAME')?.isSecret).toBe(false)
   })
 
-  it('omits keys the secret does not carry, and keeps the ones it does', async () => {
+  it('clears a key the authoritative secret no longer carries, so a revoked credential cannot survive in the worker', async () => {
     const resolved = byName(
       await resolveTriggerEnvVars('staging', async () => ({ REDIS_URL: 'redis://host' }))
     )
 
     expect(resolved.get('REDIS_URL')?.value).toBe('redis://host')
-    expect(resolved.has('E2B_API_KEY')).toBe(false)
-    expect(resolved.size).toBe(CONSTANTS.length + 1)
+    expect(resolved.get('E2B_API_KEY')?.value).toBe('')
+    expect(resolved.get('DAYTONA_API_KEY')?.value).toBe('')
+    expect(resolved.size).toBe(CONSTANTS.length + WORKER_SECRET_KEYS.length)
   })
 
-  it('treats an empty value as unset so it cannot blank a working dashboard value', async () => {
+  it('clears a key blanked or nulled in the secret rather than leaving the old value', async () => {
     const resolved = byName(
       await resolveTriggerEnvVars('staging', async () => ({ REDIS_URL: '', E2B_API_KEY: null }))
     )
 
-    expect(resolved.has('REDIS_URL')).toBe(false)
-    expect(resolved.has('E2B_API_KEY')).toBe(false)
+    expect(resolved.get('REDIS_URL')?.value).toBe('')
+    expect(resolved.get('E2B_API_KEY')?.value).toBe('')
+  })
+
+  it('clears nothing when the secret could not be read, having no authority to clear against', async () => {
+    const resolved = await resolveTriggerEnvVars('prod', async () => {
+      throw new Error('AccessDeniedException')
+    })
+
+    expect(resolved.map((v) => v.name)).toEqual(CONSTANTS)
+  })
+
+  it('fails the resolve instead of publishing a partial env when sync is required', async () => {
+    process.env.SIM_TRIGGER_ENV_SYNC_REQUIRED = '1'
+
+    await expect(
+      resolveTriggerEnvVars('prod', async () => {
+        throw new Error('AccessDeniedException')
+      })
+    ).rejects.toBeInstanceOf(TriggerEnvSyncUnavailableError)
+
+    await expect(resolveTriggerEnvVars('dev', vi.fn())).rejects.toBeInstanceOf(
+      TriggerEnvSyncUnavailableError
+    )
   })
 
   it('serializes a non-string secret entry', async () => {

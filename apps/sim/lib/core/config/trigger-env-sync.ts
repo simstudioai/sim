@@ -65,6 +65,18 @@ export const WORKER_SECRET_KEYS: readonly { name: string; secret: boolean }[] = 
 ] as const
 
 /**
+ * Set on a build to make an unusable secret fail the deploy instead of leaving
+ * the worker environment as the previous deploy left it. Off by default so the
+ * rollout can land before the build credentials exist; turn it on once every
+ * deploy path can reach Secrets Manager, and a silent lookup failure becomes
+ * impossible from then on.
+ */
+const REQUIRED_ENV = 'SIM_TRIGGER_ENV_SYNC_REQUIRED'
+
+/** Thrown only when {@link REQUIRED_ENV} is set. See `trigger.config.ts`. */
+export class TriggerEnvSyncUnavailableError extends Error {}
+
+/**
  * Secret backing each Trigger.dev deploy target. `preview` is the `dev-sim`
  * branch CI deploys from the `dev` branch, so it reads the dev environment's
  * secret. A target absent from this map gets the constants and nothing else —
@@ -82,13 +94,19 @@ export const SECRET_ID_BY_ENVIRONMENT: Readonly<Record<string, string>> = {
  * them from the same Secrets Manager entry the app container boots from, so the
  * two runtimes cannot drift.
  *
- * Never throws. `syncEnvVars` swallows a callback rejection and then publishes
- * *nothing*, which would silently drop the constants too, so a failed or
- * incomplete lookup degrades to publishing what is known rather than aborting.
- * Keys the secret does not carry are logged by name and simply not published —
- * several are optional (Azure and GCS buckets on an S3 deployment, for one), so
- * their absence is normal rather than an error, and leaving them out preserves
- * whatever the Trigger.dev environment already held.
+ * The secret is authoritative for every {@link WORKER_SECRET_KEYS} entry, so a
+ * key it does not carry is published as `''` rather than skipped. Skipping left
+ * the worker's previous value in place, which meant deleting a compromised
+ * `E2B_API_KEY` from the secret did not revoke it in the worker — the app
+ * stopped loading it while runs kept using it. Every one of these keys is read
+ * as a truthiness or `||` check (never `??`), so `''` behaves exactly as unset.
+ *
+ * Throws only when {@link REQUIRED_ENV} is set. Otherwise a failed or unmapped
+ * lookup degrades to the environment-independent constants: `syncEnvVars`
+ * swallows a callback rejection and then publishes *nothing*, so rejecting by
+ * default would drop the constants too and still not fail the deploy. Nothing
+ * is cleared on that path — without a successful read there is no authority to
+ * clear against, and the Trigger.dev environment is left exactly as it was.
  *
  * @param environment Trigger.dev deploy target (`prod`, `staging`, `preview`).
  * @param loadSecret Secret reader, injectable for tests.
@@ -99,50 +117,50 @@ export async function resolveTriggerEnvVars(
 ): Promise<SyncedEnvVar[]> {
   const secretId = SECRET_ID_BY_ENVIRONMENT[environment]
   if (!secretId) {
-    logger.warn(
-      `No secret mapped for Trigger.dev environment "${environment}"; publishing constants only`
-    )
-    return [...CONSTANT_ENV]
+    return unavailable(`No secret is mapped for Trigger.dev environment "${environment}"`)
   }
 
   let entries: Record<string, unknown>
   try {
     entries = await loadSecret(secretId)
   } catch (error) {
-    logger.error(
-      `Failed to read ${secretId}; publishing constants only. Worker env is unchanged from the previous deploy.`,
-      { error: getErrorMessage(error) }
-    )
-    return [...CONSTANT_ENV]
+    return unavailable(`Failed to read ${secretId}: ${getErrorMessage(error)}`)
   }
 
   const resolved: SyncedEnvVar[] = [...CONSTANT_ENV]
-  const missing: string[] = []
+  const cleared: string[] = []
 
   for (const { name, secret } of WORKER_SECRET_KEYS) {
     const value = normalizeSecretValue(entries[name])
-    if (value === undefined) {
-      missing.push(name)
-      continue
-    }
-    resolved.push({ name, value, isSecret: secret })
-  }
-
-  if (missing.length > 0) {
-    logger.info(
-      `${missing.length} worker env var(s) not set in ${secretId}; they are left untouched in Trigger.dev`,
-      { missing }
-    )
+    if (value === undefined) cleared.push(name)
+    resolved.push({ name, value: value ?? '', isSecret: secret })
   }
 
   logger.info('Resolved Trigger.dev env vars', {
     environment,
     secretId,
-    published: resolved.length,
-    missing: missing.length,
+    published: resolved.length - cleared.length,
+    cleared,
   })
 
   return resolved
+}
+
+/**
+ * Handles a resolve that has no authoritative view of the environment, honoring
+ * {@link REQUIRED_ENV}.
+ */
+function unavailable(reason: string): SyncedEnvVar[] {
+  if (process.env[REQUIRED_ENV]) {
+    throw new TriggerEnvSyncUnavailableError(
+      `${reason}. ${REQUIRED_ENV} is set, so this deploy must not publish a partial worker environment.`
+    )
+  }
+
+  logger.error(
+    `${reason}. Publishing constants only; the worker environment is unchanged from the previous deploy. Set ${REQUIRED_ENV} to fail the deploy instead.`
+  )
+  return [...CONSTANT_ENV]
 }
 
 /**

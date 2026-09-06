@@ -2,6 +2,7 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http'
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   additionalFiles,
   additionalPackages,
@@ -101,7 +102,18 @@ export default defineConfig({
        * prod` would have published the developer's own `.env` into production
        * (`syncEnvVars` applies its layer with `override: true`).
        */
-      syncEnvVars(({ environment }) => resolveTriggerEnvVars(environment)),
+      syncEnvVars(async ({ environment }) => {
+        try {
+          return await resolveTriggerEnvVars(environment)
+        } catch (error) {
+          // `syncEnvVars` catches a rejected callback, warns, and lets the
+          // deploy continue having published nothing — so rejecting is not a
+          // way to fail. Only an explicit non-zero exit is, and this path is
+          // reached only when SIM_TRIGGER_ENV_SYNC_REQUIRED asked for it.
+          console.error(getErrorMessage(error))
+          process.exit(1)
+        }
+      }),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',
