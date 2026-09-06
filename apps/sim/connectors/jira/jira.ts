@@ -62,6 +62,7 @@ const jiraSearchPageSchema = z.object({
 type JiraIssue = z.infer<typeof jiraIssueSchema>
 
 class JiraCredentialInvalidError extends Error {}
+class JiraListingCursorInvalidError extends Error {}
 
 async function resolveCloudId(
   accessToken: string,
@@ -229,6 +230,7 @@ function isInConfiguredProject(issue: JiraIssue, projectKeys: string[]): boolean
 
 export const jiraConnector: ConnectorConfig = {
   ...jiraConnectorMeta,
+  isListingCursorInvalidError: (error) => error instanceof JiraListingCursorInvalidError,
 
   isCredentialInvalidError: (error) =>
     error instanceof JiraCredentialInvalidError ||
@@ -279,7 +281,7 @@ export const jiraConnector: ConnectorConfig = {
      * compatibility with cursors emitted before this format existed.
      */
     let pageToken: string | undefined
-    let collectedSoFar = (syncContext?.collectedCount as number | undefined) ?? 0
+    let collectedSoFar = cursor ? ((syncContext?.collectedCount as number | undefined) ?? 0) : 0
     if (cursor) {
       const sep = cursor.lastIndexOf('|')
       if (sep > 0) {
@@ -330,6 +332,13 @@ export const jiraConnector: ConnectorConfig = {
       if (response.status === 401)
         throw new JiraCredentialInvalidError('Reconnect your Jira account')
       const errorText = await response.text()
+      if (
+        response.status === 400 &&
+        pageToken &&
+        errorText.includes('The provided next page token is invalid or expired.')
+      ) {
+        throw new JiraListingCursorInvalidError('Jira listing cursor expired; restart the listing')
+      }
       logger.error('Failed to search Jira issues', {
         status: response.status,
         error: errorText,

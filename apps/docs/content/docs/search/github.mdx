@@ -11,7 +11,7 @@ GitHub Search indexes text files from a repository on `github.com`. A workspace 
 
 ## Before you start
 
-Your Sim deployment needs a GitHub App configured as described below. For private repositories, an owner or administrator must install that App on them. Each person needs a verified GitHub email address matching their Sim account; the address can be private or secondary.
+Your Sim deployment needs a GitHub App configured as described below. The repository must contain at least one commit; initialize an empty repository with a README before adding it. For private repositories, an owner or administrator must install that App on them. Each person needs a verified GitHub email address matching their Sim account; the address can be private or secondary.
 
 ## Configure the GitHub App
 
@@ -144,7 +144,8 @@ With **Connected members**, indexing begins after someone connects. A dedicated 
 | Identity verification fails | Verify the email used by your Sim account in GitHub's email settings, then reconnect. A public profile email alone is insufficient. |
 | Authorization fails after installation | Return to Sim and start **Connect account** there. Do not enable authorization during installation. |
 | Sync is incomplete | Review the source status. Very large Git trees, file size limits, and unreadable files can limit indexing. |
+| Empty repository returns an error | Add an initial commit, then sync again. GitHub does not return a file tree for an uninitialized repository. |
 
 <Callout type="info">
-  GitHub Search currently covers repository text files. Issues, pull requests, separate wikis, GitHub Enterprise Server, and `ghe.com` domains are not supported by this connector. Personal access tokens remain available for general knowledge-base connectors, with that knowledge base's access rules.
+  GitHub Search covers repository text files up to 100 MB, including symbolic links to files within the same repository. Path and extension filters apply to the link's path. Broken or external links, binaries, and submodules are not indexed. Issues, pull requests, separate wikis, GitHub Enterprise Server, and `ghe.com` domains are not supported by this connector. Personal access tokens remain available for general knowledge-base connectors, with that knowledge base's access rules.
 </Callout>

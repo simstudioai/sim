@@ -87,6 +87,48 @@ describe('Google Calendar Search isolation', () => {
     }
   )
 
+  it.each([undefined, ''])(
+    'retains the default event cap for an unset or cleared field (%s)',
+    async (maxEvents) => {
+      fetchMock.mockImplementation(async () =>
+        jsonResponse({
+          items: Array.from({ length: 250 }, (_, index) => ({ ...EVENT, id: `event-${index}` })),
+          nextPageToken: 'more-events',
+        })
+      )
+      const sourceConfig = { maxEvents }
+      const syncContext: Record<string, unknown> = {}
+      const first = await googleCalendarConnector.listDocuments(
+        'token',
+        sourceConfig,
+        undefined,
+        syncContext
+      )
+      const second = await googleCalendarConnector.listDocuments(
+        'token',
+        sourceConfig,
+        first.nextCursor,
+        syncContext
+      )
+      expect(first.hasMore).toBe(true)
+      expect(second.documents).toHaveLength(250)
+      expect(syncContext.totalDocsFetched).toBe(500)
+      expect(second.hasMore).toBe(false)
+      expect(syncContext.listingCapped).toBe(true)
+    }
+  )
+
+  it.each(['1e3', '0x10', '+5'])(
+    'rejects noncanonical numeric notation before sync (%s)',
+    async (maxEvents) => {
+      expect(await googleCalendarConnector.validateConfig('token', { maxEvents })).toEqual({
+        valid: false,
+        error: 'Max events must be a positive whole number',
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('accepts the internal uncapped member setting', async () => {
     expect(await googleCalendarConnector.validateConfig('token', { maxEvents: 0 }, alice)).toEqual({
       valid: true,

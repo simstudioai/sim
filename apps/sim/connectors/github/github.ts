@@ -1,3 +1,4 @@
+import { posix } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
@@ -35,6 +36,8 @@ const BATCH_SIZE = 200
 const GIT_SHA_PREFIX = 'git-sha:'
 const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 const BINARY_SNIFF_BYTES = 8000
+const MAX_SYMLINK_DEPTH = 40
+const MAX_SYMLINK_TARGET_BYTES = 4096
 /**
  * Recorded on binary blobs so they surface once as a skipped row instead of being
  * dropped silently — a dropped file stays an `add` forever and its blob is
@@ -116,11 +119,18 @@ const treeItemSchema = z.object({
   size: z.number().nonnegative().optional(),
 })
 const treeSchema = z.object({
+  sha: z.string().min(1),
   tree: z.array(treeItemSchema).max(100_000),
   truncated: z.boolean(),
 })
 const repositorySchema = z.object({ default_branch: z.string().min(1) })
 type TreeItem = z.output<typeof treeItemSchema>
+
+interface TreeSnapshot {
+  sha: string
+  items: Map<string, TreeItem>
+  truncated: boolean
+}
 
 class GitHubApiError extends Error {
   readonly retryAfterMs: number | undefined
@@ -206,8 +216,11 @@ async function fetchTree(
   accessToken: string,
   owner: string,
   repo: string,
-  branch: string
-): Promise<{ items: TreeItem[]; truncated: boolean }> {
+  branch: string,
+  syncContext?: Record<string, unknown>
+): Promise<TreeSnapshot> {
+  const cached = syncContext?.githubTreeSnapshot as TreeSnapshot | undefined
+  if (cached) return cached
   const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`
 
   const response = await fetchWithRetry(url, {
@@ -236,24 +249,25 @@ async function fetchTree(
     logger.warn('GitHub tree was truncated — some files may be missing', { owner, repo, branch })
   }
 
-  return {
-    items: data.tree.filter((item) => item.type === 'blob'),
+  const snapshot: TreeSnapshot = {
+    sha: data.sha,
+    items: new Map(data.tree.map((item) => [item.path, item])),
     truncated,
   }
+  if (syncContext) syncContext.githubTreeSnapshot = snapshot
+  return snapshot
 }
 
-/**
- * Fetches blob content via the Git Blobs API. Used as a fallback when the
- * `/contents/` endpoint cannot return the file body (files larger than 1 MB
- * return `content: ""` and `encoding: "none"`). Supports blobs up to 100 MB.
- */
+/** Streams a Git blob with the same binary and byte bounds used for ordinary files. */
 async function fetchBlobContent(
   accessToken: string,
   owner: string,
   repo: string,
-  sha: string
+  sha: string,
+  maxBytes = MAX_FILE_SIZE
 ): Promise<string | null> {
   const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs/${encodeURIComponent(sha)}`
+  const label = `git blob ${sha}`
   const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
@@ -265,23 +279,61 @@ async function fetchBlobContent(
   })
 
   if (!response.ok) {
-    throw await repositoryRequestError(`Failed to fetch git blob ${sha}`, response)
+    throw await repositoryRequestError(`Failed to fetch ${label}`, response)
   }
 
   if (!response.body) {
     const contentLength = Number.parseInt(response.headers.get('content-length') ?? '', 10)
-    if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE) {
-      throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw new ConnectorFileTooLargeError(maxBytes)
     }
-    throw new Error(`GitHub git blob ${sha} returned no body`)
+    throw new Error(`GitHub ${label} returned no body`)
   }
 
-  const buffer = await readBodyWithLimit(response, MAX_FILE_SIZE)
+  const buffer = await readBodyWithLimit(response, maxBytes)
   if (!buffer) {
-    throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
+    throw new ConnectorFileTooLargeError(maxBytes)
   }
   if (isBinaryBuffer(buffer)) return null
   return buffer.toString('utf8')
+}
+
+/** Resolves links within one snapshot; Contents can truncate dereferenced targets at 1 MiB. */
+async function resolveSymlinkTarget(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  link: TreeItem,
+  snapshot: TreeSnapshot
+): Promise<TreeItem | null> {
+  const visited = new Set<string>()
+  let item = link
+  for (let depth = 0; depth < MAX_SYMLINK_DEPTH; depth++) {
+    if (item.mode !== '120000') return item.type === 'blob' ? item : null
+    if (visited.has(item.path) || (item.size ?? 0) > MAX_SYMLINK_TARGET_BYTES) return null
+    visited.add(item.path)
+    let target: string | null
+    try {
+      target = await fetchBlobContent(accessToken, owner, repo, item.sha, MAX_SYMLINK_TARGET_BYTES)
+    } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) return null
+      throw error
+    }
+    if (!target || posix.isAbsolute(target)) return null
+    const targetPath = posix.normalize(posix.join(posix.dirname(item.path), target))
+    if (targetPath === '..' || targetPath.startsWith('../')) return null
+    const next = snapshot.items.get(targetPath)
+    if (!next) {
+      if (snapshot.truncated) {
+        throw new Error(
+          'GitHub tree was truncated before the symbolic link target could be resolved'
+        )
+      }
+      return null
+    }
+    item = next
+  }
+  return item.mode !== '120000' && item.type === 'blob' ? item : null
 }
 
 /**
@@ -294,7 +346,8 @@ function treeItemToStub(
   owner: string,
   repo: string,
   branch: string,
-  item: { path: string; sha: string; size?: number }
+  item: { path: string; sha: string; size?: number; mode?: string },
+  treeSha: string
 ): ExternalDocument {
   return {
     externalId: item.path,
@@ -303,7 +356,8 @@ function treeItemToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch.split('/').map(encodeURIComponent).join('/')}/${item.path.split('/').map(encodeURIComponent).join('/')}`,
-    contentHash: `${GIT_SHA_PREFIX}${item.sha}`,
+    /** Contents dereferences symlinks but retains their SHA even when the target changes. */
+    contentHash: `${GIT_SHA_PREFIX}${item.sha}${item.mode === '120000' ? `:${treeSha}` : ''}`,
     metadata: {
       path: item.path,
       sha: item.sha,
@@ -335,15 +389,17 @@ export const githubConnector: ConnectorConfig = {
     const pathPrefix = ((sourceConfig.pathPrefix as string) || '').trim()
     const extSet = parseExtensions((sourceConfig.extensions as string) || '')
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const snapshot = await fetchTree(accessToken, owner, repo, branch, syncContext)
 
     let capped: TreeItem[]
     if (syncContext?.filteredTree) {
       capped = syncContext.filteredTree as TreeItem[]
     } else {
-      const { items: tree, truncated } = await fetchTree(accessToken, owner, repo, branch)
+      const { items: tree, truncated } = snapshot
 
       /** Oversized files remain visible as skipped documents and never consume the file cap. */
-      const filtered = tree.filter((item) => {
+      const filtered = [...tree.values()].filter((item) => {
+        if (item.type !== 'blob') return false
         if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
         if (!matchesExtension(item.path, extSet)) return false
         return true
@@ -397,7 +453,11 @@ export const githubConnector: ConnectorConfig = {
     })
 
     const documents = batch.map((item) =>
-      stubOrSkipBySize(treeItemToStub(owner, repo, branch, item), item.size, MAX_FILE_SIZE)
+      stubOrSkipBySize(
+        treeItemToStub(owner, repo, branch, item, snapshot.sha),
+        item.size,
+        MAX_FILE_SIZE
+      )
     )
 
     const nextOffset = offset + BATCH_SIZE
@@ -417,11 +477,16 @@ export const githubConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const { owner, repo } = parseRepo(sourceConfig.repository as string)
-    const branch = await resolveBranch(accessToken, owner, repo, sourceConfig, syncContext)
-
     const path = externalId
 
     try {
+      const branch = await resolveBranch(accessToken, owner, repo, sourceConfig, syncContext)
+      const snapshot = await fetchTree(accessToken, owner, repo, branch, syncContext)
+      const treeItem = snapshot.items.get(path)
+      if (!treeItem && snapshot.truncated) {
+        throw new Error('GitHub tree was truncated before the file could be resolved')
+      }
+      const symlink = treeItem?.mode === '120000' ? treeItem : undefined
       const encodedPath = path.split('/').map(encodeURIComponent).join('/')
       const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`
       const response = await fetchWithRetry(url, {
@@ -442,12 +507,24 @@ export const githubConnector: ConnectorConfig = {
       const lastModifiedHeader = response.headers.get('last-modified') || undefined
       const data = await response.json()
 
-      const size = typeof data.size === 'number' ? data.size : 0
-      const stub = treeItemToStub(owner, repo, branch, {
-        path,
-        sha: data.sha as string,
-        size,
-      })
+      const target = symlink
+        ? await resolveSymlinkTarget(accessToken, owner, repo, symlink, snapshot)
+        : undefined
+      const size = target?.size ?? (typeof data.size === 'number' ? data.size : 0)
+      const stub = treeItemToStub(
+        owner,
+        repo,
+        branch,
+        { path, sha: symlink?.sha ?? (data.sha as string), size, mode: symlink?.mode },
+        snapshot.sha
+      )
+
+      if (symlink && !target) {
+        return {
+          ...markSkipped(stub, 'Symbolic link target is not a repository file'),
+          skippedExistingDisposition: 'replace',
+        }
+      }
 
       if (size > MAX_FILE_SIZE) {
         logger.info('Skipping GitHub file exceeding size limit', {
@@ -461,25 +538,18 @@ export const githubConnector: ConnectorConfig = {
       const rawContent = (data.content as string) || ''
       const encoding = data.encoding as string | undefined
       let content: string
-      if (encoding === 'base64' && rawContent.length > 0) {
+      if (!symlink && encoding === 'base64' && rawContent.length > 0) {
         const buf = Buffer.from(rawContent, 'base64')
         if (isBinaryBuffer(buf)) {
           logger.info('Skipping binary GitHub file', { path, size })
           return markSkipped(stub, BINARY_SKIP_REASON)
         }
         content = buf.toString('utf8')
-      } else if (encoding === 'none' && data.sha && size > 0) {
-        /**
-         * Per https://docs.github.com/en/rest/repos/contents, for files of 1-100 MB
-         * "only the `raw` or `object` custom media types are supported", and it is
-         * specifically "when using the `object` media type" that "the `content` field
-         * will be an empty string and the `encoding` field will be `none`".
-         * The Git Blobs fallback streams that same blob through GitHub's documented raw
-         * media type and supports blobs up to 100 MB.
-         */
+      } else if (target || (encoding === 'none' && data.sha && size > 0)) {
+        /** Git Blobs preserves full target content and supports files up to 100 MB. */
         let blobContent: string | null
         try {
-          blobContent = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
+          blobContent = await fetchBlobContent(accessToken, owner, repo, target?.sha ?? data.sha)
         } catch (error) {
           if (error instanceof ConnectorFileTooLargeError) {
             return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
@@ -502,6 +572,7 @@ export const githubConnector: ConnectorConfig = {
         metadata: { ...stub.metadata, lastModified: lastModifiedHeader },
       }
     } catch (error) {
+      if (error instanceof GitHubApiError && error.status === 404) return null
       /**
        * Rethrow so hydration rejects and the sync engine counts a visible `docsFailed`
        * row. Returning `null` instead reports a transient GitHub failure as success —

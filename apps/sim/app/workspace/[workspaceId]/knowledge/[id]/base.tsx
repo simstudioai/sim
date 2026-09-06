@@ -589,9 +589,6 @@ export function KnowledgeBase({
     )
   }
 
-  /**
-   * Handles retrying a failed document processing
-   */
   const handleRetryDocument = (docId: string) => {
     updateDocument(docId, {
       processingStatus: 'pending',
@@ -1255,7 +1252,7 @@ export function KnowledgeBase({
                 </span>
               ),
             },
-            size: { label: formatFileSize(doc.fileSize) },
+            size: { label: formatFileSize(doc.fileSize, { includeBytes: true }) },
             tokens: {
               label:
                 doc.processingStatus === 'completed'
@@ -1549,6 +1546,13 @@ export function KnowledgeBase({
         onViewTags={
           contextMenuDocument && selectedDocumentCount === 1 && userPermissions.canEdit
             ? () => handleViewDocumentTags(contextMenuDocument)
+            : undefined
+        }
+        onRetry={
+          contextMenuDocument?.processingStatus === 'failed' &&
+          selectedDocumentCount === 1 &&
+          userPermissions.canEdit
+            ? () => handleRetryDocument(contextMenuDocument.id)
             : undefined
         }
         onDelete={

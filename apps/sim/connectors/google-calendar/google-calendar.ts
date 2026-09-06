@@ -10,6 +10,7 @@ import {
   isPerMemberListing,
   listingRequestError,
   memberDocumentId,
+  parseDefaultedUnlimitedSafeInteger,
   parseMultiValue,
   parseTagDate,
   sourceDocumentId,
@@ -374,10 +375,11 @@ export const googleCalendarConnector: ConnectorConfig = {
     const { timeMin, timeMax } = timeRange
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    /** Absent means the default cap; an explicit 0 (a per-member sync) means unlimited. */
-    const rawMaxEvents =
-      sourceConfig.maxEvents === undefined ? DEFAULT_MAX_EVENTS : Number(sourceConfig.maxEvents)
-    const maxEvents = Number.isFinite(rawMaxEvents) ? rawMaxEvents : 0
+    const maxEvents = parseDefaultedUnlimitedSafeInteger(
+      sourceConfig.maxEvents,
+      DEFAULT_MAX_EVENTS,
+      'Max events must be a non-negative whole number'
+    )
     const isCapped = maxEvents > 0
     /**
      * Last-page precision: never ask Google for more events than the remaining
@@ -608,20 +610,18 @@ export const googleCalendarConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxEvents = sourceConfig.maxEvents
-    if (
-      maxEvents !== undefined &&
-      maxEvents !== '' &&
-      !(isPerMemberListing(syncContext) && maxEvents === 0) &&
-      (!Number.isSafeInteger(Number(maxEvents)) || Number(maxEvents) <= 0)
-    ) {
-      return { valid: false, error: 'Max events must be a positive whole number' }
-    }
-
     const parsedCalendarIds = parseMultiValue(sourceConfig.calendarId)
     const calendarIds = parsedCalendarIds.length > 0 ? parsedCalendarIds : ['primary']
 
     try {
+      const maxEvents = parseDefaultedUnlimitedSafeInteger(
+        sourceConfig.maxEvents,
+        DEFAULT_MAX_EVENTS,
+        'Max events must be a positive whole number'
+      )
+      if (maxEvents === 0 && !(isPerMemberListing(syncContext) && sourceConfig.maxEvents === 0)) {
+        return { valid: false, error: 'Max events must be a positive whole number' }
+      }
       for (const calendarId of calendarIds) {
         const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events?maxResults=1&singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(new Date().toISOString())}`
 

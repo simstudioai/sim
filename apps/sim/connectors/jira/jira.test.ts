@@ -4,11 +4,13 @@
 import { createMockResponse } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AtlassianSiteNotMatchedError, clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
+import {
+  beginListingCheckpoint,
+  runResumableListing,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
 import { jiraConnector } from '@/connectors/jira/jira'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import { memberDocumentId, PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
-
-vi.mock('@/components/icons', () => ({ JiraIcon: () => null }))
 
 const SOURCE = { domain: 'acme.atlassian.net', projectKey: 'ENG' }
 const CLOUD_ID = 'cloud-acme'
@@ -249,6 +251,92 @@ describe('Jira pagination and source scope', () => {
     })
     expect(context.listingCapped).toBeUndefined()
   })
+
+  it('recognizes the provider invalid-or-expired page-token response for a resumable listing', async () => {
+    fetchMock.mockResolvedValue(
+      json({ errorMessages: ['The provided next page token is invalid or expired.'] }, 400)
+    )
+    const error = await jiraConnector
+      .listDocuments('token', SOURCE, 'expired-token|100', { ...MEMBERS })
+      .catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(Error)
+    expect(jiraConnector.isListingCursorInvalidError?.(error)).toBe(true)
+    expect(jiraConnector.isCredentialInvalidError?.(error)).toBe(false)
+    expect(jiraConnector.isListingScopeUnavailableError?.(error)).toBe(false)
+  })
+
+  it('restarts expired pagination through the shared runner without carrying over an old item count', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ issues: [issue('1'), issue('2')], nextPageToken: 'expired' }))
+      .mockResolvedValueOnce(
+        json({ errorMessages: ['The provided next page token is invalid or expired.'] }, 400)
+      )
+      .mockResolvedValueOnce(json({ issues: [issue('1'), issue('2')], nextPageToken: 'fresh' }))
+      .mockResolvedValueOnce(json({ issues: [issue('3')], isLast: true }))
+    const checkpoint = beginListingCheckpoint({
+      fingerprint: '0'.repeat(64),
+      generationId: 'original-generation',
+      startedAt: new Date(),
+    })
+    const processed: { generationId: string; ids: string[] }[] = []
+    const context: Record<string, unknown> = { cloudId: CLOUD_ID }
+    const completed = await runResumableListing({
+      connectorConfig: jiraConnector,
+      sourceConfig: { ...SOURCE, maxIssues: 3 },
+      syncContext: context,
+      checkpoint,
+      deadlineAt: Date.now() + 10000,
+      beforePage: async () => {},
+      getAccessToken: async () => 'token',
+      processPage: async (documents, page) => {
+        processed.push({
+          generationId: page.generationId,
+          ids: documents.map((doc) => doc.externalId),
+        })
+      },
+      saveCheckpoint: async () => {},
+    })
+    expect(completed).toMatchObject({ complete: true, listedCount: 3, unsafe: false, cursor: null })
+    expect(completed.generationId).not.toBe('original-generation')
+    expect(
+      processed
+        .filter((page) => page.generationId === completed.generationId)
+        .flatMap((page) => page.ids)
+    ).toEqual(['1', '2', '3'])
+    expect(
+      fetchMock.mock.calls.map(([input]) => new URL(String(input)).searchParams.get('maxResults'))
+    ).toEqual(['3', '1', '3', '1'])
+    expect(context.listingCapped).toBeUndefined()
+  })
+
+  it.each([
+    {
+      status: 400,
+      cursor: undefined,
+      message: 'The provided next page token is invalid or expired.',
+    },
+    { status: 400, cursor: 'valid-token|100', message: 'Invalid JQL syntax.' },
+    {
+      status: 403,
+      cursor: 'valid-token|100',
+      message: 'The provided next page token is invalid or expired.',
+    },
+    {
+      status: 500,
+      cursor: 'valid-token|100',
+      message: 'The provided next page token is invalid or expired.',
+    },
+  ])(
+    'does not reset a cursor for unrelated search failure %j',
+    async ({ status, cursor, message }) => {
+      fetchMock.mockResolvedValue(json({ errorMessages: [message] }, status))
+      const error = await jiraConnector
+        .listDocuments('token', SOURCE, cursor, { ...MEMBERS })
+        .catch((value: unknown) => value)
+      expect(error).toBeInstanceOf(Error)
+      expect(jiraConnector.isListingCursorInvalidError?.(error) ?? false).toBe(false)
+    }
+  )
 
   it('keeps a JQL refinement inside the configured projects and accepts selector project IDs', async () => {
     fetchMock.mockResolvedValue(

@@ -13,6 +13,7 @@ import {
   resourcePolicy,
   user,
   workspace,
+  workspaceBYOKKeys,
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger, LogLevel } from '@sim/logger'
@@ -23,14 +24,20 @@ import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
+import { BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE } from '@/lib/embeddings'
 import {
   seedKnowledgeAclFixture,
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { syncKnowledgeConnector } from '@/lib/knowledge/application/connectors'
+import {
+  readKnowledgeDocument,
+  updateKnowledgeDocument,
+} from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { grantKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
@@ -456,6 +463,168 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
       provider.mockRestore()
     }
   }, 180000)
+
+  it('recovers a terminal workspace-key rejection through the authorized document retry', async () => {
+    const keyId = generateId()
+    const externalId = 'workspace-key-retry-fixture'
+    const originalPlatformKey = env.OPENAI_API_KEY
+    const invalidKey = 'sk-synthetic-invalid-workspace-retry'
+    let expectedKey = invalidKey
+    const responseStatuses: number[] = []
+    const fetchProvider = globalThis.fetch
+    /** Observe real OpenAI requests without substituting a provider response or exposing key material. */
+    const provider = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      expect(url.origin === 'https://api.openai.com').toBe(true)
+      const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : {}))
+      expect(headers.get('authorization') === `Bearer ${expectedKey}`).toBe(true)
+      const response = await fetchProvider(input, init)
+      responseStatuses.push(response.status)
+      return response
+    })
+    try {
+      await db.insert(workspaceBYOKKeys).values({
+        id: keyId,
+        workspaceId: ids.workspaceId,
+        providerId: 'openai',
+        encryptedApiKey: (await encryptSecret(invalidKey)).encrypted,
+        createdBy: ids.aliceId,
+      })
+      const created = await addDocument(
+        ids.knowledgeBaseId,
+        ids.connectorId,
+        'confluence',
+        {
+          externalId,
+          title: 'Juniper workspace key retry approval',
+          content:
+            'Sasha Chen approved the Juniper archive retention exception. Reference JUNIPER-BYOK-RETRY-7477.',
+          contentHash: 'workspace-key-retry-v1',
+          mimeType: 'text/plain',
+        },
+        { userId: ids.aliceId, workspaceId: ids.workspaceId },
+        undefined,
+        'admin',
+        createContentSyncLease(ids.connectorId, ids.lockId)
+      )
+      await persistDocumentAcls(
+        ids.connectorId,
+        new Map([[externalId, [`u:${ids.aliceId}@fixture.test`]]])
+      )
+      const savedDocument = async () => {
+        const [saved] = await db.select().from(document).where(eq(document.id, created.documentId))
+        return saved
+      }
+      await expect(
+        processDocumentAsync(
+          ids.knowledgeBaseId,
+          created.documentId,
+          created,
+          {},
+          await resolveBillingAttribution({
+            actorUserId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+          })
+        )
+      ).rejects.toMatchObject({ status: 401, isBYOK: true })
+      const failed = await savedDocument()
+      expect(responseStatuses).toEqual([401])
+      expect(failed).toMatchObject({
+        processingStatus: 'failed',
+        processingError: BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
+        processingDeferredUntil: null,
+      })
+      expect(
+        await db.select().from(embedding).where(eq(embedding.documentId, created.documentId))
+      ).toEqual([])
+
+      expectedKey = originalPlatformKey!
+      await db
+        .update(workspaceBYOKKeys)
+        .set({ encryptedApiKey: (await encryptSecret(expectedKey)).encrypted })
+        .where(eq(workspaceBYOKKeys.id, keyId))
+      /** A working platform fallback cannot mask whether the replaced workspace key is used. */
+      Object.assign(env, { OPENAI_API_KEY: 'sk-synthetic-blocked-platform-fallback' })
+      const principal = {
+        kind: 'session' as const,
+        userId: ids.aliceId,
+        sessionId: 'synthetic-workspace-key-retry',
+      }
+      const input = {
+        assertedWorkspaceId: ids.workspaceId,
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: created.documentId,
+        retryProcessing: true,
+        source: 'ui',
+      }
+      await expect(
+        updateKnowledgeDocument.execute({
+          principal: { ...principal, userId: ids.bobId },
+          input,
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      expect(responseStatuses).toEqual([401])
+      const retry = await updateKnowledgeDocument.execute({ principal, input })
+      expect(retry).toMatchObject({ kind: 'processing', documentId: created.documentId })
+      await expect
+        .poll(async () => (await savedDocument()).processingStatus, {
+          timeout: 60000,
+          interval: 100,
+        })
+        .toBe('completed')
+      const recovered = await savedDocument()
+      expect(recovered).toMatchObject({
+        id: failed.id,
+        externalId: failed.externalId,
+        contentHash: failed.contentHash,
+        storageKey: failed.storageKey,
+        acl: failed.acl,
+        processingError: null,
+        processingDeferredUntil: null,
+      })
+      expect(responseStatuses).toEqual([401, 200])
+      const vectors = await db
+        .select()
+        .from(embedding)
+        .where(eq(embedding.documentId, created.documentId))
+      expect(vectors).toHaveLength(1)
+      expect(vectors[0].embedding).toHaveLength(1536)
+      expect(vectors[0].embedding!.every(Number.isFinite)).toBe(true)
+      const result = await searchKnowledge.execute({
+        principal,
+        input: {
+          workspaceId: ids.workspaceId,
+          knowledgeBaseIds: [ids.knowledgeBaseId],
+          query: 'JUNIPER-BYOK-RETRY-7477',
+          topK: 3,
+        },
+      })
+      expect(result.results[0]?.documentId).toBe(created.documentId)
+      for (const deniedPrincipal of [
+        { ...principal, userId: ids.bobId },
+        { kind: 'workspace_api_key' as const, workspaceId: ids.workspaceId, keyId: 'fixture' },
+      ]) {
+        await expect(
+          readKnowledgeDocument.execute({ principal: deniedPrincipal, input })
+        ).rejects.toMatchObject({ code: 'not_found' })
+      }
+      logger.info('Real OpenAI workspace-key rejection recovered through document Retry', {
+        initialStatus: 401,
+        terminalFailureMessage: BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
+        workspaceKeyStoredAndReplaced: true,
+        platformFallbackBlockedDuringRetry: true,
+        retryUsedAuthorizedApplicationOperation: true,
+        lifecycleTimestampsAged: false,
+        documentIdContentStorageAndAclUnchanged: true,
+        authorizedDocumentRank: 1,
+        peerAndActorlessDirectReadsDenied: true,
+      })
+    } finally {
+      Object.assign(env, { OPENAI_API_KEY: originalPlatformKey })
+      provider.mockRestore()
+      await db.delete(workspaceBYOKKeys).where(eq(workspaceBYOKKeys.id, keyId))
+    }
+  }, 120000)
 
   it('ranks synthetic integration documents with real OpenAI embeddings and excludes private source content', async () => {
     const corpus = [

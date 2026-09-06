@@ -4,6 +4,7 @@
  * Provider replies and embeddings are deterministic; no live GitHub account is used.
  */
 import { createHash } from 'node:crypto'
+import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
@@ -63,6 +64,7 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { subjectToken } from '@/lib/knowledge/access/tokens'
+import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
@@ -95,6 +97,7 @@ interface RepositoryFixture {
   readers: Set<string>
   defaultBranch: string
   files: Map<string, string>
+  symlinks: Map<string, string>
   deniedStatus: 403 | 404
   throttledReaders: Set<string>
   truncated: boolean
@@ -138,6 +141,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
           `Orion ${name}: repository documentation visible to authorized members.`,
         ],
       ]),
+      symlinks: new Map(),
       deniedStatus: 404,
       throttledReaders: new Set(),
       truncated: false,
@@ -230,25 +234,57 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       expect(decodeURIComponent(match[2].slice('/git/trees/'.length))).toBe(source.defaultBranch)
       expect(url.searchParams.get('recursive')).toBe('1')
       return Response.json({
-        tree: [...source.files].map(([filePath, content]) => ({
-          path: filePath,
-          mode: '100644',
-          type: 'blob',
-          sha: shaFor(content),
-          size: Buffer.byteLength(content),
-        })),
+        sha: shaFor(JSON.stringify([[...source.files], [...source.symlinks]])),
+        tree: [
+          ...[...source.files].map(([filePath, content]) => ({
+            path: filePath,
+            mode: '100644',
+            type: 'blob',
+            sha: shaFor(content),
+            size: Buffer.byteLength(content),
+          })),
+          ...[...source.symlinks].map(([filePath, target]) => ({
+            path: filePath,
+            mode: '120000',
+            type: 'blob',
+            sha: shaFor(target),
+            size: Buffer.byteLength(target),
+          })),
+        ],
         truncated: source.truncated,
       })
+    }
+    if (match[2].startsWith('/git/blobs/')) {
+      const sha = decodeURIComponent(match[2].slice('/git/blobs/'.length))
+      const content = [...source.files.values(), ...source.symlinks.values()].find(
+        (value) => shaFor(value) === sha
+      )
+      return content === undefined
+        ? Response.json({ message: 'Not Found' }, { status: 404 })
+        : new Response(content)
     }
     if (match[2].startsWith('/contents/')) {
       expect(url.searchParams.get('ref')).toBe(source.defaultBranch)
       const filePath = decodeURIComponent(match[2].slice('/contents/'.length))
-      const content = source.files.get(filePath)
+      const target = source.symlinks.get(filePath)
+      const content =
+        target === undefined
+          ? source.files.get(filePath)
+          : source.files.get(posix.join(posix.dirname(filePath), target))
+      if (target !== undefined && content === undefined) {
+        return Response.json({
+          type: 'symlink',
+          path: filePath,
+          sha: shaFor(target),
+          target,
+          size: Buffer.byteLength(target),
+        })
+      }
       if (content === undefined) return Response.json({ message: 'Not Found' }, { status: 404 })
       return Response.json({
         type: 'file',
         path: filePath,
-        sha: shaFor(content),
+        sha: shaFor(target ?? content),
         size: Buffer.byteLength(content),
         encoding: 'base64',
         content: Buffer.from(content).toString('base64'),
@@ -415,14 +451,14 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     return connectorId
   }
 
-  async function sync(connectorId = enrolled.connectorId) {
+  async function sync(connectorId = enrolled.connectorId, forceContentRefresh = true) {
     await db
       .update(knowledgeConnectorMember)
       .set({ nextAttemptAt: new Date(0) })
       .where(eq(knowledgeConnectorMember.connectorId, connectorId))
     return executeMemberSync(connectorId, {
       billingAttribution: billing,
-      forceContentRefresh: true,
+      forceContentRefresh,
     })
   }
 
@@ -791,6 +827,59 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     expect(await db.select().from(embedding).where(eq(embedding.documentId, removed.id))).toEqual(
       []
     )
+  })
+
+  it('updates linked target content, skips unchanged hydration, and removes old chunks after target deletion', async () => {
+    const source = repositories.get('shared')!
+    source.files.set('target.md', 'Orion linked instructions revision one.')
+    source.symlinks.set('docs/link.md', '../target.md')
+    await db
+      .update(knowledgeConnector)
+      .set({
+        sourceConfig: { repository: 'fixture/shared', pathPrefix: 'docs/link.md' },
+      })
+      .where(eq(knowledgeConnector.id, enrolled.connectorId))
+    expect((await sync()).error).toBeUndefined()
+    const [linked] = await rows()
+    expect(linked.externalId).toBe('docs/link.md')
+    expect(await search(actor(ids.aliceId))).toEqual([linked.id])
+    const getChunks = () =>
+      listKnowledgeChunks.execute({
+        principal: actor(ids.aliceId),
+        input: { knowledgeBaseId: ids.knowledgeBaseId, documentId: linked.id },
+      })
+    expect((await getChunks()).chunks.map((chunk) => chunk.content).join('\n')).toBe(
+      'Orion linked instructions revision one.'
+    )
+
+    source.files.set(
+      'target.md',
+      'Orion linked instructions revision two replaces the first revision.'
+    )
+    expect((await sync()).error).toBeUndefined()
+    expect((await rows())[0].id).toBe(linked.id)
+    expect((await rows())[0].contentHash).not.toBe(linked.contentHash)
+    expect((await getChunks()).chunks.map((chunk) => chunk.content).join('\n')).toBe(
+      source.files.get('target.md')
+    )
+    const requestOffset = requests.length
+    expect((await sync(enrolled.connectorId, false)).error).toBeUndefined()
+    expect(
+      requests.slice(requestOffset).some((request) => request.path.includes('/git/blobs/'))
+    ).toBe(false)
+
+    source.files.delete('target.md')
+    expect((await sync()).error).toBeUndefined()
+    const [skipped] = await rows()
+    expect(skipped).toMatchObject({
+      id: linked.id,
+      processingStatus: 'failed',
+      processingError: 'Symbolic link target is not a repository file',
+    })
+    expect(await db.select().from(embedding).where(eq(embedding.documentId, linked.id))).toEqual([])
+    await expect(getChunks()).rejects.toBeInstanceOf(KnowledgeDocumentNotReadyError)
+    expect(await search(actor(ids.aliceId))).toEqual([])
+    expect(await search(actor(ids.bobId))).toEqual([])
   })
 
   it('keeps previously observed files when GitHub reports a truncated tree', async () => {
