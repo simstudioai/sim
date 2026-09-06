@@ -37,6 +37,8 @@ vi.mock('@/app/(landing)/comparisons/components/comparison-cards', () => ({
   ComparisonCards: () => null,
 }))
 
+import type { Prose } from '@/lib/compare/data'
+import { dustProfile } from '@/lib/compare/data'
 import ComparisonProviderPage from '@/app/(landing)/comparisons/[provider]/page'
 import { COMPARISON_SECTIONS } from '@/app/(landing)/comparisons/comparison-sections'
 
@@ -65,9 +67,20 @@ function anchorWrapping(markup: string, text: string): string {
   return markup.match(new RegExp(`<a [^>]*>${escaped}</a>`))?.[0] ?? ''
 }
 
-/** Section titles contain `&`, which React escapes on the way into the markup. */
+/** Mirrors React's text escaping so data-derived copy can be matched in markup. */
 function escapeForMarkup(value: string): string {
-  return value.replace(/&/g, '&amp;')
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
+
+/** The rendered text of a {@link Prose} run, links flattened to their labels. */
+function proseText(prose: Prose | undefined): string {
+  if (!prose) throw new Error('expected the fixture profile to supply this prose field')
+  return escapeForMarkup(prose.map((s) => (typeof s === 'string' ? s : s.text)).join(''))
 }
 
 describe('ComparisonProviderPage', () => {
@@ -103,14 +116,32 @@ describe('ComparisonProviderPage', () => {
     }
   })
 
-  it('renders the lead answer and verdict only when the profile supplies them', async () => {
+  it('renders the lead answer and verdict bodies only when the profile supplies them', async () => {
     const withProse = await renderProvider('dust')
     const withoutProse = await renderProvider('n8n')
+    const lead = proseText(dustProfile.leadAnswer)
+    const verdict = proseText(dustProfile.betterThanAnswer)
 
     expect(withProse).toContain('Is Sim better than Dust?')
     expect(withProse).toContain('id="better-than-heading"')
+    expect(withProse).toContain(lead)
+    expect(withProse).toContain(verdict)
+
     expect(withoutProse).not.toContain('Is Sim better than n8n?')
     expect(withoutProse).not.toContain('id="better-than-heading"')
+    expect(withoutProse).not.toContain(lead)
+    expect(withoutProse).not.toContain(verdict)
+  })
+
+  it('renders every section intro body the profile supplies, and none when it supplies none', async () => {
+    const withProse = await renderProvider('dust')
+    const withoutProse = await renderProvider('n8n')
+
+    for (const section of COMPARISON_SECTIONS) {
+      const intro = proseText(dustProfile.sectionIntros?.[section.group])
+      expect(withProse).toContain(intro)
+      expect(withoutProse).not.toContain(intro)
+    }
   })
 
   it('hardens external prose links and keeps internal ones as plain paths', async () => {
