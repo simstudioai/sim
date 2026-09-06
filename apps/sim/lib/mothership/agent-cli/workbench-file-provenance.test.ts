@@ -5,6 +5,7 @@ import Redis from 'ioredis'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => storage }))
 
@@ -67,6 +68,28 @@ afterAll(async () => {
 })
 
 describe('trusted workbench byte receipts', () => {
+  it.each(['complete', 'pending sibling', 'unknown'] as const)(
+    'persists settled stdout evidence from a %s registry',
+    async (state) => {
+      const registry = new ResolvedSecretTraceRegistry([], scope)
+      if (state === 'unknown') registry.markIncomplete('workspace-file-provenance-unknown')
+      const settle = state === 'pending sibling' ? registry.beginPendingActivation() : undefined
+      const invocation = createWorkbenchFileProvenance({
+        ...scope,
+        resolvedSecretTraceRegistry: registry,
+      })
+      const value = 'saved command output'
+      try {
+        const observe = await invocation.observeOutput(value)
+        await consume(observe(machine, new Blob([value]).stream()))
+        const next = createWorkbenchFileProvenance(scope)
+        await consume(next.observeUpload(machine, new Blob([value]).stream()))
+        expect(next.uploadProvenance()).toEqual(state === 'unknown' ? { status: 'unknown' } : safe)
+      } finally {
+        settle?.()
+      }
+    }
+  )
   it('keeps a large safe transfer streamed and readable across invocations', async () => {
     const size = 6 * 1024 * 1024 + 17
     const chunk = new Uint8Array(64 * 1024).fill(255)

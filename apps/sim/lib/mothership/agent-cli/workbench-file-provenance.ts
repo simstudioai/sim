@@ -4,12 +4,16 @@ import type {
   SessionFileIdentity,
   SessionFileObserver,
 } from '@/lib/execution/remote-sandbox/session-file-observer'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  createWorkspaceFileSecretProvenanceFromRegistry,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   bindWorkspaceFileUploadProvenance,
   readWorkspaceFileUploadProvenance,
   WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
 } from '@/lib/uploads/upload-session/workspace-file-provenance'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Missing/expired evidence is unknown. Redis is never a source of exact-empty by default. */
 const RECEIPT_SECONDS = 24 * 60 * 60
@@ -26,6 +30,7 @@ interface WorkbenchFileScope {
   userId: string
   sessionKey: string
   signal?: AbortSignal
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 /** One invocation holds only stream references; reusable encrypted evidence lives outside the machine. */
@@ -51,21 +56,23 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
     JSON.stringify(bindWorkspaceFileUploadProvenance(scope.workspaceId, provenance))
   const unknown = encoded({ status: 'unknown' })
 
-  const observeDownload: SessionFileObserver = (machine, stream) => {
-    const provenance = downloads.get(stream) ?? { status: 'unknown' as const }
-    return hashStream(stream, scope.signal, async (digest) => {
-      const redis = getRedisClient()
-      if (!redis) throw new Error('Workbench file classification storage is unavailable')
-      await redis.eval(
-        RECORD_RECEIPT,
-        1,
-        key(machine, digest),
-        encoded(provenance),
-        unknown,
-        RECEIPT_SECONDS
-      )
-    })
-  }
+  const record =
+    (provenance: WorkspaceFileSecretProvenance): SessionFileObserver =>
+    (machine, stream) =>
+      hashStream(stream, scope.signal, async (digest) => {
+        const redis = getRedisClient()
+        if (!redis) throw new Error('Workbench file classification storage is unavailable')
+        await redis.eval(
+          RECORD_RECEIPT,
+          1,
+          key(machine, digest),
+          encoded(provenance),
+          unknown,
+          RECEIPT_SECONDS
+        )
+      })
+  const observeDownload: SessionFileObserver = (machine, stream) =>
+    record(downloads.get(stream) ?? { status: 'unknown' })(machine, stream)
   const observeUpload: SessionFileObserver = (machine, stream) => {
     uploaded = undefined
     return hashStream(stream, scope.signal, async (digest) => {
@@ -88,6 +95,15 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
   return {
     observeDownload,
     observeUpload,
+    async observeOutput(value: string): Promise<SessionFileObserver> {
+      const source = await createWorkspaceFileSecretProvenanceFromRegistry(
+        scope.resolvedSecretTraceRegistry,
+        value,
+        scope
+      )
+      scope.signal?.throwIfAborted()
+      return record(source.safe ? source.provenance : { status: 'unknown' })
+    },
     trackDownload(stream: ReadableStream<Uint8Array>, provenance?: WorkspaceFileSecretProvenance) {
       downloads.set(stream, provenance ?? { status: 'unknown' })
     },

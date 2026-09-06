@@ -90,7 +90,9 @@ export async function executeAgentCliRequest(
       result = await curateBlockDetail(result, context)
     }
   }
-  return request.sink ? applySink(request.sink, sessionKey, result, context.signal) : result
+  return request.sink
+    ? applySink(request.sink, sessionKey, result, context.signal, files?.observeOutput)
+    : result
 }
 
 /**

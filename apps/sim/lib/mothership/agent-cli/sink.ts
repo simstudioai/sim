@@ -1,8 +1,14 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
 import {
   resolveSessionPath,
+  type SessionFileWrite,
   writeSessionSandboxFile,
 } from '@/lib/execution/remote-sandbox/session-files'
 import type { AgentCliRawResult, AgentCliSink } from '@/lib/mothership/generated/agent-cli'
+
+const logger = createLogger('AgentCliSink')
 
 /**
  * Lands stdout on the agent's machine (the chat's workbench sandbox) instead of
@@ -13,7 +19,8 @@ export async function applySink(
   sink: AgentCliSink,
   sessionKey: string | null,
   result: AgentCliRawResult,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  observeOutput?: (value: string) => Promise<SessionFileObserver>
 ): Promise<AgentCliRawResult> {
   if (result.exitCode !== 0 || signal?.aborted) return result
   if (!sessionKey) {
@@ -22,7 +29,18 @@ export async function applySink(
       stdout: `${result.stdout}\n[outputFile not written: no chat-scoped machine — output returned inline instead]`,
     }
   }
-  const written = await writeSessionSandboxFile(sessionKey, sink.path, result.stdout, signal)
+  let written: SessionFileWrite
+  try {
+    const observe = await observeOutput?.(result.stdout)
+    written = await writeSessionSandboxFile(sessionKey, sink.path, result.stdout, signal, {
+      overwrite: true,
+      ...(observe ? { observe } : {}),
+    })
+  } catch (error) {
+    const detail = getErrorMessage(error)
+    logger.warn('Command output publication failed', { detail })
+    written = { outcome: 'error', detail }
+  }
   if (written.outcome === 'written') {
     return {
       ...result,
