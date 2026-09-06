@@ -1324,6 +1324,19 @@ const LLM_TOOL_IDS = ['llm_chat'] as const
 
 const GUARDRAILS_TOOL_IDS = ['guardrails_validate'] as const
 
+const OCI_DOCUMENT_TOOL_IDS = [
+  'oci_document_understanding_analyze_document',
+  'oci_document_understanding_cancel_processor_job',
+  'oci_document_understanding_create_processor_job',
+  'oci_document_understanding_get_job_output',
+  'oci_document_understanding_get_model',
+  'oci_document_understanding_get_model_type',
+  'oci_document_understanding_get_processor_job',
+  'oci_document_understanding_list_job_outputs',
+  'oci_document_understanding_list_models',
+  'oci_document_understanding_list_projects',
+] as const
+
 const MISTRAL_TOOL_IDS = ['mistral_parser', 'mistral_parser_v2', 'mistral_parser_v3'] as const
 
 const REDUCTO_TOOL_IDS = ['reducto_parser', 'reducto_parser_v2'] as const
@@ -1710,6 +1723,10 @@ registerFamily(handlerLoaders, LLM_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, GUARDRAILS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/guardrails/execute-tool')).executeGuardrailsTool
+})
+registerFamily(handlerLoaders, OCI_DOCUMENT_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-document-understanding/execute-tool'))
+    .executeOciDocumentTool
 })
 registerFamily(handlerLoaders, MISTRAL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/mistral/execute-tool')).executeMistralTool
