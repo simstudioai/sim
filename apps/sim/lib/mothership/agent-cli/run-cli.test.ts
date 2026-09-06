@@ -10,6 +10,9 @@ vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
   writeSessionSandboxFile: writeFile,
 }))
 vi.mock('sim/embed', () => ({ runEmbeddedCli: embedded }))
+vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
+  openSessionFileSnapshot: vi.fn(),
+}))
 
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 

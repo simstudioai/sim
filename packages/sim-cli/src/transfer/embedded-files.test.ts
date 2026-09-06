@@ -21,9 +21,13 @@ function embedded(overrides: Partial<EmbedContext> = {}): EmbedContext {
 describe('embedded positional file arguments', () => {
   it('reads @path and bare path through the host, never the server disk', async () => {
     const ctx = embedded({
-      readFile: async (path) => {
+      openFile: async (path) => {
         expect(path).toBe('xp_import.csv')
-        return 'a,b\n1,2\n'
+        return {
+          size: 8,
+          stream: async () => new Blob(['a,b\n1,2\n']).stream(),
+          dispose: async () => {},
+        }
       },
     })
     await embedStore.run(ctx, async () => {

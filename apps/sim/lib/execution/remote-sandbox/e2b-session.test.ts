@@ -10,6 +10,7 @@ const {
   nextItems,
   getInfo,
   writeFile,
+  readFile,
   setTimeout,
   runCommand,
   stopCommand,
@@ -25,6 +26,7 @@ const {
   nextItems: vi.fn(),
   getInfo: vi.fn(),
   writeFile: vi.fn(),
+  readFile: vi.fn(),
   setTimeout: vi.fn(),
   runCommand: vi.fn(),
   stopCommand: vi.fn(),
@@ -86,7 +88,7 @@ describe('E2B session recovery', () => {
     const sandbox = {
       sandboxId: 'retained',
       getInfo,
-      files: { write: writeFile },
+      files: { write: writeFile, read: readFile },
       setTimeout,
       commands: {
         run: (command: string, options: { background?: boolean }) =>
@@ -102,6 +104,31 @@ describe('E2B session recovery', () => {
     create.mockResolvedValue(sandbox)
     stopCommand.mockResolvedValue({ stdout: '{"settled": true}', stderr: '', exitCode: 0 })
   })
+
+  it.each(['created', 'reconnected'] as const)(
+    'reads upload snapshots as streams from a %s workbench',
+    async (source) => {
+      const sandbox = await sessionSandbox(source)
+      if (!sandbox?.readFileStream) throw new Error('Missing streaming sandbox')
+      const controller = new AbortController()
+      const stream = new Blob(['binary']).stream()
+      readFile.mockResolvedValueOnce(stream)
+      expect(await sandbox.readFileStream('/tmp/snapshot', { signal: controller.signal })).toBe(
+        stream
+      )
+      expect(readFile).toHaveBeenCalledExactlyOnceWith('/tmp/snapshot', {
+        format: 'stream',
+        signal: controller.signal,
+        streamIdleTimeoutMs: 120_000,
+      })
+      controller.abort(new Error('Stopped'))
+      await expect(
+        sandbox.readFileStream('/tmp/snapshot', { signal: controller.signal })
+      ).rejects.toThrow('Stopped')
+      expect(readFile).toHaveBeenCalledTimes(1)
+      await stream.cancel()
+    }
+  )
 
   it.each(['0.5.7', '0.6.2', '1.0.0'])(
     'streams file writes on envd %s without a buffered fallback',

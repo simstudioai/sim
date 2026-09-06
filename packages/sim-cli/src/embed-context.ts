@@ -22,16 +22,25 @@ export interface EmbeddedCliIdentity {
   signal?: AbortSignal
 }
 
+/** A host-owned immutable file, streamed once and released when the invocation ends. */
+export interface EmbeddedFileSnapshot {
+  size: number
+  stream(): Promise<ReadableStream<Uint8Array>>
+  dispose(): Promise<void>
+}
+
 export interface EmbedContext {
   identity: EmbeddedCliIdentity
   stdout: string[]
   stderr: string[]
   /**
-   * Reads from the caller's machine only when a command consumes a file input.
+   * Reads bounded structured arguments from the caller's machine on demand.
    * The CLI owns path syntax; the host receives the resolved path without `@`.
    * An embedded invocation never falls back to the server's filesystem.
    */
   readFile?: (path: string) => Promise<string | Uint8Array>
+  /** File transfers use a snapshot; structured arguments use the separate bounded reader. */
+  openFile?: (path: string) => Promise<EmbeddedFileSnapshot>
   /**
    * Soft-fail exit code (a failed run outcome, `runs wait` timeout). Embedded
    * commands write here INSTEAD of process.exitCode: that global is shared, so

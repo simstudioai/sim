@@ -266,6 +266,11 @@ export interface SandboxHandle {
   /** Reads provider metadata without materializing the file contents. */
   getFileSize(path: string): Promise<number>
   readFile(path: string): Promise<string>
+  /** Session snapshots are consumed incrementally; the caller owns limits and stream cancellation. */
+  readFileStream?(
+    path: string,
+    options: { signal: AbortSignal }
+  ): Promise<ReadableStream<Uint8Array>>
   /**
    * Streams a regular file with a cumulative byte limit applied while reading.
    * Metadata checks are advisory; this method must independently enforce the

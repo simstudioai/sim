@@ -3,6 +3,7 @@ import {
   type EmbedContext,
   type EmbeddedCliIdentity,
   EmbeddedExit,
+  type EmbeddedFileSnapshot,
   embedStore,
   installEmbedSinks,
 } from './embed-context'
@@ -29,7 +30,7 @@ import { buildProgram } from './program'
  * any ordinary console logging around them) never interleave.
  */
 
-export type { EmbeddedCliIdentity } from './embed-context'
+export type { EmbeddedCliIdentity, EmbeddedFileSnapshot } from './embed-context'
 export type {
   ExportWorkflowResponse,
   ListFilesResponse,
@@ -73,14 +74,17 @@ export async function runEmbeddedCli(
   identity: EmbeddedCliIdentity,
   options?: {
     readFile?: EmbedContext['readFile']
+    openFile?: EmbedContext['openFile']
     writeFile?: EmbedContext['writeFile']
     workbench?: boolean
   }
 ): Promise<EmbeddedCliResult> {
   installEmbedSinks()
-  /** Metadata checks and upload bodies must use the same bytes, even if the source changes meanwhile. */
+  /** Multiple structured flags may consume the same file within one invocation. */
   const reads = new Map<string, Promise<string | Uint8Array>>()
+  const snapshots = new Map<string, Promise<EmbeddedFileSnapshot>>()
   const reader = options?.readFile
+  const opener = options?.openFile
   const ctx: EmbedContext = {
     identity,
     stdout: [],
@@ -94,6 +98,25 @@ export async function runEmbeddedCli(
               reads.set(path, read)
             }
             return read
+          },
+        }
+      : {}),
+    ...(opener
+      ? {
+          openFile: (path: string) => {
+            let opened = snapshots.get(path)
+            if (!opened) {
+              opened = opener(path).then((file) => {
+                let disposed: Promise<void> | undefined
+                return {
+                  size: file.size,
+                  stream: () => file.stream(),
+                  dispose: () => (disposed ??= file.dispose()),
+                }
+              })
+              snapshots.set(path, opened)
+            }
+            return opened
           },
         }
       : {}),
@@ -112,6 +135,18 @@ export async function runEmbeddedCli(
       if (ctx.softExitCode !== undefined && ctx.softExitCode !== 0) exitCode = ctx.softExitCode
     } catch (error) {
       exitCode = renderEmbeddedError(ctx, error)
+    } finally {
+      /** Includes argument/admission failures after opening a snapshot but before uploading. */
+      await Promise.all(
+        [...snapshots.values()].map(async (opened) => {
+          const file = await opened.catch(() => undefined)
+          if (file) {
+            await file.dispose().catch(() => {
+              ctx.stderr.push('Warning: temporary upload-file cleanup could not be confirmed.')
+            })
+          }
+        })
+      )
     }
     return { exitCode, stdout: ctx.stdout.join('\n'), stderr: ctx.stderr.join('\n') }
   })
