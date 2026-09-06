@@ -1,6 +1,7 @@
 import type {
   QuickBooksActiveStatus,
   QuickBooksAddress,
+  QuickBooksGlobalTaxCalculation,
   QuickBooksItem,
   QuickBooksReference,
   QuickBooksWritableItemType,
@@ -29,6 +30,53 @@ export function optionalQuickBooksString(value?: string): string | undefined {
 
 export function quickBooksReference(value: string, fieldName: string): QuickBooksReference {
   return { value: requiredQuickBooksString(value, fieldName) }
+}
+
+const QUICKBOOKS_CURRENCY_CODE_PATTERN = /^[A-Za-z]{3}$/
+
+/**
+ * Builds a transaction `CurrencyRef`.
+ *
+ * Intuit flags `CurrencyRef` as "Conditionally required" on every purchasing and
+ * accounting transaction: "This must be defined if multicurrency is enabled for
+ * the company." `CurrencyRef.value` is "A three letter string representing the
+ * ISO 4217 code for the currency", which is all that can be checked locally —
+ * whether the company actually trades in that currency stays Intuit's decision.
+ */
+export function quickBooksCurrencyRef(value?: string): QuickBooksReference | undefined {
+  const normalized = optionalQuickBooksString(value)
+  if (!normalized) return undefined
+  if (!QUICKBOOKS_CURRENCY_CODE_PATTERN.test(normalized)) {
+    throw new Error('currencyCode must be a three-letter ISO 4217 currency code such as USD')
+  }
+  return { value: normalized.toUpperCase() }
+}
+
+/**
+ * Every value Intuit documents for `GlobalTaxCalculation`. Entities that accept
+ * only a subset pass their own list.
+ */
+export const QUICKBOOKS_GLOBAL_TAX_CALCULATIONS: readonly QuickBooksGlobalTaxCalculation[] = [
+  'TaxExcluded',
+  'TaxInclusive',
+  'NotApplicable',
+]
+
+/**
+ * Validates `GlobalTaxCalculation`, which Intuit flags as "Conditionally
+ * required": "Not applicable to US companies; required for non-US companies."
+ */
+export function quickBooksGlobalTaxCalculation(
+  value: string | undefined,
+  allowed: readonly QuickBooksGlobalTaxCalculation[] = QUICKBOOKS_GLOBAL_TAX_CALCULATIONS
+): QuickBooksGlobalTaxCalculation | undefined {
+  const normalized = optionalQuickBooksString(value)
+  if (!normalized) return undefined
+  const match = allowed.find((candidate) => candidate === normalized)
+  if (!match) {
+    throw new Error(`globalTaxCalculation must be one of ${allowed.join(', ')}`)
+  }
+  return match
 }
 
 const QUICKBOOKS_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/

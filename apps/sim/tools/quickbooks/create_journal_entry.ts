@@ -74,6 +74,19 @@ export const quickbooksCreateJournalEntryTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal journal-entry note',
     },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Tax treatment required for non-US companies: TaxExcluded or TaxInclusive',
+    },
     requestId: {
       type: 'string',
       required: false,
