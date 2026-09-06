@@ -559,6 +559,11 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
       .each([
         'connected',
+        'execute-connected',
+        'execute-lost-final',
+        'execute-lost-initial',
+        'execute-live',
+        'execute-partial',
         'controller-cli-long',
         'lost-handoff',
         'lost-final',
@@ -584,6 +589,11 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       ] as const)(
       'returns actual failed-run diagnostics through the controller (%s)',
       async (connection) => {
+        const oneShot = connection.startsWith('execute-')
+        const executeLive = ['execute-live', 'execute-partial', 'execute-lost-initial'].includes(
+          connection
+        )
+        const initialRoute = oneShot ? '/api/mothership/execute' : '/api/mothership'
         const delayedCli = connection.endsWith('cli-long')
         const workerRoot = process.env.MSHIP_WORKER_ROOT
         if (!workerRoot)
@@ -602,9 +612,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               MSHIP_PROBE_WORKFLOW_ID: workflowId,
               MSHIP_PROBE_PORT: port,
               MSHIP_PROBE_DELEGATE: connection.startsWith('child-') ? '1' : '0',
+              MSHIP_PROBE_EXECUTE: oneShot ? '1' : '0',
+              MSHIP_PROBE_PAUSE_BEFORE_TEXT: connection === 'execute-lost-initial' ? '1' : '0',
               MSHIP_PROBE_CHECK_FAIL: connection === 'child-failed-check' ? '1' : '0',
               MSHIP_PROBE_PAUSE_REPORT:
-                connection.startsWith('live-') || connection.startsWith('relay-') ? '1' : '0',
+                connection.startsWith('live-') || connection.startsWith('relay-') || executeLive
+                  ? '1'
+                  : '0',
               ...(connection.startsWith('relay-')
                 ? { MSHIP_PROBE_RELAY_FAULT: connection.slice('relay-'.length) }
                 : {}),
@@ -627,9 +641,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           return new Promise<string>((resolve) => {
             lines.on('line', (line) => {
               diagnostics += `${line}\n`
-              if (connection.startsWith('live-') && line.includes('"msg":"Duplicate send"'))
+              if (
+                (connection.startsWith('live-') || executeLive) &&
+                line.includes('"msg":"Duplicate send"')
+              )
                 workerProcess.stdin.write('release\n')
               if (line.includes('"probe":"relay-attached"')) workerProcess.stdin.write('release\n')
+              if (line.includes('"probe":"execute-model-call"')) executionStarted.resolve()
               if (!line.startsWith('{"probe":')) return
               const message: unknown = JSON.parse(line)
               if (
@@ -758,6 +776,25 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
             const response = await nativeFetch(input, init)
             if (
+              connection === 'execute-lost-initial' &&
+              !responseDropped &&
+              url.pathname === initialRoute
+            ) {
+              await executionStarted.promise
+              responseDropped = true
+              await response.body?.cancel()
+              throw new TypeError('Local fixture lost the accepted response before model text')
+            }
+            if (
+              connection === 'execute-lost-final' &&
+              !responseDropped &&
+              url.pathname === initialRoute
+            ) {
+              await response.text()
+              responseDropped = true
+              throw new TypeError('Local fixture lost the complete one-shot response')
+            }
+            if (
               (connection === 'child-lost-start' || connection === 'child-partial-start') &&
               !responseDropped &&
               url.pathname === '/api/mothership'
@@ -777,9 +814,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
 
             if (
-              (connection.startsWith('live-') || connection.startsWith('relay-')) &&
+              (connection.startsWith('live-') || connection.startsWith('relay-') || executeLive) &&
               !responseDropped &&
-              url.pathname === '/api/tools/resume'
+              url.pathname === (oneShot ? initialRoute : '/api/tools/resume')
             ) {
               if (!response.body) throw new Error('Expected the live worker response body')
               const reader = response.body.getReader()
@@ -798,7 +835,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                       signal: init?.signal,
                     })
                   }
-                  if (connection === 'live-partial') {
+                  if (connection === 'live-partial' || connection === 'execute-partial') {
                     let sent = false
                     return new Response(
                       new ReadableStream<Uint8Array>(
@@ -888,11 +925,20 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           const runController = (resume?: { id: string; executionId: string }) =>
             runCopilotLifecycle(
               {
-                message:
-                  'Run the saved workflow and identify the failing block from its recorded log.',
+                ...(oneShot
+                  ? {
+                      messages: [
+                        { role: 'system', content: 'Caller-authored extraction system.' },
+                        { role: 'user', content: 'Return the extraction result.' },
+                      ],
+                    }
+                  : {
+                      message:
+                        'Run the saved workflow and identify the failing block from its recorded log.',
+                      workflowId,
+                    }),
                 userId: 'run-reader',
                 workspaceId,
-                workflowId,
                 chatId,
                 messageId,
               },
@@ -902,7 +948,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 workflowId,
                 chatId,
                 ...(resume ? { runId: resume.id, executionId: resume.executionId } : {}),
-                goRoute: '/api/mothership',
+                goRoute: initialRoute,
                 interactive: false,
                 clientToolPickupExpected: false,
                 flushAfterEvent: false,
@@ -971,6 +1017,28 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             result.success,
             JSON.stringify({ result, errors: fixture.errors, diagnostics })
           ).toBe(true)
+          if (oneShot) {
+            expect(result.content).toBe(
+              JSON.stringify({ surface: 'execute', answer: 'Caller-authored answer' })
+            )
+            expect(fixture.requests).toEqual([])
+            expect(responseDropped).toBe(connection !== 'execute-connected')
+            expect(workerRequests).toEqual(
+              Array(connection === 'execute-connected' ? 1 : 2).fill(initialRoute)
+            )
+            expect(
+              receivedTextCounts.some((count) => count > 0 && count < result.content.length)
+            ).toBe(connection === 'execute-partial')
+            expect(diagnostics.match(/"probe":"execute-model-call"/g)).toHaveLength(1)
+            const [run] = await db
+              .select()
+              .from(copilotRuns)
+              .where(eq(copilotRuns.streamId, messageId))
+            expect(run.status).toBe('complete')
+            expect(executeInSandbox).not.toHaveBeenCalled()
+            expect(executeShellInSandbox).not.toHaveBeenCalled()
+            return
+          }
           if (delayedCli) expect(Date.now() - controllerStartedAt).toBeGreaterThan(90_000)
           expect(
             receivedTextCounts.some((count) => count > 0 && count < result.content.length)
