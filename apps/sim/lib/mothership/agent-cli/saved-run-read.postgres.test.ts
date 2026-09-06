@@ -6,7 +6,8 @@
  * MSHIP_WORKER_ROOT additionally runs the real controller with a local scripted worker.
  * CLI, routes, canonical scope, application authorization, SQL and display projection
  * are real. Execution traces and workspace objects live in local files; cache clearing
- * forces physical reads. The pipeline case runs the companion's canonical D4 oracle.
+ * forces physical reads. D4/B1 cases run the companion's canonical oracles; B1 also
+ * stores and edits actual normalized graphs. Realtime publication is a fixture.
  * Authentication, delegation, membership, saved drafts, workflow admission, billing, ownership
  * and external effects are fixtures. Seeded cases also bypass execution/log writing.
  * Isolated columns plus required defaults/indexes do not prove migrations or all constraints.
@@ -22,6 +23,7 @@ import { createInterface } from 'node:readline'
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  auditLog,
   copilotAsyncToolCalls,
   copilotChats,
   copilotMessages,
@@ -40,9 +42,12 @@ import {
   userTableRowSecretProvenance,
   userTableRows,
   workflow,
+  workflowBlocks,
   workflowDeploymentVersion,
+  workflowEdges,
   workflowExecutionLogs,
   workflowExecutionSnapshots,
+  workflowSubflows,
   workspace,
   workspaceFileSecretProvenance,
   workspaceFiles,
@@ -89,6 +94,7 @@ import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { POST as stopChatRoute } from '@/app/api/mothership/chat/stop/route'
@@ -103,13 +109,15 @@ import {
   GET as tableRowsRoute,
 } from '@/app/api/v2/tables/[tableId]/rows/route'
 import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
+import { POST as workflowOperationsRoute } from '@/app/api/v2/workflows/[workflowId]/operations/route'
 import { GET as runRoute } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/route'
+import { GET as workflowStateRoute } from '@/app/api/v2/workflows/[workflowId]/state/route'
 import { GET as workflowsRoute } from '@/app/api/v2/workflows/route'
 import { toRawPersistedContentBlock } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
 import type { ContentBlock as DisplayContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { getLatestBlock } from '@/blocks/registry'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import type { BlockState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const fixture = vi.hoisted(() => ({
   schemaName: `saved_run_${process.pid}_${Date.now()}`,
@@ -119,6 +127,7 @@ const fixture = vi.hoisted(() => ({
   requests: [] as string[],
   errors: [] as unknown[],
   saved: new Map<string, ReturnType<typeof runnableState>>(),
+  physicalWorkflows: new Set<string>(),
   directory: '',
   storageReads: [] as string[],
   storageKeys: new Map<string, string>(),
@@ -229,10 +238,19 @@ vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: async () => ({ getJob: async () => null }),
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/workflows/persistence/utils')>()),
-  loadWorkflowFromNormalizedTables: async (id: string) =>
-    structuredClone(fixture.saved.get(id) ?? null),
+vi.mock('@/lib/workflows/persistence/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/workflows/persistence/utils')>()
+  return {
+    ...actual,
+    loadWorkflowFromNormalizedTables: async (id: string) =>
+      fixture.physicalWorkflows.has(id)
+        ? actual.loadWorkflowFromNormalizedTables(id)
+        : structuredClone(fixture.saved.get(id) ?? null),
+  }
+})
+vi.mock('@/lib/realtime/notify', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/realtime/notify')>()),
+  notifyWorkflowUpdated: async () => {},
 }))
 vi.mock('@/lib/execution/preprocessing', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/execution/preprocessing')>()),
@@ -451,6 +469,13 @@ const identity = {
       return (request.method === 'POST' ? createRowsRoute : tableRowsRoute)(request, {
         params: Promise.resolve({ tableId: rows[1] }),
       })
+    const graph = request.nextUrl.pathname.match(
+      /^\/api\/v2\/workflows\/([^/]+)\/(state|operations)$/
+    )
+    if (graph)
+      return (graph[2] === 'state' ? workflowStateRoute : workflowOperationsRoute)(request, {
+        params: Promise.resolve({ workflowId: graph[1] }),
+      })
     const execution = request.nextUrl.pathname.match(/^\/api\/v2\/workflows\/([^/]+)\/execute$/)
     if (execution)
       return executeRoute(request, { params: Promise.resolve({ workflowId: execution[1] }) })
@@ -525,6 +550,7 @@ async function readRun(runId: string, ...flags: string[]) {
 const postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
 const schemaName = fixture.schemaName
 const tables = [
+  auditLog,
   copilotChats,
   copilotMessages,
   copilotRuns,
@@ -535,6 +561,9 @@ const tables = [
   user,
   workspace,
   workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowSubflows,
   folder,
   workflowDeploymentVersion,
   workflowExecutionSnapshots,
@@ -591,6 +620,11 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_runs (stream_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_messages (chat_id, message_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_async_tool_calls (tool_call_id)`)
+      for (const table of [workflowBlocks, workflowEdges, workflowSubflows]) {
+        await db.execute(
+          sql`CREATE UNIQUE INDEX ON ${sql.identifier(getTableConfig(table).name)} (id)`
+        )
+      }
       await db.execute(sql`CREATE UNIQUE INDEX ON user_table_rows (id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON user_table_row_secret_provenance (row_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON workspace_file_secret_provenance (file_id)`)
@@ -1974,6 +2008,63 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
 
     it
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
+      .each(['valid', 'rewrite'] as const)(
+      'verifies surgical CLI edits against physical graph storage and saved execution: %s',
+      async (mode) => {
+        fixture.permission = 'admin'
+        const workflowId = generateId()
+        await db.insert(workflow).values({
+          id: workflowId,
+          workspaceId,
+          userId: 'run-reader',
+          name: 'Surgical insertion',
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+        })
+        fixture.physicalWorkflows.add(workflowId)
+        const state = surgicalState()
+        await replaceWorkflowNormalizedState({
+          workflowId,
+          workspaceId,
+          attributedUserId: 'run-reader',
+          state,
+        })
+        await runCompanionOracle({
+          testFile: 'benchmark-surgical-insert-postgres.test.ts',
+          environmentKey: 'MSHIP_SURGICAL_FIXTURE',
+          fixture: { workflowId, mode },
+        })
+        await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
+        const blocks = await db
+          .select()
+          .from(workflowBlocks)
+          .where(eq(workflowBlocks.workflowId, workflowId))
+        const edges = await db
+          .select()
+          .from(workflowEdges)
+          .where(eq(workflowEdges.workflowId, workflowId))
+        const runs = await db
+          .select()
+          .from(workflowExecutionLogs)
+          .where(eq(workflowExecutionLogs.workflowId, workflowId))
+        expect(fixture.errors).toEqual([])
+        expect(blocks).toHaveLength(4)
+        expect(edges).toHaveLength(3)
+        expect(blocks.map((block) => block.id)).toEqual(
+          expect.arrayContaining(Object.keys(state.blocks))
+        )
+        expect(runs).toHaveLength(3)
+        expect(runs.every((run) => run.status === 'completed')).toBe(true)
+        expect(executeInSandbox).not.toHaveBeenCalled()
+        expect(executeShellInSandbox).not.toHaveBeenCalled()
+      },
+      60_000
+    )
+
+    it
+      .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
       .each(['valid', 'empty-probe'] as const)(
       'runs an idempotent saved table pipeline with physical row and appended-file effects: %s',
       async (mode) => {
@@ -2360,7 +2451,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
   }
 )
 
-function runnableState(code: string) {
+function runnableState(
+  code: string
+): Pick<WorkflowState, 'blocks' | 'edges' | 'loops' | 'parallels'> {
   const blocks: Record<string, BlockState> = {
     start: {
       id: 'start',
@@ -2398,14 +2491,91 @@ function runnableState(code: string) {
   }
 }
 
+function surgicalState(): ReturnType<typeof runnableState> {
+  const template = runnableState('return String(<start.text>).trim();')
+  const startId = generateId()
+  const validateId = generateId()
+  const transformId = generateId()
+  return {
+    blocks: {
+      [startId]: {
+        ...template.blocks.start,
+        id: startId,
+        subBlocks: {
+          inputFormat: {
+            id: 'inputFormat',
+            type: 'input-format',
+            value: JSON.stringify([{ name: 'text', type: 'string' }]),
+          },
+        },
+        outputs: { text: { type: 'string' } },
+      },
+      [validateId]: { ...template.blocks[blockId], id: validateId, name: 'validate' },
+      [transformId]: {
+        ...structuredClone(template.blocks[blockId]),
+        id: transformId,
+        name: 'transform',
+        position: { x: 0, y: 200 },
+        subBlocks: {
+          ...template.blocks[blockId].subBlocks,
+          code: {
+            id: 'code',
+            type: 'code',
+            value: 'return String(<validate.result>).toUpperCase();',
+          },
+        },
+      },
+    },
+    edges: [
+      {
+        id: generateId(),
+        source: startId,
+        target: validateId,
+        sourceHandle: 'source',
+        targetHandle: 'target',
+      },
+      {
+        id: generateId(),
+        source: validateId,
+        target: transformId,
+        sourceHandle: 'source',
+        targetHandle: 'target',
+      },
+    ],
+    loops: {},
+    parallels: {},
+  }
+}
+
 async function runPipelineOracle(
   tableId: string,
   workflowId: string,
   mode: 'valid' | 'empty-probe'
 ): Promise<void> {
+  let executions = 0
+  await runCompanionOracle({
+    testFile: 'benchmark-table-pipeline-postgres.test.ts',
+    environmentKey: 'MSHIP_PIPELINE_FIXTURE',
+    fixture: { tableId, workflowId, runTag: tableId, mode },
+    beforeRequest: (url) => {
+      if (url?.startsWith(`/api/v2/workflows/${workflowId}/execute`)) {
+        executions++
+        if (executions === 3 && mode === 'empty-probe') {
+          fixture.saved.set(workflowId, runnableState('return "no work performed";'))
+        }
+      }
+    },
+  })
+}
+
+async function runCompanionOracle(options: {
+  testFile: string
+  environmentKey: string
+  fixture: Record<string, string>
+  beforeRequest?: (url: string | undefined) => void
+}): Promise<void> {
   const workerRoot = process.env.MSHIP_WORKER_ROOT
   if (!workerRoot) throw new Error('Companion worker checkout is required')
-  let executions = 0
   const server = createServer(async (incoming, outgoing) => {
     try {
       const chunks: Buffer[] = []
@@ -2414,12 +2584,7 @@ async function runPipelineOracle(
       for (const [name, value] of Object.entries(incoming.headers)) {
         if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value)
       }
-      if (incoming.url?.startsWith(`/api/v2/workflows/${workflowId}/execute`)) {
-        executions++
-        if (executions === 3 && mode === 'empty-probe') {
-          fixture.saved.set(workflowId, runnableState('return "no work performed";'))
-        }
-      }
+      options.beforeRequest?.(incoming.url)
       const response = await identity.transport(`${identity.endpoint}${incoming.url}`, {
         method: incoming.method,
         headers,
@@ -2435,27 +2600,20 @@ async function runPipelineOracle(
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
   const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('Missing local pipeline address')
-  const child = spawn(
-    'bun',
-    ['test', 'apps/server/test/benchmark-table-pipeline-postgres.test.ts'],
-    {
-      cwd: workerRoot,
-      env: {
-        ...process.env,
-        MSHIP_PIPELINE_FIXTURE: JSON.stringify({
-          endpoint: `http://127.0.0.1:${address.port}`,
-          workspaceId,
-          tableId,
-          workflowId,
-          runTag: tableId,
-          mode,
-        }),
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 50_000,
-    }
-  )
+  if (!address || typeof address === 'string') throw new Error('Missing local oracle address')
+  const child = spawn('bun', ['test', `apps/server/test/${options.testFile}`], {
+    cwd: workerRoot,
+    env: {
+      ...process.env,
+      [options.environmentKey]: JSON.stringify({
+        ...options.fixture,
+        endpoint: `http://127.0.0.1:${address.port}`,
+        workspaceId,
+      }),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 50_000,
+  })
   const output: string[] = []
   child.stdout.on('data', (data: Buffer) => output.push(data.toString()))
   child.stderr.on('data', (data: Buffer) => output.push(data.toString()))
