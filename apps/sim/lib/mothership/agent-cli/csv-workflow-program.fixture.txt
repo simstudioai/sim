@@ -1,0 +1,46 @@
+const text = await sim.files.readText(<readfile.files[0]>);
+const records = [];
+let record = [], field = '', quoted = false;
+for (let i = 0; i < text.length; i++) {
+  const ch = text[i];
+  if (ch === '"') {
+    if (quoted && text[i + 1] === '"') { field += '"'; i++; }
+    else quoted = !quoted;
+  } else if (!quoted && ch === ',') {
+    record.push(field); field = '';
+  } else if (!quoted && (ch === '\n' || ch === '\r')) {
+    if (ch === '\r' && text[i + 1] === '\n') i++;
+    record.push(field); records.push(record); record = []; field = '';
+  } else field += ch;
+}
+if (quoted) throw new Error('Unclosed CSV quote');
+if (field.length || record.length) { record.push(field); records.push(record); }
+const header = records.shift();
+if (header.join(',') !== 'order_id,customer_id,region,amount,status,order_date') {
+  throw new Error('Unexpected CSV header');
+}
+const result = { source_rows: records.length, accepted_rows: 0, cancelled_rows: 0, regions: [], rejected: [] };
+const seen = new Set(), totals = new Map();
+function validDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const days = [31, (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return m >= 1 && m <= 12 && d >= 1 && d <= days[m - 1];
+}
+for (let i = 0; i < records.length; i++) {
+  if (records[i].length !== header.length) throw new Error('Wrong CSV column count');
+  const [id, customer, region, amount, status, date] = records[i];
+  const duplicate = seen.has(id);
+  seen.add(id);
+  let reason = duplicate ? 'duplicate' : !/^\d+(\.\d{1,2})?$/.test(amount) ? 'invalid_amount' : !validDate(date) ? 'invalid_date' : null;
+  if (reason) { result.rejected.push({ row_number: i + 1, order_id: id, reason }); continue; }
+  if (status === 'cancelled') { result.cancelled_rows++; continue; }
+  result.accepted_rows++;
+  const [whole, fraction = ''] = amount.split('.');
+  const cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+  totals.set(region, (totals.get(region) || 0n) + cents);
+}
+result.regions = [...totals].sort(([a], [b]) => a.localeCompare(b)).map(([region, cents]) => ({
+  region, total_amount: String(cents / 100n) + '.' + String(cents % 100n).padStart(2, '0')
+}));
+return result;
