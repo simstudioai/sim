@@ -479,6 +479,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         'relay-gap',
         'relay-interrupted',
         'relay-terminal-lost',
+        'relay-first-frame',
+        'relay-prefix',
+        'relay-attach-lost',
         'child-connected',
         'child-failed-check',
         'child-lost-start',
@@ -793,6 +796,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               'relay-interrupted',
             ].includes(connection)
           )
+          if (['relay-first-frame', 'relay-prefix', 'relay-attach-lost'].includes(connection)) {
+            expect(workerRequests.filter((path) => path === '/api/tools/resume')).toHaveLength(3)
+          }
           if (connection === 'relay-terminal-lost')
             expect(receivedTextCounts).toContain(result.content.length)
           expect(activityReceipts.length).toBeGreaterThan(0)
