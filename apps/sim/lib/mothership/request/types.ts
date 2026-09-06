@@ -101,6 +101,8 @@ export interface ContentBlock {
   calledBy?: string
   timestamp: number
   endedAt?: number
+  /** Terminal failure of this subagent span. */
+  error?: string
   parentToolCallId?: string
   /**
    * Subagent name for lane blocks (from the event scope's agentId). Persisted

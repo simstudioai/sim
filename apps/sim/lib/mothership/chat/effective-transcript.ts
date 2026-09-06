@@ -408,6 +408,7 @@ function buildLiveAssistantMessage(params: {
             kind: MothershipStreamV1SpanPayloadKind.subagent,
             lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
             content: name,
+            ...(typeof spanData?.name === 'string' && spanData.name ? { name: spanData.name } : {}),
             ...(parentToolCallId ? { parentToolCallId } : {}),
             ...spanIdentity,
           })
@@ -434,6 +435,9 @@ function buildLiveAssistantMessage(params: {
             type: MothershipStreamV1EventType.span,
             kind: MothershipStreamV1SpanPayloadKind.subagent,
             lifecycle: MothershipStreamV1SpanLifecycleEvent.end,
+            ...(typeof spanData?.error === 'string' && spanData.error
+              ? { error: spanData.error }
+              : {}),
             ...(parentToolCallId ? { parentToolCallId } : {}),
             ...spanIdentity,
           })

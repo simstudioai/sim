@@ -126,6 +126,8 @@ export interface ContentBlock {
   options?: OptionItem[]
   timestamp?: number
   endedAt?: number
+  /** Terminal failure of this subagent span. */
+  error?: string
   parentToolCallId?: string
   /**
    * Deterministic agent-run identity. `spanId` is the stable per-invocation id

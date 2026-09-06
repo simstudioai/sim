@@ -19,6 +19,7 @@ import { ToolCallItem } from './tool-call-item'
  * how deterministic parent/child nesting (e.g. Deploy inside Workflow) is drawn.
  */
 export interface NestedAgentGroup {
+  error?: string
   id: string
   agentName: string
   agentLabel: string
@@ -33,6 +34,7 @@ export type AgentGroupItem =
   | { type: 'agent_group'; group: NestedAgentGroup }
 
 interface AgentGroupProps {
+  error?: string
   agentName: string
   agentLabel: string
   items: AgentGroupItem[]
@@ -136,6 +138,7 @@ export function AgentGroup({
   isStreaming = false,
   isCurrentSection = false,
   isLaneOpen = false,
+  error,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const isMainAgent = agentName === 'mothership'
@@ -161,7 +164,11 @@ export function AgentGroup({
     const last = tools.at(-1)
     return last ? toolStatusTitle(last) : undefined
   }, [isLaneOpen, isMainAgent, items])
-  const headerText = status ? `${agentLabel} — ${status}` : agentLabel
+  const headerText = error
+    ? `${agentLabel} — Failed`
+    : status
+      ? `${agentLabel} — ${status}`
+      : agentLabel
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
@@ -233,6 +240,7 @@ export function AgentGroup({
           )}
         </div>
       )}
+      {error && <p className='pl-6 text-[var(--text-error)] text-caption'>{error}</p>}
       {hasItems && (
         <Expandable expanded={expanded}>
           <ExpandableContent>
@@ -265,6 +273,7 @@ export function AgentGroup({
                           isStreaming={isStreaming}
                           isCurrentSection={idx === items.length - 1}
                           isLaneOpen={item.group.isOpen}
+                          error={item.group.error}
                         />
                       </div>
                     )

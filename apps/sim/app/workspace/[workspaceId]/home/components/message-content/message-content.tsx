@@ -52,6 +52,7 @@ interface TextSegment {
 }
 
 interface AgentGroupSegment {
+  error?: string
   type: 'agent_group'
   id: string
   agentName: string
@@ -427,6 +428,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       }
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
       if (block.subagentName) g.agentLabel = block.subagentName
+      if (block.error) g.error = block.error
       if (block.endedAt !== undefined) {
         // Persisted backend path: the lane was stamped closed (endedAt) without
         // a separate subagent_end block (the Sim backend stamps endedAt only;
@@ -496,6 +498,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       if (block.spanId) {
         const g = groupsBySpanId.get(block.spanId)
         if (g) {
+          if (block.error) g.error = block.error
           g.isOpen = false
           g.isDelegating = false
         }
@@ -515,7 +518,12 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     items.filter((item) => {
       if (item.type !== 'agent_group') return true
       item.group.items = pruneEmptyNested(item.group.items)
-      return item.group.items.length > 0 || item.group.isOpen || item.group.isDelegating
+      return (
+        item.group.items.length > 0 ||
+        item.group.isOpen ||
+        item.group.isDelegating ||
+        Boolean(item.group.error)
+      )
     })
   for (const segment of segments) {
     if (segment.type === 'agent_group') {
@@ -527,6 +535,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     (segment) =>
       segment.type !== 'agent_group' ||
       segment.items.length > 0 ||
+      Boolean(segment.error) ||
       segment.isDelegating ||
       segment.isOpen
   )
@@ -1054,6 +1063,7 @@ function MessageContentInner({
                     isStreaming={isStreaming}
                     isCurrentSection={i === segments.length - 1}
                     isLaneOpen={segment.isOpen}
+                    error={segment.error}
                   />
                 </div>
               )

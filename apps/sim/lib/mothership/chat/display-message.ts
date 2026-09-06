@@ -95,12 +95,16 @@ function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefi
       return { type: ContentBlockType.tool_call, toolCall: toToolCallInfo(block) }
     case MothershipStreamV1EventType.span:
       if (block.lifecycle === MothershipStreamV1SpanLifecycleEvent.end) {
-        return { type: ContentBlockType.subagent_end }
+        return {
+          type: ContentBlockType.subagent_end,
+          ...(block.error ? { error: block.error } : {}),
+        }
       }
       return {
         type: ContentBlockType.subagent,
         content: block.content,
         ...(block.name ? { subagentName: block.name } : {}),
+        ...(block.error ? { error: block.error } : {}),
       }
     case MothershipStreamV1EventType.complete:
       if (block.status === MothershipStreamV1CompletionStatus.cancelled) {
