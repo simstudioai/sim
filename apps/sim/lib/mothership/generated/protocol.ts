@@ -31,6 +31,86 @@ export interface StreamResponseReceipt {
   receivedActivity?: StreamActivityReceipt | undefined;
 }
 
+const ActivityReceiptSchema = z.object({
+  emitterId: z.string().min(1).max(128),
+  sequence: z.number().int().nonnegative().safe(),
+}) satisfies z.ZodType<StreamActivityReceipt>;
+
+/** HTTP and fleet delivery accept the same bounded response receipt. */
+export const ResponseReceiptSchema = z.object({
+  receivedTextChars: z.number().int().nonnegative().safe().optional(),
+  receivedActivity: ActivityReceiptSchema.optional(),
+}) satisfies z.ZodType<StreamResponseReceipt>;
+
+const InventoryNamed = z.object({ id: z.string(), name: z.string() });
+const WorkspaceInventorySchema = z.object({
+  workspaceName: z.string().optional(),
+  workflows: z.array(
+    z.object({ id: z.string(), name: z.string(), folder: z.string().optional(), deployed: z.boolean() }),
+  ),
+  tables: z.array(InventoryNamed),
+  knowledgeBases: z.array(InventoryNamed),
+  files: z.array(z.object({ path: z.string(), size: z.number().optional() })),
+  skills: z.array(z.object({ name: z.string() })),
+  customTools: z.array(z.object({ id: z.string(), title: z.string() })),
+  mcpServers: z.array(InventoryNamed),
+  credentials: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      provider: z.string().optional(),
+      type: z.string().optional(),
+    }),
+  ),
+  secrets: z.array(z.string()),
+  truncated: z.array(z.string()),
+});
+
+export const ChatPayloadSchema = z.strictObject({
+  message: z.string().min(1),
+  ...ResponseReceiptSchema.shape,
+  userId: z.string().min(1),
+  /** Bump-gated (S43): when present and mismatched the worker answers 426, never undefined behavior. */
+  protocolVersion: z.number().int().optional(),
+  messageId: z.uuid().optional(),
+  chatId: z.uuid().optional(),
+  /** Required (see contracts ChatRequest): absence used to fabricate a random identity. */
+  workspaceId: z.uuid(),
+  /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
+  workflowId: z.string().optional(),
+  integrationTools: z.array(z.unknown()).default([]),
+  /** User-configured MCP tool schemas — same shape as integrationTools; served by the gateway. */
+  mothershipTools: z.array(z.unknown()).default([]),
+  /** Accepted for wire compatibility with current sim builds; unused — the CLI now
+   * executes on the sim side under sim's own authentication, so no credential crosses. */
+  delegationToken: z.string().optional(),
+  /** Enterprise BYOK: the customer's own Anthropic key. Pins the native backend for the
+   * run; in-memory only — never persisted, logged, or on spans (S27). */
+  byokApiKey: z.string().optional(),
+  /** User attachments / @-mentions the UI packed with the message. */
+  context: z
+    .array(
+      z.object({
+        type: z.string(),
+        content: z.string(),
+        tag: z.string().optional(),
+        path: z.string().optional(),
+      }),
+    )
+    .default([]),
+  userTimezone: z.string().optional(),
+  /** Explicit client-executor declaration (see contracts ChatRequest.clientCapabilities);
+   * the worker accepts and ignores it — dispatch semantics live on the sim side. */
+  clientCapabilities: z.array(z.string()).default([]),
+  /** "task": sim opened this turn for a background-task notification, not for a typed
+   * message (21-background-tasks.md); recorded on the turn's user_message event. */
+  origin: z.enum(["task"]).optional(),
+  /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
+  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
+  inventory: WorkspaceInventorySchema.optional(),
+});
+
 /** A pause or terminal acknowledges all preceding activity only after the receiver handles it. */
 export interface StreamActivityCheckpoint {
   activityReceipt?: StreamActivityReceipt | undefined;

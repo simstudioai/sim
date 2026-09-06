@@ -47,14 +47,14 @@ vi.mock('@/lib/mothership/request/lifecycle/start', () => ({ createSSEStream: mo
 import { readChatStream } from './recover-stream'
 
 const principal = { kind: 'session', userId: 'user', sessionId: 'session' } as const
-const input = { streamId: 'stream' }
+const input = { streamId: '11111111-1111-4111-8111-111111111111' }
 const run = {
   id: 'run',
   executionId: 'execution',
-  streamId: 'stream',
-  chatId: 'chat',
+  streamId: '11111111-1111-4111-8111-111111111111',
+  chatId: '22222222-2222-4222-8222-222222222222',
   userId: 'user',
-  workspaceId: 'workspace',
+  workspaceId: '33333333-3333-4333-8333-333333333333',
   status: 'active',
   workflowId: null,
   requestContext: {
@@ -62,6 +62,13 @@ const run = {
     controllerToken: 'old-controller',
     recovery: {
       kind: 'interactive_stream',
+      request: {
+        message: 'Original accepted instruction',
+        userId: 'user',
+        messageId: '11111111-1111-4111-8111-111111111111',
+        chatId: '22222222-2222-4222-8222-222222222222',
+        workspaceId: '33333333-3333-4333-8333-333333333333',
+      },
       goRoute: '/api/mothership',
       clientToolPickupExpected: false,
       userTimezone: 'Asia/Kolkata',
@@ -75,16 +82,19 @@ describe('authorized chat stream recovery', () => {
     vi.resetAllMocks()
     mocks.run.mockResolvedValue(run)
     mocks.chat.mockResolvedValue({
-      chatId: 'chat',
+      chatId: '22222222-2222-4222-8222-222222222222',
       userId: 'user',
-      workspaceId: 'workspace',
+      workspaceId: '33333333-3333-4333-8333-333333333333',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: false,
     })
     mocks.acquire.mockResolvedValue(true)
     mocks.claim.mockResolvedValue(true)
     mocks.events.mockResolvedValue([])
-    mocks.billing.mockResolvedValue({ actorUserId: 'user', workspaceId: 'workspace' })
+    mocks.billing.mockResolvedValue({
+      actorUserId: 'user',
+      workspaceId: '33333333-3333-4333-8333-333333333333',
+    })
     mocks.permission.mockResolvedValue('read')
     mocks.start.mockImplementation(
       () =>
@@ -114,7 +124,7 @@ describe('authorized chat stream recovery', () => {
   it('conceals a run that does not belong to the authenticated user', async () => {
     mocks.run.mockResolvedValue(null)
     await expect(readChatStream.execute({ principal, input })).rejects.toThrow('Stream not found')
-    expect(mocks.run).toHaveBeenCalledWith('stream', 'user')
+    expect(mocks.run).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', 'user')
     expect(mocks.acquire).not.toHaveBeenCalled()
   })
 
@@ -155,45 +165,56 @@ describe('authorized chat stream recovery', () => {
     await readChatStream.execute({ principal, input })
     expect(mocks.claim).toHaveBeenCalledWith({
       runId: 'run',
-      chatId: 'chat',
+      chatId: '22222222-2222-4222-8222-222222222222',
       previousToken: 'old-controller',
       token: 'stream\nnew-controller',
     })
     expect(mocks.start).toHaveBeenCalledOnce()
     const params = mocks.start.mock.calls[0][0]
-    expect(params.requestPayload).toEqual({ streamId: 'stream', results: [] })
+    expect(params.requestPayload).toMatchObject(run.requestContext.recovery.request)
     expect(params.orchestrateOptions).toMatchObject({
       goRoute: '/api/mothership',
       userPermission: 'read',
       interactive: true,
       clientToolPickupExpected: false,
       recovery: {
-        streamId: 'stream',
+        streamId: '11111111-1111-4111-8111-111111111111',
         userTimezone: 'Asia/Kolkata',
         requestMode: 'agent',
         events: [],
       },
     })
-    expect(mocks.billing).toHaveBeenCalledWith({ actorUserId: 'user', workspaceId: 'workspace' })
+    expect(mocks.billing).toHaveBeenCalledWith({
+      actorUserId: 'user',
+      workspaceId: '33333333-3333-4333-8333-333333333333',
+    })
   })
 
   it('does not start after losing the database takeover race', async () => {
     mocks.claim.mockResolvedValue(false)
     await readChatStream.execute({ principal, input })
     expect(mocks.start).not.toHaveBeenCalled()
-    expect(mocks.release).toHaveBeenCalledWith('chat', 'stream', {
-      key: 'chat-lock',
-      value: 'stream\nnew-controller',
-    })
+    expect(mocks.release).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '11111111-1111-4111-8111-111111111111',
+      {
+        key: 'chat-lock',
+        value: 'stream\nnew-controller',
+      }
+    )
   })
 
   it('releases its exact lease when recovery preparation fails', async () => {
     mocks.events.mockRejectedValue(new Error('buffer unavailable'))
     await expect(readChatStream.execute({ principal, input })).rejects.toThrow('buffer unavailable')
     expect(mocks.start).not.toHaveBeenCalled()
-    expect(mocks.release).toHaveBeenCalledWith('chat', 'stream', {
-      key: 'chat-lock',
-      value: 'stream\nnew-controller',
-    })
+    expect(mocks.release).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '11111111-1111-4111-8111-111111111111',
+      {
+        key: 'chat-lock',
+        value: 'stream\nnew-controller',
+      }
+    )
   })
 })

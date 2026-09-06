@@ -36,7 +36,7 @@ const {
   persistChatResources,
   mockPublishStatusChanged,
   atomicallyClaimChatSend,
-  storeChatSendResult,
+  admitTurn,
   releaseChatSendClaim,
 } = vi.hoisted(() => ({
   processContextsServer: vi.fn(),
@@ -53,7 +53,7 @@ const {
   persistChatResources: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
   atomicallyClaimChatSend: vi.fn(),
-  storeChatSendResult: vi.fn(),
+  admitTurn: vi.fn(),
   releaseChatSendClaim: vi.fn(),
 }))
 
@@ -99,6 +99,16 @@ vi.mock('@/lib/mothership/chat/process-contents', () => ({
   resolveActiveResourceContext,
 }))
 
+vi.mock('@/lib/mothership/chat/application/admit-turn', () => ({
+  admitChatTurn: { execute: admitTurn },
+}))
+vi.mock('@/lib/mothership/request/session/abort', () => ({
+  getLocalChatStreamLease: (chatId: string, streamId: string) => ({
+    key: `copilot:chat-stream-lock:${chatId}`,
+    value: `${streamId}\ncontroller`,
+  }),
+}))
+
 vi.mock('@/lib/mothership/chat/payload', () => ({
   buildCopilotRequestPayload,
 }))
@@ -121,7 +131,6 @@ vi.mock('@/lib/mothership/chat/lifecycle', () => ({
 vi.mock('@/lib/core/idempotency', () => ({
   chatSendIdempotency: {
     atomicallyClaim: atomicallyClaimChatSend,
-    storeResult: storeChatSendResult,
     release: releaseChatSendClaim,
   },
 }))
@@ -161,7 +170,7 @@ describe('handleUnifiedChatPost', () => {
       storageMethod: 'database',
       claimToken: 'claim-1',
     })
-    storeChatSendResult.mockResolvedValue(true)
+    admitTurn.mockResolvedValue({ id: 'run-1', status: 'active' })
     releaseChatSendClaim.mockResolvedValue(undefined)
     getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     resolveWorkflowIdForUser.mockResolvedValue({
@@ -248,6 +257,28 @@ describe('handleUnifiedChatPost', () => {
       })
     )
   })
+
+  it.each([{ capabilities: [] }, { capabilities: ['workflow-tool-pickup'] }])(
+    'preserves declared client pickup through admission and recovery: %j',
+    async ({ capabilities }) => {
+      await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            createNewChat: true,
+            clientCapabilities: capabilities,
+          }),
+        })
+      )
+      const expected = capabilities.includes('workflow-tool-pickup')
+      expect(admitTurn.mock.calls[0][0].input.recovery.clientToolPickupExpected).toBe(expected)
+      expect(createSSEStream.mock.calls[0][0].orchestrateOptions.clientToolPickupExpected).toBe(
+        expected
+      )
+    }
+  )
 
   it('routes workspace chat requests through the mothership backend path', async () => {
     const response = await handleUnifiedChatPost(
@@ -848,19 +879,22 @@ describe('handleUnifiedChatPost', () => {
         })
       )
 
-      expect(storeChatSendResult).toHaveBeenCalledWith(
-        'chat-send:user-message:msg-1:userId=user-1',
-        expect.objectContaining({ result: { chatId: 'chat-1' } }),
-        'database',
-        'claim-1'
+      expect(admitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          input: expect.objectContaining({
+            chatId: 'chat-1',
+            sendClaim: {
+              normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
+              claimToken: 'claim-1',
+            },
+            message: expect.objectContaining({ id: 'msg-1', content: 'Hello' }),
+          }),
+        })
       )
     })
 
-    /**
-     * Deduplication saves a duplicate chat; the send IS the user's message.
-     * An unreachable bookkeeping store must degrade chat, never take it down.
-     */
-    it('sends normally when the claim store is unavailable', async () => {
+    it('does not admit a turn when the durable claim store is unavailable', async () => {
       atomicallyClaimChatSend.mockRejectedValue(new Error('idempotency store down'))
 
       const response = await handleUnifiedChatPost(
@@ -875,9 +909,9 @@ describe('handleUnifiedChatPost', () => {
         })
       )
 
-      expect(response.status).toBe(200)
-      expect(createSSEStream).toHaveBeenCalled()
-      expect(storeChatSendResult).not.toHaveBeenCalled()
+      expect(response.status).toBe(500)
+      expect(createSSEStream).not.toHaveBeenCalled()
+      expect(admitTurn).not.toHaveBeenCalled()
     })
 
     /**
@@ -908,6 +942,44 @@ describe('handleUnifiedChatPost', () => {
         'database',
         'claim-1'
       )
+    })
+
+    it('leaves a committed turn recoverable if attaching its HTTP stream fails', async () => {
+      createSSEStream.mockImplementationOnce(() => {
+        throw new Error('sink failed')
+      })
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+      expect(response.status).toBe(500)
+      expect(admitTurn).toHaveBeenCalledOnce()
+      expect(releaseChatSendClaim).not.toHaveBeenCalled()
+    })
+
+    it('does not expose or start a turn when durable admission fails', async () => {
+      admitTurn.mockRejectedValueOnce(new Error('transaction failed'))
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+      expect(response.status).toBe(500)
+      expect(createSSEStream).not.toHaveBeenCalled()
+      expect(releaseChatSendClaim).toHaveBeenCalledOnce()
     })
 
     it('keeps the claim once a turn is actually streaming', async () => {

@@ -20,7 +20,7 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   auditLog,
@@ -30,6 +30,7 @@ import {
   copilotRequestStops,
   copilotRuns,
   folder,
+  idempotencyKey,
   organization,
   pausedExecutions,
   publicShare,
@@ -89,6 +90,7 @@ import {
   settleSimToolExecution,
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
+import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
@@ -156,6 +158,11 @@ vi.mock('@/lib/workspaces/permissions/utils', async (importOriginal) => ({
   assertActiveWorkspaceAccess: async () => {
     if (!fixture.permission) throw new Error('Workspace access denied')
   },
+}))
+// This database acceptance suite isolates lease acquisition; real Redis takeover is exercised in the browser crash harness.
+vi.mock('@/lib/mothership/request/session/controller-lease', async (original) => ({
+  ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
+  assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@/lib/mothership/chat-status', () => ({ chatPubSub: null }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: () => {} }))
@@ -578,6 +585,7 @@ const tables = [
   workflowEdges,
   workflowSubflows,
   folder,
+  idempotencyKey,
   workflowDeploymentVersion,
   workflowExecutionSnapshots,
   workflowExecutionLogs,
@@ -630,6 +638,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         await db.execute(sql`ALTER TABLE ${name} ALTER COLUMN updated_at SET DEFAULT now()`)
       }
       await db.execute(sql`ALTER TABLE copilot_runs ALTER COLUMN started_at SET DEFAULT now()`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON idempotency_key (key)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_runs (stream_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_chats (id)`)
       await db.execute(
@@ -722,6 +731,160 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.errors.length = 0
       fixture.storageReads.length = 0
       vi.clearAllMocks()
+    })
+
+    const admissionPrincipal = {
+      kind: 'session',
+      userId: 'run-reader',
+      sessionId: 'local-session',
+    } as const
+    async function pendingAdmission() {
+      const chatId = generateId()
+      const streamId = generateId()
+      const claimToken = generateId()
+      const key = `chat-send:local:${streamId}`
+      await db.insert(copilotChats).values({ id: chatId, userId: 'run-reader', workspaceId })
+      await db
+        .insert(idempotencyKey)
+        .values({ key, result: { status: 'in-progress', claimToken }, createdAt: new Date() })
+      return {
+        chatId,
+        runId: generateId(),
+        executionId: generateId(),
+        requestId: generateId(),
+        message: { id: streamId, content: 'Preserve the original instruction and attachments' },
+        recovery: {
+          kind: 'interactive_stream' as const,
+          goRoute: '/api/mothership' as const,
+          clientToolPickupExpected: false,
+          request: {
+            messageId: streamId,
+            chatId,
+            workspaceId,
+            userId: 'run-reader',
+            message: 'Preserve the original instruction and attachments',
+            context: [{ type: 'file', content: 'original selected text' }],
+          },
+        },
+        lease: { key: `copilot:chat-stream-lock:${chatId}`, value: `${streamId}\ncontroller` },
+        sendClaim: { normalizedKey: key, claimToken },
+        notifyWorkspaceStatus: false,
+      }
+    }
+
+    it('atomically admits the accepted message, credential-free start intent and retry destination', async () => {
+      const input = await pendingAdmission()
+      const run = await admitChatTurn.execute({ principal: admissionPrincipal, input })
+      expect(run.streamId).toBe(input.message.id)
+      expect(run.requestContext).toMatchObject({
+        recovery: input.recovery,
+        controllerToken: input.lease.value,
+      })
+      const messages = await loadCopilotChatMessages(input.chatId)
+      expect(messages).toHaveLength(1)
+      expect(messages[0].content).toBe(input.message.content)
+      const [claim] = await db
+        .select()
+        .from(idempotencyKey)
+        .where(eq(idempotencyKey.key, input.sendClaim.normalizedKey))
+      expect(claim.result).toMatchObject({ status: 'completed', result: { chatId: input.chatId } })
+      expect(fixture.requests).toEqual([])
+    })
+
+    it('rolls back the message, conversation marker and run when the send claim was superseded', async () => {
+      const input = await pendingAdmission()
+      input.sendClaim.claimToken = 'stale-claim'
+      await expect(admitChatTurn.execute({ principal: admissionPrincipal, input })).rejects.toThrow(
+        'superseded'
+      )
+      expect(await loadCopilotChatMessages(input.chatId)).toEqual([])
+      expect(
+        await db.select().from(copilotRuns).where(eq(copilotRuns.streamId, input.message.id))
+      ).toEqual([])
+      const [chat] = await db.select().from(copilotChats).where(eq(copilotChats.id, input.chatId))
+      expect(chat.conversationId).toBeNull()
+      const [claim] = await db
+        .select()
+        .from(idempotencyKey)
+        .where(eq(idempotencyKey.key, input.sendClaim.normalizedKey))
+      expect(claim.result).toMatchObject({ status: 'in-progress' })
+    })
+
+    it.each(['before', 'concurrent'])(
+      'retains a Stop sent %s durable chat admission',
+      async (when) => {
+        const input = await pendingAdmission()
+        const stop = () =>
+          requestRunStop({
+            userId: 'run-reader',
+            workspaceId,
+            chatId: input.chatId,
+            streamId: input.message.id,
+          })
+        if (when === 'before') await stop()
+        await Promise.all([
+          admitChatTurn.execute({ principal: admissionPrincipal, input }),
+          ...(when === 'concurrent' ? [stop()] : []),
+        ])
+        const [run] = await db
+          .select()
+          .from(copilotRuns)
+          .where(eq(copilotRuns.streamId, input.message.id))
+        expect(run.toolAdmissionClosedAt).not.toBeNull()
+        if (when === 'before') expect(run.status).toBe('cancelled')
+        expect(await loadCopilotChatMessages(input.chatId)).toHaveLength(1)
+        expect(fixture.requests).toEqual([])
+      }
+    )
+
+    it.each(['personal_api_key', 'workspace_api_key', 'delegated', 'system'])(
+      'rejects %s admission without saving a message',
+      async (kind) => {
+        const input = await pendingAdmission()
+        await expect(
+          admitChatTurn.execute({ principal: { kind } as Principal, input })
+        ).rejects.toThrow()
+        expect(await loadCopilotChatMessages(input.chatId)).toEqual([])
+      }
+    )
+
+    it('rejects admission after workspace membership is revoked', async () => {
+      const input = await pendingAdmission()
+      fixture.permission = null
+      await expect(
+        admitChatTurn.execute({ principal: admissionPrincipal, input })
+      ).rejects.toThrow()
+      expect(await loadCopilotChatMessages(input.chatId)).toEqual([])
+    })
+
+    it.each(['byokApiKey', 'delegationToken'])(
+      'never persists a %s in a start intent',
+      async (credential) => {
+        const input = await pendingAdmission()
+        const unsafe = {
+          ...input,
+          recovery: {
+            ...input.recovery,
+            request: { ...input.recovery.request, [credential]: 'sensitive-key' },
+          },
+        }
+        await expect(
+          admitChatTurn.execute({ principal: admissionPrincipal, input: unsafe })
+        ).rejects.toThrow()
+        expect(await loadCopilotChatMessages(input.chatId)).toEqual([])
+        expect(
+          await db.select().from(copilotRuns).where(eq(copilotRuns.streamId, input.message.id))
+        ).toEqual([])
+      }
+    )
+
+    it('rejects a start request with another chat identity', async () => {
+      const input = await pendingAdmission()
+      input.recovery.request.chatId = generateId()
+      await expect(admitChatTurn.execute({ principal: admissionPrincipal, input })).rejects.toThrow(
+        'identity'
+      )
+      expect(await loadCopilotChatMessages(input.chatId)).toEqual([])
     })
 
     it('finishes a restored terminal receipt without another worker call or duplicate usage', async () => {

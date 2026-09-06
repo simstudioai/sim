@@ -80,11 +80,10 @@ export interface StreamingOrchestrationParams {
   requestId: string
   workspaceId?: string
   orchestrateOptions: Omit<CopilotLifecycleOptions, 'onEvent'>
-  /**
-   * Pre-started root; child spans bind to it and `finish()` fires on
-   * termination. Omit to let the stream start its own root (headless).
-   */
+  /** Interactive admission commits before the HTTP stream is exposed. */
+  admittedRun?: Awaited<ReturnType<typeof createRunSegment>>
   resumeSeq?: number
+  /** Pre-started root; omit to let the stream start its own root. */
   otelRoot?: ReturnType<typeof startCopilotOtelRoot>
 }
 
@@ -157,15 +156,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   let abortPoller: ReturnType<typeof startAbortPoller> | undefined
   let processResourcesReleased = false
 
-  // Classify cancel: signal.reason (explicit-stop set) wins, then
-  // clientDisconnected, else Unknown (latent contract bug — log it).
+  // Only explicit cancellation affects the run; browser attachment is independent.
   const recordCancelled = (errorMessage?: string): CopilotRequestCancelReasonValue => {
     const rawReason = abortController.signal.reason
     let cancelReason: CopilotRequestCancelReasonValue
     if (isExplicitStopReason(rawReason)) {
       cancelReason = CopilotRequestCancelReason.ExplicitStop
-    } else if (publisher.clientDisconnected) {
-      cancelReason = CopilotRequestCancelReason.ClientDisconnect
     } else {
       cancelReason = CopilotRequestCancelReason.Unknown
       const serializedReason =
@@ -239,24 +235,28 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
           try {
             if (chatId && !orchestrateOptions.recovery) {
-              const run = await createRunSegment({
-                id: runId,
-                executionId,
-                chatId,
-                userId,
-                workflowId:
-                  typeof requestPayload.workflowId === 'string' ? requestPayload.workflowId : null,
-                workspaceId,
-                streamId,
-                model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
-                provider:
-                  typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
-                requestContext: {
-                  requestId,
-                  controllerToken: lease?.value,
-                  recovery: streamRecoveryConfig(orchestrateOptions),
-                },
-              })
+              const run =
+                params.admittedRun ??
+                (await createRunSegment({
+                  id: runId,
+                  executionId,
+                  chatId,
+                  userId,
+                  workflowId:
+                    typeof requestPayload.workflowId === 'string'
+                      ? requestPayload.workflowId
+                      : null,
+                  workspaceId,
+                  streamId,
+                  model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
+                  provider:
+                    typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
+                  requestContext: {
+                    requestId,
+                    controllerToken: lease?.value,
+                    recovery: streamRecoveryConfig(orchestrateOptions, requestPayload),
+                  },
+                }))
               if (run.status === 'cancelled') {
                 outcome = RequestTraceV1Outcome.cancelled
                 abortController.abort(AbortReason.UserStop)
@@ -335,31 +335,15 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
 
             lifecycleResult = result
-            // Outcome classification (priority order):
-            //   1. `result.success` → success. The orchestrator
-            //      reporting "finished cleanly" wins over any later
-            //      signal change. Matters for the narrow race where
-            //      the user clicks Stop a beat after the stream
-            //      completed.
-            //   2. `signal.aborted` (from `abortActiveStream` or the
-            //      Redis-marker poller) OR `clientDisconnected` with
-            //      a non-success result → cancelled. `recordCancelled`
-            //      further refines into explicit_stop / client_disconnect
-            //      / unknown via `signal.reason`.
-            //   3. Otherwise → error.
+            // A completed result wins a late Stop; passive disconnection never cancels.
             outcome = result.success
               ? RequestTraceV1Outcome.success
-              : result.cancelled || abortController.signal.aborted || publisher.clientDisconnected
+              : result.cancelled || abortController.signal.aborted
                 ? RequestTraceV1Outcome.cancelled
                 : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
               cancelReason = recordCancelled()
             }
-            // Pass the resolved outcome — not `signal.aborted` — so
-            // `finalizeStream` classifies the same way we did above.
-            // A client-disconnect-without-controller-abort still needs
-            // to hit `handleAborted` (not `handleError`) so the chat
-            // row gets `cancelled` terminal state instead of `error`.
             await assertControllerOwnership()
             await finalizeStream(result, publisher, runId, outcome, requestId)
           } catch (error) {
@@ -371,10 +355,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               return
             }
             await assertControllerOwnership()
-            // Error-path classification: if the abort signal fired or
-            // the client disconnected, treat the thrown error as a
-            // cancel (same rationale as the try-path above).
-            const wasCancelled = abortController.signal.aborted || publisher.clientDisconnected
+            const wasCancelled = abortController.signal.aborted
             outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
               cancelReason = recordCancelled(getErrorMessage(error))
