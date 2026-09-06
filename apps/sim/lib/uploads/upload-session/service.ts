@@ -19,6 +19,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
@@ -46,6 +47,10 @@ import type {
   UploadStorageProvider,
   UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
+import {
+  bindWorkspaceFileUploadProvenance,
+  WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
+} from '@/lib/uploads/upload-session/workspace-file-provenance'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
 export const UPLOAD_SESSION_PART_SIZE = 8 * 1024 * 1024
@@ -178,7 +183,13 @@ interface CreateUploadSessionBaseParams {
 
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
   (
-    | { purpose: 'workspace_file'; workspaceId: string; principal: Principal }
+    | {
+        purpose: 'workspace_file'
+        workspaceId: string
+        principal: Principal
+        /** Trusted runtime source classification, never a public upload input. */
+        secretProvenance?: WorkspaceFileSecretProvenance
+      }
     | { purpose: 'table_import'; workspaceId: string; principal?: Principal }
     | {
         purpose: 'knowledge_document'
@@ -206,6 +217,15 @@ export async function createUploadSession(
   const uploadToken = generateSecureToken(32)
   const workspaceId = params.purpose === 'profile_picture' ? null : params.workspaceId
   const metadata = { ...(params.metadata ?? {}) }
+  if (params.purpose === 'workspace_file') {
+    delete metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]
+    if (params.secretProvenance !== undefined) {
+      metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY] = bindWorkspaceFileUploadProvenance(
+        params.workspaceId,
+        params.secretProvenance
+      )
+    }
+  }
   if (params.purpose === 'workspace_file' || params.purpose === 'knowledge_document') {
     if (!workspaceId) throw new Error(`${params.purpose} upload is missing workspaceId`)
     if (!params.principal) {

@@ -531,6 +531,55 @@ describe('workspace file metadata and storage accounting', () => {
     expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })
 
+  it.each(['exact', 'unknown'] as const)(
+    'commits private %s provenance with the first registered content version',
+    async (status) => {
+      const secretProvenance =
+        status === 'exact'
+          ? {
+              status,
+              entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: FILE_ROW.userId }],
+            }
+          : { status }
+      dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+      await registerUploadedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        userId: FILE_ROW.userId,
+        key: FILE_ROW.key,
+        originalName: FILE_ROW.originalName,
+        contentType: FILE_ROW.contentType,
+        secretProvenance,
+      })
+      expect(mockReplaceWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Object),
+        FILE_ROW.id,
+        FILE_ROW.contentUpdatedAt,
+        secretProvenance
+      )
+      expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('retains a private unknown classification when recovering a tracked upload without its sidecar', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW])
+    await registerUploadedWorkspaceFile({
+      workspaceId: FILE_ROW.workspaceId,
+      userId: FILE_ROW.userId,
+      key: FILE_ROW.key,
+      originalName: FILE_ROW.originalName,
+      contentType: FILE_ROW.contentType,
+      secretProvenance: { status: 'unknown' },
+    })
+    expect(mockInitializeWorkspaceFileSecretProvenanceInTx).toHaveBeenCalledExactlyOnceWith(
+      expect.any(Object),
+      FILE_ROW.id,
+      FILE_ROW.contentUpdatedAt,
+      { status: 'unknown' }
+    )
+    expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+  })
+
   it('preserves marker-null legacy registration behavior without creating a sidecar', async () => {
     mockHasCloudStorage.mockReturnValue(true)
     dbChainMockFns.limit.mockResolvedValueOnce([{ ...FILE_ROW, secretProvenanceVersion: null }])
