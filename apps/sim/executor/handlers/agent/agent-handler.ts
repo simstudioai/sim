@@ -41,6 +41,10 @@ import {
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
+import {
+  getAgentToolUsageControlMode,
+  resolveAgentToolUsageControl,
+} from '@/lib/workflows/tool-input/usage-control'
 import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
@@ -231,9 +235,6 @@ export class AgentBlockHandler implements BlockHandler {
       AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS
     )
     ctx.errorResolvedSecretTraceRegistry = providerErrorRegistry
-    const toolIndexByRef = new Map<ToolInput, number>(
-      (inputs.tools || []).map((tool, index) => [tool, index] as const)
-    )
     const privateAgentSelectorInputPaths: ResolvedSecretInputPath[] = []
     let responseFormatModelInputPaths: ResolvedSecretInputPath[] = []
     let privateAgentSelectorsSettled = false
@@ -249,6 +250,10 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
+      const tools = this.resolveToolUsageControls(inputs.tools || [], block.canonicalModes)
+      const toolIndexByRef = new Map<ToolInput, number>(
+        tools.map((tool, index) => [tool, index] as const)
+      )
       const privateAgentSelectors = this.getPrivateAgentSelectorInputPaths(ctx, inputs, [])
       privateAgentSelectorInputPaths.push(...privateAgentSelectors.inputPaths)
       if (!privateAgentSelectors.complete) {
@@ -268,7 +273,7 @@ export class AgentBlockHandler implements BlockHandler {
         }
       )
       responseFormatModelInputPaths = responseFormatProjection.inputPaths
-      const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
+      const filteredTools = await this.filterUnavailableMcpTools(ctx, tools)
       const filteredInputs = { ...inputs, tools: filteredTools }
       this.assertInputPathsDoNotResolveSecrets(
         ctx,
@@ -299,7 +304,7 @@ export class AgentBlockHandler implements BlockHandler {
         ...modelInputProjection.value,
         responseFormat: responseFormatProjection.value,
       }
-      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, inputs.tools || [])
+      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, tools)
 
       await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
@@ -459,6 +464,24 @@ export class AgentBlockHandler implements BlockHandler {
     } finally {
       settlePrivateAgentSelectors()
     }
+  }
+
+  private resolveToolUsageControls(
+    tools: ToolInput[],
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ): ToolInput[] {
+    return tools.map((tool, toolIndex) => {
+      if (getAgentToolUsageControlMode(toolIndex, canonicalModes) === 'basic') return tool
+
+      const usageControl = resolveAgentToolUsageControl(tool, toolIndex, canonicalModes)
+      if (!usageControl) {
+        throw new Error(
+          `Tool ${toolIndex + 1} mode must resolve to Auto, Force, or None before the Agent can run.`
+        )
+      }
+
+      return { ...tool, usageControl }
+    })
   }
 
   /**
@@ -1937,6 +1960,9 @@ export class AgentBlockHandler implements BlockHandler {
     for (let toolIndex = 0; toolIndex < (inputs.tools?.length ?? 0); toolIndex++) {
       if (inputs.tools?.[toolIndex]?.customToolId) {
         candidatePaths.push(['tools', String(toolIndex), 'customToolId'])
+      }
+      if (inputs.tools?.[toolIndex]?.usageControlExpression) {
+        candidatePaths.push(['tools', String(toolIndex), 'usageControlExpression'])
       }
     }
     for (let skillIndex = 0; skillIndex < (inputs.skills?.length ?? 0); skillIndex++) {

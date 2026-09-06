@@ -40,6 +40,7 @@ import {
 } from '@/lib/workflows/persistence/block-access-guard'
 import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
+import { assertAgentToolPermissionModeEnabled } from '@/lib/workflows/tool-input/usage-control.server'
 
 const logger = createLogger('WorkflowDBHelpers')
 
@@ -671,6 +672,7 @@ export async function saveWorkflowToNormalizedTables(
   externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
   await assertNoWithheldBlockType(governance, Object.values(state.blocks))
+  await assertAgentToolPermissionModeEnabled(Object.values(state.blocks))
 
   if (externalTx) {
     return saveWorkflowToNormalizedTablesRaw(workflowId, state, externalTx)

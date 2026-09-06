@@ -1066,6 +1066,71 @@ describe('AgentBlockHandler', () => {
       expect(toolIds).not.toContain('transformed_tool_2')
     })
 
+    it('uses the resolved canonical tool mode expression before filtering tools', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the enabled tools.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'force' as const,
+            usageControlExpression: 'none',
+          },
+          {
+            id: 'tool_2',
+            type: 'tool-type-2',
+            operation: 'operation2',
+            usageControl: 'none' as const,
+            usageControlExpression: ' Force ',
+          },
+        ],
+      }
+      const block = {
+        ...mockBlock,
+        canonicalModes: {
+          '0:agentToolUsageControl': 'advanced' as const,
+          '1:agentToolUsageControl': 'advanced' as const,
+        },
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockContext, block, inputs)
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].tools).toEqual([
+        expect.objectContaining({ id: 'transformed_tool_2', usageControl: 'force' }),
+      ])
+    })
+
+    it('rejects a canonical tool mode expression that does not resolve to a supported mode', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the tool.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'auto' as const,
+            usageControlExpression: 'sometimes',
+          },
+        ],
+      }
+      const block = {
+        ...mockBlock,
+        canonicalModes: { '0:agentToolUsageControl': 'advanced' as const },
+      }
+
+      await expect(handler.execute(mockContext, block, inputs)).rejects.toThrow(
+        'Tool 1 mode must resolve to Auto, Force, or None'
+      )
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
     it('should include usageControl property in transformed tools', async () => {
       const inputs = {
         model: 'gpt-4o',

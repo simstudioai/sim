@@ -46,6 +46,12 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'agent-tool-permission-mode': {
+    description:
+      'Enable variable agent tool Permission Mode inputs in the editor and workflow writes. ' +
+      'Global on/off only.',
+    fallback: 'AGENT_TOOL_PERMISSION_MODE',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +

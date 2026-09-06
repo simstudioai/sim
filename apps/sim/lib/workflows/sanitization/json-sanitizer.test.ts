@@ -163,6 +163,42 @@ describe('sanitizeForCopilot server-only block inputs', () => {
   })
 })
 
+describe('sanitizeForCopilot Agent tool modes', () => {
+  it('preserves fixed and variable-backed usage modes while removing UI state', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('agent-1', {
+        type: 'agent',
+        name: 'Agent 1',
+        enabled: true,
+        subBlocks: {
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControl: 'auto',
+                usageControlExpression: '<route.toolMode>',
+                isExpanded: true,
+              },
+            ],
+          },
+        },
+      })
+    )
+
+    expect(result.blocks['agent-1'].inputs?.tools).toEqual([
+      {
+        type: 'custom-tool',
+        customToolId: 'custom-1',
+        usageControl: 'auto',
+        usageControlExpression: '<route.toolMode>',
+      },
+    ])
+  })
+})
+
 describe('sanitizeForCopilot product-gated block inputs', () => {
   it('retains a persisted Function sandbox selection for model-visible read access', () => {
     const state = makeSingleBlockWorkflow('function-1', {

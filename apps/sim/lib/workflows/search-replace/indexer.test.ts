@@ -1698,6 +1698,67 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches.some((match) => match.valuePath.includes('schema'))).toBe(false)
   })
 
+  it('indexes only the active variable-capable Agent tool mode value', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      data: { canonicalModes: { '0:agentToolUsageControl': 'advanced' } },
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'native',
+              usageControl: 'auto',
+              usageControlExpression: '<route.toolMode>',
+            },
+          ],
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: { subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' as const }] },
+      native: { name: 'Native', subBlocks: [] },
+    }
+
+    const advancedMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'route',
+      mode: 'all',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(advancedMatches.map((match) => match.kind)).toEqual(['text', 'workflow-reference'])
+    expect(advancedMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldTitle: 'Permission Mode',
+          valuePath: [0, 'usageControlExpression'],
+          searchText: '<route.toolMode>',
+        }),
+      ])
+    )
+
+    workflow.blocks['tool-input-1'].data = {
+      canonicalModes: { '0:agentToolUsageControl': 'basic' },
+    }
+    const basicMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'route',
+      mode: 'all',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(basicMatches).toHaveLength(0)
+  })
+
   it('indexes canonical MCP and custom-tool names over mutated stored titles', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tool-input-1'] = {

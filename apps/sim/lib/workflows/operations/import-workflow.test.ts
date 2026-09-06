@@ -1,15 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createAgentBlock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  isFeatureEnabled: vi.fn(),
   getUserPermissionConfig: vi.fn(),
   performCreateWorkflow: vi.fn(),
   performCreateWorkflowTransition: vi.fn(),
   saveWorkflowToNormalizedTables: vi.fn(),
   extractAndPersistCustomTools: vi.fn(),
+}))
+
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: mocks.isFeatureEnabled,
 }))
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
@@ -62,6 +67,7 @@ function params(workflowPayload: Record<string, unknown>) {
 describe('importWorkflowIntoWorkspace block access', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isFeatureEnabled.mockResolvedValue(false)
     resetDbChainMock()
     queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
     mocks.getUserPermissionConfig.mockResolvedValue(null)
@@ -80,6 +86,35 @@ describe('importWorkflowIntoWorkspace block access', () => {
     mocks.saveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
     mocks.extractAndPersistCustomTools.mockResolvedValue({ saved: 0, errors: [] })
   })
+
+  it.each([false, true])(
+    'gates variable modes before creating an import (enabled=%s)',
+    async (enabled) => {
+      mocks.isFeatureEnabled.mockResolvedValue(enabled)
+      const agent = createAgentBlock({
+        id: 'agent',
+        subBlocks: {
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [{ type: 'function', usageControlExpression: '<start.toolMode>' }],
+          },
+        },
+      })
+      const result = importWorkflowIntoWorkspace(params(payload(agent)))
+      if (enabled) {
+        await expect(result).resolves.toMatchObject({ success: true })
+        expect(mocks.performCreateWorkflow).toHaveBeenCalledOnce()
+      } else {
+        await expect(result).rejects.toMatchObject({
+          code: 'validation',
+          message: 'Variable agent tool permission modes are disabled',
+        })
+        expect(mocks.performCreateWorkflow).not.toHaveBeenCalled()
+        expect(mocks.saveWorkflowToNormalizedTables).not.toHaveBeenCalled()
+      }
+    }
+  )
 
   /**
    * The bypass this closes: import never went through the editing operations,
