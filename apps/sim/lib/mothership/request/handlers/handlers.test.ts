@@ -133,6 +133,7 @@ describe('sse-handlers tool lifecycle', () => {
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
+      activeFileIntents: new Map(),
       seenToolCalls: new Set(),
       seenToolResults: new Set(),
       currentThinkingBlock: null,
@@ -275,7 +276,7 @@ describe('sse-handlers tool lifecycle', () => {
       autoAllowPermitted: true,
     }
 
-    const event = {
+    const event: StreamEvent = {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'deploy-1',
@@ -371,7 +372,7 @@ describe('sse-handlers tool lifecycle', () => {
       autoAllowPermitted: true,
     }
 
-    const event = {
+    const event: StreamEvent = {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'deploy-2',
@@ -494,6 +495,61 @@ describe('sse-handlers tool lifecycle', () => {
     // Rendering and persistence keep the display identity.
     expect(context.toolCalls.get('cli-1')?.name).toBe('cli_workflows_list')
   })
+
+  it.each(['main', 'subagent'] as const)(
+    'renders %s CLI replay without execution, then accepts one parked handoff',
+    async (lane) => {
+      executeTool.mockResolvedValueOnce({ success: true, output: { id: 'created-once' } })
+      const handler = lane === 'main' ? sseHandlers.tool : subAgentHandlers.tool
+      const event: StreamEvent = {
+        type: MothershipStreamV1EventType.tool,
+        ...(lane === 'subagent'
+          ? {
+              scope: {
+                lane: 'subagent' as const,
+                parentToolCallId: 'parent-replay',
+                agentId: 'task',
+              },
+            }
+          : {}),
+        payload: {
+          toolCallId: 'replayed-cli',
+          toolName: 'cli_workflows_create',
+          execName: 'sim_cli',
+          arguments: {
+            args: ['workflows', 'create', '--name', 'Draft'],
+            request: {
+              invocation: { kind: 'cli', argv: ['workflows', 'create', '--name', 'Draft'] },
+            },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'executing',
+        },
+      }
+      await handler(event, context, execContext, { interactive: false, timeout: 1000 })
+      expect(executeTool).not.toHaveBeenCalled()
+      expect(context.pendingToolPromises.size).toBe(0)
+      expect(context.toolCalls.get('replayed-cli')?.status).toBe('pending')
+
+      const handoff: StreamEvent = {
+        ...event,
+        payload: {
+          ...event.payload,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          ui: { simExecutable: true },
+        },
+      }
+      await handler(handoff, context, execContext, { interactive: false, timeout: 1000 })
+      await sleep(0)
+      await handler(handoff, context, execContext, { interactive: false, timeout: 1000 })
+      expect(executeTool).toHaveBeenCalledTimes(1)
+      expect(executeTool.mock.calls[0][0]).toBe('sim_cli')
+      expect(context.toolCalls.get('replayed-cli')?.name).toBe('cli_workflows_create')
+    }
+  )
 
   it('executes tool_call and emits tool_result', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
@@ -1588,9 +1644,7 @@ describe('sse-handlers tool lifecycle', () => {
 
   it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
     const abortController = new AbortController()
-    const userStopController = new AbortController()
     execContext.abortSignal = abortController.signal
-    execContext.userStopSignal = userStopController.signal
 
     executeTool.mockImplementationOnce(
       () =>
@@ -1617,11 +1671,9 @@ describe('sse-handlers tool lifecycle', () => {
         interactive: false,
         timeout: 1000,
         abortSignal: abortController.signal,
-        userStopSignal: userStopController.signal,
       }
     )
 
-    userStopController.abort()
     abortController.abort()
     await sleep(10)
 
