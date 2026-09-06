@@ -10,6 +10,7 @@ import {
   FILE_DOC_TIMEOUTS,
   type FileDocUpdateAck,
 } from '@sim/realtime-protocol/file-doc'
+import { update as updateJournalStorage } from 'idb-keyval'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import type { Socket } from 'socket.io-client'
@@ -837,7 +838,7 @@ describe('FileDocProvider', () => {
     doc.destroy()
   })
 
-  it('hydrates the complete local draft before reporting a replaced document', async () => {
+  it('reopens the current generation without installing an incompatible recovery draft', async () => {
     journalStorage.clear()
     const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
     const oldDoc = new Y.Doc()
@@ -852,23 +853,317 @@ describe('FileDocProvider', () => {
       pendingUpdate,
       recoverySnapshot
     )
-    const { socket, emit, fire } = createSocket(true)
-    const doc = new Y.Doc()
-    const provider = new FileDocProvider(
-      socket,
-      'file-1',
-      doc,
-      new awarenessProtocol.Awareness(doc),
-      scope
+    for (let mount = 0; mount < 3; mount++) {
+      const { socket, emit, fire } = createSocket(true)
+      const doc = new Y.Doc()
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+      acceptJoin(fire, doc.clientID, 'current-doc')
+
+      await vi.waitFor(() => expect(emittedMessages(emit).length).toBeGreaterThan(0))
+      expect(provider.joinError).toBeNull()
+      expect(doc.getText('default').toString()).toBe('')
+      expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+    }
+    const retained = await new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' }).load(
+      'old-doc'
     )
-
-    acceptJoin(fire, doc.clientID, 'current-doc')
-
-    await vi.waitFor(() => expect(provider.joinError).toMatchObject({ code: 'DOCUMENT_REPLACED' }))
-    expect(doc.getText('default').toString()).toBe('complete draft plus pending')
-    expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
-    provider.destroy()
+    expect(retained?.pendingUpdate).toEqual(pendingUpdate)
+    expect(retained?.recoverySnapshot).toEqual(recoverySnapshot)
     oldDoc.destroy()
+  })
+
+  it.each([false, true])(
+    'does not install disk recovery without a negotiated identity (local identity: %s)',
+    async (hasLocalIdentity) => {
+      journalStorage.clear()
+      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const draft = new Y.Doc()
+      draft.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'old-doc')
+      draft.getText('default').insert(0, 'retained draft')
+      const snapshot = Y.encodeStateAsUpdate(draft)
+      const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
+      await journal.save('old-doc', snapshot, snapshot)
+      const { socket, emit, fire } = createSocket(true)
+      const doc = new Y.Doc()
+      if (hasLocalIdentity) Y.applyUpdate(doc, snapshot)
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+      acceptJoin(fire, doc.clientID, undefined, false)
+
+      await vi.waitFor(() => expect(emittedMessages(emit).length).toBeGreaterThan(0))
+      expect(provider.joinError).toBeNull()
+      expect(doc.getText('default').toString()).toBe(hasLocalIdentity ? 'retained draft' : '')
+      expect(await journal.load('old-doc')).not.toBeNull()
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      draft.destroy()
+    }
+  )
+
+  it('admits the final online batch before leaving while its relay publication is still pending', () => {
+    const { socket, emit, fire } = createSocket(true)
+    const serverDoc = new Y.Doc()
+    serverDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(serverDoc))
+    const awareness = new awarenessProtocol.Awareness(doc)
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness)
+    acceptJoin(fire, doc.clientID, 'doc-1')
+    let joined = true
+    const publications: Array<() => void> = []
+    emit.mockImplementation((event, payload, acknowledge) => {
+      if (event === FILE_DOC_EVENTS.LEAVE) joined = false
+      if (event !== FILE_DOC_EVENTS.UPDATE) return
+      expect(joined).toBe(true)
+      publications.push(() => {
+        Y.applyUpdate(serverDoc, payload.update)
+        acknowledge(null, { status: 'accepted', updateId: payload.updateId })
+      })
+    })
+
+    doc.getText('default').insert(0, 'last edit')
+    provider.destroy()
+
+    expect(joined).toBe(false)
+    expect(publications).toHaveLength(1)
+    expect(serverDoc.getText('default').toString()).toBe('')
+    publications[0]()
+    expect(serverDoc.getText('default').toString()).toBe('last edit')
+    awareness.destroy()
+    doc.destroy()
+    serverDoc.destroy()
+  })
+
+  it('does not send an oversized aggregate batch during teardown', () => {
+    const { provider, doc, awareness, emit, fire } = createProvider(true)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    acceptJoin(fire, doc.clientID, 'doc-1')
+    const bytes = new Uint8Array(FILE_DOC_LIMITS.updateBytes / 2)
+    doc.getArray<Uint8Array>('binary').insert(0, [bytes])
+    doc.getArray<Uint8Array>('binary').insert(1, [bytes])
+    emit.mockClear()
+
+    provider.destroy()
+
+    expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
+    awareness.destroy()
+    doc.destroy()
+  })
+
+  it.each(['destroy', 'file-switch'] as const)(
+    'drains an edit being journaled and later edits before %s',
+    async (navigation) => {
+      vi.useFakeTimers()
+      journalStorage.clear()
+      const storageGate = Promise.withResolvers<void>()
+      vi.mocked(updateJournalStorage).mockImplementationOnce(async (key, updater) => {
+        await storageGate.promise
+        journalStorage.set(String(key), updater(journalStorage.get(String(key))))
+      })
+      const clear = vi.spyOn(PendingFileDocUpdateJournal.prototype, 'clear')
+      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const { socket, emit, fire } = createSocket(true)
+      const serverDoc = new Y.Doc()
+      serverDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+      const doc = new Y.Doc()
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(serverDoc))
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+      const nextDoc = new Y.Doc()
+      const nextAwareness = new awarenessProtocol.Awareness(nextDoc)
+      let nextProvider: FileDocProvider | undefined
+      try {
+        acceptJoin(fire, doc.clientID, 'doc-1')
+        await vi.advanceTimersByTimeAsync(0)
+        doc.getText('default').insert(0, 'first')
+        await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+        doc.getText('default').insert(5, ' second')
+        emit.mockClear()
+        if (navigation === 'file-switch') {
+          nextProvider = new FileDocProvider(socket, 'file-2', nextDoc, nextAwareness, scope)
+        }
+        provider.destroy()
+        awareness.destroy()
+        doc.destroy()
+
+        const updateIndex = emit.mock.calls.findIndex(([event]) => event === FILE_DOC_EVENTS.UPDATE)
+        const membershipEvent =
+          navigation === 'file-switch' ? FILE_DOC_EVENTS.JOIN : FILE_DOC_EVENTS.LEAVE
+        const membershipIndex = emit.mock.calls.findIndex(([event]) => event === membershipEvent)
+        expect(updateIndex).toBeGreaterThanOrEqual(0)
+        expect(updateIndex).toBeLessThan(membershipIndex)
+        const [, payload, acknowledge] = emit.mock.calls[updateIndex]
+        Y.applyUpdate(serverDoc, payload.update)
+        expect(serverDoc.getText('default').toString()).toBe('first second')
+        acknowledge(null, { status: 'accepted', updateId: payload.updateId })
+        expect(clear).not.toHaveBeenCalled()
+        storageGate.resolve()
+        await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+        expect(clear).toHaveBeenCalledOnce()
+        expect(
+          await new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' }).load('doc-1')
+        ).toBeNull()
+        expect(emit.mock.calls.filter(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toHaveLength(
+          1
+        )
+      } finally {
+        storageGate.resolve()
+        provider.destroy()
+        nextProvider?.destroy()
+        awareness.destroy()
+        doc.destroy()
+        nextAwareness.destroy()
+        nextDoc.destroy()
+        serverDoc.destroy()
+        clear.mockRestore()
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each(['accepted', 'rejected', 'timeout'] as const)(
+    'retains the final combined draft until its own %s acknowledgment',
+    async (outcome) => {
+      vi.useFakeTimers()
+      journalStorage.clear()
+      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
+      const { socket, emit, fire } = createSocket(true)
+      const serverDoc = new Y.Doc()
+      serverDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+      const doc = new Y.Doc()
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(serverDoc))
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+      try {
+        acceptJoin(fire, doc.clientID, 'doc-1')
+        await vi.advanceTimersByTimeAsync(0)
+        doc.getText('default').insert(0, 'first')
+        await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+        const first = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
+        expect(first).toBeDefined()
+        doc.getText('default').insert(5, ' second')
+        provider.destroy()
+        const updates = emit.mock.calls.filter(([event]) => event === FILE_DOC_EVENTS.UPDATE)
+        expect(updates).toHaveLength(2)
+        const [, finalPayload, finalAcknowledge] = updates[1]
+        expect(finalPayload.updateId).not.toBe(first?.[1].updateId)
+        Y.applyUpdate(serverDoc, finalPayload.update)
+        expect(serverDoc.getText('default').toString()).toBe('first second')
+        first?.[2](null, { status: 'accepted', updateId: first[1].updateId })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(await journal.load('doc-1')).not.toBeNull()
+        if (outcome === 'accepted') {
+          finalAcknowledge(null, { status: 'accepted', updateId: finalPayload.updateId })
+        } else if (outcome === 'rejected') {
+          finalAcknowledge(null, {
+            status: 'rejected',
+            updateId: finalPayload.updateId,
+            retryable: false,
+            code: 'ACCESS_REVOKED',
+          })
+        }
+        await vi.advanceTimersByTimeAsync(FILE_DOC_TIMEOUTS.updateAckMs + 6_000)
+        const recovery = await journal.load('doc-1')
+        if (outcome === 'accepted') expect(recovery).toBeNull()
+        else expect(recovery?.pendingUpdate).toEqual(finalPayload.update)
+        expect(emit.mock.calls.filter(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toHaveLength(
+          2
+        )
+      } finally {
+        provider.destroy()
+        awareness.destroy()
+        doc.destroy()
+        serverDoc.destroy()
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each(['disconnected', 'invalidated', 'not-joined'] as const)(
+    'keeps the final draft local when %s',
+    async (state) => {
+      vi.useFakeTimers()
+      journalStorage.clear()
+      const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+      const { socket, emit, fire } = createSocket(true)
+      const doc = new Y.Doc()
+      doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+      try {
+        if (state !== 'not-joined') {
+          acceptJoin(fire, doc.clientID, 'doc-1')
+          await vi.advanceTimersByTimeAsync(0)
+        }
+        doc.getText('default').insert(0, 'retained draft')
+        if (state === 'disconnected') fire('disconnect')
+        if (state === 'invalidated') {
+          fire(FILE_DOC_EVENTS.INVALIDATED, { fileId: 'file-1', message: 'Replaced' })
+        }
+        emit.mockClear()
+        provider.destroy()
+        await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+        expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
+        expect(emittedMessages(emit)).toHaveLength(0)
+        expect(
+          await new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' }).load('doc-1')
+        ).not.toBeNull()
+      } finally {
+        provider.destroy()
+        awareness.destroy()
+        doc.destroy()
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('delivers a rejoined legacy batch before leaving without treating it as acknowledged', async () => {
+    vi.useFakeTimers()
+    journalStorage.clear()
+    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const { socket, emit, fire } = createSocket(true)
+    const serverDoc = new Y.Doc()
+    serverDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(serverDoc))
+    const awareness = new awarenessProtocol.Awareness(doc)
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+    try {
+      acceptJoin(fire, doc.clientID, 'doc-1', false)
+      await vi.advanceTimersByTimeAsync(0)
+      fire('disconnect')
+      doc.getText('default').insert(0, 'legacy draft')
+      fire('connect')
+      acceptJoin(fire, doc.clientID, 'doc-1', false)
+      await vi.advanceTimersByTimeAsync(0)
+      emit.mockClear()
+      provider.destroy()
+      const frame = emittedMessages(emit)[0]
+      const decoder = decoding.createDecoder(frame)
+      expect(decoding.readVarUint(decoder)).toBe(FILE_DOC_MESSAGE_TYPE.SYNC)
+      syncProtocol.readSyncMessage(decoder, encoding.createEncoder(), serverDoc, null)
+      expect(serverDoc.getText('default').toString()).toBe('legacy draft')
+      expect(
+        emit.mock.calls.findIndex(([event]) => event === FILE_DOC_EVENTS.MESSAGE)
+      ).toBeLessThan(emit.mock.calls.findIndex(([event]) => event === FILE_DOC_EVENTS.LEAVE))
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      expect(
+        await new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' }).load('doc-1')
+      ).not.toBeNull()
+      expect(emit.mock.calls.some(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toBe(false)
+    } finally {
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      serverDoc.destroy()
+      vi.useRealTimers()
+    }
   })
 
   it('never falls back to a different document identity when loading local recovery', async () => {
@@ -905,6 +1200,72 @@ describe('FileDocProvider', () => {
     provider.destroy()
     currentDoc.destroy()
     oldDoc.destroy()
+  })
+
+  it('recovers the negotiated generation even when an incompatible draft is newer', async () => {
+    vi.useFakeTimers()
+    journalStorage.clear()
+    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
+    const currentDraft = new Y.Doc()
+    currentDraft.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'current-doc')
+    currentDraft.getText('default').insert(0, 'current draft')
+    const currentSnapshot = Y.encodeStateAsUpdate(currentDraft)
+    await journal.save('current-doc', currentSnapshot, currentSnapshot)
+    await vi.advanceTimersByTimeAsync(1)
+    const oldDraft = new Y.Doc()
+    oldDraft.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'old-doc')
+    oldDraft.getText('default').insert(0, 'incompatible draft')
+    const oldSnapshot = Y.encodeStateAsUpdate(oldDraft)
+    await journal.save('old-doc', oldSnapshot, oldSnapshot)
+    const { socket, emit, fire } = createSocket(true)
+    const doc = new Y.Doc()
+    const awareness = new awarenessProtocol.Awareness(doc)
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+    try {
+      acceptJoin(fire, doc.clientID, 'current-doc')
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      expect(provider.joinError).toBeNull()
+      expect(doc.getText('default').toString()).toBe('current draft')
+      const update = emit.mock.calls.find(([event]) => event === FILE_DOC_EVENTS.UPDATE)
+      expect(update).toBeDefined()
+      update?.[2](null, { status: 'accepted', updateId: update[1].updateId })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(await journal.load('current-doc')).toBeNull()
+      expect((await journal.load('old-doc'))?.recoverySnapshot).toEqual(oldSnapshot)
+    } finally {
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+      currentDraft.destroy()
+      oldDraft.destroy()
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects an in-memory generation mismatch before applying a matching server draft', async () => {
+    journalStorage.clear()
+    const scope = { workspaceId: 'workspace-1', userId: 'user-1' }
+    const journal = new PendingFileDocUpdateJournal({ ...scope, fileId: 'file-1' })
+    const serverDraft = new Y.Doc()
+    serverDraft.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'server-doc')
+    serverDraft.getText('default').insert(0, 'server draft')
+    const snapshot = Y.encodeStateAsUpdate(serverDraft)
+    await journal.save('server-doc', snapshot, snapshot)
+    const { socket, fire } = createSocket(true)
+    const doc = new Y.Doc()
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'local-doc')
+    doc.getText('default').insert(0, 'local draft')
+    const awareness = new awarenessProtocol.Awareness(doc)
+    const provider = new FileDocProvider(socket, 'file-1', doc, awareness, scope)
+    acceptJoin(fire, doc.clientID, 'server-doc')
+    await vi.waitFor(() => expect(provider.joinError).toMatchObject({ code: 'DOCUMENT_REPLACED' }))
+    expect(doc.getText('default').toString()).toBe('local draft')
+    expect((await journal.load('server-doc'))?.recoverySnapshot).toEqual(snapshot)
+    provider.destroy()
+    awareness.destroy()
+    doc.destroy()
+    serverDraft.destroy()
   })
 
   it('syncs after malformed recovery without replaying it on subsequent mounts', async () => {
@@ -966,11 +1327,12 @@ describe('FileDocProvider', () => {
       fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
         fileId: 'file-1',
         clientId: doc.clientID,
+        docId: 'doc-1',
         schemaVersion: FILE_DOC_SCHEMA_VERSION + 1,
       })
       fire('disconnect')
       fire('connect')
-      acceptJoin(fire, doc.clientID)
+      acceptJoin(fire, doc.clientID, 'doc-1')
       emit.mockClear()
       recovery.resolve(null)
 
@@ -1609,28 +1971,38 @@ describe('FileDocProvider', () => {
     expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.LEAVE, { fileId: 'file-b' })
   })
 
-  it('gives up with a non-retryable join-error when the first sync never arrives (offline)', () => {
+  it('keeps an unseeded document retryable after the readiness deadline and accepts late server content', () => {
     vi.useFakeTimers()
     try {
-      const { provider, emit, fire } = createProvider(false) // socket never connects
+      const { provider, doc, emit, fire } = createProvider(false)
       const onError = vi.fn()
       provider.on('join-error', onError)
 
       vi.advanceTimersByTime(12_000)
 
-      // Surfaces the same non-retryable rejection the fatal path uses, so the editor falls back to
-      // showing the file read-only.
       expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: false })
+        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: true })
       )
       expect(provider.joinError).toEqual(
-        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: false })
+        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: true })
       )
-      // Latched fatal: a later connect must not re-join (which could sync server state in and
-      // duplicate the locally-seeded content).
       emit.mockClear()
       fire('connect')
-      expect(emit).not.toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+      expect(emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.JOIN, expect.anything())
+      expect(doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBeUndefined()
+      acceptJoin(fire, doc.clientID)
+      const remote = new Y.Doc()
+      remote.getText('default').insert(0, 'authoritative body')
+      remote.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+      syncProtocol.writeSyncStep2(encoder, remote)
+      fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
+      expect(provider.synced).toBe(true)
+      expect(provider.joinError).toBeNull()
+      expect(doc.getText('default').toString()).toBe('authoritative body')
+      provider.destroy()
+      remote.destroy()
     } finally {
       vi.useRealTimers()
     }
@@ -1683,7 +2055,7 @@ describe('FileDocProvider', () => {
       // The readiness deadline still fires → the editor falls back to the stored content read-only,
       // and `synced` is dropped so the `synced && seeded` gate stays closed (read-only, not editable).
       expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: false })
+        expect.objectContaining({ code: 'READINESS_TIMEOUT', retryable: true })
       )
       expect(provider.synced).toBe(false)
     } finally {
@@ -1691,30 +2063,93 @@ describe('FileDocProvider', () => {
     }
   })
 
-  it('ignores a late SyncStep2 that arrives after the readiness deadline (no merge, stays gated)', () => {
+  it('accepts a late authoritative SyncStep2 after the readiness deadline without a local fallback seed', () => {
     vi.useFakeTimers()
     try {
       const { provider, doc, fire } = createProvider(true)
       acceptJoin(fire, doc.clientID)
 
-      // Deadline lapses with no first sync → fatal fallback (editor falls back to a read-only seed).
       vi.advanceTimersByTime(12_000)
       expect(provider.joinError).toEqual(expect.objectContaining({ code: 'READINESS_TIMEOUT' }))
 
-      // A delayed SyncStep2 finally arrives. Applying it would merge server content into the
-      // already-seeded doc (duplication) and flip synced→true (un-gating autosave), so it MUST be
-      // dropped once fatal.
       const remote = new Y.Doc()
       remote.getText('default').insert(0, 'server content')
+      remote.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
       syncProtocol.writeSyncStep2(encoder, remote)
       fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
 
-      expect(provider.synced).toBe(false)
-      expect(doc.getText('default').toString()).toBe('')
+      expect(provider.synced).toBe(true)
+      expect(provider.joinError).toBeNull()
+      expect(doc.getText('default').toString()).toBe('server content')
+      provider.destroy()
+      remote.destroy()
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it.each(['old-document', undefined])(
+    'ignores delayed invalidation of %s after a newer authoritative JOIN',
+    (invalidatedDocId) => {
+      const { provider, doc, fire } = createProvider(true)
+      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+        fileId: 'file-1',
+        clientId: doc.clientID,
+        docId: 'new-document',
+        version: 30,
+      })
+      fire(FILE_DOC_EVENTS.INVALIDATED, {
+        fileId: 'file-1',
+        docId: invalidatedDocId,
+        version: 20,
+        message: 'Old replacement',
+      })
+      expect(provider.joinError).toBeNull()
+      provider.destroy()
+    }
+  )
+
+  it('keeps matching-generation invalidation terminal even when its version equals JOIN', () => {
+    const { provider, doc, fire } = createProvider(true)
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      fileId: 'file-1',
+      clientId: doc.clientID,
+      docId: 'current-document',
+      version: 20,
+    })
+    fire(FILE_DOC_EVENTS.INVALIDATED, {
+      fileId: 'file-1',
+      docId: 'current-document',
+      version: 20,
+      message: 'Current replacement',
+    })
+    expect(provider.joinError?.code).toBe('DOCUMENT_REPLACED')
+    provider.destroy()
+  })
+
+  it('does not let a newer tombstone notification spare an older joined document', () => {
+    const { provider, doc, fire } = createProvider(true)
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+      fileId: 'file-1',
+      clientId: doc.clientID,
+      docId: 'current-document',
+      version: 10,
+    })
+    fire(FILE_DOC_EVENTS.INVALIDATED, {
+      fileId: 'file-1',
+      version: 30,
+      message: 'Second unsupported replacement',
+    })
+    expect(provider.joinError?.code).toBe('DOCUMENT_REPLACED')
+    provider.destroy()
+  })
+
+  it('fails closed on invalidation before reliable JOIN metadata exists', () => {
+    const { provider, fire } = createProvider(true)
+    fire(FILE_DOC_EVENTS.INVALIDATED, { fileId: 'file-1', version: 20, message: 'Replacement' })
+    expect(provider.joinError?.code).toBe('DOCUMENT_REPLACED')
+    provider.destroy()
   })
 })

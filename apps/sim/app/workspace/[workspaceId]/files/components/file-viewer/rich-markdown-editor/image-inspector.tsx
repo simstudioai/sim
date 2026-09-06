@@ -9,9 +9,13 @@ interface ImageDetails {
   href: string
 }
 
+interface ImageDetailsDraft extends ImageDetails {
+  initial: ImageDetails
+}
+
 interface ImageInspectorProps extends ImageDetails {
   hasCustomSize: boolean
-  onApply: (details: ImageDetails) => void
+  onApply: (details: Partial<ImageDetails>) => void
   onResetSize: () => void
   onReturnFocus: () => void
 }
@@ -24,7 +28,7 @@ export function ImageInspector({
   onResetSize,
   onReturnFocus,
 }: ImageInspectorProps) {
-  const [draft, setDraft] = useState<ImageDetails | null>(null)
+  const [draft, setDraft] = useState<ImageDetailsDraft | null>(null)
   const errorId = useId()
   const normalizedHref = draft ? normalizeLinkHref(draft.href.trim()) : ''
   const invalidHref = Boolean(draft?.href.trim()) && !normalizedHref
@@ -36,13 +40,16 @@ export function ImageInspector({
 
   const apply = () => {
     if (!draft || invalidHref) return
-    onApply({ alt: draft.alt, href: normalizedHref })
+    const details: Partial<ImageDetails> = {}
+    if (draft.alt !== draft.initial.alt) details.alt = draft.alt
+    if (draft.href !== draft.initial.href) details.href = normalizedHref
+    if (Object.keys(details).length > 0) onApply(details)
     close()
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     event.stopPropagation()
-    if (event.nativeEvent.isComposing) return
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
     if (event.key === 'Enter') {
       event.preventDefault()
       apply()
@@ -55,7 +62,7 @@ export function ImageInspector({
   return (
     <div
       contentEditable={false}
-      className='absolute top-full left-0 z-[var(--z-popover)] mt-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-xs'
+      className='absolute top-full left-0 z-[var(--z-popover)] mt-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-subtle'
       onPointerDown={(event) => event.stopPropagation()}
     >
       {draft ? (
@@ -110,7 +117,7 @@ export function ImageInspector({
           <ToolbarButton
             icon={Settings}
             label='Edit image details'
-            onClick={() => setDraft({ alt, href })}
+            onClick={() => setDraft({ alt, href, initial: { alt, href } })}
           />
           {hasCustomSize && (
             <ToolbarButton

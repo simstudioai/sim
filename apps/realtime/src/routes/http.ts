@@ -225,14 +225,17 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
           return sendError(res, 'Invalid version', 400)
         }
         const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: fileId } as const
-        const status = await invalidateLiveFileDocument(fileId, version)
+        const result = await invalidateLiveFileDocument(fileId, version)
         const payload: FileDocInvalidated = {
           fileId,
+          version,
+          ...(result.status === 'applied' && result.docId ? { docId: result.docId } : {}),
           message: 'This file changed outside the editor. Reload to continue editing.',
         }
-        if (status === 'applied') roomManager.emitToRoom(room, FILE_DOC_EVENTS.INVALIDATED, payload)
+        if (result.status === 'applied')
+          roomManager.emitToRoom(room, FILE_DOC_EVENTS.INVALIDATED, payload)
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ status }))
+        res.end(JSON.stringify({ status: result.status }))
       } catch (error) {
         logger.error('Error invalidating live file-doc:', error)
         sendError(res, 'Failed to invalidate live document')

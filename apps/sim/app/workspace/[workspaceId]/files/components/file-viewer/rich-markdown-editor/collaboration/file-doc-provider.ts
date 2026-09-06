@@ -40,17 +40,9 @@ interface FileDocProviderEvents {
 }
 
 /**
- * How long to wait to reach a USABLE editor — connected, synced, AND seeded (`initialContentLoaded`
- * set by the server seed) — before giving up. It guards two failure modes with one timer:
- * - the realtime server is unreachable, so the first sync never arrives; and
- * - the socket syncs an empty doc but the server-side seed never lands (its build persistently fails
- *   / exhausts its retries), which `synced` alone would wrongly treat as "connected, all good".
- *
- * On the deadline the provider latches fatal and surfaces a non-retryable `join-error` — the exact
- * path a fatal rejection uses — so the editor falls back to showing the file's stored content
- * read-only instead of a permanently blank pane. Generous enough to clear a slow connect + seed
- * round-trip; a healthy cold open reaches readiness well within it. Shared with (and must exceed) the
- * relay's seed-fetch timeout — see `FILE_DOC_TIMEOUTS` and its ordering test.
+ * Report delayed connection or seeding without abandoning recovery. The stored-content preview
+ * stays separate from the authoritative Y.Doc, preventing duplicate content on a late sync.
+ * Must outlast the relay's seed-fetch timeout; see FILE_DOC_TIMEOUTS and its ordering test.
  */
 const READINESS_DEADLINE_MS = FILE_DOC_TIMEOUTS.readinessDeadlineMs
 const JOIN_RETRY_BASE_MS = 500
@@ -138,9 +130,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   synced = false
   /**
-   * The latched non-retryable join rejection, or `null`. The `join-error` event is
-   * transient and can fire before a consumer subscribes,
-   * so consumers read this on subscription to detect a fatal failure they missed.
+   * The current readiness failure, or `null`. Retryable timeouts clear once authoritative sync
+   * completes; terminal rejections remain latched. Consumers read it when subscribing so an earlier
+   * event is not missed.
    */
   joinError: JoinFileDocError | null = null
 
@@ -151,6 +143,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   /** Deadline for reaching readiness (synced + seeded); fires the fallback if it is never reached. */
   private readinessTimer: ReturnType<typeof setTimeout> | null = null
   private joinAccepted = false
+  private joinedDocument: Pick<JoinFileDocSuccess, 'docId' | 'version'> | null = null
   private updateMode: 'negotiating' | 'legacy' | 'acknowledged' = 'negotiating'
   private joinPending = false
   private joinRetryAttempt = 0
@@ -168,11 +161,16 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private updateRetryTimer: ReturnType<typeof setTimeout> | null = null
   private updateRetryAttempt = 0
   private updateFlushInProgress = false
+  private flushingUpdate: Uint8Array | null = null
+  private pendingUpdatesDrained = false
   private recoveryApplied = false
   private recoveryQueued = false
   private beforeUnloadProtected = false
   private readonly journal: PendingFileDocUpdateJournal | null
-  private readonly journalLoad: ReturnType<PendingFileDocUpdateJournal['load']>
+  private recoveryLoad: {
+    docId: string
+    promise: ReturnType<PendingFileDocUpdateJournal['load']>
+  } | null = null
 
   constructor(
     private readonly socket: Socket,
@@ -184,7 +182,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     super()
 
     this.journal = scope ? new PendingFileDocUpdateJournal({ ...scope, fileId: this.fileId }) : null
-    this.journalLoad = this.journal?.load(this.docId()) ?? Promise.resolve(null)
     this.registerActiveProvider()
 
     // Restore an empty local awareness state if it has been cleared. A fresh
@@ -218,7 +215,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
     if (socket.connected) this.join()
 
-    // Arm the fallback: if we don't reach readiness (synced + seeded) before the deadline, give up.
     this.armReadinessDeadline()
   }
 
@@ -229,7 +225,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   /** Clear the readiness deadline once the editor is usable (synced AND seeded). */
   private handleConfigChange = () => {
-    if (this.synced && this.isSeeded()) this.clearReadinessTimer()
+    if (this.synced && this.isSeeded()) {
+      this.clearReadinessTimer()
+      if (this.joinError?.retryable) this.joinError = null
+    }
     if (this.updateMode === 'acknowledged' && this.docId() && this.pendingUpdateBatch.length > 0) {
       this.scheduleUpdateFlush(0)
     }
@@ -237,20 +236,22 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   /**
    * Readiness was never reached within {@link READINESS_DEADLINE_MS} — either the realtime server is
-   * unreachable (never synced) or it synced but the server-side seed never landed (synced yet
-   * unseeded). Reset `synced` (so the editor gates read-only), latch fatal (so a late reconnect or
-   * seed can't sync server state in and merge-duplicate the content the editor is about to render
-   * locally), and surface a synthetic non-retryable join-error — the exact path a fatal rejection
-   * uses — so the owner falls back to the read-only view of the file's stored content instead of a
-   * blank pane. No-op if we already reached readiness, already failed fatally, or were torn down.
+   * unreachable or its authoritative seed is delayed. Keep retrying with the existing bounded
+   * join/sync backoff. The owner's stored-content preview must remain separate from this Y.Doc.
    */
   private handleReadinessDeadline = () => {
     this.readinessTimer = null
-    if (this.synced && this.isSeeded()) return
-    // Dropping `synced` (see {@link failFatally}) is what keeps the editor's `synced && seeded` gate
-    // closed, so the fallback renders the stored content read-only rather than becoming editable on a
-    // document the server never seeded.
-    this.failFatally('Realtime document was not ready in time', 'READINESS_TIMEOUT')
+    if (this.disposed || this.fatal || (this.synced && this.isSeeded())) return
+    this.joinError = {
+      fileId: this.fileId,
+      error: 'Realtime document was not ready in time',
+      code: 'READINESS_TIMEOUT',
+      retryable: true,
+    }
+    this.setSynced(false)
+    this.emit('join-error', [this.joinError])
+    if (this.joinAccepted) this.scheduleSyncRetry()
+    else if (!this.joinPending) this.scheduleJoinRetry()
   }
 
   private clearReadinessTimer() {
@@ -393,16 +394,24 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     this.joinPending = false
     this.joinRetryAttempt = 0
     this.clearJoinRetryTimer()
+    this.joinedDocument = { docId: data.docId, version: data.version }
     if (data.acknowledgedUpdates === true && data.docId !== undefined) {
       this.updateMode = 'acknowledged'
     }
     this.joinHydrating = true
     const generation = this.connectionGeneration
-    if (!this.journal) {
+    if (!this.journal || data.docId === undefined) {
       this.finishAcceptJoin(data, generation, null)
       return
     }
-    void this.journalLoad.then((recovered) => {
+    const recoveryDocId = data.docId
+    if (!this.recoveryLoad || this.recoveryLoad.docId !== recoveryDocId) {
+      this.recoveryLoad = {
+        docId: recoveryDocId,
+        promise: this.journal.load(recoveryDocId),
+      }
+    }
+    void this.recoveryLoad.promise.then((recovered) => {
       this.finishAcceptJoin(data, generation, recovered)
     })
   }
@@ -430,6 +439,18 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
 
+    const local = this.docId()
+    if (
+      data.docId !== undefined &&
+      ((local !== undefined && data.docId !== local) || (local === undefined && this.isSeeded()))
+    ) {
+      this.failFatally(
+        'This document was reloaded on the server; refresh to continue editing',
+        'DOCUMENT_REPLACED'
+      )
+      return
+    }
+
     if (recovered !== null && !this.recoveryApplied) {
       try {
         if (recovered.recoverySnapshot) {
@@ -443,12 +464,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       this.recoveryApplied = true
     }
 
-    const local = this.docId()
     if (
-      (data.docId !== undefined &&
-        ((local !== undefined && data.docId !== local) ||
-          (local === undefined && this.isSeeded()))) ||
-      (recovered !== null && data.docId !== recovered.docId)
+      recovered !== null &&
+      (data.docId !== recovered.docId || this.docId() !== recovered.docId)
     ) {
       this.failFatally(
         'This document was reloaded on the server; refresh to continue editing',
@@ -526,6 +544,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
     if (active) {
       for (const provider of active.providers) {
+        provider.drainPendingUpdates()
         provider.failFatally(
           'Another file was opened in this tab. Reload this file to resume editing it.',
           'DOCUMENT_REPLACED'
@@ -592,16 +611,20 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private handleInvalidated = (data: FileDocInvalidated) => {
     if (data.fileId !== this.fileId) return
+    const joined = this.joinedDocument
+    if (data.docId && joined?.docId && data.docId !== joined.docId) return
+    if (
+      !data.docId &&
+      data.version !== undefined &&
+      joined?.version !== undefined &&
+      data.version < joined.version
+    )
+      return
     this.failFatally(data.message, 'DOCUMENT_REPLACED')
   }
 
   private handleMessage = (data: unknown) => {
-    // Once we've given up (a non-retryable rejection, or the connect deadline lapsed and the editor
-    // fell back to a read-only local seed), ignore ALL inbound frames. A late SyncStep2 arriving
-    // after the deadline would otherwise merge the server's state into the already-seeded doc —
-    // duplicating content — and flip `synced` true, which un-gates autosave and would persist the
-    // duplicate back to the real file. `fatal` guarding (re)join alone is not enough; it must also
-    // stop applying sync here.
+    /** A terminal authorization or generation failure must never accept late document frames. */
     if (this.fatal) return
     if (this.joinHydrating) {
       const bytes = toFileDocBytes(data)
@@ -669,10 +692,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown) => {
-    // Once fatal (a non-retryable rejection, or the readiness deadline lapsed), the editor may render
-    // the stored content into the doc locally as its read-only fallback. Never relay those local
-    // writes — the server never seeded this doc, so echoing them would push unseeded content to peers
-    // (and each fallen-back client would do so, union-duplicating). A fatal client is fully local.
+    /** A terminal document cannot publish; inbound and recovery updates must not echo. */
     if (this.fatal || origin === this || origin === RECOVERY_ORIGIN) return
     // Agent-streamed frames must reach peers (so a collaborator sees the stream live) but must NOT be
     // treated by the server as a durable user edit — the copilot's final `edit_content` write is the
@@ -733,12 +753,14 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     let hasUnjournaledUpdates = false
     try {
       const update = Y.mergeUpdates(this.pendingUpdateBatch)
+      this.flushingUpdate = update
       this.pendingUpdateBatch = []
       const journalUpdate = this.inFlightUpdate
         ? Y.mergeUpdates([this.inFlightUpdate.update, update])
         : update
       const saved = await this.journal?.save(docId, journalUpdate, Y.encodeStateAsUpdate(this.doc))
       hasUnjournaledUpdates = this.pendingUpdateBatch.length > 0
+      if (this.pendingUpdatesDrained) return
       if (this.disposed || this.fatal) {
         this.queuePendingUpdate(update)
         return
@@ -758,6 +780,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       this.updateRetryAttempt = 0
       this.sendInFlightUpdate()
     } finally {
+      this.flushingUpdate = null
       this.updateFlushInProgress = false
       this.updateBeforeUnloadProtection()
       if (this.pendingUpdateBatch.length > 0 && (hasUnjournaledUpdates || !this.inFlightUpdate)) {
@@ -851,6 +874,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   private pendingJournalUpdate(): Uint8Array | null {
     const updates = [
       ...(this.inFlightUpdate ? [this.inFlightUpdate.update] : []),
+      ...(this.flushingUpdate ? [this.flushingUpdate] : []),
       ...this.pendingUpdateBatch,
     ]
     return updates.length > 0 ? Y.mergeUpdates(updates) : null
@@ -861,6 +885,56 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     const docId = this.docId()
     if (!update || !docId || !this.journal) return
     return this.journal.save(docId, update, Y.encodeStateAsUpdate(this.doc)).then(() => undefined)
+  }
+
+  /**
+   * Transfer the final batch before LEAVE or a different file's JOIN changes socket membership.
+   * The relay admits UPDATE synchronously and pins its room until publication finishes. Only the
+   * immutable bytes and journal survive teardown; an acceptance clears them after all queued saves.
+   */
+  private drainPendingUpdates(): void {
+    if (
+      this.disposed ||
+      this.fatal ||
+      this.pendingUpdatesDrained ||
+      !this.joinAccepted ||
+      !this.socket.connected
+    )
+      return
+    const update = this.pendingJournalUpdate()
+    if (!update || update.byteLength > FILE_DOC_LIMITS.updateBytes) return
+    const docId = this.docId()
+    if (this.updateMode === 'acknowledged' && !docId) return
+
+    const updateId =
+      this.inFlightUpdate && !this.flushingUpdate && this.pendingUpdateBatch.length === 0
+        ? this.inFlightUpdate.updateId
+        : generateShortId()
+    const journal = this.journal
+    const snapshotSaved = this.persistPendingSnapshot()
+    this.pendingUpdatesDrained = true
+    this.pendingUpdateBatch = []
+    this.inFlightUpdate = null
+    this.flushingUpdate = null
+    this.clearUpdateTimers()
+
+    if (this.updateMode === 'acknowledged' && docId) {
+      const payload: FileDocUpdatePayload = { fileId: this.fileId, docId, updateId, update }
+      this.socket
+        .timeout(FILE_DOC_TIMEOUTS.updateAckMs)
+        .emit(FILE_DOC_EVENTS.UPDATE, payload, (error: Error | null, ack?: FileDocUpdateAck) => {
+          if (error || ack?.status !== 'accepted' || ack.updateId !== updateId) return
+          if (journal && snapshotSaved) {
+            void snapshotSaved.then(() => journal.clear(docId, update))
+          }
+        })
+      return
+    }
+
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+    syncProtocol.writeUpdate(encoder, update)
+    this.socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(encoder))
   }
 
   private handlePageHide = () => {
@@ -960,7 +1034,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     }
     // Readiness needs synced AND seeded; only clear the deadline when both hold (the seed may have
     // arrived first, or may still be pending — `handleConfigChange` clears it if seeded arrives later).
-    if (synced && this.isSeeded()) this.clearReadinessTimer()
+    if (synced && this.isSeeded()) {
+      this.clearReadinessTimer()
+      if (this.joinError?.retryable) this.joinError = null
+    }
     this.emit('synced', [synced])
   }
 
@@ -974,6 +1051,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       super.destroy()
       return
     }
+    this.drainPendingUpdates()
     void this.persistPendingSnapshot()
     this.disposed = true
     this.updateBeforeUnloadProtection()

@@ -9,6 +9,7 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -17,6 +18,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
+  vi.unstubAllGlobals()
 })
 
 function button(label: string): HTMLButtonElement {
@@ -33,6 +35,83 @@ function change(input: HTMLInputElement, value: string): void {
 }
 
 describe('ImageInspector', () => {
+  it.each([
+    { key: 'Enter', isComposing: true, keyCode: 13 },
+    { key: 'Escape', isComposing: true, keyCode: 27 },
+    { key: 'Enter', isComposing: false, keyCode: 229 },
+    { key: 'Escape', isComposing: false, keyCode: 229 },
+  ])('keeps the draft open for composition key $key/$keyCode', async (keyboard) => {
+    const onApply = vi.fn()
+    const onReturnFocus = vi.fn()
+    act(() => {
+      root.render(
+        <Tooltip.Provider>
+          <ImageInspector
+            alt='Diagram'
+            href=''
+            hasCustomSize={false}
+            onApply={onApply}
+            onResetSize={vi.fn()}
+            onReturnFocus={onReturnFocus}
+          />
+        </Tooltip.Provider>
+      )
+    })
+    act(() => button('Edit image details').click())
+    const input = host.querySelector<HTMLInputElement>('input[aria-label="Image alt text"]')!
+    change(input, 'Composition draft')
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { ...keyboard, bubbles: true }))
+    })
+
+    expect(host.querySelector('input[aria-label="Image alt text"]')).toBe(input)
+    expect(input.value).toBe('Composition draft')
+    expect(document.activeElement).toBe(input)
+    expect(onApply).not.toHaveBeenCalled()
+    expect(onReturnFocus).not.toHaveBeenCalled()
+  })
+
+  it.each(['alt', 'href', 'neither', 'reverted'] as const)(
+    'submits only the locally changed field: %s',
+    async (changedField) => {
+      const onApply = vi.fn()
+      const renderInspector = (alt: string, href: string) => {
+        act(() => {
+          root.render(
+            <Tooltip.Provider>
+              <ImageInspector
+                alt={alt}
+                href={href}
+                hasCustomSize={false}
+                onApply={onApply}
+                onResetSize={vi.fn()}
+                onReturnFocus={vi.fn()}
+              />
+            </Tooltip.Provider>
+          )
+        })
+      }
+      renderInspector('Original alt', 'https://sim.ai/original')
+      act(() => button('Edit image details').click())
+      const alt = host.querySelector<HTMLInputElement>('input[aria-label="Image alt text"]')!
+      const href = host.querySelector<HTMLInputElement>('input[aria-label="Image link URL"]')!
+      if (changedField === 'alt' || changedField === 'reverted') change(alt, 'Local alt')
+      if (changedField === 'href') change(href, '')
+      if (changedField === 'reverted') change(alt, 'Original alt')
+
+      renderInspector('Peer alt', 'https://sim.ai/peer')
+      expect(alt.value).toBe(changedField === 'alt' ? 'Local alt' : 'Original alt')
+      expect(href.value).toBe(changedField === 'href' ? '' : 'https://sim.ai/original')
+      await act(async () => {
+        href.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      })
+
+      if (changedField === 'alt') expect(onApply).toHaveBeenCalledWith({ alt: 'Local alt' })
+      else if (changedField === 'href') expect(onApply).toHaveBeenCalledWith({ href: '' })
+      else expect(onApply).not.toHaveBeenCalled()
+    }
+  )
+
   it('validates and applies accessible image details', async () => {
     const onApply = vi.fn()
     const onReturnFocus = vi.fn()

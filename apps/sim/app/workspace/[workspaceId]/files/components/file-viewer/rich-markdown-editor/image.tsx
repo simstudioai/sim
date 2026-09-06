@@ -3,6 +3,8 @@ import { Button, cn } from '@sim/emcn'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { type ProsemirrorBinding, ySyncPluginKey } from '@tiptap/y-tiptap'
+import { XmlElement } from 'yjs'
 import { ImageInspector } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-inspector'
 import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
 import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
@@ -24,6 +26,7 @@ export function ResizableImageView({
   updateAttributes,
   selected,
   editor,
+  getPos,
 }: ReactNodeViewProps) {
   const source = useFileContentSource()
   const imageRef = useRef<HTMLImageElement>(null)
@@ -65,6 +68,27 @@ export function ResizableImageView({
     if (event.button !== 0 || dragging) return
     const image = imageRef.current
     if (!image) return
+    const binding: ProsemirrorBinding | undefined = ySyncPluginKey.getState(editor.state)?.binding
+    let yTarget: XmlElement | undefined
+    if (binding) {
+      for (const [type, mappedNode] of binding.mapping) {
+        if (mappedNode === node && type instanceof XmlElement) {
+          yTarget = type
+          break
+        }
+      }
+    }
+    /** A node view can be reused for a replacement image, even when every attribute is identical. */
+    const isCurrentTarget = () => {
+      if (!binding) return true
+      const position = getPos()
+      return (
+        yTarget !== undefined &&
+        typeof position === 'number' &&
+        binding.mapping.get(yTarget) === editor.state.doc.nodeAt(position)
+      )
+    }
+    if (!isCurrentTarget()) return
     const handle = event.currentTarget
     const pointerId = event.pointerId
     handle.setPointerCapture(pointerId)
@@ -93,9 +117,24 @@ export function ResizableImageView({
       dragWidthRef.current = null
       if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
       controller.abort()
-      if (commit && finalWidth !== null && editor.isEditable && !editor.isDestroyed) {
+      if (
+        commit &&
+        finalWidth !== null &&
+        editor.isEditable &&
+        !editor.isDestroyed &&
+        isCurrentTarget()
+      ) {
         updateAttributes({ width: String(finalWidth), height: null })
       }
+    }
+    if (binding) {
+      const onTransaction = () => {
+        if (!isCurrentTarget()) finish(false)
+      }
+      editor.on('transaction', onTransaction)
+      signal.addEventListener('abort', () => editor.off('transaction', onTransaction), {
+        once: true,
+      })
     }
     window.addEventListener(
       'pointerup',
@@ -255,9 +294,9 @@ export function ResizableImageView({
           alt={attrs.alt ?? ''}
           href={typeof attrs.href === 'string' ? attrs.href : ''}
           hasCustomSize={Boolean(attrs.width || attrs.height)}
-          onApply={({ alt, href }) => {
+          onApply={(details) => {
             if (!editor.isEditable || editor.isDestroyed) return
-            updateAttributes({ alt, href: href || null })
+            updateAttributes({ ...details, ...(details.href === '' ? { href: null } : {}) })
           }}
           onResetSize={() => {
             if (!editor.isEditable || editor.isDestroyed) return

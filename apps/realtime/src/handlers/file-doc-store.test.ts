@@ -15,6 +15,8 @@ interface Backing {
   kv: Map<string, string>
   dedupe: Map<string, string[]>
   seq: number
+  /** Override generated IDs to model a recreated stream restarting its same-millisecond sequence. */
+  nextIds?: string[]
   /** Number of upcoming xAdd calls to fail with a transient error (to exercise publish retry). */
   failXAdd: number
   /** Set to fail every xRead the way node-redis does once a client has been closed. */
@@ -40,13 +42,18 @@ interface Backing {
 
 const state = vi.hoisted(() => ({ backing: null as Backing | null }))
 
-const seqOf = (id: string) => Number(id.split('-')[0])
+function compareStreamIds(left: string, right: string): bigint {
+  const [leftMs, leftSequence] = left.split('-').map(BigInt)
+  const [rightMs, rightSequence] = right.split('-').map(BigInt)
+  return leftMs === rightMs ? leftSequence - rightSequence : leftMs - rightMs
+}
 
 function makeClient(): any {
   const b = () => {
     if (!state.backing) throw new Error('backing not initialized')
     return state.backing
   }
+  const nextId = () => b().nextIds?.shift() ?? `${++b().seq}-0`
   const client: any = {
     isOpen: true,
     connect: async () => {
@@ -61,7 +68,7 @@ function makeClient(): any {
         b().failXAdd--
         throw new Error('transient xAdd failure')
       }
-      const id = `${++b().seq}-0`
+      const id = nextId()
       const arr = b().streams.get(key) ?? []
       arr.push({ id, message: { ...fields } })
       b().streams.set(key, arr)
@@ -73,8 +80,8 @@ function makeClient(): any {
       const startId = start.startsWith('(') ? start.slice(1) : start
       const entries = (b().streams.get(key) ?? []).filter(
         (entry) =>
-          (start === '-' || seqOf(entry.id) > seqOf(startId)) &&
-          (end === '+' || seqOf(entry.id) <= seqOf(end))
+          (start === '-' || compareStreamIds(entry.id, startId) > 0n) &&
+          (end === '+' || compareStreamIds(entry.id, end) <= 0n)
       )
       const count = options?.COUNT ?? entries.length
       b().maxRangeCount = Math.max(b().maxRangeCount, count)
@@ -90,7 +97,7 @@ function makeClient(): any {
       const arr = b().streams.get(key) ?? []
       b().streams.set(
         key,
-        arr.filter((e) => seqOf(e.id) >= seqOf(minid))
+        arr.filter((e) => compareStreamIds(e.id, minid) >= 0n)
       )
     },
     xRead: async (
@@ -109,7 +116,7 @@ function makeClient(): any {
         []
       for (const { key, id } of streams) {
         const after = (b().streams.get(key) ?? [])
-          .filter((e) => seqOf(e.id) > seqOf(id))
+          .filter((e) => compareStreamIds(e.id, id) > 0n)
           .slice(0, options?.COUNT)
         if (after.length) res.push({ name: key, messages: after.map((e) => ({ ...e })) })
       }
@@ -154,16 +161,17 @@ function makeClient(): any {
         const [version, , marker] = opts.arguments
         const current = b().kv.get(versionKey)
         const invalidated = b().kv.get(invalidationKey)
-        if (invalidated && Number(invalidated) >= Number(version)) return 0
-        if (current && Number(current) > Number(version)) return 0
-        if (current === version && b().kv.get(generationKey) === marker) return 0
+        if (invalidated && Number(invalidated) >= Number(version)) return null
+        if (current && Number(current) > Number(version)) return null
+        if (current === version && b().kv.get(generationKey) === marker) return null
+        const generation = b().kv.get(generationKey) ?? ''
         b().kv.set(generationKey, marker)
         b().kv.set(versionKey, version)
         b().kv.set(invalidationKey, version)
         b().streams.delete(key)
         b().dedupe.delete(dedupeKey)
         b().kv.delete(agentKey)
-        return 1
+        return generation
       }
       if (script.includes('zscore')) {
         const [, dedupeKey, generationKey] = opts.keys
@@ -172,7 +180,7 @@ function makeClient(): any {
         if ((generation ?? '') !== expectedGeneration) return -1
         const members = b().dedupe.get(dedupeKey) ?? []
         if (members.includes(member)) return 0
-        const id = `${++b().seq}-0`
+        const id = nextId()
         const arr = b().streams.get(key) ?? []
         arr.push({ id, message: { [field]: value } })
         b().streams.set(key, arr)
@@ -193,17 +201,17 @@ function makeClient(): any {
         if (arr.length > 0) return 0
         b().kv.set(generationKey, generation)
         if (version !== '0') b().kv.set(versionKey, version)
-        const id = `${++b().seq}-0`
+        const id = nextId()
         arr.push({ id, message: { [field]: value, [generationField]: generation } })
         b().streams.set(key, arr)
         return 1
       }
       if (script.includes('ARGV[5], ARGV[4]')) {
         const [, generationKey] = opts.keys
-        const [field, value, marker, expectedGeneration, generationField] = opts.arguments
+        const [field, value, marker, expectedGeneration, generationField, upTo] = opts.arguments
         const generation = b().kv.get(generationKey)
         if ((generation ?? '') !== expectedGeneration) return false
-        const id = `${++b().seq}-0`
+        const id = nextId()
         const arr = b().streams.get(key) ?? []
         arr.push({
           id,
@@ -214,6 +222,12 @@ function makeClient(): any {
           },
         })
         b().streams.set(key, arr)
+        if (script.includes("redis.call('xtrim'")) {
+          b().streams.set(
+            key,
+            arr.filter((entry) => compareStreamIds(entry.id, upTo) >= 0n)
+          )
+        }
         await b().onSnapshot?.()
         return id
       }
@@ -227,7 +241,7 @@ function makeClient(): any {
           throw new Error('transient xAdd failure')
         }
         const [field, value, marker] = opts.arguments
-        const id = `${++b().seq}-0`
+        const id = nextId()
         const arr = b().streams.get(key) ?? []
         arr.push({ id, message: { [field]: value, ...(marker ? { [marker]: '1' } : {}) } })
         b().streams.set(key, arr)
@@ -496,7 +510,7 @@ describe('FileDocStore', () => {
     const store = await newStore()
     await store.seedIfEmpty(NAME, updateFor('newest'), 20)
     const generation = await store.getDocumentGeneration(NAME)
-    await expect(store.invalidateDocument(NAME, 10)).resolves.toBe(false)
+    await expect(store.invalidateDocument(NAME, 10)).resolves.toEqual({ status: 'stale' })
     expect(await store.getDocumentGeneration(NAME)).toBe(generation)
     expect(await store.getSyncedVersion(NAME)).toBe(20)
     await expect(store.getStreamState(NAME)).resolves.not.toBeNull()
@@ -516,7 +530,7 @@ describe('FileDocStore', () => {
   it('does not repeat an invalidation after the same durable version is reseeded', async () => {
     const store = await newStore()
     await store.seedIfEmpty(NAME, updateFor('old'), 10)
-    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(true)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toMatchObject({ status: 'applied' })
     await expect(store.seedIfEmpty(NAME, updateFor('replacement'), 20)).resolves.toBe(true)
     const generation = await store.getDocumentGeneration(NAME)
     const doc = new Y.Doc()
@@ -530,7 +544,7 @@ describe('FileDocStore', () => {
       generation
     )
 
-    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'stale' })
     expect(await store.getDocumentGeneration(NAME)).toBe(generation)
     const recovered = new Y.Doc()
     Y.applyUpdate(recovered, (await store.getStreamState(NAME))!)
@@ -543,9 +557,29 @@ describe('FileDocStore', () => {
   it('applies the first invalidation even when its durable version was already seeded', async () => {
     const store = await newStore()
     await store.seedIfEmpty(NAME, updateFor('same content, changed eligibility'), 20)
-    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(true)
-    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    const docId = await store.getDocumentGeneration(NAME)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'applied', docId })
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'stale' })
     await expect(store.getStreamState(NAME)).resolves.toBeNull()
+  })
+
+  it('returns the removed generation and qualifies consecutive unsupported replacements', async () => {
+    const store = await newStore()
+    await store.seedIfEmpty(NAME, updateFor('old'), 10)
+    const oldId = await store.getDocumentGeneration(NAME)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({
+      status: 'applied',
+      docId: oldId,
+    })
+    await expect(store.invalidateDocument(NAME, 30)).resolves.toEqual({ status: 'applied' })
+    await store.seedIfEmpty(NAME, updateFor('replacement'), 30)
+    const replacementId = await store.getDocumentGeneration(NAME)
+    expect(replacementId).not.toBe(oldId)
+    await expect(store.invalidateDocument(NAME, 30)).resolves.toEqual({ status: 'stale' })
+    await expect(store.invalidateDocument(NAME, 40)).resolves.toEqual({
+      status: 'applied',
+      docId: replacementId,
+    })
   })
 
   it('does not resurrect a tracked stream with a dependency-only update after Redis loses it', async () => {
@@ -1167,6 +1201,55 @@ describe('FileDocStore', () => {
     doc.destroy()
   })
 
+  it('does not trim a replacement stream recreated in the same millisecond as its compaction barrier', async () => {
+    const store = await newStore()
+    const replacer = await newStore()
+    const oldDoc = docWithText('old')
+    oldDoc.getMap('config').set('docId', 'old-generation')
+    state.backing!.nextIds = ['1000-0', '1000-1', '1000-2']
+    await store.seedIfEmpty(NAME, Y.encodeStateAsUpdate(oldDoc), 10)
+    await store.publishAndWait(NAME, updateFor('first edit'), 'old-generation')
+    await store.publishAndWait(NAME, updateFor('second edit'), 'old-generation')
+    await store.attachRoom(NAME, oldDoc)
+    storeInternals(store).rooms.get(NAME)!.uncompactedDeltaBytes = 12 * 1024 * 1024
+
+    const freshDoc = docWithText('fresh')
+    freshDoc.getMap('config').set('docId', 'new-generation')
+    const freshSeed = Y.encodeStateAsUpdate(freshDoc)
+    const beforeEdit = Y.encodeStateVector(freshDoc)
+    freshDoc.getText('body').insert(5, ' accepted edit')
+    const freshEdit = Y.encodeStateAsUpdate(freshDoc, beforeEdit)
+    const streamKey = `filedoc:stream:${NAME}`
+    state.backing!.nextIds = ['1000-3', '1000-0', '1000-1']
+    state.backing!.onSnapshot = async () => {
+      await replacer.invalidateDocument(NAME, 20)
+      await replacer.seedIfEmpty(NAME, freshSeed, 20)
+      await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation')
+      expect(state.backing!.streams.get(streamKey)?.map((entry) => entry.id)).toEqual([
+        '1000-0',
+        '1000-1',
+      ])
+    }
+
+    await storeInternals(store).maybeCompact(NAME)
+
+    expect(state.backing!.streams.get(streamKey)?.map((entry) => entry.id)).toEqual([
+      '1000-0',
+      '1000-1',
+    ])
+    await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation')
+    expect(state.backing!.streams.get(streamKey)).toHaveLength(2)
+    const persisted = await replacer.getStreamState(NAME)
+    expect(persisted).not.toBeNull()
+    const replayed = new Y.Doc()
+    Y.applyUpdate(replayed, persisted!)
+    expect(replayed.getText('body').toString()).toBe('fresh accepted edit')
+    store.detachRoom(NAME)
+    oldDoc.destroy()
+    freshDoc.destroy()
+    replayed.destroy()
+  })
+
   it('expires idle single-replica invalidation watermarks', async () => {
     vi.useFakeTimers()
     const store = new FileDocStore(undefined)
@@ -1192,7 +1275,7 @@ describe('FileDocStore', () => {
     await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(false)
     expect(storeInternals(store).localInvalidations.size).toBe(1)
     await expect(store.seedIfEmpty(NAME, updateFor('same-version seed'), 20)).resolves.toBe(true)
-    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'stale' })
     await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(true)
 
     store.detachRoom(NAME)
@@ -1202,7 +1285,7 @@ describe('FileDocStore', () => {
     await expect(store.seedIfEmpty(NAME, updateFor('fresh authoritative seed'), 20)).resolves.toBe(
       true
     )
-    await expect(store.invalidateDocument(NAME, 20)).resolves.toBe(false)
+    await expect(store.invalidateDocument(NAME, 20)).resolves.toEqual({ status: 'stale' })
     await expect(store.isDocumentGenerationCurrent(NAME)).resolves.toBe(true)
     await store.invalidateDocument(NAME, 40)
     await store.shutdown()
