@@ -104,6 +104,37 @@ describe('useMothershipQueueStore', () => {
       expect(useMothershipQueueStore.getState().queues['chat-A']).toBe(before)
     })
 
+    it('editing preserves an unresolved Stop while replacing the prior request identity', () => {
+      useMothershipQueueStore.getState().enqueue('chat-A', {
+        id: 'm1',
+        content: 'original',
+        retryRequired: true,
+        resumeUserMessageId: 'prior-request',
+        queuedSendHandoff: {
+          id: 'm1',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          userMessageId: 'prior-request',
+          stopRequired: true,
+        },
+      })
+      useMothershipQueueStore.getState().replaceAt('chat-A', 'm1', { content: 'corrected' })
+      const edited = useMothershipQueueStore.getState().queues['chat-A']?.[0]
+      expect(edited).toMatchObject({
+        id: 'm1',
+        content: 'corrected',
+        queuedSendHandoff: {
+          id: 'm1',
+          chatId: 'chat-A',
+          supersededStreamId: 'previous-response',
+          stopRequired: true,
+        },
+      })
+      expect(edited?.queuedSendHandoff?.userMessageId).toBeUndefined()
+      expect(edited?.resumeUserMessageId).toBeUndefined()
+      expect(edited?.retryRequired).toBeUndefined()
+    })
+
     it('strips queuedSendHandoff on edit so a fresh handoff is minted at send time', () => {
       const original: QueuedMothershipMessage = {
         id: 'm1',
