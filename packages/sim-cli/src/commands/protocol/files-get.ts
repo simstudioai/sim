@@ -205,16 +205,20 @@ export async function saveToFile(
 ): Promise<void> {
   const embedded = embedStore.getStore()
   if (embedded) {
-    // In-process on the hosting server: the only legitimate destination is the
-    // caller's own machine, and the host decides how to reach it.
-    if (!embedded.writeFile) {
-      throw new SimApiError(
-        `--output-file cannot save ${target} here: this surface has no machine to write to. Read the file instead, or pipe a text command with | to-sandbox <name>.`,
-        0
-      )
+    try {
+      embedded.identity.signal?.throwIfAborted()
+      if (!embedded.writeFile) {
+        throw new SimApiError(
+          `--output-file cannot save ${target} here: this surface has no machine to write to. Read the file instead, or pipe a text command with | to-sandbox <name>.`,
+          0
+        )
+      }
+      await embedded.writeFile(target, body, { overwrite: force })
+      embedded.identity.signal?.throwIfAborted()
+    } finally {
+      /** The host releases its reader; refusal and early failure must also close the source. */
+      await body.cancel().catch(() => {})
     }
-    const bytes = new Uint8Array(await new Response(body).arrayBuffer())
-    await embedded.writeFile(target, bytes, { overwrite: force })
     return
   }
   return saveStagedFile(body, target, force)

@@ -34,7 +34,11 @@ export async function runCli(
   // Downloads land on the same machine `@path` reads from; without a sandbox session
   // the CLI refuses rather than writing to the server's disk.
   const writeFile = sessionKey
-    ? async (path: string, content: Uint8Array, options: { overwrite: boolean }) => {
+    ? async (
+        path: string,
+        content: ReadableStream<Uint8Array>,
+        options: { overwrite: boolean }
+      ) => {
         const written = await writeSessionSandboxFile(
           sessionKey,
           path,

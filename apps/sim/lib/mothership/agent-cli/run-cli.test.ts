@@ -22,18 +22,19 @@ describe('embedded CLI binary workbench bridge', () => {
 
   it('preserves arbitrary bytes in both directions and binds both to the same chat', async () => {
     const bytes = Uint8Array.from([0, 255, 137, 80, 78, 71, 13, 10, 128, 195, 0])
+    const stream = new Blob([bytes]).stream()
     readFile.mockResolvedValue({ outcome: 'read', content: Buffer.from(bytes).toString('base64') })
     writeFile.mockResolvedValue({ outcome: 'written', path: '/home/user/result.png' })
     embedded.mockImplementation(async (_args, _identity, options) => {
       expect(await options.readFile('image.png')).toEqual(Buffer.from(bytes))
       await expect(
-        options.writeFile('result.png', bytes, { overwrite: false })
+        options.writeFile('result.png', stream, { overwrite: false })
       ).resolves.toBeUndefined()
       return { exitCode: 0, stdout: 'done', stderr: '' }
     })
     await runCli(['files', 'upload', '@image.png'], identity, 'mothership-chat:one')
     expect(readFile).toHaveBeenCalledWith('mothership-chat:one', 'image.png', 'base64', undefined)
-    expect(writeFile).toHaveBeenCalledWith('mothership-chat:one', 'result.png', bytes, undefined, {
+    expect(writeFile).toHaveBeenCalledWith('mothership-chat:one', 'result.png', stream, undefined, {
       overwrite: false,
     })
   })

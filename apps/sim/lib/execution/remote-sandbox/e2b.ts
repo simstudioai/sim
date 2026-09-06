@@ -778,6 +778,30 @@ class E2BSandboxHandle implements SandboxHandle {
     await this.sandbox.files.write(path, content as string)
   }
 
+  async writeFileStream(
+    path: string,
+    content: ReadableStream<Uint8Array>,
+    options: { signal: AbortSignal }
+  ): Promise<void> {
+    options.signal.throwIfAborted()
+    const info = await this.sandbox.getInfo({ signal: options.signal })
+    options.signal.throwIfAborted()
+    /** Older envd silently makes a full in-memory Blob even when octet-stream is requested. */
+    const version = /^(\d+)\.(\d+)\.(\d+)$/.exec(info.envdVersion)
+    if (
+      !version ||
+      (Number(version[1]) === 0 &&
+        (Number(version[2]) < 5 || (Number(version[2]) === 5 && Number(version[3]) < 7)))
+    ) {
+      throw new Error('Workbench file streaming requires an E2B template with envd 0.5.7 or later')
+    }
+    await this.sandbox.files.write(path, content, {
+      signal: options.signal,
+      useOctetStream: true,
+    })
+    options.signal.throwIfAborted()
+  }
+
   async listFiles(path: string, options?: { depth?: number }): Promise<SandboxDirectoryEntry[]> {
     const entries = await this.sandbox.files.list(path, {
       ...(options?.depth !== undefined ? { depth: options.depth } : {}),
