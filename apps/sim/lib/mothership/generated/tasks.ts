@@ -9,6 +9,7 @@ export const WorkflowWatchRequest = z.object({
 });
 
 export const WorkflowWatchStatus = z.object({
+  workflowId: z.string().min(1).max(200),
   status: z.enum(["pending", "completed", "failed"]),
   summary: z.string().max(4000),
   output: z.string().max(2_000_000).optional(),
