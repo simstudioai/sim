@@ -18346,7 +18346,7 @@
         },
         {
           "name": "Update Refund Receipt",
-          "description": "Read, merge, and full-update a refund receipt using its current sync token"
+          "description": "Sparse-update a refund receipt using its current sync token"
         },
         {
           "name": "Read Purchasing Transactions",

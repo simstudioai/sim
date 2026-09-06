@@ -227,6 +227,48 @@ describe('QuickBooks block wiring for documented tool parameters', () => {
     )
   })
 
+  it('keeps the by-ID read target and the mutation target as separate fields', () => {
+    for (const [operation, extra] of [
+      ['quickbooks_read_sales_transactions', { transactionType: 'invoice' }],
+      ['quickbooks_read_purchasing_transactions', { purchasingTransactionType: 'bill' }],
+      ['quickbooks_read_accounting_transactions', { accountingTransactionType: 'deposit' }],
+    ] as const) {
+      const mapped = blockParams({
+        operation,
+        readMode: 'by_id',
+        readTransactionId: '5',
+        transactionId: '99',
+        ...extra,
+      })
+      expect(mapped.transactionId, operation).toBe('5')
+    }
+
+    expect(
+      blockParams({
+        operation: 'quickbooks_update_purchase_order',
+        readTransactionId: '5',
+        transactionId: '99',
+        syncToken: '0',
+      }).purchaseOrderId
+    ).toBe('99')
+
+    const readField = QuickBooksBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'readTransactionId'
+    )
+    const mutationField = QuickBooksBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'transactionId'
+    )
+    expect(readField).toBeDefined()
+    const mutationOperations = (mutationField?.condition as { value: string[] }).value
+    for (const readOperation of [
+      'quickbooks_read_sales_transactions',
+      'quickbooks_read_purchasing_transactions',
+      'quickbooks_read_accounting_transactions',
+    ]) {
+      expect(mutationOperations, readOperation).not.toContain(readOperation)
+    }
+  })
+
   it('keeps the upload and download attachment file names as separate fields', () => {
     expect(
       blockParams({

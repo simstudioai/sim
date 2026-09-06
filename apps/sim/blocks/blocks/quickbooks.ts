@@ -476,39 +476,40 @@ function paginationCondition(values?: Record<string, unknown>) {
   return { field: 'operation', value: [] }
 }
 
-function salesTransactionIdCondition(values?: Record<string, unknown>) {
+/**
+ * Operations whose `transactionId` names the entity a mutation rewrites or voids.
+ */
+const TRANSACTION_MUTATION_OPERATIONS = [
+  ...SALES_UPDATE_OPERATIONS,
+  ...SALES_VOID_OPERATIONS,
+  ...PURCHASING_UPDATE_OPERATIONS,
+  ...PURCHASING_VOID_OPERATIONS,
+  ...ACCOUNTING_UPDATE_OPERATIONS,
+] as const
+
+/**
+ * The by-ID read target, kept apart from the mutation `transactionId`.
+ *
+ * Subblock values are keyed by ID and are never cleared when the operation
+ * changes, so one shared control let a bill ID entered under Read Purchasing
+ * Transactions survive a switch to Update Purchase Order and silently address
+ * the wrong entity while the block still validated.
+ */
+function readTransactionIdCondition(values?: Record<string, unknown>) {
   if (!values) {
     return {
       field: 'operation',
-      value: [
-        SALES_READ_OPERATION,
-        PURCHASING_READ_OPERATION,
-        ACCOUNTING_READ_OPERATION,
-        ...SALES_UPDATE_OPERATIONS,
-        ...SALES_VOID_OPERATIONS,
-        ...PURCHASING_UPDATE_OPERATIONS,
-        ...PURCHASING_VOID_OPERATIONS,
-        ...ACCOUNTING_UPDATE_OPERATIONS,
-      ],
+      value: [SALES_READ_OPERATION, PURCHASING_READ_OPERATION, ACCOUNTING_READ_OPERATION],
     }
   }
   if (
-    values?.operation === SALES_READ_OPERATION ||
-    values?.operation === PURCHASING_READ_OPERATION ||
-    values?.operation === ACCOUNTING_READ_OPERATION
+    values.operation === SALES_READ_OPERATION ||
+    values.operation === PURCHASING_READ_OPERATION ||
+    values.operation === ACCOUNTING_READ_OPERATION
   ) {
     return { field: 'readMode', value: 'by_id' }
   }
-  return {
-    field: 'operation',
-    value: [
-      ...SALES_UPDATE_OPERATIONS,
-      ...SALES_VOID_OPERATIONS,
-      ...PURCHASING_UPDATE_OPERATIONS,
-      ...PURCHASING_VOID_OPERATIONS,
-      ...ACCOUNTING_UPDATE_OPERATIONS,
-    ],
-  }
+  return { field: 'operation', value: [] }
 }
 
 function parseConfirmation(value: unknown, fieldName: string): boolean {
@@ -1327,12 +1328,20 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       value: () => 'journal_entry',
     },
     {
+      id: 'readTransactionId',
+      title: 'Transaction ID',
+      type: 'short-input',
+      placeholder: 'QuickBooks transaction ID',
+      condition: readTransactionIdCondition,
+      required: readTransactionIdCondition,
+    },
+    {
       id: 'transactionId',
       title: 'Transaction ID',
       type: 'short-input',
       placeholder: 'QuickBooks transaction ID',
-      condition: salesTransactionIdCondition,
-      required: salesTransactionIdCondition,
+      condition: { field: 'operation', value: [...TRANSACTION_MUTATION_OPERATIONS] },
+      required: { field: 'operation', value: [...TRANSACTION_MUTATION_OPERATIONS] },
     },
     {
       id: 'reportType',
@@ -2606,7 +2615,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
               credential: oauthCredentialValue,
               transactionType: params.transactionType,
               readMode: params.readMode,
-              transactionId: optionalValue(params.transactionId),
+              transactionId: optionalValue(params.readTransactionId),
             }
           }
           return {
@@ -2626,7 +2635,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
               credential: oauthCredentialValue,
               transactionType: params.purchasingTransactionType,
               readMode: params.readMode,
-              transactionId: optionalValue(params.transactionId),
+              transactionId: optionalValue(params.readTransactionId),
             }
           }
           return {
@@ -2649,7 +2658,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
               credential: oauthCredentialValue,
               transactionType: params.accountingTransactionType,
               readMode: params.readMode,
-              transactionId: optionalValue(params.transactionId),
+              transactionId: optionalValue(params.readTransactionId),
             }
           }
           return {
@@ -3124,7 +3133,14 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       type: 'string',
       description: 'Purchasing list vendor filter',
     },
-    transactionId: { type: 'string', description: 'QuickBooks transaction ID' },
+    readTransactionId: {
+      type: 'string',
+      description: 'QuickBooks transaction ID to read by ID',
+    },
+    transactionId: {
+      type: 'string',
+      description: 'QuickBooks transaction ID to update or void',
+    },
     startPosition: {
       type: 'number',
       description: 'One-based position of the first list item to request',
