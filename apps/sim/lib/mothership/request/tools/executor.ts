@@ -41,7 +41,10 @@ import {
   RunWorkflowUntilBlock,
 } from '@/lib/mothership/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { publishToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
+import {
+  publishToolConfirmation,
+  waitForToolConfirmation,
+} from '@/lib/mothership/persistence/tool-confirm'
 import { recordSimToolMetric } from '@/lib/mothership/request/metrics'
 import { withCopilotToolSpan } from '@/lib/mothership/request/otel'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
@@ -537,25 +540,38 @@ async function executeToolAndReportInner(
     const claim = await lifetime.claim(context.runId, execContext.userId)
     if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
     if (claim.outcome === 'existing') {
-      const record = claim.record
-      if (record.status === 'pending' || record.status === 'running') {
-        return buildCompletionSignal({ status: 'running', message: 'Tool already executing' })
-      }
+      /** The winning controller owns execution; this promise observes its durable result. */
+      const completion = await waitForToolConfirmation(
+        toolCall.id,
+        pendingToolWaitBudgetMs(toolCall),
+        options?.abortSignal ?? execContext.abortSignal,
+        {
+          acceptStatus: (status) =>
+            status === 'success' || status === 'error' || status === 'cancelled',
+        }
+      )
+      if (
+        !completion ||
+        (completion.status !== 'success' &&
+          completion.status !== 'error' &&
+          completion.status !== 'cancelled')
+      )
+        return buildCompletionSignal({
+          status: 'running',
+          message: 'Existing tool execution has no confirmed result',
+        })
       setTerminalToolCallState(toolCall, {
-        status:
-          record.status === 'cancelled'
-            ? 'cancelled'
-            : record.error || record.status === 'failed'
-              ? 'error'
-              : 'success',
-        ...(record.result !== null ? { output: record.result } : {}),
-        ...(record.error
-          ? { error: record.error }
-          : record.status === 'cancelled'
-            ? { error: 'Tool cancelled' }
-            : record.status === 'failed'
-              ? { error: 'Tool failed' }
-              : {}),
+        status: completion.status,
+        ...(completion.data !== null && completion.data !== undefined
+          ? { output: completion.data }
+          : {}),
+        ...(completion.status === 'success'
+          ? {}
+          : {
+              error:
+                completion.message ||
+                (completion.status === 'cancelled' ? 'Tool cancelled' : 'Tool failed'),
+            }),
       })
       return terminalCompletionFromToolCall(toolCall)
     }

@@ -603,17 +603,7 @@ interface ResumeToolResult {
   success: boolean
 }
 
-/**
- * Build the resume payload entry for one pending tool call.
- *
- * A tool that never reached a terminal state has no result to send. That used to
- * throw — which turned one incomplete tool into a dead turn, and inside a
- * subagent fanout cancelled every sibling lane and reported the whole request as
- * an error blaming an unrelated tool. Synthesize the same failure Go already
- * writes for itself when Sim posts nothing for a pending call, so the model sees
- * one failed tool and the turn carries on. Still logged at error level: getting
- * here is a bug, it just must not be fatal.
- */
+/** Missing observation cannot become a tool failure while another controller owns execution. */
 function buildResumeToolResult(
   context: StreamingContext,
   toolCallId: string,
@@ -622,7 +612,7 @@ function buildResumeToolResult(
   const tool = context.toolCalls.get(toolCallId)
   if (!tool || !tool.result) {
     recordDegraded(CopilotDegradedReason.MissingToolResult)
-    logger.error('Missing tool result for pending tool call; synthesizing a failure', {
+    logger.error('Cannot resume without a confirmed tool result', {
       toolCallId,
       checkpointId,
       hasToolEntry: !!tool,
@@ -630,12 +620,9 @@ function buildResumeToolResult(
       toolStatus: tool?.status,
       hasPendingPromise: context.pendingToolPromises.has(toolCallId),
     })
-    return {
-      callId: toolCallId,
-      name: tool?.name || '',
-      data: { error: `no result was returned for tool call ${toolCallId}` },
-      success: false,
-    }
+    throw new Error(
+      `No confirmed result is available for tool call ${toolCallId}; its execution may still be running`
+    )
   }
   return {
     callId: toolCallId,

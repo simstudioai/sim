@@ -229,40 +229,43 @@ describe('copilot orchestrator persistence', () => {
     }
   })
 
-  it('catches up from durable state when a no-deadline waiter misses pubsub', async () => {
-    vi.useFakeTimers()
-    try {
-      row = {
-        status: 'pending',
-        error: null,
-        result: null,
-        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-      }
-      const waitPromise = waitForToolConfirmation('tool-1', null, undefined, {
-        acceptStatus: (status) =>
-          status === 'success' || status === 'error' || status === 'cancelled',
-      })
-      await vi.advanceTimersByTimeAsync(0)
+  it.each([null, 20_000])(
+    'catches up from durable state when a waiter with deadline %s misses pubsub',
+    async (timeoutMs) => {
+      vi.useFakeTimers()
+      try {
+        row = {
+          status: 'pending',
+          error: null,
+          result: null,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        }
+        const waitPromise = waitForToolConfirmation('tool-1', timeoutMs, undefined, {
+          acceptStatus: (status) =>
+            status === 'success' || status === 'error' || status === 'cancelled',
+        })
+        await vi.advanceTimersByTimeAsync(0)
 
-      row = {
-        status: 'completed',
-        error: null,
-        result: { recovered: true },
-        updatedAt: new Date('2026-01-01T00:00:01.000Z'),
-      }
-      await vi.advanceTimersByTimeAsync(5_000)
+        row = {
+          status: 'completed',
+          error: null,
+          result: { recovered: true },
+          updatedAt: new Date('2026-01-01T00:00:01.000Z'),
+        }
+        await vi.advanceTimersByTimeAsync(5_000)
 
-      await expect(waitPromise).resolves.toMatchObject({
-        status: 'success',
-        data: { recovered: true },
-      })
-      const callsAfterSettle = getAsyncToolCalls.mock.calls.length
-      await vi.advanceTimersByTimeAsync(5_000)
-      expect(getAsyncToolCalls).toHaveBeenCalledTimes(callsAfterSettle)
-    } finally {
-      vi.useRealTimers()
+        await expect(waitPromise).resolves.toMatchObject({
+          status: 'success',
+          data: { recovered: true },
+        })
+        const callsAfterSettle = getAsyncToolCalls.mock.calls.length
+        await vi.advanceTimersByTimeAsync(5_000)
+        expect(getAsyncToolCalls).toHaveBeenCalledTimes(callsAfterSettle)
+      } finally {
+        vi.useRealTimers()
+      }
     }
-  })
+  )
 
   it('stops durable catch-up polling when aborted', async () => {
     vi.useFakeTimers()

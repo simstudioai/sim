@@ -55,6 +55,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
+import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import { GET as logRoute } from '@/app/api/v2/logs/[runId]/route'
 import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
@@ -273,6 +274,15 @@ vi.mock('@/lib/core/telemetry', () => ({
 }))
 
 const workspaceId = '2afda21d-d08a-46bb-aaf9-7a4a6c741dbd'
+
+function createSignal(): { promise: Promise<void>; resolve: () => void } {
+  let resolve = () => {}
+  const promise = new Promise<void>((notify) => {
+    resolve = notify
+  })
+  return { promise, resolve }
+}
+
 const workflowId = 'saved-run-workflow'
 const blockId = '40109ba4-ac03-4a92-b044-c97f703718bf'
 const now = new Date('2026-09-06T12:00:00.000Z')
@@ -483,6 +493,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         'relay-prefix',
         'relay-attach-lost',
         'relay-overlap',
+        'controller-overlap',
         'child-connected',
         'child-failed-check',
         'child-lost-start',
@@ -522,6 +533,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         let lines = createInterface({ input: child.stdout })
         let diagnostics = ''
         let relayUrl: string | undefined
+        const executionStarted = createSignal()
+        const releaseExecution = createSignal()
+        const secondSawCall = createSignal()
         const waitForReady = () => {
           const workerProcess = child
           workerProcess.stderr.on('data', (chunk: Buffer) => {
@@ -568,7 +582,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           let responseDropped = false
           vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = new URL(input instanceof Request ? input.url : input)
-            if (url.origin === identity.endpoint) return identity.transport(input, init)
+            if (url.origin === identity.endpoint) {
+              if (connection === 'controller-overlap' && url.pathname.endsWith('/execute')) {
+                executionStarted.resolve()
+                await releaseExecution.promise
+              }
+              return identity.transport(input, init)
+            }
             if (url.origin !== fixture.workerUrl)
               throw new Error(`Unexpected external request: ${url.origin}`)
             workerRequests.push(url.pathname)
@@ -689,6 +709,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
             if (
               connection !== 'connected' &&
+              connection !== 'controller-overlap' &&
               connection !== 'child-connected' &&
               connection !== 'child-failed-check' &&
               url.pathname === '/api/tools/resume' &&
@@ -746,42 +767,87 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           ensureHandlersRegistered()
           const chatId = generateId()
           const messageId = generateId()
-          const result = await runCopilotLifecycle(
-            {
-              message:
-                'Run the saved workflow and identify the failing block from its recorded log.',
-              userId: 'run-reader',
-              workspaceId,
-              workflowId,
-              chatId,
-              messageId,
-            },
-            {
-              userId: 'run-reader',
-              workspaceId,
-              workflowId,
-              chatId,
-              goRoute: '/api/mothership',
-              interactive: false,
-              clientToolPickupExpected: false,
-              flushAfterEvent: false,
-              onEvent: (event) => {
-                if (event.type === 'tool' && event.payload.replay) replayedToolFrames++
-              },
-              abortSignal: AbortSignal.timeout(20_000),
-              executionContext: {
+          const runController = (resume?: { id: string; executionId: string }) =>
+            runCopilotLifecycle(
+              {
+                message:
+                  'Run the saved workflow and identify the failing block from its recorded log.',
                 userId: 'run-reader',
                 workspaceId,
                 workflowId,
                 chatId,
-                userPermission: 'write',
-                resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+                messageId,
+              },
+              {
+                userId: 'run-reader',
+                workspaceId,
+                workflowId,
+                chatId,
+                ...(resume ? { runId: resume.id, executionId: resume.executionId } : {}),
+                goRoute: '/api/mothership',
+                interactive: false,
+                clientToolPickupExpected: false,
+                flushAfterEvent: false,
+                onEvent: (event) => {
+                  if (event.type === 'tool' && event.payload.replay) replayedToolFrames++
+                  if (resume && isToolCallStreamEvent(event) && !event.payload.replay)
+                    secondSawCall.resolve()
+                },
+                abortSignal: AbortSignal.timeout(20_000),
+                executionContext: {
                   userId: 'run-reader',
                   workspaceId,
+                  workflowId,
+                  chatId,
+                  userPermission: 'write',
+                  resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+                    userId: 'run-reader',
+                    workspaceId,
+                  }),
+                },
+              }
+            )
+          const first = runController()
+          let result: Awaited<ReturnType<typeof runCopilotLifecycle>>
+          if (connection === 'controller-overlap') {
+            await Promise.race([
+              executionStarted.promise,
+              first.then(() => {
+                throw new Error('First controller ended before claiming the workflow execution')
+              }),
+            ])
+            const [activeRun] = await db
+              .select()
+              .from(copilotRuns)
+              .where(eq(copilotRuns.streamId, messageId))
+            if (!activeRun) throw new Error('Missing shared controller run')
+            const [activeCall] = await db
+              .select()
+              .from(copilotAsyncToolCalls)
+              .where(eq(copilotAsyncToolCalls.runId, activeRun.id))
+            expect(activeCall.executionStartedAt).toBeInstanceOf(Date)
+            expect(activeCall.executionSettledAt).toBeNull()
+            const second = runController(activeRun)
+            try {
+              await Promise.race([
+                secondSawCall.promise,
+                second.then(() => {
+                  throw new Error('Second controller ended before observing the owned tool')
                 }),
-              },
+              ])
+              expect(fixture.requests.filter((path) => path.endsWith('/execute'))).toHaveLength(0)
+            } finally {
+              releaseExecution.resolve()
             }
-          )
+            const results = await Promise.all([first, second])
+            for (const observed of results)
+              expect(
+                observed.success,
+                JSON.stringify({ observed, errors: fixture.errors, diagnostics })
+              ).toBe(true)
+            expect(results[1].content).toBe(results[0].content)
+            result = results[0]
+          } else result = await first
           expect(
             result.success,
             JSON.stringify({ result, errors: fixture.errors, diagnostics })
@@ -852,6 +918,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(calls.length).toBeGreaterThanOrEqual(2)
           expect(responseDropped).toBe(
             connection !== 'connected' &&
+              connection !== 'controller-overlap' &&
               connection !== 'child-connected' &&
               connection !== 'child-failed-check'
           )
@@ -908,6 +975,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(executeInSandbox).not.toHaveBeenCalled()
           expect(executeShellInSandbox).not.toHaveBeenCalled()
         } finally {
+          releaseExecution.resolve()
           clearTimeout(startupTimeout)
           child.kill()
           await exited

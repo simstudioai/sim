@@ -9,6 +9,7 @@ const {
   upsertAsyncToolCall,
   claimSimToolExecution,
   settleSimToolExecution,
+  waitForToolConfirmation,
   onEvent,
   recordSimToolMetric,
   setAttribute,
@@ -22,6 +23,7 @@ const {
     upsertAsyncToolCall: vi.fn(),
     claimSimToolExecution: vi.fn(),
     settleSimToolExecution: vi.fn(),
+    waitForToolConfirmation: vi.fn(),
     onEvent: vi.fn(),
     recordSimToolMetric: vi.fn(),
     setAttribute,
@@ -47,6 +49,7 @@ vi.mock('@/lib/mothership/async-runs/repository', () => ({
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   publishToolConfirmation: vi.fn(),
+  waitForToolConfirmation,
 }))
 
 vi.mock('@/lib/mothership/request/metrics', () => ({
@@ -78,6 +81,7 @@ vi.mock('@/lib/mothership/request/tools/workflow-context', () => ({
   applyCreateWorkflowOutputToContext: vi.fn(),
 }))
 
+import type { AsyncConfirmationState } from '@/lib/mothership/async-runs/lifecycle'
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1EventType,
@@ -223,9 +227,70 @@ describe('executeToolAndReport provenance isolation', () => {
     upsertAsyncToolCall.mockResolvedValue(null)
     claimSimToolExecution.mockResolvedValue({ outcome: 'claimed' })
     settleSimToolExecution.mockResolvedValue(undefined)
+    waitForToolConfirmation.mockReset()
   })
 
   afterEach(() => vi.useRealTimers())
+
+  it.each(['success', 'error', 'cancelled'] as const)(
+    'observes another controller until its durable %s result without repeating or settling its execution',
+    async (status) => {
+      claimSimToolExecution.mockResolvedValueOnce({
+        outcome: 'existing',
+      })
+      let finish: (value: AsyncConfirmationState | null) => void = () => {}
+      waitForToolConfirmation.mockImplementationOnce(
+        () =>
+          new Promise<AsyncConfirmationState | null>((resolve) => {
+            finish = resolve
+          })
+      )
+      const tool = buildPendingToolCall()
+      let settled = false
+      const pending = executeToolAndReport(tool.id, buildStreamingContext(tool), {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+      }).then((result) => {
+        settled = true
+        return result
+      })
+      await vi.waitFor(() => expect(waitForToolConfirmation).toHaveBeenCalledOnce())
+      expect(settled).toBe(false)
+      expect(tool.result).toBeUndefined()
+      finish({ status, data: { recorded: true }, message: 'Recorded outcome' })
+      await expect(pending).resolves.toMatchObject({ status })
+      expect(tool.result?.output).toEqual({ recorded: true })
+      expect(executeTool).not.toHaveBeenCalled()
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(settleSimToolExecution).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not write a failed result or settle the owner when its observation ends unconfirmed', async () => {
+    claimSimToolExecution.mockResolvedValueOnce({
+      outcome: 'existing',
+    })
+    waitForToolConfirmation.mockResolvedValueOnce(null)
+    const tool = buildPendingToolCall()
+    const signal = new AbortController().signal
+    await expect(
+      executeToolAndReport(tool.id, buildStreamingContext(tool), {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        abortSignal: signal,
+      })
+    ).resolves.toMatchObject({ status: 'running' })
+    expect(waitForToolConfirmation).toHaveBeenCalledWith(
+      tool.id,
+      TOOL_WATCHDOG_DEFAULT_MS,
+      signal,
+      expect.any(Object)
+    )
+    expect(tool.result).toBeUndefined()
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(settleSimToolExecution).not.toHaveBeenCalled()
+  })
 
   it.each(['row', 'claim'])(
     'refuses dispatch when the execution %s cannot be persisted',

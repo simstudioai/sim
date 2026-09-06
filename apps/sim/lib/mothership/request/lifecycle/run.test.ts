@@ -45,8 +45,7 @@ const {
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
-    mockFilterModelSafeWorkspaceFileAttachments(...args),
+  filterModelSafeWorkspaceFileAttachments: mockFilterModelSafeWorkspaceFileAttachments,
 }))
 
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
@@ -174,6 +173,7 @@ import {
   StreamEndedWithoutTerminalError,
 } from '@/lib/mothership/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
+import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
 
 afterAll(resetEnvFlagsMock)
 
@@ -2283,7 +2283,7 @@ describe('runCopilotLifecycle', () => {
     try {
       const controller = new AbortController()
       const fetchUrls: string[] = []
-      let capturedContext: StreamingContext | null = null
+      const captured: { context?: StreamingContext } = {}
       const executionContext: ExecutionContext = {
         userId: 'user-1',
         workflowId: '',
@@ -2295,7 +2295,7 @@ describe('runCopilotLifecycle', () => {
       mockRunStreamLoop.mockImplementationOnce(
         async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
           fetchUrls.push(fetchUrl)
-          capturedContext = context
+          captured.context = context
           context.toolCalls.set('tool-hung', {
             id: 'tool-hung',
             name: 'terminal',
@@ -2332,7 +2332,7 @@ describe('runCopilotLifecycle', () => {
       expect(result.cancelled).toBe(true)
       expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
       expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
-      expect(capturedContext?.toolCalls.get('tool-hung')).toMatchObject({
+      expect(captured.context?.toolCalls.get('tool-hung')).toMatchObject({
         status: MothershipStreamV1ToolOutcome.cancelled,
         error: 'Stopped by user',
       })
@@ -2651,67 +2651,66 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  it('completes the turn when a pending subagent tool has no result', async () => {
-    // A tool that never reached a terminal state used to throw
-    // "Cannot resume subagent chain ...: missing result for tool call ...",
-    // which inside a fanout cancelled every sibling lane and reported the whole
-    // request as an error blaming an unrelated tool. Synthesize the failure Go
-    // already writes for itself instead, and let the turn finish.
-    const bodies: Array<Record<string, unknown>> = []
-    mockRunStreamLoop.mockImplementation(
-      async (
-        fetchUrl: string,
-        fetchOptions: RequestInit,
-        context: StreamingContext
-      ): Promise<void> => {
-        if (!fetchUrl.includes('/api/tools/resume')) {
-          context.awaitingAsyncContinuation = {
-            checkpointId: 'cp-root',
-            pendingToolCallIds: [],
-            frames: [
-              {
-                parentToolCallId: 'subagent-file',
-                parentToolName: 'file',
-                pendingToolIds: ['tool-never-dispatched'],
-                checkpointId: 'cp-file',
-              },
-            ],
+  it.each(['main', 'subagent'])(
+    'does not invent a result for an unconfirmed %s tool',
+    async (lane) => {
+      const bodies: Array<Record<string, unknown>> = []
+      mockRunStreamLoop.mockImplementation(
+        async (
+          fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          if (!fetchUrl.includes('/api/tools/resume')) {
+            context.toolCalls.set('tool-unconfirmed', {
+              id: 'tool-unconfirmed',
+              name: 'sim_cli',
+              status: 'executing',
+            })
+            context.awaitingAsyncContinuation = {
+              checkpointId: 'cp-root',
+              pendingToolCallIds: lane === 'main' ? ['tool-unconfirmed'] : [],
+              frames:
+                lane === 'subagent'
+                  ? [
+                      {
+                        parentToolCallId: 'subagent-file',
+                        parentToolName: 'file',
+                        pendingToolIds: ['tool-unconfirmed'],
+                        checkpointId: 'cp-file',
+                      },
+                    ]
+                  : [],
+            }
+            return
           }
-          return
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.streamComplete = true
+          context.completionStatus = MothershipStreamV1CompletionStatus.complete
         }
-        bodies.push(JSON.parse(String(fetchOptions.body)))
-        context.streamComplete = true
-        context.completionStatus = MothershipStreamV1CompletionStatus.complete
-      }
-    )
+      )
 
-    const result = await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-missing-subagent-result' },
-      { userId: 'user-1', workspaceId: 'ws-1' }
-    )
+      const result = await runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-missing-subagent-result' },
+        { userId: 'user-1', workspaceId: 'ws-1' }
+      )
 
-    expect(bodies).toHaveLength(1)
-    // Slim contract: the resume body carries streamId + results only (no checkpointId).
-    expect(bodies[0].streamId).toBe('stream-missing-subagent-result')
-    expect(bodies[0].results).toEqual([
-      expect.objectContaining({
-        callId: 'tool-never-dispatched',
-        success: false,
-        data: { error: expect.stringContaining('no result was returned') },
-      }),
-    ])
-    expect(result.success).toBe(true)
-  })
+      expect(bodies).toHaveLength(0)
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('No confirmed result is available')
+      expect(executeToolAndReport).not.toHaveBeenCalled()
+    }
+  )
 
   it('cancels promptly while a per-subagent tool promise remains unsettled', async () => {
     const controller = new AbortController()
     const addAbortListener = vi.spyOn(controller.signal, 'addEventListener')
     const fetchUrls: string[] = []
-    let capturedContext: StreamingContext | null = null
+    const captured: { context?: StreamingContext } = {}
     mockRunStreamLoop.mockImplementationOnce(
       async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
         fetchUrls.push(fetchUrl)
-        capturedContext = context
+        captured.context = context
         context.toolCalls.set('tool-hung', {
           id: 'tool-hung',
           name: 'read',
@@ -2748,7 +2747,7 @@ describe('runCopilotLifecycle', () => {
     expect(result.cancelled).toBe(true)
     expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
     expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
-    expect(capturedContext?.toolCalls.get('tool-hung')).toMatchObject({
+    expect(captured.context?.toolCalls.get('tool-hung')).toMatchObject({
       status: MothershipStreamV1ToolOutcome.cancelled,
       error: 'Stopped by user',
     })
