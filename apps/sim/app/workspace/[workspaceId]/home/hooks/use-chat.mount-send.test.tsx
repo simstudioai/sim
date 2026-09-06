@@ -788,6 +788,76 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  it('binds a retried correction to the response being stopped now', async () => {
+    useMothershipQueueStore.getState().enqueue('chat-a', {
+      id: 'earlier-correction',
+      content: 'inspect the second invoice instead',
+      retryRequired: true,
+      queuedSendHandoff: {
+        id: 'earlier-correction',
+        chatId: 'chat-a',
+        supersededStreamId: 'earlier-response',
+        userMessageId: 'prepared-correction',
+        stopRequired: true,
+      },
+    })
+    state.postBehavior = 'task'
+    const { getResult } = renderUseChatInChat('chat-a', {
+      id: 'chat-a',
+      title: 'Invoice inspection',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    })
+    await act(async () => {
+      await getResult().sendMessage('inspect a different invoice first')
+    })
+    const newer = allQueuedMessages().find(
+      (message) => message.content === 'inspect a different invoice first'
+    )
+    if (!newer) throw new Error('The newer request is missing')
+    await act(async () => {
+      void getResult().sendNow(newer.id)
+    })
+    await waitFor(() =>
+      getResult().messages.some((message) =>
+        message.contentBlocks?.some((block) => block.type === 'task')
+      )
+    )
+    const newerStreamId = state.postBodies[0].userMessageId
+    state.abortSettlements = [false, false]
+    await act(async () => {
+      await getResult().sendNow('earlier-correction')
+    })
+    expect(state.abortBodies[0]?.streamId).toBe(newerStreamId)
+    expect(state.postBodies).toHaveLength(1)
+    expect(allQueuedMessages()[0]).toMatchObject({
+      retryRequired: true,
+      queuedSendHandoff: {
+        supersededStreamId: newerStreamId,
+        userMessageId: 'prepared-correction',
+        stopRequired: true,
+      },
+    })
+    state.abortSettlements = [false]
+    await act(async () => {
+      await getResult().sendNow('earlier-correction')
+    })
+    expect(state.postBodies).toHaveLength(1)
+    expect(state.abortBodies[2]?.streamId).toBe(newerStreamId)
+    state.abortSettlements = [true]
+    state.postBehavior = 'hang'
+    await act(async () => {
+      void getResult().sendNow('earlier-correction')
+    })
+    await waitFor(() => state.postBodies.length === 2)
+    expect(state.postBodies[1]).toMatchObject({
+      message: 'inspect the second invoice instead',
+      userMessageId: 'prepared-correction',
+    })
+    expect(state.abortBodies[3]?.streamId).toBe(newerStreamId)
+  })
+
   it('does not certify an unsettled Stop before the chat ID arrives', async () => {
     state.abortSettlements = [false, false]
     const { getResult } = renderUseChat()
