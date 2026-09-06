@@ -463,6 +463,75 @@ describe('useChat remount send recovery', () => {
     })
   })
 
+  it.each([false, true])(
+    'owns an early abort failure while partial persistence is pending (retry fails: %s)',
+    async (retryFails) => {
+      state.postBehavior = 'task'
+      let releasePersistence = () => {}
+      const persistenceGate = new Promise<void>((resolve) => {
+        releasePersistence = resolve
+      })
+      let persistenceStarted = false
+      let abortAttempts = 0
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.includes('/api/copilot/chat/abort')) {
+          abortAttempts += 1
+          if (abortAttempts === 1 || retryFails) {
+            return Response.json({ error: 'Stop service unavailable' }, { status: 503 })
+          }
+        }
+        if (url.includes('/api/mothership/chat/stop')) {
+          persistenceStarted = true
+          await persistenceGate
+        }
+        return fetchStub(input, init)
+      })
+      const { getResult } = renderUseChatInChat('chat-a')
+      await act(async () => {
+        void getResult().sendMessage('watch the invoice run')
+      })
+      await waitFor(() =>
+        getResult().messages.some((message) =>
+          message.contentBlocks?.some((block) => block.type === 'task')
+        )
+      )
+      let stopOutcome: 'pending' | 'success' | 'failed' = 'pending'
+      let stopError: unknown
+      let stopping: Promise<void> = Promise.resolve()
+      await act(async () => {
+        stopping = getResult()
+          .stopGeneration()
+          .then(
+            () => {
+              stopOutcome = 'success'
+            },
+            (error) => {
+              stopOutcome = 'failed'
+              stopError = error
+            }
+          )
+      })
+      try {
+        await waitFor(() => persistenceStarted && abortAttempts === 1)
+        await act(async () => {
+          await sleep(20)
+        })
+        expect(stopOutcome).toBe('pending')
+      } finally {
+        await act(async () => {
+          releasePersistence()
+          await stopping
+        })
+      }
+      expect(abortAttempts).toBe(2)
+      expect(stopOutcome).toBe(retryFails ? 'failed' : 'success')
+      if (retryFails) {
+        expect(stopError).toMatchObject({ message: 'Stop service unavailable' })
+      }
+    }
+  )
+
   it('does not certify an unsettled Stop before the chat ID arrives', async () => {
     state.abortSettlements = [false, false]
     const { getResult } = renderUseChat()

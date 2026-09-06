@@ -3992,14 +3992,19 @@ export function useChat(
             abortSucceeded = true
             return payload.settled
           }
+          let abortFailure: unknown
           const abortPromise = sid
-            ? postAbortRequest(resolvedChatId).then((settled) => {
-                abortSettled = settled
-              })
+            ? postAbortRequest(resolvedChatId).then(
+                (settled) => {
+                  abortSettled = settled
+                },
+                (error) => {
+                  abortFailure = error
+                }
+              )
             : Promise.resolve()
 
           let stopFailure: unknown
-          let abortFailure: unknown
           try {
             if (mode === 'queued-handoff' && !resolvedChatId && sid) {
               resolvedChatId = await resolveChatIdForStream(sid, {
@@ -4036,11 +4041,7 @@ export function useChat(
             stopFailure = err
           }
 
-          try {
-            await abortPromise
-          } catch (err) {
-            abortFailure = err
-          }
+          await abortPromise
           if (sid && !abortSettled) {
             try {
               const retrySettled = await postAbortRequest(resolvedChatId)
