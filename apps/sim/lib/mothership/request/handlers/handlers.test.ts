@@ -4,6 +4,7 @@
 
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 
 const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApproval } = vi.hoisted(
@@ -89,6 +90,7 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { Read as ReadTool, RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
+  applyStreamEvent,
   prePersistClientExecutableToolCall,
   sseHandlers,
   subAgentHandlers,
@@ -199,6 +201,66 @@ describe('sse-handlers tool lifecycle', () => {
     expect(start).toHaveBeenCalledTimes(2)
     expect(end).toHaveBeenCalledTimes(2)
     expect(context.subAgentTraceSpans?.size).toBe(0)
+  })
+
+  it('restores a delivered prefix without executing its tools or consuming the next handoff', async () => {
+    const call: StreamEvent = {
+      type: 'tool',
+      scope: { lane: 'subagent', parentToolCallId: 'child', agentId: 'task' },
+      payload: {
+        phase: 'call',
+        toolCallId: 'pending-read',
+        toolName: ReadTool.id,
+        arguments: { path: '/workspace/report.txt' },
+        executor: 'sim',
+        mode: 'async',
+      },
+    }
+    const receipt = { emitterId: 'original-worker', sequence: 8 }
+    await restoreStreamingContext(
+      [
+        { type: 'text', payload: { channel: 'assistant', text: 'Saved prefix.', textOffset: 0 } },
+        {
+          type: 'span',
+          scope: { lane: 'subagent', parentToolCallId: 'child', agentId: 'task', spanId: 'child' },
+          payload: {
+            kind: 'subagent',
+            agent: 'task',
+            event: 'start',
+            data: { name: 'Read report' },
+          },
+        },
+        call,
+        {
+          type: 'run',
+          payload: {
+            kind: 'checkpoint_pause',
+            checkpointId: 'checkpoint',
+            executionId: 'execution',
+            runId: 'run',
+            pendingToolCallIds: ['pending-read'],
+            activityReceipt: receipt,
+          },
+        },
+      ],
+      context,
+      execContext
+    )
+
+    expect(context.accumulatedContent).toBe('Saved prefix.')
+    expect(context.receivedActivity).toEqual(receipt)
+    expect(context.streamComplete).toBe(false)
+    expect(context.awaitingAsyncContinuation).toBeUndefined()
+    expect(context.toolCalls.get('pending-read')?.status).toBe('pending')
+    expect(context.subAgentToolCalls.child.map((tool) => tool.id)).toEqual(['pending-read'])
+    expect(context.pendingToolPromises.size).toBe(0)
+    expect(upsertAsyncToolCall).not.toHaveBeenCalled()
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(shouldSkipToolCallEvent(context, call)).toBe(false)
+    await applyStreamEvent(call, context, execContext, { interactive: false, timeout: 1000 })
+    await sleep(0)
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(shouldSkipToolCallEvent(context, call)).toBe(true)
   })
 
   it('pins the workflow target into the args it persists and forwards', async () => {

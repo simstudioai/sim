@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, copilotRuns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { getChatStreamLockOwners } from '@/lib/mothership/request/session'
 
 const logger = createLogger('ChatStreamLiveness')
@@ -62,7 +62,38 @@ export async function reconcileChatStreamMarkers(
     candidatesWithMarkers.map((candidate) => candidate.chatId)
   )
 
+  // A dead relay is recoverable while the canonical run is unfinished. Keep
+  // its marker so opening the chat reaches the authorized reconnect use case.
+  const orphaned =
+    status === 'verified'
+      ? candidatesWithMarkers.filter((candidate) => !ownersByChatId.has(candidate.chatId))
+      : []
+  const recoverable =
+    orphaned.length > 0
+      ? await db
+          .select({
+            streamId: copilotRuns.streamId,
+            chatId: copilotRuns.chatId,
+          })
+          .from(copilotRuns)
+          .where(
+            and(
+              inArray(
+                copilotRuns.streamId,
+                orphaned.map((candidate) => candidate.streamId!)
+              ),
+              notInArray(copilotRuns.status, ['complete', 'error', 'cancelled']),
+              sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`
+            )
+          )
+      : []
+  const recoverableStreams = new Set(recoverable.map((run) => `${run.chatId}:${run.streamId}`))
+
   for (const candidate of candidatesWithMarkers) {
+    if (recoverableStreams.has(`${candidate.chatId}:${candidate.streamId}`)) {
+      results.set(candidate.chatId, { ...candidate, status: 'active' })
+      continue
+    }
     const owner = ownersByChatId.get(candidate.chatId)
     if (owner && (status === 'verified' || owner === candidate.streamId)) {
       results.set(candidate.chatId, {

@@ -60,6 +60,17 @@ const BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
+vi.mock('@/lib/mothership/request/session/abort', () => ({
+  getLocalChatStreamLease: (chatId: string, streamId: string) => ({
+    key: `copilot:chat-stream-lock:${chatId}`,
+    value: `${streamId}\ncontroller`,
+  }),
+}))
+vi.mock('@/lib/mothership/request/session/controller-lease', async (original) => ({
+  ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
+  assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   runCopilotLifecycle,
 }))
@@ -86,33 +97,31 @@ vi.mock('@/lib/mothership/request/session', () => ({
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
   isExplicitStopReason: (reason: unknown) => reason === 'user_stop:abortActiveStream',
   SSE_RESPONSE_HEADERS: {},
-  StreamWriter: vi.fn().mockImplementation(
-    class {
-      attach = vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
-        mockPublisherController = ctrl
-      })
-      startKeepalive = vi.fn()
-      stopKeepalive = vi.fn()
-      flush = vi.fn()
-      close = vi.fn().mockImplementation(() => {
-        try {
-          mockPublisherController?.close()
-        } catch {
-          // already closed
-        }
-      })
-      markDisconnected = vi.fn()
-      publish = vi.fn().mockImplementation(async (event: Record<string, unknown>) => {
-        appendEvent(event)
-      })
-      get clientDisconnected() {
-        return false
+  StreamWriter: class {
+    attach = vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
+      mockPublisherController = ctrl
+    })
+    startKeepalive = vi.fn()
+    stopKeepalive = vi.fn()
+    flush = vi.fn()
+    close = vi.fn().mockImplementation(() => {
+      try {
+        mockPublisherController?.close()
+      } catch {
+        // already closed
       }
-      get sawComplete() {
-        return false
-      }
+    })
+    markDisconnected = vi.fn()
+    publish = vi.fn().mockImplementation(async (event: Record<string, unknown>) => {
+      appendEvent(event)
+    })
+    get clientDisconnected() {
+      return false
     }
-  ),
+    get sawComplete() {
+      return false
+    }
+  },
 }))
 vi.mock('@/lib/mothership/request/session/sse', () => ({
   SSE_RESPONSE_HEADERS: {},
@@ -213,7 +222,7 @@ describe('createSSEStream terminal error handling', () => {
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-1',
-      orchestrateOptions: {},
+      orchestrateOptions: { userId: 'user-1' },
     })
 
     await drainStream(stream)
@@ -242,7 +251,7 @@ describe('createSSEStream terminal error handling', () => {
         message: 'hello',
         titleModel: 'gpt-5.4',
         requestId: 'req-1',
-        orchestrateOptions: {},
+        orchestrateOptions: { userId: 'user-1' },
       })
     )
     expect(runCopilotLifecycle).not.toHaveBeenCalled()
@@ -254,8 +263,12 @@ describe('createSSEStream terminal error handling', () => {
       })
     )
     expect(appendEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
-    expect(unregisterActiveStream).toHaveBeenCalledWith('stream-1')
-    expect(releasePendingChatStream).toHaveBeenCalledWith('chat-1', 'stream-1')
+    expect(unregisterActiveStream).toHaveBeenCalledWith('stream-1', expect.any(AbortController))
+    expect(releasePendingChatStream).toHaveBeenCalledWith(
+      'chat-1',
+      'stream-1',
+      expect.objectContaining({ value: 'stream-1\ncontroller' })
+    )
     await vi.waitFor(() => expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1'))
   })
 
@@ -273,7 +286,7 @@ describe('createSSEStream terminal error handling', () => {
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-1',
-      orchestrateOptions: {},
+      orchestrateOptions: { userId: 'user-1' },
     })
 
     await drainStream(stream)
@@ -306,7 +319,7 @@ describe('createSSEStream terminal error handling', () => {
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-cancelled',
-      orchestrateOptions: {},
+      orchestrateOptions: { userId: 'user-1' },
     })
 
     await drainStream(stream)
@@ -351,6 +364,7 @@ describe('createSSEStream terminal error handling', () => {
       titleModel: 'gpt-5.4',
       requestId: 'req-otel',
       orchestrateOptions: {
+        userId: 'user-1',
         goRoute: '/api/mothership',
         workflowId: 'workflow-1',
       },
@@ -361,8 +375,8 @@ describe('createSSEStream terminal error handling', () => {
     expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
   })
 
-  it('releases the stream registration and pollers when the session reset fails before the lifecycle starts', async () => {
-    resetBuffer.mockRejectedValue(new Error('redis down'))
+  it('releases the stream registration and pollers when preview initialization fails before the lifecycle starts', async () => {
+    clearFilePreviewSessions.mockRejectedValue(new Error('redis down'))
 
     const stream = createSSEStream({
       requestPayload: { message: 'hello' },
@@ -376,15 +390,19 @@ describe('createSSEStream terminal error handling', () => {
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-leak',
-      orchestrateOptions: {},
+      orchestrateOptions: { userId: 'user-1' },
     })
 
     await expect(drainStream(stream)).rejects.toThrow('redis down')
 
     expect(runCopilotLifecycle).not.toHaveBeenCalled()
     expect(registerActiveStream).toHaveBeenCalledWith('stream-leak', expect.any(AbortController))
-    expect(unregisterActiveStream).toHaveBeenCalledWith('stream-leak')
-    expect(releasePendingChatStream).toHaveBeenCalledWith('chat-leak', 'stream-leak')
+    expect(unregisterActiveStream).toHaveBeenCalledWith('stream-leak', expect.any(AbortController))
+    expect(releasePendingChatStream).toHaveBeenCalledWith(
+      'chat-leak',
+      'stream-leak',
+      expect.objectContaining({ value: 'stream-leak\ncontroller' })
+    )
   })
 
   it('does not scan manually authored title input against unrelated active secrets', async () => {
@@ -412,6 +430,7 @@ describe('createSSEStream terminal error handling', () => {
       titleModel: 'gpt-5.4',
       requestId: 'req-title',
       orchestrateOptions: {
+        userId: 'user-1',
         executionContext: {
           userId: 'user-1',
           workflowId: 'workflow-1',

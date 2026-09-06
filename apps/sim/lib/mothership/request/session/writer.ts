@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { appendEvents } from './buffer'
 import type { PersistedStreamEventEnvelope } from './contract'
+import type { ChatStreamLease } from './controller-lease'
 import { createEvent } from './event'
 import { encodeSSEComment, encodeSSEEnvelope } from './sse'
 import type { StreamEvent } from './types'
@@ -18,6 +19,8 @@ export interface StreamWriterOptions {
   chatId?: string
   requestId: string
   keepaliveMs?: number
+  lease?: ChatStreamLease
+  initialSeq?: number
 }
 
 export class StreamWriter {
@@ -37,6 +40,7 @@ export class StreamWriter {
   private pendingEnvelopes: PersistedStreamEventEnvelope[] = []
   private persistenceTail: Promise<void> = Promise.resolve()
   private lastPersistenceError: Error | null = null
+  private readonly lease?: ChatStreamLease
 
   constructor(options: StreamWriterOptions) {
     this.streamId = options.streamId
@@ -46,6 +50,12 @@ export class StreamWriter {
     this.flushIntervalMs = DEFAULT_PERSIST_FLUSH_INTERVAL_MS
     this.flushMaxBatch = DEFAULT_PERSIST_FLUSH_MAX_BATCH
     this.encoder = new TextEncoder()
+    this.lease = options.lease
+    this.nextSeq = options.initialSeq ?? 0
+  }
+
+  get controllerToken(): string | undefined {
+    return this.lease?.value
   }
 
   get clientDisconnected(): boolean {
@@ -87,8 +97,19 @@ export class StreamWriter {
     }
   }
 
-  publish(event: StreamEvent): void {
+  publish(event: StreamEvent): void | Promise<void> {
     const envelope = this.createEnvelope(event)
+    if (this.lease) {
+      // A replacement must see every event the browser has received. Fence
+      // persistence before delivery, and before dispatching the event's tool.
+      const delivery = this.persistenceTail.then(async () => {
+        await appendEvents([envelope], this.lease)
+        this.enqueue(envelope)
+        if (event.type === MothershipStreamV1EventType.complete) this._sawComplete = true
+      })
+      this.persistenceTail = delivery
+      return delivery
+    }
     this.enqueue(envelope)
     this.queuePersistence(envelope)
     if (event.type === MothershipStreamV1EventType.complete) {
@@ -113,14 +134,16 @@ export class StreamWriter {
   async close(): Promise<void> {
     this.stopKeepalive()
     this.clearFlushTimer()
-    await this.flush()
-    if (!this.controller) return
     try {
-      this.controller.close()
-    } catch {
-      // Controller already closed
+      await this.flush()
+    } finally {
+      try {
+        this.controller?.close()
+      } catch {
+        // Controller already closed
+      }
+      this.controller = null
     }
-    this.controller = null
   }
 
   private enqueue(envelope: PersistedStreamEventEnvelope): void {

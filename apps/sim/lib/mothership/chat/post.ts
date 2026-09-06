@@ -13,6 +13,7 @@ import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import type { AtomicClaimResult } from '@/lib/core/idempotency'
 import { chatSendIdempotency } from '@/lib/core/idempotency'
+import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -20,11 +21,7 @@ import {
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
-import {
-  buildPersistedAssistantMessage,
-  buildPersistedUserMessage,
-  withStoppedContentBlock,
-} from '@/lib/mothership/chat/persisted-message'
+import { buildPersistedUserMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   processContextsServer,
   resolveActiveResourceContext,
@@ -35,13 +32,11 @@ import {
   MAX_TABLE_SELECTION_ROWS,
   safeBrowserSelectionUrl,
 } from '@/lib/mothership/chat/selection-context'
-import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { type ChatRequest, PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import {
-  CopilotChatFinalizeOutcome,
   CopilotChatPersistOutcome,
   CopilotTransport,
 } from '@/lib/mothership/generated/trace-attribute-values-v1'
@@ -55,7 +50,8 @@ import {
   getPendingChatStreamId,
   releasePendingChatStream,
 } from '@/lib/mothership/request/session'
-import type { ExecutionContext, OrchestratorResult } from '@/lib/mothership/request/types'
+import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
+import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { persistChatResources } from '@/lib/mothership/resources/persistence'
 import {
   hasAddressableId,
@@ -674,151 +670,6 @@ async function buildInitialExecutionContext(params: {
   }
 }
 
-function buildOnComplete(params: {
-  chatId?: string
-  userMessageId: string
-  requestId: string
-  workspaceId?: string
-  notifyWorkspaceStatus: boolean
-  /**
-   * Root agent span for this request. When present, the final
-   * assistant message + invoked tool calls are recorded as
-   * `gen_ai.output.messages` on it before persistence runs. Keeps
-   * the Honeycomb Gen AI view complete across both the Sim root
-   * span and the Go-side `llm.stream` spans.
-   */
-  otelRoot?: {
-    setOutputMessages: (output: {
-      assistantText?: string
-      toolCalls?: Array<{ id: string; name: string; arguments?: Record<string, unknown> }>
-    }) => void
-  }
-}) {
-  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus, otelRoot } = params
-
-  return async (result: OrchestratorResult) => {
-    if (otelRoot && result.success) {
-      otelRoot.setOutputMessages({
-        assistantText: result.content,
-        toolCalls: result.toolCalls?.map((tc) => ({
-          id: tc.id,
-          name: tc.name,
-          arguments: tc.params,
-        })),
-      })
-    }
-
-    if (!chatId) return
-
-    try {
-      if (result.cancelled) {
-        const finalization = await finalizeAssistantTurn({
-          chatId,
-          userMessageId,
-          assistantMessage: withStoppedContentBlock(
-            buildPersistedAssistantMessage(result, requestId)
-          ),
-          streamMarkerPolicy: 'active-or-cleared',
-        })
-        const shouldPublishCompletion =
-          finalization.updated ||
-          finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
-
-        if (notifyWorkspaceStatus && workspaceId && shouldPublishCompletion) {
-          chatPubSub?.publishStatusChanged({
-            workspaceId,
-            chatId,
-            type: 'completed',
-            streamId: userMessageId,
-          })
-        }
-        return
-      }
-
-      // On a non-success terminal (e.g. a transient provider error like
-      // "overloaded"), persist whatever streamed before the failure — same as
-      // the cancelled path — instead of dropping the partial assistant output.
-      const assistantMessage = buildPersistedAssistantMessage(result, requestId)
-      const hasPartial =
-        !!assistantMessage.content?.trim() || (assistantMessage.contentBlocks?.length ?? 0) > 0
-      await finalizeAssistantTurn({
-        chatId,
-        userMessageId,
-        ...(result.success || hasPartial ? { assistantMessage } : {}),
-        // Match the cancelled path so the partial still persists if onError
-        // raced ahead and already cleared the stream marker.
-        ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
-      })
-
-      if (notifyWorkspaceStatus && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-          streamId: userMessageId,
-        })
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to persist chat messages`, {
-        chatId,
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-    }
-  }
-}
-
-function buildOnError(params: {
-  chatId?: string
-  userMessageId: string
-  requestId: string
-  workspaceId?: string
-  notifyWorkspaceStatus: boolean
-}) {
-  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus } = params
-
-  return async (error: Error, result?: OrchestratorResult) => {
-    if (!chatId) return
-
-    try {
-      // Persist whatever streamed before a thrown backend error, mirroring the
-      // cancelled / non-success completion path, so the partial assistant turn
-      // (text + tool calls + subagent work) survives the refetch instead of the
-      // chat collapsing to an empty assistant row.
-      const assistantMessage = buildPersistedAssistantMessage(
-        {
-          content: '',
-          contentBlocks: [],
-          toolCalls: [],
-          ...result,
-          success: false,
-          error: result?.error || getErrorMessage(error),
-        },
-        requestId
-      )
-      await finalizeAssistantTurn({
-        chatId,
-        userMessageId,
-        assistantMessage,
-        streamMarkerPolicy: 'active-or-cleared',
-      })
-
-      if (notifyWorkspaceStatus && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-          streamId: userMessageId,
-        })
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
-        chatId,
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-    }
-  }
-}
-
 async function resolveBranch(params: {
   authenticatedUserId: string
   /** The caller's session principal, for reads the request packs on the caller's behalf. */
@@ -1392,6 +1243,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.span.setAttribute(TraceAttr.WorkspaceId, workspaceId)
       }
 
+      const controllerToken = actualChatId
+        ? getLocalChatStreamLease(actualChatId, userMessageId)?.value
+        : undefined
+      const runController = controllerToken ? { id: runId, token: controllerToken } : undefined
       const stream = createSSEStream({
         requestPayload: {
           ...requestPayload,
@@ -1427,6 +1282,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             : true,
           executionContext,
           onComplete: buildOnComplete({
+            runController,
             chatId: actualChatId,
             userMessageId,
             requestId,
@@ -1435,6 +1291,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             otelRoot,
           }),
           onError: buildOnError({
+            runController,
             chatId: actualChatId,
             userMessageId,
             requestId,

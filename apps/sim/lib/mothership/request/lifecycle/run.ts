@@ -42,6 +42,7 @@ import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
+import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
@@ -168,6 +169,13 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   executionId?: string
   runId?: string
   goRoute?: string
+  /** Reattach this existing run; goRoute still identifies the original interaction surface. */
+  recovery?: {
+    streamId: string
+    events: readonly StreamEvent[]
+    userTimezone?: string
+    requestMode?: string
+  }
   trace?: TraceCollector
   simRequestId?: string
   otelContext?: Context
@@ -218,7 +226,8 @@ export async function runCopilotLifecycle(
     goRoute = '/api/copilot',
   } = options
   const payloadMsgId =
-    typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : generateId()
+    options.recovery?.streamId ??
+    (typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : generateId())
   const runIdentity = await ensureHeadlessRunIdentity({
     requestPayload,
     userId,
@@ -283,6 +292,9 @@ export async function runCopilotLifecycle(
         secretMountPolicy: lifecycleOptions.secretMountPolicy,
         secretActorUserId: lifecycleOptions.secretActorUserId,
       }))
+    execContext.messageId = payloadMsgId
+    if (options.recovery?.userTimezone) execContext.userTimezone = options.recovery.userTimezone
+    if (options.recovery?.requestMode) execContext.requestMode = options.recovery.requestMode
     execContext.copilotInteractionMode =
       lifecycleOptions.interactive === true ? 'interactive' : 'headless'
     if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
@@ -317,6 +329,10 @@ export async function runCopilotLifecycle(
       toolPermissions: await resolveToolPermissions(lifecycleOptions),
       ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
     })
+    if (options.recovery) {
+      const { restoreStreamingContext } = await import('@/lib/mothership/request/context/restore')
+      await restoreStreamingContext(options.recovery.events, context, execContext)
+    }
     let onCompleteStarted = false
 
     try {
@@ -333,7 +349,10 @@ export async function runCopilotLifecycle(
               assertBillingAttributionSnapshot(execContext.billingAttribution)
             )
           : { isExceeded: false as const }
-      if (admission.isExceeded) {
+      if (options.recovery && context.completionStatus) {
+        // The worker terminal was already delivered before the relay died.
+        // Rebuild persistence from that receipt without charging its usage twice.
+      } else if (admission.isExceeded) {
         await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
       } else {
         await ensureModelEgressRegistry(execContext, lifecycleOptions)
@@ -346,7 +365,7 @@ export async function runCopilotLifecycle(
           context,
           execContext,
           lifecycleOptions,
-          goRoute,
+          options.recovery ? '/api/tools/resume' : goRoute,
           hostedBillingRequest
         )
       }
@@ -363,8 +382,13 @@ export async function runCopilotLifecycle(
       // in `mergeResumeLegOutputs`, so a Stop landing mid-fanout could otherwise
       // classify the turn as a success. Mirrors the check already used below on
       // the throw path.
-      const turnWasAborted = context.wasAborted || (lifecycleOptions.abortSignal?.aborted ?? false)
-      const succeeded = !turnWasAborted && (backendFinishedTurn || context.errors.length === 0)
+      const turnWasAborted =
+        context.completionStatus === MothershipStreamV1CompletionStatus.cancelled ||
+        context.wasAborted ||
+        (lifecycleOptions.abortSignal?.aborted ?? false)
+      const succeeded =
+        !turnWasAborted &&
+        (backendFinishedTurn || (!context.completionStatus && context.errors.length === 0))
 
       const result: OrchestratorResult = {
         success: succeeded,
@@ -387,6 +411,7 @@ export async function runCopilotLifecycle(
         usage: context.usage,
         cost: context.cost,
       }
+      await lifecycleOptions.assertControllerOwnership?.()
       if (lifecycleOptions.onComplete) {
         onCompleteStarted = true
         await lifecycleOptions.onComplete(result)
@@ -394,6 +419,8 @@ export async function runCopilotLifecycle(
       terminalResult = result
       return result
     } catch (error) {
+      if (error instanceof StreamControllerSupersededError) throw error
+      await lifecycleOptions.assertControllerOwnership?.()
       const err = toError(error)
       // A CopilotBackendError carries the upstream HTTP status + body (e.g. a 5xx
       // from /api/tools/resume when an oversized tool result — a rendered-doc
@@ -871,7 +898,11 @@ async function runCheckpointLoop(
   }
   const systemPromptOverride = env.MSHIP_SYSPROMPT_OVERRIDE
 
-  if (typeof systemPromptOverride === 'string' && systemPromptOverride.trim() !== '') {
+  if (
+    initialRoute !== '/api/tools/resume' &&
+    typeof systemPromptOverride === 'string' &&
+    systemPromptOverride.trim() !== ''
+  ) {
     payload = { ...payload, systemPromptOverride }
   }
 
@@ -880,11 +911,16 @@ async function runCheckpointLoop(
   // where it is required for the per-member usage gate. Normalize the initial
   // leg from the lifecycle option so callers that only set the option (not the
   // raw payload) still send it on the first request.
-  if (lifecycleWorkspaceId && !nonBlankString(payload.workspaceId)) {
+  if (
+    initialRoute !== '/api/tools/resume' &&
+    lifecycleWorkspaceId &&
+    !nonBlankString(payload.workspaceId)
+  ) {
     payload = { ...payload, workspaceId: lifecycleWorkspaceId }
   }
 
   for (;;) {
+    await options.assertControllerOwnership?.()
     context.streamComplete = false
     if (isAborted(options, context)) {
       cancelPendingTools(context)

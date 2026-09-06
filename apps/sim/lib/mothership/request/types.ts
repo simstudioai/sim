@@ -254,6 +254,8 @@ interface OrchestratorRequest {
 }
 
 export interface OrchestratorOptions {
+  /** Checks the server controller, independently of user cancellation. */
+  assertControllerOwnership?: () => Promise<void>
   autoExecuteTools?: boolean
   timeout?: number
   onEvent?: (event: StreamEvent) => void | Promise<void>

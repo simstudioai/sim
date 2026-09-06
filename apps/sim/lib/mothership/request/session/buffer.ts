@@ -7,6 +7,7 @@ import {
   type PersistedStreamEventEnvelope,
   parsePersistedStreamEventEnvelopeJson,
 } from './contract'
+import { type ChatStreamLease, StreamControllerSupersededError } from './controller-lease'
 
 const logger = createLogger('SessionBuffer')
 
@@ -126,7 +127,8 @@ export async function scheduleBufferCleanup(
 }
 
 export async function appendEvents(
-  envelopes: PersistedStreamEventEnvelope[]
+  envelopes: PersistedStreamEventEnvelope[],
+  lease?: ChatStreamLease
 ): Promise<PersistedStreamEventEnvelope[]> {
   if (envelopes.length === 0) {
     return envelopes
@@ -138,11 +140,32 @@ export async function appendEvents(
   await withRedisRetry({ operation: 'append_event', streamId }, async (redis) => {
     const key = getEventsKey(streamId)
     const seqKey = getSeqKey(streamId)
-    const pipeline = redis.pipeline()
     const zaddArgs: Array<number | string> = []
     for (const envelope of envelopes) {
       zaddArgs.push(envelope.seq, JSON.stringify(envelope))
     }
+    if (lease) {
+      const appended = await redis.eval(
+        `if redis.call('GET', KEYS[3]) ~= ARGV[1] then return 0 end
+         redis.call('ZADD', KEYS[1], unpack(ARGV, 5))
+         redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -tonumber(ARGV[3]) - 1)
+         redis.call('EXPIRE', KEYS[1], ARGV[2])
+         redis.call('SET', KEYS[2], ARGV[4], 'EX', ARGV[2])
+         return 1`,
+        3,
+        key,
+        seqKey,
+        lease.key,
+        lease.value,
+        config.ttlSeconds,
+        config.eventLimit,
+        envelopes[envelopes.length - 1].seq,
+        ...zaddArgs
+      )
+      if (appended !== 1) throw new StreamControllerSupersededError()
+      return
+    }
+    const pipeline = redis.pipeline()
     pipeline.zadd(key, ...(zaddArgs as [number, string, ...Array<number | string>]))
     pipeline.zremrangebyrank(key, 0, -config.eventLimit - 1)
     pipeline.expire(key, config.ttlSeconds)

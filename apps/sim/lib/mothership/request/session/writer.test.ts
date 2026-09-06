@@ -29,8 +29,55 @@ describe('StreamWriter', () => {
     vi.useRealTimers()
   })
 
+  it('continues the saved cursor only after the current controller has durably appended the event', async () => {
+    let persist!: () => void
+    appendEvents.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          persist = resolve
+        })
+    )
+    const lease = { key: 'chat-lock', value: 'stream-1\ncontroller-2' }
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      requestId: 'req-1',
+      lease,
+      initialSeq: 12,
+    })
+    const controller = { enqueue: vi.fn(), close: vi.fn() }
+    writer.attach(controller as unknown as ReadableStreamDefaultController)
+    const published = writer.publish({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'suffix' },
+    })
+    await Promise.resolve()
+    expect(appendEvents).toHaveBeenCalledWith([expect.objectContaining({ seq: 13 })], lease)
+    expect(controller.enqueue).not.toHaveBeenCalled()
+    persist()
+    await published
+    expect(controller.enqueue).toHaveBeenCalledOnce()
+    await writer.close()
+  })
+
+  it('does not deliver an event from a controller whose durable append was rejected', async () => {
+    appendEvents.mockRejectedValueOnce(new Error('ownership lost'))
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      requestId: 'req-1',
+      lease: { key: 'chat-lock', value: 'old-controller' },
+    })
+    const controller = { enqueue: vi.fn(), close: vi.fn() }
+    writer.attach(controller as unknown as ReadableStreamDefaultController)
+    await expect(
+      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'stale' } })
+    ).rejects.toThrow('ownership lost')
+    expect(controller.enqueue).not.toHaveBeenCalled()
+    await expect(writer.close()).rejects.toThrow('ownership lost')
+    expect(controller.close).toHaveBeenCalledOnce()
+  })
+
   it('enqueues before persistence completes and flushes pending writes on close', async () => {
-    let releasePersist: (() => void) | null = null
+    let releasePersist!: () => void
     appendEvents.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
@@ -72,10 +119,7 @@ describe('StreamWriter', () => {
     expect(appendEvents).toHaveBeenCalledOnce()
     expect(closeCount).toBe(0)
 
-    const resolvePersist = releasePersist
-    if (typeof resolvePersist === 'function') {
-      resolvePersist()
-    }
+    releasePersist()
     await closePromise
 
     expect(closeCount).toBe(1)
@@ -85,7 +129,7 @@ describe('StreamWriter', () => {
     vi.useFakeTimers()
     const persistedSeqs: number[] = []
     appendEvents.mockImplementation(async (envelopes) => {
-      persistedSeqs.push(...envelopes.map((envelope) => envelope.seq))
+      persistedSeqs.push(...envelopes.map((envelope: { seq: number }) => envelope.seq))
       return envelopes
     })
 

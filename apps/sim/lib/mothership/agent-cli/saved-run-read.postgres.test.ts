@@ -87,6 +87,7 @@ import {
   prepareWorkbenchAccess,
   requestRunStop,
   settleSimToolExecution,
+  updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
@@ -97,6 +98,7 @@ import {
 } from '@/lib/mothership/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
+import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
@@ -720,6 +722,110 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.errors.length = 0
       fixture.storageReads.length = 0
       vi.clearAllMocks()
+    })
+
+    it('finishes a restored terminal receipt without another worker call or duplicate usage', async () => {
+      const streamId = generateId()
+      const onComplete = vi.fn()
+      const result = await runCopilotLifecycle(
+        { streamId, results: [] },
+        {
+          userId: 'run-reader',
+          workspaceId,
+          chatId: generateId(),
+          executionId: generateId(),
+          runId: generateId(),
+          interactive: true,
+          goRoute: '/api/mothership',
+          onComplete,
+          recovery: {
+            streamId,
+            events: [
+              {
+                type: 'text',
+                payload: { channel: 'assistant', text: 'Saved answer', textOffset: 0 },
+              },
+              {
+                type: 'complete',
+                payload: { status: 'complete', usage: { input_tokens: 7, output_tokens: 4 } },
+              },
+            ],
+          },
+        }
+      )
+      expect(result.success).toBe(true)
+      expect(result.content).toBe('Saved answer')
+      expect(result.usage).toEqual({ prompt: 7, completion: 4 })
+      expect(onComplete).toHaveBeenCalledOnce()
+      expect(fixture.requests).toEqual([])
+    })
+
+    it('fences an old controller out of physical assistant persistence and run completion after takeover', async () => {
+      const chatId = generateId()
+      const streamId = generateId()
+      const runId = generateId()
+      await db
+        .insert(copilotChats)
+        .values({ id: chatId, userId: 'run-reader', workspaceId, conversationId: streamId })
+      await appendCopilotChatMessages(chatId, [
+        {
+          id: streamId,
+          role: 'user',
+          content: 'Recover this turn',
+          timestamp: new Date().toISOString(),
+        },
+      ])
+      await db.insert(copilotRuns).values({
+        id: runId,
+        chatId,
+        streamId,
+        userId: 'run-reader',
+        workspaceId,
+        executionId: generateId(),
+        status: 'active',
+        requestContext: { controllerToken: 'old' },
+      })
+      const contenders = await Promise.all(
+        ['new-a', 'new-b'].map((token) =>
+          claimRunController({ runId, chatId, previousToken: 'old', token })
+        )
+      )
+      expect(contenders.filter(Boolean)).toHaveLength(1)
+      const token = contenders[0] ? 'new-a' : 'new-b'
+      await expect(
+        finalizeAssistantTurn({
+          chatId,
+          userMessageId: streamId,
+          runController: { id: runId, token: 'old' },
+          assistantMessage: buildPersistedAssistantMessage({
+            success: true,
+            content: 'stale answer',
+            contentBlocks: [],
+            toolCalls: [],
+          }),
+        })
+      ).rejects.toThrow('no longer owns')
+      expect(await updateRunStatus(runId, 'error', {}, 'old')).toBeNull()
+      expect(await loadCopilotChatMessages(chatId)).toHaveLength(1)
+      expect(
+        (
+          await finalizeAssistantTurn({
+            chatId,
+            userMessageId: streamId,
+            runController: { id: runId, token },
+            assistantMessage: buildPersistedAssistantMessage({
+              success: true,
+              content: 'recovered answer',
+              contentBlocks: [],
+              toolCalls: [],
+            }),
+          })
+        ).appendedAssistant
+      ).toBe(true)
+      expect((await updateRunStatus(runId, 'complete', {}, token))?.status).toBe('complete')
+      const messages = await loadCopilotChatMessages(chatId)
+      expect(messages).toHaveLength(2)
+      expect(messages[1].content).toBe('recovered answer')
     })
 
     it('retains an active Stop through physical storage and the worker control route', async () => {
