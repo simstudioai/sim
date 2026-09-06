@@ -70,8 +70,15 @@ import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { resolveCopilotWorkspaceFileReference } from '@/lib/mothership/application/execute-file-use-case'
 import {
+  areStreamToolExecutionsSettled,
+  claimSimToolExecution,
   claimWorkflowToolExecution,
   closeStreamToolAdmission,
+  completeAsyncToolCall,
+  detachAsyncToolCall,
+  getUnsettledClientWorkflowExecutions,
+  prepareWorkbenchAccess,
+  settleSimToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
@@ -80,6 +87,7 @@ import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { POST as forkChatRoute } from '@/app/api/mothership/chats/[chatId]/fork/route'
@@ -654,7 +662,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         if (status === 'active') {
           expect(await closeStreamToolAdmission(streamId, 'run-reader')).toBe(true)
         }
-        expect(await claimWorkflowToolExecution(toolCallId, generateId())).toBeNull()
+        expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'client')).toBeNull()
         const [tool] = await db
           .select()
           .from(copilotAsyncToolCalls)
@@ -706,7 +714,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       })
       closing.catch(rejectHeld)
       const pid = await held
-      const pickup = claimWorkflowToolExecution(toolCallId, generateId())
+      const pickup = claimWorkflowToolExecution(toolCallId, generateId(), 'client')
       try {
         await vi.waitFor(
           async () => {
@@ -751,7 +759,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         args: { workflowId },
       })
       const claims = await Promise.all(
-        Array.from({ length: 4 }, () => claimWorkflowToolExecution(toolCallId, generateId()))
+        Array.from({ length: 4 }, (_, index) =>
+          claimWorkflowToolExecution(toolCallId, generateId(), index % 2 === 0 ? 'client' : 'sim')
+        )
       )
       const winners = claims.filter((claim) => claim !== null)
       expect(winners).toHaveLength(1)
@@ -761,6 +771,144 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
       expect(tool.claimedBy).toBe(winners[0]?.claimedBy)
       expect(tool.claimedBy).toMatch(/^workflow:/)
+    })
+
+    it.each(['completed', 'cancelled', 'delivered'] as const)(
+      'retains client execution ownership after a %s tool result until its handler settles',
+      async (status) => {
+        const runId = generateId()
+        const streamId = generateId()
+        const toolCallId = generateId()
+        const executionId = generateId()
+        await db.insert(copilotRuns).values({
+          id: runId,
+          streamId,
+          chatId: generateId(),
+          workspaceId,
+          userId: 'run-reader',
+          executionId: generateId(),
+          status: 'active',
+          toolExecutionVersion: 2,
+        })
+        await db.insert(copilotAsyncToolCalls).values({
+          runId,
+          toolCallId,
+          toolName: 'run_workflow',
+          status: 'running',
+          args: { workflowId },
+        })
+        expect(await claimWorkflowToolExecution(toolCallId, executionId, 'client')).not.toBeNull()
+        expect(await claimSimToolExecution({ runId, toolCallId, userId: 'run-reader' })).toEqual({
+          outcome: 'existing',
+        })
+        if (status === 'delivered') {
+          await detachAsyncToolCall(toolCallId)
+        } else {
+          await completeAsyncToolCall({
+            toolCallId,
+            status,
+            result: { executionId: 'untrusted-result-id' },
+          })
+        }
+        expect(await closeStreamToolAdmission(streamId, 'run-reader')).toBe(true)
+        expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(false)
+        expect(await getUnsettledClientWorkflowExecutions(streamId, 'run-reader')).toEqual([
+          executionId,
+        ])
+        expect(await getUnsettledClientWorkflowExecutions(streamId, 'another-user')).toEqual([])
+        expect(await getUnsettledClientWorkflowExecutions(generateId(), 'run-reader')).toEqual([])
+        expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'client')).toBeNull()
+        await settleSimToolExecution(toolCallId)
+        expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(true)
+        expect(await getUnsettledClientWorkflowExecutions(streamId, 'run-reader')).toEqual([])
+      }
+    )
+
+    it('keeps prior browser workflow ownership separate from this chat workbench', async () => {
+      const chatId = generateId()
+      const priorRunId = generateId()
+      const priorToolId = generateId()
+      const runId = generateId()
+      const toolCallId = generateId()
+      const streamId = generateId()
+      await db.insert(copilotRuns).values([
+        {
+          id: priorRunId,
+          streamId,
+          chatId,
+          workspaceId,
+          userId: 'run-reader',
+          executionId: generateId(),
+          status: 'active',
+          toolExecutionVersion: 2,
+          startedAt: sql`now() - interval '1 second'`,
+        },
+        {
+          id: runId,
+          streamId: generateId(),
+          chatId,
+          workspaceId,
+          userId: 'run-reader',
+          executionId: generateId(),
+          status: 'active',
+          toolExecutionVersion: 2,
+        },
+      ])
+      await db.insert(copilotAsyncToolCalls).values([
+        {
+          runId: priorRunId,
+          toolCallId: priorToolId,
+          toolName: 'run_workflow',
+          status: 'running',
+          args: { workflowId },
+        },
+        { runId, toolCallId, toolName: 'run_code', status: 'running' },
+      ])
+      await claimWorkflowToolExecution(priorToolId, generateId(), 'client')
+      await claimSimToolExecution({ runId, toolCallId, userId: 'run-reader' })
+      expect(
+        await prepareWorkbenchAccess({
+          runId,
+          toolCallId,
+          userId: 'run-reader',
+          sessionKey: chatSandboxSessionKey(chatId),
+        })
+      ).toEqual({ handlersPending: false, processes: [] })
+      expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(false)
+      await settleSimToolExecution(priorToolId)
+      await settleSimToolExecution(toolCallId)
+    })
+
+    it('lets a server pickup acquire its handler without recording a browser execution', async () => {
+      const runId = generateId()
+      const streamId = generateId()
+      const toolCallId = generateId()
+      await db.insert(copilotRuns).values({
+        id: runId,
+        streamId,
+        chatId: generateId(),
+        workspaceId,
+        userId: 'run-reader',
+        executionId: generateId(),
+        status: 'active',
+        toolExecutionVersion: 2,
+      })
+      await db.insert(copilotAsyncToolCalls).values({
+        runId,
+        toolCallId,
+        toolName: 'run_workflow',
+        status: 'running',
+        args: { workflowId },
+      })
+      expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
+      expect(await claimSimToolExecution({ runId, toolCallId, userId: 'run-reader' })).toEqual({
+        outcome: 'claimed',
+      })
+      await closeStreamToolAdmission(streamId, 'run-reader')
+      expect(await getUnsettledClientWorkflowExecutions(streamId, 'run-reader')).toEqual([])
+      expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(false)
+      await settleSimToolExecution(toolCallId)
+      expect(await areStreamToolExecutionsSettled(streamId, 'run-reader')).toBe(true)
     })
 
     it('reads actual inbox attachment bytes after chat binding', async () => {
