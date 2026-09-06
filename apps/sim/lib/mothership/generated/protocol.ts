@@ -185,11 +185,11 @@ export interface ProtocolMismatch {
 }
 
 /**
- * POST /api/mothership/execute — the one-shot headless surface (the agent block in a
- * workflow, inbox automations). The caller supplies the full conversation (the block's own
- * system prompt included) and the tool schemas; the worker runs one bounded loop and
- * streams the same mothership-stream-v1 frames. No skills, no CLI — the block's tool
- * surface is exactly what the caller passes.
+ * POST /api/mothership/execute — the one-shot headless surface used by Sim Chat blocks.
+ * The caller supplies the full conversation (its system prompt included) and the tool
+ * schemas; the worker runs one bounded loop and
+ * streams the same mothership-stream-v1 frames. No skills or CLI; local search and the
+ * execution gateway expose only the caller-provided integration/MCP operations.
  */
 export interface ExecuteRequest extends StreamResponseReceipt {
   messages: ExecuteMessage[];
