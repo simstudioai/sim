@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
 import { normalizeMessage, type PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
 import { reduceTaskState } from '@/lib/mothership/chat/task-state'
@@ -70,21 +71,6 @@ const USER_ABORT_ERROR_CODES = new Set(['async_resume_aborted', 'stream_cancelle
 
 function isUserAbortError(payload: MothershipStreamV1ErrorPayload): boolean {
   return typeof payload.code === 'string' && USER_ABORT_ERROR_CODES.has(payload.code)
-}
-
-function buildInlineErrorTag(payload: MothershipStreamV1ErrorPayload): string {
-  const message =
-    (typeof payload.displayMessage === 'string' ? payload.displayMessage : undefined) ||
-    (typeof payload.message === 'string' ? payload.message : undefined) ||
-    (typeof payload.error === 'string' ? payload.error : undefined) ||
-    'An unexpected error occurred'
-  const provider = typeof payload.provider === 'string' ? payload.provider : undefined
-  const code = typeof payload.code === 'string' ? payload.code : undefined
-  return `<mothership-error>${JSON.stringify({
-    message,
-    ...(code ? { code } : {}),
-    ...(provider ? { provider } : {}),
-  })}</mothership-error>`
 }
 
 function appendTextBlock(
@@ -507,7 +493,7 @@ function buildLiveAssistantMessage(params: {
         if (isUserAbortError(parsed.payload)) {
           continue
         }
-        const tag = buildInlineErrorTag(parsed.payload)
+        const tag = buildMothershipErrorTag(parsed.payload)
         if (runningText.includes(tag)) {
           continue
         }

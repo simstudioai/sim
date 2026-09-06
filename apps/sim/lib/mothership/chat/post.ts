@@ -776,7 +776,7 @@ function buildOnError(params: {
 }) {
   const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus } = params
 
-  return async (_error: Error, result?: OrchestratorResult) => {
+  return async (error: Error, result?: OrchestratorResult) => {
     if (!chatId) return
 
     try {
@@ -784,15 +784,21 @@ function buildOnError(params: {
       // cancelled / non-success completion path, so the partial assistant turn
       // (text + tool calls + subagent work) survives the refetch instead of the
       // chat collapsing to an empty assistant row.
-      const assistantMessage = result
-        ? buildPersistedAssistantMessage(result, requestId)
-        : undefined
-      const hasPartial =
-        !!assistantMessage?.content?.trim() || (assistantMessage?.contentBlocks?.length ?? 0) > 0
+      const assistantMessage = buildPersistedAssistantMessage(
+        {
+          content: '',
+          contentBlocks: [],
+          toolCalls: [],
+          ...result,
+          success: false,
+          error: result?.error || getErrorMessage(error),
+        },
+        requestId
+      )
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
-        ...(hasPartial ? { assistantMessage } : {}),
+        assistantMessage,
         streamMarkerPolicy: 'active-or-cleared',
       })
 

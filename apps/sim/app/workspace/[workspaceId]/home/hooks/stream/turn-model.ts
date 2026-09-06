@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
 import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
 import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
@@ -269,26 +270,6 @@ function turnTerminalNodeStatus(turn: Exclude<TurnStatus, 'streaming'>): NodeSta
   if (turn === 'cancelled') return 'cancelled'
   if (turn === 'error') return 'error'
   return 'success'
-}
-
-/**
- * Builds the inline `<mothership-error>` tag rendered for a stream error. Kept
- * byte-identical to the prior `buildInlineErrorTag` so the error special-tag
- * parser renders it the same way.
- */
-function buildMothershipErrorTag(payload: Record<string, unknown>): string {
-  const message =
-    asString(payload.displayMessage) ??
-    asString(payload.message) ??
-    asString(payload.error) ??
-    'An unexpected error occurred'
-  const provider = asString(payload.provider)
-  const code = asString(payload.code)
-  return `<mothership-error>${JSON.stringify({
-    message,
-    ...(code ? { code } : {}),
-    ...(provider ? { provider } : {}),
-  })}</mothership-error>`
 }
 
 /** Closes a span's open text segment for `channel`, stamping its end time. */
@@ -741,7 +722,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       // The error tag is content (rendered inline by the error special-tag); turn
       // termination on error is applied by the stream loop's terminal handling,
       // not here, so a non-fatal mid-stream error event never settles the turn.
-      const tag = buildMothershipErrorTag(payloadRecord(envelope.payload))
+      const tag = buildMothershipErrorTag(envelope.payload)
       const key = `${spanId}::assistant`
       const openId = model.openTextByKey.get(key)
       const open = openId ? model.nodes.get(openId) : undefined

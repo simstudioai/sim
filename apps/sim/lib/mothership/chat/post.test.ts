@@ -664,44 +664,61 @@ describe('handleUnifiedChatPost', () => {
         assistantMessage: expect.objectContaining({
           role: 'assistant',
           content: 'partial answer',
+          contentBlocks: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'error',
+              content: '<mothership-error>{"message":"bedrock overloaded"}</mothership-error>',
+            }),
+          ]),
         }),
       })
     )
   })
 
-  it('clears the stream marker without an assistant message when nothing streamed before the throw', async () => {
-    await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: 'Hello',
-          workspaceId: 'ws-1',
-          createNewChat: true,
-        }),
+  it.each([true, false])(
+    'persists an empty failure with result metadata present=%s',
+    async (hasResult) => {
+      await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/copilot/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      const streamArgs = createSSEStream.mock.calls[0]?.[0]
+      const onError = streamArgs?.orchestrateOptions?.onError
+      expect(onError).toBeTypeOf('function')
+
+      await onError(
+        new Error('immediate failure'),
+        hasResult
+          ? {
+              success: false,
+              cancelled: false,
+              content: '',
+              contentBlocks: [],
+              toolCalls: [],
+              chatId: 'chat-1',
+              requestId: 'request-1',
+            }
+          : undefined
+      )
+
+      const lastCall = finalizeAssistantTurn.mock.calls.at(-1)?.[0]
+      expect(lastCall).toMatchObject({
+        chatId: 'chat-1',
+        streamMarkerPolicy: 'active-or-cleared',
       })
-    )
-
-    const streamArgs = createSSEStream.mock.calls[0]?.[0]
-    const onError = streamArgs?.orchestrateOptions?.onError
-    expect(onError).toBeTypeOf('function')
-
-    await onError(new Error('immediate failure'), {
-      success: false,
-      cancelled: false,
-      content: '',
-      contentBlocks: [],
-      toolCalls: [],
-      chatId: 'chat-1',
-      requestId: 'request-1',
-    })
-
-    const lastCall = finalizeAssistantTurn.mock.calls.at(-1)?.[0]
-    expect(lastCall).toMatchObject({
-      chatId: 'chat-1',
-      streamMarkerPolicy: 'active-or-cleared',
-    })
-    expect(lastCall?.assistantMessage).toBeUndefined()
-  })
+      expect(lastCall?.assistantMessage?.contentBlocks).toContainEqual({
+        type: 'error',
+        content: '<mothership-error>{"message":"immediate failure"}</mothership-error>',
+      })
+    }
+  )
 
   it('republishes completed status when cancelled lifecycle persistence already ran', async () => {
     await handleUnifiedChatPost(

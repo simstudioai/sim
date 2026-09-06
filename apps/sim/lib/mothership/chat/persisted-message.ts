@@ -5,6 +5,7 @@ import type {
   PersistedToolCall,
   PersistedToolState,
 } from '@/lib/api/contracts/copilot-messages'
+import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
 import {
   mergeAndRedactPersistedBlocks,
   redactSensitiveContent,
@@ -305,6 +306,32 @@ export function buildPersistedAssistantMessage(
     if (withoutThinking.length > 0) {
       message.contentBlocks = mergeAndRedactPersistedBlocks(withoutThinking.map(mapContentBlock))
     }
+  }
+
+  if (!result.success && !result.cancelled) {
+    const normalized = normalizeMessage({ ...message })
+    const error = redactSensitiveContent(
+      result.error ||
+        result.errors?.[0] ||
+        'An unexpected error occurred while processing the response.'
+    )
+    normalized.contentBlocks = [
+      ...(normalized.contentBlocks ??
+        (message.content
+          ? [
+              {
+                type: MothershipStreamV1EventType.text,
+                channel: MothershipStreamV1TextChannel.assistant,
+                content: message.content,
+              },
+            ]
+          : [])),
+      {
+        type: MothershipStreamV1EventType.error,
+        content: buildMothershipErrorTag({ message: error }),
+      },
+    ]
+    return normalized
   }
 
   return message
