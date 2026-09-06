@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   getPrincipalSession: vi.fn(),
   reauthorizeWorkspacePurpose: vi.fn(),
   getWorkspaceFile: vi.fn(),
+  createSession: vi.fn(),
+  authorizeCreate: vi.fn(),
+  attribution: vi.fn(),
   authorizeOrganizationAttachment: vi.fn(),
   authorizeOrganizationLogo: vi.fn(),
 }))
@@ -35,7 +38,7 @@ vi.mock('@/lib/uploads/upload-session/service', () => ({
   assertUploadSessionAuthBinding: mocks.assertAuthBinding,
   completeUploadSession: mocks.completeSession,
   createUploadPartUrls: vi.fn(),
-  createUploadSession: vi.fn(),
+  createUploadSession: mocks.createSession,
   getOwnedUploadSession: mocks.getOwnedSession,
   getPrincipalUploadSession: mocks.getPrincipalSession,
 }))
@@ -51,13 +54,22 @@ vi.mock('@/app/api/files/uploads/purposes', () => ({
   createPurposeUploadSession: vi.fn(),
   reauthorizeUploadPurpose: vi.fn(),
   reauthorizeWorkspaceUploadPurpose: mocks.reauthorizeWorkspacePurpose,
-  resolveUploadAttributionUserId: vi.fn(),
+  resolveUploadAttributionUserId: mocks.attribution,
+}))
+
+vi.mock('@/lib/workspace-files/application/workspace-operation-context', () => ({
+  authorizeWorkspaceFileOperation: mocks.authorizeCreate,
+}))
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: async () => new Map(),
+  resolveFolderPathFromIndex: () => null,
 }))
 
 import {
   abortInternalUploadSession,
   completeInternalUploadSession,
   issueInternalUploadPartUrls,
+  createWorkspaceFileUploadOperation,
   readWorkspaceUploadSession,
 } from '@/lib/uploads/upload-session/application'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
@@ -76,6 +88,9 @@ describe('upload session application', () => {
     mocks.authorizeOrganizationLogo.mockResolvedValue(undefined)
     const session = workspaceUploadSession()
     mocks.getOwnedSession.mockResolvedValue(session)
+    mocks.authorizeCreate.mockResolvedValue(undefined)
+    mocks.attribution.mockResolvedValue('user-1')
+    mocks.createSession.mockResolvedValue(session)
     mocks.finalizePurpose.mockResolvedValue({
       value: { id: 'file-1' },
       completedFileId: 'file-1',
@@ -193,6 +208,54 @@ describe('upload session application', () => {
       )
     ).rejects.toThrow('Organization not found')
     expect(mocks.finalizePurpose).not.toHaveBeenCalled()
+  })
+
+  it('carries trusted classification outside the parsed create input after authorization', async () => {
+    const secretProvenance = { status: 'unknown' as const }
+    await createWorkspaceFileUploadOperation.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        name: 'result.txt',
+        contentType: 'text/plain',
+        size: 10,
+        folderPath: '/',
+      },
+      request: new NextRequest('http://localhost/api/files/uploads', {
+        headers: { origin: 'http://localhost' },
+      }),
+      secretProvenance,
+    })
+    expect(mocks.authorizeCreate).toHaveBeenCalledBefore(mocks.createSession)
+    expect(mocks.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        workspaceId: 'workspace-1',
+        secretProvenance,
+        metadata: { folderId: null },
+      })
+    )
+  })
+
+  it('does not start a classified upload after the create operation denies access', async () => {
+    mocks.authorizeCreate.mockRejectedValueOnce(new Error('Access revoked'))
+    await expect(
+      createWorkspaceFileUploadOperation.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          name: 'result.txt',
+          contentType: 'text/plain',
+          size: 10,
+          folderPath: '/',
+        },
+        request: new NextRequest('http://localhost/api/files/uploads', {
+          headers: { origin: 'http://localhost' },
+        }),
+        secretProvenance: { status: 'unknown' },
+      })
+    ).rejects.toThrow('Access revoked')
+    expect(mocks.createSession).not.toHaveBeenCalled()
   })
 
   /**
