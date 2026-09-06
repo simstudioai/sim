@@ -1,5 +1,5 @@
 import { type Context as OtelContext, context as otelContextApi } from '@opentelemetry/api'
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -897,12 +897,11 @@ function buildOnError(params: {
 async function resolveBranch(params: {
   authenticatedUserId: string
   /** The caller's session principal, for reads the request packs on the caller's behalf. */
-  principal: Principal
+  principal: SessionPrincipal
   workflowId?: string
   workflowName?: string
   workspaceId?: string
   organizationId?: string
-  principal?: SessionPrincipal
   model?: string
   mode?: UnifiedChatRequest['mode']
   provider?: string
@@ -914,7 +913,6 @@ async function resolveBranch(params: {
     workflowName,
     workspaceId: requestedWorkspaceId,
     organizationId,
-    principal,
     model,
     mode,
     provider,
@@ -1244,9 +1242,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             workflowName: body.workflowName,
             workspaceId: body.workspaceId,
             organizationId: body.organizationId,
-            principal: session.session?.id
-              ? { kind: 'session', userId: authenticatedUserId, sessionId: session.session.id }
-              : undefined,
             model: body.model,
             mode: body.mode,
             provider: body.provider,

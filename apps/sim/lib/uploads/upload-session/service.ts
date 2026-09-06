@@ -22,6 +22,7 @@ import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-b
 import { assertOrganizationAttachmentControlBinding } from '@/lib/uploads/contexts/organization-assistant/binding'
 import { assertOrganizationLogoControlBinding } from '@/lib/uploads/contexts/organization-logo/binding'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   ASSISTANT_IMAGE_MAX_BYTES,
@@ -53,6 +54,10 @@ import type {
   UploadStorageProvider,
   UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
+import {
+  bindWorkspaceFileUploadProvenance,
+  WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
+} from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
@@ -187,7 +192,13 @@ interface CreateUploadSessionBaseParams {
 
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
   (
-    | { purpose: 'workspace_file'; workspaceId: string; principal: Principal }
+    | {
+        purpose: 'workspace_file'
+        workspaceId: string
+        principal: Principal
+        /** Trusted runtime source classification, never a public upload input. */
+        secretProvenance?: WorkspaceFileSecretProvenance
+      }
     | { purpose: 'table_import'; workspaceId: string; principal?: Principal }
     | {
         purpose: 'knowledge_document'
@@ -250,6 +261,15 @@ export async function createUploadSession(
       organizationId: params.organizationId,
       userId: params.userId,
       sessionId: params.principal.sessionId,
+    }
+  }
+  if (params.purpose === 'workspace_file') {
+    delete metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]
+    if (params.secretProvenance !== undefined) {
+      metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY] = bindWorkspaceFileUploadProvenance(
+        params.workspaceId,
+        params.secretProvenance
+      )
     }
   }
   if (params.purpose === 'workspace_file' || params.purpose === 'knowledge_document') {
