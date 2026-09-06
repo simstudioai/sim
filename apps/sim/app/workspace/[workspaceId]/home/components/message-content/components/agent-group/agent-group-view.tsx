@@ -36,6 +36,7 @@ import { useSmoothText } from '@/hooks/use-smooth-text'
  * how deterministic parent/child nesting (e.g. Deploy inside Workflow) is drawn.
  */
 export interface NestedAgentGroup {
+  error?: string
   id: string
   agentName: string
   agentLabel: string
@@ -50,6 +51,7 @@ export type AgentGroupItem =
   | { type: 'agent_group'; group: NestedAgentGroup }
 
 export interface AgentGroupProps {
+  error?: string
   agentName: string
   agentLabel: string
   items: AgentGroupItem[]
@@ -140,6 +142,8 @@ interface AgentGroupViewProps extends AgentGroupProps {
 
 export function AgentGroupView({
   agentName,
+  agentLabel,
+  error,
   items,
   isDelegating = false,
   isStreaming = false,
@@ -179,7 +183,7 @@ export function AgentGroupView({
     (activeBrowserTakeover ? expandedTakeoverId === activeBrowserTakeover.id : manualExpanded)
 
   const meaningfulItems = items.filter(hasAgentGroupItemContent)
-  if (meaningfulItems.length === 0) return null
+  if (meaningfulItems.length === 0 && !error) return null
 
   const toggleExpanded = () => {
     if (activeBrowserTakeover) {
@@ -218,6 +222,7 @@ export function AgentGroupView({
           isDelegating={item.group.isDelegating}
           isStreaming={isStreaming}
           isLaneOpen={item.group.isOpen}
+          error={item.group.error}
           autoScrollActivity={autoScrollActivity}
         />
       )
@@ -243,14 +248,17 @@ export function AgentGroupView({
   ) : (
     <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>{items.map(renderItem)}</div>
   )
-  const headerText = isWorking
-    ? statusTool
-      ? getActiveToolActivityTitle(activeToolTitle(statusTool), statusTool, tools)
-      : 'Thinking'
-    : tools.length > 0
-      ? getToolActivitySummary(tools)
-      : 'Tool activity'
+  const headerText = error
+    ? `${agentLabel} — Failed`
+    : isWorking
+      ? statusTool
+        ? getActiveToolActivityTitle(activeToolTitle(statusTool), statusTool, tools)
+        : 'Thinking'
+      : tools.length > 0
+        ? getToolActivitySummary(tools)
+        : 'Tool activity'
   const headerActive =
+    !error &&
     isWorking &&
     (!statusTool ||
       statusTool.status === ToolCallStatus.executing ||
@@ -282,6 +290,7 @@ export function AgentGroupView({
           {activity}
         </ActivityStream>
       )}
+      {error && <p className='pl-6 text-[var(--text-error)] text-caption'>{error}</p>}
       {activeBrowserTakeover && (
         <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>
           {renderBrowserTakeover?.(activeBrowserTakeover.reason)}
