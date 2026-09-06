@@ -5,10 +5,13 @@ import type { CopilotChatSteerBody } from '@/lib/api/contracts/copilot'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import {
   areStreamToolExecutionsSettled,
   closeStreamToolAdmission,
   getLatestRunForStream,
+  getUnsettledClientWorkflowExecutions,
   getUnsettledStreamSandboxProcesses,
   stopPendingRequest,
 } from '@/lib/mothership/async-runs/repository'
@@ -124,6 +127,17 @@ export const abortRun = defineAuthorizedWorkspaceUseCase({
       return false
     })
     const aborted = await abortActiveStream(streamId)
+    const cancelClientWorkflows = async () => {
+      if (!admissionClosed) return
+      const executionIds = await getUnsettledClientWorkflowExecutions(streamId, userId)
+      await Promise.all(
+        executionIds.map(async (executionId) => {
+          /** The execution route reserved these IDs before recording ownership; no client result is trusted. */
+          abortManualExecution(executionId)
+          await markExecutionCancelled(executionId)
+        })
+      )
+    }
     const recoverCommands = async () => {
       if (!admissionClosed) return
       const signal = AbortSignal.timeout(8000)
@@ -141,6 +155,12 @@ export const abortRun = defineAuthorizedWorkspaceUseCase({
     const [settled] = await Promise.all([
       waitForPendingChatStream(chatId, 8000, streamId),
       recoverCommands(),
+      cancelClientWorkflows().catch((error) => {
+        logger.warn('Stopped stream workflow cancellation could not be delivered', {
+          streamId,
+          error: getErrorMessage(error),
+        })
+      }),
     ])
     if (!settled) {
       await releasePendingChatStream(chatId, streamId)
