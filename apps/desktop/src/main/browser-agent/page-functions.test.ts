@@ -915,6 +915,43 @@ describe('collectSnapshot', () => {
     expect(after.popups).not.toEqual(before.popups)
   })
 
+  it.each([
+    { role: 'dialog', field: 'dialogs' },
+    { role: 'toolbar', field: 'popups' },
+  ] as const)(
+    'reports truncation when visible $field exceed the summary limit',
+    ({ role, field }) => {
+      for (let index = 0; index < 10; index++) {
+        const element = visible(document.createElement('div'))
+        element.setAttribute('role', role)
+        element.setAttribute('aria-label', `Existing ${index}`)
+        document.body.append(element)
+      }
+      const before = readPageActionState() as {
+        dialogs: string[]
+        popups: string[]
+        observationTruncated: boolean
+      }
+      expect(before[field]).toHaveLength(10)
+      expect(before.observationTruncated).toBe(false)
+
+      const additional = visible(document.createElement('div'))
+      additional.setAttribute('role', role === 'toolbar' ? 'listbox' : role)
+      additional.setAttribute('aria-label', 'New overlay')
+      document.body.append(additional)
+      expect(readPageActionState()).toMatchObject({
+        [field]: before[field],
+        observationTruncated: true,
+      })
+
+      additional.setAttribute('aria-hidden', 'true')
+      expect(readPageActionState()).toMatchObject({
+        [field]: before[field],
+        observationTruncated: false,
+      })
+    }
+  )
+
   it('reports a targeted control semantic disappearance after its panel closes', () => {
     document.body.innerHTML = `
       <aside aria-label="Thread panel"><button data-testid="close-thread">Close thread</button></aside>

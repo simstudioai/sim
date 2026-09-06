@@ -2208,6 +2208,7 @@ export function readPageActionState(
   const roots: ParentNode[] = observationRoot ? [observationRoot] : []
   const allElements: Element[] = []
   const stateNodeCap = 12_000
+  const overlayLimit = 10
   for (let index = 0; index < roots.length; index++) {
     for (const element of Array.from(roots[index].querySelectorAll('*'))) {
       if (allElements.length >= stateNodeCap) break
@@ -2296,48 +2297,46 @@ export function readPageActionState(
   const dialogs = allElements.filter((element) =>
     element.matches('dialog[open], [role="dialog"], [aria-modal="true"]')
   )
-  const visibleDialogLabels = dialogs
-    .filter((element) => {
-      const rect = element.getBoundingClientRect()
-      const view = element.ownerDocument.defaultView
-      if (!view || rect.width <= 0 || rect.height <= 0) return false
-      for (let current: Element | null = element; current; ) {
-        const style = view.getComputedStyle(current)
-        if (
-          style.display === 'none' ||
-          style.visibility === 'hidden' ||
-          Number.parseFloat(style.opacity || '1') <= 0.01 ||
-          current.hasAttribute('hidden') ||
-          current.getAttribute('aria-hidden') === 'true'
-        ) {
-          return false
-        }
-        if (current.parentElement) current = current.parentElement
-        else {
-          const root = current.getRootNode()
-          current = 'host' in root ? (root.host as Element) : null
-        }
+  const visibleDialogs = dialogs.filter((element) => {
+    const rect = element.getBoundingClientRect()
+    const view = element.ownerDocument.defaultView
+    if (!view || rect.width <= 0 || rect.height <= 0) return false
+    for (let current: Element | null = element; current; ) {
+      const style = view.getComputedStyle(current)
+      if (
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        Number.parseFloat(style.opacity || '1') <= 0.01 ||
+        current.hasAttribute('hidden') ||
+        current.getAttribute('aria-hidden') === 'true'
+      ) {
+        return false
       }
-      return (
-        rect.right > 0 &&
-        rect.bottom > 0 &&
-        rect.left < view.innerWidth &&
-        rect.top < view.innerHeight
-      )
-    })
-    .slice(0, 10)
-    .map((element) =>
-      (
-        element.getAttribute('aria-label') ||
-        (element as HTMLElement).innerText ||
-        element.textContent ||
-        ''
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 120)
-        .replace(/[\uD800-\uDBFF]$/, '')
+      if (current.parentElement) current = current.parentElement
+      else {
+        const root = current.getRootNode()
+        current = 'host' in root ? (root.host as Element) : null
+      }
+    }
+    return (
+      rect.right > 0 &&
+      rect.bottom > 0 &&
+      rect.left < view.innerWidth &&
+      rect.top < view.innerHeight
     )
+  })
+  const visibleDialogLabels = visibleDialogs.slice(0, overlayLimit).map((element) =>
+    (
+      element.getAttribute('aria-label') ||
+      (element as HTMLElement).innerText ||
+      element.textContent ||
+      ''
+    )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, '')
+  )
 
   // Roles an app uses for something that APPEARS over the page. The first three
   // were the whole list, which missed the most common hover affordance there
@@ -2345,7 +2344,7 @@ export function readPageActionState(
   // with an aria-label). A hover that mounted one produced no popup change, no
   // target change, and so no observed effect at all — the agent concluded its
   // hover had failed and escalated to clicking pixels.
-  const visiblePopupLabels = allElements
+  const visiblePopups = allElements
     .filter((element) =>
       element.matches(
         '[role="tooltip"], [role="menu"], [role="listbox"], [role="toolbar"], [role="menubar"], [role="group"][aria-label], [popover]'
@@ -2367,20 +2366,19 @@ export function readPageActionState(
         rect.top < view.innerHeight
       )
     })
-    .slice(0, 10)
-    .map((element) =>
-      (
-        element.getAttribute('aria-label') ||
-        (element as HTMLElement).innerText ||
-        element.textContent ||
-        element.getAttribute('role') ||
-        ''
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 120)
-        .replace(/[\uD800-\uDBFF]$/, '')
+  const visiblePopupLabels = visiblePopups.slice(0, overlayLimit).map((element) =>
+    (
+      element.getAttribute('aria-label') ||
+      (element as HTMLElement).innerText ||
+      element.textContent ||
+      element.getAttribute('role') ||
+      ''
     )
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+      .replace(/[\uD800-\uDBFF]$/, '')
+  )
 
   const scrolledRegions = allElements
     .filter((element) => (element as HTMLElement).scrollTop !== 0)
@@ -2405,7 +2403,10 @@ export function readPageActionState(
     popups: visiblePopupLabels,
     scroll: [Math.round(observedWindow.scrollY), ...scrolledRegions],
     ...(targetState ? { targetState } : {}),
-    observationTruncated: allElements.length >= stateNodeCap,
+    observationTruncated:
+      allElements.length >= stateNodeCap ||
+      visibleDialogs.length > overlayLimit ||
+      visiblePopups.length > overlayLimit,
   }
 }
 

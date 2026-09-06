@@ -189,6 +189,47 @@ test.describe('browser tools', () => {
     expect(await formState()).toMatchObject({ name: '', route: 'change route' })
   })
 
+  test('stops when a new popup exceeds the page summary limit', async () => {
+    const ref = await openForm()
+    await app.evaluate(async ({ webContents }, origin) => {
+      const page = webContents
+        .getAllWebContents()
+        .find((contents) => contents.getURL().startsWith(`${origin}/form`))
+      if (!page) throw new Error('Missing browser fixture')
+      await page.executeJavaScript(`
+        for (let index = 0; index < 10; index++) {
+          const toolbar = document.createElement('div')
+          toolbar.setAttribute('role', 'toolbar')
+          toolbar.textContent = 'Toolbar ' + index
+          document.body.append(toolbar)
+        }
+        document.getElementById('name').addEventListener('input', () => {
+          const popup = document.createElement('div')
+          popup.setAttribute('role', 'listbox')
+          popup.textContent = 'Suggestions'
+          document.body.append(popup)
+        }, { once: true })
+      `)
+    }, origin)
+
+    const fill = await execute('browser_fill_form', {
+      fields: [
+        { elementId: ref('Name'), kind: 'text', text: 'Example User' },
+        { elementId: ref('Plan'), kind: 'select', value: 'pro' },
+      ],
+    })
+    expect(fill.ok, fill.error).toBe(true)
+    expect(fill.result, JSON.stringify(fill.result)).toMatchObject({
+      completed: false,
+      completedCount: 1,
+      stoppedIndex: 0,
+      results: [{ verified: true, valuePreview: 'Example User' }],
+      doNotRetry: true,
+      error: expect.stringContaining('could not be fully verified'),
+    })
+    expect(await formState()).toMatchObject({ name: 'Example User', plan: 'basic' })
+  })
+
   test('refuses credential fields and leaves subsequent fields untouched', async () => {
     const ref = await openForm()
     const fill = await execute('browser_fill_form', {
