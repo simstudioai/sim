@@ -20,6 +20,7 @@ import { type BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { isHosted, isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 import type { ChatRequest } from '@/lib/mothership/generated/protocol'
 import {
@@ -33,7 +34,6 @@ import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/mothership/vfs/path-utils'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
 
@@ -331,39 +331,7 @@ export async function buildCopilotRequestPayload(
           f.size,
           userMessageId
         )
-        // Encode the read path per the percent-encoded VFS convention (matches
-        // files/ and `files ls uploads` output); the resolver also accepts the raw
-        // display name.
-        let encodedUploadName = displayName
-        try {
-          encodedUploadName = encodeVfsSegment(displayName)
-        } catch {
-          encodedUploadName = displayName
-        }
-        let lines: string[]
-        if (isArchiveFileName(displayName)) {
-          // A .zip is stored in uploads/ but its contents aren't readable until
-          // the agent extracts it once into workspace files/ (explicit step).
-          lines = [
-            `Archive "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
-            buildArchiveExtractGuidance(displayName),
-          ]
-        } else {
-          lines = [
-            `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded to this chat as "uploads/${encodedUploadName}" (a chat upload: readable here, not listed under workspace files/).`,
-            `Read it with: sim --output json files read "uploads/${encodedUploadName}"`,
-            `Pass the same path "uploads/${encodedUploadName}" as inputs.files[].path to mount it in run_code or use it as a reference image in generate_image.`,
-          ]
-          if (displayName.endsWith('.json')) {
-            lines.push(
-              `If it is a workflow export: read it with files read, then import the JSON with: sim --output json workflows import --workflow '<the JSON>'`
-            )
-          }
-        }
-        uploadContexts.push({
-          type: 'uploaded_file',
-          content: lines.join('\n'),
-        })
+        uploadContexts.push(buildUploadedFileContext(displayName, mediaType, f.size))
       } catch (err) {
         const cause = toError(err)
         logger.warn('Failed to track chat upload', {
