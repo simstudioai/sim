@@ -9,6 +9,7 @@ const {
   connect,
   nextItems,
   getInfo,
+  writeFile,
   setTimeout,
   runCommand,
   stopCommand,
@@ -23,6 +24,7 @@ const {
   connect: vi.fn(),
   nextItems: vi.fn(),
   getInfo: vi.fn(),
+  writeFile: vi.fn(),
   setTimeout: vi.fn(),
   runCommand: vi.fn(),
   stopCommand: vi.fn(),
@@ -84,6 +86,7 @@ describe('E2B session recovery', () => {
     const sandbox = {
       sandboxId: 'retained',
       getInfo,
+      files: { write: writeFile },
       setTimeout,
       commands: {
         run: (command: string, options: { background?: boolean }) =>
@@ -98,6 +101,62 @@ describe('E2B session recovery', () => {
     connect.mockResolvedValue(sandbox)
     create.mockResolvedValue(sandbox)
     stopCommand.mockResolvedValue({ stdout: '{"settled": true}', stderr: '', exitCode: 0 })
+  })
+
+  it.each(['0.5.7', '0.6.2', '1.0.0'])(
+    'streams file writes on envd %s without a buffered fallback',
+    async (envdVersion) => {
+      const sandbox = await sessionSandbox('created')
+      if (!sandbox?.writeFileStream) throw new Error('Missing streaming sandbox')
+      const signal = new AbortController().signal
+      const body = new Blob(['bytes']).stream()
+      getInfo.mockResolvedValueOnce({ envdVersion })
+      writeFile.mockImplementationOnce(async (_path, stream) => {
+        expect(stream).toBe(body)
+        expect(await new Response(stream).text()).toBe('bytes')
+      })
+      await sandbox.writeFileStream('/home/user/staged', body, { signal })
+      expect(getInfo).toHaveBeenCalledExactlyOnceWith({ signal })
+      expect(writeFile).toHaveBeenCalledExactlyOnceWith('/home/user/staged', body, {
+        signal,
+        useOctetStream: true,
+      })
+    }
+  )
+
+  it.each(['0.5.6', '0.4.10', 'unknown', undefined])(
+    'refuses streaming for envd %s before consuming or uploading the body',
+    async (envdVersion) => {
+      const sandbox = await sessionSandbox('created')
+      if (!sandbox?.writeFileStream) throw new Error('Missing streaming sandbox')
+      const pull = vi.fn()
+      const body = new ReadableStream<Uint8Array>({ pull }, { highWaterMark: 0 })
+      getInfo.mockResolvedValueOnce({ envdVersion })
+      await expect(
+        sandbox.writeFileStream('/home/user/staged', body, {
+          signal: new AbortController().signal,
+        })
+      ).rejects.toThrow('envd 0.5.7 or later')
+      expect(pull).not.toHaveBeenCalled()
+      expect(writeFile).not.toHaveBeenCalled()
+      await body.cancel()
+    }
+  )
+
+  it('does not start a streamed write when Stop arrives during version lookup', async () => {
+    const sandbox = await sessionSandbox('created')
+    if (!sandbox?.writeFileStream) throw new Error('Missing streaming sandbox')
+    const controller = new AbortController()
+    getInfo.mockImplementationOnce(async () => {
+      controller.abort(new Error('Stopped'))
+      return { envdVersion: '0.6.2' }
+    })
+    const body = new Blob(['bytes']).stream()
+    await expect(
+      sandbox.writeFileStream('/home/user/staged', body, { signal: controller.signal })
+    ).rejects.toThrow('Stopped')
+    expect(writeFile).not.toHaveBeenCalled()
+    await body.cancel()
   })
 
   it('records command ownership before dispatch and joins the matching kernel receipt', async () => {

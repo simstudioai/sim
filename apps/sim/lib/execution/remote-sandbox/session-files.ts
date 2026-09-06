@@ -1,6 +1,7 @@
 import { posix } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/execution-observer'
 import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
@@ -9,6 +10,8 @@ import {
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
+import type { SandboxHandle } from '@/lib/execution/remote-sandbox/types'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('SessionSandboxFiles')
 
@@ -26,6 +29,7 @@ const logger = createLogger('SessionSandboxFiles')
 export const SESSION_SANDBOX_HOME = '/home/user'
 
 const READ_LIMIT_BYTES = 4 * 1024 * 1024
+const FILE_TRANSFER_TIMEOUT_MS = 10 * 60_000
 
 export function resolveSessionPath(path: string): string {
   if (!path || path.includes('\0')) throw new Error('A nonempty sandbox path is required')
@@ -79,13 +83,14 @@ export type SessionFileWrite =
 export async function writeSessionSandboxFile(
   sessionKey: string,
   path: string,
-  content: string | Uint8Array,
+  content: string | Uint8Array | ReadableStream<Uint8Array>,
   abortSignal?: AbortSignal,
   options: { overwrite: boolean } = { overwrite: true }
 ): Promise<SessionFileWrite> {
   try {
     const resolved = resolveSessionPath(path)
-    const deadline = AbortSignal.timeout(30_000)
+    const timeoutMs = content instanceof ReadableStream ? FILE_TRANSFER_TIMEOUT_MS : 30_000
+    const deadline = AbortSignal.timeout(timeoutMs)
     const accessSignal = abortSignal ? AbortSignal.any([abortSignal, deadline]) : deadline
     await prepareSandboxSessionAccess(sessionKey, accessSignal)
     return await withSandboxSessionLock(sessionKey, accessSignal, async (signal) => {
@@ -103,12 +108,14 @@ export async function writeSessionSandboxFile(
       await withSandboxFilePublication(
         sandbox,
         resolved,
-        { overwrite: options.overwrite, signal, timeoutMs: 30_000, rootUser: false },
+        { overwrite: options.overwrite, signal, timeoutMs, rootUser: false },
         (staged) =>
-          sandbox.writeFile(
-            staged,
-            typeof content === 'string' ? content : new Uint8Array(content).buffer
-          )
+          content instanceof ReadableStream
+            ? streamSessionFile(sandbox, staged, content, signal)
+            : sandbox.writeFile(
+                staged,
+                typeof content === 'string' ? content : new Uint8Array(content).buffer
+              )
       )
       return { outcome: 'written', path: resolved }
     })
@@ -116,5 +123,56 @@ export async function writeSessionSandboxFile(
     // This may follow a successful CLI mutation. Report the file failure separately so it is not repeated.
     logger.warn('Session sandbox file write failed', { sessionKey, error: getErrorMessage(error) })
     return { outcome: 'error', detail: getErrorMessage(error) }
+  } finally {
+    if (content instanceof ReadableStream) await content.cancel().catch(() => {})
+  }
+}
+
+/** Keep only queued chunks in memory and reject partial transfers before publication. */
+async function streamSessionFile(
+  sandbox: SandboxHandle,
+  staged: string,
+  content: ReadableStream<Uint8Array>,
+  signal: AbortSignal
+): Promise<void> {
+  if (!sandbox.writeFileStream) throw new Error('This workbench does not support file streaming')
+  const stopped = new AbortController()
+  const transferSignal = AbortSignal.any([signal, stopped.signal])
+  let bytes = 0
+  let complete = false
+  let abortTransfer = () => {}
+  const bounded = new TransformStream<Uint8Array, Uint8Array>({
+    start(controller) {
+      abortTransfer = () => controller.error(transferSignal.reason)
+    },
+    transform(chunk, controller) {
+      bytes += chunk.byteLength
+      if (bytes > MAX_WORKSPACE_FILE_SIZE) {
+        throw new PayloadSizeLimitError({
+          label: 'Workbench file',
+          maxBytes: MAX_WORKSPACE_FILE_SIZE,
+          observedBytes: bytes,
+        })
+      }
+      controller.enqueue(chunk)
+    },
+    flush() {
+      complete = true
+    },
+  })
+  transferSignal.addEventListener('abort', abortTransfer, { once: true })
+  if (transferSignal.aborted) abortTransfer()
+  const copying = content.pipeTo(bounded.writable, { signal: transferSignal })
+  /** The provider may reject before it consumes the body; keep both failure paths observed. */
+  void copying.catch(() => {})
+  try {
+    await sandbox.writeFileStream(staged, bounded.readable, { signal: transferSignal })
+    signal.throwIfAborted()
+    if (!complete) throw new Error('Workbench transfer ended before the complete file was written')
+    await copying
+  } finally {
+    stopped.abort()
+    await copying.catch(() => {})
+    transferSignal.removeEventListener('abort', abortTransfer)
   }
 }

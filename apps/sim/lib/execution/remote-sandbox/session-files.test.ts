@@ -2,17 +2,21 @@
  * @vitest-environment node
  */
 import { execFile } from 'node:child_process'
+import { createWriteStream } from 'node:fs'
 import { lstat, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { promisify } from 'node:util'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { find, read, write, create, run, remove } = vi.hoisted(() => ({
+const { find, read, write, writeStream, create, run, remove } = vi.hoisted(() => ({
   find: vi.fn(),
   read: vi.fn(),
   write: vi.fn(),
+  writeStream: vi.fn(),
   create: vi.fn(),
   run: vi.fn(),
   remove: vi.fn(),
@@ -41,6 +45,7 @@ import {
   readSessionSandboxFile,
   writeSessionSandboxFile,
 } from '@/lib/execution/remote-sandbox/session-files'
+import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 
 describe('workbench file cancellation', () => {
   beforeEach(() => {
@@ -48,6 +53,7 @@ describe('workbench file cancellation', () => {
     find.mockResolvedValue({
       readFileWithLimit: read,
       writeFile: write,
+      writeFileStream: writeStream,
       removeFile: remove,
       runCommand: run,
     })
@@ -118,6 +124,124 @@ describe('workbench file cancellation', () => {
     expect((await writeSessionSandboxFile('chat', 'out', 'bytes', stopped)).outcome).toBe('error')
     expect((await readSessionSandboxFile('chat', 'in', 'utf8', stopped)).outcome).toBe('error')
     expect(find).not.toHaveBeenCalled()
+  })
+
+  it('streams a large binary download into staging before publication', async () => {
+    let produced = 0
+    let received = 0
+    const chunk = new Uint8Array(1024 * 1024).fill(255)
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          if (produced++ < 12) controller.enqueue(chunk)
+          else controller.close()
+        },
+      },
+      { highWaterMark: 0 }
+    )
+    writeStream.mockImplementation(async (_path, stream: ReadableStream<Uint8Array>) => {
+      expect(produced).toBeLessThan(3)
+      const reader = stream.getReader()
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          received += value.byteLength
+          expect(Buffer.from(value).equals(chunk)).toBe(true)
+          expect(run).not.toHaveBeenCalled()
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    })
+    expect(await writeSessionSandboxFile('chat', 'report.bin', body)).toEqual({
+      outcome: 'written',
+      path: '/home/user/report.bin',
+    })
+    expect(received).toBe(12 * 1024 * 1024)
+    expect(write).not.toHaveBeenCalled()
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['refused', 'early acknowledgement', 'source failure', 'stopped'])(
+    'cancels the streaming source and removes only staging after %s',
+    async (failure) => {
+      const controller = new AbortController()
+      const cancelled = vi.fn()
+      const body = new ReadableStream<Uint8Array>(
+        {
+          pull(source) {
+            if (failure === 'source failure') source.error(new Error('Download interrupted'))
+            else source.enqueue(new Uint8Array([0, 255, 128]))
+          },
+          cancel: cancelled,
+        },
+        { highWaterMark: 0 }
+      )
+      writeStream.mockImplementation(async (_path, stream: ReadableStream<Uint8Array>) => {
+        if (failure === 'refused') throw new Error('Write refused')
+        if (failure === 'early acknowledgement') return
+        if (failure === 'stopped') controller.abort(new Error('Stopped'))
+        await new Response(stream).arrayBuffer()
+      })
+      expect(
+        await writeSessionSandboxFile('chat', 'report.bin', body, controller.signal)
+      ).toMatchObject({ outcome: 'error' })
+      expect(body.locked).toBe(false)
+      expect(run).not.toHaveBeenCalled()
+      expect(write).not.toHaveBeenCalled()
+      expect(remove).toHaveBeenCalledExactlyOnceWith(writeStream.mock.calls[0][0])
+      if (failure !== 'source failure') expect(cancelled).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('cancels a pending source read immediately on Stop', async () => {
+    const controller = new AbortController()
+    const cancelled = vi.fn()
+    const body = new ReadableStream<Uint8Array>({ cancel: cancelled })
+    writeStream.mockImplementation(async (_path, stream: ReadableStream<Uint8Array>) => {
+      const consume = new Response(stream).arrayBuffer()
+      controller.abort(new Error('Stopped'))
+      await consume
+    })
+    expect(
+      await writeSessionSandboxFile('chat', 'report.bin', body, controller.signal)
+    ).toMatchObject({ outcome: 'error', detail: 'Stopped' })
+    expect(cancelled).toHaveBeenCalledTimes(1)
+    expect(body.locked).toBe(false)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('enforces the workspace file ceiling cumulatively without buffering the file', async () => {
+    const chunk = new Uint8Array(1024 * 1024)
+    const cancelled = vi.fn()
+    let received = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(chunk)
+      },
+      cancel: cancelled,
+    })
+    writeStream.mockImplementation(async (_path, stream: ReadableStream<Uint8Array>) => {
+      const reader = stream.getReader()
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          received += value.byteLength
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    })
+    expect(await writeSessionSandboxFile('chat', 'large.bin', body)).toMatchObject({
+      outcome: 'error',
+      detail: expect.stringContaining('exceeds maximum size'),
+    })
+    expect(received).toBe(5 * 1024 * 1024 * 1024)
+    expect(cancelled).toHaveBeenCalledTimes(1)
+    expect(run).not.toHaveBeenCalled()
+    expect(remove).toHaveBeenCalledTimes(1)
   })
 
   it.each(['stop', 'lost acknowledgement'])(
@@ -198,6 +322,9 @@ describe('workbench file cancellation', () => {
     write.mockImplementation(async (path: string, content: string | ArrayBuffer) => {
       await writeFile(path, typeof content === 'string' ? content : new Uint8Array(content))
     })
+    writeStream.mockImplementation(async (path, body, options) => {
+      await pipeline(Readable.fromWeb(body), createWriteStream(path), { signal: options.signal })
+    })
     remove.mockImplementation(async (path: string) => {
       await rm(path, { force: true })
     })
@@ -236,6 +363,27 @@ describe('workbench file cancellation', () => {
       expect(await readFile(link, 'utf8')).toBe('new')
       expect(await readFile(target, 'utf8')).toBe('new')
       expect((await lstat(link)).isSymbolicLink()).toBe(true)
+
+      const large = new Uint8Array(6 * 1024 * 1024 + 7).fill(255)
+      const identity = {
+        endpoint: 'https://sim.test',
+        apiKey: 'fixture',
+        workspaceId: 'workspace',
+        transport: async () => new Response(new Blob([large]).stream()),
+      }
+      const streamedTarget = join(directory, 'CLI "$(touch PWNED)".bin')
+      const args = ['files', 'get', 'file', '-o', streamedTarget]
+      const result = await runCli(args, identity, 'chat')
+      expect(result, result.stderr).toMatchObject({ exitCode: 0 })
+      expect(JSON.parse(result.stdout)).toMatchObject({ path: streamedTarget, status: 'saved' })
+      expect((await readFile(streamedTarget)).equals(large)).toBe(true)
+      expect((await runCli(args, identity, 'chat')).exitCode).toBe(1)
+      expect((await readFile(streamedTarget)).equals(large)).toBe(true)
+      expect((await runCli([...args, '--force'], identity, 'chat')).exitCode).toBe(0)
+      expect((await readFile(streamedTarget)).equals(large)).toBe(true)
+      expect((await readdir(directory)).sort()).toEqual(
+        [name, 'link.bin', 'CLI "$(touch PWNED)".bin'].sort()
+      )
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

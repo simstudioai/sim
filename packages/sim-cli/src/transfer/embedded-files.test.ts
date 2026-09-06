@@ -45,17 +45,58 @@ describe('embedded positional file arguments', () => {
 describe('embedded downloads', () => {
   const body = () => new Blob(['hello']).stream()
 
+  it('hands the host the stream before consuming the download', async () => {
+    let produced = 0
+    const source = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          produced++
+          if (produced <= 8) controller.enqueue(new Uint8Array(1024 * 1024))
+          else controller.close()
+        },
+      },
+      { highWaterMark: 0 }
+    )
+    await embedStore.run(
+      embedded({
+        writeFile: async (_path, content) => {
+          expect(produced).toBe(0)
+          expect(content).toBe(source)
+          expect((await new Response(content).arrayBuffer()).byteLength).toBe(8 * 1024 * 1024)
+        },
+      }),
+      () => saveToFile(source, 'large.csv', false)
+    )
+  })
+
+  it('cancels an unconsumed download when the host cannot save it', async () => {
+    const cancel = vi.fn()
+    const source = new ReadableStream<Uint8Array>({ cancel })
+    await embedStore.run(embedded(), async () => {
+      await expect(saveToFile(source, 'out.txt', false)).rejects.toThrow('no machine to write to')
+    })
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
   it('writes through the host writer instead of the server filesystem', async () => {
+    const contents: string[] = []
     const writeFile = vi.fn(
-      async (_path: string, _bytes: Uint8Array, _options: { overwrite: boolean }) => {}
+      async (
+        _path: string,
+        stream: ReadableStream<Uint8Array>,
+        _options: { overwrite: boolean }
+      ) => {
+        contents.push(await new Response(stream).text())
+      }
     )
     await embedStore.run(embedded({ writeFile }), async () => {
       await saveToFile(body(), 'out.txt', false)
     })
     expect(writeFile).toHaveBeenCalledTimes(1)
-    const [path, bytes, options] = writeFile.mock.calls[0]!
+    const [path, stream, options] = writeFile.mock.calls[0]!
     expect(path).toBe('out.txt')
-    expect(new TextDecoder().decode(bytes)).toBe('hello')
+    expect(stream).toBeInstanceOf(ReadableStream)
+    expect(contents).toEqual(['hello'])
     expect(options).toEqual({ overwrite: false })
     await embedStore.run(embedded({ writeFile }), async () => {
       await saveToFile(body(), 'out.txt', true)
