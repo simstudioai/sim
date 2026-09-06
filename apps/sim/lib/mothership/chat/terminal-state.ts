@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { copilotChats, copilotMessages } from '@sim/db/schema'
+import { copilotChats, copilotMessages, copilotRuns } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
@@ -7,6 +7,7 @@ import { CopilotChatFinalizeOutcome } from '@/lib/mothership/generated/trace-att
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
+import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 
 type StreamMarkerPolicy = 'active-only' | 'active-or-cleared'
 
@@ -16,6 +17,7 @@ interface FinalizeAssistantTurnParams {
   userId?: string
   assistantMessage?: PersistedMessage
   streamMarkerPolicy?: StreamMarkerPolicy
+  runController?: { id: string; token: string }
 }
 
 export interface FinalizeAssistantTurnResult {
@@ -37,6 +39,7 @@ export async function finalizeAssistantTurn({
   userId,
   assistantMessage,
   streamMarkerPolicy = 'active-only',
+  runController,
 }: FinalizeAssistantTurnParams): Promise<FinalizeAssistantTurnResult> {
   return withCopilotSpan(
     TraceSpan.CopilotChatFinalizeAssistantTurn,
@@ -74,6 +77,21 @@ export async function finalizeAssistantTurn({
         }
 
         const chatModel = row.model ?? null
+
+        if (runController) {
+          const [run] = await tx
+            .select({ id: copilotRuns.id })
+            .from(copilotRuns)
+            .where(
+              and(
+                eq(copilotRuns.id, runController.id),
+                eq(copilotRuns.chatId, chatId),
+                sql`${copilotRuns.requestContext}->>'controllerToken' = ${runController.token}`
+              )
+            )
+            .limit(1)
+          if (!run) throw new StreamControllerSupersededError()
+        }
 
         const markerMatches = row.conversationId === userMessageId
         const markerAlreadyCleared = row.conversationId === null

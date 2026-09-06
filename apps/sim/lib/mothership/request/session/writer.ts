@@ -4,6 +4,7 @@ import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothersh
 import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { appendEvents } from './buffer'
 import type { PersistedStreamEventEnvelope } from './contract'
+import type { ChatStreamLease } from './controller-lease'
 import { createEvent } from './event'
 import { encodeSSEEnvelope } from './sse'
 import type { StreamEvent } from './types'
@@ -21,6 +22,8 @@ export interface StreamWriterOptions {
   /** Charges this stream's replay buffer to the user's cross-stream byte ceiling. */
   userId?: string
   keepaliveMs?: number
+  lease?: ChatStreamLease
+  initialSeq?: number
 }
 
 /** Result used when the soft stop is already latched, so no further append is attempted. */
@@ -45,6 +48,7 @@ export class StreamWriter {
   private pendingEnvelopes: PersistedStreamEventEnvelope[] = []
   private persistenceTail: Promise<void> = Promise.resolve()
   private lastPersistenceError: Error | null = null
+  private readonly lease?: ChatStreamLease
 
   constructor(options: StreamWriterOptions) {
     this.streamId = options.streamId
@@ -55,6 +59,12 @@ export class StreamWriter {
     this.flushIntervalMs = DEFAULT_PERSIST_FLUSH_INTERVAL_MS
     this.flushMaxBatch = DEFAULT_PERSIST_FLUSH_MAX_BATCH
     this.encoder = new TextEncoder()
+    this.lease = options.lease
+    this.nextSeq = options.initialSeq ?? 0
+  }
+
+  get controllerToken(): string | undefined {
+    return this.lease?.value
   }
 
   get clientDisconnected(): boolean {
@@ -104,8 +114,27 @@ export class StreamWriter {
     }
   }
 
-  publish(event: StreamEvent): void {
+  publish(event: StreamEvent): void | Promise<void> {
     const envelope = this.createEnvelope(event)
+    if (this.lease) {
+      // A replacement must see every event the browser has received. Fence
+      // persistence before delivery, and before dispatching the event's tool.
+      const delivery = this.persistenceTail.then(async () => {
+        const result = await appendEvents(
+          [envelope],
+          { streamId: this.streamId, ...(this.userId ? { userId: this.userId } : {}) },
+          this.lease
+        )
+        if (!result.persisted) {
+          this._persistenceStopped = true
+          throw new Error('Stream replay byte budget exhausted')
+        }
+        this.enqueue(envelope)
+        if (event.type === MothershipStreamV1EventType.complete) this._sawComplete = true
+      })
+      this.persistenceTail = delivery
+      return delivery
+    }
     this.enqueue(envelope)
     this.queuePersistence(envelope)
     if (event.type === MothershipStreamV1EventType.complete) {
@@ -130,14 +159,16 @@ export class StreamWriter {
   async close(): Promise<void> {
     this.stopKeepalive()
     this.clearFlushTimer()
-    await this.flush()
-    if (!this.controller) return
     try {
-      this.controller.close()
-    } catch {
-      // Controller already closed
+      await this.flush()
+    } finally {
+      try {
+        this.controller?.close()
+      } catch {
+        // Controller already closed
+      }
+      this.controller = null
     }
-    this.controller = null
   }
 
   private enqueue(envelope: PersistedStreamEventEnvelope): void {
