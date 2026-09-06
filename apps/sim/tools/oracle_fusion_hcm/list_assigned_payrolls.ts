@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_ASSIGNED_PAYROLLS_OUTPUTS,
   type OracleFusionHcmListAssignedPayrollsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListAssignedPayrollsTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_assigned_payrolls',
   name: 'List Assigned Payrolls in Oracle Fusion HCM',
-  description: 'Read one page of assigned payrolls from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of assigned payrolls from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,
@@ -26,7 +27,8 @@ export const oracleFusionHcmListAssignedPayrollsTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
+      description:
+        'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
     },
     effectiveDate: {
       type: 'string',

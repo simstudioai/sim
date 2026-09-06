@@ -12,7 +12,8 @@ export const oracleFusionHcmGetGoalPlanTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_goal_plan',
   name: 'Get Goal Plan in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM goal plan by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM goal plan by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

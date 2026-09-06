@@ -12,7 +12,8 @@ export const oracleFusionHcmUpdateElementEntryValueTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_update_element_entry_value',
   name: 'Update Element Entry Value in Oracle Fusion HCM',
-  description: 'Update Element Entry Value using documented Oracle fields. Requires administrative privileges and valid tenant configuration.',
+  description:
+    'Update Element Entry Value using documented Oracle fields. Requires administrative privileges and valid tenant configuration.',
   ...internalExecution,
   params: {
     ...common,
@@ -46,7 +47,8 @@ export const oracleFusionHcmUpdateElementEntryValueTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Element input value as text, preserving decimal precision; null clears a nullable value',
+      description:
+        'Element input value as text, preserving decimal precision; null clears a nullable value',
     },
   },
   outputs: ORACLE_FUSION_HCM_UPDATE_ELEMENT_ENTRY_VALUE_OUTPUTS,

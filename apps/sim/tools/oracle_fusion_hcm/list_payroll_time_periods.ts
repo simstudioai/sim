@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_PAYROLL_TIME_PERIODS_OUTPUTS,
   type OracleFusionHcmListPayrollTimePeriodsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListPayrollTimePeriodsTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_payroll_time_periods',
   name: 'List Payroll Time Periods in Oracle Fusion HCM',
-  description: 'Read one page of payroll time periods from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of payroll time periods from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

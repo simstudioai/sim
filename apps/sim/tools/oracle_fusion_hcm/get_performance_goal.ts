@@ -12,7 +12,8 @@ export const oracleFusionHcmGetPerformanceGoalTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_performance_goal',
   name: 'Get Performance Goal in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM performance goal by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM performance goal by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

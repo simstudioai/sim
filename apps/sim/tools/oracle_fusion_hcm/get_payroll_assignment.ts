@@ -12,7 +12,8 @@ export const oracleFusionHcmGetPayrollAssignmentTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_payroll_assignment',
   name: 'Get Payroll Assignment in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM payroll assignment by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM payroll assignment by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,
@@ -26,7 +27,8 @@ export const oracleFusionHcmGetPayrollAssignmentTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
+      description:
+        'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
     },
     effectiveDate: {
       type: 'string',

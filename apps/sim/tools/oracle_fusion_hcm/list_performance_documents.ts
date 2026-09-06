@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_PERFORMANCE_DOCUMENTS_OUTPUTS,
   type OracleFusionHcmListPerformanceDocumentsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListPerformanceDocumentsTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_performance_documents',
   name: 'List Performance Documents in Oracle Fusion HCM',
-  description: 'Read one page of performance documents from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of performance documents from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

@@ -12,7 +12,8 @@ export const oracleFusionHcmCreateElementEntryTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_create_element_entry',
   name: 'Create Element Entry in Oracle Fusion HCM',
-  description: 'Create Element Entry using documented Oracle fields. Requires administrative privileges and valid tenant configuration.',
+  description:
+    'Create Element Entry using documented Oracle fields. Requires administrative privileges and valid tenant configuration.',
   ...internalExecution,
   params: {
     ...common,
@@ -71,7 +72,8 @@ export const oracleFusionHcmCreateElementEntryTool: InternalToolConfig<
       maxItems: 100,
       required: true,
       visibility: 'user-or-llm',
-      description: 'Up to 100 typed objects: inputValueId (positive decimal string) and screenEntryValue (string up to 60 characters or null). Input IDs serialize exactly as JSON integers',
+      description:
+        'Up to 100 typed objects: inputValueId (positive decimal string) and screenEntryValue (string up to 60 characters or null). Input IDs serialize exactly as JSON integers',
     },
   },
   outputs: ORACLE_FUSION_HCM_CREATE_ELEMENT_ENTRY_OUTPUTS,

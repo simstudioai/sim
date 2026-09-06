@@ -12,7 +12,8 @@ export const oracleFusionHcmGetSalaryTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_salary',
   name: 'Get Salary in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM salary by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM salary by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

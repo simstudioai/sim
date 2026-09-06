@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTE_DATA_SOURCES_OUTPUTS,
   type OracleFusionHcmListTimeAttributeDataSourcesParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListTimeAttributeDataSourcesTool: InternalToolConfig
 > = {
   id: 'oracle_fusion_hcm_list_time_attribute_data_sources',
   name: 'List Time Attribute Data Sources in Oracle Fusion HCM',
-  description: 'Read one page of time attribute data sources from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of time attribute data sources from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

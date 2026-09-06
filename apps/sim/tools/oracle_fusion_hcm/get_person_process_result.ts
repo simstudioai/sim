@@ -12,7 +12,8 @@ export const oracleFusionHcmGetPersonProcessResultTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_person_process_result',
   name: 'Get Person Process Result in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM person process result by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM person process result by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

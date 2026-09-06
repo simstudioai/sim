@@ -12,7 +12,8 @@ export const oracleFusionHcmGetPayrollRelationshipTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_payroll_relationship',
   name: 'Get Payroll Relationship in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM payroll relationship by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM payroll relationship by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

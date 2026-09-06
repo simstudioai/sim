@@ -93,8 +93,8 @@ import type {
   OracleFusionHcmGetTimeRecordRequestBody,
   OracleFusionHcmGetWorkerAssignmentBody,
   OracleFusionHcmGetWorkerBody,
-  OracleFusionHcmListAbsenceTypesBody,
   OracleFusionHcmListAbsencesBody,
+  OracleFusionHcmListAbsenceTypesBody,
   OracleFusionHcmListAssignedPayrollsBody,
   OracleFusionHcmListBusinessUnitsBody,
   OracleFusionHcmListDepartmentsBody,
@@ -118,8 +118,8 @@ import type {
   OracleFusionHcmListPayrollTimePeriodsBody,
   OracleFusionHcmListPerformanceDocumentParticipantsBody,
   OracleFusionHcmListPerformanceDocumentRolesBody,
-  OracleFusionHcmListPerformanceDocumentTasksBody,
   OracleFusionHcmListPerformanceDocumentsBody,
+  OracleFusionHcmListPerformanceDocumentTasksBody,
   OracleFusionHcmListPerformanceGoalsBody,
   OracleFusionHcmListPersonProcessResultsBody,
   OracleFusionHcmListPersonTypesBody,
@@ -133,8 +133,8 @@ import type {
   OracleFusionHcmListTalentProfilesBody,
   OracleFusionHcmListTimeAttributeCriteriaBindsBody,
   OracleFusionHcmListTimeAttributeDataSourcesBody,
-  OracleFusionHcmListTimeAttributeValuesBody,
   OracleFusionHcmListTimeAttributesBody,
+  OracleFusionHcmListTimeAttributeValuesBody,
   OracleFusionHcmListTimeCardsBody,
   OracleFusionHcmListTimeRecordEventMessagesBody,
   OracleFusionHcmListTimeRecordRequestEventsBody,
@@ -956,19 +956,40 @@ async function assignedPayrollPath(
   )
 }
 
-async function elementEntryPath(input: Credentials & { elementEntryId: string; effectiveDate?: string }, signal?: AbortSignal) {
-  return resolveResourcePath(input, 'elementEntries', 'ElementEntryId', input.elementEntryId, signal)
+async function elementEntryPath(
+  input: Credentials & { elementEntryId: string; effectiveDate?: string },
+  signal?: AbortSignal
+) {
+  return resolveResourcePath(
+    input,
+    'elementEntries',
+    'ElementEntryId',
+    input.elementEntryId,
+    signal
+  )
 }
 
-async function performanceDocumentPath(input: Credentials & { evaluationId: string }, signal?: AbortSignal) {
-  return resolveResourcePath(input, 'performanceEvaluations', 'EvaluationId', input.evaluationId, signal)
+async function performanceDocumentPath(
+  input: Credentials & { evaluationId: string },
+  signal?: AbortSignal
+) {
+  return resolveResourcePath(
+    input,
+    'performanceEvaluations',
+    'EvaluationId',
+    input.evaluationId,
+    signal
+  )
 }
 
 async function talentProfilePath(input: Credentials & { profileId: string }, signal?: AbortSignal) {
   return resolveResourcePath(input, 'talentPersonProfiles', 'ProfileId', input.profileId, signal)
 }
 
-async function timeAttributePath(input: Credentials & { timeAttributeId: string }, signal?: AbortSignal) {
+async function timeAttributePath(
+  input: Credentials & { timeAttributeId: string },
+  signal?: AbortSignal
+) {
   return resolveResourcePath(input, 'timeAttributes', 'tmAtrbFldId', input.timeAttributeId, signal)
 }
 
@@ -981,10 +1002,21 @@ async function readResource<T>(
   project: (value: unknown) => T,
   signal?: AbortSignal
 ): Promise<T> {
-  const raw = await request(input, path, { fields, links: 'self', effectiveDate: input.effectiveDate }, signal)
+  const raw = await request(
+    input,
+    path,
+    { fields, links: 'self', effectiveDate: input.effectiveDate },
+    signal
+  )
   validateSelfLink(raw, input, path)
-  if (!isRecordLike(raw) || normalizeOracleFusionDecimalIdentifier(raw[idField], { maxDigits: 19 }) !== id) {
-    throw new OracleFusionProviderError('Oracle Fusion HCM returned a different resource than requested', 502)
+  if (
+    !isRecordLike(raw) ||
+    normalizeOracleFusionDecimalIdentifier(raw[idField], { maxDigits: 19 }) !== id
+  ) {
+    throw new OracleFusionProviderError(
+      'Oracle Fusion HCM returned a different resource than requested',
+      502
+    )
   }
   return project(raw)
 }
@@ -1016,16 +1048,25 @@ export async function executeOracleFusionHcmListPayrollRelationships(
   signal?: AbortSignal
 ) {
   const path = 'payrollRelationships'
-  const result = await list(input, path, PAYROLL_RELATIONSHIP_FIELDS, projectPayrollRelationship, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['PersonNumber','PayrollRelationshipNumber'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.personNumber) clauses.push(`PersonNumber='${quoteOracle(input.personNumber)}'`)
-    addEffectiveDate(query, input.effectiveDate)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { payrollRelationships: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_RELATIONSHIP_FIELDS,
+    projectPayrollRelationship,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['PersonNumber', 'PayrollRelationshipNumber'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.personNumber) clauses.push(`PersonNumber='${quoteOracle(input.personNumber)}'`)
+      addEffectiveDate(query, input.effectiveDate)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollRelationships: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrollrelationships-get.html */
@@ -1034,7 +1075,15 @@ export async function executeOracleFusionHcmGetPayrollRelationship(
   signal?: AbortSignal
 ) {
   const path = await payrollRelationshipPath(input, signal)
-  const result = await readResource(input, path, PAYROLL_RELATIONSHIP_FIELDS, 'PayrollRelationshipId', input.payrollRelationshipId, projectPayrollRelationship, signal)
+  const result = await readResource(
+    input,
+    path,
+    PAYROLL_RELATIONSHIP_FIELDS,
+    'PayrollRelationshipId',
+    input.payrollRelationshipId,
+    projectPayrollRelationship,
+    signal
+  )
   return { success: true as const, output: { payrollRelationship: result } }
 }
 
@@ -1044,13 +1093,22 @@ export async function executeOracleFusionHcmListPayrollAssignments(
   signal?: AbortSignal
 ) {
   const path = `${await payrollRelationshipPath(input, signal)}/child/payrollAssignments`
-  const result = await list(input, path, PAYROLL_ASSIGNMENT_FIELDS, projectPayrollAssignment, (query) => {
-    const clauses: string[] = []
-    addEffectiveDate(query, input.effectiveDate)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { payrollAssignments: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_ASSIGNMENT_FIELDS,
+    projectPayrollAssignment,
+    (query) => {
+      const clauses: string[] = []
+      addEffectiveDate(query, input.effectiveDate)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollAssignments: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrollrelationships-payrollrelationshipsuniqid-child-payrollassignments-get.html */

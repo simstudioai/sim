@@ -829,17 +829,56 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
       'payrollRelationships/rel/child/payrollAssignments/asg/child/assignedPayrolls'
     mocks.requestOracleFusionJson
       .mockResolvedValueOnce(discovery('payrollRelationships', 'PayrollRelationshipId', '1', 'rel'))
-      .mockResolvedValueOnce(discovery('payrollRelationships/rel/child/payrollAssignments', 'RelationshipGroupId', '2', 'asg'))
+      .mockResolvedValueOnce(
+        discovery(
+          'payrollRelationships/rel/child/payrollAssignments',
+          'RelationshipGroupId',
+          '2',
+          'asg'
+        )
+      )
       .mockResolvedValueOnce(discovery(collectionPath, 'AssignedPayrollId', '3', 'pay'))
-      .mockResolvedValueOnce({ AssignedPayrollId: '3', TimeCardRequired: 'Y', links: self(`${collectionPath}/pay`) })
-    await operations.executeOracleFusionHcmUpdateAssignedPayroll({ ...auth, payrollRelationshipId: '1', payrollAssignmentId: '2', assignedPayrollId: '3', effectiveDate: '2026-01-01', rangeMode: 'UPDATE', timeCardRequired: 'Y' })
-    expect(lastRequest()).toMatchObject({ method: 'PATCH', body: { TimeCardRequired: 'Y' }, operationHeaders: { effectiveOf: 'RangeMode=UPDATE;RangeStartDate=2026-01-01' } })
+      .mockResolvedValueOnce({
+        AssignedPayrollId: '3',
+        TimeCardRequired: 'Y',
+        links: self(`${collectionPath}/pay`),
+      })
+    await operations.executeOracleFusionHcmUpdateAssignedPayroll({
+      ...auth,
+      payrollRelationshipId: '1',
+      payrollAssignmentId: '2',
+      assignedPayrollId: '3',
+      effectiveDate: '2026-01-01',
+      rangeMode: 'UPDATE',
+      timeCardRequired: 'Y',
+    })
+    expect(lastRequest()).toMatchObject({
+      method: 'PATCH',
+      body: { TimeCardRequired: 'Y' },
+      operationHeaders: { effectiveOf: 'RangeMode=UPDATE;RangeStartDate=2026-01-01' },
+    })
     expect(lastRequest().body).not.toHaveProperty('PayrollId')
   })
 
   it('creates nested element values with exact integers and unmodified decimal text', async () => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce({ ElementEntryId: '1', links: self('elementEntries/entry') })
-    await operations.executeOracleFusionHcmCreateElementEntry({ ...auth, personId: '9223372036854775807', assignmentId: '9223372036854775806', elementTypeId: '9223372036854775805', elementName: 'Bonus', creatorType: 'F', entryType: 'E', effectiveStartDate: '2026-01-01', effectiveEndDate: '4712-12-31', entryValues: [{ inputValueId: '9223372036854775804', screenEntryValue: '123456789012345.6700' }] })
+    mocks.requestOracleFusionJson.mockResolvedValueOnce({
+      ElementEntryId: '1',
+      links: self('elementEntries/entry'),
+    })
+    await operations.executeOracleFusionHcmCreateElementEntry({
+      ...auth,
+      personId: '9223372036854775807',
+      assignmentId: '9223372036854775806',
+      elementTypeId: '9223372036854775805',
+      elementName: 'Bonus',
+      creatorType: 'F',
+      entryType: 'E',
+      effectiveStartDate: '2026-01-01',
+      effectiveEndDate: '4712-12-31',
+      entryValues: [
+        { inputValueId: '9223372036854775804', screenEntryValue: '123456789012345.6700' },
+      ],
+    })
     const body = serializeOracleFusionJsonBody(lastRequest().body)
     expect(body).toContain('"PersonId":9223372036854775807')
     expect(body).toContain('"AssignmentId":9223372036854775806')
@@ -851,22 +890,77 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
   it('resolves element values under their entry and preserves explicit null correction', async () => {
     mocks.requestOracleFusionJson
       .mockResolvedValueOnce(discovery('elementEntries', 'ElementEntryId', '1', 'entry'))
-      .mockResolvedValueOnce(discovery('elementEntries/entry/child/elementEntryValues', 'ElementEntryValueId', '2', 'value'))
-      .mockResolvedValueOnce({ ElementEntryValueId: '2', ScreenEntryValue: null, links: self('elementEntries/entry/child/elementEntryValues/value') })
-    const result = await operations.executeOracleFusionHcmUpdateElementEntryValue({ ...auth, elementEntryId: '1', elementEntryValueId: '2', effectiveDate: '2026-01-01', rangeMode: 'CORRECTION', screenEntryValue: null })
-    expect(lastRequest()).toMatchObject({ address: { relativePath: 'elementEntries/entry/child/elementEntryValues/value' }, method: 'PATCH', body: { ScreenEntryValue: null }, operationHeaders: { effectiveOf: 'RangeMode=CORRECTION;RangeStartDate=2026-01-01' } })
+      .mockResolvedValueOnce(
+        discovery(
+          'elementEntries/entry/child/elementEntryValues',
+          'ElementEntryValueId',
+          '2',
+          'value'
+        )
+      )
+      .mockResolvedValueOnce({
+        ElementEntryValueId: '2',
+        ScreenEntryValue: null,
+        links: self('elementEntries/entry/child/elementEntryValues/value'),
+      })
+    const result = await operations.executeOracleFusionHcmUpdateElementEntryValue({
+      ...auth,
+      elementEntryId: '1',
+      elementEntryValueId: '2',
+      effectiveDate: '2026-01-01',
+      rangeMode: 'CORRECTION',
+      screenEntryValue: null,
+    })
+    expect(lastRequest()).toMatchObject({
+      address: { relativePath: 'elementEntries/entry/child/elementEntryValues/value' },
+      method: 'PATCH',
+      body: { ScreenEntryValue: null },
+      operationHeaders: { effectiveOf: 'RangeMode=CORRECTION;RangeStartDate=2026-01-01' },
+    })
     expect(result.output.elementEntryValue.screenEntryValue).toBeNull()
   })
 
   it('reads independently paginated payroll results and contextual balance string slots', async () => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ RunResultId: '1', ResultValue: '123456789012345.6700', InputValueId: '2' }], { offset: 10, limit: 5 }))
-    const runs = await operations.executeOracleFusionHcmListPayrollRunResults({ ...auth, objectActionId: '9007199254740993', limit: 5, offset: 10 })
-    expect(lastRequest().address.relativePath).toBe('personProcessResults/9007199254740993/child/RunResult')
+    mocks.requestOracleFusionJson.mockResolvedValueOnce(
+      collection([{ RunResultId: '1', ResultValue: '123456789012345.6700', InputValueId: '2' }], {
+        offset: 10,
+        limit: 5,
+      })
+    )
+    const runs = await operations.executeOracleFusionHcmListPayrollRunResults({
+      ...auth,
+      objectActionId: '9007199254740993',
+      limit: 5,
+      offset: 10,
+    })
+    expect(lastRequest().address.relativePath).toBe(
+      'personProcessResults/9007199254740993/child/RunResult'
+    )
     expect(runs.output.payrollRunResults[0].resultValue).toBe('123456789012345.6700')
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ BalanceName: 'Gross', DimensionName: 'Period to Date', Value1: '100.0000', Value10: '0', DefbalId1: '9007199254740993' }]))
-    const balances = await operations.executeOracleFusionHcmListPayrollBalances({ ...auth, objectActionId: '9007199254740993' })
-    expect(lastRequest().address.relativePath).toBe('personProcessResults/9007199254740993/child/BalanceView')
-    expect(balances.output.payrollBalances[0]).toMatchObject({ dimensionName: 'Period to Date', value1: '100.0000', value10: '0', defbalId1: '9007199254740993' })
+    mocks.requestOracleFusionJson.mockResolvedValueOnce(
+      collection([
+        {
+          BalanceName: 'Gross',
+          DimensionName: 'Period to Date',
+          Value1: '100.0000',
+          Value10: '0',
+          DefbalId1: '9007199254740993',
+        },
+      ])
+    )
+    const balances = await operations.executeOracleFusionHcmListPayrollBalances({
+      ...auth,
+      objectActionId: '9007199254740993',
+    })
+    expect(lastRequest().address.relativePath).toBe(
+      'personProcessResults/9007199254740993/child/BalanceView'
+    )
+    expect(balances.output.payrollBalances[0]).toMatchObject({
+      dimensionName: 'Period to Date',
+      value1: '100.0000',
+      value10: '0',
+      defbalId1: '9007199254740993',
+    })
   })
 
   it('reads salary history directly by assignment without a worker lookup', async () => {

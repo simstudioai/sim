@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_TIME_RECORD_EVENT_MESSAGES_OUTPUTS,
   type OracleFusionHcmListTimeRecordEventMessagesParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListTimeRecordEventMessagesTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_time_record_event_messages',
   name: 'List Time Record Event Messages in Oracle Fusion HCM',
-  description: 'Read one page of time record event messages from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of time record event messages from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

@@ -12,7 +12,8 @@ export const oracleFusionHcmCreateSalaryTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_create_salary',
   name: 'Create Salary in Oracle Fusion HCM',
-  description: 'Administratively create an effective-dated salary for a user-entered salary basis. Does not submit an approval request or support component-calculated salary bases.',
+  description:
+    'Administratively create an effective-dated salary for a user-entered salary basis. Does not submit an approval request or support component-calculated salary bases.',
   ...internalExecution,
   params: {
     ...common,
@@ -32,7 +33,8 @@ export const oracleFusionHcmCreateSalaryTool: InternalToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request',
+      description:
+        'Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request',
     },
     dateFrom: {
       type: 'string',

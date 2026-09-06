@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_PAYROLL_RUN_RESULTS_OUTPUTS,
   type OracleFusionHcmListPayrollRunResultsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListPayrollRunResultsTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_payroll_run_results',
   name: 'List Payroll Run Results in Oracle Fusion HCM',
-  description: 'Read one page of payroll run results from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of payroll run results from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

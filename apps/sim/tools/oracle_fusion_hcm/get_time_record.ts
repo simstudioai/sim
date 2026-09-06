@@ -12,7 +12,8 @@ export const oracleFusionHcmGetTimeRecordTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_time_record',
   name: 'Get Time Record in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM time record by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM time record by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

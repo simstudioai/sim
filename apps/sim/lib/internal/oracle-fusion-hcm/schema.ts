@@ -1132,7 +1132,9 @@ export const oracleFusionHcmTimeAttributeDataSourceSchema = z.object({
   tmAtrbFldId: nullableStringSchema,
 })
 
-export type OracleFusionHcmTimeAttributeDataSource = z.output<typeof oracleFusionHcmTimeAttributeDataSourceSchema>
+export type OracleFusionHcmTimeAttributeDataSource = z.output<
+  typeof oracleFusionHcmTimeAttributeDataSourceSchema
+>
 
 export const oracleFusionHcmTimeAttributeCriteriaBindSchema = z.object({
   bindName: nullableStringSchema,
@@ -1140,14 +1142,18 @@ export const oracleFusionHcmTimeAttributeCriteriaBindSchema = z.object({
   dataType: nullableStringSchema,
 })
 
-export type OracleFusionHcmTimeAttributeCriteriaBind = z.output<typeof oracleFusionHcmTimeAttributeCriteriaBindSchema>
+export type OracleFusionHcmTimeAttributeCriteriaBind = z.output<
+  typeof oracleFusionHcmTimeAttributeCriteriaBindSchema
+>
 
 export const oracleFusionHcmTimeAttributeValueSchema = z.object({
   value: nullableStringSchema,
   displayValue: nullableStringSchema,
 })
 
-export type OracleFusionHcmTimeAttributeValue = z.output<typeof oracleFusionHcmTimeAttributeValueSchema>
+export type OracleFusionHcmTimeAttributeValue = z.output<
+  typeof oracleFusionHcmTimeAttributeValueSchema
+>
 
 export const oracleFusionHcmTimeRecordRequestSchema = z.object({
   timeRecordEventRequestId: z.string(),
@@ -1155,7 +1161,9 @@ export const oracleFusionHcmTimeRecordRequestSchema = z.object({
   processMode: nullableStringSchema,
 })
 
-export type OracleFusionHcmTimeRecordRequest = z.output<typeof oracleFusionHcmTimeRecordRequestSchema>
+export type OracleFusionHcmTimeRecordRequest = z.output<
+  typeof oracleFusionHcmTimeRecordRequestSchema
+>
 
 export const oracleFusionHcmTimeRecordRequestEventSchema = z.object({
   timeRecordEventId: nullableStringSchema,
@@ -1176,7 +1184,9 @@ export const oracleFusionHcmTimeRecordRequestEventSchema = z.object({
   referenceDate: nullableStringSchema,
 })
 
-export type OracleFusionHcmTimeRecordRequestEvent = z.output<typeof oracleFusionHcmTimeRecordRequestEventSchema>
+export type OracleFusionHcmTimeRecordRequestEvent = z.output<
+  typeof oracleFusionHcmTimeRecordRequestEventSchema
+>
 
 export const oracleFusionHcmTimeRecordEventMessageSchema = z.object({
   timeRecordEventMessageId: z.string(),
@@ -1189,43 +1199,73 @@ export const oracleFusionHcmTimeRecordEventMessageSchema = z.object({
   allowException: nullableStringSchema,
 })
 
-export type OracleFusionHcmTimeRecordEventMessage = z.output<typeof oracleFusionHcmTimeRecordEventMessageSchema>
+export type OracleFusionHcmTimeRecordEventMessage = z.output<
+  typeof oracleFusionHcmTimeRecordEventMessageSchema
+>
 
-const finderValueSchema = z.string().trim().min(1).max(1024).regex(/^[^,;=\r\n]+$/, 'Finder values cannot contain separators')
+const finderValueSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1024)
+  .regex(/^[^,;=\r\n]+$/, 'Finder values cannot contain separators')
 
-const timeTimestampSchema = z.string().trim().datetime({ offset: true }).refine(
-  (value) => dateSchema.safeParse(value.slice(0, 10)).success,
-  'Timestamp must contain a valid calendar date'
+const timeTimestampSchema = z
+  .string()
+  .trim()
+  .datetime({ offset: true })
+  .refine(
+    (value) => dateSchema.safeParse(value.slice(0, 10)).success,
+    'Timestamp must contain a valid calendar date'
+  )
+
+export const oracleFusionHcmListPayrollRelationshipsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    personNumber: z.string().trim().min(1).max(30).optional(),
+    effectiveDate: dateSchema.optional(),
+    search: z.string().trim().min(1).max(200).optional(),
+    ...paginationBodyShape,
+  })
+
+export const oracleFusionHcmListPayrollRelationshipsResponseSchema = successResponse(
+  z.object({
+    payrollRelationships: z.array(oracleFusionHcmPayrollRelationshipSchema),
+    ...paginationResponseShape,
+  })
 )
 
-export const oracleFusionHcmListPayrollRelationshipsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personNumber: z.string().trim().min(1).max(30).optional(),
-  effectiveDate: dateSchema.optional(),
-  search: z.string().trim().min(1).max(200).optional(),
-  ...paginationBodyShape,
-})
+export type OracleFusionHcmListPayrollRelationshipsBody = z.output<
+  typeof oracleFusionHcmListPayrollRelationshipsBodySchema
+>
+export type OracleFusionHcmListPayrollRelationshipsBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollRelationshipsBodySchema
+>
+export type OracleFusionHcmListPayrollRelationshipsResponse = z.output<
+  typeof oracleFusionHcmListPayrollRelationshipsResponseSchema
+>
 
-export const oracleFusionHcmListPayrollRelationshipsResponseSchema = successResponse(z.object({
-  payrollRelationships: z.array(oracleFusionHcmPayrollRelationshipSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmGetPayrollRelationshipBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
+    effectiveDate: dateSchema.optional(),
+  }
+)
 
-export type OracleFusionHcmListPayrollRelationshipsBody = z.output<typeof oracleFusionHcmListPayrollRelationshipsBodySchema>
-export type OracleFusionHcmListPayrollRelationshipsBodyInput = z.input<typeof oracleFusionHcmListPayrollRelationshipsBodySchema>
-export type OracleFusionHcmListPayrollRelationshipsResponse = z.output<typeof oracleFusionHcmListPayrollRelationshipsResponseSchema>
+export const oracleFusionHcmGetPayrollRelationshipResponseSchema = successResponse(
+  z.object({
+    payrollRelationship: oracleFusionHcmPayrollRelationshipSchema,
+  })
+)
 
-export const oracleFusionHcmGetPayrollRelationshipBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
-  effectiveDate: dateSchema.optional(),
-})
-
-export const oracleFusionHcmGetPayrollRelationshipResponseSchema = successResponse(z.object({
-  payrollRelationship: oracleFusionHcmPayrollRelationshipSchema,
-}))
-
-export type OracleFusionHcmGetPayrollRelationshipBody = z.output<typeof oracleFusionHcmGetPayrollRelationshipBodySchema>
-export type OracleFusionHcmGetPayrollRelationshipBodyInput = z.input<typeof oracleFusionHcmGetPayrollRelationshipBodySchema>
-export type OracleFusionHcmGetPayrollRelationshipResponse = z.output<typeof oracleFusionHcmGetPayrollRelationshipResponseSchema>
+export type OracleFusionHcmGetPayrollRelationshipBody = z.output<
+  typeof oracleFusionHcmGetPayrollRelationshipBodySchema
+>
+export type OracleFusionHcmGetPayrollRelationshipBodyInput = z.input<
+  typeof oracleFusionHcmGetPayrollRelationshipBodySchema
+>
+export type OracleFusionHcmGetPayrollRelationshipResponse = z.output<
+  typeof oracleFusionHcmGetPayrollRelationshipResponseSchema
+>
 
 export const oracleFusionHcmListPayrollAssignmentsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   payrollRelationshipId: oracleFusionHcmDecimalIdSchema,

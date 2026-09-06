@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_TALENT_PROFILES_OUTPUTS,
   type OracleFusionHcmListTalentProfilesParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListTalentProfilesTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_talent_profiles',
   name: 'List Talent Profiles in Oracle Fusion HCM',
-  description: 'Read one page of talent profiles from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of talent profiles from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

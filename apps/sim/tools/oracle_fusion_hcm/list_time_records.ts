@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_TIME_RECORDS_OUTPUTS,
   type OracleFusionHcmListTimeRecordsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListTimeRecordsTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_time_records',
   name: 'List Time Records in Oracle Fusion HCM',
-  description: 'Read one page of time records from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of time records from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,
@@ -20,7 +21,8 @@ export const oracleFusionHcmListTimeRecordsTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker person number, including any leading zeros; does not require current public-directory membership',
+      description:
+        'Worker person number, including any leading zeros; does not require current public-directory membership',
     },
     startTime: {
       type: 'string',

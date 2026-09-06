@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_PAYROLL_ELEMENT_DEFINITIONS_OUTPUTS,
   type OracleFusionHcmListPayrollElementDefinitionsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListPayrollElementDefinitionsTool: InternalToolConfi
 > = {
   id: 'oracle_fusion_hcm_list_payroll_element_definitions',
   name: 'List Payroll Element Definitions in Oracle Fusion HCM',
-  description: 'Read one page of payroll element definitions from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of payroll element definitions from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

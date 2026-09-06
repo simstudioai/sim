@@ -12,7 +12,8 @@ export const oracleFusionHcmGetTimeCardTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_time_card',
   name: 'Get Time Card in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM time card by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM time card by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

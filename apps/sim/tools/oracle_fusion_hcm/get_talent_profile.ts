@@ -12,7 +12,8 @@ export const oracleFusionHcmGetTalentProfileTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_talent_profile',
   name: 'Get Talent Profile in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM talent profile by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM talent profile by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

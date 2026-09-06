@@ -12,7 +12,8 @@ export const oracleFusionHcmGetDevelopmentGoalTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_development_goal',
   name: 'Get Development Goal in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM development goal by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM development goal by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

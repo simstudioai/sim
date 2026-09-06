@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_ELEMENT_ENTRY_VALUES_OUTPUTS,
   type OracleFusionHcmListElementEntryValuesParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListElementEntryValuesTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_element_entry_values',
   name: 'List Element Entry Values in Oracle Fusion HCM',
-  description: 'Read one page of element entry values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of element entry values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

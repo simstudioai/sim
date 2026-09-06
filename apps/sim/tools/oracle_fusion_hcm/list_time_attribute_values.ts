@@ -1,4 +1,4 @@
-import { listCommon, internalExecution, finderBindingItems } from '@/tools/oracle_fusion_hcm/common'
+import { finderBindingItems, internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTE_VALUES_OUTPUTS,
   type OracleFusionHcmListTimeAttributeValuesParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListTimeAttributeValuesTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_time_attribute_values',
   name: 'List Time Attribute Values in Oracle Fusion HCM',
-  description: 'Read one page of time attribute values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of time attribute values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,
@@ -35,7 +36,8 @@ export const oracleFusionHcmListTimeAttributeValuesTool: InternalToolConfig<
       maxItems: 5,
       required: false,
       visibility: 'user-or-llm',
-      description: 'Up to five typed {name, value} bindings from list_time_attribute_criteria_binds; values cannot contain finder separators',
+      description:
+        'Up to five typed {name, value} bindings from list_time_attribute_criteria_binds; values cannot contain finder separators',
     },
   },
   outputs: ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTE_VALUES_OUTPUTS,

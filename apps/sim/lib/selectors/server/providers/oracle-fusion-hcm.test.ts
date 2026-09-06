@@ -627,25 +627,66 @@ describe('Oracle Fusion HCM expansion selectors', () => {
   })
 
   it('returns null for unknown payroll relationship details without reflecting upstream errors', async () => {
-    mocks.getPayrollRelationship.mockRejectedValueOnce(new OracleFusionProviderError('private record', 404))
+    mocks.getPayrollRelationship.mockRejectedValueOnce(
+      new OracleFusionProviderError('private record', 404)
+    )
     const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollRelationships']
-    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollRelationships', request: { kind: 'detail', id: '3' } })
-    await expect(attachment.execute(input, await prepare(attachment, input))).resolves.toEqual({ kind: 'detail', item: null })
+    const input = args({
+      selectorKey: 'oracle_fusion_hcm.payrollRelationships',
+      request: { kind: 'detail', id: '3' },
+    })
+    await expect(attachment.execute(input, await prepare(attachment, input))).resolves.toEqual({
+      kind: 'detail',
+      item: null,
+    })
   })
 
   it('uses discovered time data-source IDs and fixed assignment/date binding names', async () => {
-    mocks.listTimeAttributeValues.mockResolvedValueOnce({ success: true, output: { timeAttributeValues: [{ value: 'REG', displayValue: 'Regular' }, { value: null, displayValue: null }], hasMore: false } })
+    mocks.listTimeAttributeValues.mockResolvedValueOnce({
+      success: true,
+      output: {
+        timeAttributeValues: [
+          { value: 'REG', displayValue: 'Regular' },
+          { value: null, displayValue: null },
+        ],
+        hasMore: false,
+      },
+    })
     const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollTimeTypes']
-    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollTimeTypes', context: { oauthCredential: 'credential-id', assignmentId: '9007199254740993', effectiveDate: '2026-01-01', dataSourceUsageId: '2', timeAttributeUsageId: '3' } })
+    const input = args({
+      selectorKey: 'oracle_fusion_hcm.payrollTimeTypes',
+      context: {
+        oauthCredential: 'credential-id',
+        assignmentId: '9007199254740993',
+        effectiveDate: '2026-01-01',
+        dataSourceUsageId: '2',
+        timeAttributeUsageId: '3',
+      },
+    })
     const result = await attachment.execute(input, await prepare(attachment, input))
-    expect(mocks.listTimeAttributeValues).toHaveBeenCalledWith(expect.objectContaining({ dataSourceUsageId: '2', timeAttributeUsageId: '3', bindings: [{ name: 'pAssignmentId', value: '9007199254740993' }, { name: 'pEffectiveDate', value: '2026-01-01' }] }), undefined)
+    expect(mocks.listTimeAttributeValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataSourceUsageId: '2',
+        timeAttributeUsageId: '3',
+        bindings: [
+          { name: 'pAssignmentId', value: '9007199254740993' },
+          { name: 'pEffectiveDate', value: '2026-01-01' },
+        ],
+      }),
+      undefined
+    )
     expect(result).toEqual({ kind: 'list', items: [{ id: 'REG', label: 'Regular' }] })
   })
 
   it('rejects invalid date context and honors cancellation during talent listing', async () => {
     const attachment = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.payrollRelationships']
-    const input = args({ selectorKey: 'oracle_fusion_hcm.payrollRelationships', context: { oauthCredential: 'credential-id', effectiveDate: '2026-02-30' } })
-    await expect(attachment.execute(input, await prepare(attachment, input))).rejects.toBeInstanceOf(SelectorContextUnavailableError)
+    const input = args({
+      selectorKey: 'oracle_fusion_hcm.payrollRelationships',
+      context: { oauthCredential: 'credential-id', effectiveDate: '2026-02-30' },
+    })
+    await expect(
+      attachment.execute(input, await prepare(attachment, input))
+    ).rejects.toBeInstanceOf(SelectorContextUnavailableError)
     expect(mocks.listPayrollRelationships).not.toHaveBeenCalled()
     const controller = new AbortController()
     mocks.listTalentProfiles.mockImplementationOnce(async () => {
@@ -653,7 +694,12 @@ describe('Oracle Fusion HCM expansion selectors', () => {
       throw new Error('private error')
     })
     const talent = oracleFusionHcmSelectorAttachments['oracle_fusion_hcm.talentProfiles']
-    const talentInput = args({ selectorKey: 'oracle_fusion_hcm.talentProfiles', signal: controller.signal })
-    await expect(talent.execute(talentInput, await prepare(talent, talentInput))).rejects.toThrow('talent lookup stopped')
+    const talentInput = args({
+      selectorKey: 'oracle_fusion_hcm.talentProfiles',
+      signal: controller.signal,
+    })
+    await expect(talent.execute(talentInput, await prepare(talent, talentInput))).rejects.toThrow(
+      'talent lookup stopped'
+    )
   })
 })

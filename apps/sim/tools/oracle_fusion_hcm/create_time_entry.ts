@@ -12,7 +12,8 @@ export const oracleFusionHcmCreateTimeEntryTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_create_time_entry',
   name: 'Create Time Entry in Oracle Fusion HCM',
-  description: 'Submit one asynchronous create time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward.',
+  description:
+    'Submit one asynchronous create time-entry intake request. Acceptance is not processing completion, approval, or payroll transfer; inspect request events and messages afterward.',
   ...internalExecution,
   params: {
     ...common,
@@ -20,7 +21,8 @@ export const oracleFusionHcmCreateTimeEntryTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker person number, including any leading zeros; does not require current public-directory membership',
+      description:
+        'Worker person number, including any leading zeros; does not require current public-directory membership',
     },
     assignmentNumber: {
       type: 'string',
@@ -56,7 +58,8 @@ export const oracleFusionHcmCreateTimeEntryTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'PayrollTimeType attribute value discovered for the assignment and effective date',
+      description:
+        'PayrollTimeType attribute value discovered for the assignment and effective date',
     },
     timeAttributes: {
       type: 'array',
@@ -65,13 +68,15 @@ export const oracleFusionHcmCreateTimeEntryTool: InternalToolConfig<
       maxItems: 30,
       required: false,
       visibility: 'user-or-llm',
-      description: 'Up to 30 typed {attributeName, attributeValue} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input',
+      description:
+        'Up to 30 typed {attributeName, attributeValue} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input',
     },
     processMode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'TIME_ENTER (default), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval',
+      description:
+        'TIME_ENTER (default), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval',
     },
     changeReason: {
       type: 'string',

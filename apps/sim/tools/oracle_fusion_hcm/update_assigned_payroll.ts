@@ -12,7 +12,8 @@ export const oracleFusionHcmUpdateAssignedPayrollTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_update_assigned_payroll',
   name: 'Update Assigned Payroll in Oracle Fusion HCM',
-  description: 'Correct or effectively update an assigned-payroll record. Does not transfer the worker to another payroll or execute a payroll process.',
+  description:
+    'Correct or effectively update an assigned-payroll record. Does not transfer the worker to another payroll or execute a payroll process.',
   ...internalExecution,
   params: {
     ...common,
@@ -26,7 +27,8 @@ export const oracleFusionHcmUpdateAssignedPayrollTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
+      description:
+        'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
     },
     assignedPayrollId: {
       type: 'string',

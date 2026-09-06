@@ -566,9 +566,13 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'startDate',
       title: 'Start Date',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_absences', ...['create_assigned_payroll', 'list_person_process_results']] },
+      condition: {
+        field: 'operation',
+        value: ['list_absences', ...['create_assigned_payroll', 'list_person_process_results']],
+      },
       placeholder: 'YYYY-MM-DD',
-      description: 'Start date in YYYY-MM-DD format; absence filtering requires both dates and an absence type',
+      description:
+        'Start date in YYYY-MM-DD format; absence filtering requires both dates and an absence type',
       wandConfig: {
         enabled: true,
         prompt: 'Generate an ISO 8601 date (YYYY-MM-DD). Return ONLY the date string.',
@@ -580,9 +584,13 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'endDate',
       title: 'End Date',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_absences', ...['create_assigned_payroll', 'list_person_process_results']] },
+      condition: {
+        field: 'operation',
+        value: ['list_absences', ...['create_assigned_payroll', 'list_person_process_results']],
+      },
       placeholder: 'YYYY-MM-DD',
-      description: 'End date in YYYY-MM-DD format; absence filtering requires both dates and an absence type',
+      description:
+        'End date in YYYY-MM-DD format; absence filtering requires both dates and an absence type',
       wandConfig: {
         enabled: true,
         prompt: 'Generate an ISO 8601 date (YYYY-MM-DD). Return ONLY the date string.',
@@ -608,7 +616,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
         prompt: 'Generate an ISO 8601 date (YYYY-MM-DD). Return ONLY the date string.',
         generationType: 'timestamp',
       },
-      required: { field: 'operation', value: ['update_assigned_payroll', 'update_element_entry_value'] },
+      required: {
+        field: 'operation',
+        value: ['update_assigned_payroll', 'update_element_entry_value'],
+      },
     },
     {
       id: 'limit',
@@ -633,7 +644,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       condition: { field: 'operation', value: ['list_payroll_relationships', 'list_element_entries', 'list_person_process_results', 'list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry', 'delete_time_entry', 'get_payroll_relationship', 'list_payroll_assignments', 'get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll', 'get_element_entry', 'list_element_entry_values', 'update_element_entry_value'] },
       required: { field: 'operation', value: ['list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry', 'delete_time_entry'] },
-      description: 'Worker person number, including any leading zeros; does not require current public-directory membership',
+      description:
+        'Worker person number, including any leading zeros; does not require current public-directory membership',
     },
     {
       id: 'payrollRelationshipIdPicker',
@@ -647,8 +659,31 @@ export const OracleFusionHcmBlock: BlockConfig = {
         any: ['oauthCredential', 'personNumber', 'effectiveDate'],
       },
       mode: 'basic',
-      condition: { field: 'operation', value: ['get_payroll_relationship', 'list_payroll_assignments', 'get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll', 'list_person_process_results'] },
-      required: { field: 'operation', value: ['get_payroll_relationship', 'list_payroll_assignments', 'get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_payroll_relationship',
+          'list_payroll_assignments',
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+          'list_person_process_results',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_payroll_relationship',
+          'list_payroll_assignments',
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+        ],
+      },
       placeholder: 'Select payroll relationship id',
       description: 'Payroll relationship ID, as a positive decimal string',
     },
@@ -658,8 +693,31 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'payrollRelationshipId',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['get_payroll_relationship', 'list_payroll_assignments', 'get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll', 'list_person_process_results'] },
-      required: { field: 'operation', value: ['get_payroll_relationship', 'list_payroll_assignments', 'get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_payroll_relationship',
+          'list_payroll_assignments',
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+          'list_person_process_results',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_payroll_relationship',
+          'list_payroll_assignments',
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+        ],
+      },
       placeholder: 'Enter payroll relationship id',
     },
     {
@@ -677,7 +735,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
       required: { field: 'operation', value: ['get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
       placeholder: 'Select payroll assignment id',
-      description: 'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
+      description:
+        'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
     },
     {
       id: 'payrollAssignmentIdInput',
@@ -890,7 +949,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       placeholder: '[]',
       condition: { field: 'operation', value: ['create_element_entry'] },
       required: { field: 'operation', value: ['create_element_entry'] },
-      description: 'Up to 100 typed objects: inputValueId (positive decimal string) and screenEntryValue (string up to 60 characters or null). Input IDs serialize exactly as JSON integers',
+      description:
+        'Up to 100 typed objects: inputValueId (positive decimal string) and screenEntryValue (string up to 60 characters or null). Input IDs serialize exactly as JSON integers',
     },
     {
       id: 'elementEntryValueId',
@@ -906,7 +966,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       condition: { field: 'operation', value: ['update_element_entry_value'] },
       required: { field: 'operation', value: ['update_element_entry_value'] },
-      description: 'Element input value as text, preserving decimal precision; null clears a nullable value',
+      description:
+        'Element input value as text, preserving decimal precision; null clears a nullable value',
     },
     {
       id: 'objectActionId',
@@ -973,7 +1034,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       condition: { field: 'operation', value: ['create_salary', 'correct_salary'] },
       required: { field: 'operation', value: ['create_salary', 'correct_salary'] },
-      description: 'Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request',
+      description:
+        'Nonnegative salary amount in the salary basis currency and frequency; administrative write, not an approval request',
     },
     {
       id: 'dateFrom',
@@ -1159,7 +1221,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       description: 'Start timestamp in ISO 8601 with explicit time-zone offset',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp with explicit time-zone offset. Return ONLY the timestamp.',
+        prompt:
+          'Generate an ISO 8601 timestamp with explicit time-zone offset. Return ONLY the timestamp.',
         generationType: 'timestamp',
       },
     },
@@ -1172,7 +1235,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       description: 'Stop timestamp in ISO 8601 with explicit time-zone offset',
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp with explicit time-zone offset. Return ONLY the timestamp.',
+        prompt:
+          'Generate an ISO 8601 timestamp with explicit time-zone offset. Return ONLY the timestamp.',
         generationType: 'timestamp',
       },
     },
@@ -1240,7 +1304,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       placeholder: '[]',
       condition: { field: 'operation', value: ['list_time_attribute_values'] },
       required: { field: 'operation', value: [] },
-      description: 'Up to five typed {name, value} bindings from list_time_attribute_criteria_binds; values cannot contain finder separators',
+      description:
+        'Up to five typed {name, value} bindings from list_time_attribute_criteria_binds; values cannot contain finder separators',
     },
     {
       id: 'measure',
@@ -1275,7 +1340,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry'] },
       required: { field: 'operation', value: [] },
       placeholder: 'Select payroll time type',
-      description: 'PayrollTimeType attribute value discovered for the assignment and effective date',
+      description:
+        'PayrollTimeType attribute value discovered for the assignment and effective date',
     },
     {
       id: 'payrollTimeTypeInput',
@@ -1295,7 +1361,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       placeholder: '[]',
       condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry'] },
       required: { field: 'operation', value: [] },
-      description: 'Up to 30 typed {attributeName, attributeValue} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input',
+      description:
+        'Up to 30 typed {attributeName, attributeValue} qualifiers discovered through the time configuration tools. PayrollTimeType uses its dedicated input',
     },
     {
       id: 'processMode',
@@ -1305,7 +1372,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       value: () => 'TIME_ENTER',
       condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry', 'delete_time_entry'] },
       required: { field: 'operation', value: [] },
-      description: 'TIME_ENTER (default), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval',
+      description:
+        'TIME_ENTER (default), TIME_SAVE, or TIME_SUBMIT. Requests process asynchronously; acceptance is not completion or approval',
     },
     {
       id: 'changeReason',
@@ -1321,7 +1389,8 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       condition: { field: 'operation', value: ['update_time_entry', 'delete_time_entry'] },
       required: { field: 'operation', value: ['update_time_entry', 'delete_time_entry'] },
-      description: 'Current time-record version from get_time_record; required for update and delete',
+      description:
+        'Current time-record version from get_time_record; required for update and delete',
     },
     {
       id: 'timeRecordEventRequestId',
@@ -1585,107 +1654,128 @@ export const OracleFusionHcmBlock: BlockConfig = {
   outputs: {
     payrollRelationships: {
       type: 'json',
-      description: 'Payroll Relationships: payrollRelationshipId, payrollRelationshipNumber, personNumber, country, effectiveStartDate, effectiveEndDate, startDate, endDate, overridingPeriodId',
+      description:
+        'Payroll Relationships: payrollRelationshipId, payrollRelationshipNumber, personNumber, country, effectiveStartDate, effectiveEndDate, startDate, endDate, overridingPeriodId',
       condition: { field: 'operation', value: ['list_payroll_relationships'] },
     },
     payrollRelationship: {
       type: 'json',
-      description: 'Payroll Relationship: payrollRelationshipId, payrollRelationshipNumber, personNumber, country, effectiveStartDate, effectiveEndDate, startDate, endDate, overridingPeriodId',
+      description:
+        'Payroll Relationship: payrollRelationshipId, payrollRelationshipNumber, personNumber, country, effectiveStartDate, effectiveEndDate, startDate, endDate, overridingPeriodId',
       condition: { field: 'operation', value: ['get_payroll_relationship'] },
     },
     payrollAssignments: {
       type: 'json',
-      description: 'Payroll Assignments: payrollAssignmentId, assignmentId, assignmentNumber, effectiveStartDate, effectiveEndDate, overridingPeriodId, timeCardRequired',
+      description:
+        'Payroll Assignments: payrollAssignmentId, assignmentId, assignmentNumber, effectiveStartDate, effectiveEndDate, overridingPeriodId, timeCardRequired',
       condition: { field: 'operation', value: ['list_payroll_assignments'] },
     },
     payrollAssignment: {
       type: 'json',
-      description: 'Payroll Assignment: payrollAssignmentId, assignmentId, assignmentNumber, effectiveStartDate, effectiveEndDate, overridingPeriodId, timeCardRequired',
+      description:
+        'Payroll Assignment: payrollAssignmentId, assignmentId, assignmentNumber, effectiveStartDate, effectiveEndDate, overridingPeriodId, timeCardRequired',
       condition: { field: 'operation', value: ['get_payroll_assignment'] },
     },
     assignedPayrolls: {
       type: 'json',
-      description: 'Assigned Payrolls: assignedPayrollId, payrollId, payrollName, startDate, endDate, effectiveStartDate, effectiveEndDate, lsed, overridingPeriodId, and documented resource details',
+      description:
+        'Assigned Payrolls: assignedPayrollId, payrollId, payrollName, startDate, endDate, effectiveStartDate, effectiveEndDate, lsed, overridingPeriodId, and documented resource details',
       condition: { field: 'operation', value: ['list_assigned_payrolls'] },
     },
     assignedPayroll: {
       type: 'json',
-      description: 'Assigned Payroll: assignedPayrollId, payrollId, payrollName, startDate, endDate, effectiveStartDate, effectiveEndDate, lsed, overridingPeriodId, and documented resource details',
+      description:
+        'Assigned Payroll: assignedPayrollId, payrollId, payrollName, startDate, endDate, effectiveStartDate, effectiveEndDate, lsed, overridingPeriodId, and documented resource details',
       condition: { field: 'operation', value: ['get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
     },
     payrollDefinitions: {
       type: 'json',
-      description: 'Payroll Definitions: payrollId, payrollName, legislativeDataGroupId, legislativeDataGroupName, effectiveStartDate, effectiveEndDate, periodType, consolidationSetId, consolidationSetName, and documented resource details',
+      description:
+        'Payroll Definitions: payrollId, payrollName, legislativeDataGroupId, legislativeDataGroupName, effectiveStartDate, effectiveEndDate, periodType, consolidationSetId, consolidationSetName, and documented resource details',
       condition: { field: 'operation', value: ['list_payroll_definitions'] },
     },
     payrollTimePeriods: {
       type: 'json',
-      description: 'Payroll Time Periods: timePeriodId, payrollId, payrollName, legislativeDataGroupId, periodName, periodNumber, periodType, periodCategory, startDate, and documented resource details',
+      description:
+        'Payroll Time Periods: timePeriodId, payrollId, payrollName, legislativeDataGroupId, periodName, periodNumber, periodType, periodCategory, startDate, and documented resource details',
       condition: { field: 'operation', value: ['list_payroll_time_periods'] },
     },
     payrollElementDefinitions: {
       type: 'json',
-      description: 'Payroll Element Definitions: elementTypeId, elementName, personId, legislativeDataGroupId, legislationCode, effectiveStartDate, effectiveEndDate, processingType, useAtAssignmentLevel, and documented resource details',
+      description:
+        'Payroll Element Definitions: elementTypeId, elementName, personId, legislativeDataGroupId, legislationCode, effectiveStartDate, effectiveEndDate, processingType, useAtAssignmentLevel, and documented resource details',
       condition: { field: 'operation', value: ['list_payroll_element_definitions'] },
     },
     payrollInputValues: {
       type: 'json',
-      description: 'Payroll Input Values: inputValueId, inputValueName, elementTypeId, elementName, legislativeDataGroupId, effectiveStartDate, effectiveEndDate, uom, reservedInputValue, and documented resource details',
+      description:
+        'Payroll Input Values: inputValueId, inputValueName, elementTypeId, elementName, legislativeDataGroupId, effectiveStartDate, effectiveEndDate, uom, reservedInputValue, and documented resource details',
       condition: { field: 'operation', value: ['list_payroll_input_values'] },
     },
     elementEntries: {
       type: 'json',
-      description: 'Element Entries: elementEntryId, personId, personNumber, assignmentId, assignmentNumber, elementTypeId, elementName, entryType, creatorType, and documented resource details',
+      description:
+        'Element Entries: elementEntryId, personId, personNumber, assignmentId, assignmentNumber, elementTypeId, elementName, entryType, creatorType, and documented resource details',
       condition: { field: 'operation', value: ['list_element_entries'] },
     },
     elementEntry: {
       type: 'json',
-      description: 'Element Entry: elementEntryId, personId, personNumber, assignmentId, assignmentNumber, elementTypeId, elementName, entryType, creatorType, and documented resource details',
+      description:
+        'Element Entry: elementEntryId, personId, personNumber, assignmentId, assignmentNumber, elementTypeId, elementName, entryType, creatorType, and documented resource details',
       condition: { field: 'operation', value: ['get_element_entry', 'create_element_entry'] },
     },
     elementEntryValues: {
       type: 'json',
-      description: 'Element Entry Values: elementEntryValueId, inputValueId, inputValueName, screenEntryValue, uom, mandatoryFlag, userEnterableFlag, displaySequence',
+      description:
+        'Element Entry Values: elementEntryValueId, inputValueId, inputValueName, screenEntryValue, uom, mandatoryFlag, userEnterableFlag, displaySequence',
       condition: { field: 'operation', value: ['list_element_entry_values'] },
     },
     elementEntryValue: {
       type: 'json',
-      description: 'Element Entry Value: elementEntryValueId, inputValueId, inputValueName, screenEntryValue, uom, mandatoryFlag, userEnterableFlag, displaySequence',
+      description:
+        'Element Entry Value: elementEntryValueId, inputValueId, inputValueName, screenEntryValue, uom, mandatoryFlag, userEnterableFlag, displaySequence',
       condition: { field: 'operation', value: ['update_element_entry_value'] },
     },
     personProcessResults: {
       type: 'json',
-      description: 'Person Process Results: objectActionId, personId, personNumber, assignmentId, assignmentNumber, payrollRelationshipId, payrollId, payroll, actionTypeCode, and documented resource details',
+      description:
+        'Person Process Results: objectActionId, personId, personNumber, assignmentId, assignmentNumber, payrollRelationshipId, payrollId, payroll, actionTypeCode, and documented resource details',
       condition: { field: 'operation', value: ['list_person_process_results'] },
     },
     personProcessResult: {
       type: 'json',
-      description: 'Person Process Result: objectActionId, personId, personNumber, assignmentId, assignmentNumber, payrollRelationshipId, payrollId, payroll, actionTypeCode, and documented resource details',
+      description:
+        'Person Process Result: objectActionId, personId, personNumber, assignmentId, assignmentNumber, payrollRelationshipId, payrollId, payroll, actionTypeCode, and documented resource details',
       condition: { field: 'operation', value: ['get_person_process_result'] },
     },
     payrollRunResults: {
       type: 'json',
-      description: 'Payroll Run Results: runResultId, inputValueId, inputValueName, elementEntryId, elementTypeId, elementName, resultValue, personId, assignmentId, and documented resource details',
+      description:
+        'Payroll Run Results: runResultId, inputValueId, inputValueName, elementEntryId, elementTypeId, elementName, resultValue, personId, assignmentId, and documented resource details',
       condition: { field: 'operation', value: ['list_payroll_run_results'] },
     },
     payrollBalances: {
       type: 'json',
-      description: 'Payroll Balances: balanceTypeId, balanceName, dimensionName, payrollRelActionId, legislativeDataGroupId, legislationCode, uom, uomCode, ctxString, and documented resource details',
+      description:
+        'Payroll Balances: balanceTypeId, balanceName, dimensionName, payrollRelActionId, legislativeDataGroupId, legislationCode, uom, uomCode, ctxString, and documented resource details',
       condition: { field: 'operation', value: ['list_payroll_balances'] },
     },
     salaries: {
       type: 'json',
-      description: 'Salaries: salaryId, assignmentId, assignmentNumber, personId, personNumber, salaryBasisId, salaryBasisName, salaryBasisType, salaryAmount, and documented resource details',
+      description:
+        'Salaries: salaryId, assignmentId, assignmentNumber, personId, personNumber, salaryBasisId, salaryBasisName, salaryBasisType, salaryAmount, and documented resource details',
       condition: { field: 'operation', value: ['list_salaries'] },
     },
     salary: {
       type: 'json',
-      description: 'Salary: salaryId, assignmentId, assignmentNumber, personId, personNumber, salaryBasisId, salaryBasisName, salaryBasisType, salaryAmount, and documented resource details',
+      description:
+        'Salary: salaryId, assignmentId, assignmentNumber, personId, personNumber, salaryBasisId, salaryBasisName, salaryBasisType, salaryAmount, and documented resource details',
       condition: { field: 'operation', value: ['get_salary', 'create_salary', 'correct_salary'] },
     },
     salaryBases: {
       type: 'json',
-      description: 'Salary Bases: salaryBasisId, salaryBasisName, salaryBasisType, code, frequencyCode, frequencyName, inputCurrencyCode, legislativeDataGroupId, gradeRateId, and documented resource details',
+      description:
+        'Salary Bases: salaryBasisId, salaryBasisName, salaryBasisType, code, frequencyCode, frequencyName, inputCurrencyCode, legislativeDataGroupId, gradeRateId, and documented resource details',
       condition: { field: 'operation', value: ['list_salary_bases'] },
     },
     componentKind: {
@@ -1695,132 +1785,158 @@ export const OracleFusionHcmBlock: BlockConfig = {
     },
     standardComponents: {
       type: 'json',
-      description: 'standardComponents: selected-family component IDs, names, amounts, adjustments, and scale; empty for other families',
+      description:
+        'standardComponents: selected-family component IDs, names, amounts, adjustments, and scale; empty for other families',
       condition: { field: 'operation', value: ['list_salary_components'] },
     },
     simpleComponents: {
       type: 'json',
-      description: 'simpleComponents: selected-family component IDs, names, amounts, adjustments, and scale; empty for other families',
+      description:
+        'simpleComponents: selected-family component IDs, names, amounts, adjustments, and scale; empty for other families',
       condition: { field: 'operation', value: ['list_salary_components'] },
     },
     rateComponents: {
       type: 'json',
-      description: 'rateComponents: selected-family component IDs, names, amounts, adjustments, and scale; empty for other families',
+      description:
+        'rateComponents: selected-family component IDs, names, amounts, adjustments, and scale; empty for other families',
       condition: { field: 'operation', value: ['list_salary_components'] },
     },
     gradeRateValues: {
       type: 'json',
-      description: 'Grade Rate Values: rateValueId, gradeId, effectiveStartDate, effectiveEndDate, minimumAmount, midValueAmount, maximumAmount, valueAmount',
+      description:
+        'Grade Rate Values: rateValueId, gradeId, effectiveStartDate, effectiveEndDate, minimumAmount, midValueAmount, maximumAmount, valueAmount',
       condition: { field: 'operation', value: ['list_grade_rate_values'] },
     },
     goalPlans: {
       type: 'json',
-      description: 'Goal Plans: goalPlanId, goalPlanName, reviewPeriodId, reviewPeriodName, startDate, endDate, goalSettingStartDate, goalSettingEndDate, goalPlanActiveCode, and documented resource details',
+      description:
+        'Goal Plans: goalPlanId, goalPlanName, reviewPeriodId, reviewPeriodName, startDate, endDate, goalSettingStartDate, goalSettingEndDate, goalPlanActiveCode, and documented resource details',
       condition: { field: 'operation', value: ['list_goal_plans'] },
     },
     goalPlan: {
       type: 'json',
-      description: 'Goal Plan: goalPlanId, goalPlanName, reviewPeriodId, reviewPeriodName, startDate, endDate, goalSettingStartDate, goalSettingEndDate, goalPlanActiveCode, and documented resource details',
+      description:
+        'Goal Plan: goalPlanId, goalPlanName, reviewPeriodId, reviewPeriodName, startDate, endDate, goalSettingStartDate, goalSettingEndDate, goalPlanActiveCode, and documented resource details',
       condition: { field: 'operation', value: ['get_goal_plan'] },
     },
     performanceGoals: {
       type: 'json',
-      description: 'Performance Goals: goalId, personId, personNumber, assignmentId, goalName, description, startDate, targetCompletionDate, status, and documented resource details',
+      description:
+        'Performance Goals: goalId, personId, personNumber, assignmentId, goalName, description, startDate, targetCompletionDate, status, and documented resource details',
       condition: { field: 'operation', value: ['list_performance_goals'] },
     },
     performanceGoal: {
       type: 'json',
-      description: 'Performance Goal: goalId, personId, personNumber, assignmentId, goalName, description, startDate, targetCompletionDate, status, and documented resource details',
+      description:
+        'Performance Goal: goalId, personId, personNumber, assignmentId, goalName, description, startDate, targetCompletionDate, status, and documented resource details',
       condition: { field: 'operation', value: ['get_performance_goal'] },
     },
     developmentGoals: {
       type: 'json',
-      description: 'Development Goals: goalId, personId, personNumber, assignmentId, assignmentNumber, goalName, startDate, targetCompletionDate, actualCompletionDate, and documented resource details',
+      description:
+        'Development Goals: goalId, personId, personNumber, assignmentId, assignmentNumber, goalName, startDate, targetCompletionDate, actualCompletionDate, and documented resource details',
       condition: { field: 'operation', value: ['list_development_goals'] },
     },
     developmentGoal: {
       type: 'json',
-      description: 'Development Goal: goalId, personId, personNumber, assignmentId, assignmentNumber, goalName, startDate, targetCompletionDate, actualCompletionDate, and documented resource details',
+      description:
+        'Development Goal: goalId, personId, personNumber, assignmentId, assignmentNumber, goalName, startDate, targetCompletionDate, actualCompletionDate, and documented resource details',
       condition: { field: 'operation', value: ['get_development_goal'] },
     },
     performanceDocuments: {
       type: 'json',
-      description: 'Performance Documents: evaluationId, personId, personNumber, assignmentId, performanceDocumentName, evalStatus, statusCode, reviewPeriodId, startDate, and documented resource details',
+      description:
+        'Performance Documents: evaluationId, personId, personNumber, assignmentId, performanceDocumentName, evalStatus, statusCode, reviewPeriodId, startDate, and documented resource details',
       condition: { field: 'operation', value: ['list_performance_documents'] },
     },
     performanceDocument: {
       type: 'json',
-      description: 'Performance Document: evaluationId, personId, personNumber, assignmentId, performanceDocumentName, evalStatus, statusCode, reviewPeriodId, startDate, and documented resource details',
+      description:
+        'Performance Document: evaluationId, personId, personNumber, assignmentId, performanceDocumentName, evalStatus, statusCode, reviewPeriodId, startDate, and documented resource details',
       condition: { field: 'operation', value: ['get_performance_document'] },
     },
     performanceDocumentRoles: {
       type: 'json',
-      description: 'Performance Document Roles: evalRoleId, roleTypeCode, minimumNumberPcpns, matrixParticipantFlag',
+      description:
+        'Performance Document Roles: evalRoleId, roleTypeCode, minimumNumberPcpns, matrixParticipantFlag',
       condition: { field: 'operation', value: ['list_performance_document_roles'] },
     },
     performanceDocumentParticipants: {
       type: 'json',
-      description: 'Performance Document Participants: evalParticipantId, evalRoleId, personId, participationStatusCode, dueDate, fdbackCompletionDate, matrixParticipantFlag, roleTypeCode',
+      description:
+        'Performance Document Participants: evalParticipantId, evalRoleId, personId, participationStatusCode, dueDate, fdbackCompletionDate, matrixParticipantFlag, roleTypeCode',
       condition: { field: 'operation', value: ['list_performance_document_participants'] },
     },
     performanceDocumentTasks: {
       type: 'json',
-      description: 'Performance Document Tasks: evalStepId, stepCode, stepStatus, taskName, taskStatus, dueDate',
+      description:
+        'Performance Document Tasks: evalStepId, stepCode, stepStatus, taskName, taskStatus, dueDate',
       condition: { field: 'operation', value: ['list_performance_document_tasks'] },
     },
     talentProfiles: {
       type: 'json',
-      description: 'Talent Profiles: profileId, personId, personNumber, profileCode, displayName, statusCode',
+      description:
+        'Talent Profiles: profileId, personId, personNumber, profileCode, displayName, statusCode',
       condition: { field: 'operation', value: ['list_talent_profiles'] },
     },
     talentProfile: {
       type: 'json',
-      description: 'Talent Profile: profileId, personId, personNumber, profileCode, displayName, statusCode',
+      description:
+        'Talent Profile: profileId, personId, personNumber, profileCode, displayName, statusCode',
       condition: { field: 'operation', value: ['get_talent_profile'] },
     },
     talentProfileSections: {
       type: 'json',
-      description: 'Talent Profile Sections: profileSectionId, sectionId, sectionName, sectionContext',
+      description:
+        'Talent Profile Sections: profileSectionId, sectionId, sectionName, sectionContext',
       condition: { field: 'operation', value: ['list_talent_profile_sections'] },
     },
     talentProfileSkills: {
       type: 'json',
-      description: 'Talent Profile Skills: skillId, profileId, sectionId, skill, skillType, skillTypeMeaning, dateAchieved, yearsOfExperience, projectOrActivity, and documented resource details',
+      description:
+        'Talent Profile Skills: skillId, profileId, sectionId, skill, skillType, skillTypeMeaning, dateAchieved, yearsOfExperience, projectOrActivity, and documented resource details',
       condition: { field: 'operation', value: ['list_talent_profile_skills'] },
     },
     talentProfileCertifications: {
       type: 'json',
-      description: 'Talent Profile Certifications: certificationId, profileId, sectionId, licenseOrCertificate, title, issueDate, expirationDate, renewalDate, status, and documented resource details',
+      description:
+        'Talent Profile Certifications: certificationId, profileId, sectionId, licenseOrCertificate, title, issueDate, expirationDate, renewalDate, status, and documented resource details',
       condition: { field: 'operation', value: ['list_talent_profile_certifications'] },
     },
     timeRecords: {
       type: 'json',
-      description: 'Time Records: timeRecordId, timeRecordVersion, timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, recordType, groupType, and documented resource details',
+      description:
+        'Time Records: timeRecordId, timeRecordVersion, timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, recordType, groupType, and documented resource details',
       condition: { field: 'operation', value: ['list_time_records'] },
     },
     timeRecord: {
       type: 'json',
-      description: 'Time Record: timeRecordId, timeRecordVersion, timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, recordType, groupType, and documented resource details',
+      description:
+        'Time Record: timeRecordId, timeRecordVersion, timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, recordType, groupType, and documented resource details',
       condition: { field: 'operation', value: ['get_time_record'] },
     },
     timeCards: {
       type: 'json',
-      description: 'Time Cards: timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, startTime, stopTime, totalHours, groupType, and documented resource details',
+      description:
+        'Time Cards: timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, startTime, stopTime, totalHours, groupType, and documented resource details',
       condition: { field: 'operation', value: ['list_time_cards'] },
     },
     timeCard: {
       type: 'json',
-      description: 'Time Card: timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, startTime, stopTime, totalHours, groupType, and documented resource details',
+      description:
+        'Time Card: timeRecordGroupId, timeRecordGroupVersion, personId, personNumber, assignmentNumber, startTime, stopTime, totalHours, groupType, and documented resource details',
       condition: { field: 'operation', value: ['get_time_card'] },
     },
     timeAttributes: {
       type: 'json',
-      description: 'Time Attributes: tmAtrbFldId, tmAtrbFldUsageId, attributeName, contextCode, displayName, description, name',
+      description:
+        'Time Attributes: tmAtrbFldId, tmAtrbFldUsageId, attributeName, contextCode, displayName, description, name',
       condition: { field: 'operation', value: ['list_time_attributes'] },
     },
     timeAttributeDataSources: {
       type: 'json',
-      description: 'Time Attribute Data Sources: dataSourceUsageId, dataSourceUsageCode, tmAtrbFldId',
+      description:
+        'Time Attribute Data Sources: dataSourceUsageId, dataSourceUsageCode, tmAtrbFldId',
       condition: { field: 'operation', value: ['list_time_attribute_data_sources'] },
     },
     timeAttributeCriteriaBinds: {
@@ -1840,12 +1956,14 @@ export const OracleFusionHcmBlock: BlockConfig = {
     },
     timeRecordRequestEvents: {
       type: 'json',
-      description: 'Time Record Request Events: timeRecordEventId, timeRecordEventRequestId, timeRecordId, timeRecordVersion, operationType, eventStatus, eventStatusValue, crudStatusValue, personId, and documented resource details',
+      description:
+        'Time Record Request Events: timeRecordEventId, timeRecordEventRequestId, timeRecordId, timeRecordVersion, operationType, eventStatus, eventStatusValue, crudStatusValue, personId, and documented resource details',
       condition: { field: 'operation', value: ['list_time_record_request_events'] },
     },
     timeRecordEventMessages: {
       type: 'json',
-      description: 'Time Record Event Messages: timeRecordEventMessageId, timeRecordId, timeBldgBlkVersion, messageId, messageName, messageField, attributeType, allowException',
+      description:
+        'Time Record Event Messages: timeRecordEventMessageId, timeRecordId, timeBldgBlkVersion, messageId, messageName, messageField, attributeType, allowException',
       condition: { field: 'operation', value: ['list_time_record_event_messages'] },
     },
     worker: {
@@ -1995,7 +2113,8 @@ export const OracleFusionHcmBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Oracle payroll results review',
-      prompt: 'Read payroll relationships and person processing results, then inspect one page of run results and contextual balances. Preserve Oracle string values and do not launch a payroll flow.',
+      prompt:
+        'Read payroll relationships and person processing results, then inspect one page of run results and contextual balances. Preserve Oracle string values and do not launch a payroll flow.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'payroll'],
@@ -2003,7 +2122,8 @@ export const OracleFusionHcmBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Oracle salary history review',
-      prompt: 'Read salary history by HR assignment ID, discover salary bases and components, and compare effective dates without requiring current directory membership or making salary changes.',
+      prompt:
+        'Read salary history by HR assignment ID, discover salary bases and components, and compare effective dates without requiring current directory membership or making salary changes.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'compensation'],
@@ -2011,7 +2131,8 @@ export const OracleFusionHcmBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Oracle talent progress review',
-      prompt: 'Read goal plans, performance and development goals, performance document participants and tasks, and secured profile skills and certifications. Do not change goals, ratings, or approvals.',
+      prompt:
+        'Read goal plans, performance and development goals, performance document participants and tasks, and secured profile skills and certifications. Do not change goals, ratings, or approvals.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'talent'],
@@ -2019,7 +2140,8 @@ export const OracleFusionHcmBlockMeta = {
     {
       icon: NetSuiteIcon,
       title: 'Oracle time intake monitoring',
-      prompt: 'Submit only a user-authorized time entry using discovered attributes and asynchronous intake, then inspect request events and messages. Do not treat an accepted request as completed processing or approval.',
+      prompt:
+        'Submit only a user-authorized time entry using discovered attributes and asynchronous intake, then inspect request events and messages. Do not treat an accepted request as completed processing or approval.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'time'],
@@ -2101,22 +2223,26 @@ export const OracleFusionHcmBlockMeta = {
     {
       name: 'review-oracle-hcm-payroll',
       description: 'Oracle payroll results review',
-      content: '# Oracle payroll results review\n\n## Steps\n\nRead payroll relationships and person processing results, then inspect one page of run results and contextual balances. Preserve Oracle string values and do not launch a payroll flow.\n\n## Output\n\nReturn the requested result page with its original decimal strings.',
+      content:
+        '# Oracle payroll results review\n\n## Steps\n\nRead payroll relationships and person processing results, then inspect one page of run results and contextual balances. Preserve Oracle string values and do not launch a payroll flow.\n\n## Output\n\nReturn the requested result page with its original decimal strings.',
     },
     {
       name: 'review-oracle-hcm-compensation',
       description: 'Oracle salary history review',
-      content: '# Oracle salary history review\n\n## Steps\n\nRead salary history by HR assignment ID, discover salary bases and components, and compare effective dates without requiring current directory membership or making salary changes.\n\n## Output\n\nReturn a dated salary-history comparison for authorized reviewers.',
+      content:
+        '# Oracle salary history review\n\n## Steps\n\nRead salary history by HR assignment ID, discover salary bases and components, and compare effective dates without requiring current directory membership or making salary changes.\n\n## Output\n\nReturn a dated salary-history comparison for authorized reviewers.',
     },
     {
       name: 'review-oracle-hcm-talent',
       description: 'Oracle talent progress review',
-      content: '# Oracle talent progress review\n\n## Steps\n\nRead goal plans, performance and development goals, performance document participants and tasks, and secured profile skills and certifications. Do not change goals, ratings, or approvals.\n\n## Output\n\nReturn the requested secured records and progress indicators.',
+      content:
+        '# Oracle talent progress review\n\n## Steps\n\nRead goal plans, performance and development goals, performance document participants and tasks, and secured profile skills and certifications. Do not change goals, ratings, or approvals.\n\n## Output\n\nReturn the requested secured records and progress indicators.',
     },
     {
       name: 'review-oracle-hcm-time',
       description: 'Oracle time intake monitoring',
-      content: '# Oracle time intake monitoring\n\n## Steps\n\nSubmit only a user-authorized time entry using discovered attributes and asynchronous intake, then inspect request events and messages. Do not treat an accepted request as completed processing or approval.\n\n## Output\n\nReport the intake request ID and observed event/message state.',
+      content:
+        '# Oracle time intake monitoring\n\n## Steps\n\nSubmit only a user-authorized time entry using discovered attributes and asynchronous intake, then inspect request events and messages. Do not treat an accepted request as completed processing or approval.\n\n## Output\n\nReport the intake request ID and observed event/message state.',
     },
     {
       name: 'find-oracle-hcm-worker',

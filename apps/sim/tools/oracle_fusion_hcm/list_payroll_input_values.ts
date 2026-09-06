@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_PAYROLL_INPUT_VALUES_OUTPUTS,
   type OracleFusionHcmListPayrollInputValuesParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListPayrollInputValuesTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_payroll_input_values',
   name: 'List Payroll Input Values in Oracle Fusion HCM',
-  description: 'Read one page of payroll input values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of payroll input values from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

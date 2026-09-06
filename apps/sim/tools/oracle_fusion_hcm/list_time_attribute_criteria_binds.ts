@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTE_CRITERIA_BINDS_OUTPUTS,
   type OracleFusionHcmListTimeAttributeCriteriaBindsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListTimeAttributeCriteriaBindsTool: InternalToolConf
 > = {
   id: 'oracle_fusion_hcm_list_time_attribute_criteria_binds',
   name: 'List Time Attribute Criteria Binds in Oracle Fusion HCM',
-  description: 'Read one page of time attribute criteria binds from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of time attribute criteria binds from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

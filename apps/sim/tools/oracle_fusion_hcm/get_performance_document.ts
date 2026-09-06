@@ -12,7 +12,8 @@ export const oracleFusionHcmGetPerformanceDocumentTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_performance_document',
   name: 'Get Performance Document in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM performance document by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM performance document by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,

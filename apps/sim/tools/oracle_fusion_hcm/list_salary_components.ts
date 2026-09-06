@@ -1,4 +1,4 @@
-import { listCommon, internalExecution } from '@/tools/oracle_fusion_hcm/common'
+import { internalExecution, listCommon } from '@/tools/oracle_fusion_hcm/common'
 import {
   ORACLE_FUSION_HCM_LIST_SALARY_COMPONENTS_OUTPUTS,
   type OracleFusionHcmListSalaryComponentsParams,
@@ -12,7 +12,8 @@ export const oracleFusionHcmListSalaryComponentsTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_list_salary_components',
   name: 'List Salary Components in Oracle Fusion HCM',
-  description: 'Read one page of salary components from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
+  description:
+    'Read one page of salary components from Oracle Fusion HCM. Requires the corresponding tenant module and data access.',
   ...internalExecution,
   params: {
     ...listCommon,

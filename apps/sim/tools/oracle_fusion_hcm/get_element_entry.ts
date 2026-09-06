@@ -12,7 +12,8 @@ export const oracleFusionHcmGetElementEntryTool: InternalToolConfig<
 > = {
   id: 'oracle_fusion_hcm_get_element_entry',
   name: 'Get Element Entry in Oracle Fusion HCM',
-  description: 'Read an Oracle Fusion HCM element entry by its documented ID, subject to tenant data access.',
+  description:
+    'Read an Oracle Fusion HCM element entry by its documented ID, subject to tenant data access.',
   ...internalExecution,
   params: {
     ...common,
