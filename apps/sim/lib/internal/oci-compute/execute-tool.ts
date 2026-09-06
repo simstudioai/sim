@@ -5,10 +5,7 @@ import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
 import { createOciClient } from '@/lib/internal/oci/client.server'
 import { executeOciComputeOperation } from '@/lib/internal/oci-compute/operations'
-import {
-  type OciComputeOperation,
-  ociComputeSchemas,
-} from '@/lib/internal/oci-compute/schema'
+import { type OciComputeOperation, ociComputeSchemas } from '@/lib/internal/oci-compute/schema'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { OCI_COMPUTE_SERVICE_ID } from '@/tools/oci_compute/types'
 
@@ -19,15 +16,24 @@ export const executeOciComputeTool: InternalToolOperationHandler = async (reques
   }
   const operation = request.toolId.slice('oci_compute_'.length)
   if (!Object.hasOwn(ociComputeSchemas, operation)) {
-    return Response.json({ success: false, error: 'Unsupported OCI Compute operation' }, { status: 400 })
+    return Response.json(
+      { success: false, error: 'Unsupported OCI Compute operation' },
+      { status: 400 }
+    )
   }
   const { userId, workspaceId, workflowId } = request.context
   if (!userId || !workspaceId) {
-    return Response.json({ success: false, error: 'Trusted execution scope is required' }, { status: 401 })
+    return Response.json(
+      { success: false, error: 'Trusted execution scope is required' },
+      { status: 401 }
+    )
   }
   try {
     if (Buffer.byteLength(JSON.stringify(request.input) ?? '') > DEFAULT_MAX_JSON_BODY_BYTES) {
-      return Response.json({ success: false, error: 'OCI Compute input is too large' }, { status: 413 })
+      return Response.json(
+        { success: false, error: 'OCI Compute input is too large' },
+        { status: 413 }
+      )
     }
   } catch {
     return Response.json({ success: false, error: 'Invalid OCI Compute input' }, { status: 400 })
@@ -36,7 +42,10 @@ export const executeOciComputeTool: InternalToolOperationHandler = async (reques
   const parsed = ociComputeSchemas[key].safeParse(request.input)
   if (!parsed.success) {
     return Response.json(
-      { success: false, error: getValidationErrorMessage(parsed.error, 'Invalid OCI Compute input') },
+      {
+        success: false,
+        error: getValidationErrorMessage(parsed.error, 'Invalid OCI Compute input'),
+      },
       { status: 400 }
     )
   }
@@ -68,9 +77,7 @@ export const executeOciComputeTool: InternalToolOperationHandler = async (reques
       serviceId: OCI_COMPUTE_SERVICE_ID,
       region: parsed.data.region,
     })
-    return Response.json(
-      await executeOciComputeOperation(client, key, parsed.data, request.signal)
-    )
+    return Response.json(await executeOciComputeOperation(client, key, parsed.data, request.signal))
   } catch (error) {
     request.signal?.throwIfAborted()
     return Response.json(

@@ -1,8 +1,8 @@
 import {
   COMPARTMENT_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeGetCompartmentParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,9 +11,8 @@ export const ociComputeGetCompartmentTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_get_compartment',
-  name: 'OCI Compute Get compartment',
-  description:
-    'Get compartment in OCI',
+  name: 'OCI Compute Get Compartment',
+  description: 'Get compartment in OCI',
   version: '1.0.0',
   oauth: { required: true, provider: 'oci_compute', credentialKind: 'service-account' },
   params: {
@@ -21,22 +20,19 @@ export const ociComputeGetCompartmentTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -47,9 +43,7 @@ export const ociComputeGetCompartmentTool: InternalToolConfig<
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-    ]),
+    input: (params) => ociComputeOperationInput(params, ['compartmentId']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
@@ -62,4 +56,3 @@ export const ociComputeGetCompartmentTool: InternalToolConfig<
     },
   },
 }
-

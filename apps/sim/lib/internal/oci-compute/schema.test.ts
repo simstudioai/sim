@@ -15,9 +15,23 @@ const launch = {
 }
 
 describe('OCI Compute input schemas', () => {
+  it('accepts deferred attachment overrides and applies configuration-specific NVMe limits', () => {
+    expect(configurationDetailsSchema.parse({
+      instanceType: 'compute',
+      blockVolumes: [{ volumeId: 'volume' }],
+      secondaryVnics: [{ nicIndex: 0 }],
+    })).toMatchObject({ blockVolumes: [{ volumeId: 'volume' }] })
+    expect(configurationDetailsSchema.safeParse({
+      instanceType: 'compute', launchDetails: { shapeConfig: { nvmes: 7 } },
+    }).success).toBe(false)
+  })
+
   it.each([
     { sourceMode: 'image', imageId: 'image' },
-    { sourceMode: 'imageFilter', imageFilter: { compartmentId: 'images', operatingSystem: 'Oracle Linux' } },
+    {
+      sourceMode: 'imageFilter',
+      imageFilter: { compartmentId: 'images', operatingSystem: 'Oracle Linux' },
+    },
     { sourceMode: 'bootVolume', bootVolumeId: 'boot' },
   ])('accepts a discriminated launch source: $sourceMode', (source) => {
     const result = ociComputeSchemas.launch_instance.parse({ ...launch, ...source })
@@ -32,61 +46,100 @@ describe('OCI Compute input schemas', () => {
     { sourceMode: 'image', imageId: 'image', providerRequest: { arbitrary: true } },
     { sourceMode: 'image', imageId: 'image', shapeConfig: { ocpus: 2, vcpus: 4 } },
   ])('rejects incompatible or unrestricted launch inputs', (source) => {
-    expect(ociComputeSchemas.launch_instance.safeParse({ ...launch, ...source }).success).toBe(false)
+    expect(ociComputeSchemas.launch_instance.safeParse({ ...launch, ...source }).success).toBe(
+      false
+    )
   })
 
   it('supports provider-default fixed shapes and explicit flexible resources', () => {
-    expect(ociComputeSchemas.launch_instance.parse({
-      ...launch, sourceMode: 'image', imageId: 'image',
-    }).shapeConfig).toBeUndefined()
-    expect(ociComputeSchemas.launch_instance.parse({
-      ...launch, sourceMode: 'image', imageId: 'image',
-      shapeConfig: '{"ocpus":0.5,"memoryInGBs":4}',
-    }).shapeConfig).toEqual({ ocpus: 0.5, memoryInGBs: 4 })
+    expect(
+      ociComputeSchemas.launch_instance.parse({
+        ...launch,
+        sourceMode: 'image',
+        imageId: 'image',
+      }).shapeConfig
+    ).toBeUndefined()
+    expect(
+      ociComputeSchemas.launch_instance.parse({
+        ...launch,
+        sourceMode: 'image',
+        imageId: 'image',
+        shapeConfig: '{"ocpus":0.5,"memoryInGBs":4}',
+      }).shapeConfig
+    ).toEqual({ ocpus: 0.5, memoryInGBs: 4 })
   })
 
   it('allows deferred configuration settings without weakening direct launches', () => {
     const instanceDetails = {
       instanceType: 'compute',
-      launchDetails: { sourceDetails: { sourceType: 'image', instanceSourceImageFilterDetails: {} } },
+      launchDetails: {
+        sourceDetails: { sourceType: 'image', instanceSourceImageFilterDetails: {} },
+      },
     }
-    expect(ociComputeSchemas.create_instance_configuration.parse({
-      ...auth, compartmentId: 'compartment', configurationSource: 'NONE', instanceDetails,
-    }).instanceDetails).toEqual(instanceDetails)
-    expect(ociComputeSchemas.create_instance_configuration.safeParse({
-      ...auth, compartmentId: 'compartment', configurationSource: 'INSTANCE',
-      instanceId: 'instance', instanceDetails,
-    }).success).toBe(false)
-    expect(ociComputeSchemas.launch_instance_configuration.parse({
-      ...auth, instanceConfigurationId: 'configuration',
-    }).instanceDetails).toEqual({ instanceType: 'compute' })
+    expect(
+      ociComputeSchemas.create_instance_configuration.parse({
+        ...auth,
+        compartmentId: 'compartment',
+        configurationSource: 'NONE',
+        instanceDetails,
+      }).instanceDetails
+    ).toEqual(instanceDetails)
+    expect(
+      ociComputeSchemas.create_instance_configuration.safeParse({
+        ...auth,
+        compartmentId: 'compartment',
+        configurationSource: 'INSTANCE',
+        instanceId: 'instance',
+        instanceDetails,
+      }).success
+    ).toBe(false)
+    expect(
+      ociComputeSchemas.launch_instance_configuration.parse({
+        ...auth,
+        instanceConfigurationId: 'configuration',
+      }).instanceDetails
+    ).toEqual({ instanceType: 'compute' })
   })
 
   it('accepts existing volumes and secondary VNICs, and rejects provisioning', () => {
     const details = {
       instanceType: 'compute',
-      blockVolumes: [{ volumeId: 'volume', attachDetails: { type: 'paravirtualized', isReadOnly: false } }],
+      blockVolumes: [
+        { volumeId: 'volume', attachDetails: { type: 'paravirtualized', isReadOnly: false } },
+      ],
       secondaryVnics: [{ nicIndex: 0, createVnicDetails: { subnetId: 'subnet' } }],
     }
     expect(configurationDetailsSchema.parse(details)).toEqual(details)
-    expect(configurationDetailsSchema.safeParse({
-      ...details, blockVolumes: [{ createDetails: { sizeInGBs: 50 } }],
-    }).success).toBe(false)
+    expect(
+      configurationDetailsSchema.safeParse({
+        ...details,
+        blockVolumes: [{ createDetails: { sizeInGBs: 50 } }],
+      }).success
+    ).toBe(false)
   })
 
   it('uses structured pool subnet placement and preserves zero and empty arrays', () => {
     const input = {
-      ...auth, compartmentId: 'compartment', instanceConfigurationId: 'configuration', size: 0,
-      placementConfigurations: [{
-        availabilityDomain: 'AD', faultDomains: [],
-        primaryVnicSubnets: { subnetId: 'subnet', isAssignIpv6Ip: false },
-        secondaryVnicSubnets: [{ displayName: 'secondary', subnetId: 'secondary-subnet' }],
-      }],
+      ...auth,
+      compartmentId: 'compartment',
+      instanceConfigurationId: 'configuration',
+      size: 0,
+      placementConfigurations: [
+        {
+          availabilityDomain: 'AD',
+          faultDomains: [],
+          primaryVnicSubnets: { subnetId: 'subnet', isAssignIpv6Ip: false },
+          secondaryVnicSubnets: [{ displayName: 'secondary', subnetId: 'secondary-subnet' }],
+        },
+      ],
     }
     expect(ociComputeSchemas.create_instance_pool.parse(input)).toEqual(input)
-    expect(ociComputeSchemas.create_instance_pool.safeParse({
-      ...input, placementConfigurations: [{ availabilityDomain: 'AD', primarySubnetId: 'subnet' }],
-    }).success).toBe(false)
+    expect(
+      ociComputeSchemas.create_instance_pool.safeParse({
+        ...input,
+        placementConfigurations: [{ availabilityDomain: 'AD', primarySubnetId: 'subnet' }],
+      }).success
+    ).toBe(false)
   })
 
   it('preserves empty reservation removal and defaults to avoiding downtime', () => {

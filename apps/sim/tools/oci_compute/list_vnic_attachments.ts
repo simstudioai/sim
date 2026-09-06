@@ -1,8 +1,8 @@
 import {
-  VNIC_ATTACHMENT_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeListVnicAttachmentsParams,
   type OciComputeResponse,
+  VNIC_ATTACHMENT_OUTPUT_PROPERTIES,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,9 +11,8 @@ export const ociComputeListVnicAttachmentsTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_list_vnic_attachments',
-  name: 'OCI Compute List vnic attachments',
-  description:
-    'List vnic attachments in OCI',
+  name: 'OCI Compute List Vnic Attachments',
+  description: 'List vnic attachments in OCI',
   version: '1.0.0',
   oauth: { required: true, provider: 'oci_compute', credentialKind: 'service-account' },
   params: {
@@ -21,22 +20,19 @@ export const ociComputeListVnicAttachmentsTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -49,8 +45,7 @@ export const ociComputeListVnicAttachmentsTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Maximum results in this page, 1–100; default 50',
+      description: 'Maximum results in this page, 1–100; default 50',
     },
     page: {
       type: 'string',
@@ -63,36 +58,38 @@ export const ociComputeListVnicAttachmentsTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Compute instance OCID',
+      description: 'Compute instance OCID',
     },
     availabilityDomain: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Exact availability-domain name returned by OCI discovery',
+      description: 'Exact availability-domain name returned by OCI discovery',
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-      'limit',
-      'page',
-      'instanceId',
-      'availabilityDomain',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'compartmentId',
+        'limit',
+        'page',
+        'instanceId',
+        'availabilityDomain',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    nextPage: { type: 'string', description: 'Continuation token, including on empty pages', nullable: true },
+    nextPage: {
+      type: 'string',
+      description: 'Continuation token, including on empty pages',
+      nullable: true,
+    },
     vnicAttachments: {
       type: 'array',
-      description: 'Vnic Attachments in this page',
+      description: 'Vnic Attachments information returned by OCI',
       items: { type: 'object', properties: VNIC_ATTACHMENT_OUTPUT_PROPERTIES },
     },
   },
 }
-

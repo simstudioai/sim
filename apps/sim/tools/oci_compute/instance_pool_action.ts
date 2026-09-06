@@ -1,8 +1,8 @@
 import {
   INSTANCE_POOL_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeInstancePoolActionParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const ociComputeInstancePoolActionTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_instance_pool_action',
-  name: 'OCI Compute Instance pool action',
+  name: 'OCI Compute Instance Pool Action',
   description:
     'Start, stop, or reset a pool’s instances; may interrupt workloads and affect charges',
   version: '1.0.0',
@@ -21,29 +21,25 @@ export const ociComputeInstancePoolActionTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     instancePoolId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Instance pool OCID',
+      description: 'Instance pool OCID',
     },
     ifMatch: {
       type: 'string',
@@ -59,18 +55,28 @@ export const ociComputeInstancePoolActionTool: InternalToolConfig<
       description:
         'Instance action: START, STOP, SOFTSTOP, RESET, SOFTRESET, or REBOOTMIGRATE. Pools support the first five',
     },
+    retryToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call',
+    },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'instancePoolId',
-      'ifMatch',
-      'action',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'instancePoolId',
+        'ifMatch',
+        'action',
+        'retryToken',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
+    retryToken: { type: 'string', description: 'Retry token used for this request' },
     instancePool: {
       type: 'json',
       description: 'Instance Pool information returned by OCI',
@@ -78,4 +84,3 @@ export const ociComputeInstancePoolActionTool: InternalToolConfig<
     },
   },
 }
-

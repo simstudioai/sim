@@ -1,8 +1,8 @@
 import {
   INSTANCE_POOL_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
-  type OciComputeUpdateInstancePoolParams,
   type OciComputeResponse,
+  type OciComputeUpdateInstancePoolParams,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const ociComputeUpdateInstancePoolTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_update_instance_pool',
-  name: 'OCI Compute Update instance pool',
+  name: 'OCI Compute Update Instance Pool',
   description:
     'Update pool size and settings; scale-down terminates members and configuration changes affect future instances',
   version: '1.0.0',
@@ -21,43 +21,37 @@ export const ociComputeUpdateInstancePoolTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     instancePoolId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Instance pool OCID',
+      description: 'Instance pool OCID',
     },
     displayName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Display name; on list operations this is an exact provider filter',
+      description: 'Display name; on list operations this is an exact provider filter',
     },
     freeformTags: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Free-form tags as a string-to-string JSON map',
+      description: 'Free-form tags as a string-to-string JSON map',
     },
     definedTags: {
       type: 'json',
@@ -77,8 +71,7 @@ export const ociComputeUpdateInstancePoolTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Instance configuration OCID',
+      description: 'Instance configuration OCID',
     },
     size: {
       type: 'number',
@@ -105,28 +98,37 @@ export const ociComputeUpdateInstancePoolTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
+      description: 'Hostname formatter for future pool instances; empty string clears it on update',
+    },
+    retryToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
       description:
-        'Hostname formatter for future pool instances; empty string clears it on update',
+        'Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call',
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'instancePoolId',
-      'displayName',
-      'freeformTags',
-      'definedTags',
-      'ifMatch',
-      'instanceConfigurationId',
-      'size',
-      'placementConfigurations',
-      'instanceDisplayNameFormatter',
-      'instanceHostnameFormatter',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'instancePoolId',
+        'displayName',
+        'freeformTags',
+        'definedTags',
+        'ifMatch',
+        'instanceConfigurationId',
+        'size',
+        'placementConfigurations',
+        'instanceDisplayNameFormatter',
+        'instanceHostnameFormatter',
+        'retryToken',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
+    retryToken: { type: 'string', description: 'Retry token used for this request' },
     instancePool: {
       type: 'json',
       description: 'Instance Pool information returned by OCI',
@@ -134,4 +136,3 @@ export const ociComputeUpdateInstancePoolTool: InternalToolConfig<
     },
   },
 }
-

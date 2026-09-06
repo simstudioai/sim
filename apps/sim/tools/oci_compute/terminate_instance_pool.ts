@@ -1,7 +1,7 @@
 import {
-  ociComputeOperationInput,
-  type OciComputeTerminateInstancePoolParams,
   type OciComputeResponse,
+  type OciComputeTerminateInstancePoolParams,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -10,7 +10,7 @@ export const ociComputeTerminateInstancePoolTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_terminate_instance_pool',
-  name: 'OCI Compute Terminate instance pool',
+  name: 'OCI Compute Terminate Instance Pool',
   description:
     'Terminate a pool and its created resources, including volumes; no preservation flags are supported',
   version: '1.0.0',
@@ -20,29 +20,25 @@ export const ociComputeTerminateInstancePoolTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     instancePoolId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Instance pool OCID',
+      description: 'Instance pool OCID',
     },
     ifMatch: {
       type: 'string',
@@ -53,10 +49,7 @@ export const ociComputeTerminateInstancePoolTool: InternalToolConfig<
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'instancePoolId',
-      'ifMatch',
-    ]),
+    input: (params) => ociComputeOperationInput(params, ['instancePoolId', 'ifMatch']),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
@@ -64,4 +57,3 @@ export const ociComputeTerminateInstancePoolTool: InternalToolConfig<
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
   },
 }
-

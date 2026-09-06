@@ -48,6 +48,16 @@ beforeEach(() => {
 })
 
 describe('OCI Compute selectors', () => {
+  it('resolves a platform image outside the selected custom-image compartment', async () => {
+    mocks.execute.mockResolvedValue({
+      success: true, output: { status: 200, image: { id: 'platform-image', compartmentId: null } },
+    })
+    expect(await execute(args({
+      selectorKey: 'oci_compute.images', request: { kind: 'detail', id: 'platform-image' },
+    }))).toMatchObject({ kind: 'detail', item: { id: 'platform-image' } })
+    expect(mocks.execute).toHaveBeenCalledTimes(1)
+  })
+
   it('fetches one bounded page and preserves the cursor on an empty page', async () => {
     const input = args({ request: { kind: 'list', cursor: 'previous' } })
     expect(await execute(input)).toEqual({ kind: 'list', items: [], nextCursor: 'next' })

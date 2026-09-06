@@ -1,8 +1,8 @@
 import {
   IMAGE_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeCreateImageParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const ociComputeCreateImageTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_create_image',
-  name: 'OCI Compute Create image',
+  name: 'OCI Compute Create Image',
   description:
     'Capture a custom image from an instance; may interrupt the instance and creates billable image storage',
   version: '1.0.0',
@@ -21,29 +21,25 @@ export const ociComputeCreateImageTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     instanceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Compute instance OCID',
+      description: 'Compute instance OCID',
     },
     compartmentId: {
       type: 'string',
@@ -56,15 +52,13 @@ export const ociComputeCreateImageTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Display name; on list operations this is an exact provider filter',
+      description: 'Display name; on list operations this is an exact provider filter',
     },
     freeformTags: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Free-form tags as a string-to-string JSON map',
+      description: 'Free-form tags as a string-to-string JSON map',
     },
     definedTags: {
       type: 'json',
@@ -78,25 +72,30 @@ export const ociComputeCreateImageTool: InternalToolConfig<
       required: false,
       visibility: 'user-only',
       description:
-        'Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key',
+        'Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call',
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'instanceId',
-      'compartmentId',
-      'displayName',
-      'freeformTags',
-      'definedTags',
-      'retryToken',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'instanceId',
+        'compartmentId',
+        'displayName',
+        'freeformTags',
+        'definedTags',
+        'retryToken',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    workRequestId: { type: 'string', description: 'Work request OCID when returned; use status tools', nullable: true },
-    retryToken: { type: 'string', description: 'Retry token used for this creation request' },
+    workRequestId: {
+      type: 'string',
+      description: 'Work request OCID when returned; use status tools',
+      nullable: true,
+    },
+    retryToken: { type: 'string', description: 'Retry token used for this request' },
     image: {
       type: 'json',
       description: 'Image information returned by OCI',
@@ -104,4 +103,3 @@ export const ociComputeCreateImageTool: InternalToolConfig<
     },
   },
 }
-

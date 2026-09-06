@@ -1,7 +1,7 @@
 import {
-  ociComputeOperationInput,
   type OciComputeChangeImageCompartmentParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -10,9 +10,8 @@ export const ociComputeChangeImageCompartmentTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_change_image_compartment',
-  name: 'OCI Compute Change image compartment',
-  description:
-    'Change image compartment in OCI',
+  name: 'OCI Compute Change Image Compartment',
+  description: 'Change image compartment in OCI',
   version: '1.0.0',
   oauth: { required: true, provider: 'oci_compute', credentialKind: 'service-account' },
   params: {
@@ -20,29 +19,25 @@ export const ociComputeChangeImageCompartmentTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     imageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Image OCID; required for image-ID launches',
+      description: 'Image OCID; required for image-ID launches',
     },
     ifMatch: {
       type: 'string',
@@ -58,18 +53,27 @@ export const ociComputeChangeImageCompartmentTool: InternalToolConfig<
       description:
         'Compartment OCID; use the destination for moves, parent for compartment listing, and root for capacity reports',
     },
+    retryToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call',
+    },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'imageId',
-      'ifMatch',
-      'compartmentId',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'imageId',
+        'ifMatch',
+        'compartmentId',
+        'retryToken',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
+    retryToken: { type: 'string', description: 'Retry token used for this request' },
   },
 }
-

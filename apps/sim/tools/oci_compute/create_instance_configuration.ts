@@ -1,8 +1,8 @@
 import {
   INSTANCE_CONFIGURATION_OUTPUT_PROPERTIES,
-  ociComputeOperationInput,
   type OciComputeCreateInstanceConfigurationParams,
   type OciComputeResponse,
+  ociComputeOperationInput,
 } from '@/tools/oci_compute/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const ociComputeCreateInstanceConfigurationTool: InternalToolConfig<
   OciComputeResponse
 > = {
   id: 'oci_compute_create_instance_configuration',
-  name: 'OCI Compute Create instance configuration',
+  name: 'OCI Compute Create Instance Configuration',
   description:
     'Create a reusable typed instance configuration or copy an existing instance’s settings, excluding disk contents',
   version: '1.0.0',
@@ -21,22 +21,19 @@ export const ociComputeCreateInstanceConfigurationTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'Authorized OCI signing-key credential ID',
+      description: 'Authorized OCI signing-key credential ID',
     },
     region: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description:
-        'OCI region, such as us-ashburn-1; must remain in the credential realm',
+      description: 'OCI region, such as us-ashburn-1; must remain in the credential realm',
     },
     accessToken: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description:
-        'System-injected credential identity; never used as a bearer token',
+      description: 'System-injected credential identity; never used as a bearer token',
     },
     compartmentId: {
       type: 'string',
@@ -49,15 +46,13 @@ export const ociComputeCreateInstanceConfigurationTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Display name; on list operations this is an exact provider filter',
+      description: 'Display name; on list operations this is an exact provider filter',
     },
     freeformTags: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Free-form tags as a string-to-string JSON map',
+      description: 'Free-form tags as a string-to-string JSON map',
     },
     definedTags: {
       type: 'json',
@@ -71,7 +66,7 @@ export const ociComputeCreateInstanceConfigurationTool: InternalToolConfig<
       required: false,
       visibility: 'user-only',
       description:
-        'Optional 1–64 character retry token. Reuse only for the same logical creation request; otherwise Sim derives an invocation key',
+        'Optional 1–64 character retry token. Reuse only for the same logical request within Oracle’s token lifetime; otherwise Sim derives an invocation key or generates one per call',
     },
     configurationSource: {
       type: 'string',
@@ -84,34 +79,34 @@ export const ociComputeCreateInstanceConfigurationTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Compute instance OCID',
+      description: 'Compute instance OCID',
     },
     instanceDetails: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Typed compute configuration: {instanceType: "compute", launchDetails: {...}, blockVolumes: [{volumeId, attachDetails: {type: "iscsi" or "paravirtualized", ...}}], secondaryVnics: [{createVnicDetails, displayName, nicIndex}]}. Deferred launch fields may be omitted. Volume creation and arbitrary provider fields are not accepted',
+        'Typed compute configuration with instanceType "compute". Optional launchDetails fields: compartmentId, availabilityDomain, displayName, shape, shapeConfig (ocpus or vcpus, memoryInGBs, nvmes up to 6, baselineOcpuUtilization), faultDomain, createVnicDetails, sourceDetails, metadata, extendedMetadata, freeformTags, definedTags, agentConfig, availabilityConfig, instanceOptions, capacityReservationId, dedicatedVmHostId. sourceDetails uses sourceType "image" with imageId or instanceSourceImageFilterDetails and bootVolumeSizeInGBs/bootVolumeVpusPerGB/kmsKeyId, or "bootVolume" with bootVolumeId. Optional blockVolumes entries accept volumeId and attachDetails (type "iscsi" with useChap, or "paravirtualized" with isPvEncryptionInTransitEnabled; both support displayName, device, isReadOnly, isShareable). Optional secondaryVnics entries accept displayName, nicIndex, createVnicDetails. Omit deferred template fields; launch overrides supply missing values. No volume creation or unknown fields',
     },
   },
   operation: {
-    input: (params) => ociComputeOperationInput(params, [
-      'compartmentId',
-      'displayName',
-      'freeformTags',
-      'definedTags',
-      'retryToken',
-      'configurationSource',
-      'instanceId',
-      'instanceDetails',
-    ]),
+    input: (params) =>
+      ociComputeOperationInput(params, [
+        'compartmentId',
+        'displayName',
+        'freeformTags',
+        'definedTags',
+        'retryToken',
+        'configurationSource',
+        'instanceId',
+        'instanceDetails',
+      ]),
   },
   outputs: {
     status: { type: 'number', description: 'OCI HTTP response status' },
     requestId: { type: 'string', description: 'Oracle request ID for correlation', nullable: true },
     etag: { type: 'string', description: 'Resource ETag when returned', nullable: true },
-    retryToken: { type: 'string', description: 'Retry token used for this creation request' },
+    retryToken: { type: 'string', description: 'Retry token used for this request' },
     instanceConfiguration: {
       type: 'json',
       description: 'Instance Configuration information returned by OCI',
@@ -119,4 +114,3 @@ export const ociComputeCreateInstanceConfigurationTool: InternalToolConfig<
     },
   },
 }
-
