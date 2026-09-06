@@ -6,6 +6,7 @@ const { mockInvalidateDocument } = vi.hoisted(() => ({ mockInvalidateDocument: v
 
 vi.mock('@/handlers/file-doc', () => ({
   applyMarkdownToLiveFileDoc: vi.fn(),
+  fileDocAdmissionRoom: (fileId: string) => `file-doc-admission:${fileId}`,
   invalidateLiveFileDocument: mockInvalidateDocument,
 }))
 
@@ -16,7 +17,10 @@ function createMocks(req: Partial<IncomingMessage>) {
   const writeHead = vi.fn()
   const end = vi.fn()
   const logger = { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() }
+  const emit = vi.fn()
+  const to = vi.fn(() => ({ emit }))
   const roomManager = {
+    io: { to },
     getTotalActiveConnections: vi.fn().mockResolvedValue(0),
     isReady: vi.fn().mockReturnValue(true),
     emitToRoom: vi.fn(),
@@ -30,6 +34,8 @@ function createMocks(req: Partial<IncomingMessage>) {
     writeHead,
     end,
     roomManager,
+    to,
+    emit,
   }
 }
 
@@ -86,31 +92,32 @@ describe('createHttpHandler', () => {
 
   it('invalidates the shared generation before notifying every open editor', async () => {
     mockInvalidateDocument.mockResolvedValueOnce({ status: 'applied', docId: 'old-document' })
-    const { handler, req, res, writeHead, roomManager } = createMocks(
+    const { handler, req, res, writeHead, to, emit } = createMocks(
       requestWithBody('/api/file-doc/invalidate', { fileId: 'file-1', version: 100 })
     )
 
     await handler(req, res)
 
     expect(mockInvalidateDocument).toHaveBeenCalledWith('file-1', 100)
-    expect(roomManager.emitToRoom).toHaveBeenCalledWith(
-      { type: 'workspace-file-doc', id: 'file-1' },
+    expect(to).toHaveBeenCalledWith(['workspace-file-doc:file-1', 'file-doc-admission:file-1'])
+    expect(emit).toHaveBeenCalledWith(
       'file-doc-invalidated',
       expect.objectContaining({ fileId: 'file-1', version: 100, docId: 'old-document' })
     )
     expect(mockInvalidateDocument.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(roomManager.emitToRoom).mock.invocationCallOrder[0]
+      emit.mock.invocationCallOrder[0]
     )
     expect(writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' })
   })
 
   it('does not evict editors for a superseded invalidation', async () => {
     mockInvalidateDocument.mockResolvedValueOnce({ status: 'stale' })
-    const { handler, req, res, end, roomManager } = createMocks(
+    const { handler, req, res, end, roomManager, to } = createMocks(
       requestWithBody('/api/file-doc/invalidate', { fileId: 'file-1', version: 100 })
     )
     await handler(req, res)
     expect(roomManager.emitToRoom).not.toHaveBeenCalled()
+    expect(to).not.toHaveBeenCalled()
     expect(end).toHaveBeenCalledWith(JSON.stringify({ status: 'stale' }))
   })
 

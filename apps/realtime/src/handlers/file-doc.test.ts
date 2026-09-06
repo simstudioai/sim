@@ -38,6 +38,7 @@ vi.mock('@/handlers/file-doc-app', () => ({
 import {
   applyMarkdownToLiveFileDoc,
   cleanupFileDocForSocket,
+  fileDocAdmissionRoom,
   flushAllFileDocRooms,
   invalidateLiveFileDocument,
   setupWorkspaceFileDocHandlers,
@@ -1006,6 +1007,76 @@ describe('setupWorkspaceFileDocHandlers', () => {
     }
   )
 
+  it.each(['write', 'read', null] as const)(
+    'withholds document and presence broadcasts until final authorization resolves to %s',
+    async (permission) => {
+      mockFetchFileDocSeed.mockResolvedValue(seedResult('# Private', 'doc-private'))
+      const memberships = new Set<string>()
+      let pending: ReturnType<typeof setup>
+      const { io } = createIo(({ target, event, payload }) => {
+        if (memberships.has(target)) pending.socket.emit(event, payload)
+      })
+      pending = setup('socket-pending-authorization', io, {
+        join: vi.fn((name: string) => {
+          memberships.add(name)
+        }),
+        leave: vi.fn((name: string) => {
+          memberships.delete(name)
+        }),
+      })
+      let resolvePermission!: (value: 'write' | 'read' | null) => void
+      const authorization = new Promise<'write' | 'read' | null>((resolve) => {
+        resolvePermission = resolve
+      })
+      const guard = vi
+        .spyOn(permissions, 'resolveCurrentRoomPermission')
+        .mockResolvedValueOnce('write')
+        .mockImplementationOnce(() => authorization)
+      const joining = pending.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      try {
+        await vi.waitFor(() => expect(guard).toHaveBeenCalledTimes(2))
+        const content = frame(FILE_DOC_MESSAGE_TYPE.SYNC, (encoder) =>
+          syncProtocol.writeUpdate(encoder, seedResult('# Private update').update)
+        )
+        io.local.to(ROOM_NAME).emit(FILE_DOC_EVENTS.MESSAGE, content)
+        io.to(ROOM_NAME).emit(
+          FILE_DOC_EVENTS.MESSAGE,
+          new Uint8Array([FILE_DOC_MESSAGE_TYPE.AWARENESS])
+        )
+        io.to(ROOM_NAME).emit(FILE_DOC_EVENTS.PRESENCE, [{ userId: 'private-peer' }])
+        expect(pending.socket.emit).not.toHaveBeenCalledWith(
+          FILE_DOC_EVENTS.MESSAGE,
+          expect.anything()
+        )
+        expect(pending.socket.emit).not.toHaveBeenCalledWith(
+          FILE_DOC_EVENTS.PRESENCE,
+          expect.anything()
+        )
+        expect(memberships.has(ROOM_NAME)).toBe(false)
+        resolvePermission(permission)
+        await joining
+        expect(memberships.has(ROOM_NAME)).toBe(permission === 'write')
+        if (permission === 'write') {
+          expect(joinSuccessFileId(pending.socket)).toBe('file-1')
+          expect(pending.socket.emit).toHaveBeenCalledWith(
+            FILE_DOC_EVENTS.MESSAGE,
+            expect.any(Uint8Array)
+          )
+        } else {
+          expect(joinSuccessFileId(pending.socket)).toBeUndefined()
+          expect(pending.socket.emit).toHaveBeenCalledWith(
+            FILE_DOC_EVENTS.JOIN_ERROR,
+            expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
+          )
+        }
+      } finally {
+        resolvePermission(permission)
+        await joining
+        guard.mockRestore()
+      }
+    }
+  )
+
   it('receives invalidation while the subscribed generation check is pending', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# Old', 'doc-old'))
     const memberships = new Set<string>()
@@ -1031,9 +1102,10 @@ describe('setupWorkspaceFileDocHandlers', () => {
     try {
       const joining = pending.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
       await vi.waitFor(() => expect(guard).toHaveBeenCalledOnce())
-      expect(memberships.has(ROOM_NAME)).toBe(true)
+      expect(memberships.has(ROOM_NAME)).toBe(false)
+      expect(memberships.has(fileDocAdmissionRoom('file-1'))).toBe(true)
       await getFileDocStore().invalidateDocument(ROOM_NAME, 2)
-      io.to(ROOM_NAME).emit(FILE_DOC_EVENTS.INVALIDATED, { fileId: 'file-1' })
+      io.to(fileDocAdmissionRoom('file-1')).emit(FILE_DOC_EVENTS.INVALIDATED, { fileId: 'file-1' })
       expect(pending.socket.emit).toHaveBeenCalledWith(FILE_DOC_EVENTS.INVALIDATED, {
         fileId: 'file-1',
       })
@@ -1043,6 +1115,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
       expect(joinSuccessFileId(pending.socket)).toBeUndefined()
       expect(memberships.has(ROOM_NAME)).toBe(false)
+      expect(memberships.has(fileDocAdmissionRoom('file-1'))).toBe(false)
     } finally {
       resolveGeneration(true)
       guard.mockRestore()
@@ -1104,7 +1177,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
         FILE_DOC_EVENTS.JOIN_SUCCESS,
         expect.objectContaining({ clientId: 2, docId: 'doc-shared' })
       )
-      expect(pending.socket.leave).not.toHaveBeenCalled()
+      expect(pending.socket.leave).not.toHaveBeenCalledWith(ROOM_NAME)
+      expect(pending.socket.leave).toHaveBeenCalledWith(fileDocAdmissionRoom('file-1'))
     } finally {
       for (const resolve of checks) resolve(true)
       guard.mockRestore()
@@ -1121,7 +1195,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
       .mockRejectedValueOnce(new Error('Temporary generation read failure'))
     try {
       await current.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-      expect(current.socket.leave).not.toHaveBeenCalled()
+      expect(current.socket.leave).not.toHaveBeenCalledWith(ROOM_NAME)
       current.socket.emit.mockClear()
       current.handlers[FILE_DOC_EVENTS.MESSAGE](
         frame(FILE_DOC_MESSAGE_TYPE.SYNC, (encoder) =>

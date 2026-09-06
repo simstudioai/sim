@@ -1,9 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { FILE_DOC_EVENTS, type FileDocInvalidated } from '@sim/realtime-protocol/file-doc'
-import { ROOM_TYPES, WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { ROOM_TYPES, roomName, WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
-import { applyMarkdownToLiveFileDoc, invalidateLiveFileDocument } from '@/handlers/file-doc'
+import {
+  applyMarkdownToLiveFileDoc,
+  fileDocAdmissionRoom,
+  invalidateLiveFileDocument,
+} from '@/handlers/file-doc'
 import { type IRoomManager, WorkflowRoomService } from '@/rooms'
 
 interface Logger {
@@ -233,7 +237,9 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
           message: 'This file changed outside the editor. Reload to continue editing.',
         }
         if (result.status === 'applied')
-          roomManager.emitToRoom(room, FILE_DOC_EVENTS.INVALIDATED, payload)
+          roomManager.io
+            .to([roomName(room), fileDocAdmissionRoom(fileId)])
+            .emit(FILE_DOC_EVENTS.INVALIDATED, payload)
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ status: result.status }))
       } catch (error) {
