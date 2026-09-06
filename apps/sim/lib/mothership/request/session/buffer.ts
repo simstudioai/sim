@@ -15,6 +15,7 @@ import {
   type PersistedStreamEventEnvelope,
   parsePersistedStreamEventEnvelopeJson,
 } from './contract'
+import { type ChatStreamLease, StreamControllerSupersededError } from './controller-lease'
 
 const logger = createLogger('SessionBuffer')
 
@@ -166,7 +167,10 @@ export async function scheduleBufferCleanup(
  *        score, member, ...]
  * Returns {1} on success, or {0, resource, currentBytes} when the budget refuses.
  */
-const APPEND_EVENTS_SCRIPT = `
+function appendEventsScript(leased: boolean): string {
+  const firstMember = leased ? 8 : 7
+  return `
+${leased ? "if redis.call('GET', KEYS[3]) ~= ARGV[7] then return {-1} end" : ''}
 local ttl_seconds = tonumber(ARGV[1])
 local event_limit = tonumber(ARGV[2])
 local owner_limit = tonumber(ARGV[3])
@@ -177,7 +181,7 @@ local last_seq = ARGV[6]
 local new_count = 0
 local new_bytes = 0
 local new_members = {}
-for i = 7, #ARGV, 2 do
+for i = ${firstMember}, #ARGV, 2 do
   local member = ARGV[i + 1]
   if not redis.call('ZSCORE', KEYS[1], member) then
     new_count = new_count + 1
@@ -207,9 +211,9 @@ for i = 1, prune_count - existing_prune_count do
 end
 
 local net_bytes = new_bytes - pruned_bytes
-${renderRedisBudgetLua(2)}
+${renderRedisBudgetLua(leased ? 3 : 2)}
 
-for i = 7, #ARGV, 2 do
+for i = ${firstMember}, #ARGV, 2 do
   redis.call('ZADD', KEYS[1], ARGV[i], ARGV[i + 1])
 end
 redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -event_limit - 1)
@@ -217,6 +221,10 @@ redis.call('EXPIRE', KEYS[1], ttl_seconds)
 redis.call('SET', KEYS[2], last_seq, 'EX', ttl_seconds)
 return {1}
 `
+}
+
+const APPEND_EVENTS_SCRIPT = appendEventsScript(false)
+const LEASED_APPEND_EVENTS_SCRIPT = appendEventsScript(true)
 
 /** What a stream is charged against. `userId` adds the cross-stream user ceiling. */
 export interface StreamBudgetScope {
@@ -239,7 +247,8 @@ export type AppendEventsResult =
  */
 export async function appendEvents(
   envelopes: PersistedStreamEventEnvelope[],
-  scope?: StreamBudgetScope
+  scope?: StreamBudgetScope,
+  lease?: ChatStreamLease
 ): Promise<AppendEventsResult> {
   if (envelopes.length === 0) {
     return { persisted: true }
@@ -313,10 +322,11 @@ export async function appendEvents(
 
     const result = await withRedisRetry({ operation: 'append_event', streamId }, async (redis) =>
       redis.eval(
-        APPEND_EVENTS_SCRIPT,
-        2 + budgetKeys.length,
+        lease ? LEASED_APPEND_EVENTS_SCRIPT : APPEND_EVENTS_SCRIPT,
+        (lease ? 3 : 2) + budgetKeys.length,
         getEventsKey(streamId),
         getSeqKey(streamId),
+        ...(lease ? [lease.key] : []),
         ...budgetKeys,
         config.ttlSeconds,
         config.eventLimit,
@@ -324,10 +334,12 @@ export async function appendEvents(
         limits.maxUserBytes,
         budgetTtlSeconds,
         String(chunk.members[chunk.members.length - 1].seq),
+        ...(lease ? [lease.value] : []),
         ...zaddArgs
       )
     )
 
+    if (Array.isArray(result) && result[0] === -1) throw new StreamControllerSupersededError()
     const refusal = parseRedisBudgetRefusal(result, chunk.bytes, limits)
     if (refusal) {
       logRedisBudgetRefusal(refusal, { operation: 'append_event', scope: budgetScope, logger })

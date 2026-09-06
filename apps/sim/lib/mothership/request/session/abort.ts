@@ -8,13 +8,19 @@ import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { AbortReason } from './abort-reason'
 import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
+import {
+  type ChatStreamLease,
+  chatStreamLockKey,
+  StreamControllerSupersededError,
+  streamIdFromLock,
+} from './controller-lease'
 
 const logger = createLogger('SessionAbort')
 
 const activeStreams = new Map<string, AbortController>()
 const pendingChatStreams = new Map<
   string,
-  { promise: Promise<void>; resolve: () => void; streamId: string }
+  { promise: Promise<void>; resolve: () => void; streamId: string; lease: ChatStreamLease }
 >()
 
 const DEFAULT_ABORT_POLL_MS = 250
@@ -40,32 +46,36 @@ export interface ChatStreamLockOwnersResult {
   ownersByChatId: Map<string, string>
 }
 
-function registerPendingChatStream(chatId: string, streamId: string): void {
+function registerPendingChatStream(chatId: string, streamId: string, lease: ChatStreamLease): void {
   let resolve!: () => void
   const promise = new Promise<void>((r) => {
     resolve = r
   })
-  pendingChatStreams.set(chatId, { promise, resolve, streamId })
+  pendingChatStreams.set(chatId, { promise, resolve, streamId, lease })
 }
 
-function resolvePendingChatStream(chatId: string, streamId: string): void {
+function resolvePendingChatStream(chatId: string, streamId: string, lease?: ChatStreamLease): void {
   const entry = pendingChatStreams.get(chatId)
-  if (entry && entry.streamId === streamId) {
+  if (entry && entry.streamId === streamId && (!lease || entry.lease.value === lease.value)) {
     entry.resolve()
     pendingChatStreams.delete(chatId)
   }
 }
 
-function getChatStreamLockKey(chatId: string): string {
-  return `copilot:chat-stream-lock:${chatId}`
+export function getLocalChatStreamLease(
+  chatId: string,
+  streamId: string
+): ChatStreamLease | undefined {
+  const entry = pendingChatStreams.get(chatId)
+  return entry?.streamId === streamId ? entry.lease : undefined
 }
 
 export function registerActiveStream(streamId: string, controller: AbortController): void {
   activeStreams.set(streamId, controller)
 }
 
-export function unregisterActiveStream(streamId: string): void {
-  activeStreams.delete(streamId)
+export function unregisterActiveStream(streamId: string, controller?: AbortController): void {
+  if (!controller || activeStreams.get(streamId) === controller) activeStreams.delete(streamId)
 }
 
 export async function waitForPendingChatStream(
@@ -82,9 +92,10 @@ export async function waitForPendingChatStream(
 
     if (redis) {
       try {
-        const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
+        const ownerStreamId = await redis.get(chatStreamLockKey(chatId))
         const lockReleased =
-          !ownerStreamId || (expectedStreamId !== undefined && ownerStreamId !== expectedStreamId)
+          !ownerStreamId ||
+          (expectedStreamId !== undefined && streamIdFromLock(ownerStreamId) !== expectedStreamId)
         if (!localPending && lockReleased) {
           return true
         }
@@ -118,7 +129,8 @@ export async function getPendingChatStreamId(chatId: string): Promise<string | n
   }
 
   try {
-    return (await redis.get(getChatStreamLockKey(chatId))) || null
+    const value = await redis.get(chatStreamLockKey(chatId))
+    return value ? streamIdFromLock(value) : null
   } catch (error) {
     logger.warn('Failed to load chat stream lock owner', {
       chatId,
@@ -155,12 +167,12 @@ export async function getChatStreamLockOwners(
   }
 
   try {
-    const keys = chatIds.map(getChatStreamLockKey)
+    const keys = chatIds.map(chatStreamLockKey)
     const values = await redis.mget(keys)
     const redisOwnersByChatId = new Map<string, string>()
     for (let i = 0; i < chatIds.length; i++) {
       const owner = values[i]
-      if (owner) redisOwnersByChatId.set(chatIds[i], owner)
+      if (owner) redisOwnersByChatId.set(chatIds[i], streamIdFromLock(owner))
     }
     return { status: 'verified', ownersByChatId: redisOwnersByChatId }
   } catch (error) {
@@ -172,9 +184,19 @@ export async function getChatStreamLockOwners(
   }
 }
 
-export async function releasePendingChatStream(chatId: string, streamId: string): Promise<void> {
+export async function releasePendingChatStream(
+  chatId: string,
+  streamId: string,
+  lease?: ChatStreamLease
+): Promise<void> {
   try {
-    await releaseLock(getChatStreamLockKey(chatId), streamId)
+    // A lifecycle releases its exact token. Stop may release the current owner
+    // after saving durable cancellation, including an owner on another pod.
+    const redis = getRedisClient()
+    const value = lease?.value ?? (redis ? await redis.get(chatStreamLockKey(chatId)) : undefined)
+    if (value && streamIdFromLock(value) === streamId) {
+      await releaseLock(chatStreamLockKey(chatId), value)
+    }
   } catch (error) {
     logger.warn('Failed to release chat stream lock', {
       chatId,
@@ -182,7 +204,7 @@ export async function releasePendingChatStream(chatId: string, streamId: string)
       error: toError(error).message,
     })
   } finally {
-    resolvePendingChatStream(chatId, streamId)
+    resolvePendingChatStream(chatId, streamId, lease)
   }
 }
 
@@ -204,25 +226,26 @@ export async function acquirePendingChatStream(
     },
     async (span) => {
       const redis = getRedisClient()
+      const lease = { key: chatStreamLockKey(chatId), value: `${streamId}\n${crypto.randomUUID()}` }
       span.setAttribute(TraceAttr.LockBackend, redis ? AbortBackend.Redis : AbortBackend.InProcess)
       if (redis) {
         const deadline = Date.now() + timeoutMs
         for (;;) {
           try {
-            const acquired = await acquireLock(
-              getChatStreamLockKey(chatId),
-              streamId,
-              CHAT_STREAM_LOCK_TTL_SECONDS
-            )
+            const acquired = await acquireLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
             if (acquired) {
-              registerPendingChatStream(chatId, streamId)
+              registerPendingChatStream(chatId, streamId, lease)
               span.setAttribute(TraceAttr.LockAcquired, true)
               return true
             }
             if (!pendingChatStreams.has(chatId)) {
-              const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
+              const ownerStreamId = await redis.get(chatStreamLockKey(chatId))
               if (ownerStreamId) {
-                const settled = await waitForPendingChatStream(chatId, 0, ownerStreamId)
+                const settled = await waitForPendingChatStream(
+                  chatId,
+                  0,
+                  streamIdFromLock(ownerStreamId)
+                )
                 if (settled) {
                   continue
                 }
@@ -248,7 +271,7 @@ export async function acquirePendingChatStream(
       for (;;) {
         const existing = pendingChatStreams.get(chatId)
         if (!existing) {
-          registerPendingChatStream(chatId, streamId)
+          registerPendingChatStream(chatId, streamId, lease)
           span.setAttribute(TraceAttr.LockAcquired, true)
           return true
         }
@@ -326,11 +349,12 @@ const pollingStreams = new Set<string>()
 export function startAbortPoller(
   streamId: string,
   abortController: AbortController,
-  options?: { pollMs?: number; requestId?: string; chatId?: string }
+  options?: { pollMs?: number; requestId?: string; chatId?: string; lease?: ChatStreamLease }
 ): ReturnType<typeof setInterval> {
   const pollMs = options?.pollMs ?? DEFAULT_ABORT_POLL_MS
   const requestId = options?.requestId
   const chatId = options?.chatId
+  const lease = options?.lease ?? (chatId ? getLocalChatStreamLease(chatId, streamId) : undefined)
 
   let lastHeartbeatAt = Date.now()
   let heartbeatOwnershipLost = false
@@ -356,18 +380,15 @@ export function startAbortPoller(
         pollingStreams.delete(streamId)
       }
 
-      if (!chatId || heartbeatOwnershipLost) return
+      if (!chatId || !lease || heartbeatOwnershipLost) return
       if (Date.now() - lastHeartbeatAt < CHAT_STREAM_LOCK_HEARTBEAT_INTERVAL_MS) return
 
       try {
-        const owned = await extendLock(
-          getChatStreamLockKey(chatId),
-          streamId,
-          CHAT_STREAM_LOCK_TTL_SECONDS
-        )
+        const owned = await extendLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
         lastHeartbeatAt = Date.now()
         if (!owned) {
           heartbeatOwnershipLost = true
+          abortController.abort(new StreamControllerSupersededError())
           logger.warn('Lost ownership of chat stream lock — stopping heartbeat', {
             chatId,
             streamId,

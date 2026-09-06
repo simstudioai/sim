@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { readSSELines } from '@/lib/core/utils/sse'
+import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 
 const logger = createLogger('CopilotSseParser')
 
@@ -46,7 +47,11 @@ export async function processSSEStream(
         try {
           return (await onEvent(parsed)) === true
         } catch (error) {
-          if (error instanceof FatalSseEventError) throw error
+          if (
+            error instanceof FatalSseEventError ||
+            error instanceof StreamControllerSupersededError
+          )
+            throw error
           logger.warn('Failed to handle SSE event', {
             preview: jsonStr.slice(0, 200),
             error: toError(error).message,

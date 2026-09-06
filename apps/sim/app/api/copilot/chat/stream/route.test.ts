@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import { authMockFns } from '@sim/testing'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -11,25 +12,19 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 
 const {
-  mockGetAccessibleChat,
   getLatestRunForStream,
   readEvents,
   readFilePreviewSessions,
   checkForReplayGap,
 } = vi.hoisted(() => ({
-  mockGetAccessibleChat: vi.fn(),
   getLatestRunForStream: vi.fn(),
   readEvents: vi.fn(),
   readFilePreviewSessions: vi.fn(),
   checkForReplayGap: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
-  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
-}))
-
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream,
+vi.mock('@/lib/mothership/request/application/recover-stream', () => ({
+  readChatStream: { execute: getLatestRunForStream },
 }))
 
 vi.mock('@/lib/mothership/request/session', () => ({
@@ -55,9 +50,9 @@ vi.mock('@/lib/mothership/request/session', () => ({
   },
 }))
 
-vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
+import { GET as routeGET } from './route'
 
-import { GET } from './route'
+const GET = (request: NextRequest) => routeGET(request, { params: Promise.resolve({}) })
 
 async function readAllChunks(response: Response): Promise<string[]> {
   const reader = response.body?.getReader()
@@ -77,10 +72,9 @@ async function readAllChunks(response: Response): Promise<string[]> {
 describe('copilot chat stream replay route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetAccessibleChat.mockResolvedValue({ id: 'chat-1' })
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
-      userId: 'user-1',
-      isAuthenticated: true,
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
     })
     readEvents.mockResolvedValue([])
     readFilePreviewSessions.mockResolvedValue([])
@@ -88,12 +82,9 @@ describe('copilot chat stream replay route', () => {
   })
 
   it('refuses replay after organization membership is removed', async () => {
-    getLatestRunForStream.mockResolvedValueOnce({
-      status: 'complete',
-      id: 'run-1',
-      chatId: 'chat-1',
-    })
-    mockGetAccessibleChat.mockResolvedValueOnce(null)
+    getLatestRunForStream.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Chat not found')
+    )
     const response = await GET(
       new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&batch=true')
     )
