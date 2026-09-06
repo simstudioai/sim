@@ -34,6 +34,8 @@ export interface ReadWorkspaceFileTextInput {
   workspaceId: string
   /** File id, or its VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a chat upload. */
   reference: string
+  /** Internal Mothership upload namespace, absent from public request contracts. */
+  chatId?: string
   maxBytes?: number
   /** First line to return, 1-based. Absent starts at the first line. */
   offset?: number
@@ -235,7 +237,7 @@ async function parseFileText(
  */
 export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }) =>
-    resolveReferencedWorkspaceFileContext(input, { includeChatUploads: true }),
+  resolveContext: ({ principal, input }) =>
+    resolveReferencedWorkspaceFileContext(principal, input, { includeChatUploads: true }),
   execute: executeReadWorkspaceFileText,
 })
