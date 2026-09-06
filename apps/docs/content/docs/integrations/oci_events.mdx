@@ -1,0 +1,175 @@
+---
+title: OCI Events
+description: Discover and manage OCI event routing rules
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_events"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Manage OCI Events rules using a reusable OCI API signing-key credential. List and inspect rules, create routing to existing Notifications topics, Streaming streams or Functions, update conditions and enabled states, move rules, and delete rules. Conditions match events in the rule compartment and child compartments. Updates replace supplied actions and tag maps; omit fields to retain them and use an ETag to protect concurrent changes. IAM must permit rule management and the selected action destinations. Sim limits requests to 1 MiB, responses to 8 MiB and each JSON input to 10000 values, 32 nesting levels and 1 MiB of text. This integration manages routing configuration; it does not receive events or start Sim workflows. Topic subscriptions, stream consumption and function management belong to their respective services.
+
+
+
+## Actions
+
+### OCI Events List Rules
+
+List one page of OCI Events rules in a compartment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `opcRequestId` | string | No | Optional request identifier for OCI support correlation. |
+| `compartmentId` | string | Yes | Compartment OCID for listing or creating rules. |
+| `limit` | number | No | Maximum rules on this page: 1–50; defaults to 10. |
+| `page` | string | No | Opaque nextPage from the preceding list response. |
+| `displayName` | string | No | Rule display name; list operations apply the OCI displayName filter. |
+| `lifecycleState` | string | No | Filter: CREATING, ACTIVE, INACTIVE, UPDATING, DELETING, DELETED or FAILED. |
+| `sortBy` | string | No | Sort field: TIME_CREATED, ID or DISPLAY_NAME. |
+| `sortOrder` | string | No | Sort direction: ASC or DESC. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `opcRequestId` | string | OCI request identifier |
+| `rules` | array | One page of rule summaries; actions require Get Rule |
+| `nextPage` | string | Opaque continuation token |
+
+### OCI Events Get Rule
+
+Get an OCI Events rule with its actions and ETag
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `opcRequestId` | string | No | Optional request identifier for OCI support correlation. |
+| `ruleId` | string | Yes | Rule OCID, from List Rules or a previous rule response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `opcRequestId` | string | OCI request identifier |
+| `rule` | json | Rule configuration including its actions |
+| `etag` | string | ETag for conditional updates, moves or deletion |
+
+### OCI Events Create Rule
+
+Create an OCI Events rule routing matching events to existing action resources
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `opcRequestId` | string | No | Optional request identifier for OCI support correlation. |
+| `compartmentId` | string | Yes | Compartment OCID for listing or creating rules. |
+| `displayName` | string | Yes | Rule display name; list operations apply the OCI displayName filter. |
+| `description` | string | No | Rule description, up to 1024 characters. An explicit empty string clears it on update. |
+| `isEnabled` | boolean | Yes | Whether the rule is enabled. Omit on update to keep the current state. |
+| `condition` | json | Yes | JSON filter object, for example \{"eventType":"com.oraclecloud.objectstorage.createbucket"\}. Explicit \{\} matches all compartment and child-compartment events. Replaces the condition on update. |
+| `actions` | json | Yes | Array of 1–10 actions. Each requires actionType, isEnabled and topicId \(ONS\), streamId \(OSS\) or functionId \(FAAS\); description is optional. Replaces all actions on update. No action IDs or lifecycle fields. |
+| `freeformTags` | json | No | Map of tag names to string values. Replaces all freeform tags on update; \{\} clears them. |
+| `definedTags` | json | No | Map of tag namespaces to tag-name/string-value maps. Replaces defined tags on update; \{\} clears them. |
+| `opcRetryToken` | string | No | Optional stable retry token, 1–64 characters. Reuse for retries of the same create or move request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `opcRequestId` | string | OCI request identifier |
+| `rule` | json | Rule configuration including its actions |
+| `etag` | string | ETag for conditional updates, moves or deletion |
+
+### OCI Events Update Rule
+
+Update rule settings and replace supplied conditions, actions or tags
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `opcRequestId` | string | No | Optional request identifier for OCI support correlation. |
+| `ruleId` | string | Yes | Rule OCID, from List Rules or a previous rule response. |
+| `displayName` | string | No | Rule display name; list operations apply the OCI displayName filter. |
+| `description` | string | No | Rule description, up to 1024 characters. An explicit empty string clears it on update. |
+| `isEnabled` | boolean | No | Whether the rule is enabled. Omit on update to keep the current state. |
+| `condition` | json | No | JSON filter object, for example \{"eventType":"com.oraclecloud.objectstorage.createbucket"\}. Explicit \{\} matches all compartment and child-compartment events. Replaces the condition on update. |
+| `actions` | json | No | Array of 1–10 actions. Each requires actionType, isEnabled and topicId \(ONS\), streamId \(OSS\) or functionId \(FAAS\); description is optional. Replaces all actions on update. No action IDs or lifecycle fields. |
+| `freeformTags` | json | No | Map of tag names to string values. Replaces all freeform tags on update; \{\} clears them. |
+| `definedTags` | json | No | Map of tag namespaces to tag-name/string-value maps. Replaces defined tags on update; \{\} clears them. |
+| `ifMatch` | string | No | ETag from Get Rule; mutation fails if the rule changed since that read. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `opcRequestId` | string | OCI request identifier |
+| `rule` | json | Rule configuration including its actions |
+| `etag` | string | ETag for conditional updates, moves or deletion |
+
+### OCI Events Delete Rule
+
+Delete an OCI Events rule, optionally matching an ETag
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `opcRequestId` | string | No | Optional request identifier for OCI support correlation. |
+| `ruleId` | string | Yes | Rule OCID, from List Rules or a previous rule response. |
+| `ifMatch` | string | No | ETag from Get Rule; mutation fails if the rule changed since that read. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `opcRequestId` | string | OCI request identifier |
+
+### OCI Events Change Rule Compartment
+
+Move an OCI Events rule to another compartment in the same tenancy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API signing-key credential. |
+| `region` | string | No | OCI region override; omit to use the credential region. |
+| `opcRequestId` | string | No | Optional request identifier for OCI support correlation. |
+| `ruleId` | string | Yes | Rule OCID, from List Rules or a previous rule response. |
+| `destinationCompartmentId` | string | Yes | Destination compartment OCID in the same tenancy; moving changes event matching scope. |
+| `ifMatch` | string | No | ETag from Get Rule; mutation fails if the rule changed since that read. |
+| `opcRetryToken` | string | No | Optional stable retry token, 1–64 characters. Reuse for retries of the same create or move request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | OCI HTTP response status |
+| `opcRequestId` | string | OCI request identifier |
+
+
