@@ -2009,8 +2009,7 @@ export const OciComputeBlock: BlockConfig<OciComputeResponse> = {
     },
     instanceHostnameFormatter: {
       type: 'string',
-      description:
-        'Hostname formatter for future pool instances; empty string clears it on update',
+      description: 'Hostname formatter for future pool instances; empty string clears it on update',
     },
     isAutoTerminate: {
       type: 'boolean',
