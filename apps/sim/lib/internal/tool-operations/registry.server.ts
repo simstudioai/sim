@@ -3,6 +3,15 @@ import { isMcpTool } from '@/executor/constants'
 
 type InternalToolOperationHandlerLoader = () => Promise<InternalToolOperationHandler>
 
+const OCI_EVENTS_TOOL_IDS = [
+  'oci_events_change_rule_compartment',
+  'oci_events_create_rule',
+  'oci_events_delete_rule',
+  'oci_events_get_rule',
+  'oci_events_list_rules',
+  'oci_events_update_rule',
+] as const
+
 const STS_TOOL_IDS = [
   'sts_assume_role',
   'sts_assume_role_with_web_identity',
@@ -1377,6 +1386,9 @@ registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
   return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool
 })
 
+registerFamily(handlerLoaders, OCI_EVENTS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-events/execute-tool')).executeOciEventsTool
+})
 registerFamily(handlerLoaders, STS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/sts/execute-tool')).executeStsTool
 })

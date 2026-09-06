@@ -188,6 +188,12 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oci_events.rules': providerSelector(['region', 'compartmentId'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
