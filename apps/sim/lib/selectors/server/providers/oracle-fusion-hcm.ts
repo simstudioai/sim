@@ -723,9 +723,15 @@ export const oracleFusionHcmSelectorAttachments = {
             args.signal
           )
           const item = result.output.performanceDocument
-          if (args.context.personId && item.personId !== args.context.personId) throw new SelectorContextUnavailableError()
-          if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId) throw new SelectorContextUnavailableError()
-          return detailSelectorResult({ id: item.evaluationId, label: item.performanceDocumentName || item.evaluationId, meta: { personId: item.personId, reviewPeriodId: item.reviewPeriodId } })
+          if (args.context.personId && item.personId !== args.context.personId)
+            throw new SelectorContextUnavailableError()
+          if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId)
+            throw new SelectorContextUnavailableError()
+          return detailSelectorResult({
+            id: item.evaluationId,
+            label: item.performanceDocumentName || item.evaluationId,
+            meta: { personId: item.personId, reviewPeriodId: item.reviewPeriodId },
+          })
         }
         const parsed = schemas.oracleFusionHcmListPerformanceDocumentsBodySchema.safeParse({
           ...args.context,
@@ -735,15 +741,28 @@ export const oracleFusionHcmSelectorAttachments = {
           offset: parseOffset(args.request.cursor),
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
-        const result = await executeOracleFusionHcmListPerformanceDocuments(parsed.data, args.signal)
-        return listSelectorResult(result.output.performanceDocuments.map((item) => {
-          if (args.context.personId && item.personId !== args.context.personId) throw new SelectorContextUnavailableError()
-          if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId) throw new SelectorContextUnavailableError()
-          return { id: item.evaluationId, label: item.performanceDocumentName || item.evaluationId, meta: { personId: item.personId, reviewPeriodId: item.reviewPeriodId } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        const result = await executeOracleFusionHcmListPerformanceDocuments(
+          parsed.data,
+          args.signal
+        )
+        return listSelectorResult(
+          result.output.performanceDocuments.map((item) => {
+            if (args.context.personId && item.personId !== args.context.personId)
+              throw new SelectorContextUnavailableError()
+            if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId)
+              throw new SelectorContextUnavailableError()
+            return {
+              id: item.evaluationId,
+              label: item.performanceDocumentName || item.evaluationId,
+              meta: { personId: item.personId, reviewPeriodId: item.reviewPeriodId },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && isMissingDetail(error)) return detailSelectorResult(null)
+        if (args.request.kind === 'detail' && isMissingDetail(error))
+          return detailSelectorResult(null)
         publicSelectorError(error)
       }
     },
@@ -755,12 +774,21 @@ export const oracleFusionHcmSelectorAttachments = {
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
-          const parsed = schemas.oracleFusionHcmGetTalentProfileBodySchema.safeParse({ ...args.context, ...prepared, profileId: parseId(args.request.id) })
+          const parsed = schemas.oracleFusionHcmGetTalentProfileBodySchema.safeParse({
+            ...args.context,
+            ...prepared,
+            profileId: parseId(args.request.id),
+          })
           if (!parsed.success) throw new SelectorContextUnavailableError()
           const result = await executeOracleFusionHcmGetTalentProfile(parsed.data, args.signal)
           const item = result.output.talentProfile
-          if (args.context.personId && item.personId !== args.context.personId) throw new SelectorContextUnavailableError()
-          return detailSelectorResult({ id: item.profileId, label: item.displayName || item.profileCode || item.profileId, meta: { personId: item.personId, profileCode: item.profileCode } })
+          if (args.context.personId && item.personId !== args.context.personId)
+            throw new SelectorContextUnavailableError()
+          return detailSelectorResult({
+            id: item.profileId,
+            label: item.displayName || item.profileCode || item.profileId,
+            meta: { personId: item.personId, profileCode: item.profileCode },
+          })
         }
         const parsed = schemas.oracleFusionHcmListTalentProfilesBodySchema.safeParse({
           ...args.context,
@@ -771,13 +799,22 @@ export const oracleFusionHcmSelectorAttachments = {
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListTalentProfiles(parsed.data, args.signal)
-        return listSelectorResult(result.output.talentProfiles.map((item) => {
-          if (args.context.personId && item.personId !== args.context.personId) throw new SelectorContextUnavailableError()
-          return { id: item.profileId, label: item.displayName || item.profileCode || item.profileId, meta: { personId: item.personId, profileCode: item.profileCode } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.talentProfiles.map((item) => {
+            if (args.context.personId && item.personId !== args.context.personId)
+              throw new SelectorContextUnavailableError()
+            return {
+              id: item.profileId,
+              label: item.displayName || item.profileCode || item.profileId,
+              meta: { personId: item.personId, profileCode: item.profileCode },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && isMissingDetail(error)) return detailSelectorResult(null)
+        if (args.request.kind === 'detail' && isMissingDetail(error))
+          return detailSelectorResult(null)
         publicSelectorError(error)
       }
     },
@@ -798,10 +835,16 @@ export const oracleFusionHcmSelectorAttachments = {
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListTimeAttributes(parsed.data, args.signal)
-        return listSelectorResult(result.output.timeAttributes.map((item) => {
-          
-          return { id: item.tmAtrbFldId, label: item.displayName || item.attributeName || item.tmAtrbFldId, meta: { attributeName: item.attributeName, tmAtrbFldUsageId: item.tmAtrbFldUsageId } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.timeAttributes.map((item) => {
+            return {
+              id: item.tmAtrbFldId,
+              label: item.displayName || item.attributeName || item.tmAtrbFldId,
+              meta: { attributeName: item.attributeName, tmAtrbFldUsageId: item.tmAtrbFldUsageId },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
         publicSelectorError(error)
@@ -820,22 +863,31 @@ export const oracleFusionHcmSelectorAttachments = {
         if (!args.context.timeAttributeUsageId) throw new SelectorContextUnavailableError()
         if (args.request.kind !== 'list') throw new SelectorContextUnavailableError()
         const assignmentId = parseId(args.context.assignmentId!)
-        const date = schemas.oracleFusionHcmListPayrollRelationshipsBodySchema.safeParse({ ...prepared, effectiveDate: args.context.effectiveDate })
+        const date = schemas.oracleFusionHcmListPayrollRelationshipsBodySchema.safeParse({
+          ...prepared,
+          effectiveDate: args.context.effectiveDate,
+        })
         if (!date.success) throw new SelectorContextUnavailableError()
         const parsed = schemas.oracleFusionHcmListTimeAttributeValuesBodySchema.safeParse({
           ...args.context,
           ...prepared,
-          bindings: [{ name: 'pAssignmentId', value: assignmentId }, { name: 'pEffectiveDate', value: date.data.effectiveDate }],
+          bindings: [
+            { name: 'pAssignmentId', value: assignmentId },
+            { name: 'pEffectiveDate', value: date.data.effectiveDate },
+          ],
           limit: PAGE_SIZE,
           offset: parseOffset(args.request.cursor),
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListTimeAttributeValues(parsed.data, args.signal)
-        return listSelectorResult(result.output.timeAttributeValues.flatMap((item) => {
-          if (item.value === null) return []
-          
-          return [{ id: item.value, label: item.displayValue || item.value }]
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.timeAttributeValues.flatMap((item) => {
+            if (item.value === null) return []
+
+            return [{ id: item.value, label: item.displayValue || item.value }]
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
         publicSelectorError(error)

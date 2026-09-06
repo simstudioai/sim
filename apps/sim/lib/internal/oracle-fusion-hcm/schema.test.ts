@@ -715,27 +715,91 @@ describe('Oracle Fusion HCM payroll and time input contracts', () => {
   }
 
   it('requires salary basis, amount, and an ordered effective interval', () => {
-    expect(schemas.oracleFusionHcmCreateSalaryBodySchema.parse(salary).assignmentId).toBe('9007199254740993')
-    for (const change of [{ assignmentId: 9007199254740992 }, { salaryBasisId: '' }, { salaryAmount: -1 }, { dateTo: '2025-12-31' }, { dateFrom: '2026-02-30' }]) {
-      expect(schemas.oracleFusionHcmCreateSalaryBodySchema.safeParse({ ...salary, ...change }).success).toBe(false)
+    expect(schemas.oracleFusionHcmCreateSalaryBodySchema.parse(salary).assignmentId).toBe(
+      '9007199254740993'
+    )
+    for (const change of [
+      { assignmentId: 9007199254740992 },
+      { salaryBasisId: '' },
+      { salaryAmount: -1 },
+      { dateTo: '2025-12-31' },
+      { dateFrom: '2026-02-30' },
+    ]) {
+      expect(
+        schemas.oracleFusionHcmCreateSalaryBodySchema.safeParse({ ...salary, ...change }).success
+      ).toBe(false)
     }
   })
 
   it('validates each element input value without rounding identifiers or admitting extra fields', () => {
-    const entry = { ...auth, personId: '1', elementTypeId: '2', elementName: 'Bonus', creatorType: 'F', entryType: 'E', effectiveStartDate: '2026-01-01', effectiveEndDate: '4712-12-31', entryValues: [{ inputValueId: '9223372036854775807', screenEntryValue: '123456789012345.67' }] }
-    expect(schemas.oracleFusionHcmCreateElementEntryBodySchema.parse(entry).entryValues).toEqual(entry.entryValues)
-    for (const entryValues of [[], [{ inputValueId: 123, screenEntryValue: '1' }], [{ inputValueId: '2', screenEntryValue: '1', arbitraryAction: 'execute' }], Array.from({ length: 101 }, () => entry.entryValues[0])]) {
-      expect(schemas.oracleFusionHcmCreateElementEntryBodySchema.safeParse({ ...entry, entryValues }).success).toBe(false)
+    const entry = {
+      ...auth,
+      personId: '1',
+      elementTypeId: '2',
+      elementName: 'Bonus',
+      creatorType: 'F',
+      entryType: 'E',
+      effectiveStartDate: '2026-01-01',
+      effectiveEndDate: '4712-12-31',
+      entryValues: [
+        { inputValueId: '9223372036854775807', screenEntryValue: '123456789012345.67' },
+      ],
     }
-    expect(schemas.oracleFusionHcmUpdateElementEntryValueBodySchema.parse({ ...auth, elementEntryId: '1', elementEntryValueId: '2', effectiveDate: '2026-01-01', rangeMode: 'CORRECTION', screenEntryValue: null }).screenEntryValue).toBeNull()
+    expect(schemas.oracleFusionHcmCreateElementEntryBodySchema.parse(entry).entryValues).toEqual(
+      entry.entryValues
+    )
+    for (const entryValues of [
+      [],
+      [{ inputValueId: 123, screenEntryValue: '1' }],
+      [{ inputValueId: '2', screenEntryValue: '1', arbitraryAction: 'execute' }],
+      Array.from({ length: 101 }, () => entry.entryValues[0]),
+    ]) {
+      expect(
+        schemas.oracleFusionHcmCreateElementEntryBodySchema.safeParse({ ...entry, entryValues })
+          .success
+      ).toBe(false)
+    }
+    expect(
+      schemas.oracleFusionHcmUpdateElementEntryValueBodySchema.parse({
+        ...auth,
+        elementEntryId: '1',
+        elementEntryValueId: '2',
+        effectiveDate: '2026-01-01',
+        rangeMode: 'CORRECTION',
+        screenEntryValue: null,
+      }).screenEntryValue
+    ).toBeNull()
   })
 
   it('requires explicit correction/update semantics and an actual assigned-payroll change', () => {
-    const input = { ...auth, payrollRelationshipId: '1', payrollAssignmentId: '2', assignedPayrollId: '3', effectiveDate: '2026-01-01', rangeMode: 'CORRECTION' }
-    expect(schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse(input).success).toBe(false)
-    expect(schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse({ ...input, payrollId: '4' }).success).toBe(false)
-    expect(schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse({ ...input, timeCardRequired: 'Y' }).success).toBe(true)
-    expect(schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse({ ...input, timeCardRequired: 'Y', rangeMode: 'ZAP' }).success).toBe(false)
+    const input = {
+      ...auth,
+      payrollRelationshipId: '1',
+      payrollAssignmentId: '2',
+      assignedPayrollId: '3',
+      effectiveDate: '2026-01-01',
+      rangeMode: 'CORRECTION',
+    }
+    expect(schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse(input).success).toBe(
+      false
+    )
+    expect(
+      schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse({ ...input, payrollId: '4' })
+        .success
+    ).toBe(false)
+    expect(
+      schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse({
+        ...input,
+        timeCardRequired: 'Y',
+      }).success
+    ).toBe(true)
+    expect(
+      schemas.oracleFusionHcmUpdateAssignedPayrollBodySchema.safeParse({
+        ...input,
+        timeCardRequired: 'Y',
+        rangeMode: 'ZAP',
+      }).success
+    ).toBe(false)
   })
 
   it('accepts documented time combinations and partial updates without inventing quantity dates', () => {

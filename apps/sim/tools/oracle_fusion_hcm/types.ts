@@ -1215,72 +1215,120 @@ export const ORACLE_FUSION_HCM_GET_PAYROLL_RELATIONSHIP_OUTPUTS = {
   },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetPayrollRelationshipParams = Omit<Schemas.OracleFusionHcmGetPayrollRelationshipBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetPayrollRelationshipParams = Omit<
+  Schemas.OracleFusionHcmGetPayrollRelationshipBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetPayrollRelationshipResponse = Schemas.OracleFusionHcmGetPayrollRelationshipResponse
+export type OracleFusionHcmGetPayrollRelationshipResponse =
+  Schemas.OracleFusionHcmGetPayrollRelationshipResponse
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_ASSIGNMENTS_OUTPUTS = {
-  payrollAssignments: { type: 'array', description: 'Payroll Assignment records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_ASSIGNMENT_OUTPUT_PROPERTIES } },
+  payrollAssignments: {
+    type: 'array',
+    description: 'Payroll Assignment records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_ASSIGNMENT_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollAssignmentsParams = Omit<Schemas.OracleFusionHcmListPayrollAssignmentsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollAssignmentsParams = Omit<
+  Schemas.OracleFusionHcmListPayrollAssignmentsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollAssignmentsResponse = Schemas.OracleFusionHcmListPayrollAssignmentsResponse
+export type OracleFusionHcmListPayrollAssignmentsResponse =
+  Schemas.OracleFusionHcmListPayrollAssignmentsResponse
 
 export const ORACLE_FUSION_HCM_GET_PAYROLL_ASSIGNMENT_OUTPUTS = {
-  payrollAssignment: { type: 'object', description: 'Payroll Assignment', properties: ORACLE_FUSION_HCM_PAYROLL_ASSIGNMENT_OUTPUT_PROPERTIES },
+  payrollAssignment: {
+    type: 'object',
+    description: 'Payroll Assignment',
+    properties: ORACLE_FUSION_HCM_PAYROLL_ASSIGNMENT_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetPayrollAssignmentParams = Omit<Schemas.OracleFusionHcmGetPayrollAssignmentBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetPayrollAssignmentParams = Omit<
+  Schemas.OracleFusionHcmGetPayrollAssignmentBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetPayrollAssignmentResponse = Schemas.OracleFusionHcmGetPayrollAssignmentResponse
+export type OracleFusionHcmGetPayrollAssignmentResponse =
+  Schemas.OracleFusionHcmGetPayrollAssignmentResponse
 
 export const ORACLE_FUSION_HCM_LIST_ASSIGNED_PAYROLLS_OUTPUTS = {
-  assignedPayrolls: { type: 'array', description: 'Assigned Payroll records', items: { type: 'object', properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES } },
+  assignedPayrolls: {
+    type: 'array',
+    description: 'Assigned Payroll records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListAssignedPayrollsParams = Omit<Schemas.OracleFusionHcmListAssignedPayrollsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListAssignedPayrollsParams = Omit<
+  Schemas.OracleFusionHcmListAssignedPayrollsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListAssignedPayrollsResponse = Schemas.OracleFusionHcmListAssignedPayrollsResponse
+export type OracleFusionHcmListAssignedPayrollsResponse =
+  Schemas.OracleFusionHcmListAssignedPayrollsResponse
 
 export const ORACLE_FUSION_HCM_GET_ASSIGNED_PAYROLL_OUTPUTS = {
-  assignedPayroll: { type: 'object', description: 'Assigned Payroll', properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES },
+  assignedPayroll: {
+    type: 'object',
+    description: 'Assigned Payroll',
+    properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetAssignedPayrollParams = Omit<Schemas.OracleFusionHcmGetAssignedPayrollBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetAssignedPayrollParams = Omit<
+  Schemas.OracleFusionHcmGetAssignedPayrollBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetAssignedPayrollResponse = Schemas.OracleFusionHcmGetAssignedPayrollResponse
+export type OracleFusionHcmGetAssignedPayrollResponse =
+  Schemas.OracleFusionHcmGetAssignedPayrollResponse
 
 export const ORACLE_FUSION_HCM_CREATE_ASSIGNED_PAYROLL_OUTPUTS = {
-  assignedPayroll: { type: 'object', description: 'Assigned Payroll', properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES },
+  assignedPayroll: {
+    type: 'object',
+    description: 'Assigned Payroll',
+    properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmCreateAssignedPayrollParams = Omit<Schemas.OracleFusionHcmCreateAssignedPayrollBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmCreateAssignedPayrollParams = Omit<
+  Schemas.OracleFusionHcmCreateAssignedPayrollBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmCreateAssignedPayrollResponse = Schemas.OracleFusionHcmCreateAssignedPayrollResponse
+export type OracleFusionHcmCreateAssignedPayrollResponse =
+  Schemas.OracleFusionHcmCreateAssignedPayrollResponse
 
 export const ORACLE_FUSION_HCM_UPDATE_ASSIGNED_PAYROLL_OUTPUTS = {
-  assignedPayroll: { type: 'object', description: 'Assigned Payroll', properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES },
+  assignedPayroll: {
+    type: 'object',
+    description: 'Assigned Payroll',
+    properties: ORACLE_FUSION_HCM_ASSIGNED_PAYROLL_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type OracleFusionHcmUpdateAssignedPayrollParams = Omit<Schemas.OracleFusionHcmUpdateAssignedPayrollBodyInput, 'accessToken' | 'instanceUrl'> & {

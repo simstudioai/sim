@@ -1361,58 +1361,99 @@ export type OracleFusionHcmGetAssignedPayrollResponse = z.output<
   typeof oracleFusionHcmGetAssignedPayrollResponseSchema
 >
 
-export const oracleFusionHcmCreateAssignedPayrollBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
-  payrollAssignmentId: oracleFusionHcmDecimalIdSchema,
-  payrollId: oracleFusionHcmDecimalIdSchema,
-  effectiveStartDate: dateSchema,
-  effectiveEndDate: dateSchema,
-  startDate: dateSchema,
-  endDate: dateSchema,
-  lsed: dateSchema.optional(),
-  overridingPeriodId: oracleFusionHcmDecimalIdSchema.optional(),
-  timeCardRequired: z.string().trim().min(1).max(30).optional(),
-}).refine((input) => !input.effectiveStartDate || !input.effectiveEndDate || input.effectiveStartDate <= input.effectiveEndDate, 'effectiveEndDate must be on or after effectiveStartDate').refine((input) => !input.startDate || !input.endDate || input.startDate <= input.endDate, 'endDate must be on or after startDate')
+export const oracleFusionHcmCreateAssignedPayrollBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
+    payrollAssignmentId: oracleFusionHcmDecimalIdSchema,
+    payrollId: oracleFusionHcmDecimalIdSchema,
+    effectiveStartDate: dateSchema,
+    effectiveEndDate: dateSchema,
+    startDate: dateSchema,
+    endDate: dateSchema,
+    lsed: dateSchema.optional(),
+    overridingPeriodId: oracleFusionHcmDecimalIdSchema.optional(),
+    timeCardRequired: z.string().trim().min(1).max(30).optional(),
+  })
+  .refine(
+    (input) =>
+      !input.effectiveStartDate ||
+      !input.effectiveEndDate ||
+      input.effectiveStartDate <= input.effectiveEndDate,
+    'effectiveEndDate must be on or after effectiveStartDate'
+  )
+  .refine(
+    (input) => !input.startDate || !input.endDate || input.startDate <= input.endDate,
+    'endDate must be on or after startDate'
+  )
 
-export const oracleFusionHcmCreateAssignedPayrollResponseSchema = successResponse(z.object({
-  assignedPayroll: oracleFusionHcmAssignedPayrollSchema,
-}))
+export const oracleFusionHcmCreateAssignedPayrollResponseSchema = successResponse(
+  z.object({
+    assignedPayroll: oracleFusionHcmAssignedPayrollSchema,
+  })
+)
 
-export type OracleFusionHcmCreateAssignedPayrollBody = z.output<typeof oracleFusionHcmCreateAssignedPayrollBodySchema>
-export type OracleFusionHcmCreateAssignedPayrollBodyInput = z.input<typeof oracleFusionHcmCreateAssignedPayrollBodySchema>
-export type OracleFusionHcmCreateAssignedPayrollResponse = z.output<typeof oracleFusionHcmCreateAssignedPayrollResponseSchema>
+export type OracleFusionHcmCreateAssignedPayrollBody = z.output<
+  typeof oracleFusionHcmCreateAssignedPayrollBodySchema
+>
+export type OracleFusionHcmCreateAssignedPayrollBodyInput = z.input<
+  typeof oracleFusionHcmCreateAssignedPayrollBodySchema
+>
+export type OracleFusionHcmCreateAssignedPayrollResponse = z.output<
+  typeof oracleFusionHcmCreateAssignedPayrollResponseSchema
+>
 
-export const oracleFusionHcmUpdateAssignedPayrollBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
-  payrollAssignmentId: oracleFusionHcmDecimalIdSchema,
-  assignedPayrollId: oracleFusionHcmDecimalIdSchema,
-  effectiveDate: dateSchema,
-  rangeMode: z.enum(['CORRECTION', 'UPDATE']),
-  effectiveEndDate: dateSchema.optional(),
-  lsed: dateSchema.optional(),
-  overridingPeriodId: oracleFusionHcmDecimalIdSchema.optional(),
-  timeCardRequired: z.string().trim().min(1).max(30).optional(),
-}).refine((input) => input.effectiveEndDate !== undefined || input.lsed !== undefined || input.overridingPeriodId !== undefined || input.timeCardRequired !== undefined, 'At least one assigned-payroll field must be supplied')
+export const oracleFusionHcmUpdateAssignedPayrollBodySchema = oracleFusionHcmBaseBodySchema
+  .extend({
+    payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
+    payrollAssignmentId: oracleFusionHcmDecimalIdSchema,
+    assignedPayrollId: oracleFusionHcmDecimalIdSchema,
+    effectiveDate: dateSchema,
+    rangeMode: z.enum(['CORRECTION', 'UPDATE']),
+    effectiveEndDate: dateSchema.optional(),
+    lsed: dateSchema.optional(),
+    overridingPeriodId: oracleFusionHcmDecimalIdSchema.optional(),
+    timeCardRequired: z.string().trim().min(1).max(30).optional(),
+  })
+  .refine(
+    (input) =>
+      input.effectiveEndDate !== undefined ||
+      input.lsed !== undefined ||
+      input.overridingPeriodId !== undefined ||
+      input.timeCardRequired !== undefined,
+    'At least one assigned-payroll field must be supplied'
+  )
 
-export const oracleFusionHcmUpdateAssignedPayrollResponseSchema = successResponse(z.object({
-  assignedPayroll: oracleFusionHcmAssignedPayrollSchema,
-}))
+export const oracleFusionHcmUpdateAssignedPayrollResponseSchema = successResponse(
+  z.object({
+    assignedPayroll: oracleFusionHcmAssignedPayrollSchema,
+  })
+)
 
-export type OracleFusionHcmUpdateAssignedPayrollBody = z.output<typeof oracleFusionHcmUpdateAssignedPayrollBodySchema>
-export type OracleFusionHcmUpdateAssignedPayrollBodyInput = z.input<typeof oracleFusionHcmUpdateAssignedPayrollBodySchema>
-export type OracleFusionHcmUpdateAssignedPayrollResponse = z.output<typeof oracleFusionHcmUpdateAssignedPayrollResponseSchema>
+export type OracleFusionHcmUpdateAssignedPayrollBody = z.output<
+  typeof oracleFusionHcmUpdateAssignedPayrollBodySchema
+>
+export type OracleFusionHcmUpdateAssignedPayrollBodyInput = z.input<
+  typeof oracleFusionHcmUpdateAssignedPayrollBodySchema
+>
+export type OracleFusionHcmUpdateAssignedPayrollResponse = z.output<
+  typeof oracleFusionHcmUpdateAssignedPayrollResponseSchema
+>
 
-export const oracleFusionHcmListPayrollDefinitionsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  legislativeDataGroupId: oracleFusionHcmDecimalIdSchema.optional(),
-  effectiveDate: dateSchema.optional(),
-  search: z.string().trim().min(1).max(200).optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPayrollDefinitionsBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    legislativeDataGroupId: oracleFusionHcmDecimalIdSchema.optional(),
+    effectiveDate: dateSchema.optional(),
+    search: z.string().trim().min(1).max(200).optional(),
+    ...paginationBodyShape,
+  }
+)
 
-export const oracleFusionHcmListPayrollDefinitionsResponseSchema = successResponse(z.object({
-  payrollDefinitions: z.array(oracleFusionHcmPayrollDefinitionSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPayrollDefinitionsResponseSchema = successResponse(
+  z.object({
+    payrollDefinitions: z.array(oracleFusionHcmPayrollDefinitionSchema),
+    ...paginationResponseShape,
+  })
+)
 
 export type OracleFusionHcmListPayrollDefinitionsBody = z.output<typeof oracleFusionHcmListPayrollDefinitionsBodySchema>
 export type OracleFusionHcmListPayrollDefinitionsBodyInput = z.input<typeof oracleFusionHcmListPayrollDefinitionsBodySchema>

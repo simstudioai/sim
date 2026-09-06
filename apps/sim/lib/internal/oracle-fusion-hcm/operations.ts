@@ -1237,15 +1237,28 @@ export async function executeOracleFusionHcmListPayrollElementDefinitions(
   signal?: AbortSignal
 ) {
   const path = 'payrollElementDefinitionsLOV'
-  const result = await list(input, path, PAYROLL_ELEMENT_DEFINITION_FIELDS, projectPayrollElementDefinition, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['ElementName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    query.finder = finder('findByWord', { PersonId: input.personId, LegislativeDataGroupId: input.legislativeDataGroupId, EffectiveDate: input.effectiveDate })
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { payrollElementDefinitions: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_ELEMENT_DEFINITION_FIELDS,
+    projectPayrollElementDefinition,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['ElementName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      query.finder = finder('findByWord', {
+        PersonId: input.personId,
+        LegislativeDataGroupId: input.legislativeDataGroupId,
+        EffectiveDate: input.effectiveDate,
+      })
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollElementDefinitions: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrollinputvalueslov-get.html */
@@ -1254,18 +1267,30 @@ export async function executeOracleFusionHcmListPayrollInputValues(
   signal?: AbortSignal
 ) {
   const path = 'payrollInputValuesLOV'
-  const result = await list(input, path, PAYROLL_INPUT_VALUE_FIELDS, projectPayrollInputValue, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['InputValueName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.elementTypeId) clauses.push(`ElementTypeId=${input.elementTypeId}`)
-    if (input.effectiveDate) {
-            clauses.push(`EffectiveStartDate <= '${input.effectiveDate}'`, `EffectiveEndDate >= '${input.effectiveDate}'`)
-          }
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { payrollInputValues: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_INPUT_VALUE_FIELDS,
+    projectPayrollInputValue,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['InputValueName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.elementTypeId) clauses.push(`ElementTypeId=${input.elementTypeId}`)
+      if (input.effectiveDate) {
+        clauses.push(
+          `EffectiveStartDate <= '${input.effectiveDate}'`,
+          `EffectiveEndDate >= '${input.effectiveDate}'`
+        )
+      }
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollInputValues: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-elemententries-get.html */
@@ -1274,17 +1299,27 @@ export async function executeOracleFusionHcmListElementEntries(
   signal?: AbortSignal
 ) {
   const path = 'elementEntries'
-  const result = await list(input, path, ELEMENT_ENTRY_FIELDS, projectElementEntry, (query) => {
-    const clauses: string[] = []
-    if (input.personNumber) clauses.push(`PersonNumber='${quoteOracle(input.personNumber)}'`)
-    if (input.personId) clauses.push(`PersonId=${input.personId}`)
-    if (input.assignmentNumber) clauses.push(`AssignmentNumber='${quoteOracle(input.assignmentNumber)}'`)
-    if (input.elementTypeId) clauses.push(`ElementTypeId=${input.elementTypeId}`)
-    addEffectiveDate(query, input.effectiveDate)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { elementEntries: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    ELEMENT_ENTRY_FIELDS,
+    projectElementEntry,
+    (query) => {
+      const clauses: string[] = []
+      if (input.personNumber) clauses.push(`PersonNumber='${quoteOracle(input.personNumber)}'`)
+      if (input.personId) clauses.push(`PersonId=${input.personId}`)
+      if (input.assignmentNumber)
+        clauses.push(`AssignmentNumber='${quoteOracle(input.assignmentNumber)}'`)
+      if (input.elementTypeId) clauses.push(`ElementTypeId=${input.elementTypeId}`)
+      addEffectiveDate(query, input.effectiveDate)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { elementEntries: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-elemententries-get.html */
@@ -1293,7 +1328,15 @@ export async function executeOracleFusionHcmGetElementEntry(
   signal?: AbortSignal
 ) {
   const path = await elementEntryPath(input, signal)
-  const result = await readResource(input, path, ELEMENT_ENTRY_FIELDS, 'ElementEntryId', input.elementEntryId, projectElementEntry, signal)
+  const result = await readResource(
+    input,
+    path,
+    ELEMENT_ENTRY_FIELDS,
+    'ElementEntryId',
+    input.elementEntryId,
+    projectElementEntry,
+    signal
+  )
   return { success: true as const, output: { elementEntry: result } }
 }
 

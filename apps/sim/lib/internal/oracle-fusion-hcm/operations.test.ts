@@ -964,37 +964,96 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
   })
 
   it('reads salary history directly by assignment without a worker lookup', async () => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ SalaryId: '1', AssignmentId: '9007199254740993', DateFrom: '2001-01-01', SalaryAmount: 1200 }]))
-    await operations.executeOracleFusionHcmListSalaries({ ...auth, assignmentId: '9007199254740993' })
+    mocks.requestOracleFusionJson.mockResolvedValueOnce(
+      collection([
+        {
+          SalaryId: '1',
+          AssignmentId: '9007199254740993',
+          DateFrom: '2001-01-01',
+          SalaryAmount: 1200,
+        },
+      ])
+    )
+    await operations.executeOracleFusionHcmListSalaries({
+      ...auth,
+      assignmentId: '9007199254740993',
+    })
     expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
-    expect(lastRequest()).toMatchObject({ address: { relativePath: 'salaries' }, query: { q: 'AssignmentId=9007199254740993' } })
+    expect(lastRequest()).toMatchObject({
+      address: { relativePath: 'salaries' },
+      query: { q: 'AssignmentId=9007199254740993' },
+    })
   })
 
   it('creates a user-entered salary without submitting an approval action', async () => {
     mocks.requestOracleFusionJson
-      .mockResolvedValueOnce(collection([{ SalaryBasisId: '2', SalaryBasisType: 'U' }], { limit: 2 }))
+      .mockResolvedValueOnce(
+        collection([{ SalaryBasisId: '2', SalaryBasisType: 'U' }], { limit: 2 })
+      )
       .mockResolvedValueOnce({ SalaryId: '3', SalaryAmount: 1200, links: self('salaries/3') })
-    await operations.executeOracleFusionHcmCreateSalary({ ...auth, assignmentId: '9223372036854775807', salaryBasisId: '2', salaryAmount: 1200, dateFrom: '2026-01-01', dateTo: '4712-12-31' })
-    expect(mocks.requestOracleFusionJson.mock.calls[0][1].query.finder).toBe('findBySalaryBasisId;SalaryBasisId=2,EffectiveDate=2026-01-01')
+    await operations.executeOracleFusionHcmCreateSalary({
+      ...auth,
+      assignmentId: '9223372036854775807',
+      salaryBasisId: '2',
+      salaryAmount: 1200,
+      dateFrom: '2026-01-01',
+      dateTo: '4712-12-31',
+    })
+    expect(mocks.requestOracleFusionJson.mock.calls[0][1].query.finder).toBe(
+      'findBySalaryBasisId;SalaryBasisId=2,EffectiveDate=2026-01-01'
+    )
     expect(lastRequest()).toMatchObject({ address: { relativePath: 'salaries' }, method: 'POST' })
-    expect(serializeOracleFusionJsonBody(lastRequest().body)).toContain('"AssignmentId":9223372036854775807')
-    expect(lastRequest().body).toMatchObject({ MultipleComponents: 'N', DateFrom: '2026-01-01', DateTo: '4712-12-31', SalaryAmount: 1200 })
+    expect(serializeOracleFusionJsonBody(lastRequest().body)).toContain(
+      '"AssignmentId":9223372036854775807'
+    )
+    expect(lastRequest().body).toMatchObject({
+      MultipleComponents: 'N',
+      DateFrom: '2026-01-01',
+      DateTo: '4712-12-31',
+      SalaryAmount: 1200,
+    })
     expect(lastRequest().body).not.toHaveProperty('SalaryTransactionStatus')
   })
 
   it('rejects component-calculated salary bases before writing', async () => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ SalaryBasisId: '2', SalaryBasisType: 'C' }], { limit: 2 }))
-    await expect(operations.executeOracleFusionHcmCreateSalary({ ...auth, assignmentId: '1', salaryBasisId: '2', salaryAmount: 1200, dateFrom: '2026-01-01', dateTo: '4712-12-31' })).rejects.toThrow('user-entered')
+    mocks.requestOracleFusionJson.mockResolvedValueOnce(
+      collection([{ SalaryBasisId: '2', SalaryBasisType: 'C' }], { limit: 2 })
+    )
+    await expect(
+      operations.executeOracleFusionHcmCreateSalary({
+        ...auth,
+        assignmentId: '1',
+        salaryBasisId: '2',
+        salaryAmount: 1200,
+        dateFrom: '2026-01-01',
+        dateTo: '4712-12-31',
+      })
+    ).rejects.toThrow('user-entered')
     expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
   })
 
   it('corrects only the existing salary amount after checking its historical basis', async () => {
     mocks.requestOracleFusionJson
-      .mockResolvedValueOnce({ SalaryId: '3', SalaryBasisId: '2', DateFrom: '2020-01-01', links: self('salaries/3') })
-      .mockResolvedValueOnce(collection([{ SalaryBasisId: '2', SalaryBasisType: 'U' }], { limit: 2 }))
+      .mockResolvedValueOnce({
+        SalaryId: '3',
+        SalaryBasisId: '2',
+        DateFrom: '2020-01-01',
+        links: self('salaries/3'),
+      })
+      .mockResolvedValueOnce(
+        collection([{ SalaryBasisId: '2', SalaryBasisType: 'U' }], { limit: 2 })
+      )
       .mockResolvedValueOnce({ SalaryId: '3', SalaryAmount: 1300, links: self('salaries/3') })
-    await operations.executeOracleFusionHcmCorrectSalary({ ...auth, salaryId: '3', salaryAmount: 1300 })
-    expect(lastRequest()).toMatchObject({ address: { relativePath: 'salaries/3' }, method: 'PATCH', body: { SalaryAmount: 1300 } })
+    await operations.executeOracleFusionHcmCorrectSalary({
+      ...auth,
+      salaryId: '3',
+      salaryAmount: 1300,
+    })
+    expect(lastRequest()).toMatchObject({
+      address: { relativePath: 'salaries/3' },
+      method: 'PATCH',
+      body: { SalaryAmount: 1300 },
+    })
     expect(Object.keys(lastRequest().body)).toEqual(['SalaryAmount'])
   })
 
@@ -1004,9 +1063,20 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
       ['simple', 'salarySimpleComponents', 'SimpleSalaryCompntId', 'simpleComponents'],
       ['rate', 'salaryPayRateComponents', 'SalaryPayComponentId', 'rateComponents'],
     ] as const) {
-      mocks.requestOracleFusionJson.mockResolvedValueOnce(collection([{ [field]: '1' }], { limit: 5, offset: 10 }))
-      const result = await operations.executeOracleFusionHcmListSalaryComponents({ ...auth, salaryId: '3', componentKind, limit: 5, offset: 10 })
-      expect(lastRequest()).toMatchObject({ address: { relativePath: `salaries/3/child/${child}` }, query: { limit: 5, offset: 10 } })
+      mocks.requestOracleFusionJson.mockResolvedValueOnce(
+        collection([{ [field]: '1' }], { limit: 5, offset: 10 })
+      )
+      const result = await operations.executeOracleFusionHcmListSalaryComponents({
+        ...auth,
+        salaryId: '3',
+        componentKind,
+        limit: 5,
+        offset: 10,
+      })
+      expect(lastRequest()).toMatchObject({
+        address: { relativePath: `salaries/3/child/${child}` },
+        query: { limit: 5, offset: 10 },
+      })
       expect(result.output[output]).toHaveLength(1)
     }
     expect(mocks.requestOracleFusionJson).toHaveBeenCalledTimes(3)
