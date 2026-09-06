@@ -476,6 +476,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         'live-partial',
         'missing-final-chunk',
         'replayed-text',
+        'relay-gap',
+        'relay-interrupted',
+        'relay-terminal-lost',
       ] as const)(
       'returns actual failed-run diagnostics through the controller (%s)',
       async (connection) => {
@@ -493,13 +496,18 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             COPILOT_INBOUND_API_KEY: 'local-controller-probe-key',
             COPILOT_RUN_DEADLINE_MS: '20000',
             MSHIP_PROBE_WORKFLOW_ID: workflowId,
-            MSHIP_PROBE_PAUSE_REPORT: connection.startsWith('live-') ? '1' : '0',
+            MSHIP_PROBE_PAUSE_REPORT:
+              connection.startsWith('live-') || connection.startsWith('relay-') ? '1' : '0',
+            ...(connection.startsWith('relay-')
+              ? { MSHIP_PROBE_RELAY_FAULT: connection.slice('relay-'.length) }
+              : {}),
           },
           stdio: ['pipe', 'pipe', 'pipe'],
         })
         const exited = once(child, 'exit')
         const lines = createInterface({ input: child.stdout })
         let diagnostics = ''
+        let relayUrl: string | undefined
         child.stderr.on('data', (chunk: Buffer) => {
           diagnostics += chunk.toString()
         })
@@ -508,6 +516,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             diagnostics += `${line}\n`
             if (connection.startsWith('live-') && line.includes('"msg":"Duplicate send"'))
               child.stdin.write('release\n')
+            if (line.includes('"probe":"relay-attached"')) child.stdin.write('release\n')
             if (!line.startsWith('{"probe":')) return
             const message: unknown = JSON.parse(line)
             if (
@@ -515,8 +524,11 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               typeof message === 'object' &&
               'port' in message &&
               typeof message.port === 'number'
-            )
+            ) {
+              if ('relayPort' in message && typeof message.relayPort === 'number')
+                relayUrl = `http://127.0.0.1:${message.relayPort}`
               resolve(`http://127.0.0.1:${message.port}`)
+            }
           })
         })
         const startupTimeout = setTimeout(() => child.kill(), 10_000)
@@ -540,8 +552,16 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             if (url.origin !== fixture.workerUrl)
               throw new Error(`Unexpected external request: ${url.origin}`)
             workerRequests.push(url.pathname)
+            let streamId: string | undefined
             if (typeof init?.body === 'string') {
               const payload: unknown = JSON.parse(init.body)
+              if (
+                payload &&
+                typeof payload === 'object' &&
+                'streamId' in payload &&
+                typeof payload.streamId === 'string'
+              )
+                streamId = payload.streamId
               if (
                 payload &&
                 typeof payload === 'object' &&
@@ -552,7 +572,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
             const response = await nativeFetch(input, init)
             if (
-              connection.startsWith('live-') &&
+              (connection.startsWith('live-') || connection.startsWith('relay-')) &&
               !responseDropped &&
               url.pathname === '/api/tools/resume'
             ) {
@@ -567,6 +587,12 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 if (pending.includes('"type":"text"')) {
                   responseDropped = true
                   await reader.cancel()
+                  if (connection.startsWith('relay-')) {
+                    if (!relayUrl || !streamId) throw new Error('Missing relay fixture identity')
+                    return nativeFetch(`${relayUrl}/?streamId=${streamId}`, {
+                      signal: init?.signal,
+                    })
+                  }
                   if (connection === 'live-partial') {
                     let sent = false
                     return new Response(
@@ -689,7 +715,17 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           ).toBe(true)
           expect(
             receivedTextCounts.some((count) => count > 0 && count < result.content.length)
-          ).toBe(['partial-final', 'live-partial', 'missing-final-chunk'].includes(connection))
+          ).toBe(
+            [
+              'partial-final',
+              'live-partial',
+              'missing-final-chunk',
+              'relay-gap',
+              'relay-interrupted',
+            ].includes(connection)
+          )
+          if (connection === 'relay-terminal-lost')
+            expect(receivedTextCounts).toContain(result.content.length)
           const report: unknown = JSON.parse(result.content)
           expect(report).toMatchObject({
             blockId,
