@@ -7,7 +7,7 @@ import {
   LANDING_CONTENT_WIDTH,
   LANDING_GUTTER,
 } from '@/app/(landing)/components/landing-layout'
-import { BuildMethodsGraphic } from '@/app/(landing)/enterprise/components/feature-graphics'
+import { CliGraphic } from '@/app/(landing)/components/shared/cli-graphic/cli-graphic'
 import { FileLibraryGraphic } from '@/app/(landing)/files/components/feature-graphics/file-library-graphic'
 import { ConnectorSyncGraphic } from '@/app/(landing)/knowledge/components/feature-graphics/connector-sync-graphic'
 import { RunTraceGraphic } from '@/app/(landing)/logs/components/feature-graphics'
@@ -20,11 +20,11 @@ import { WorkflowCanvasGraphic } from '@/app/(landing)/workflows/components/feat
  */
 const CORE_FEATURES = [
   {
-    title: 'Chat',
-    description: 'Talk to Sim to build and manage agents in natural language.',
-    href: '/signup',
+    title: 'CLI',
+    description: 'Use Sim from Claude Code or your terminal to build, run, and manage agents.',
+    href: 'https://docs.sim.ai/cli',
     tone: 'mid',
-    visual: <BuildMethodsGraphic variant='portrait' />,
+    visual: <CliGraphic variant='portrait' />,
   },
   {
     title: 'Workflows',

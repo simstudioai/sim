@@ -109,6 +109,7 @@ const HOME_JSON_LD = {
         'AI workspace for teams',
         'Chat: build and manage agents in natural language',
         'Visual workflow builder',
+        'CLI access for coding agents and terminal workflows',
         '1,000+ integrations',
         'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
         'Knowledge base creation',

@@ -39,10 +39,8 @@ import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallb
  * but not left, so this centered vignette adds matching right padding to land
  * on the tile's visible center instead of the bled slot's center.
  *
- * The browser window is pinned to `h-24` (96px) so its top edge lands on the
- * same line as the neighboring build-methods tile's composer (76px tall +
- * `bottom-5`), keeping the tile row horizontally aligned; both connector
- * lines are `flex-1` with mirrored margins, so the Deploy button stays
+ * The browser window is pinned to `h-24` (96px). Both connector lines are
+ * `flex-1` with mirrored margins, so the Deploy button stays
  * equidistant between the agent pill and the browser at any tile height.
  *
  * Every label is parametrizable so other landing pages (engineering,

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { Features } from '@/app/(landing)/components/features/features'
 
 const MODULES = [
-  { title: 'Chat', href: '/signup' },
+  { title: 'CLI', href: 'https://docs.sim.ai/cli' },
   { title: 'Workflows', href: '/workflows' },
   { title: 'Knowledge Base', href: '/knowledge' },
   { title: 'Tables', href: '/tables' },

@@ -47,6 +47,7 @@ export function CoreFeatureCard({
     <article className='min-w-0'>
       <Link
         href={href}
+        rel={href.startsWith('https://') ? 'noopener noreferrer' : undefined}
         className='group block outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--border-1)] focus-visible:outline-offset-4'
       >
         <div

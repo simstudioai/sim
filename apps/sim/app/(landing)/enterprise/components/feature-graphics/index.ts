@@ -1,6 +1,5 @@
 export { AccessControlGraphic } from './access-control-graphic'
 export { AuditTrailGraphic } from './audit-trail-graphic'
-export { BuildMethodsGraphic } from './build-methods-graphic'
 export { DeployGraphic } from './deploy-graphic'
 export { FeatureGraphicShell, type FeatureGraphicVariant } from './feature-graphic-shell'
 export { FeaturePlatformPanel } from './feature-platform-panel'

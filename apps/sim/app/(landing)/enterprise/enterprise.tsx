@@ -1,6 +1,7 @@
 import { cn } from '@sim/emcn'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { PlatformHeroVisual } from '@/app/(landing)/components/platform-hero-visual'
+import { CliGraphic } from '@/app/(landing)/components/shared/cli-graphic/cli-graphic'
 import {
   SolutionsHero,
   SolutionsLogosRow,
@@ -14,7 +15,6 @@ import { EnterprisePlatformLoop } from '@/app/(landing)/enterprise/components/en
 import {
   AccessControlGraphic,
   AuditTrailGraphic,
-  BuildMethodsGraphic,
   DeployGraphic,
   ItPlatformTeamsGraphic,
   LifecycleGraphic,
@@ -85,10 +85,10 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       cta: { label: 'Start building', href: SIGNUP_HREF },
       cards: [
         {
-          title: 'Build visually or with code',
+          title: 'Work from your terminal',
           description:
-            "Create enterprise AI agents in Sim's visual builder, describe the workflow in plain English, or write custom logic directly in code.",
-          visual: <BuildMethodsGraphic />,
+            'Use the Sim CLI with Claude Code to inspect workflows, test agents, and manage your workspace.',
+          visual: <CliGraphic />,
         },
         {
           title: 'Deploy in one click',
