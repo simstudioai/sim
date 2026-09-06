@@ -467,7 +467,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
 
     it
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
-      .each(['connected', 'lost-handoff'] as const)(
+      .each(['connected', 'lost-handoff', 'lost-final', 'partial-final'] as const)(
       'returns actual failed-run diagnostics through the controller (%s)',
       async (connection) => {
         const workerRoot = process.env.MSHIP_WORKER_ROOT
@@ -520,6 +520,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           vi.unstubAllGlobals()
           const nativeFetch = globalThis.fetch
           const workerRequests: string[] = []
+          const receivedTextCounts: number[] = []
           let responseDropped = false
           vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = new URL(input instanceof Request ? input.url : input)
@@ -527,15 +528,50 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             if (url.origin !== fixture.workerUrl)
               throw new Error(`Unexpected external request: ${url.origin}`)
             workerRequests.push(url.pathname)
+            if (typeof init?.body === 'string') {
+              const payload: unknown = JSON.parse(init.body)
+              if (
+                payload &&
+                typeof payload === 'object' &&
+                'receivedTextChars' in payload &&
+                typeof payload.receivedTextChars === 'number'
+              )
+                receivedTextCounts.push(payload.receivedTextChars)
+            }
             const response = await nativeFetch(input, init)
             if (
-              connection === 'lost-handoff' &&
+              connection !== 'connected' &&
               url.pathname === '/api/tools/resume' &&
               !responseDropped
             ) {
-              await response.text()
-              responseDropped = true
-              throw new TypeError('Local fixture lost the accepted resume response')
+              const body = await response.clone().text()
+              if (connection === 'lost-handoff' || body.includes('"type":"complete"')) {
+                responseDropped = true
+                if (connection === 'partial-final') {
+                  const frames = body.split('\n\n')
+                  const textIndex = frames.findIndex((frame) => frame.includes('"type":"text"'))
+                  if (textIndex < 0) throw new Error('Expected the final response text')
+                  const prefix = `${frames.slice(0, textIndex + 1).join('\n\n')}\n\n`
+                  let sent = false
+                  return new Response(
+                    new ReadableStream<Uint8Array>(
+                      {
+                        pull(controller) {
+                          if (sent) {
+                            controller.error(new TypeError('Local fixture lost the answer suffix'))
+                          } else {
+                            sent = true
+                            controller.enqueue(new TextEncoder().encode(prefix))
+                          }
+                        },
+                      },
+                      { highWaterMark: 0 }
+                    ),
+                    { status: response.status, headers: response.headers }
+                  )
+                }
+                throw new TypeError('Local fixture lost the accepted resume response')
+              }
             }
             return response
           })
@@ -584,6 +620,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             result.success,
             JSON.stringify({ result, errors: fixture.errors, diagnostics })
           ).toBe(true)
+          expect(
+            receivedTextCounts.some((count) => count > 0 && count < result.content.length)
+          ).toBe(connection === 'partial-final')
           const report: unknown = JSON.parse(result.content)
           expect(report).toMatchObject({
             blockId,
@@ -618,7 +657,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             .from(copilotAsyncToolCalls)
             .where(eq(copilotAsyncToolCalls.runId, run.id))
           expect(calls.length).toBeGreaterThanOrEqual(2)
-          expect(responseDropped).toBe(connection === 'lost-handoff')
+          expect(responseDropped).toBe(connection !== 'connected')
           expect(
             calls.find((call) => call.toolCallId.startsWith('execute-saved-workflow-'))
           ).toMatchObject({
