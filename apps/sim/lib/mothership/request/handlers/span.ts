@@ -1,19 +1,19 @@
+import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamHandler } from './types'
-import { addContentBlock } from './types'
+import type { StreamHandler } from '@/lib/mothership/request/handlers/types'
+import {
+  addContentBlock,
+  flushSubagentThinkingBlock,
+  flushThinkingBlock,
+} from '@/lib/mothership/request/handlers/types'
 
-/**
- * Mirror Go-emitted span lifecycle events onto the Sim-side TraceCollector.
- *
- * Go publishes `span` events for subagent lifecycles and structured-result
- * payloads. For subagents, the start/end pair is also used for UI routing
- * elsewhere; here we additionally record a named span on the trace collector
- * so the final RequestTraceV1 report shows the full nested structure without
- * requiring the reader to inspect the raw envelope stream.
- */
+const logger = createLogger('MothershipSpan')
+
+/** One lifecycle projection for live frames and replay; completed lanes keep their identity. */
 export const handleSpanEvent: StreamHandler = (event, context) => {
   if (event.type !== 'span') {
     return
@@ -29,63 +29,58 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
   const evt = payload?.event ?? ''
 
   if (kind === MothershipStreamV1SpanPayloadKind.subagent) {
-    const scopeAgent =
-      typeof payload.agent === 'string' && payload.agent ? payload.agent : 'subagent'
-    // Key by the deterministic spanId so two concurrent runs of the SAME agent
-    // (e.g. two parallel `research` subagents) get distinct trace spans. Fall
-    // back to agent:parentToolCallId for legacy events that predate span ids.
-    const traceKey = event.scope?.spanId || `${scopeAgent}:${event.scope?.parentToolCallId || ''}`
-    // Persist the lane's lifecycle markers. Without a `subagent` start block,
-    // the transcript parser falls back to grouping lane content by agent NAME
-    // — so a respawned agent of the same type (a second concurrent `search`)
-    // silently merges into the first one's card and appears "missing" until
-    // that one resolves. Keyed and deduped by spanId, so every invocation —
-    // including same-type concurrent respawns — gets its own group.
-    const startData = payload.data as Record<string, unknown> | undefined
-    const error = typeof startData?.error === 'string' ? startData.error : undefined
+    const data = isRecordLike(payload.data) ? payload.data : undefined
+    const parentToolCallId =
+      event.scope?.parentToolCallId ??
+      (typeof data?.tool_call_id === 'string' ? data.tool_call_id : undefined)
+    const spanId = event.scope?.spanId
+    const traceKey = spanId ?? parentToolCallId
+    if (!traceKey) {
+      logger.warn('Subagent lifecycle frame has no lane identity')
+      return
+    }
+    const agent = typeof payload.agent === 'string' && payload.agent ? payload.agent : 'task'
+    const name = typeof data?.name === 'string' && data.name ? data.name : undefined
+    const error = typeof data?.error === 'string' ? data.error : undefined
+    flushSubagentThinkingBlock(context)
+    flushThinkingBlock(context)
+    const block = context.contentBlocks.find(
+      (entry) =>
+        entry.type === 'subagent' &&
+        (spanId ? entry.spanId === spanId : entry.parentToolCallId === parentToolCallId)
+    )
     if (evt === MothershipStreamV1SpanLifecycleEvent.start) {
-      context.openSubagentSpans ??= new Set()
-      if (!context.openSubagentSpans.has(traceKey)) {
-        context.openSubagentSpans.add(traceKey)
+      if (parentToolCallId) {
+        context.subAgentContent[parentToolCallId] ??= ''
+        context.subAgentToolCalls[parentToolCallId] ??= []
+      }
+      if (!block) {
         addContentBlock(context, {
           type: 'subagent',
-          content: scopeAgent,
-          ...(event.scope?.parentToolCallId
-            ? { parentToolCallId: event.scope.parentToolCallId }
-            : {}),
-          ...(event.scope?.spanId ? { spanId: event.scope.spanId } : {}),
+          content: agent,
+          ...(name ? { subagentName: name } : {}),
+          ...(parentToolCallId ? { parentToolCallId } : {}),
+          ...(spanId ? { spanId } : {}),
           ...(event.scope?.parentSpanId ? { parentSpanId: event.scope.parentSpanId } : {}),
-          ...(typeof startData?.name === 'string' && startData.name
-            ? { subagentName: startData.name }
-            : {}),
         })
-      }
-    } else if (evt === MothershipStreamV1SpanLifecycleEvent.end) {
-      if (context.openSubagentSpans?.has(traceKey)) {
-        context.openSubagentSpans.delete(traceKey)
-        for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
-          const b = context.contentBlocks[i]
-          if (
-            b.type === 'subagent' &&
-            b.endedAt === undefined &&
-            (b.spanId || '') === (event.scope?.spanId || '')
-          ) {
-            b.endedAt = Date.now()
-            if (error) b.error = error
-            break
-          }
-        }
-      }
-    }
-    if (evt === MothershipStreamV1SpanLifecycleEvent.start) {
-      const span = context.trace.startSpan(`subagent:${scopeAgent}`, 'go.subagent', {
-        agent: scopeAgent,
-        parentToolCallId: event.scope?.parentToolCallId,
-        spanId: event.scope?.spanId,
-      })
+      } else if (name) block.subagentName = name
+      if (block?.endedAt !== undefined) return
       context.subAgentTraceSpans ??= new Map()
-      context.subAgentTraceSpans.set(traceKey, span)
-    } else if (evt === MothershipStreamV1SpanLifecycleEvent.end) {
+      if (!context.subAgentTraceSpans.has(traceKey)) {
+        context.subAgentTraceSpans.set(
+          traceKey,
+          context.trace.startSpan(`subagent:${agent}`, 'go.subagent', {
+            agent,
+            parentToolCallId,
+            spanId,
+          })
+        )
+      }
+    } else if (evt === MothershipStreamV1SpanLifecycleEvent.end && data?.pending !== true) {
+      if (block) {
+        block.endedAt ??= Date.now()
+        if (error) block.error = error
+      }
       const span = context.subAgentTraceSpans?.get(traceKey)
       if (span) {
         context.trace.endSpan(span, error ? 'error' : 'ok')
