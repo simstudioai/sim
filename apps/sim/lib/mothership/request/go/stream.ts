@@ -21,6 +21,7 @@ import {
 } from '@/lib/mothership/request/go/file-preview-adapter'
 import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/go/parser'
 import { scopeProviderToolCallEvent } from '@/lib/mothership/request/go/tool-call-identity'
+import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
 import {
   handleSubagentRouting,
   prePersistClientExecutableToolCall,
@@ -329,15 +330,20 @@ export async function runStreamLoop(
         }
 
         const envelope = parsedEvent.event
-        let streamEvent: ReturnType<typeof eventToStreamEvent>
+        let scopedEvent: ReturnType<typeof eventToStreamEvent>
         try {
-          streamEvent = scopeProviderToolCallEvent(
+          scopedEvent = scopeProviderToolCallEvent(
             eventToStreamEvent(envelope),
             context.providerToolCallIdentity
           )
         } catch (error) {
           throw new FatalSseEventError(getErrorMessage(error))
         }
+        const streamEvent = reconcileTextEvent(
+          scopedEvent,
+          context.accumulatedContent
+        )
+        if (!streamEvent) return
         if (envelope.trace?.requestId) {
           const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
           context.trace.setGoTraceId(goTraceId)
