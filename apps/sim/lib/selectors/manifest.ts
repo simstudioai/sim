@@ -86,6 +86,72 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  'oci_compute.instances': providerSelector(['region', 'compartmentId', 'availabilityDomain'], {
+    sourceFields: { compartmentId: ['resourceCompartmentId'] },
+    readiness: { all: ['oauthCredential', 'region', 'compartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_compute.images': providerSelector(['region', 'compartmentId', 'shape'], {
+    sourceFields: { compartmentId: ['resourceCompartmentId'] },
+    readiness: { all: ['oauthCredential', 'region', 'compartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_compute.shapes': providerSelector(
+    ['region', 'compartmentId', 'availabilityDomain', 'imageId'],
+    {
+      sourceFields: { compartmentId: ['resourceCompartmentId'] },
+      readiness: { all: ['oauthCredential', 'region', 'compartmentId'] },
+      listMode: 'paginated',
+      detail: true,
+      unknownDetail: true,
+    }
+  ),
+  'oci_compute.instanceConfigurations': providerSelector(['region', 'compartmentId'], {
+    sourceFields: { compartmentId: ['resourceCompartmentId'] },
+    readiness: { all: ['oauthCredential', 'region', 'compartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_compute.instancePools': providerSelector(['region', 'compartmentId'], {
+    sourceFields: { compartmentId: ['resourceCompartmentId'] },
+    readiness: { all: ['oauthCredential', 'region', 'compartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_compute.compartments': providerSelector(['region', 'parentCompartmentId'], {
+    readiness: { all: ['oauthCredential', 'region', 'parentCompartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_compute.availabilityDomains': providerSelector(['region', 'compartmentId'], {
+    sourceFields: { compartmentId: ['resourceCompartmentId'] },
+    readiness: { all: ['oauthCredential', 'region', 'compartmentId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_compute.faultDomains': providerSelector(['region', 'compartmentId', 'availabilityDomain'], {
+    sourceFields: { compartmentId: ['resourceCompartmentId'] },
+    readiness: { all: ['oauthCredential', 'region', 'compartmentId', 'availabilityDomain'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oci_compute.subnets': providerSelector(
+    ['region', 'compartmentId', 'availabilityDomain', 'vcnId'],
+    {
+      sourceFields: { compartmentId: ['resourceCompartmentId'] },
+      readiness: { all: ['oauthCredential', 'region', 'compartmentId'] },
+      listMode: 'paginated',
+      detail: true,
+      unknownDetail: true,
+    }
+  ),
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },
