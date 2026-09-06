@@ -188,6 +188,75 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oci_devops.projects': providerSelector(['region', 'compartmentId'], {
+    readiness: { all: ['oauthCredential', 'compartmentId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.repositories': providerSelector(['region', 'projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.refs': providerSelector(['region', 'repositoryId'], {
+    readiness: { all: ['oauthCredential', 'repositoryId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.buildPipelines': providerSelector(['region', 'projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.buildPipelineStages': providerSelector(['region', 'pipelineId'], {
+    readiness: { all: ['oauthCredential', 'pipelineId'] },
+    listMode: 'paginated',
+    detail: true,
+    sourceFields: { pipelineId: ['buildPipelineId'] },
+  }),
+  'oci_devops.buildRuns': providerSelector(['region', 'pipelineId'], {
+    readiness: { all: ['oauthCredential', 'pipelineId'] },
+    listMode: 'paginated',
+    detail: true,
+    sourceFields: { pipelineId: ['buildPipelineId'] },
+  }),
+  'oci_devops.deployPipelines': providerSelector(['region', 'projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.deployStages': providerSelector(['region', 'pipelineId'], {
+    readiness: { all: ['oauthCredential', 'pipelineId'] },
+    listMode: 'paginated',
+    detail: true,
+    sourceFields: { pipelineId: ['deployPipelineId'] },
+  }),
+  'oci_devops.deployments': providerSelector(['region', 'pipelineId'], {
+    readiness: { all: ['oauthCredential', 'pipelineId'] },
+    listMode: 'paginated',
+    detail: true,
+    sourceFields: { pipelineId: ['deployPipelineId'] },
+  }),
+  'oci_devops.environments': providerSelector(['region', 'projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.artifacts': providerSelector(['region', 'projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.connections': providerSelector(['region', 'projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
+  'oci_devops.triggers': providerSelector(['region', 'projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    detail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
