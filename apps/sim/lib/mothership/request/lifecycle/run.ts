@@ -35,6 +35,7 @@ import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permissio
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/mothership/request/context/result'
 import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
+import { StreamContinuityError } from '@/lib/mothership/request/go/parser'
 import {
   BillingLimitError,
   CopilotBackendError,
@@ -1633,7 +1634,7 @@ function isRetryableStreamError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return false
   }
-  if (error instanceof StreamEndedWithoutTerminalError) {
+  if (error instanceof StreamEndedWithoutTerminalError || error instanceof StreamContinuityError) {
     return true
   }
   if (error instanceof CopilotBackendError) {
@@ -1655,7 +1656,7 @@ function isRetryableInitialStreamError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return false
   }
-  if (error instanceof StreamEndedWithoutTerminalError) {
+  if (error instanceof StreamEndedWithoutTerminalError || error instanceof StreamContinuityError) {
     return true
   }
   if (error instanceof CopilotBackendError) {
