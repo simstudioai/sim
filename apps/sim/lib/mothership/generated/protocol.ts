@@ -17,8 +17,14 @@
 
 export const PROTOCOL_VERSION = 1;
 
+/** Receipt for main-assistant text applied by Sim, in JavaScript UTF-16 code units.
+ * A retry includes the current count so a terminal response replays only missing text. */
+export interface StreamTextReceipt {
+  receivedTextChars?: number | undefined;
+}
+
 /** POST /api/mothership — the chat request sim sends. */
-export interface ChatRequest {
+export interface ChatRequest extends StreamTextReceipt {
   message: string;
   userId: string;
   /** Bump-gated (S43): senders include it; the worker 426s on mismatch. */
@@ -86,7 +92,7 @@ export interface ChatContextItem {
 }
 
 /** POST /api/tools/resume — deferred tool results. */
-export interface ResumeRequest {
+export interface ResumeRequest extends StreamTextReceipt {
   streamId: string;
   results: ResumeResult[];
   /**

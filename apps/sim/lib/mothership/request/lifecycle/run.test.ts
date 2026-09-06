@@ -545,9 +545,9 @@ describe('runCopilotLifecycle', () => {
     })
 
     const sent = JSON.parse(capturedRequestBody)
-    // Non-enterprise workspaces attach no BYOK key; the payload crosses untouched.
+    /** Receipt metadata leaves ordinary caller content unchanged. */
     expect(sent).not.toHaveProperty('byokApiKey')
-    expect(sent).toEqual(payload)
+    expect(sent).toEqual({ ...payload, receivedTextChars: 0 })
   })
 
   it('attaches the resolved enterprise BYOK key to the outbound payload', async () => {
@@ -949,7 +949,7 @@ describe('runCopilotLifecycle', () => {
 
       const sent = JSON.parse(capturedRequestBody)
       expect(sent).not.toHaveProperty('byokApiKey')
-      expect(sent).toEqual(payload)
+      expect(sent).toEqual({ ...payload, receivedTextChars: 0 })
     }
   )
 
@@ -1752,7 +1752,7 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
-  it('sends the slim contract resume body (streamId + results only)', async () => {
+  it('sends resume identity, results and the received-text count', async () => {
     const requestBodies: Record<string, unknown>[] = []
     const fetchUrls: string[] = []
     const executionContext: ExecutionContext = {
@@ -1806,6 +1806,7 @@ describe('runCopilotLifecycle', () => {
     expect(requestBodies[1]).toEqual({
       streamId: 'stream-1',
       results: [expect.objectContaining({ callId: 'tool-1', success: true })],
+      receivedTextChars: 0,
     })
   })
 
@@ -2073,9 +2074,13 @@ describe('runCopilotLifecycle', () => {
     expect(result.success).toBe(true)
     expect(result.cancelled).toBe(false)
     expect(result.error).toBeUndefined()
-    expect(mockRunStreamLoop.mock.calls[1]?.[1].body).toBe(
-      mockRunStreamLoop.mock.calls[2]?.[1].body
-    )
+    const firstResume = JSON.parse(String(mockRunStreamLoop.mock.calls[1]?.[1].body))
+    const retriedResume = JSON.parse(String(mockRunStreamLoop.mock.calls[2]?.[1].body))
+    expect(firstResume.receivedTextChars).toBe(0)
+    expect(retriedResume).toEqual({
+      ...firstResume,
+      receivedTextChars: 'Moved the files and updated the workflow.'.length,
+    })
     // Everything that streamed before the leg died is still the user's answer.
     expect(result.content).toBe('Moved the files and updated the workflow.')
   })
