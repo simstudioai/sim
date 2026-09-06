@@ -11,6 +11,7 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
 import { STREAM_STORAGE_KEY } from '@/lib/mothership/constants'
+import type { QueuedSendHandoffSeed } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
 import type { ChatRequestMode, FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -21,12 +22,9 @@ const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
 const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
 const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 
-export interface QueuedSendHandoffState {
-  id: string
-  chatId?: string
+export interface QueuedSendHandoffState extends QueuedSendHandoffSeed {
   workspaceId?: string
   organizationId?: string
-  supersededStreamId: string | null
   userMessageId: string
   message: string
   fileAttachments?: FileAttachmentForApi[]
@@ -172,6 +170,7 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       workspaceId: parsed.workspaceId,
       organizationId: parsed.organizationId,
       supersededStreamId,
+      ...(parsed.stopRequired === true ? { stopRequired: true } : {}),
       userMessageId: parsed.userMessageId,
       message: parsed.message,
       ...(Array.isArray(parsed.fileAttachments)
