@@ -483,61 +483,69 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         'child-failed-check',
         'child-lost-start',
         'child-partial-start',
+        'child-owner-exit',
       ] as const)(
       'returns actual failed-run diagnostics through the controller (%s)',
       async (connection) => {
         const workerRoot = process.env.MSHIP_WORKER_ROOT
         if (!workerRoot)
           throw new Error('MSHIP_WORKER_ROOT must point to the sibling worker checkout')
-        const child = spawn('bun', ['tools/probes/src/controller-run-read.ts'], {
-          cwd: workerRoot,
-          env: {
-            PATH: process.env.PATH,
-            NODE_ENV: 'test',
-            DATABASE_URL: process.env.MSHIP_TEST_DATABASE_URL,
-            REDIS_URL: 'redis://127.0.0.1:6379/14',
-            ANTHROPIC_API_KEY: 'local-scripted-provider',
-            COPILOT_INBOUND_API_KEY: 'local-controller-probe-key',
-            COPILOT_RUN_DEADLINE_MS: '20000',
-            MSHIP_PROBE_WORKFLOW_ID: workflowId,
-            MSHIP_PROBE_DELEGATE: connection.startsWith('child-') ? '1' : '0',
-            MSHIP_PROBE_CHECK_FAIL: connection === 'child-failed-check' ? '1' : '0',
-            MSHIP_PROBE_PAUSE_REPORT:
-              connection.startsWith('live-') || connection.startsWith('relay-') ? '1' : '0',
-            ...(connection.startsWith('relay-')
-              ? { MSHIP_PROBE_RELAY_FAULT: connection.slice('relay-'.length) }
-              : {}),
-          },
-          stdio: ['pipe', 'pipe', 'pipe'],
-        })
-        const exited = once(child, 'exit')
-        const lines = createInterface({ input: child.stdout })
+        const spawnWorker = (port = '0') =>
+          spawn('bun', ['tools/probes/src/controller-run-read.ts'], {
+            cwd: workerRoot,
+            env: {
+              PATH: process.env.PATH,
+              NODE_ENV: 'test',
+              DATABASE_URL: process.env.MSHIP_TEST_DATABASE_URL,
+              REDIS_URL: 'redis://127.0.0.1:6379/14',
+              ANTHROPIC_API_KEY: 'local-scripted-provider',
+              COPILOT_INBOUND_API_KEY: 'local-controller-probe-key',
+              COPILOT_RUN_DEADLINE_MS: '20000',
+              MSHIP_PROBE_WORKFLOW_ID: workflowId,
+              MSHIP_PROBE_PORT: port,
+              MSHIP_PROBE_DELEGATE: connection.startsWith('child-') ? '1' : '0',
+              MSHIP_PROBE_CHECK_FAIL: connection === 'child-failed-check' ? '1' : '0',
+              MSHIP_PROBE_PAUSE_REPORT:
+                connection.startsWith('live-') || connection.startsWith('relay-') ? '1' : '0',
+              ...(connection.startsWith('relay-')
+                ? { MSHIP_PROBE_RELAY_FAULT: connection.slice('relay-'.length) }
+                : {}),
+            },
+            stdio: ['pipe', 'pipe', 'pipe'],
+          })
+        let child = spawnWorker()
+        let exited = once(child, 'exit')
+        let lines = createInterface({ input: child.stdout })
         let diagnostics = ''
         let relayUrl: string | undefined
-        child.stderr.on('data', (chunk: Buffer) => {
-          diagnostics += chunk.toString()
-        })
-        const ready = new Promise<string>((resolve) => {
-          lines.on('line', (line) => {
-            diagnostics += `${line}\n`
-            if (connection.startsWith('live-') && line.includes('"msg":"Duplicate send"'))
-              child.stdin.write('release\n')
-            if (line.includes('"probe":"relay-attached"')) child.stdin.write('release\n')
-            if (!line.startsWith('{"probe":')) return
-            const message: unknown = JSON.parse(line)
-            if (
-              message &&
-              typeof message === 'object' &&
-              'port' in message &&
-              typeof message.port === 'number'
-            ) {
-              if ('relayPort' in message && typeof message.relayPort === 'number')
-                relayUrl = `http://127.0.0.1:${message.relayPort}`
-              resolve(`http://127.0.0.1:${message.port}`)
-            }
+        const waitForReady = () => {
+          const workerProcess = child
+          workerProcess.stderr.on('data', (chunk: Buffer) => {
+            diagnostics += chunk.toString()
           })
-        })
-        const startupTimeout = setTimeout(() => child.kill(), 10_000)
+          return new Promise<string>((resolve) => {
+            lines.on('line', (line) => {
+              diagnostics += `${line}\n`
+              if (connection.startsWith('live-') && line.includes('"msg":"Duplicate send"'))
+                workerProcess.stdin.write('release\n')
+              if (line.includes('"probe":"relay-attached"')) workerProcess.stdin.write('release\n')
+              if (!line.startsWith('{"probe":')) return
+              const message: unknown = JSON.parse(line)
+              if (
+                message &&
+                typeof message === 'object' &&
+                'port' in message &&
+                typeof message.port === 'number'
+              ) {
+                if ('relayPort' in message && typeof message.relayPort === 'number')
+                  relayUrl = `http://127.0.0.1:${message.relayPort}`
+                resolve(`http://127.0.0.1:${message.port}`)
+              }
+            })
+          })
+        }
+        const ready = waitForReady()
+        let startupTimeout = setTimeout(() => child.kill(), 10_000)
         try {
           fixture.workerUrl = await Promise.race([
             ready,
@@ -575,6 +583,32 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 typeof payload.receivedTextChars === 'number'
               )
                 receivedTextCounts.push(payload.receivedTextChars)
+            }
+            if (
+              connection === 'child-owner-exit' &&
+              !responseDropped &&
+              url.pathname === '/api/tools/resume'
+            ) {
+              if (!streamId) throw new Error('Missing interrupted run identity')
+              responseDropped = true
+              child.kill('SIGKILL')
+              await exited
+              lines.close()
+              await db.execute(
+                sql`UPDATE worker.runs SET heartbeat_at = now() - interval '5 minutes' WHERE id = ${streamId}`
+              )
+              child = spawnWorker(new URL(fixture.workerUrl).port)
+              exited = once(child, 'exit')
+              lines = createInterface({ input: child.stdout })
+              startupTimeout = setTimeout(() => child.kill(), 10_000)
+              const replacement = await Promise.race([
+                waitForReady(),
+                exited.then(() => {
+                  throw new Error(`Replacement worker exited: ${diagnostics}`)
+                }),
+              ])
+              clearTimeout(startupTimeout)
+              expect(replacement).toBe(fixture.workerUrl)
             }
             const response = await nativeFetch(input, init)
             if (
@@ -813,6 +847,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               children.find((block) => block.subagentName === 'Check instructions')?.error
             ).toBe(connection === 'child-failed-check' ? 'Independent check failed' : undefined)
             const diagnostic = children.find((block) => block.subagentName === 'Diagnose workflow')
+            if (connection === 'child-owner-exit') expect(diagnostic?.error).toMatch(/interrupt/i)
             expect(
               result.contentBlocks.some(
                 (block) =>
