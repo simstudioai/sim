@@ -41,7 +41,7 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   listSkillsForUser: vi.fn(),
 }))
 
-import { updateSkillUseCase } from '@/lib/skills/application/use-cases'
+import { getSkillUseCase, updateSkillUseCase } from '@/lib/skills/application/use-cases'
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -67,6 +67,52 @@ describe('skill application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getById.mockResolvedValue(skill)
     mocks.update.mockResolvedValue({ ...skill, content: '# Updated' })
+  })
+
+  it.each(['skill-1', 'builtin-research'])(
+    'reads %s with read permission in the asserted workspace',
+    async (skillId) => {
+      mocks.getById.mockResolvedValueOnce({ ...skill, id: skillId })
+      const result = await getSkillUseCase.execute({
+        principal: { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
+        input: { workspaceId: workspace.workspaceId, skillId },
+      })
+      expect(result.skill.id).toBe(skillId)
+      expect(mocks.getById).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: workspace.workspaceId,
+        skillId,
+      })
+      expect(mocks.resolvePermission).toHaveBeenCalledWith(
+        'reader',
+        workspace.workspaceId,
+        null,
+        undefined,
+        { forUpdate: undefined }
+      )
+      expect(mocks.update).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not return skill contents after access is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(
+      getSkillUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId, skillId: skill.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('distinguishes an absent scoped skill from a lookup outage', async () => {
+    const args = {
+      principal: { kind: 'session' as const, userId: 'reader' },
+      input: { workspaceId: workspace.workspaceId, skillId: 'foreign' },
+    }
+    mocks.getById.mockResolvedValueOnce(null)
+    await expect(getSkillUseCase.execute(args)).rejects.toMatchObject({ code: 'not_found' })
+    mocks.getById.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(getSkillUseCase.execute(args)).rejects.toThrow('database unavailable')
   })
 
   it('rejects workspace keys before resolving protected skill state', async () => {

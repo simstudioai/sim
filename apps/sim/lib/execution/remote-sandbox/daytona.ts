@@ -764,6 +764,10 @@ class DaytonaSandboxHandle implements SandboxHandle {
     await this.sandbox.fs.uploadFile(buffer, path)
   }
 
+  async removeFile(path: string): Promise<void> {
+    await this.sandbox.fs.deleteFile(path, false)
+  }
+
   async listFiles(path: string, options?: { depth?: number }): Promise<SandboxDirectoryEntry[]> {
     const entries = await this.sandbox.fs.listFiles(path, {
       ...(options?.depth !== undefined ? { depth: options.depth } : {}),

@@ -46,6 +46,8 @@ const FORBIDDEN_IN_PROJECTION: Record<string, string> = {
   'next/server': 'the HTTP surface; a projection must stay surface-neutral',
   '@sim/db': 'the database; a projection reads code-defined registries only',
   '@/enrichments/run': 'the enrichment cascade runner, which executes tools',
+  '@/lib/workflows/editing/operations':
+    'the workflow mutation engine; container vocabulary belongs in its data-only module',
 }
 
 function collectSourceFiles(root: string): string[] {

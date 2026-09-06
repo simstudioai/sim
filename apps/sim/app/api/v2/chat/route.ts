@@ -350,7 +350,7 @@ export const POST = withRouteHandler(
       }
 
       let allowExplicitAbort = true
-      let explicitAbortRequest: Promise<void> | undefined
+      let explicitAbortRequest: Promise<unknown> | undefined
       const lifecycleAbortController = new AbortController()
       const requestExplicitAbortOnce = () => {
         if (!allowExplicitAbort || explicitAbortRequest) {

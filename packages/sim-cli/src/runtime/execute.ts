@@ -433,7 +433,7 @@ export async function executeOperation(
    * on the caller knowing.
    */
   const pagedLimit = paging ? readPagedLimit(requestFlags.limit) : 0
-  const request = buildRequest(
+  const request = await buildRequest(
     operation,
     positional,
     requestFlags,

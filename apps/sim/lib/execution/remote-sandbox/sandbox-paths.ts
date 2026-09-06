@@ -24,7 +24,7 @@
  */
 export const SANDBOX_INPUT_DIR = '/tmp/sim/inputs'
 
-/** Files user code writes here are harvested back as platform file objects. */
+/** One-shot exports use this directory; persistent workbenches allocate per-call children. */
 export const SANDBOX_OUTPUT_DIR = '/tmp/sim/outputs'
 
 /**

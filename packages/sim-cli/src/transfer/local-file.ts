@@ -4,24 +4,26 @@ import { basename } from 'node:path'
 import { type EmbedContext, embedStore } from '../embed-context'
 import { SimApiError } from '../http/client'
 
-/** The pre-read map is keyed by the path as written, without the `@`. */
+/** Both positional file spellings address the caller's same path. */
 export function embeddedFileKey(path: string): string {
   return path.startsWith('@') ? path.slice(1) : path
 }
 
 /**
  * An embedded run executes in-process on the hosting server, so a positional path must
- * never reach the server's filesystem: the host pre-reads `@path` tokens from the
- * caller's own machine into the embed context, and anything else is refused.
+ * never reach the server's filesystem. Only the caller-provided file reader may
+ * resolve it; missing capabilities and read failures stay explicit.
  */
-export function embeddedFileContent(embedded: EmbedContext, path: string): string {
+export async function embeddedFileContent(
+  embedded: EmbedContext,
+  path: string
+): Promise<string | Uint8Array<ArrayBuffer>> {
   const key = embeddedFileKey(path)
-  const content = embedded.fileArguments?.[key]
-  if (content !== undefined) return content
-  throw new SimApiError(
-    `Files on your machine are passed as @path: use @${key}. (If it does not exist yet, write it with run_code or | to-sandbox first.)`,
-    0
-  )
+  embedded.identity.signal?.throwIfAborted()
+  if (!embedded.readFile) throw new SimApiError('This invocation has no machine to read from', 0)
+  const content = await embedded.readFile(key)
+  embedded.identity.signal?.throwIfAborted()
+  return typeof content === 'string' ? content : new Uint8Array(content)
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -67,7 +69,7 @@ export interface LocalFile {
 export async function localFile(path: string, override?: string): Promise<LocalFile> {
   const embedded = embedStore.getStore()
   if (embedded) {
-    const content = embeddedFileContent(embedded, path)
+    const content = await embeddedFileContent(embedded, path)
     const size = Buffer.byteLength(content)
     if (size === 0) throw new SimApiError(`${path} is empty`, 0)
     return { name: override ?? basename(embeddedFileKey(path)), size }

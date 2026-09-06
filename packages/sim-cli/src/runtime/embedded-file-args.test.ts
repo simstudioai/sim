@@ -6,50 +6,73 @@ import { embedStore } from '../embed-context'
 import { readArgumentSource } from './request'
 
 describe('file arguments in embedded runs', () => {
-  it('refuses @path reads in-process when the host preloaded nothing', () => {
+  it('keeps a workbench read outage distinct from a missing file without interpreting literal text', async () => {
+    await embedStore.run(
+      {
+        identity: { endpoint: 'http://x', apiKey: 'k' },
+        stdout: [],
+        stderr: [],
+        readFile: async () => {
+          throw new Error('Workbench unavailable')
+        },
+      },
+      async () => {
+        await expect(readArgumentSource('@data.json', 'input')).rejects.toThrow(
+          'Workbench unavailable'
+        )
+        expect((await readArgumentSource('@@data.json', 'input')).text).toBe('@data.json')
+      }
+    )
+  })
+  it('refuses @path reads in-process when the host provides no reader', async () => {
     const ctx = {
       identity: { endpoint: 'http://x', apiKey: 'k' },
       stdout: [] as string[],
       stderr: [] as string[],
     }
-    embedStore.run(ctx, () => {
-      expect(() => readArgumentSource('@/etc/hostname', 'input')).toThrow(
-        /no file "\/etc\/hostname" on this machine/
+    await embedStore.run(ctx, async () => {
+      await expect(readArgumentSource('@/etc/hostname', 'input')).rejects.toThrow(
+        /no machine to read from/
       )
     })
   })
 
-  it('serves @path from host-preloaded file arguments, never local disk', () => {
+  it('serves @path through the host reader, never local disk', async () => {
     const ctx = {
       identity: { endpoint: 'http://x', apiKey: 'k' },
       stdout: [] as string[],
       stderr: [] as string[],
-      fileArguments: { 'env.json': '{"thread":"t1"}' },
+      readFile: async (path: string) => {
+        if (path === 'env.json') return '{"thread":"t1"}'
+        throw new Error(`no file "${path}"`)
+      },
     }
-    embedStore.run(ctx, () => {
-      const resolved = readArgumentSource('@env.json', 'input')
+    await embedStore.run(ctx, async () => {
+      const resolved = await readArgumentSource('@env.json', 'input')
       expect(resolved.text).toBe('{"thread":"t1"}')
       expect(resolved.from).toContain('your machine')
-      expect(() => readArgumentSource('@other.json', 'input')).toThrow(/no file "other.json"/)
+      await expect(readArgumentSource('@other.json', 'input')).rejects.toThrow(
+        /no file "other.json"/
+      )
     })
   })
 
-  it('keeps @@ literal escape and inline values working embedded', () => {
+  it('keeps @@ literal escape and inline values working embedded', async () => {
     const ctx = {
       identity: { endpoint: 'http://x', apiKey: 'k' },
       stdout: [] as string[],
       stderr: [] as string[],
     }
-    embedStore.run(ctx, () => {
-      expect(readArgumentSource('@@literal', 'input').text).toBe('@literal')
-      expect(readArgumentSource('{"a":1}', 'input').text).toBe('{"a":1}')
+    await embedStore.run(ctx, async () => {
+      expect((await readArgumentSource('@@literal', 'input')).text).toBe('@literal')
+      expect((await readArgumentSource('{"a":1}', 'input')).text).toBe('{"a":1}')
     })
   })
 
-  it('still reads files outside embedded runs', () => {
+  it('still reads files outside embedded runs', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cli-args-'))
     const file = join(dir, 'v.json')
     writeFileSync(file, '{"ok":true}')
-    expect(readArgumentSource(`@${file}`, 'input').text).toBe('{"ok":true}')
+    expect((await readArgumentSource(`@${file}`, 'input')).text).toBe('{"ok":true}')
   })
 })

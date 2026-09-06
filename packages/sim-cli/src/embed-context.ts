@@ -18,6 +18,8 @@ export interface EmbeddedCliIdentity {
    * callers on the wire. Absent, requests go over `fetch` like the installed CLI's.
    */
   transport?: typeof fetch
+  /** Cancellation belongs to this invocation, never to the hosting process. */
+  signal?: AbortSignal
 }
 
 export interface EmbedContext {
@@ -25,12 +27,11 @@ export interface EmbedContext {
   stdout: string[]
   stderr: string[]
   /**
-   * Pre-read contents for `@path` file arguments, keyed by the path as written
-   * (without the `@`). The host resolves these from the caller's own file
-   * surface before the run; the in-process CLI never touches the server's
-   * filesystem.
+   * Reads from the caller's machine only when a command consumes a file input.
+   * The CLI owns path syntax; the host receives the resolved path without `@`.
+   * An embedded invocation never falls back to the server's filesystem.
    */
-  fileArguments?: Record<string, string>
+  readFile?: (path: string) => Promise<string | Uint8Array>
   /**
    * Soft-fail exit code (a failed run outcome, `runs wait` timeout). Embedded
    * commands write here INSTEAD of process.exitCode: that global is shared, so
@@ -40,10 +41,10 @@ export interface EmbedContext {
   softExitCode?: number
   /**
    * Where a download lands when embedded: the host writes to the caller's own machine
-   * (the chat's sandbox), never to the server's disk. Resolves true when written, false
-   * when the caller has no machine to write to right now.
+   * (the chat's sandbox), never to the server's disk. Resolves only after publication;
+   * a refused or uncertain write throws. Overwrite policy must hold atomically.
    */
-  writeFile?: (path: string, content: Uint8Array) => Promise<boolean>
+  writeFile?: (path: string, content: Uint8Array, options: { overwrite: boolean }) => Promise<void>
 }
 
 /** The embedded-vs-standalone seam for soft-fail codes: context when embedded, global otherwise. */
@@ -79,6 +80,7 @@ export function embeddedProfile(): ResolvedProfile | null {
     workspaceId: ctx.identity.workspaceId ?? null,
     output: 'json',
     ...(ctx.identity.transport ? { transport: ctx.identity.transport } : {}),
+    ...(ctx.identity.signal ? { signal: ctx.identity.signal } : {}),
     sources: { endpoint: 'flag', apiKey: 'flag', workspaceId: 'flag', output: 'flag' },
   }
 }

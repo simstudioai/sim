@@ -173,14 +173,14 @@ async function readRunByName(runId: string, typed: string[], command: Command): 
   // Built once before anything is fetched, so a flag the generated path would
   // refuse is refused the same way — and before a request is spent on the
   // workflow's blocks. Rebuilt below once the names are ids.
-  buildRequest('getWorkflowRun', [runId], flags, profile.workspaceId)
+  await buildRequest('getWorkflowRun', [runId], flags, profile.workspaceId)
   const workflowId = String(flags.workflow)
   const selection = resolveSelection(
     typed,
     await loadWorkflowBlocks(client, workflowId),
     workflowId
   )
-  const request = buildRequest(
+  const request = await buildRequest(
     'getWorkflowRun',
     [runId],
     { ...flags, selectOutput: selection.resolved },
@@ -239,7 +239,7 @@ export function attachWorkflowRunGet(runs: Command): void {
     }
     // Expanded here, once: a `@-` source cannot be read twice, and the
     // generated path would read it again if it still saw the `@`.
-    const typed = readListValues(raw, SELECT_OUTPUT_FLAG)
+    const typed = await readListValues(raw, SELECT_OUTPUT_FLAG)
     command.setOptionValue('selectOutput', typed)
     if (typed.every(isIdHeaded)) {
       await previous(command.processedArgs)

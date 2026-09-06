@@ -15,6 +15,7 @@ import {
   type WorkflowLintUnresolvedReference,
 } from '@/lib/workflows/editing/lint'
 import {
+  type AgentToolReferenceValidationOptions,
   collectUnresolvedAgentToolReferences,
   collectUnresolvedReferences,
   UNRESOLVABLE_AT_LINT_NOTE,
@@ -60,6 +61,16 @@ export interface WorkflowLintScope {
   subjectUserId: string | null
 }
 
+export type WorkflowLintTableDiagnostics = Pick<
+  WorkflowLintReport,
+  'tableFieldIssues' | 'unresolvedReferences' | 'notes'
+>
+
+interface WorkflowLintReportOptions extends AgentToolReferenceValidationOptions {
+  /** Standalone callers supply table findings from authorized reads and active block inputs. */
+  tables?: WorkflowLintTableDiagnostics
+}
+
 /**
  * The live schema of every table the graph's Table blocks are bound to, keyed
  * by table id. A table outside the workspace is left out rather than reported
@@ -95,12 +106,20 @@ async function loadTableSchemasForLint(
  * collectors read the database, and a failure there must not fail a write that
  * has already been validated — so a collector that throws is logged and its
  * findings omitted rather than propagated.
+ * Standalone diagnostics opt into complete lookups instead of treating omitted
+ * findings as evidence that the workflow has no issues.
  */
 export async function buildWorkflowLintReport(
   graph: Pick<WorkflowState, 'blocks' | 'edges'>,
-  scope: WorkflowLintScope
+  scope: WorkflowLintScope,
+  options: WorkflowLintReportOptions = {}
 ): Promise<WorkflowLintReport> {
-  const unresolvedReferences: WorkflowLintUnresolvedReference[] = []
+  if (options.requireComplete && !scope.subjectUserId) {
+    throw new Error('Workflow reference checks require a user subject')
+  }
+  const unresolvedReferences: WorkflowLintUnresolvedReference[] = [
+    ...(options.tables?.unresolvedReferences ?? []),
+  ]
 
   // Pure graph check, so it runs for every caller: a dangling block-output
   // reference passes literal text through at run time on the surfaces that
@@ -116,38 +135,53 @@ export async function buildWorkflowLintReport(
          * `inputValidationErrors` as well would double-report them, and falsely,
          * since that field means "dropped rather than persisted".
          */
-        const references = await collect(graph, {
-          userId: scope.subjectUserId,
-          workspaceId: scope.workspaceId,
-        })
+        const references = await collect(
+          graph,
+          {
+            userId: scope.subjectUserId,
+            workspaceId: scope.workspaceId,
+          },
+          options
+        )
         unresolvedReferences.push(...references)
       } catch (error) {
         logger.warn('Reference resolution lint failed', {
           workflowId: scope.workflowId,
           error: getErrorMessage(error),
         })
+        if (options.requireComplete) {
+          throw new Error(
+            'Workflow reference checks could not complete; retry when lookup is available'
+          )
+        }
       }
     }
   }
 
-  // Every caller, like the dangling-reference pass: the table schema is
-  // workspace data, not a human's grant, so a workspace key can read it.
-  let tableFieldIssues: WorkflowLintTableFieldIssue[] = []
-  try {
-    tableFieldIssues = collectTableBlockFieldIssues(
-      graph.blocks,
-      await loadTableSchemasForLint(graph.blocks, scope.workspaceId)
-    )
-  } catch (error) {
-    logger.warn('Table field lint failed', {
-      workflowId: scope.workflowId,
-      error: getErrorMessage(error),
-    })
+  /** Standalone diagnostics have already read tables under application authorization. */
+  let tableFieldIssues: WorkflowLintTableFieldIssue[] = options.tables?.tableFieldIssues ?? []
+  if (!options.tables) {
+    try {
+      tableFieldIssues = collectTableBlockFieldIssues(
+        graph.blocks,
+        await loadTableSchemasForLint(graph.blocks, scope.workspaceId)
+      )
+    } catch (error) {
+      logger.warn('Table field lint failed', {
+        workflowId: scope.workflowId,
+        error: getErrorMessage(error),
+      })
+      if (options.requireComplete) {
+        throw new Error(
+          'Workflow table schema checks could not complete; retry when lookup is available'
+        )
+      }
+    }
   }
 
   const graphLint = lintEditedWorkflowState(graph)
 
-  const notes: string[] = []
+  const notes: string[] = [...(options.tables?.notes ?? [])]
   if (!scope.subjectUserId) notes.push(REFERENCES_UNCHECKED_NOTE)
   if (unresolvedReferences.length > 0) notes.push(UNRESOLVABLE_AT_LINT_NOTE)
   if (Object.keys(graph.blocks ?? {}).length === 0) {

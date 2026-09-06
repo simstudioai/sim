@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
-import { agentCliRequestSchema } from '@/lib/mothership/agent-cli/request-schema'
+import { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type {
   ToolExecutionContext,
   ToolExecutionResult,
@@ -19,7 +19,7 @@ export async function executeSimCli(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const parsed = agentCliRequestSchema.safeParse(params.request)
+  const parsed = AgentCliRequest.safeParse(params.request)
   if (!parsed.success) {
     return {
       success: false,
@@ -34,6 +34,7 @@ export async function executeSimCli(
       workspaceId: context.workspaceId,
       userId: context.userId,
       chatId: context.chatId,
+      signal: context.abortSignal,
     })
     logger.info('CLI invocation finished', {
       exitCode: result.exitCode,
@@ -43,7 +44,7 @@ export async function executeSimCli(
     })
     return {
       success: result.exitCode === 0,
-      output: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr },
+      output: result,
       ...(result.exitCode === 0
         ? {}
         : { error: result.stderr.split('\n')[0] || `sim CLI exited with code ${result.exitCode}` }),

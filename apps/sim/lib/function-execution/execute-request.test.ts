@@ -77,6 +77,10 @@ vi.mock('@/lib/execution/remote-sandbox', () => ({
   SIM_RESULT_PREFIX: '__SIM_RESULT__=',
 }))
 
+vi.mock('@/lib/mothership/tools/sandbox-session', () => ({
+  buildMothershipSandboxSession: async (args: { sessionKey: string }) => ({ key: args.sessionKey }),
+}))
+
 vi.mock('@/lib/mothership/request/tools/files', () => ({
   FORMAT_TO_CONTENT_TYPE: {
     json: 'application/json',
@@ -2079,6 +2083,36 @@ describe('Function execution request', () => {
         .find((content: string) => content.includes('contextVariables'))
       expect(runtimePayload).toContain('/tmp/sim/inputs/doc.pdf')
       expect(runtimePayload).not.toContain('__simSandboxFileMount')
+    })
+
+    it('gives overlapping calls in one persistent workbench distinct automatic export directories', async () => {
+      envFlagsMock.isMothershipSandboxEnabled = true
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+      const responses = await Promise.all(
+        ['python', 'shell'].map((language) =>
+          POST(
+            createMockRequest('POST', {
+              code: 'x',
+              language,
+              workspaceId: 'workspace-1',
+              sandboxSessionKey: 'same-chat',
+            })
+          )
+        )
+      )
+      expect(responses.map((response) => response.status)).toEqual([200, 200])
+      const python = mockExecuteInSandbox.mock.calls.at(-1)?.[0]
+      const shell = mockExecuteShellInSandbox.mock.calls.at(-1)?.[0]
+      expect(python.session.key).toBe('same-chat')
+      expect(shell.session.key).toBe('same-chat')
+      expect(python.outputSandboxDir).toMatch(/^\/tmp\/sim\/outputs\/call-/)
+      expect(shell.outputSandboxDir).toMatch(/^\/tmp\/sim\/outputs\/call-/)
+      expect(python.outputSandboxDir).not.toBe(shell.outputSandboxDir)
     })
 
     it('harvests the output directory on every remote run, with no toggle', async () => {

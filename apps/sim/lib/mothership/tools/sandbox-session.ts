@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
@@ -7,30 +10,27 @@ import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 
 const logger = createLogger('MothershipSandboxSession')
 
-/**
- * The per-chat sandbox identity. One constructor: the key doubles as the E2B lease key
- * AND the workbench file-bridge scope, so two hand-built copies drifting apart would
- * silently split a chat across two machines.
- */
-export function chatSandboxSessionKey(chatId: string): string {
-  return `mothership-chat:${chatId}`
+/** The workbench CLI ships with Sim, so reconnect cannot silently reuse a different release. */
+async function workbenchCli(): Promise<{ path: string; content: string }> {
+  const cwd = process.cwd()
+  const path = resolve(
+    cwd,
+    cwd.endsWith('/apps/sim')
+      ? '../../packages/sim-cli/dist/workbench.js'
+      : 'packages/sim-cli/dist/workbench.js'
+  )
+  const content = await readFile(path, 'utf8')
+  const digest = createHash('sha256').update(content).digest('hex')
+  return { path: `/home/user/.sim-cli/${digest}/cli.mjs`, content }
 }
-
-/**
- * Installed once per fresh session sandbox until the mothership images bake the
- * CLI in. `command -v` keeps the install one-time: a sandbox that already has
- * the binary skips straight through.
- */
-const SESSION_BOOTSTRAP_COMMAND =
-  'command -v sim >/dev/null 2>&1 || npm install -g sim --no-fund --no-audit --loglevel=error'
 
 /**
  * Builds the session request for a Mothership chat's persistent sandbox: the
  * per-chat identity, the sim-CLI bootstrap, and the CLI's headless auth
  * environment (`SIM_API_KEY`/`SIM_WORKSPACE`/`SIM_ENDPOINT`, the CLI's
  * documented CI path). The token is minted sim-side per execution and injected
- * per exec, so a stopped or reaped sandbox never holds a live credential and
- * nothing crosses to the worker.
+ * per exec instead of writing a CLI profile. Code in the workbench can access
+ * its process environment; this is not a credential-isolation boundary.
  *
  * Both failure modes degrade rather than fail the execution: without a token or
  * a reachable endpoint the sandbox still persists — only `sim` inside it is
@@ -41,6 +41,7 @@ export async function buildMothershipSandboxSession(args: {
   workspaceId: string
   userId: string
 }): Promise<SandboxSessionRequest> {
+  const cli = await workbenchCli()
   let cliEnvs: Record<string, string> | undefined
   try {
     const apiKey = await mintDelegationToken({
@@ -63,7 +64,7 @@ export async function buildMothershipSandboxSession(args: {
   }
   return {
     key: args.sessionKey,
-    bootstrapCommand: SESSION_BOOTSTRAP_COMMAND,
+    cli,
     ...(cliEnvs ? { envs: cliEnvs } : {}),
   }
 }

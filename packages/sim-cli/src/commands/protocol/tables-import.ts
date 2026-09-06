@@ -39,7 +39,7 @@ function tableNameFrom(fileName: string): string {
   return (/^[0-9]/.test(cleaned) ? `_${cleaned}` : cleaned).slice(0, 128)
 }
 
-function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): unknown {
+function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): Promise<unknown> {
   return coerce(raw, { kind }, { json: true }, flagName)
 }
 
@@ -226,9 +226,11 @@ export function attachTableImport(tables: Command): void {
             workspaceId,
             source,
             target,
-            ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping', 'object') } : {}),
+            ...(options.mapping
+              ? { mapping: await jsonFlag(options.mapping, 'mapping', 'object') }
+              : {}),
             ...(options.createColumns
-              ? { createColumns: jsonFlag(options.createColumns, 'create-columns', 'array') }
+              ? { createColumns: await jsonFlag(options.createColumns, 'create-columns', 'array') }
               : {}),
             ...(options.timezone ? { timezone: options.timezone } : {}),
           },

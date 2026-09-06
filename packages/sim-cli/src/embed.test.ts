@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from './embed'
+import { sleep } from './helpers'
 
 const IDENTITY = {
   endpoint: 'https://sim.internal.test',
@@ -19,6 +20,154 @@ afterEach(() => {
 })
 
 describe('runEmbeddedCli', () => {
+  it('supports document tagging and filtered knowledge search without inventing chunk tag writes', async () => {
+    const transport = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse({ data: { id: 'resource-1' } }))
+    const identity = { ...IDENTITY, transport }
+    const tag = await runEmbeddedCli(
+      ['knowledge', 'documents', 'update', 'kb-1', 'doc-1', '--tag1', 'billing'],
+      identity
+    )
+    expect(tag.exitCode).toBe(0)
+    expect(transport.mock.calls[0]?.[0]).toContain('/knowledge/kb-1/documents/doc-1')
+    expect(JSON.parse(transport.mock.calls[0]?.[1]?.body)).toEqual({
+      workspaceId: IDENTITY.workspaceId,
+      tag1: 'billing',
+    })
+    const create = await runEmbeddedCli(
+      ['knowledge', 'chunks', 'create', 'kb-1', 'doc-1', '--content', 'Refunds need approval.'],
+      identity
+    )
+    expect(create.exitCode).toBe(0)
+    expect(JSON.parse(transport.mock.calls[1]?.[1]?.body)).toEqual({
+      workspaceId: IDENTITY.workspaceId,
+      content: 'Refunds need approval.',
+    })
+    const filter = [{ tagName: 'topic', fieldType: 'text', operator: 'eq', value: 'billing' }]
+    const searchData = { results: [], totalResults: 0, rerankerStatus: 'unavailable' }
+    transport.mockResolvedValueOnce(jsonResponse({ data: searchData }))
+    const search = await runEmbeddedCli(
+      [
+        'knowledge',
+        'search',
+        '--kb',
+        'kb-1',
+        '--query',
+        'refund approval',
+        '--search-mode',
+        'hybrid',
+        '--tag-filters',
+        JSON.stringify(filter),
+      ],
+      identity
+    )
+    expect(search.exitCode, search.stderr).toBe(0)
+    expect(JSON.parse(search.stdout)).toEqual(searchData)
+    expect(JSON.parse(transport.mock.calls[2]?.[1]?.body)).toMatchObject({
+      query: 'refund approval',
+      searchMode: 'hybrid',
+      tagFilters: filter,
+    })
+    const invalid = await runEmbeddedCli(
+      ['knowledge', 'chunks', 'create', 'kb-1', 'doc-1', '--content', 'text', '--tag1', 'billing'],
+      identity
+    )
+    expect(invalid.exitCode).toBe(1)
+    expect(invalid.stderr).toContain("unknown option '--tag1'")
+    expect(transport).toHaveBeenCalledTimes(3)
+  })
+
+  it('workbench discovery describes its supplied identity without teaching interactive setup', async () => {
+    const transport = vi.fn()
+    const identity = { ...IDENTITY, transport }
+    const help = await runEmbeddedCli(['--help'], identity, { workbench: true })
+    expect(help.exitCode).toBe(0)
+    expect(help.stdout).toContain('This chat supplies')
+    expect(help.stdout).toContain('--async')
+    expect(help.stdout).not.toContain('--profile')
+    expect(help.stdout).not.toContain('sim login')
+    expect(help.stdout).not.toContain('configure')
+    for (const args of [['login'], ['configure'], ['workflows', 'list', '--workspace', 'other']]) {
+      expect((await runEmbeddedCli(args, identity, { workbench: true })).exitCode).toBe(1)
+    }
+    expect(transport).not.toHaveBeenCalled()
+    const hostHelp = await runEmbeddedCli(['--help'], identity)
+    expect(hostHelp.stdout).toContain('sim login')
+    expect(hostHelp.stdout).toContain('--profile')
+  })
+  it.each([
+    ['workflows', 'run', IDENTITY.workspaceId],
+    ['workflows', 'run', IDENTITY.workspaceId, '--async', '--manual'],
+    ['workflows', 'run', IDENTITY.workspaceId, '--async', '--follow'],
+    ['workflows', 'run', IDENTITY.workspaceId, '--async', '--trigger', 'trigger'],
+    ['workflows', 'runs', 'wait', 'run-id', '--workflow', IDENTITY.workspaceId],
+    ['logs', 'follow'],
+  ])('workbench refuses blocking execution before issuing a request: %j', async (...args) => {
+    const transport = vi.fn()
+    const result = await runEmbeddedCli(args, { ...IDENTITY, transport }, { workbench: true })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('watch')
+    expect(transport).not.toHaveBeenCalled()
+  })
+
+  it('workbench starts asynchronous work without waiting and preserves draft execution in the host', async () => {
+    const transport = vi.fn().mockResolvedValue(jsonResponse({ runId: 'r1', status: 'queued' }))
+    const result = await runEmbeddedCli(
+      ['workflows', 'run', IDENTITY.workspaceId, '--async'],
+      { ...IDENTITY, transport },
+      { workbench: true }
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('r1')
+    expect(transport).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(transport.mock.calls[0]?.[1]?.body)).toMatchObject({ async: true })
+    transport.mockResolvedValueOnce(jsonResponse({ runId: 'r2', status: 'completed' }))
+    const draft = await runEmbeddedCli(['workflows', 'run', IDENTITY.workspaceId, '--manual'], {
+      ...IDENTITY,
+      transport,
+    })
+    expect(draft.exitCode).toBe(0)
+    expect(draft.stdout).toContain('r2')
+  })
+
+  it('cancels only the selected embedded invocation and refuses new requests after Stop', async () => {
+    const controller = new AbortController()
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const transport = vi.fn((_input: string | URL | Request, init?: RequestInit) => {
+      started()
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+      })
+    })
+    const running = runEmbeddedCli(['workflows', 'list'], {
+      ...IDENTITY,
+      signal: controller.signal,
+      transport,
+    })
+    await ready
+    const independent = runEmbeddedCli(['workflows', 'list'], {
+      ...IDENTITY,
+      transport: async () => jsonResponse({ data: [], nextCursor: null }),
+    })
+    controller.abort(new Error('Stopped'))
+    expect((await running).exitCode).toBe(1)
+    expect((await independent).exitCode).toBe(0)
+    expect(
+      (
+        await runEmbeddedCli(['workflows', 'list'], {
+          ...IDENTITY,
+          signal: controller.signal,
+          transport,
+        })
+      ).exitCode
+    ).toBe(1)
+    expect(transport).toHaveBeenCalledTimes(1)
+  })
+
   it('runs a real command in-process with the injected identity, capturing stdout', async () => {
     const seen: { url: string; auth: string | null }[] = []
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
@@ -62,7 +211,7 @@ describe('runEmbeddedCli', () => {
       const url = new URL(String(input))
       // Answer each invocation with its own workspace id so cross-talk is visible.
       const workspaceId = url.searchParams.get('workspaceId') ?? 'missing'
-      await new Promise((resolve) => setTimeout(resolve, workspaceId.endsWith('1') ? 30 : 5))
+      await sleep(workspaceId.endsWith('1') ? 30 : 5)
       return jsonResponse({ data: [{ id: workspaceId, name: workspaceId }], nextCursor: null })
     })
     const wsA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'

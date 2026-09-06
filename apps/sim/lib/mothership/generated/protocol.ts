@@ -110,6 +110,12 @@ export interface AbortRequest {
   messageId: string;
 }
 
+/** Accepted Stop intent is distinct from an observed terminal worker run. */
+export interface AbortResponse {
+  stopped: boolean;
+  settled: boolean;
+}
+
 /** POST /api/streams/steer. Acceptance means "queued"; application is acknowledged by a
  * `run`/`steering_applied` frame carrying the steeringId — a caller that never sees the
  * ack re-sends the content as an ordinary message (loss-free without liveness proof). */

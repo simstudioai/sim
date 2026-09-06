@@ -5,12 +5,10 @@ import type {
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 
 /**
- * Compute-only variant of run_function for info-gathering agents: same
- * sandbox and inputs, but it must never create or overwrite workspace
- * resources. The write vectors (outputs.files, outputTable) are rejected here
- * on top of the Go executor's fail-fast guard; run_code is also absent from
- * the name-gated output post-processors (OUTPUT_PATH_TOOLS etc.), so even a
- * leaked arg could not write anything.
+ * run_code returns code output; run_function additionally persists declared
+ * outputs through its post-processors. Both allow authenticated CLI scripts,
+ * so rejecting persistence parameters here is an API distinction, not a
+ * read-only sandbox guarantee.
  */
 export async function executeRunCode(
   params: Record<string, unknown>,
@@ -20,14 +18,14 @@ export async function executeRunCode(
     return {
       success: false,
       error:
-        'run_code is compute-only: outputs (workspace file writes) is not available; return the data and report it instead',
+        'run_code returns code output. Use run_function with outputs.files to export sandbox files into the workspace.',
     }
   }
   if ('outputTable' in params) {
     return {
       success: false,
       error:
-        'run_code is compute-only: outputTable (workspace table overwrite) is not available; return the data and report it instead',
+        'run_code returns code output. Use run_function with outputTable to replace a workspace table with returned rows.',
     }
   }
   return executeFunctionExecute(params, context)

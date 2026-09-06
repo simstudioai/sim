@@ -57,6 +57,7 @@ export function createEmbeddedClient(identity: EmbeddedCliIdentity): SimClient {
     workspaceId: identity.workspaceId ?? null,
     output: 'json',
     ...(identity.transport ? { transport: identity.transport } : {}),
+    ...(identity.signal ? { signal: identity.signal } : {}),
     sources: { endpoint: 'flag', apiKey: 'flag', workspaceId: 'flag', output: 'flag' },
   })
 }
@@ -70,20 +71,39 @@ export function createEmbeddedClient(identity: EmbeddedCliIdentity): SimClient {
 export async function runEmbeddedCli(
   argv: string[],
   identity: EmbeddedCliIdentity,
-  options?: { fileArguments?: Record<string, string>; writeFile?: EmbedContext['writeFile'] }
+  options?: {
+    readFile?: EmbedContext['readFile']
+    writeFile?: EmbedContext['writeFile']
+    workbench?: boolean
+  }
 ): Promise<EmbeddedCliResult> {
   installEmbedSinks()
+  /** Metadata checks and upload bodies must use the same bytes, even if the source changes meanwhile. */
+  const reads = new Map<string, Promise<string | Uint8Array>>()
+  const reader = options?.readFile
   const ctx: EmbedContext = {
     identity,
     stdout: [],
     stderr: [],
-    ...(options?.fileArguments ? { fileArguments: options.fileArguments } : {}),
+    ...(reader
+      ? {
+          readFile: (path: string) => {
+            let read = reads.get(path)
+            if (!read) {
+              read = reader(path)
+              reads.set(path, read)
+            }
+            return read
+          },
+        }
+      : {}),
     ...(options?.writeFile ? { writeFile: options.writeFile } : {}),
   }
   return embedStore.run(ctx, async () => {
     let exitCode = 0
     try {
-      const program = buildProgram()
+      identity.signal?.throwIfAborted()
+      const program = buildProgram({ workbench: options?.workbench })
       program.exitOverride()
       await program.parseAsync(argv, { from: 'user' })
       // Commands that soft-fail (a failed run outcome, wait timeout) report through the
@@ -125,6 +145,7 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
     }
     return 1
   }
+  // utils-lint-allow: this published standalone CLI cannot import the private @sim/utils package.
   ctx.stderr.push(`Error: ${sanitize(error instanceof Error ? error.message : String(error))}`)
   return 1
 }

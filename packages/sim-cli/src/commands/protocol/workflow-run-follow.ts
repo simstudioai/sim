@@ -280,7 +280,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
 
   const { client, profile } = clientFrom(command)
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
-  const request = buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
+  const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
 
   const response = await client.requestRaw(request.path, {
     method: 'POST',

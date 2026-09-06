@@ -55,6 +55,48 @@ describe('buildWorkflowLintReport notes', () => {
     vi.clearAllMocks()
   })
 
+  it('uses supplied application table diagnostics without repeating advisory reads', async () => {
+    const tables = {
+      tableFieldIssues: [{ blockId: 'table', field: 'missing-column', tableName: 'People' }],
+      unresolvedReferences: [
+        {
+          blockId: 'other',
+          field: 'tableId',
+          value: 'missing-table',
+          kind: 'resource' as const,
+          reason: 'Table not accessible.',
+        },
+      ],
+      notes: ['A dynamic table reference was not checked.'],
+    }
+    const report = await buildWorkflowLintReport(
+      { blocks: { start: block('start', 'starter') }, edges: [] },
+      scope,
+      { requireComplete: true, tables }
+    )
+    expect(report.tableFieldIssues).toEqual(tables.tableFieldIssues)
+    expect(report.unresolvedReferences).toEqual(tables.unresolvedReferences)
+    expect(report.notes).toEqual([...tables.notes, 'unresolvable-at-lint'])
+    expect(mocks.getTableById).not.toHaveBeenCalled()
+  })
+
+  it.each(['references', 'agent tools'])(
+    'a complete diagnostic refuses unavailable %s checks while advisory writes remain available',
+    async (kind) => {
+      const collector =
+        kind === 'references'
+          ? mocks.collectUnresolvedReferences
+          : mocks.collectUnresolvedAgentToolReferences
+      const graph = { blocks: { start: block('start', 'starter') }, edges: [] }
+      collector.mockRejectedValueOnce(new Error('private lookup details'))
+      await expect(
+        buildWorkflowLintReport(graph, scope, { requireComplete: true })
+      ).rejects.toThrow('Workflow reference checks could not complete')
+      collector.mockRejectedValueOnce(new Error('private lookup details'))
+      await expect(buildWorkflowLintReport(graph, scope)).resolves.toMatchObject({ notes: [] })
+    }
+  )
+
   /**
    * `--blocks '{}' --edges '[]'` used to lint perfectly clean, so a dry run gave
    * no hint that applying it would erase the workflow.
@@ -188,5 +230,9 @@ describe('buildWorkflowLintReport table fields', () => {
 
     mocks.getTableById.mockRejectedValueOnce(new Error('tables unavailable'))
     expect((await buildWorkflowLintReport(graph, scope)).tableFieldIssues).toEqual([])
+    mocks.getTableById.mockRejectedValueOnce(new Error('private table lookup details'))
+    await expect(buildWorkflowLintReport(graph, scope, { requireComplete: true })).rejects.toThrow(
+      'Workflow table schema checks could not complete'
+    )
   })
 })

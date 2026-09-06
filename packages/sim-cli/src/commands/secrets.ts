@@ -42,10 +42,10 @@ interface SetSecretOptions {
  * A value that genuinely starts with `@` is written `@@`, and only the leading
  * `@` is dropped.
  */
-function readValueArgument(raw: string): string {
+async function readValueArgument(raw: string): Promise<string> {
   if (raw.startsWith('@@')) return raw.slice(1)
   if (!raw.startsWith('@')) return raw
-  return readArgumentSource(raw, 'value').text
+  return (await readArgumentSource(raw, 'value')).text
 }
 
 function validateSecretValue(value: string): string {
@@ -101,7 +101,8 @@ function validateWorkspaceOnlyFlag<T>(
  * stdin listening, so a returning process would sit there instead of ending.
  */
 async function readSecretValue(options: SetSecretOptions): Promise<string | undefined> {
-  if (options.value !== undefined) return validateSecretValue(readValueArgument(options.value))
+  if (options.value !== undefined)
+    return validateSecretValue(await readValueArgument(options.value))
   if (options.description !== undefined || options.unredacted !== undefined) return undefined
   try {
     return validateSecretValue(await promptSecret())

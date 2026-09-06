@@ -1,20 +1,27 @@
+import { posix } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import {
-  createSandboxPricing,
-  priceSandboxUsage,
-  type SandboxPricing,
-} from '@/lib/billing/sandbox-pricing'
+import { priceSandboxUsage } from '@/lib/billing/sandbox-pricing'
 import {
   createTimeoutAbortController,
   getRemainingExecutionMs,
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
 import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
-import { runDetached } from '@/lib/core/utils/background'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import {
+  type CreatedSandbox,
+  createSandbox,
+  createSelectedSandbox,
+} from '@/lib/execution/remote-sandbox/create'
+import {
+  prepareSandboxSessionAccess,
+  reportUnsettledSandboxProcess,
+  retainSandboxExecution,
+} from '@/lib/execution/remote-sandbox/execution-observer'
+import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
 import {
   attachTrustedSandboxOutputCost,
   isSandboxOutputFileError,
@@ -35,7 +42,6 @@ import {
   provisionRuntimeDependencies,
   type ResolvedSandbox,
   RUNTIME_INSTALL_TIMEOUT_MS,
-  repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
 import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
@@ -43,6 +49,12 @@ import {
   SANDBOX_OUTPUT_DIR_MAX_DEPTH,
   SANDBOX_OUTPUT_DIR_SENTINEL,
 } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import {
+  ensureSessionSandbox,
+  SESSION_SANDBOX_IDLE_MS,
+} from '@/lib/execution/remote-sandbox/session'
+import { sessionCommandPath } from '@/lib/execution/remote-sandbox/session-cli'
+import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type {
   CreateSandboxOptions,
   SandboxCodeResult,
@@ -57,7 +69,6 @@ import type {
   SandboxHandle,
   SandboxKind,
   SandboxPrivateInput,
-  SandboxProvider,
   SandboxProviderId,
   SandboxSessionRequest,
   SandboxShellExecutionRequest,
@@ -73,53 +84,6 @@ export type {
 } from '@/lib/execution/remote-sandbox/types'
 
 const logger = createLogger('RemoteSandbox')
-
-interface CreatedSandbox {
-  sandbox: SandboxHandle
-  providerId: SandboxProviderId
-  startedAtMs: number
-  effectiveLifetimeMs?: number
-  pricing?: SandboxPricing
-}
-
-async function createSandbox(
-  kind: SandboxKind,
-  options?: CreateSandboxOptions,
-  meterUsage = false,
-  provider: SandboxProvider = resolveProvider()
-): Promise<CreatedSandbox> {
-  const effectiveLifetimeMs =
-    options?.lifetimeMs !== undefined ? provider.resolveLifetimeMs(options.lifetimeMs) : undefined
-  if (meterUsage && effectiveLifetimeMs === undefined) {
-    throw new Error('Metered sandbox execution requires a provider lifetime')
-  }
-  const pricing = meterUsage ? createSandboxPricing(provider.id) : undefined
-  let startedAtMs = Date.now()
-  const providerOptions = {
-    ...options,
-    ...(effectiveLifetimeMs !== undefined ? { lifetimeMs: effectiveLifetimeMs } : {}),
-    ...(meterUsage ? { onProviderRequestStarted: (value: number) => (startedAtMs = value) } : {}),
-  }
-  const sandbox = await provider.create(kind, providerOptions)
-  logger.info('Created sandbox', { provider: provider.id, kind, sandboxId: sandbox.sandboxId })
-  return {
-    sandbox,
-    providerId: provider.id,
-    startedAtMs,
-    ...(effectiveLifetimeMs !== undefined ? { effectiveLifetimeMs } : {}),
-    ...(pricing ? { pricing } : {}),
-  }
-}
-
-/**
- * How long a session sandbox survives between executions before the provider
- * reaps it. Refreshed on every acquire and release, so the clock measures idle
- * time, not total lifetime.
- */
-const SESSION_SANDBOX_IDLE_MS = 20 * 60_000
-
-/** Budget for a session's one-time bootstrap command (e.g. a CLI install). */
-const SESSION_BOOTSTRAP_TIMEOUT_MS = 120_000
 
 interface SandboxLease {
   created: CreatedSandbox
@@ -151,77 +115,35 @@ async function leaseSandbox(
   const sessionCapable = Boolean(session && !meterUsage && provider.findSessionSandbox)
 
   if (session && sessionCapable) {
-    const refresh = async (sandbox: SandboxHandle) => {
-      try {
-        await sandbox.extendLifetime?.(SESSION_SANDBOX_IDLE_MS)
-      } catch (error) {
-        logger.warn('Failed to refresh session sandbox lifetime', {
-          sandboxId: sandbox.sandboxId,
-          error: getErrorMessage(error),
-        })
+    await prepareSandboxSessionAccess(session.key, signal)
+    return withSandboxSessionLock(session.key, signal, async (leaseSignal) => {
+      const { created, status } = await ensureSessionSandbox({
+        provider,
+        kind,
+        options,
+        selected,
+        session,
+        signal: leaseSignal,
+        bootstrapTimeoutMs: remainingSandboxBudgetMs(signal),
+      })
+      return {
+        created,
+        session: status,
+        release: async () => {
+          // Cleanup failure cannot relabel a completed mutation as a failed execution.
+          try {
+            await withSandboxSessionLock(session.key, AbortSignal.timeout(30_000), async () => {
+              await created.sandbox.extendLifetime?.(SESSION_SANDBOX_IDLE_MS)
+            })
+          } catch (error) {
+            logger.warn('Failed to refresh session sandbox lifetime', {
+              sandboxId: created.sandbox.sandboxId,
+              error: getErrorMessage(error),
+            })
+          }
+        },
       }
-    }
-    try {
-      const existing = await provider.findSessionSandbox?.(session.key, {
-        ...(options.language ? { language: options.language } : {}),
-      })
-      if (existing) {
-        await refresh(existing)
-        // Priced like a Function block's sandbox, over this call's wall time on the
-        // sandbox (acquire to release). The idle window between calls is the
-        // platform's overhead, not the user's.
-        return {
-          created: {
-            sandbox: existing,
-            providerId: provider.id,
-            startedAtMs: Date.now(),
-            effectiveLifetimeMs: provider.resolveLifetimeMs(SESSION_SANDBOX_IDLE_MS),
-            pricing: createSandboxPricing(provider.id),
-          },
-          session: 'reused',
-          release: () => refresh(existing),
-        }
-      }
-    } catch (error) {
-      logger.warn('Session sandbox lookup failed; creating a fresh one', {
-        key: session.key,
-        error: getErrorMessage(error),
-      })
-    }
-    // Metered from the provider request, as a Function block's one-shot sandbox is:
-    // the first call of a chat pays for the boot it caused.
-    const created = await createSelectedSandbox(
-      kind,
-      { ...options, lifetimeMs: SESSION_SANDBOX_IDLE_MS, sessionKey: session.key },
-      selected,
-      signal,
-      true
-    )
-    const bootstrapCommand = session.bootstrapCommand
-    if (bootstrapCommand) {
-      // Detached: the bootstrap (a CLI install, until the images bake it in)
-      // can outlast the caller's execution budget, and the first execution of a
-      // chat must not pay for it. The narrow race — the very first execution
-      // using the bootstrapped tool before the install lands — resolves on
-      // retry against the by-then bootstrapped sandbox.
-      runDetached('session-sandbox-bootstrap', async () => {
-        const bootstrap = await created.sandbox.runCommand(bootstrapCommand, {
-          timeoutMs: SESSION_BOOTSTRAP_TIMEOUT_MS,
-          rootUser: true,
-        })
-        if (bootstrap.exitCode !== 0) {
-          logger.warn('Session sandbox bootstrap exited non-zero', {
-            sandboxId: created.sandbox.sandboxId,
-            exitCode: bootstrap.exitCode,
-          })
-        }
-      })
-    }
-    return {
-      created,
-      session: 'created',
-      release: () => refresh(created.sandbox),
-    }
+    })
   }
 
   const created = await createSelectedSandbox(kind, options, selected, signal, meterUsage)
@@ -232,34 +154,6 @@ async function leaseSandbox(
       abortBinding.detach()
       await abortBinding.cleanup()
     },
-  }
-}
-
-/**
- * Creates a sandbox, turning "that image is gone" into a rebuild rather than a
- * failure the author has to resolve by hand.
- *
- * Create is the only step that observes whether the provider image really exists,
- * which is why the repair hangs off it: the registry row and the remote template
- * are two systems with no shared transaction, so keeping them in step is always
- * best-effort, while checking at the point of use is not. Any other failure is
- * rethrown untouched.
- */
-async function createSelectedSandbox(
-  kind: SandboxKind,
-  options: CreateSandboxOptions,
-  selected: ResolvedSandbox | null,
-  signal: AbortSignal,
-  meterUsage = false
-): Promise<CreatedSandbox> {
-  try {
-    return await createSandbox(kind, options, meterUsage)
-  } catch (error) {
-    throwIfAborted(signal)
-    if (!selected) throw error
-    const rebuilding = await repairMissingSandboxImage(selected, error)
-    if (!rebuilding) throw error
-    throw new Error(rebuilding)
   }
 }
 
@@ -314,6 +208,7 @@ function raceSandboxAbort<T>(operation: Promise<T>, signal: AbortSignal): Promis
 async function withSandboxExecutionBudget<T>(
   timeoutMs: number,
   parentSignal: AbortSignal | undefined,
+  joinOnAbort: boolean,
   execute: (signal: AbortSignal) => Promise<T>
 ): Promise<T> {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -323,7 +218,10 @@ async function withSandboxExecutionBudget<T>(
   const controller = createTimeoutAbortController(timeoutMs, parentSignal)
   try {
     throwIfAborted(controller.signal)
-    return await raceSandboxAbort(execute(controller.signal), controller.signal)
+    const execution = execute(controller.signal)
+    retainSandboxExecution(execution)
+    /** The chat may close promptly, but a shared workbench operation owns its process through cancellation. */
+    return await (joinOnAbort ? execution : raceSandboxAbort(execution, controller.signal))
   } finally {
     controller.cleanup()
   }
@@ -374,7 +272,7 @@ function bindSandboxAbort(
       try {
         await kill('cleanup')
       } catch {
-        await kill('cleanup').catch(() => {})
+        await kill('cleanup').catch(() => reportUnsettledSandboxProcess())
       }
     },
     detach: () => signal?.removeEventListener('abort', onAbort),
@@ -437,66 +335,84 @@ const FETCH_URL_MOUNT_COMMAND = [
 async function writeSandboxInputs(
   sandbox: SandboxHandle,
   files: SandboxFile[] | undefined,
-  opts: { rootUser?: boolean; signal: AbortSignal }
+  opts: { rootUser?: boolean; signal: AbortSignal; persistent: boolean }
 ): Promise<void> {
   if (!files?.length) return
   const fetchedByUrl: string[] = []
   const writtenInline: string[] = []
   for (const file of files) {
-    if (file.type === 'url') {
-      const dir = file.path.slice(0, file.path.lastIndexOf('/'))
-      let result: SandboxCommandResult
-      try {
-        result = await sandbox.runCommand(FETCH_URL_MOUNT_COMMAND, {
-          envs: {
-            URL: file.url,
-            DST: file.path,
-            DIR: dir,
-            // Clamped, not just defaulted: `sandboxFiles` reaches this layer from
-            // the request body, so a declared ceiling is a caller's number. It may
-            // lower the limit for its own mount but never raise it past the one
-            // this layer guarantees.
-            MAX_BYTES: String(
-              Math.min(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES, MAX_SANDBOX_URL_MOUNT_BYTES)
-            ),
-          },
-          timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
-          maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
-          signal: opts.signal,
-          rootUser: opts.rootUser,
-        })
-      } catch (error) {
+    const materialize = async (path: string): Promise<void> => {
+      if (file.type === 'url') {
+        const dir = posix.dirname(path)
+        let result: SandboxCommandResult
+        try {
+          result = await sandbox.runCommand(FETCH_URL_MOUNT_COMMAND, {
+            envs: {
+              URL: file.url,
+              DST: path,
+              DIR: dir,
+              // Clamped, not just defaulted: `sandboxFiles` reaches this layer from
+              // the request body, so a declared ceiling is a caller's number. It may
+              // lower the limit for its own mount but never raise it past the one
+              // this layer guarantees.
+              MAX_BYTES: String(
+                Math.min(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES, MAX_SANDBOX_URL_MOUNT_BYTES)
+              ),
+            },
+            timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
+            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+            signal: opts.signal,
+            rootUser: opts.rootUser,
+          })
+        } catch (error) {
+          throwIfAborted(opts.signal)
+          throw new Error(
+            `Failed to fetch mounted file into sandbox at ${file.path}: ${getErrorMessage(error)}`
+          )
+        }
         throwIfAborted(opts.signal)
-        throw new Error(
-          `Failed to fetch mounted file into sandbox at ${file.path}: ${getErrorMessage(error)}`
+        throwIfSandboxTimedOut(result)
+        // Providers differ on whether a non-zero exit throws, so the exit code is
+        // checked explicitly — a silently-missing mount is exactly what this guard
+        // exists to prevent.
+        if (result.exitCode !== 0) {
+          // Daytona merges streams into stdout, so fall back to it for the real error.
+          throw new Error(
+            `Failed to fetch mounted file into sandbox at ${file.path}: ${result.stderr || result.stdout || `curl exited ${result.exitCode}`}`
+          )
+        }
+        fetchedByUrl.push(file.path)
+      } else if (file.encoding === 'base64') {
+        const buf = Buffer.from(file.content, 'base64')
+        await sandbox.writeFile(
+          path,
+          buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
         )
+        remainingSandboxBudgetMs(opts.signal)
+        writtenInline.push(file.path)
+      } else {
+        await sandbox.writeFile(path, file.content)
+        remainingSandboxBudgetMs(opts.signal)
+        writtenInline.push(file.path)
       }
-      throwIfAborted(opts.signal)
-      throwIfSandboxTimedOut(result)
-      // Providers differ on whether a non-zero exit throws, so the exit code is
-      // checked explicitly — a silently-missing mount is exactly what this guard
-      // exists to prevent.
-      if (result.exitCode !== 0) {
-        // Daytona merges streams into stdout, so fall back to it for the real error.
-        throw new Error(
-          `Failed to fetch mounted file into sandbox at ${file.path}: ${result.stderr || result.stdout || `curl exited ${result.exitCode}`}`
-        )
-      }
-      fetchedByUrl.push(file.path)
-    } else if (file.encoding === 'base64') {
-      const buf = Buffer.from(file.content, 'base64')
-      await sandbox.writeFile(
+    }
+    if (opts.persistent) {
+      await withSandboxFilePublication(
+        sandbox,
         file.path,
-        buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+        {
+          overwrite: true,
+          signal: opts.signal,
+          timeoutMs: remainingSandboxBudgetMs(opts.signal),
+          rootUser: opts.rootUser,
+        },
+        materialize
       )
-      remainingSandboxBudgetMs(opts.signal)
-      writtenInline.push(file.path)
     } else {
-      await sandbox.writeFile(file.path, file.content)
-      remainingSandboxBudgetMs(opts.signal)
-      writtenInline.push(file.path)
+      await materialize(file.path)
     }
   }
+
   // Split counts so it's visible whether a mount was fetched in-sandbox (by presigned URL, no bytes
   // through the web process) or written inline.
   logger.info('Materialized sandbox inputs', {
@@ -510,6 +426,11 @@ async function writeSandboxInputs(
 
 const PRIVATE_INPUT_ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
+interface PrivateInputFiles {
+  environment: Record<string, string>
+  cleanup(): Promise<void>
+}
+
 /**
  * Writes internal runtime payloads to generated paths after user-controlled
  * mounts have been materialized. The returned environment contains paths only.
@@ -517,9 +438,23 @@ const PRIVATE_INPUT_ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 async function writeSandboxPrivateInputs(
   sandbox: SandboxHandle,
   inputs: SandboxPrivateInput[] | undefined,
-  signal: AbortSignal
-): Promise<Record<string, string>> {
-  if (!inputs?.length) return {}
+  signal: AbortSignal,
+  persistent: boolean
+): Promise<PrivateInputFiles> {
+  const paths: string[] = []
+  const environment: Record<string, string> = Object.create(null)
+  const cleanup = async (): Promise<void> => {
+    /** One-shot sandboxes reclaim these files with their existing whole-machine teardown. */
+    if (!persistent) return
+    const results = await Promise.allSettled(paths.map((path) => sandbox.removeFile(path)))
+    const failed = results.filter((result) => result.status === 'rejected').length
+    if (failed)
+      logger.warn('Failed to remove temporary runtime inputs', {
+        sandboxId: sandbox.sandboxId,
+        files: failed,
+      })
+  }
+  if (!inputs?.length) return { environment, cleanup }
   throwIfAborted(signal)
 
   const seenEnvironmentVariables = new Set<string>()
@@ -534,22 +469,24 @@ async function writeSandboxPrivateInputs(
   }
 
   const pathPrefix = `/tmp/.sim-private-input-${generateShortId(16)}`
-  const environment: Record<string, string> = Object.create(null)
-  for (let index = 0; index < inputs.length; index += 1) {
-    throwIfAborted(signal)
-    const input = inputs[index]
-    const path = `${pathPrefix}-${index}`
-    try {
-      await sandbox.writeFile(path, input.content)
-    } catch (error) {
+  try {
+    for (let index = 0; index < inputs.length; index += 1) {
       throwIfAborted(signal)
-      throw error
+      const input = inputs[index]
+      const path = `${pathPrefix}-${index}`
+      /** A failed upload can have written bytes before losing its acknowledgement. */
+      paths.push(path)
+      await sandbox.writeFile(path, input.content)
+      throwIfAborted(signal)
+      remainingSandboxBudgetMs(signal)
+      environment[input.environmentVariable] = path
     }
+    return { environment, cleanup }
+  } catch (error) {
+    await cleanup()
     throwIfAborted(signal)
-    remainingSandboxBudgetMs(signal)
-    environment[input.environmentVariable] = path
+    throw error
   }
-  return environment
 }
 
 /**
@@ -940,6 +877,7 @@ async function executeInSandboxWithinBudget(
   const sessionField = lease.session ? { sandboxSession: lease.session } : {}
   let billableResult: SandboxExecutionResult | undefined
   let billableOutputError: unknown
+  let privateInputFiles: PrivateInputFiles | undefined
 
   try {
     throwIfAborted(signal)
@@ -948,22 +886,32 @@ async function executeInSandboxWithinBudget(
     // mounts always see a complete environment.
     //
     await provisionWithinBudget(sandbox, selected, signal)
-    await writeSandboxInputs(sandbox, req.sandboxFiles, { signal })
+    await writeSandboxInputs(sandbox, req.sandboxFiles, {
+      signal,
+      persistent: Boolean(lease.session),
+    })
     await ensureSandboxOutputDir(sandbox, req.outputSandboxDir, signal)
-    const privateInputEnvironment = await writeSandboxPrivateInputs(
+    privateInputFiles = await writeSandboxPrivateInputs(
       sandbox,
       req.privateInputs,
-      signal
+      signal,
+      Boolean(lease.session)
     )
     const executionEnvironment = {
       ...selected?.envs,
       ...req.session?.envs,
-      ...privateInputEnvironment,
+      ...(req.session?.cli
+        ? { PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH) }
+        : {}),
+      ...privateInputFiles.environment,
+      ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
     }
     const hasExecutionEnvironment =
       selected?.envs !== undefined ||
       req.session?.envs !== undefined ||
-      Object.keys(privateInputEnvironment).length > 0
+      req.session?.cli !== undefined ||
+      (req.session !== undefined && req.outputSandboxDir !== undefined) ||
+      Object.keys(privateInputFiles.environment).length > 0
 
     let execution: SandboxCodeResult
     try {
@@ -1067,13 +1015,17 @@ async function executeInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
+    await privateInputFiles?.cleanup()
     await lease.release()
   }
 }
 
 export function executeInSandbox(req: SandboxExecutionRequest): Promise<SandboxExecutionResult> {
-  return withSandboxExecutionBudget(req.timeoutMs, req.signal, (signal) =>
-    executeInSandboxWithinBudget({ ...req, signal })
+  return withSandboxExecutionBudget(
+    req.timeoutMs,
+    req.signal,
+    Boolean(req.session && !req.meterUsage),
+    (signal) => executeInSandboxWithinBudget({ ...req, signal })
   )
 }
 
@@ -1107,6 +1059,7 @@ async function executeShellInSandboxWithinBudget(
   const sessionField = lease.session ? { sandboxSession: lease.session } : {}
   let billableResult: SandboxExecutionResult | undefined
   let billableOutputError: unknown
+  let privateInputFiles: PrivateInputFiles | undefined
 
   try {
     throwIfAborted(signal)
@@ -1115,14 +1068,16 @@ async function executeShellInSandboxWithinBudget(
     // to it — see the note in `executeInSandbox`.
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {
-      rootUser: true,
+      rootUser: !lease.session,
       signal,
+      persistent: Boolean(lease.session),
     })
     await ensureSandboxOutputDir(sandbox, req.outputSandboxDir, signal)
-    const privateInputEnvironment = await writeSandboxPrivateInputs(
+    privateInputFiles = await writeSandboxPrivateInputs(
       sandbox,
       req.privateInputs,
-      signal
+      signal,
+      Boolean(lease.session)
     )
 
     let result: SandboxCommandResult
@@ -1132,13 +1087,14 @@ async function executeShellInSandboxWithinBudget(
           ...selected?.envs,
           ...envs,
           ...req.session?.envs,
-          PATH: selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH,
-          ...privateInputEnvironment,
+          PATH: sessionCommandPath(req.session, selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH),
+          ...privateInputFiles.environment,
+          ...(req.session && req.outputSandboxDir ? { SIM_OUTPUT_DIR: req.outputSandboxDir } : {}),
         },
         timeoutMs: codeBudgetMs(req, signal),
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
-        rootUser: true,
+        rootUser: !lease.session,
         atMostOnce: true,
       })
     } catch (error) {
@@ -1218,6 +1174,7 @@ async function executeShellInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
+    await privateInputFiles?.cleanup()
     await lease.release()
   }
 }
@@ -1225,8 +1182,11 @@ async function executeShellInSandboxWithinBudget(
 export function executeShellInSandbox(
   req: SandboxShellExecutionRequest
 ): Promise<SandboxExecutionResult> {
-  return withSandboxExecutionBudget(req.timeoutMs, req.signal, (signal) =>
-    executeShellInSandboxWithinBudget({ ...req, signal })
+  return withSandboxExecutionBudget(
+    req.timeoutMs,
+    req.signal,
+    Boolean(req.session && !req.meterUsage),
+    (signal) => executeShellInSandboxWithinBudget({ ...req, signal })
   )
 }
 

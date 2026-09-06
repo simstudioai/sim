@@ -32,11 +32,12 @@ describe('requestExplicitStreamAbort', () => {
   })
 
   it('sends an explicit legacy protocol marker for strict Go admission', async () => {
-    await requestExplicitStreamAbort({
+    const result = await requestExplicitStreamAbort({
       streamId: 'stream-1',
       userId: 'user-1',
       workspaceId: 'workspace-1',
     })
+    expect(result).toEqual({ settled: false })
 
     expect(mockFetchGo).toHaveBeenCalledWith(
       'https://copilot.test/api/streams/explicit-abort',
@@ -48,4 +49,21 @@ describe('requestExplicitStreamAbort', () => {
       })
     )
   })
+
+  it.each([true, false])('preserves the worker settlement acknowledgement: %s', async (settled) => {
+    mockFetchGo.mockResolvedValue(Response.json({ stopped: true, settled }))
+    await expect(
+      requestExplicitStreamAbort({ streamId: 'stream-1', userId: 'user-1' })
+    ).resolves.toEqual({ settled })
+  })
+
+  it.each([{ stopped: true }, { settled: 'true' }, null])(
+    'does not invent settlement from %j',
+    async (body) => {
+      mockFetchGo.mockResolvedValue(Response.json(body))
+      await expect(
+        requestExplicitStreamAbort({ streamId: 'stream-1', userId: 'user-1' })
+      ).resolves.toEqual({ settled: false })
+    }
+  )
 })

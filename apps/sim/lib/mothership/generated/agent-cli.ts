@@ -10,59 +10,56 @@
  * back, so every command pipes the same way regardless of where it is answered.
  */
 
-/** The result lands on the caller's machine (the chat's sandbox) instead of the window. */
-export interface AgentCliSandboxFileSink {
-  kind: "sandbox-file";
-  /** File name or path on the caller's machine; relative paths resolve under its home. */
-  path: string;
-}
+import { z } from "zod";
+import { ArtifactObservations } from "./observations";
 
+/** Relative sink paths resolve under the chat workbench home. */
+export const AgentCliSandboxFileSink = z.object({
+  kind: z.literal("sandbox-file"),
+  path: z.string().min(1).max(300),
+});
+export type AgentCliSandboxFileSink = z.infer<typeof AgentCliSandboxFileSink>;
 export type AgentCliSink = AgentCliSandboxFileSink;
 
-/** A real Sim CLI command, run in-process against the embedded CLI. */
-export interface AgentCliCliInvocation {
-  kind: "cli";
-  /** argv tokens with global rendering flags and any pipeline already stripped. */
-  argv: string[];
-}
+export const AgentCliCliInvocation = z.object({
+  kind: z.literal("cli"),
+  argv: z.array(z.string()).min(1).max(64),
+});
+export type AgentCliCliInvocation = z.infer<typeof AgentCliCliInvocation>;
 
-/** An agent-only command, run by sim's engine of the same name with typed inputs. */
-export interface AgentCliAugmentationInvocation {
-  kind: "augmentation";
-  /** The registry's canonical name, e.g. "grep" or "workflows lint". */
-  name: string;
-  positionals: string[];
-  flags: Record<string, string | true>;
-}
+export const AgentCliAugmentationInvocation = z.object({
+  kind: z.literal("augmentation"),
+  name: z.string().min(1),
+  positionals: z.array(z.string()),
+  flags: z.record(z.string(), z.union([z.string(), z.literal(true)])),
+});
+export type AgentCliAugmentationInvocation = z.infer<typeof AgentCliAugmentationInvocation>;
 
-/**
- * Text the worker already has (a sliced result, or a worker-answered command's
- * output) that only needs the sink applied: sim writes it and answers with the notice.
- */
-export interface AgentCliStdoutInvocation {
-  kind: "stdout";
-  stdout: string;
-}
+/** Already-executed output: apply only the requested sink, never repeat its source command. */
+export const AgentCliStdoutInvocation = z.object({
+  kind: z.literal("stdout"),
+  stdout: z.string().max(50_000_000),
+});
+export type AgentCliStdoutInvocation = z.infer<typeof AgentCliStdoutInvocation>;
 
-export type AgentCliInvocation =
-  | AgentCliCliInvocation
-  | AgentCliAugmentationInvocation
-  | AgentCliStdoutInvocation;
+export const AgentCliInvocation = z.discriminatedUnion("kind", [
+  AgentCliCliInvocation,
+  AgentCliAugmentationInvocation,
+  AgentCliStdoutInvocation,
+]);
+export type AgentCliInvocation = z.infer<typeof AgentCliInvocation>;
 
-export interface AgentCliRequest {
-  invocation: AgentCliInvocation;
-  sink?: AgentCliSink;
-  /**
-   * Viewer curation sim applies to the raw result before the sink: "block" trims a
-   * block detail to the operations, inputs and models this viewer may use. Decided by the
-   * worker's parse, applied by sim's primitive, so both sides see one policy.
-   */
-  curate?: "block";
-}
+export const AgentCliRequest = z.object({
+  invocation: AgentCliInvocation,
+  sink: AgentCliSandboxFileSink.optional(),
+  curate: z.literal("block").optional(),
+});
+export type AgentCliRequest = z.infer<typeof AgentCliRequest>;
 
-/** What sim hands back: the CLI's own three channels, untouched. */
-export interface AgentCliRawResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
+export const AgentCliRawResult = z.object({
+  exitCode: z.number().int(),
+  stdout: z.string(),
+  stderr: z.string().default(""),
+  observations: ArtifactObservations.optional(),
+});
+export type AgentCliRawResult = z.infer<typeof AgentCliRawResult>;

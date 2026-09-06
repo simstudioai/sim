@@ -50,6 +50,14 @@ export const workflowOperations = {
     capability: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /** Full diagnostics include caller-owned secrets, whose read policy requires a human API identity. */
+  readLint: defineWorkspaceOperation({
+    id: 'workflows.lint.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session', 'personal_api_key'],
+  }),
   // permission-group-exempt: reading a workflow's run inputs is workflow content; Chat itself is withheld by copilot.use at the chat surface
   readCopilotRunOptions: defineWorkspaceOperation({
     id: 'workflows.copilot.run_options.read',
