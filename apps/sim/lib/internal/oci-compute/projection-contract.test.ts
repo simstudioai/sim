@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { projectOciComputeResource } from '@/lib/internal/oci-compute/operations'
 import {
+  credentialProviderMatchesService,
+  getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
+} from '@/lib/oauth/utils'
+import {
   buildSelectorContextFromValues,
   getSelectorContextSubBlocks,
 } from '@/lib/selectors/context'
@@ -8,6 +13,17 @@ import { OciComputeBlock } from '@/blocks/blocks/oci_compute'
 import { INSTANCE_OUTPUT_PROPERTIES, ociComputeOperationInput } from '@/tools/oci_compute/types'
 
 describe('OCI Compute input and resource projections', () => {
+  it('uses a distinct service identity with the shared OCI signing-key credential provider', () => {
+    const service = getServiceConfigByServiceId('oci_compute')!
+    expect(service).toMatchObject({
+      providerId: 'oci_compute',
+      serviceAccountProviderId: 'oci-api-key-service-account',
+      authType: 'service_account',
+    })
+    expect(credentialProviderMatchesService('oci-api-key-service-account', service)).toBe(true)
+    expect(getServiceConfigByProviderId('oci-api-key-service-account')?.providerId).toBe('oci')
+  })
+
   it('keeps resource discovery in the source compartment without falling back to the destination', () => {
     const selector = OciComputeBlock.subBlocks.find((field) => field.id === 'instanceIdSelector')!
     const contextFor = (resourceCompartmentId: string | undefined) => {
