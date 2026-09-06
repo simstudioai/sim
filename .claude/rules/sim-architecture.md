@@ -62,8 +62,17 @@ Every export of a `'use client'` module becomes a *client reference* on the serv
 Server code runs in two runtimes with **different environments**. The app container loads the
 full env from `SIM_ENV_SECRET_ID` (Secrets Manager). Trigger.dev workers — which execute
 workflows, so every block handler and every tool call — get their env from the Trigger.dev
-dashboard; `trigger.config.ts` additionally syncs `DB_APP_NAME`, `TRIGGER_DEV_ENABLED`, and the
-`FUNCTION_EXECUTION_ENV` vars. The repo cannot see what the dashboard holds.
+dashboard, plus whatever `trigger.config.ts` publishes at deploy time: `DB_APP_NAME` and the
+`WORKER_SECRET_KEYS` list in `lib/core/config/trigger-env-sync.ts`, read from the *same*
+`/{env}/sim/env-vars` secret the app boots from. To give workers a new variable, add its key to
+that list and set it in the secret. The repo still cannot see what else the dashboard holds.
+
+Two constraints on that list. `syncEnvVars` strips every `TRIGGER_`-prefixed key before it
+publishes, so such a variable can only be set in the dashboard (`assertSyncableKeys` fails the
+build rather than letting one look synced). And the secret is authoritative: after a successful
+read, a key it does not carry — absent, `null`, or blank — is published as `''`, so deleting a
+credential from the secret revokes it in the worker too. Nothing is cleared when the read failed
+or the environment is unmapped, since there is then no authoritative view to clear against.
 
 So before replacing a worker's HTTP call to our own API with an in-process call, ask what env
 that work reads *on the app side*. Anything gated by a `require*Capability` helper is the sharp

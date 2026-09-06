@@ -16,6 +16,23 @@ const MAX_ATTEMPTS = 3
 const REQUEST_TIMEOUT_MS = 5000
 
 /**
+ * Reads one `/{env}/sim/env-vars`-shaped secret and returns its parsed
+ * key/value map. Retries transient failures and throws on a fetch, parse, or
+ * shape failure so no caller can proceed on a partial view of its config.
+ *
+ * Shared by container boot ({@link loadRuntimeSecrets}) and by the Trigger.dev
+ * deploy-time env sync, so both runtimes resolve their configuration from the
+ * same secret through the same code path.
+ */
+export async function fetchSecretMap(secretId: string): Promise<Record<string, unknown>> {
+  const client = new SecretsManagerClient(
+    process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}
+  )
+
+  return parseSecretJson(await fetchSecretString(client, secretId))
+}
+
+/**
  * Fetches the combined `/{env}/sim/env-vars` secret once at container boot and
  * hydrates `process.env`, so secrets no longer have to be fanned out into the
  * ECS task definition (which is approaching the 64 KB rendered-document limit).
@@ -33,12 +50,7 @@ export async function loadRuntimeSecrets(): Promise<void> {
     return
   }
 
-  const client = new SecretsManagerClient(
-    process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}
-  )
-
-  const secretString = await fetchSecretString(client, secretId)
-  const entries = parseSecretJson(secretString)
+  const entries = await fetchSecretMap(secretId)
 
   let loaded = 0
   let skipped = 0
