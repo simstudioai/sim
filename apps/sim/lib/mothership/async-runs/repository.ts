@@ -103,11 +103,12 @@ async function withRunAdmissionLock<T>(
   })
 }
 
-/** Returns an admitted run for normal Stop, or records a scoped refusal of future admission. */
-export async function stopPendingRequest(input: {
+/** Stop is durable before worker delivery; admission and all later segments share this intent. */
+export async function requestRunStop(input: {
   userId: string
   workspaceId: string
   streamId: string
+  chatId?: string
 }) {
   return withRunAdmissionLock(input.userId, input.streamId, async (tx) => {
     const [run] = await tx
@@ -115,25 +116,43 @@ export async function stopPendingRequest(input: {
       .from(copilotRuns)
       .where(and(eq(copilotRuns.userId, input.userId), eq(copilotRuns.streamId, input.streamId)))
       .limit(1)
-    if (run) {
-      if (run.workspaceId !== input.workspaceId || run.status !== 'cancelled') return run
-      const [stop] = await tx
-        .select()
-        .from(copilotRequestStops)
-        .where(
-          and(
-            eq(copilotRequestStops.userId, input.userId),
-            eq(copilotRequestStops.workspaceId, input.workspaceId),
-            eq(copilotRequestStops.streamId, input.streamId)
-          )
-        )
-        .limit(1)
-      if (stop) return null
+    if (
+      run &&
+      (run.workspaceId !== input.workspaceId || (input.chatId && run.chatId !== input.chatId))
+    )
       return run
+    const { userId, workspaceId, streamId } = input
+    await tx
+      .insert(copilotRequestStops)
+      .values({ userId, workspaceId, streamId })
+      .onConflictDoNothing()
+    if (run) {
+      await tx
+        .update(copilotRuns)
+        .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
+        .where(and(eq(copilotRuns.userId, input.userId), eq(copilotRuns.streamId, input.streamId)))
     }
-    await tx.insert(copilotRequestStops).values(input).onConflictDoNothing()
-    return null
+    return run ?? null
   })
+}
+
+export async function isRunStopRequested(input: {
+  userId: string
+  workspaceId: string
+  streamId: string
+}): Promise<boolean> {
+  const [stop] = await db
+    .select({ streamId: copilotRequestStops.streamId })
+    .from(copilotRequestStops)
+    .where(
+      and(
+        eq(copilotRequestStops.userId, input.userId),
+        eq(copilotRequestStops.workspaceId, input.workspaceId),
+        eq(copilotRequestStops.streamId, input.streamId)
+      )
+    )
+    .limit(1)
+  return !!stop
 }
 
 export async function createRunSegment(input: CreateRunSegmentInput) {

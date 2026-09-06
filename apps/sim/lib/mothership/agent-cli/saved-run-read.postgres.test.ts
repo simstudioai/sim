@@ -66,6 +66,7 @@ import {
   v2ExecuteWorkflowDataSchema,
   v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
+import { env } from '@/lib/core/config/env'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { executeInSandbox, executeShellInSandbox } from '@/lib/execution/remote-sandbox'
@@ -84,6 +85,7 @@ import {
   detachAsyncToolCall,
   getUnsettledClientWorkflowExecutions,
   prepareWorkbenchAccess,
+  requestRunStop,
   settleSimToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
@@ -105,6 +107,7 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { POST as stopChatRoute } from '@/app/api/mothership/chat/stop/route'
 import { POST as forkChatRoute } from '@/app/api/mothership/chats/[chatId]/fork/route'
+import { POST as readControlRoute } from '@/app/api/mothership/runs/control/route'
 import { GET as fileRoute } from '@/app/api/v2/files/[fileId]/route'
 import { GET as fileTextRoute } from '@/app/api/v2/files/[fileId]/text/route'
 import { GET as filesRoute } from '@/app/api/v2/files/route'
@@ -555,6 +558,8 @@ async function readRun(runId: string, ...flags: string[]) {
 
 const postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
 const schemaName = fixture.schemaName
+let controlServer: ReturnType<typeof createServer>
+let controlEndpoint = ''
 const tables = [
   auditLog,
   copilotChats,
@@ -624,6 +629,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       }
       await db.execute(sql`ALTER TABLE copilot_runs ALTER COLUMN started_at SET DEFAULT now()`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_runs (stream_id)`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON copilot_chats (id)`)
+      await db.execute(
+        sql`CREATE UNIQUE INDEX ON copilot_request_stops (user_id, workspace_id, stream_id)`
+      )
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_messages (chat_id, message_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_async_tool_calls (tool_call_id)`)
       for (const table of [workflowBlocks, workflowEdges, workflowSubflows]) {
@@ -658,12 +667,45 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         createdAt: now,
         updatedAt: now,
       })
+      controlServer = createServer(async (incoming, outgoing) => {
+        try {
+          if (incoming.url !== '/api/mothership/runs/control') {
+            outgoing.writeHead(404).end()
+            return
+          }
+          const chunks: Buffer[] = []
+          for await (const chunk of incoming) chunks.push(Buffer.from(chunk))
+          const headers = new Headers()
+          for (const [name, value] of Object.entries(incoming.headers)) {
+            if (value !== undefined)
+              headers.set(name, Array.isArray(value) ? value.join(', ') : value)
+          }
+          const response = await readControlRoute(
+            new NextRequest(`${controlEndpoint}${incoming.url}`, {
+              method: 'POST',
+              headers,
+              body: Buffer.concat(chunks).toString('utf8'),
+            })
+          )
+          outgoing.writeHead(response.status, Object.fromEntries(response.headers))
+          outgoing.end(Buffer.from(await response.arrayBuffer()))
+        } catch (error) {
+          outgoing.writeHead(500).end(String(error))
+        }
+      })
+      controlServer.listen(0, '127.0.0.1')
+      await once(controlServer, 'listening')
+      const address = controlServer.address()
+      if (!address || typeof address === 'string') throw new Error('Control fixture did not listen')
+      controlEndpoint = `http://127.0.0.1:${address.port}`
     })
     afterEach(async () => {
       await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
     })
     afterAll(async () => {
       postExecution.mockRestore()
+      controlServer?.closeAllConnections()
+      if (controlServer) await new Promise<void>((resolve) => controlServer.close(() => resolve()))
       try {
         await db.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(schemaName)} CASCADE`)
       } finally {
@@ -678,6 +720,60 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.errors.length = 0
       fixture.storageReads.length = 0
       vi.clearAllMocks()
+    })
+
+    it('retains an active Stop through physical storage and the worker control route', async () => {
+      const chatId = generateId()
+      const streamId = generateId()
+      const runId = generateId()
+      const toolCallId = generateId()
+      await db
+        .insert(copilotChats)
+        .values({ id: chatId, userId: 'run-reader', workspaceId, title: 'Offline Stop' })
+      await db.insert(copilotRuns).values({
+        id: runId,
+        streamId,
+        chatId,
+        userId: 'run-reader',
+        workspaceId,
+        executionId: generateId(),
+        status: 'active',
+        toolExecutionVersion: 2,
+      })
+      await db.insert(copilotAsyncToolCalls).values({
+        runId,
+        toolCallId,
+        toolName: 'run_workflow',
+        status: 'running',
+        args: { workflowId },
+      })
+      const requestControl = () =>
+        readControlRoute(
+          new NextRequest(`${controlEndpoint}/api/mothership/runs/control`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-api-key': env.INTERNAL_API_SECRET ?? '',
+              'x-mothership-user-id': 'run-reader',
+              'x-mothership-workspace-id': workspaceId,
+            },
+            body: JSON.stringify({ chatId, streamId }),
+          })
+        )
+      expect(await (await requestControl()).json()).toEqual({ stopped: false })
+      const scope = { userId: 'run-reader', workspaceId, chatId, streamId }
+      await requestRunStop(scope)
+      await requestRunStop(scope)
+      expect(await (await requestControl()).json()).toEqual({ stopped: true })
+      expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'client')).toBeNull()
+      const savedStops = await db
+        .select()
+        .from(copilotRequestStops)
+        .where(eq(copilotRequestStops.streamId, streamId))
+      expect(savedStops).toHaveLength(1)
+      const [savedRun] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+      expect(savedRun.toolAdmissionClosedAt).not.toBeNull()
+      expect(savedRun.status).toBe('active')
     })
 
     it.each(['active', 'complete', 'cancelled', 'error'] as const)(
@@ -1341,6 +1437,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               REDIS_URL: 'redis://127.0.0.1:6379/14',
               ANTHROPIC_API_KEY: 'local-scripted-provider',
               COPILOT_INBOUND_API_KEY: 'local-controller-probe-key',
+              SIM_ENDPOINT: controlEndpoint,
+              INTERNAL_API_SECRET: env.INTERNAL_API_SECRET,
               COPILOT_RUN_DEADLINE_MS: '20000',
               MSHIP_PROBE_WORKFLOW_ID: workflowId,
               MSHIP_PROBE_PORT: port,
@@ -1656,6 +1754,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           ensureHandlersRegistered()
           const chatId = generateId()
           const messageId = generateId()
+          await db.insert(copilotChats).values({
+            id: chatId,
+            userId: 'run-reader',
+            workspaceId,
+            type: 'mothership',
+            title: connection === 'fork' ? 'Source diagnostics' : 'Controller diagnosis',
+          })
           const runController = (resume?: { id: string; executionId: string }) =>
             runCopilotLifecycle(
               {
@@ -1902,13 +2007,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(executeInSandbox).not.toHaveBeenCalled()
           expect(executeShellInSandbox).not.toHaveBeenCalled()
           if (connection === 'fork') {
-            await db.insert(copilotChats).values({
-              id: chatId,
-              userId: 'run-reader',
-              workspaceId,
-              type: 'mothership',
-              title: 'Source diagnostics',
-            })
             const assistantId = generateId()
             await appendCopilotChatMessages(chatId, [
               {
