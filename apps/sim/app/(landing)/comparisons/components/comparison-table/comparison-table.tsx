@@ -1,13 +1,18 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import type { CompetitorProfile } from '@/lib/compare/data'
-import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparisons/comparison-sections'
+import {
+  type ComparisonSectionDef,
+  getFactGroup,
+} from '@/app/(landing)/comparisons/comparison-sections'
 import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
 import { FactValue } from '@/app/(landing)/comparisons/components/fact-value'
 
 export interface ComparisonTableProps {
   sim: CompetitorProfile
   competitor: CompetitorProfile
+  /** The one fact group this table renders. The page gives each its own `h2`. */
+  section: ComparisonSectionDef
 }
 
 /**
@@ -78,12 +83,15 @@ function ColumnHeader({
  * text so crawlers and AI answer engines read the full comparison without
  * any client-side hydration.
  */
-export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
+export function ComparisonTable({ sim, competitor, section }: ComparisonTableProps) {
+  const simGroupFacts = getFactGroup(sim, section.group)
+  const competitorGroupFacts = getFactGroup(competitor, section.group)
+
   return (
     <div className='w-full overflow-x-auto rounded-xl border border-[var(--border-1)]'>
       <div
         role='table'
-        aria-label={`Sim vs ${competitor.name} feature comparison`}
+        aria-label={`Sim vs ${competitor.name}: ${section.title}`}
         className='grid grid-cols-1 lg:min-w-[560px] lg:grid-cols-[minmax(140px,max-content)_1fr_1fr]'
       >
         <div className='contents' role='row'>
@@ -119,86 +127,54 @@ export function ComparisonTable({ sim, competitor }: ComparisonTableProps) {
           />
         </div>
 
-        {COMPARISON_SECTIONS.map((section, sectionIdx) => {
-          const simGroupFacts = getFactGroup(sim, section.group)
-          const competitorGroupFacts = getFactGroup(competitor, section.group)
+        {section.rows.map((row, rowIdx) => {
+          const simFact = simGroupFacts[row.key]
+          const competitorFact = competitorGroupFacts[row.key]
+          const isNotLastRow = rowIdx < section.rows.length - 1
 
           return (
-            <div key={section.title} className='contents'>
-              <div className='contents' role='row'>
-                <div
-                  role='columnheader'
-                  className={cn(
-                    'border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2',
-                    STICKY_LABEL_COL,
-                    'max-lg:border-r-0',
-                    sectionIdx > 0 && 'border-[var(--border-1)] border-t'
-                  )}
-                >
-                  <span className='font-medium text-[var(--text-primary)] text-small'>
-                    {section.title}
-                  </span>
-                </div>
-                <div
-                  role='presentation'
-                  className={cn(
-                    'col-span-2 bg-[var(--surface-1)] max-lg:hidden',
-                    sectionIdx > 0 && 'border-[var(--border-1)] border-t'
-                  )}
-                />
+            <div key={row.key} className='contents' role='row'>
+              <div
+                role='rowheader'
+                className={cn(
+                  'flex min-w-0 items-center border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2.5',
+                  STICKY_LABEL_COL,
+                  MOBILE_STACK_LABEL,
+                  isNotLastRow && 'border-[var(--border-1)] border-b'
+                )}
+              >
+                <span className='text-[var(--text-body)] text-small max-lg:font-medium max-lg:text-[var(--text-primary)]'>
+                  {row.label}
+                </span>
               </div>
-
-              {section.rows.map((row, rowIdx) => {
-                const simFact = simGroupFacts[row.key]
-                const competitorFact = competitorGroupFacts[row.key]
-                const isNotLastRow = rowIdx < section.rows.length - 1
-
-                return (
-                  <div key={row.key} className='contents' role='row'>
-                    <div
-                      role='rowheader'
-                      className={cn(
-                        'flex min-w-0 items-center border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-2.5',
-                        STICKY_LABEL_COL,
-                        MOBILE_STACK_LABEL,
-                        isNotLastRow && 'border-[var(--border-1)] border-b'
-                      )}
-                    >
-                      <span className='text-[var(--text-body)] text-small max-lg:font-medium max-lg:text-[var(--text-primary)]'>
-                        {row.label}
-                      </span>
-                    </div>
-                    <div
-                      role='cell'
-                      className={cn(
-                        'flex min-w-0 items-center gap-1 border-[var(--border)] border-r bg-[var(--surface-2)] px-3 py-2.5',
-                        MOBILE_STACK_VALUE,
-                        'max-lg:border-b-0 max-lg:pt-1 max-lg:pb-1',
-                        isNotLastRow && 'border-[var(--border-1)] border-b'
-                      )}
-                    >
-                      <span className='font-medium text-[var(--text-muted)] text-caption lg:hidden'>
-                        {sim.name}
-                      </span>
-                      <FactValue fact={simFact} />
-                    </div>
-                    <div
-                      role='cell'
-                      className={cn(
-                        'flex min-w-0 items-center gap-1 bg-[var(--surface-2)] px-3 py-2.5',
-                        MOBILE_STACK_VALUE,
-                        'max-lg:pt-1 max-lg:pb-3',
-                        isNotLastRow && 'border-[var(--border-1)] border-b'
-                      )}
-                    >
-                      <span className='font-medium text-[var(--text-muted)] text-caption lg:hidden'>
-                        {competitor.name}
-                      </span>
-                      <FactValue fact={competitorFact} />
-                    </div>
-                  </div>
-                )
-              })}
+              <div
+                role='cell'
+                className={cn(
+                  'flex min-w-0 items-center gap-1 border-[var(--border)] border-r bg-[var(--surface-2)] px-3 py-2.5',
+                  MOBILE_STACK_VALUE,
+                  'max-lg:border-b-0 max-lg:pt-1 max-lg:pb-1',
+                  isNotLastRow && 'border-[var(--border-1)] border-b'
+                )}
+              >
+                <span className='font-medium text-[var(--text-muted)] text-caption lg:hidden'>
+                  {sim.name}
+                </span>
+                <FactValue fact={simFact} />
+              </div>
+              <div
+                role='cell'
+                className={cn(
+                  'flex min-w-0 items-center gap-1 bg-[var(--surface-2)] px-3 py-2.5',
+                  MOBILE_STACK_VALUE,
+                  'max-lg:pt-1 max-lg:pb-3',
+                  isNotLastRow && 'border-[var(--border-1)] border-b'
+                )}
+              >
+                <span className='font-medium text-[var(--text-muted)] text-caption lg:hidden'>
+                  {competitor.name}
+                </span>
+                <FactValue fact={competitorFact} />
+              </div>
             </div>
           )
         })}
