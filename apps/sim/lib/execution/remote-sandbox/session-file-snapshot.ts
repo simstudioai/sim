@@ -4,6 +4,7 @@ import type { EmbeddedFileSnapshot } from 'sim/embed'
 import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/execution-observer'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { SESSION_SANDBOX_IDLE_MS } from '@/lib/execution/remote-sandbox/session'
+import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
 import { resolveSessionPath } from '@/lib/execution/remote-sandbox/session-files'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -40,7 +41,8 @@ SIM_UPLOAD_SNAPSHOT`
 export async function openSessionFileSnapshot(
   sessionKey: string,
   path: string,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  observe?: SessionFileObserver
 ): Promise<EmbeddedFileSnapshot> {
   const source = resolveSessionPath(path)
   const stopped = new AbortController()
@@ -51,7 +53,8 @@ export async function openSessionFileSnapshot(
   let snapshot: EmbeddedFileSnapshot | undefined
   try {
     return await withSandboxSessionLock(sessionKey, signal, async (accessSignal) => {
-      const sandbox = await resolveProvider().findSessionSandbox?.(sessionKey, {})
+      const provider = resolveProvider()
+      const sandbox = await provider.findSessionSandbox?.(sessionKey, {})
       accessSignal.throwIfAborted()
       if (!sandbox) throw new Error(`No workbench exists for this chat; write "${path}" first.`)
       const readStream = sandbox.readFileStream?.bind(sandbox)
@@ -106,6 +109,9 @@ export async function openSessionFileSnapshot(
             if (opened) throw new Error('The workbench upload snapshot has already been consumed')
             opened = true
             stream = await readStream(staged, { signal })
+            if (observe) {
+              stream = observe({ providerId: provider.id, sandboxId: sandbox.sandboxId }, stream)
+            }
             if (signal.aborted) {
               await stream.cancel().catch(() => {})
               signal.throwIfAborted()
