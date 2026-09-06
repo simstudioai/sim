@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  QUICKBOOKS_WEBHOOK_MAX_EVENTS,
   type QuickBooksWebhookEvent,
   quickBooksWebhookEventSchema,
   quickBooksWebhookParamsSchema,
@@ -24,8 +25,6 @@ import {
 
 const logger = createLogger('QuickBooksWebhookIngress')
 const BODY_LABEL = 'QuickBooks webhook body'
-/** Mirrors the batch ceiling `quickBooksWebhookEventsSchema` declares for the same envelope. */
-const MAX_WEBHOOK_EVENTS = 1000
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -79,7 +78,11 @@ export const POST = withRouteHandler(
       } catch {
         return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
       }
-      if (!Array.isArray(json) || json.length === 0 || json.length > MAX_WEBHOOK_EVENTS) {
+      if (
+        !Array.isArray(json) ||
+        json.length === 0 ||
+        json.length > QUICKBOOKS_WEBHOOK_MAX_EVENTS
+      ) {
         logger.warn(`[${requestId}] Invalid QuickBooks webhook envelope`)
         return NextResponse.json({ error: 'Invalid webhook envelope' }, { status: 400 })
       }
