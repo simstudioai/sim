@@ -482,6 +482,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         'relay-first-frame',
         'relay-prefix',
         'relay-attach-lost',
+        'relay-overlap',
         'child-connected',
         'child-failed-check',
         'child-lost-start',
@@ -798,6 +799,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           )
           if (['relay-first-frame', 'relay-prefix', 'relay-attach-lost'].includes(connection)) {
             expect(workerRequests.filter((path) => path === '/api/tools/resume')).toHaveLength(3)
+          }
+          if (connection === 'relay-overlap') {
+            expect(workerRequests.filter((path) => path === '/api/tools/resume')).toHaveLength(2)
           }
           if (connection === 'relay-terminal-lost')
             expect(receivedTextCounts).toContain(result.content.length)
