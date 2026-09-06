@@ -967,7 +967,10 @@ async function runCheckpointLoop(
           headers: mothershipRequestHeaders(hostedBillingRequest, mothershipRequestId),
           body: JSON.stringify({
             ...payload,
-            ...(route === '/api/mothership' || route === '/api/copilot' || isResume
+            ...(route === '/api/mothership' ||
+            route === '/api/copilot' ||
+            route === '/api/mothership/execute' ||
+            isResume
               ? ({
                   receivedTextChars: context.accumulatedContent.length,
                   receivedActivity: context.receivedActivity,
