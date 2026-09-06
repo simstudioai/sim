@@ -227,6 +227,11 @@ const fileDocRoom = (fileId: string): RoomRef => ({
   id: fileId,
 })
 
+/** Pending admissions receive invalidations here, never document or presence frames. */
+export function fileDocAdmissionRoom(fileId: string): string {
+  return `file-doc-admission:${fileId}`
+}
+
 /**
  * A `y-protocols` transaction/awareness origin is the emitting socket id (a
  * string) when it came from a client, and something else (`null` / `'local'` /
@@ -1344,7 +1349,7 @@ export function setupWorkspaceFileDocHandlers(
   // awaiting authorization can't complete after the client left and register a ghost owner. A
   // leave for a DIFFERENT file must NOT cancel it (a document switch), mirroring workspace-files.
   let currentFileId: string | null = null
-  /** Co-mounted providers share transport membership while their admissions are still pending. */
+  /** Co-mounted providers share invalidation membership until their last admission settles. */
   const pendingMemberships = new Map<string, number>()
 
   socket.on(FILE_DOC_EVENTS.JOIN, async (payload: JoinFileDocPayload) => {
@@ -1413,6 +1418,7 @@ export function setupWorkspaceFileDocHandlers(
 
       const room = fileDocRoom(fileId)
       const name = roomName(room)
+      const admissionName = fileDocAdmissionRoom(fileId)
 
       const authorized = await resolveRoomJoinAuth({
         userId,
@@ -1485,13 +1491,12 @@ export function setupWorkspaceFileDocHandlers(
         if (!isCurrentJoin()) return
 
         /**
-         * Subscribe after hydration, before checking the generation: an invalidation either fails
-         * this check or reaches the subscribed client, including one broadcast by another replica.
-         * Count concurrent same-socket admissions so one failed attempt cannot unsubscribe another.
+         * Watch invalidations before checking the generation, including broadcasts from another
+         * replica. Pending clients must not receive document or presence frames before authorization.
          */
         pendingMemberships.set(name, (pendingMemberships.get(name) ?? 0) + 1)
         subscribed = true
-        await socket.join(name)
+        await socket.join(admissionName)
         const joinedVersion =
           Math.max(entry.syncedVersion ?? 0, (await store.getSyncedVersion(name)) ?? 0) || undefined
         const currentDocument = await store.isDocumentGenerationCurrent(name, docIdOf(entry.doc))
@@ -1514,11 +1519,10 @@ export function setupWorkspaceFileDocHandlers(
           return
         }
 
-        // Abort a JOIN superseded while the room was being prepared: the socket disconnected, a newer
-        // JOIN (a document switch) bumped the generation, or the room was dropped and re-created.
-        // Registering here would leak a dead socket's room, bind the socket to the wrong document, or
-        // attach it to a doc no longer registered. Last await before the commit, so nothing can
-        // interleave between the access re-check above and the registration below.
+        /** Commit content membership only after the final authorization decision. */
+        if (!isCurrentJoin()) return
+        await socket.join(name)
+        /** An asynchronous adapter join can be superseded by a leave, switch, or disconnect. */
         if (!isCurrentJoin()) return
 
         // A client id must be owned by at most one user, or a peer could bind an active
@@ -1631,6 +1635,7 @@ export function setupWorkspaceFileDocHandlers(
           if (remaining > 0) pendingMemberships.set(name, remaining)
           else {
             pendingMemberships.delete(name)
+            await socket.leave(admissionName)
             if (socketToRoomName.get(socket.id) !== name) await socket.leave(name)
           }
         }
