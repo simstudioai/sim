@@ -186,4 +186,56 @@ describe('StreamWriter', () => {
       }),
     ])
   })
+
+  /**
+   * A delivery failure must not cost the buffer an envelope.
+   *
+   * Preview content streams as deltas, so the replay chain is only reconstructible if
+   * every envelope reaches Redis — including one the client never received. `publish`
+   * persists after enqueuing and unconditionally, and a failed enqueue marks the
+   * client disconnected rather than throwing, so the producer is never told a delivery
+   * failed and never advances past a gap the buffer does not have.
+   */
+  it('persists an envelope whose delivery failed, and stops enqueuing after', async () => {
+    appendEvents.mockResolvedValue(undefined)
+
+    const writer = new StreamWriter({
+      streamId: 'stream-gap',
+      chatId: 'chat-gap',
+      requestId: 'req-gap',
+    })
+
+    let enqueueCalls = 0
+    const controller = {
+      enqueue: vi.fn(() => {
+        enqueueCalls += 1
+        throw new Error('client gone')
+      }),
+      close: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+
+    writer.attach(controller)
+
+    expect(() =>
+      writer.publish({
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'one' },
+      } as StreamEvent)
+    ).not.toThrow()
+
+    writer.publish({
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'two' },
+    } as StreamEvent)
+
+    await writer.flush()
+
+    const persisted = appendEvents.mock.calls.flatMap(
+      ([envelopes]: [Array<{ payload?: { text?: string } }>]) => envelopes
+    )
+    expect(persisted.map((envelope) => envelope.payload?.text)).toEqual(['one', 'two'])
+    expect(writer.clientDisconnected).toBe(true)
+    // The failed enqueue disconnects; nothing is pushed at the dead controller again.
+    expect(enqueueCalls).toBe(1)
+  })
 })
