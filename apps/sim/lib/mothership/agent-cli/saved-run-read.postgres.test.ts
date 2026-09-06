@@ -64,9 +64,11 @@ import type { CreateExecutorPrincipalFromExecutionContextInput } from '@/lib/int
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
+import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { GET as fileRoute } from '@/app/api/v2/files/[fileId]/route'
 import { GET as filesRoute } from '@/app/api/v2/files/route'
 import { GET as logRoute } from '@/app/api/v2/logs/[runId]/route'
@@ -92,6 +94,14 @@ const fixture = vi.hoisted(() => ({
   directory: '',
   storageReads: [] as string[],
   storageKeys: new Map<string, string>(),
+  inboxBytes: new Map<string, Buffer>(),
+}))
+vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
+  getAttachment: async (_inbox: string, _message: string, id: string) => {
+    const bytes = fixture.inboxBytes.get(id)
+    if (!bytes) throw new Error('Missing local inbox attachment')
+    return bytes
+  },
 }))
 vi.mock('@sim/logger', async () => {
   const { loggerMock, createMockLogger } = await import('@sim/testing')
@@ -269,11 +279,37 @@ vi.mock('@/lib/uploads', async (importOriginal) => ({
 }))
 vi.mock('@/lib/uploads/core/storage-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/uploads/core/storage-service')>()),
-  uploadFile: async ({ file, customKey }: { file: Buffer; customKey: string }) => {
+  uploadFile: async ({
+    file,
+    customKey,
+    metadata,
+    context,
+    fileName,
+    contentType,
+    persistMetadata = true,
+  }: Parameters<typeof import('@/lib/uploads/core/storage-service').uploadFile>[0]) => {
+    if (!customKey) throw new Error('Expected a fixture storage key')
     const path = join(fixture.directory, generateId())
     await writeFile(path, file)
     fixture.storageKeys.set(customKey, path)
+    if (persistMetadata && metadata) {
+      const { insertFileMetadata } = await import('@/lib/uploads/server/metadata')
+      await insertFileMetadata({
+        key: customKey,
+        userId: metadata.userId,
+        workspaceId: metadata.workspaceId,
+        context,
+        originalName: metadata.originalName ?? fileName,
+        contentType,
+        size: file.length,
+      })
+    }
     return { key: customKey }
+  },
+  deleteFile: async ({ key }: { key: string }) => {
+    const path = fixture.storageKeys.get(key)
+    if (path) await rm(path, { force: true })
+    fixture.storageKeys.delete(key)
   },
   downloadFile: async ({ key }: { key: string }) => {
     const path = fixture.storageKeys.get(key)
@@ -553,6 +589,58 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.errors.length = 0
       fixture.storageReads.length = 0
       vi.clearAllMocks()
+    })
+
+    it('reads actual inbox attachment bytes after chat binding', async () => {
+      const chatId = generateId()
+      const attachmentId = generateId()
+      const filename = `inbox ${attachmentId}.csv`
+      const bytes = Buffer.from('account,total\nalpha,17\nbeta,23\n')
+      fixture.inboxBytes.set(attachmentId, bytes)
+      try {
+        const prepared = await prepareInboxAttachments({
+          attachments: [
+            { attachment_id: attachmentId, filename, content_type: 'text/csv', size: bytes.length },
+          ],
+          inboxProviderId: 'local-inbox',
+          messageId: 'local-mail',
+          taskId: 'local-task',
+          workspaceId,
+          userId: 'run-reader',
+          chatId,
+          userMessageId: 'local-message',
+        })
+        expect(prepared.storedAttachments, JSON.stringify(fixture.errors)).toHaveLength(1)
+        const [row] = await db
+          .select()
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.key, prepared.storedAttachments[0].key))
+        expect(row).toMatchObject({
+          workspaceId,
+          userId: 'run-reader',
+          chatId,
+          messageId: 'local-message',
+          context: 'mothership',
+          sizeBytes: bytes.length,
+        })
+        const reference = `uploads/${encodeURIComponent(filename)}`
+        expect(prepared.context[0].content).toContain(reference)
+        const read = await readWorkspaceFileText.execute({
+          principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+          input: { workspaceId, reference },
+        })
+        expect(read.file.id).toBe(row.id)
+        expect(read.text).toContain('alpha')
+        expect(read.text).toContain('17')
+        expect(read.text).toContain('beta')
+        expect(read.text).toContain('23')
+        expect(read.byteCount).toBe(bytes.length)
+        expect(read.truncated).toBe(false)
+        expect(read.degraded).toBe(false)
+        expect(executeInSandbox).not.toHaveBeenCalled()
+      } finally {
+        fixture.inboxBytes.delete(attachmentId)
+      }
     })
 
     it
