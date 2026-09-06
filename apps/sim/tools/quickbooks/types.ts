@@ -366,24 +366,74 @@ export interface QuickBooksReadAccountingTransactionsParams extends QuickBooksAu
   endDate?: string
 }
 
+/**
+ * Every report Sim exposes, one per documented `GET /v3/company/<realmID>/reports/<name>`
+ * operation in Intuit's report catalog. `trial_balance_fr` is the France-locale sibling of
+ * `trial_balance`: Intuit documents the operation as "FR locale - .../reports/TrialBalanceFR,
+ * non-FR locales - .../reports/TrialBalance", so the endpoint is a caller choice rather than
+ * something Sim can derive from the realm ID.
+ */
 export type QuickBooksReportType =
+  | 'account_list_detail'
   | 'balance_sheet'
   | 'profit_and_loss'
   | 'profit_and_loss_detail'
   | 'trial_balance'
+  | 'trial_balance_fr'
   | 'cash_flow'
   | 'ap_aging_summary'
   | 'ap_aging_detail'
   | 'ar_aging_summary'
   | 'ar_aging_detail'
   | 'vendor_balance'
+  | 'vendor_balance_detail'
   | 'customer_balance'
+  | 'customer_balance_detail'
+  | 'customer_income'
   | 'sales_by_customer'
   | 'sales_by_item'
+  | 'sales_by_class'
+  | 'sales_by_department'
   | 'expenses_by_vendor'
+  | 'general_ledger_detail'
+  | 'inventory_valuation_summary'
+  | 'inventory_valuation_detail'
+  | 'tax_summary'
   | 'transaction_list'
 
 export type QuickBooksAccountingMethod = 'default' | 'cash' | 'accrual'
+
+/**
+ * Predefined report date ranges. These 23 values are the set every date-macro-capable report
+ * model in Intuit's report catalog documents. The Transaction List family additionally accepts
+ * ten calendar-based macros ("This Calendar Year", ...); Sim sends only the shared set so one
+ * value is valid on every report that advertises `date_macro`.
+ */
+export type QuickBooksReportDateMacro =
+  | 'default'
+  | 'today'
+  | 'yesterday'
+  | 'this_week'
+  | 'last_week'
+  | 'this_week_to_date'
+  | 'last_week_to_date'
+  | 'next_week'
+  | 'next_4_weeks'
+  | 'this_month'
+  | 'last_month'
+  | 'this_month_to_date'
+  | 'last_month_to_date'
+  | 'next_month'
+  | 'this_fiscal_quarter'
+  | 'last_fiscal_quarter'
+  | 'this_fiscal_quarter_to_date'
+  | 'last_fiscal_quarter_to_date'
+  | 'next_fiscal_quarter'
+  | 'this_fiscal_year'
+  | 'last_fiscal_year'
+  | 'this_fiscal_year_to_date'
+  | 'last_fiscal_year_to_date'
+  | 'next_fiscal_year'
 
 export type QuickBooksReportSummarizeBy =
   | 'default'
@@ -468,11 +518,14 @@ export interface QuickBooksRunFinancialReportParams extends QuickBooksAuthParams
   reportType: QuickBooksReportType
   startDate?: string
   endDate?: string
+  dateMacro?: QuickBooksReportDateMacro
   accountingMethod?: QuickBooksAccountingMethod
   summarizeBy?: QuickBooksReportSummarizeBy
+  quickZoomUrl?: boolean
   customerId?: string
   vendorId?: string
   accountId?: string
+  employeeId?: string
   itemId?: string
   classId?: string
   departmentId?: string
@@ -592,6 +645,7 @@ export interface QuickBooksReportHeader {
   Customer?: string
   Vendor?: string
   Account?: string
+  Employee?: string
   Item?: string
   Class?: string
   Department?: string
@@ -1657,6 +1711,7 @@ export const QUICKBOOKS_REPORT_HEADER_PROPERTIES: Record<string, OutputProperty>
   Customer: { type: 'string', description: 'Applied customer filter', optional: true },
   Vendor: { type: 'string', description: 'Applied vendor filter', optional: true },
   Account: { type: 'string', description: 'Applied account filter', optional: true },
+  Employee: { type: 'string', description: 'Applied employee filter', optional: true },
   Item: { type: 'string', description: 'Applied item filter', optional: true },
   Class: { type: 'string', description: 'Applied class filter', optional: true },
   Department: { type: 'string', description: 'Applied department filter', optional: true },
