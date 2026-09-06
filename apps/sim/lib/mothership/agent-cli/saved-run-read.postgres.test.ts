@@ -29,6 +29,7 @@ import {
   folder,
   organization,
   pausedExecutions,
+  publicShare,
   resumeQueue,
   tableJobs,
   tableRowExecutions,
@@ -50,6 +51,7 @@ import { generateId } from '@sim/utils/id'
 import { eq, is, SQL, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { NextRequest } from 'next/server'
+import { PDFDocument } from 'pdf-lib'
 import type { EmbeddedCliIdentity } from 'sim/embed'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { v2LogDetailSchema } from '@/lib/api/contracts/v2/logs'
@@ -63,13 +65,18 @@ import { executeInSandbox, executeShellInSandbox } from '@/lib/execution/remote-
 import type { CreateExecutorPrincipalFromExecutionContextInput } from '@/lib/internal/principals/executor'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
+import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { resolveCopilotWorkspaceFileReference } from '@/lib/mothership/application/execute-file-use-case'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
+import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { GET as fileRoute } from '@/app/api/v2/files/[fileId]/route'
+import { GET as fileTextRoute } from '@/app/api/v2/files/[fileId]/text/route'
 import { GET as filesRoute } from '@/app/api/v2/files/route'
 import { GET as logRoute } from '@/app/api/v2/logs/[runId]/route'
 import { GET as logsRoute } from '@/app/api/v2/logs/route'
@@ -500,6 +507,7 @@ const tables = [
   userTableRows,
   workspaceFiles,
   workspaceFileSecretProvenance,
+  publicShare,
 ]
 
 describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
@@ -642,6 +650,144 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         fixture.inboxBytes.delete(attachmentId)
       }
     })
+
+    it.each(['csv', 'pdf'] as const)(
+      'keeps same-named %s attachment reads inside the requesting Mothership chat',
+      async (extension) => {
+        const name = `shared-${generateId()}.${extension}`
+        const chats = [generateId(), generateId()]
+        const attachmentIds = [generateId(), generateId()]
+        const fileIds: string[] = []
+        try {
+          for (const [index, chatId] of chats.entries()) {
+            const pdf = await PDFDocument.create()
+            pdf.addPage([100 + index, 200])
+            const bytes =
+              extension === 'pdf'
+                ? Buffer.from(await pdf.save())
+                : Buffer.from(`chat,amount\n${index === 0 ? 'first,17' : 'second,23'}\n`)
+            fixture.inboxBytes.set(attachmentIds[index], bytes)
+            const prepared = await prepareInboxAttachments({
+              attachments: [
+                {
+                  attachment_id: attachmentIds[index],
+                  filename: name,
+                  content_type: extension === 'pdf' ? 'application/pdf' : 'text/csv',
+                  size: bytes.length,
+                },
+              ],
+              inboxProviderId: 'local-inbox',
+              messageId: 'local-mail',
+              taskId: 'local-task',
+              workspaceId,
+              userId: 'run-reader',
+              chatId,
+              userMessageId: generateId(),
+            })
+            expect(prepared.storedAttachments, JSON.stringify(fixture.errors)).toHaveLength(1)
+            const [row] = await db
+              .select()
+              .from(workspaceFiles)
+              .where(eq(workspaceFiles.key, prepared.storedAttachments[0].key))
+            fileIds.push(row.id)
+          }
+          const read = async (chatId: string) =>
+            executeAgentCliRequest(
+              {
+                invocation:
+                  extension === 'pdf'
+                    ? {
+                        kind: 'augmentation',
+                        name: 'files view',
+                        positionals: [`uploads/${encodeURIComponent(name)}`],
+                        flags: {},
+                      }
+                    : {
+                        kind: 'cli',
+                        argv: ['files', 'read', `uploads/${encodeURIComponent(name)}`],
+                      },
+              },
+              {
+                workspaceId,
+                userId: 'run-reader',
+                chatId,
+                resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+                  userId: 'run-reader',
+                  workspaceId,
+                }),
+              }
+            )
+          const first = await read(chats[0])
+          expect(first.exitCode, first.stderr).toBe(0)
+          const second = await read(chats[1])
+          expect(second.exitCode, second.stderr).toBe(0)
+          if (extension === 'csv') {
+            expect(first.stdout).toContain('first')
+            expect(first.stdout).not.toContain('second')
+            expect(second.stdout).toContain('second')
+          } else {
+            for (const [index, result] of [first, second].entries()) {
+              expect(result.observations).toHaveLength(1)
+              const observation = result.observations?.[0]
+              if (!observation) throw new Error('Expected a PDF observation')
+              expect(observation.resourceId).toBe(fileIds[index])
+              expect(Buffer.from(observation.data, 'base64')).toEqual(
+                fixture.inboxBytes.get(attachmentIds[index])
+              )
+            }
+          }
+          const absent = await read(generateId())
+          expect(absent.exitCode).not.toBe(0)
+          expect(absent.stdout).not.toContain('second')
+          expect(absent.observations).toBeUndefined()
+          const reference = `uploads/${encodeURIComponent(name)}`
+          for (const [index, chatId] of chats.entries()) {
+            const context: Parameters<typeof resolveInputFiles>[0] = {
+              workflowId,
+              workspaceId,
+              userId: 'run-reader',
+              chatId,
+              toolCallId: generateId(),
+              copilotToolExecution: true,
+              sandboxProfile: 'mothership',
+            }
+            const mediaReference = await resolveCopilotWorkspaceFileReference(
+              context,
+              fileOperations.readContent,
+              { workspaceId, reference }
+            )
+            expect(mediaReference.id).toBe(fileIds[index])
+            const mounts = await resolveInputFiles(
+              context,
+              [{ path: reference, sandboxPath: '/tmp/incoming.csv' }],
+              undefined,
+              undefined,
+              new ResolvedSecretTraceRegistry([], { userId: 'run-reader', workspaceId })
+            )
+            expect(mounts).toHaveLength(1)
+            const mount = mounts[0]
+            if (mount.type === 'url') throw new Error('Expected inline mount bytes')
+            expect(Buffer.from(mount.content, mount.encoding ?? 'utf8')).toEqual(
+              fixture.inboxBytes.get(attachmentIds[index])
+            )
+          }
+          if (extension === 'csv') {
+            const publicRead = await fileTextRoute(
+              new NextRequest(
+                `https://sim.test/api/v2/files/${encodeURIComponent(reference)}/text?workspaceId=${workspaceId}`,
+                { headers: { 'x-api-key': 'local-key' } }
+              ),
+              { params: Promise.resolve({ fileId: reference }) }
+            )
+            expect(publicRead.status).toBe(200)
+            expect((await publicRead.json()).data.fileId).toBe(fileIds[1])
+          }
+          expect(executeInSandbox).not.toHaveBeenCalled()
+        } finally {
+          for (const id of attachmentIds) fixture.inboxBytes.delete(id)
+        }
+      }
+    )
 
     it
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
