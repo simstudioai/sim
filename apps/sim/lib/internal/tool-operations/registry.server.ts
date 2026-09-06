@@ -3,6 +3,25 @@ import { isMcpTool } from '@/executor/constants'
 
 type InternalToolOperationHandlerLoader = () => Promise<InternalToolOperationHandler>
 
+const OCI_NOTIFICATIONS_TOOL_IDS = [
+  'oci_notifications_add_topic_lock',
+  'oci_notifications_change_subscription_compartment',
+  'oci_notifications_change_topic_compartment',
+  'oci_notifications_create_subscription',
+  'oci_notifications_create_topic',
+  'oci_notifications_delete_subscription',
+  'oci_notifications_delete_topic',
+  'oci_notifications_get_subscription',
+  'oci_notifications_get_topic',
+  'oci_notifications_list_subscriptions',
+  'oci_notifications_list_topics',
+  'oci_notifications_publish_message',
+  'oci_notifications_remove_topic_lock',
+  'oci_notifications_resend_subscription_confirmation',
+  'oci_notifications_update_subscription',
+  'oci_notifications_update_topic',
+] as const
+
 const STS_TOOL_IDS = [
   'sts_assume_role',
   'sts_assume_role_with_web_identity',
@@ -1375,6 +1394,10 @@ const handlerLoaders = new Map<string, InternalToolOperationHandlerLoader>()
 
 registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
   return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool
+})
+
+registerFamily(handlerLoaders, OCI_NOTIFICATIONS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-notifications/execute-tool')).executeOciNotificationsTool
 })
 
 registerFamily(handlerLoaders, STS_TOOL_IDS, async () => {
