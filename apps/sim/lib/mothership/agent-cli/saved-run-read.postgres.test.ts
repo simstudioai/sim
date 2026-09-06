@@ -467,7 +467,16 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
 
     it
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
-      .each(['connected', 'lost-handoff', 'lost-final', 'partial-final'] as const)(
+      .each([
+        'connected',
+        'lost-handoff',
+        'lost-final',
+        'partial-final',
+        'live-gap',
+        'live-partial',
+        'missing-final-chunk',
+        'replayed-text',
+      ] as const)(
       'returns actual failed-run diagnostics through the controller (%s)',
       async (connection) => {
         const workerRoot = process.env.MSHIP_WORKER_ROOT
@@ -484,8 +493,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             COPILOT_INBOUND_API_KEY: 'local-controller-probe-key',
             COPILOT_RUN_DEADLINE_MS: '20000',
             MSHIP_PROBE_WORKFLOW_ID: workflowId,
+            MSHIP_PROBE_PAUSE_REPORT: connection.startsWith('live-') ? '1' : '0',
           },
-          stdio: ['ignore', 'pipe', 'pipe'],
+          stdio: ['pipe', 'pipe', 'pipe'],
         })
         const exited = once(child, 'exit')
         const lines = createInterface({ input: child.stdout })
@@ -496,6 +506,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         const ready = new Promise<string>((resolve) => {
           lines.on('line', (line) => {
             diagnostics += `${line}\n`
+            if (connection.startsWith('live-') && line.includes('"msg":"Duplicate send"'))
+              child.stdin.write('release\n')
             if (!line.startsWith('{"probe":')) return
             const message: unknown = JSON.parse(line)
             if (
@@ -540,6 +552,48 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
             const response = await nativeFetch(input, init)
             if (
+              connection.startsWith('live-') &&
+              !responseDropped &&
+              url.pathname === '/api/tools/resume'
+            ) {
+              if (!response.body) throw new Error('Expected the live worker response body')
+              const reader = response.body.getReader()
+              let pending = ''
+              const decoder = new TextDecoder()
+              for (;;) {
+                const part = await reader.read()
+                if (part.done) break
+                pending += decoder.decode(part.value, { stream: true })
+                if (pending.includes('"type":"text"')) {
+                  responseDropped = true
+                  await reader.cancel()
+                  if (connection === 'live-partial') {
+                    let sent = false
+                    return new Response(
+                      new ReadableStream<Uint8Array>(
+                        {
+                          pull(controller) {
+                            if (sent)
+                              controller.error(new TypeError('Local fixture lost the live suffix'))
+                            else {
+                              sent = true
+                              controller.enqueue(new TextEncoder().encode(pending))
+                            }
+                          },
+                        },
+                        { highWaterMark: 0 }
+                      ),
+                      { status: response.status, headers: response.headers }
+                    )
+                  }
+                  throw new TypeError(
+                    'Local fixture lost text while the worker is still generating'
+                  )
+                }
+              }
+              return new Response(pending, { status: response.status, headers: response.headers })
+            }
+            if (
               connection !== 'connected' &&
               url.pathname === '/api/tools/resume' &&
               !responseDropped
@@ -547,6 +601,19 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               const body = await response.clone().text()
               if (connection === 'lost-handoff' || body.includes('"type":"complete"')) {
                 responseDropped = true
+                if (connection === 'missing-final-chunk' || connection === 'replayed-text') {
+                  const frames = body.split('\n\n')
+                  const textIndexes = frames.flatMap((frame, index) =>
+                    frame.includes('"type":"text"') ? [index] : []
+                  )
+                  if (textIndexes.length < 2) throw new Error('Expected separate final text chunks')
+                  if (connection === 'missing-final-chunk') frames.splice(textIndexes.at(-1)!, 1)
+                  else frames.splice(textIndexes[0]!, 0, frames[textIndexes[0]!]!)
+                  return new Response(frames.join('\n\n'), {
+                    status: response.status,
+                    headers: response.headers,
+                  })
+                }
                 if (connection === 'partial-final') {
                   const frames = body.split('\n\n')
                   const textIndex = frames.findIndex((frame) => frame.includes('"type":"text"'))
@@ -622,7 +689,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           ).toBe(true)
           expect(
             receivedTextCounts.some((count) => count > 0 && count < result.content.length)
-          ).toBe(connection === 'partial-final')
+          ).toBe(['partial-final', 'live-partial', 'missing-final-chunk'].includes(connection))
           const report: unknown = JSON.parse(result.content)
           expect(report).toMatchObject({
             blockId,
