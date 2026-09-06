@@ -30,6 +30,7 @@ export interface AgentCliRuntime {
 
   /** The human the command acts as — reference resolution and grants scope to them. */
   userId: string
+  chatId?: string
   signal?: AbortSignal
 }
 

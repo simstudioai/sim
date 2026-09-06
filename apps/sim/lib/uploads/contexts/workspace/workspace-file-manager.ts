@@ -1268,6 +1268,8 @@ export async function getWorkspaceFileByName(
  */
 export interface WorkspaceFileLookupOptions {
   includeChatUploads?: boolean
+  /** Internal Mothership scope for uploads/<name>; ordinary API lookup remains workspace-wide. */
+  chatId?: string
 }
 
 /** Row context a single-file lookup admits: workspace files, plus chat uploads on opt-in. */
@@ -1523,13 +1525,13 @@ export function parseChatUploadReference(fileReference: string): string | null {
 }
 
 /**
- * Newest active chat upload in the workspace whose display name is `name` (legacy rows
- * without one match on their original name). Display names are unique per chat, not
- * per workspace, so the latest upload wins — the one the model was told about last.
+ * Display names are unique per chat. Mothership supplies that namespace; callers
+ * without a chat scope retain the workspace-wide newest-name lookup.
  */
 async function getChatUploadByName(
   workspaceId: string,
-  name: string
+  name: string,
+  chatId?: string
 ): Promise<WorkspaceFileRecord | null> {
   const [file] = await db
     .select(workspaceFileColumns)
@@ -1538,6 +1540,7 @@ async function getChatUploadByName(
       and(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.context, 'mothership'),
+        chatId === undefined ? undefined : eq(workspaceFiles.chatId, chatId),
         or(
           eq(workspaceFiles.displayName, name),
           and(isNull(workspaceFiles.displayName), eq(workspaceFiles.originalName, name))
@@ -1611,8 +1614,8 @@ export async function resolveWorkspaceFileReference(
   if (includeChatUploads) {
     const uploadName = parseChatUploadReference(fileReference)
     if (uploadName !== null) {
-      const upload = await getChatUploadByName(workspaceId, uploadName)
-      if (upload) return upload
+      const upload = await getChatUploadByName(workspaceId, uploadName, options?.chatId)
+      if (upload || options?.chatId !== undefined) return upload
     }
   }
 

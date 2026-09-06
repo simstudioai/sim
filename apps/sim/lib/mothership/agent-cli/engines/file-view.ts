@@ -19,7 +19,12 @@ export const fileViewCommand: AgentCliEngine = {
     try {
       const { file, buffer, contentType } = await readWorkspaceFileArtifact.execute({
         principal: runtime.principal,
-        input: { workspaceId: runtime.workspaceId, reference, maxBytes: MAX_OBSERVATION_BYTES },
+        input: {
+          workspaceId: runtime.workspaceId,
+          reference,
+          maxBytes: MAX_OBSERVATION_BYTES,
+          ...(runtime.chatId !== undefined ? { chatId: runtime.chatId } : {}),
+        },
       })
       const mediaType = ObservationMediaType.safeParse(contentType.split(';')[0]?.trim())
       if (!mediaType.success) {

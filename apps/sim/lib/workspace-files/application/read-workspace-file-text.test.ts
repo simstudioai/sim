@@ -164,6 +164,7 @@ describe('readWorkspaceFileText', () => {
     })
 
     expect(mocks.resolveContext).toHaveBeenCalledWith(
+      principals[2],
       { workspaceId: WORKSPACE_ID, reference: 'uploads/notes%20(2).txt' },
       { includeChatUploads: true }
     )

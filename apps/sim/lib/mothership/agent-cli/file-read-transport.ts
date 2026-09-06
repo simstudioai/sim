@@ -28,6 +28,7 @@ const logger = createLogger('MothershipFileReads')
 export function createFileReadTransport(context: {
   endpoint: string
   userId: string
+  chatId?: string
   registry?: ResolvedSecretTraceRegistry
   trackDownload?: (
     stream: ReadableStream<Uint8Array>,
@@ -96,6 +97,7 @@ export function createFileReadTransport(context: {
           input: {
             workspaceId: parsed.data.query.workspaceId,
             reference: parsed.data.params.fileId,
+            ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
             maxBytes: parsed.data.query.maxBytes,
             includeSecretProvenance: true,
           },

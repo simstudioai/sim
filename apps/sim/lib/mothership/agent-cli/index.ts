@@ -48,6 +48,7 @@ export async function executeAgentCliRequest(
     endpoint,
     userId: context.userId,
     registry: context.resolvedSecretTraceRegistry,
+    ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
     ...(files ? { trackDownload: files.trackDownload } : {}),
   })
   const identity: EmbeddedCliIdentity = {
@@ -80,6 +81,7 @@ export async function executeAgentCliRequest(
         workspaceId: context.workspaceId,
         userId: context.userId,
         principal: await principalForDelegation(apiKey),
+        ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
         signal: context.signal,
       },
       request.invocation.flags
