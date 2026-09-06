@@ -305,7 +305,24 @@ describe('executeAnthropicProviderRequest forced tool use', () => {
 })
 
 describe('executeAnthropicProviderRequest native structured outputs', () => {
-  async function sendSchema(schema: Record<string, unknown>) {
+  /** The subset of the wire schema these assertions read back. */
+  interface WireSchemaNode {
+    type?: string | string[]
+    description?: string
+    format?: string
+    enum?: unknown[]
+    const?: unknown
+    minItems?: number
+    minimum?: number
+    additionalProperties?: boolean
+    required?: string[]
+    properties: Record<string, WireSchemaNode>
+    items: WireSchemaNode
+    anyOf: WireSchemaNode[]
+    $defs: Record<string, WireSchemaNode>
+  }
+
+  async function sendSchema(schema: Record<string, unknown>): Promise<WireSchemaNode> {
     const create = vi.fn().mockResolvedValue({
       id: 'msg-schema',
       type: 'message',
@@ -334,9 +351,9 @@ describe('executeAnthropicProviderRequest native structured outputs', () => {
     )
 
     const payload = create.mock.calls[0][0] as Anthropic.Messages.MessageCreateParams & {
-      output_config?: { format?: { type: string; schema: Record<string, any> } }
+      output_config?: { format?: { type: string; schema: WireSchemaNode } }
     }
-    return payload.output_config?.format?.schema as Record<string, any>
+    return payload.output_config?.format?.schema as WireSchemaNode
   }
 
   beforeEach(() => {
@@ -431,7 +448,7 @@ describe('executeAnthropicProviderRequest native structured outputs', () => {
     expect(wireSchema.properties.slug.format).toBeUndefined()
   })
 
-  it.each([
+  it.each<[string, Record<string, unknown>, 'enum' | 'const']>([
     ['object enum members', { type: 'object', enum: [{ a: 1 }, { a: 2 }] }, 'enum'],
     [
       'array enum members',
