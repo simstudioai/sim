@@ -25,6 +25,8 @@ export interface EmbeddedCliIdentity {
 /** A host-owned immutable file, streamed once and released when the invocation ends. */
 export interface EmbeddedFileSnapshot {
   size: number
+  /** The host's read lease also bounds outstanding upload requests. */
+  signal?: AbortSignal
   stream(): Promise<ReadableStream<Uint8Array>>
   dispose(): Promise<void>
 }

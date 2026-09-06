@@ -100,6 +100,7 @@ export async function openSessionFileSnapshot(
         }
         snapshot = {
           size,
+          signal,
           stream: async () => {
             signal.throwIfAborted()
             if (opened) throw new Error('The workbench upload snapshot has already been consumed')

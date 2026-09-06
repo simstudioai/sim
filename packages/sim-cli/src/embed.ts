@@ -110,6 +110,7 @@ export async function runEmbeddedCli(
                 let disposed: Promise<void> | undefined
                 return {
                   size: file.size,
+                  ...(file.signal ? { signal: file.signal } : {}),
                   stream: () => file.stream(),
                   dispose: () => (disposed ??= file.dispose()),
                 }
