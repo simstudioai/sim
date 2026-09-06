@@ -52,6 +52,10 @@ import {
   sealClientToolCompletion,
   sealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import {
+  type ToolExecutionLifetime,
+  withToolExecutionLifetime,
+} from '@/lib/mothership/request/tools/execution-lifetime'
 import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
 import {
   describeWithholdingCause,
@@ -269,7 +273,7 @@ export function enrichOpaqueToolError(
 class ToolExecutionTimeoutError extends Error {
   constructor(toolName: string, timeoutMs: number) {
     super(
-      `Tool '${toolName}' timed out after ${Math.round(timeoutMs / 1000)}s on the Sim executor and was abandoned.`
+      `Tool '${toolName}' timed out after ${Math.round(timeoutMs / 1000)}s on the Sim executor. Cancellation was requested; completion is unconfirmed.`
     )
     this.name = 'ToolExecutionTimeoutError'
   }
@@ -289,28 +293,39 @@ export function buildToolExecutionContext(
 }
 
 /**
- * Execute a tool with a hard settlement guarantee. If the handler neither
- * resolves nor rejects within the tool's watchdog cap, throw a timeout error
- * so the standard failure path (persist failed row, publish terminal
- * confirmation, resume Go with an error result) runs and the chat never
- * wedges behind a hung await. The losing promise keeps running detached; its
- * eventual settlement is ignored.
+ * Bounds the chat's wait and cancels this handler when its budget expires.
+ * A timeout is not proof that remote work has ended; the handler keeps owning
+ * cancellation cleanup after the model-facing result has been delivered.
  */
-async function executeToolWithWatchdog(toolCall: ToolCallState, toolContext: ExecutionContext) {
+async function executeToolWithWatchdog(
+  toolCall: ToolCallState,
+  toolContext: ExecutionContext,
+  lifetime: ToolExecutionLifetime
+) {
   // The frame's wire name can be a display identity (the worker's cli_* names);
   // execution always dispatches on the model's real tool name.
   const executableName = toolCall.execName ?? toolCall.name
   const timeoutMs = toolWatchdogTimeoutMs(executableName)
-  const execution = executeTool(executableName, toolCall.params || {}, toolContext)
+  const controller = new AbortController()
+  const signal = toolContext.abortSignal
+    ? AbortSignal.any([toolContext.abortSignal, controller.signal])
+    : controller.signal
+  const execution = lifetime.hold(
+    executeTool(executableName, toolCall.params || {}, {
+      ...toolContext,
+      abortSignal: signal,
+    })
+  )
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
       execution,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new ToolExecutionTimeoutError(toolCall.name, timeoutMs)),
-          timeoutMs
-        )
+        timer = setTimeout(() => {
+          const error = new ToolExecutionTimeoutError(toolCall.name, timeoutMs)
+          reject(error)
+          controller.abort(error)
+        }, timeoutMs)
       }),
     ])
   } finally {
@@ -329,16 +344,18 @@ const UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE =
 /**
  * Settles an abandoned tool with a fixed server-owned failure. Client waiters consume the same
  * sealed transport as ordinary client completions; no abandoned tool content is certified.
+ * Execution ownership remains held while retained work cleans up.
  */
-export async function forceFailHungToolCall(
+export async function failPendingToolCall(
   toolCallId: string,
   context: StreamingContext,
-  execContext: ExecutionContext
+  execContext: ExecutionContext,
+  failureMessage: string = HUNG_TOOL_MESSAGE
 ): Promise<void> {
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall || toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
 
-  const failure = { error: HUNG_TOOL_MESSAGE, outcomeUnknown: true, doNotRetry: true }
+  const failure = { error: failureMessage, outcomeUnknown: true, doNotRetry: true }
   let durableData: unknown = failure
   let completed = false
   let lostSettlementRace = false
@@ -346,7 +363,7 @@ export async function forceFailHungToolCall(
     if (context.runId && execContext.resolvedSecretTraceRegistry) {
       const binding = { toolCallId, runId: context.runId, userId: execContext.userId }
       const [completion, provenance] = await Promise.all([
-        sealClientToolCompletion({ ...binding, message: HUNG_TOOL_MESSAGE, data: failure }),
+        sealClientToolCompletion({ ...binding, message: failureMessage, data: failure }),
         sealClientToolContext({
           ...binding,
           registry: execContext.resolvedSecretTraceRegistry,
@@ -363,7 +380,7 @@ export async function forceFailHungToolCall(
         toolCallId,
         status: MothershipStreamV1AsyncToolRecordStatus.failed,
         result: durableData,
-        error: HUNG_TOOL_MESSAGE,
+        error: failureMessage,
       })
     )
     if (!completed) {
@@ -379,13 +396,16 @@ export async function forceFailHungToolCall(
   }
 
   /** A durable winner whose waiter is still hung must not become a fabricated local success. */
-  const message = lostSettlementRace ? UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE : HUNG_TOOL_MESSAGE
+  const message =
+    lostSettlementRace && failureMessage === HUNG_TOOL_MESSAGE
+      ? UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE
+      : failureMessage
   setTerminalToolCallState(toolCall, {
     status: MothershipStreamV1ToolOutcome.error,
     output: { ...failure, error: message },
     error: message,
   })
-  logger.error('Force-failed hung tool call', {
+  logger.error('Tool call failed', {
     toolCallId,
     toolName: toolCall.name,
     persisted: completed,
@@ -396,7 +416,7 @@ export async function forceFailHungToolCall(
     publishTerminalToolConfirmation({
       toolCallId,
       status: MothershipStreamV1ToolOutcome.error,
-      message: HUNG_TOOL_MESSAGE,
+      message: failureMessage,
       data: durableData,
     })
   }
@@ -479,7 +499,9 @@ export async function executeToolAndReport(
     async (otelSpan) => {
       const startedAt = Date.now()
       try {
-        const completion = await executeToolAndReportInner(toolCall, context, execContext, options)
+        const completion = await withToolExecutionLifetime(toolCall.id, (lifetime) =>
+          executeToolAndReportInner(toolCall, context, execContext, lifetime, options)
+        )
         const durationMs = Date.now() - startedAt
         otelSpan.setAttribute(TraceAttr.ToolOutcome, completion.status)
         otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
@@ -511,7 +533,18 @@ export async function executeToolAndReport(
           MothershipStreamV1ToolOutcome.error,
           durationMs
         )
-        throw err
+        if (err instanceof AsyncToolCallOwnershipError) throw err
+        const message = toError(err).message
+        const admissionFailure =
+          message === 'Tool could not start because its execution record is unavailable' ||
+          message === 'Tool could not start because execution admission could not be recorded'
+        await failPendingToolCall(
+          toolCall.id,
+          context,
+          execContext,
+          admissionFailure ? message : HUNG_TOOL_MESSAGE
+        )
+        return terminalCompletionFromToolCall(toolCall)
       }
     }
   )
@@ -521,6 +554,7 @@ async function executeToolAndReportInner(
   toolCall: ToolCallState,
   context: StreamingContext,
   execContext: ExecutionContext,
+  lifetime: ToolExecutionLifetime,
   options?: OrchestratorOptions
 ): Promise<AsyncCompletionSignal> {
   if (toolCall.status === 'executing') {
@@ -539,6 +573,7 @@ async function executeToolAndReportInner(
       error: message,
     })
   }
+  const toolCallWasCancelled = () => toolCall.status === MothershipStreamV1ToolOutcome.cancelled
 
   // Loads the handler map on first use; the abort check below covers that wait.
   await ensureHandlersRegistered()
@@ -554,18 +589,40 @@ async function executeToolAndReportInner(
     args: toolCall.params,
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
-    logger.warn('Failed to persist async tool row before execution', {
-      toolCallId: toolCall.id,
-      error: toError(err).message,
-    })
+    throw new Error('Tool could not start because its execution record is unavailable')
   })
-  await markAsyncToolRunning(toolCall.id, 'sim-stream').catch((err) => {
-    logger.warn('Failed to mark async tool running', {
-      toolCallId: toolCall.id,
-      error: toError(err).message,
-    })
-  })
+  if (context.runId) {
+    const claim = await lifetime.claim(context.runId, execContext.userId)
+    if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
+    if (claim.outcome === 'existing') {
+      const record = claim.record
+      if (record.status === 'pending' || record.status === 'running') {
+        return buildCompletionSignal({ status: 'running', message: 'Tool already executing' })
+      }
+      setTerminalToolCallState(toolCall, {
+        status:
+          record.status === 'cancelled'
+            ? 'cancelled'
+            : record.error || record.status === 'failed'
+              ? 'error'
+              : 'success',
+        ...(record.result !== null ? { output: record.result } : {}),
+        ...(record.error
+          ? { error: record.error }
+          : record.status === 'cancelled'
+            ? { error: 'Tool cancelled' }
+            : record.status === 'failed'
+              ? { error: 'Tool failed' }
+              : {}),
+      })
+      return terminalCompletionFromToolCall(toolCall)
+    }
+  } else {
+    /** A chatless one-shot has no persisted run and cannot be certified by the chat Stop API. */
+    await markAsyncToolRunning(toolCall.id, 'sim-stream')
+  }
 
+  if (toolCallWasCancelled()) return settleCancelled(toolCall.error || 'Stopped by user')
   if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
     return terminalCompletionFromToolCall(toolCall)
   }
@@ -666,7 +723,12 @@ async function executeToolAndReportInner(
   }
 
   try {
-    let result = await executeToolWithWatchdog(toolCall, toolExecutionContext)
+    let result = await executeToolWithWatchdog(toolCall, toolExecutionContext, lifetime)
+    if (toolCallWasCancelled()) {
+      return settleCancelled(toolCall.error || 'Stopped by user', {
+        cancelReason: 'abort_during_execution',
+      })
+    }
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
       endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)

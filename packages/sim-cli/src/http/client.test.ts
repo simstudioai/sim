@@ -1384,6 +1384,8 @@ describe('transport', () => {
     )
     const inProcess = new SimClient({
       name: 'embedded',
+      authProfile: 'embedded',
+      oauth: null,
       endpoint: 'http://internal',
       apiKey: 'key',
       workspaceId: 'ws-1',

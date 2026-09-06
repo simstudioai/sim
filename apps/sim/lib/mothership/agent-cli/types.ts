@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 /**
  * Sim's half of the mothership↔CLI translation layer: generic execution PRIMITIVES.
  * The worker owns the grammar (what commands exist, how argv parses, pipes, help, the
@@ -29,13 +30,10 @@ export interface AgentCliRuntime {
 
   /** The human the command acts as — reference resolution and grants scope to them. */
   userId: string
+  signal?: AbortSignal
 }
 
-export interface AgentCliResult {
-  exitCode: number
-  stdout: string
-  stderr: string
-}
+export type AgentCliResult = AgentCliRawResult
 
 /** Command-local flags exactly as the worker parsed them: strings, or true for bare flags. */
 export type AgentCliFlags = Readonly<Record<string, string | true>>

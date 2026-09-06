@@ -450,7 +450,7 @@ export async function executeOperation(
    */
   const pagedLimit = paging ? readPagedLimit(requestFlags.limit, operation) : 0
   const requestWorkspaceId = needsWorkspace ? client.requireWorkspace() : profile.workspaceId
-  const request = buildRequest(operation, positional, requestFlags, requestWorkspaceId)
+  const request = await buildRequest(operation, positional, requestFlags, requestWorkspaceId)
 
   if (commandSpec.workspaceOperation) {
     if (!WORKSPACE_OPERATION_KINDS[operation])

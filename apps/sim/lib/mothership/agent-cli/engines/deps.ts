@@ -1,4 +1,3 @@
-import { isPlainRecord } from '@sim/utils/object'
 import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-state'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -8,6 +7,7 @@ import {
   createEnvVarPattern,
   createReferencePattern,
 } from '@/executor/utils/reference-validation'
+import { splitLeadingBracketPath } from '@/executor/variables/resolvers/reference'
 
 /**
  * `workflow deps <workflowId> <blockId>` — everything one block consumes, so the
@@ -28,35 +28,74 @@ import {
 const TEMPLATE_REF = createReferencePattern()
 const ENV_REF = createEnvVarPattern()
 
-/** Block types that run a child workflow and hand back its Response block's envelope. */
+/** Block types whose result contains the child's final output. */
 const CHILD_WORKFLOW_BLOCK_TYPES: ReadonlySet<string> = new Set(['workflow', 'workflow_input'])
 const CHILD_RETURNS_NOTE =
-  "A child workflow's result is its Response block's envelope {data, status, headers}; fields live at result.data.<field>, so mock and read them there."
-const MOCK_NOTE = 'variableInputs: fill each null with the value the block would output'
+  "A child workflow's result is its actual final output. A Response block returns {data, status, headers}, with fields at result.data.<field>; otherwise use the final block's output shape."
+const MOCK_NOTE = 'variableInputs: fill placeholders with representative upstream outputs'
+const MAX_MOCK_ARRAY_LENGTH = 128
+
+interface PathNode {
+  children: Map<string, PathNode>
+}
+
+interface MockShape {
+  value: Record<string, unknown>
+  omittedArrayPaths: string[]
+}
+
+function materializePathNode(node: PathNode, path: string[], omitted: string[]): unknown {
+  if (node.children.size === 0) return null
+  const keys = [...node.children.keys()]
+  if (keys.every((key) => /^\d+$/.test(key))) {
+    const largest = Math.max(...keys.map(Number))
+    if (largest >= MAX_MOCK_ARRAY_LENGTH) {
+      omitted.push(path.join('.'))
+      return []
+    }
+    return Array.from({ length: largest + 1 }, (_, index) => {
+      const child = node.children.get(String(index))
+      return child ? materializePathNode(child, [...path, String(index)], omitted) : null
+    })
+  }
+  return Object.fromEntries(
+    [...node.children].map(([key, child]) => [
+      key,
+      materializePathNode(child, [...path, key], omitted),
+    ])
+  )
+}
 
 /**
  * A null-leaved object nested along each dotted path — the shape run_block's
  * variableInputs expects for that block, ready to paste and fill in. A path read
  * both whole and drilled into (`result` and `result.tier`) keeps the deeper shape.
  */
-function skeletonFromPaths(paths: readonly string[]): Record<string, unknown> {
-  const skeleton: Record<string, unknown> = {}
+function skeletonFromPaths(paths: readonly string[]): MockShape {
+  const root: PathNode = { children: new Map() }
   for (const path of paths) {
-    const segments = path.split('.').filter(Boolean)
-    let cursor = skeleton
-    for (let index = 0; index < segments.length; index++) {
-      const segment = segments[index]
-      if (index === segments.length - 1) {
-        if (!(segment in cursor)) cursor[segment] = null
-        break
-      }
-      const existing = cursor[segment]
-      const next = isPlainRecord(existing) ? existing : {}
-      cursor[segment] = next
+    const segments = path
+      .split('.')
+      .filter(Boolean)
+      .flatMap((part) => {
+        const { property, pathParts } = splitLeadingBracketPath(part)
+        return [property, ...pathParts]
+      })
+    let cursor = root
+    for (const segment of segments) {
+      const next = cursor.children.get(segment) ?? { children: new Map<string, PathNode>() }
+      cursor.children.set(segment, next)
       cursor = next
     }
   }
-  return skeleton
+  const omittedArrayPaths: string[] = []
+  const value = Object.fromEntries(
+    [...root.children].map(([key, child]) => [
+      key,
+      materializePathNode(child, [key], omittedArrayPaths),
+    ])
+  )
+  return { value, omittedArrayPaths }
 }
 
 interface DepView {
@@ -147,7 +186,7 @@ export const workflowDepsCommand: AgentCliEngine = {
           byToken.set(token, { token, kind: head as 'loop' | 'parallel' | 'variable' })
           continue
         }
-        const refBlockId = blocks[head] ? head : nameToId.get(normalizeName(head))
+        const refBlockId = Object.hasOwn(blocks, head) ? head : nameToId.get(normalizeName(head))
         if (refBlockId && refBlockId !== blockId) {
           const existing = [...byToken.values()].find((d) => d.blockId === refBlockId)
           if (existing) {
@@ -179,12 +218,26 @@ export const workflowDepsCommand: AgentCliEngine = {
     // Paste-ready skeleton for run_block's variableInputs: mock each upstream
     // block's output at the paths this block actually reads, and every graph
     // parent it never reads at all — run_block refuses to start without them.
+    const shapes = blockDeps.map((d) => ({
+      name: d.blockName ?? d.blockId ?? d.token,
+      ...skeletonFromPaths(d.paths ?? []),
+    }))
     const mock: Record<string, Record<string, unknown>> = Object.fromEntries(
-      blockDeps.map((d) => [d.blockName ?? d.blockId, skeletonFromPaths(d.paths ?? [])])
+      shapes.map((shape) => [shape.name, shape.value])
+    )
+    const omittedArrays = shapes.flatMap((shape) =>
+      shape.omittedArrayPaths.map((path) => ({ blockName: shape.name, path }))
     )
     for (const predecessor of predecessors) {
       const key = predecessor.blockName ?? predecessor.blockId
-      if (!mock[key]) mock[key] = {}
+      if (!Object.hasOwn(mock, key)) {
+        Object.defineProperty(mock, key, {
+          value: {},
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        })
+      }
     }
     const unshapedMocks = Object.entries(mock)
       .filter(([, shape]) => Object.keys(shape).length === 0)
@@ -210,6 +263,12 @@ export const workflowDepsCommand: AgentCliEngine = {
           env: [...envs].sort(),
           mock,
           mockNote: MOCK_NOTE,
+          ...(omittedArrays.length
+            ? {
+                mockOmittedArrays: omittedArrays,
+                mockArrayNote: `These arrays exceed the ${MAX_MOCK_ARRAY_LENGTH}-element example limit; [] is a placeholder, not a complete mock. Supply actual representative data for the referenced indices.`,
+              }
+            : {}),
           ...(unshapedMocks.length
             ? {
                 mockEmptyNote: `${unshapedMocks.join(', ')}: mocked as {} because no field of their output is read here — run_block only needs the entry present.`,
