@@ -26,7 +26,7 @@ import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@/lib/mothership/tool-executor/types'
-import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import {
   CopilotCodeSecretAccessError,
   type MaterializedCopilotCodeSecrets,

@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { workflowDepsCommand } from '@/lib/mothership/agent-cli/engines/deps'
 import { docsSearchCommand } from '@/lib/mothership/agent-cli/engines/docs-search'
+import { fileViewCommand } from '@/lib/mothership/agent-cli/engines/file-view'
 import { workflowLintCommand } from '@/lib/mothership/agent-cli/engines/lint'
 import { logsQueryCommand } from '@/lib/mothership/agent-cli/engines/query'
 import { universalGrepCommand } from '@/lib/mothership/agent-cli/engines/universal-grep'
@@ -19,6 +20,7 @@ import {
  * (blocks tips, outputs get, integrations list) never reach this map.
  */
 export const AUGMENTATION_ENGINES: Readonly<Record<string, AgentCliEngine>> = {
+  'files view': fileViewCommand,
   'docs search': docsSearchCommand,
   grep: universalGrepCommand,
   'logs query': logsQueryCommand,

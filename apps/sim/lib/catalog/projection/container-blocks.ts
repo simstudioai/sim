@@ -1,6 +1,6 @@
 import type { CatalogBlockDetail } from '@/lib/catalog/projection/block-detail'
 import type { CatalogBlockSummary } from '@/lib/catalog/projection/block-summary'
-import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from '@/lib/workflows/editing/operations'
+import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from '@/lib/workflows/editing/container-types'
 
 /**
  * Loop and Parallel are containers, not registry blocks — yet the authoring

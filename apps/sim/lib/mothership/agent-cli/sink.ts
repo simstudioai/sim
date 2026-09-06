@@ -12,31 +12,25 @@ import type { AgentCliRawResult, AgentCliSink } from '@/lib/mothership/generated
 export async function applySink(
   sink: AgentCliSink,
   sessionKey: string | null,
-  result: AgentCliRawResult
+  result: AgentCliRawResult,
+  signal?: AbortSignal
 ): Promise<AgentCliRawResult> {
-  if (result.exitCode !== 0) return result
+  if (result.exitCode !== 0 || signal?.aborted) return result
   if (!sessionKey) {
     return {
       ...result,
       stdout: `${result.stdout}\n[outputFile not written: no chat-scoped machine — output returned inline instead]`,
     }
   }
-  const written = await writeSessionSandboxFile(sessionKey, sink.path, result.stdout)
+  const written = await writeSessionSandboxFile(sessionKey, sink.path, result.stdout, signal)
   if (written.outcome === 'written') {
     return {
       ...result,
       stdout: `[stdout written to ${resolveSessionPath(sink.path)} on your machine: ${result.stdout.length} chars. Read or process it with run_code, or pass it back as @${sink.path}.]`,
     }
   }
-  if (written.outcome === 'no-session') {
-    return {
-      ...result,
-      // The notice leads: appended, it was the first thing the output budget cut.
-      stdout: `[NOT written to ${sink.path}: your machine is not booted yet — run any run_code first, then re-run this command. The output follows inline instead.]\n${result.stdout}`,
-    }
-  }
   return {
     ...result,
-    stdout: `[NOT written to ${sink.path}: the write to your machine failed. The output follows inline instead.]\n${result.stdout}`,
+    stdout: `[Command succeeded; writing its output to ${sink.path} could not be confirmed. The output follows inline. Do not repeat a mutation to recover its output.]\n${result.stdout}`,
   }
 }

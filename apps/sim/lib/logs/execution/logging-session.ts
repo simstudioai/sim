@@ -41,7 +41,6 @@ import type {
   TraceSpan,
   WorkflowState,
 } from '@/lib/logs/types'
-import { notifyWorkflowRunTasks } from '@/lib/mothership/tasks/subscriptions'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog } from '@/executor/types'
@@ -1386,28 +1385,10 @@ export class LoggingSession {
 
     this.completionAttempt = attempt
     this.completionAttemptFailed = false
-    this.completionPromise = run()
-      .then(() => {
-        // Copilot background tasks watching this execution learn its outcome here — the
-        // one point every run's completion passes through, sync or async.
-        void notifyWorkflowRunTasks({
-          executionId: this.executionId,
-          workflowId: this.workflowId,
-          status:
-            attempt === 'error'
-              ? 'failed'
-              : this.persistedCompletionStatus === 'cancelled'
-                ? 'cancelled'
-                : this.persistedCompletionStatus === 'failed'
-                  ? 'failed'
-                  : 'completed',
-          error: this.lastCompletionError ?? null,
-        }).catch(() => undefined)
-      })
-      .catch((error) => {
-        this.completionAttemptFailed = true
-        throw error
-      })
+    this.completionPromise = run().catch((error) => {
+      this.completionAttemptFailed = true
+      throw error
+    })
     return this.completionPromise
   }
 

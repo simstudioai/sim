@@ -3,13 +3,15 @@
  */
 import '@sim/testing/mocks/executor'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   executeTool,
   completeAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
+  claimSimToolExecution,
+  settleSimToolExecution,
   onEvent,
   recordSimToolMetric,
   setAttribute,
@@ -33,6 +35,8 @@ const {
     completeAsyncToolCall: vi.fn(),
     markAsyncToolRunning: vi.fn(),
     upsertAsyncToolCall: vi.fn(),
+    claimSimToolExecution: vi.fn(),
+    settleSimToolExecution: vi.fn(),
     onEvent: vi.fn(),
     recordSimToolMetric: vi.fn(),
     setAttribute,
@@ -63,6 +67,8 @@ vi.mock('@/lib/mothership/async-runs/repository', () => ({
   markAsyncToolRunning,
   upsertAsyncToolCall,
   replaceTerminalAsyncToolCallResult,
+  claimSimToolExecution,
+  settleSimToolExecution,
 }))
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
@@ -117,7 +123,7 @@ import {
 import {
   buildToolExecutionContext,
   executeToolAndReport,
-  forceFailHungToolCall,
+  failPendingToolCall,
   pendingToolWaitBudgetMs,
   toolWatchdogTimeoutMs,
 } from '@/lib/mothership/request/tools/executor'
@@ -306,9 +312,105 @@ describe('buildToolExecutionContext', () => {
 describe('executeToolAndReport provenance isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    executeTool.mockReset()
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
+    claimSimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    settleSimToolExecution.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it.each(['row', 'claim'])(
+    'refuses dispatch when the execution %s cannot be persisted',
+    async (stage) => {
+      if (stage === 'row')
+        upsertAsyncToolCall.mockRejectedValueOnce(new Error('database unavailable'))
+      else claimSimToolExecution.mockRejectedValueOnce(new Error('database unavailable'))
+      const tool = buildPendingToolCall()
+      await expect(
+        executeToolAndReport(tool.id, buildStreamingContext(tool), {
+          userId: 'user-1',
+          workflowId: 'workflow-1',
+        })
+      ).resolves.toMatchObject({
+        status: 'error',
+        message: expect.stringContaining('Tool could not start'),
+      })
+      expect(executeTool).not.toHaveBeenCalled()
+      expect(settleSimToolExecution).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a late tool after durable Stop closed admission', async () => {
+    claimSimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    const tool = buildPendingToolCall()
+    const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+    expect(result.status).toBe('cancelled')
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(settleSimToolExecution).not.toHaveBeenCalled()
+  })
+
+  it('finishes the cancelled durable tool row when the stream already marked its UI terminal', async () => {
+    const tool = buildPendingToolCall()
+    executeTool.mockImplementationOnce(async () => {
+      tool.status = 'cancelled'
+      tool.error = 'Stopped by user'
+      tool.endTime = Date.now()
+      return { success: false, error: 'Stopped' }
+    })
+    const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+    expect(result.status).toBe('cancelled')
+    expect(completeAsyncToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: tool.id, status: 'cancelled' })
+    )
+    expect(settleSimToolExecution).toHaveBeenCalledExactlyOnceWith(tool.id)
+  })
+
+  it('aborts a timed-out handler without cancelling a parallel tool', async () => {
+    vi.useFakeTimers()
+    const parent = new AbortController()
+    const signals = new Map<string, AbortSignal>()
+    let finishSibling!: () => void
+    executeTool.mockImplementation(async (_name, _params, context: ExecutionContext) => {
+      if (!context.abortSignal || !context.toolCallId) throw new Error('Missing tool lifetime')
+      signals.set(context.toolCallId, context.abortSignal)
+      return new Promise((resolve) => {
+        const finish = () => resolve({ success: false, error: 'Stopped' })
+        context.abortSignal?.addEventListener('abort', finish, { once: true })
+        if (context.toolCallId === 'sibling') finishSibling = finish
+      })
+    })
+    const tool = buildPendingToolCall()
+    const sibling = { ...buildPendingToolCall(), id: 'sibling', name: 'run_code' }
+    const context: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      abortSignal: parent.signal,
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    }
+    const first = executeToolAndReport(tool.id, buildStreamingContext(tool), context)
+    const second = executeToolAndReport(sibling.id, buildStreamingContext(sibling), context)
+    try {
+      await vi.advanceTimersByTimeAsync(TOOL_WATCHDOG_DEFAULT_MS)
+      expect(signals.get(tool.id)?.aborted).toBe(true)
+      expect(signals.get(sibling.id)?.aborted).toBe(false)
+      expect(parent.signal.aborted).toBe(false)
+      const completion = await first
+      expect(completion.status).toBe('error')
+      expect(tool.error).toContain('timed out')
+    } finally {
+      parent.abort()
+      finishSibling?.()
+      await Promise.allSettled([first, second])
+    }
   })
 
   it('does not execute or mutate a tool row owned by another run', async () => {
@@ -616,7 +718,7 @@ describe('watchdog completion provenance', () => {
     const { registry, toolCall, context, execContext } = createHungClient()
     const finishSiblingActivation = registry.beginPendingActivation()
 
-    await forceFailHungToolCall(toolCall.id, context, execContext)
+    await failPendingToolCall(toolCall.id, context, execContext)
     const persisted = completeAsyncToolCall.mock.calls[0][0]
     expect(persisted.result).toEqual({
       __sealedClientToolCompletionV1: expect.any(String),
@@ -668,7 +770,7 @@ describe('watchdog completion provenance', () => {
           finishEncryption = resolve
         })
     )
-    const settlement = forceFailHungToolCall(toolCall.id, context, execContext)
+    const settlement = failPendingToolCall(toolCall.id, context, execContext)
     toolCall.status = 'success'
     toolCall.endTime = Date.now()
     toolCall.result = { success: true, output: 'actual completion' }
@@ -689,7 +791,7 @@ describe('watchdog completion provenance', () => {
       return null
     })
 
-    await forceFailHungToolCall(toolCall.id, context, execContext)
+    await failPendingToolCall(toolCall.id, context, execContext)
 
     expect(toolCall.status).toBe('success')
     expect(toolCall.result).toEqual({ success: true, output: 'actual completion' })
@@ -700,7 +802,7 @@ describe('watchdog completion provenance', () => {
     const { registry, toolCall, context, execContext } = createHungClient()
     completeAsyncToolCall.mockResolvedValueOnce(null)
 
-    await forceFailHungToolCall(toolCall.id, context, execContext)
+    await failPendingToolCall(toolCall.id, context, execContext)
 
     expect(toolCall.status).toBe('error')
     expect(toolCall.error).toContain('result could not be restored')
@@ -715,7 +817,7 @@ describe('watchdog completion provenance', () => {
   it('allows the valid winning client completion to replace a local unavailable-result fallback', async () => {
     const { registry, toolCall, context, execContext } = createHungClient()
     completeAsyncToolCall.mockResolvedValueOnce(null)
-    await forceFailHungToolCall(toolCall.id, context, execContext)
+    await failPendingToolCall(toolCall.id, context, execContext)
     expect(toolCall.status).toBe('error')
     const binding = { toolCallId: toolCall.id, runId: 'run-1', userId: execContext.userId }
     waitForToolConfirmation.mockResolvedValueOnce({
@@ -753,7 +855,7 @@ describe('watchdog completion provenance', () => {
     const { registry, toolCall, context, execContext } = createHungClient()
     encryptSecret.mockRejectedValueOnce(new Error('encryption unavailable'))
 
-    await forceFailHungToolCall(toolCall.id, context, execContext)
+    await failPendingToolCall(toolCall.id, context, execContext)
 
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
     expect(publishToolConfirmation).not.toHaveBeenCalled()
@@ -765,7 +867,7 @@ describe('watchdog completion provenance', () => {
   it('retains structural failure compatibility when no provenance registry exists', async () => {
     const { toolCall, context } = createHungClient()
 
-    await forceFailHungToolCall(toolCall.id, context, { userId: 'user-1' })
+    await failPendingToolCall(toolCall.id, context, { userId: 'user-1' })
 
     expect(toolCall.status).toBe('error')
     expect(completeAsyncToolCall).toHaveBeenCalledWith(
@@ -804,7 +906,7 @@ describe('watchdog completion provenance', () => {
       })
       const execution = executeToolAndReport(toolCall.id, context, execContext)
       await started
-      await forceFailHungToolCall(toolCall.id, context, execContext)
+      await failPendingToolCall(toolCall.id, context, execContext)
       finishPostprocessing(result)
       const completion = await execution
 
@@ -868,7 +970,7 @@ describe('watchdog completion provenance', () => {
         abortSignal: controller.signal,
       })
       await started
-      const watchdog = forceFailHungToolCall(toolCall.id, context, execContext)
+      const watchdog = failPendingToolCall(toolCall.id, context, execContext)
       await watchdogWriting
       if (aborted) controller.abort()
       finishPostprocessing(result)
@@ -908,7 +1010,7 @@ describe('watchdog completion provenance', () => {
     })
     const execution = executeToolAndReport(toolCall.id, context, execContext)
     await started
-    await forceFailHungToolCall(toolCall.id, context, execContext)
+    await failPendingToolCall(toolCall.id, context, execContext)
     rejectPostprocessing(new Error('late rejected secret output'))
     const completion = await execution
 

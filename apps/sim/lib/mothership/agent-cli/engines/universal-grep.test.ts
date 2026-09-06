@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockListCatalogTools } = vi.hoisted(() => ({ mockListCatalogTools: vi.fn() }))
@@ -23,7 +25,7 @@ function runtimeWith(
   requested: string[] = []
 ): AgentCliRuntime {
   return {
-    workspaceId: `ws-${Math.random().toString(36).slice(2)}`,
+    workspaceId: `ws-${generateId()}`,
     userId: 'user-1',
     client: {
       request: async <T>(path: string): Promise<T> => {
@@ -146,13 +148,13 @@ describe('universal grep', () => {
     let inFlight = 0
     let peak = 0
     const runtime: AgentCliRuntime = {
-      workspaceId: `ws-${Math.random().toString(36).slice(2)}`,
+      workspaceId: `ws-${generateId()}`,
       userId: 'user-1',
       client: {
         request: async <T>(path: string): Promise<T> => {
           inFlight += 1
           peak = Math.max(peak, inFlight)
-          await new Promise((resolve) => setTimeout(resolve, 2))
+          await sleep(2)
           inFlight -= 1
           return responses[path] as T
         },

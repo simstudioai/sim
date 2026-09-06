@@ -24,6 +24,22 @@ export interface SelectorValidationResult {
   warning?: string
 }
 
+export interface SelectorReference {
+  blockId: string
+  blockType: string
+  blockName?: string
+  fieldName: string
+  selectorType: string
+  value: string | string[]
+}
+
+/** Standalone diagnostics must surface failed local lookups; write-time lint stays advisory. */
+export interface ReferenceValidationOptions {
+  requireComplete?: boolean
+  /** Authorized standalone reads can supply resource resolution without changing advisory writes. */
+  resolveSelector?(reference: SelectorReference): Promise<SelectorValidationResult>
+}
+
 /**
  * Validates that selector IDs exist in the database
  * Returns valid IDs, invalid IDs, and optional warning for unknown selector types
@@ -31,7 +47,8 @@ export interface SelectorValidationResult {
 export async function validateSelectorIds(
   selectorType: string,
   ids: string | string[],
-  context: { userId: string; workspaceId?: string }
+  context: { userId: string; workspaceId?: string },
+  options: ReferenceValidationOptions = {}
 ): Promise<SelectorValidationResult> {
   const idsArray = (Array.isArray(ids) ? ids : [ids]).filter((id) => id && id.trim() !== '')
   if (idsArray.length === 0) {
@@ -258,12 +275,13 @@ export async function validateSelectorIds(
       }
     }
   } catch (error) {
-    // On DB error, skip validation rather than failing the edit
+    /** Database failures may be skipped by advisory write validation, never by a complete diagnostic. */
     logger.error(`Failed to validate selector IDs for type "${selectorType}"`, {
       error: toError(error).message,
       selectorType,
       idCount: idsArray.length,
     })
+    if (options.requireComplete) throw error
     return {
       valid: idsArray,
       invalid: [],
