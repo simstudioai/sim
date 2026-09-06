@@ -642,8 +642,39 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'personNumber',
       title: 'Person Number',
       type: 'short-input',
-      condition: { field: 'operation', value: ['list_payroll_relationships', 'list_element_entries', 'list_person_process_results', 'list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry', 'delete_time_entry', 'get_payroll_relationship', 'list_payroll_assignments', 'get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll', 'get_element_entry', 'list_element_entry_values', 'update_element_entry_value'] },
-      required: { field: 'operation', value: ['list_time_records', 'list_time_cards', 'create_time_entry', 'update_time_entry', 'delete_time_entry'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_payroll_relationships',
+          'list_element_entries',
+          'list_person_process_results',
+          'list_time_records',
+          'list_time_cards',
+          'create_time_entry',
+          'update_time_entry',
+          'delete_time_entry',
+          'get_payroll_relationship',
+          'list_payroll_assignments',
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+          'get_element_entry',
+          'list_element_entry_values',
+          'update_element_entry_value',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'list_time_records',
+          'list_time_cards',
+          'create_time_entry',
+          'update_time_entry',
+          'delete_time_entry',
+        ],
+      },
       description:
         'Worker person number, including any leading zeros; does not require current public-directory membership',
     },
@@ -732,8 +763,26 @@ export const OracleFusionHcmBlock: BlockConfig = {
         any: ['oauthCredential', 'effectiveDate'],
       },
       mode: 'basic',
-      condition: { field: 'operation', value: ['get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
-      required: { field: 'operation', value: ['get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+        ],
+      },
       placeholder: 'Select payroll assignment id',
       description:
         'Payroll assignment RelationshipGroupId, not the HR AssignmentId; positive decimal string',
@@ -744,8 +793,26 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'payrollAssignmentId',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
-      required: { field: 'operation', value: ['get_payroll_assignment', 'list_assigned_payrolls', 'get_assigned_payroll', 'create_assigned_payroll', 'update_assigned_payroll'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_payroll_assignment',
+          'list_assigned_payrolls',
+          'get_assigned_payroll',
+          'create_assigned_payroll',
+          'update_assigned_payroll',
+        ],
+      },
       placeholder: 'Enter payroll assignment id',
     },
     {
@@ -768,8 +835,18 @@ export const OracleFusionHcmBlock: BlockConfig = {
         any: ['oauthCredential', 'legislativeDataGroupId', 'effectiveDate'],
       },
       mode: 'basic',
-      condition: { field: 'operation', value: ['create_assigned_payroll', 'list_payroll_time_periods', 'list_person_process_results'] },
-      required: { field: 'operation', value: ['create_assigned_payroll', 'list_payroll_time_periods'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'create_assigned_payroll',
+          'list_payroll_time_periods',
+          'list_person_process_results',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: ['create_assigned_payroll', 'list_payroll_time_periods'],
+      },
       placeholder: 'Select payroll id',
       description: 'Payroll ID, as a positive decimal string',
     },
@@ -779,8 +856,18 @@ export const OracleFusionHcmBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'payrollId',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['create_assigned_payroll', 'list_payroll_time_periods', 'list_person_process_results'] },
-      required: { field: 'operation', value: ['create_assigned_payroll', 'list_payroll_time_periods'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'create_assigned_payroll',
+          'list_payroll_time_periods',
+          'list_person_process_results',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: ['create_assigned_payroll', 'list_payroll_time_periods'],
+      },
       placeholder: 'Enter payroll id',
     },
     {
@@ -800,7 +887,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'effectiveEndDate',
       title: 'Effective End Date',
       type: 'short-input',
-      condition: { field: 'operation', value: ['create_assigned_payroll', 'update_assigned_payroll', 'create_element_entry'] },
+      condition: {
+        field: 'operation',
+        value: ['create_assigned_payroll', 'update_assigned_payroll', 'create_element_entry'],
+      },
       required: { field: 'operation', value: ['create_assigned_payroll', 'create_element_entry'] },
       description: 'Effective end date in YYYY-MM-DD format',
       wandConfig: {
@@ -813,7 +903,10 @@ export const OracleFusionHcmBlock: BlockConfig = {
       id: 'lsed',
       title: 'Lsed',
       type: 'short-input',
-      condition: { field: 'operation', value: ['create_assigned_payroll', 'update_assigned_payroll'] },
+      condition: {
+        field: 'operation',
+        value: ['create_assigned_payroll', 'update_assigned_payroll'],
+      },
       required: { field: 'operation', value: [] },
       description: 'Lsed in YYYY-MM-DD format',
       wandConfig: {

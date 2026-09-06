@@ -1117,7 +1117,15 @@ export async function executeOracleFusionHcmGetPayrollAssignment(
   signal?: AbortSignal
 ) {
   const path = await payrollAssignmentPath(input, signal)
-  const result = await readResource(input, path, PAYROLL_ASSIGNMENT_FIELDS, 'RelationshipGroupId', input.payrollAssignmentId, projectPayrollAssignment, signal)
+  const result = await readResource(
+    input,
+    path,
+    PAYROLL_ASSIGNMENT_FIELDS,
+    'RelationshipGroupId',
+    input.payrollAssignmentId,
+    projectPayrollAssignment,
+    signal
+  )
   return { success: true as const, output: { payrollAssignment: result } }
 }
 
@@ -1127,13 +1135,22 @@ export async function executeOracleFusionHcmListAssignedPayrolls(
   signal?: AbortSignal
 ) {
   const path = `${await payrollAssignmentPath(input, signal)}/child/assignedPayrolls`
-  const result = await list(input, path, ASSIGNED_PAYROLL_FIELDS, projectAssignedPayroll, (query) => {
-    const clauses: string[] = []
-    addEffectiveDate(query, input.effectiveDate)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { assignedPayrolls: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    ASSIGNED_PAYROLL_FIELDS,
+    projectAssignedPayroll,
+    (query) => {
+      const clauses: string[] = []
+      addEffectiveDate(query, input.effectiveDate)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { assignedPayrolls: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrollrelationships-payrollrelationshipsuniqid-child-payrollassignments-payrollassignmentsuniqid-child-assignedpayrolls-get.html */
@@ -1142,7 +1159,15 @@ export async function executeOracleFusionHcmGetAssignedPayroll(
   signal?: AbortSignal
 ) {
   const path = await assignedPayrollPath(input, signal)
-  const result = await readResource(input, path, ASSIGNED_PAYROLL_FIELDS, 'AssignedPayrollId', input.assignedPayrollId, projectAssignedPayroll, signal)
+  const result = await readResource(
+    input,
+    path,
+    ASSIGNED_PAYROLL_FIELDS,
+    'AssignedPayrollId',
+    input.assignedPayrollId,
+    projectAssignedPayroll,
+    signal
+  )
   return { success: true as const, output: { assignedPayroll: result } }
 }
 
@@ -1152,16 +1177,26 @@ export async function executeOracleFusionHcmListPayrollDefinitions(
   signal?: AbortSignal
 ) {
   const path = 'payrollDefinitionsLOV'
-  const result = await list(input, path, PAYROLL_DEFINITION_FIELDS, projectPayrollDefinition, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['PayrollName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.legislativeDataGroupId) clauses.push(`LegislativeDataGroupId=${input.legislativeDataGroupId}`)
-    addEffectiveDate(query, input.effectiveDate)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { payrollDefinitions: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_DEFINITION_FIELDS,
+    projectPayrollDefinition,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['PayrollName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.legislativeDataGroupId)
+        clauses.push(`LegislativeDataGroupId=${input.legislativeDataGroupId}`)
+      addEffectiveDate(query, input.effectiveDate)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollDefinitions: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrolltimeperiodslov-get.html */
@@ -1170,18 +1205,30 @@ export async function executeOracleFusionHcmListPayrollTimePeriods(
   signal?: AbortSignal
 ) {
   const path = 'payrollTimePeriodsLOV'
-  const result = await list(input, path, PAYROLL_TIME_PERIOD_FIELDS, projectPayrollTimePeriod, (query) => {
-    const clauses: string[] = []
-    addSearch(query, input.search, ['PeriodName'])
-    if (query.q) clauses.push(`(${query.q})`)
-    if (input.payrollId) clauses.push(`PayrollId=${input.payrollId}`)
-    if (input.effectiveDate) {
-            clauses.push(`EffectiveStartDate <= '${input.effectiveDate}'`, `EffectiveEndDate >= '${input.effectiveDate}'`)
-          }
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { payrollTimePeriods: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_TIME_PERIOD_FIELDS,
+    projectPayrollTimePeriod,
+    (query) => {
+      const clauses: string[] = []
+      addSearch(query, input.search, ['PeriodName'])
+      if (query.q) clauses.push(`(${query.q})`)
+      if (input.payrollId) clauses.push(`PayrollId=${input.payrollId}`)
+      if (input.effectiveDate) {
+        clauses.push(
+          `EffectiveStartDate <= '${input.effectiveDate}'`,
+          `EffectiveEndDate >= '${input.effectiveDate}'`
+        )
+      }
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollTimePeriods: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-payrollelementdefinitionslov-get.html */

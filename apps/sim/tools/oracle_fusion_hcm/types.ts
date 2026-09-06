@@ -606,7 +606,11 @@ export type OracleFusionHcmListPersonTypesResponse = Schemas.OracleFusionHcmList
 
 export const ORACLE_FUSION_HCM_PAYROLL_RELATIONSHIP_OUTPUT_PROPERTIES = {
   payrollRelationshipId: { type: 'string', description: 'PayrollRelationshipId' },
-  payrollRelationshipNumber: { type: 'string', description: 'PayrollRelationshipNumber', nullable: true },
+  payrollRelationshipNumber: {
+    type: 'string',
+    description: 'PayrollRelationshipNumber',
+    nullable: true,
+  },
   personNumber: { type: 'string', description: 'PersonNumber', nullable: true },
   country: { type: 'string', description: 'Country', nullable: true },
   effectiveStartDate: { type: 'string', description: 'EffectiveStartDate', nullable: true },
@@ -643,7 +647,11 @@ export const ORACLE_FUSION_HCM_PAYROLL_DEFINITION_OUTPUT_PROPERTIES = {
   payrollId: { type: 'string', description: 'PayrollId' },
   payrollName: { type: 'string', description: 'PayrollName', nullable: true },
   legislativeDataGroupId: { type: 'string', description: 'LegislativeDataGroupId', nullable: true },
-  legislativeDataGroupName: { type: 'string', description: 'LegislativeDataGroupName', nullable: true },
+  legislativeDataGroupName: {
+    type: 'string',
+    description: 'LegislativeDataGroupName',
+    nullable: true,
+  },
   effectiveStartDate: { type: 'string', description: 'EffectiveStartDate', nullable: true },
   effectiveEndDate: { type: 'string', description: 'EffectiveEndDate', nullable: true },
   periodType: { type: 'string', description: 'PeriodType', nullable: true },
@@ -716,7 +724,11 @@ export const ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES = {
   inputCurrencyCode: { type: 'string', description: 'InputCurrencyCode', nullable: true },
   legCode: { type: 'string', description: 'LegCode', nullable: true },
   legDataGroupId: { type: 'string', description: 'LegDataGroupId', nullable: true },
-  payrollRelationshipNumber: { type: 'string', description: 'PayrollRelationshipNumber', nullable: true },
+  payrollRelationshipNumber: {
+    type: 'string',
+    description: 'PayrollRelationshipNumber',
+    nullable: true,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export const ORACLE_FUSION_HCM_ELEMENT_ENTRY_VALUE_OUTPUT_PROPERTIES = {
@@ -824,8 +836,16 @@ export const ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES = {
   annualSalary: { type: 'number', description: 'AnnualSalary', nullable: true },
   annualFullTimeSalary: { type: 'number', description: 'AnnualFullTimeSalary', nullable: true },
   multipleComponents: { type: 'string', description: 'MultipleComponents', nullable: true },
-  pendingTransactionExists: { type: 'string', description: 'PendingTransactionExists', nullable: true },
-  salaryTransactionStatus: { type: 'string', description: 'SalaryTransactionStatus', nullable: true },
+  pendingTransactionExists: {
+    type: 'string',
+    description: 'PendingTransactionExists',
+    nullable: true,
+  },
+  salaryTransactionStatus: {
+    type: 'string',
+    description: 'SalaryTransactionStatus',
+    nullable: true,
+  },
   salaryAmountScale: { type: 'number', description: 'SalaryAmountScale', nullable: true },
 } satisfies Record<string, ToolOutputProperty>
 
@@ -917,8 +937,16 @@ export const ORACLE_FUSION_HCM_GOAL_PLAN_OUTPUT_PROPERTIES = {
   goalSettingStartDate: { type: 'string', description: 'GoalSettingStartDate', nullable: true },
   goalSettingEndDate: { type: 'string', description: 'GoalSettingEndDate', nullable: true },
   goalPlanActiveCode: { type: 'string', description: 'GoalPlanActiveCode', nullable: true },
-  restrictGoalCreationFlag: { type: 'boolean', description: 'RestrictGoalCreationFlag', nullable: true },
-  restrictGoalUpdateFlag: { type: 'boolean', description: 'RestrictGoalUpdateFlag', nullable: true },
+  restrictGoalCreationFlag: {
+    type: 'boolean',
+    description: 'RestrictGoalCreationFlag',
+    nullable: true,
+  },
+  restrictGoalUpdateFlag: {
+    type: 'boolean',
+    description: 'RestrictGoalUpdateFlag',
+    nullable: true,
+  },
   enableWeightingFlag: { type: 'boolean', description: 'EnableWeightingFlag', nullable: true },
 } satisfies Record<string, ToolOutputProperty>
 
@@ -960,7 +988,11 @@ export const ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_OUTPUT_PROPERTIES = {
   personId: { type: 'string', description: 'PersonId', nullable: true },
   personNumber: { type: 'string', description: 'PersonNumber', nullable: true },
   assignmentId: { type: 'string', description: 'AssignmentId', nullable: true },
-  performanceDocumentName: { type: 'string', description: 'PerformanceDocumentName', nullable: true },
+  performanceDocumentName: {
+    type: 'string',
+    description: 'PerformanceDocumentName',
+    nullable: true,
+  },
   evalStatus: { type: 'string', description: 'EvalStatus', nullable: true },
   statusCode: { type: 'string', description: 'StatusCode', nullable: true },
   reviewPeriodId: { type: 'string', description: 'ReviewPeriodId', nullable: true },
@@ -981,7 +1013,11 @@ export const ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_PARTICIPANT_OUTPUT_PROPERTIE
   evalParticipantId: { type: 'string', description: 'EvalParticipantId' },
   evalRoleId: { type: 'string', description: 'EvalRoleId', nullable: true },
   personId: { type: 'string', description: 'PersonId', nullable: true },
-  participationStatusCode: { type: 'string', description: 'ParticipationStatusCode', nullable: true },
+  participationStatusCode: {
+    type: 'string',
+    description: 'ParticipationStatusCode',
+    nullable: true,
+  },
   dueDate: { type: 'string', description: 'DueDate', nullable: true },
   fdbackCompletionDate: { type: 'string', description: 'FdbackCompletionDate', nullable: true },
   matrixParticipantFlag: { type: 'boolean', description: 'MatrixParticipantFlag', nullable: true },
@@ -1071,8 +1107,16 @@ export const ORACLE_FUSION_HCM_TIME_CARD_OUTPUT_PROPERTIES = {
   stopTime: { type: 'string', description: 'stopTime', nullable: true },
   totalHours: { type: 'number', description: 'totalHours', nullable: true },
   groupType: { type: 'string', description: 'groupType', nullable: true },
-  parentTimeRecordGroupId: { type: 'string', description: 'parentTimeRecordGroupId', nullable: true },
-  parentTimeRecordGroupVersion: { type: 'number', description: 'parentTimeRecordGroupVersion', nullable: true },
+  parentTimeRecordGroupId: {
+    type: 'string',
+    description: 'parentTimeRecordGroupId',
+    nullable: true,
+  },
+  parentTimeRecordGroupVersion: {
+    type: 'number',
+    description: 'parentTimeRecordGroupVersion',
+    nullable: true,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export const ORACLE_FUSION_HCM_TIME_ATTRIBUTE_OUTPUT_PROPERTIES = {
@@ -1110,7 +1154,11 @@ export const ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES = {
 
 export const ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_EVENT_OUTPUT_PROPERTIES = {
   timeRecordEventId: { type: 'string', description: 'timeRecordEventId', nullable: true },
-  timeRecordEventRequestId: { type: 'string', description: 'timeRecordEventRequestId', nullable: true },
+  timeRecordEventRequestId: {
+    type: 'string',
+    description: 'timeRecordEventRequestId',
+    nullable: true,
+  },
   timeRecordId: { type: 'string', description: 'timeRecordId', nullable: true },
   timeRecordVersion: { type: 'number', description: 'timeRecordVersion', nullable: true },
   operationType: { type: 'string', description: 'operationType', nullable: true },
@@ -1140,19 +1188,31 @@ export const ORACLE_FUSION_HCM_TIME_RECORD_EVENT_MESSAGE_OUTPUT_PROPERTIES = {
 
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_RELATIONSHIPS_OUTPUTS = {
-  payrollRelationships: { type: 'array', description: 'Payroll Relationship records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_RELATIONSHIP_OUTPUT_PROPERTIES } },
+  payrollRelationships: {
+    type: 'array',
+    description: 'Payroll Relationship records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_RELATIONSHIP_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollRelationshipsParams = Omit<Schemas.OracleFusionHcmListPayrollRelationshipsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollRelationshipsParams = Omit<
+  Schemas.OracleFusionHcmListPayrollRelationshipsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollRelationshipsResponse = Schemas.OracleFusionHcmListPayrollRelationshipsResponse
+export type OracleFusionHcmListPayrollRelationshipsResponse =
+  Schemas.OracleFusionHcmListPayrollRelationshipsResponse
 
 export const ORACLE_FUSION_HCM_GET_PAYROLL_RELATIONSHIP_OUTPUTS = {
-  payrollRelationship: { type: 'object', description: 'Payroll Relationship', properties: ORACLE_FUSION_HCM_PAYROLL_RELATIONSHIP_OUTPUT_PROPERTIES },
+  payrollRelationship: {
+    type: 'object',
+    description: 'Payroll Relationship',
+    properties: ORACLE_FUSION_HCM_PAYROLL_RELATIONSHIP_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
 export type OracleFusionHcmGetPayrollRelationshipParams = Omit<Schemas.OracleFusionHcmGetPayrollRelationshipBodyInput, 'accessToken' | 'instanceUrl'> & {

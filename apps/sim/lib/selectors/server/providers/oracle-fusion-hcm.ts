@@ -511,8 +511,19 @@ export const oracleFusionHcmSelectorAttachments = {
           if (!parsed.success) throw new SelectorContextUnavailableError()
           const result = await executeOracleFusionHcmGetElementEntry(parsed.data, args.signal)
           const item = result.output.elementEntry
-          if (args.context.personNumber && item.personNumber !== args.context.personNumber) throw new SelectorContextUnavailableError()
-          return detailSelectorResult({ id: item.elementEntryId, label: [item.elementName, item.effectiveStartDate].filter(Boolean).join(' · ') || item.elementEntryId, meta: { elementTypeId: item.elementTypeId, effectiveStartDate: item.effectiveStartDate, effectiveEndDate: item.effectiveEndDate } })
+          if (args.context.personNumber && item.personNumber !== args.context.personNumber)
+            throw new SelectorContextUnavailableError()
+          return detailSelectorResult({
+            id: item.elementEntryId,
+            label:
+              [item.elementName, item.effectiveStartDate].filter(Boolean).join(' · ') ||
+              item.elementEntryId,
+            meta: {
+              elementTypeId: item.elementTypeId,
+              effectiveStartDate: item.effectiveStartDate,
+              effectiveEndDate: item.effectiveEndDate,
+            },
+          })
         }
         const parsed = schemas.oracleFusionHcmListElementEntriesBodySchema.safeParse({
           ...args.context,
@@ -522,10 +533,24 @@ export const oracleFusionHcmSelectorAttachments = {
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListElementEntries(parsed.data, args.signal)
-        return listSelectorResult(result.output.elementEntries.map((item) => {
-          if (args.context.personNumber && item.personNumber !== args.context.personNumber) throw new SelectorContextUnavailableError()
-          return { id: item.elementEntryId, label: [item.elementName, item.effectiveStartDate].filter(Boolean).join(' · ') || item.elementEntryId, meta: { elementTypeId: item.elementTypeId, effectiveStartDate: item.effectiveStartDate, effectiveEndDate: item.effectiveEndDate } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.elementEntries.map((item) => {
+            if (args.context.personNumber && item.personNumber !== args.context.personNumber)
+              throw new SelectorContextUnavailableError()
+            return {
+              id: item.elementEntryId,
+              label:
+                [item.elementName, item.effectiveStartDate].filter(Boolean).join(' · ') ||
+                item.elementEntryId,
+              meta: {
+                elementTypeId: item.elementTypeId,
+                effectiveStartDate: item.effectiveStartDate,
+                effectiveEndDate: item.effectiveEndDate,
+              },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
         if (args.request.kind === 'detail' && isMissingDetail(error))
@@ -550,8 +575,14 @@ export const oracleFusionHcmSelectorAttachments = {
           if (!parsed.success) throw new SelectorContextUnavailableError()
           const result = await executeOracleFusionHcmGetSalary(parsed.data, args.signal)
           const item = result.output.salary
-          if (args.context.assignmentId && item.assignmentId !== args.context.assignmentId) throw new SelectorContextUnavailableError()
-          return detailSelectorResult({ id: item.salaryId, label: [item.salaryBasisName, item.dateFrom].filter(Boolean).join(' · ') || item.salaryId, meta: { assignmentId: item.assignmentId, dateFrom: item.dateFrom, dateTo: item.dateTo } })
+          if (args.context.assignmentId && item.assignmentId !== args.context.assignmentId)
+            throw new SelectorContextUnavailableError()
+          return detailSelectorResult({
+            id: item.salaryId,
+            label:
+              [item.salaryBasisName, item.dateFrom].filter(Boolean).join(' · ') || item.salaryId,
+            meta: { assignmentId: item.assignmentId, dateFrom: item.dateFrom, dateTo: item.dateTo },
+          })
         }
         const parsed = schemas.oracleFusionHcmListSalariesBodySchema.safeParse({
           ...args.context,
@@ -561,10 +592,23 @@ export const oracleFusionHcmSelectorAttachments = {
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListSalaries(parsed.data, args.signal)
-        return listSelectorResult(result.output.salaries.map((item) => {
-          if (args.context.assignmentId && item.assignmentId !== args.context.assignmentId) throw new SelectorContextUnavailableError()
-          return { id: item.salaryId, label: [item.salaryBasisName, item.dateFrom].filter(Boolean).join(' · ') || item.salaryId, meta: { assignmentId: item.assignmentId, dateFrom: item.dateFrom, dateTo: item.dateTo } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.salaries.map((item) => {
+            if (args.context.assignmentId && item.assignmentId !== args.context.assignmentId)
+              throw new SelectorContextUnavailableError()
+            return {
+              id: item.salaryId,
+              label:
+                [item.salaryBasisName, item.dateFrom].filter(Boolean).join(' · ') || item.salaryId,
+              meta: {
+                assignmentId: item.assignmentId,
+                dateFrom: item.dateFrom,
+                dateTo: item.dateTo,
+              },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
         if (args.request.kind === 'detail' && isMissingDetail(error))
@@ -624,8 +668,13 @@ export const oracleFusionHcmSelectorAttachments = {
           if (!parsed.success) throw new SelectorContextUnavailableError()
           const result = await executeOracleFusionHcmGetGoalPlan(parsed.data, args.signal)
           const item = result.output.goalPlan
-          if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId) throw new SelectorContextUnavailableError()
-          return detailSelectorResult({ id: item.goalPlanId, label: item.goalPlanName || item.goalPlanId, meta: { reviewPeriodId: item.reviewPeriodId } })
+          if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId)
+            throw new SelectorContextUnavailableError()
+          return detailSelectorResult({
+            id: item.goalPlanId,
+            label: item.goalPlanName || item.goalPlanId,
+            meta: { reviewPeriodId: item.reviewPeriodId },
+          })
         }
         const parsed = schemas.oracleFusionHcmListGoalPlansBodySchema.safeParse({
           ...args.context,
@@ -636,13 +685,22 @@ export const oracleFusionHcmSelectorAttachments = {
         })
         if (!parsed.success) throw new SelectorContextUnavailableError()
         const result = await executeOracleFusionHcmListGoalPlans(parsed.data, args.signal)
-        return listSelectorResult(result.output.goalPlans.map((item) => {
-          if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId) throw new SelectorContextUnavailableError()
-          return { id: item.goalPlanId, label: item.goalPlanName || item.goalPlanId, meta: { reviewPeriodId: item.reviewPeriodId } }
-        }), nextCursor(result.output.hasMore, result.output.nextOffset))
+        return listSelectorResult(
+          result.output.goalPlans.map((item) => {
+            if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId)
+              throw new SelectorContextUnavailableError()
+            return {
+              id: item.goalPlanId,
+              label: item.goalPlanName || item.goalPlanId,
+              meta: { reviewPeriodId: item.reviewPeriodId },
+            }
+          }),
+          nextCursor(result.output.hasMore, result.output.nextOffset)
+        )
       } catch (error) {
         args.signal?.throwIfAborted()
-        if (args.request.kind === 'detail' && isMissingDetail(error)) return detailSelectorResult(null)
+        if (args.request.kind === 'detail' && isMissingDetail(error))
+          return detailSelectorResult(null)
         publicSelectorError(error)
       }
     },
@@ -654,9 +712,16 @@ export const oracleFusionHcmSelectorAttachments = {
     async execute(args, prepared) {
       try {
         if (args.request.kind === 'detail') {
-          const parsed = schemas.oracleFusionHcmGetPerformanceDocumentBodySchema.safeParse({ ...args.context, ...prepared, evaluationId: parseId(args.request.id) })
+          const parsed = schemas.oracleFusionHcmGetPerformanceDocumentBodySchema.safeParse({
+            ...args.context,
+            ...prepared,
+            evaluationId: parseId(args.request.id),
+          })
           if (!parsed.success) throw new SelectorContextUnavailableError()
-          const result = await executeOracleFusionHcmGetPerformanceDocument(parsed.data, args.signal)
+          const result = await executeOracleFusionHcmGetPerformanceDocument(
+            parsed.data,
+            args.signal
+          )
           const item = result.output.performanceDocument
           if (args.context.personId && item.personId !== args.context.personId) throw new SelectorContextUnavailableError()
           if (args.context.reviewPeriodId && item.reviewPeriodId !== args.context.reviewPeriodId) throw new SelectorContextUnavailableError()

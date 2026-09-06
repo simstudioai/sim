@@ -424,77 +424,126 @@ describe('Oracle Fusion HCM projection contracts', () => {
       project: projectors.projectTalentProfileSkill,
       schema: schemas.oracleFusionHcmTalentProfileSkillSchema,
       properties: outputs.ORACLE_FUSION_HCM_TALENT_PROFILE_SKILL_OUTPUT_PROPERTIES,
-      fixture: {'SkillId':'60','ProfileId':'57','SectionId':'59','Skill':'Communication','YearsOfExperience':3},
+      fixture: {
+        SkillId: '60',
+        ProfileId: '57',
+        SectionId: '59',
+        Skill: 'Communication',
+        YearsOfExperience: 3,
+      },
     },
     {
       name: 'TalentProfileCertification',
       project: projectors.projectTalentProfileCertification,
       schema: schemas.oracleFusionHcmTalentProfileCertificationSchema,
       properties: outputs.ORACLE_FUSION_HCM_TALENT_PROFILE_CERTIFICATION_OUTPUT_PROPERTIES,
-      fixture: {'CertificationId':'61','ProfileId':'57','SectionId':'59','Title':'Certificate','Verified':'Y'},
+      fixture: {
+        CertificationId: '61',
+        ProfileId: '57',
+        SectionId: '59',
+        Title: 'Certificate',
+        Verified: 'Y',
+      },
     },
     {
       name: 'TimeRecord',
       project: projectors.projectTimeRecord,
       schema: schemas.oracleFusionHcmTimeRecordSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_RECORD_OUTPUT_PROPERTIES,
-      fixture: {'timeRecordId':'9007199254740993','timeRecordVersion':2,'personNumber':'0007','measure':8,'unitOfMeasure':'HR'},
+      fixture: {
+        timeRecordId: '9007199254740993',
+        timeRecordVersion: 2,
+        personNumber: '0007',
+        measure: 8,
+        unitOfMeasure: 'HR',
+      },
     },
     {
       name: 'TimeCard',
       project: projectors.projectTimeCard,
       schema: schemas.oracleFusionHcmTimeCardSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_CARD_OUTPUT_PROPERTIES,
-      fixture: {'timeRecordGroupId':'63','timeRecordGroupVersion':1,'personId':'7','totalHours':40,'groupType':'Processed Timecard'},
+      fixture: {
+        timeRecordGroupId: '63',
+        timeRecordGroupVersion: 1,
+        personId: '7',
+        totalHours: 40,
+        groupType: 'Processed Timecard',
+      },
     },
     {
       name: 'TimeAttribute',
       project: projectors.projectTimeAttribute,
       schema: schemas.oracleFusionHcmTimeAttributeSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_ATTRIBUTE_OUTPUT_PROPERTIES,
-      fixture: {'tmAtrbFldId':'64','tmAtrbFldUsageId':'65','attributeName':'PayrollTimeType','contextCode':'ORA_HWM_TIME_RECORDS_REST'},
+      fixture: {
+        tmAtrbFldId: '64',
+        tmAtrbFldUsageId: '65',
+        attributeName: 'PayrollTimeType',
+        contextCode: 'ORA_HWM_TIME_RECORDS_REST',
+      },
     },
     {
       name: 'TimeAttributeDataSource',
       project: projectors.projectTimeAttributeDataSource,
       schema: schemas.oracleFusionHcmTimeAttributeDataSourceSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_ATTRIBUTE_DATA_SOURCE_OUTPUT_PROPERTIES,
-      fixture: {'dataSourceUsageId':'66','dataSourceUsageCode':'PayrollTimeType','tmAtrbFldId':'64'},
+      fixture: {
+        dataSourceUsageId: '66',
+        dataSourceUsageCode: 'PayrollTimeType',
+        tmAtrbFldId: '64',
+      },
     },
     {
       name: 'TimeAttributeCriteriaBind',
       project: projectors.projectTimeAttributeCriteriaBind,
       schema: schemas.oracleFusionHcmTimeAttributeCriteriaBindSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_ATTRIBUTE_CRITERIA_BIND_OUTPUT_PROPERTIES,
-      fixture: {'bindName':'pAssignmentId','criteriaName':'AssignmentId','dataType':'NUMBER'},
+      fixture: { bindName: 'pAssignmentId', criteriaName: 'AssignmentId', dataType: 'NUMBER' },
     },
     {
       name: 'TimeAttributeValue',
       project: projectors.projectTimeAttributeValue,
       schema: schemas.oracleFusionHcmTimeAttributeValueSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_ATTRIBUTE_VALUE_OUTPUT_PROPERTIES,
-      fixture: {'value':'REG','displayValue':'Regular'},
+      fixture: { value: 'REG', displayValue: 'Regular' },
     },
     {
       name: 'TimeRecordRequest',
       project: projectors.projectTimeRecordRequest,
       schema: schemas.oracleFusionHcmTimeRecordRequestSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES,
-      fixture: {'timeRecordEventRequestId':'67','processInline':'N','processMode':'TIME_ENTER'},
+      fixture: { timeRecordEventRequestId: '67', processInline: 'N', processMode: 'TIME_ENTER' },
     },
     {
       name: 'TimeRecordRequestEvent',
       project: projectors.projectTimeRecordRequestEvent,
       schema: schemas.oracleFusionHcmTimeRecordRequestEventSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_EVENT_OUTPUT_PROPERTIES,
-      fixture: {'timeRecordEventId':'68','timeRecordEventRequestId':'67','timeRecordId':null,'timeRecordVersion':null,'eventStatus':'New','eventStatusValue':0,'reporterId':'0007','personId':'7'},
+      fixture: {
+        timeRecordEventId: '68',
+        timeRecordEventRequestId: '67',
+        timeRecordId: null,
+        timeRecordVersion: null,
+        eventStatus: 'New',
+        eventStatusValue: 0,
+        reporterId: '0007',
+        personId: '7',
+      },
     },
     {
       name: 'TimeRecordEventMessage',
       project: projectors.projectTimeRecordEventMessage,
       schema: schemas.oracleFusionHcmTimeRecordEventMessageSchema,
       properties: outputs.ORACLE_FUSION_HCM_TIME_RECORD_EVENT_MESSAGE_OUTPUT_PROPERTIES,
-      fixture: {'timeRecordEventMessageId':'69','timeRecordId':'62','timeBldgBlkVersion':2,'messageId':null,'messageName':'HWM_VALIDATION','allowException':'N'},
+      fixture: {
+        timeRecordEventMessageId: '69',
+        timeRecordId: '62',
+        timeBldgBlkVersion: 2,
+        messageId: null,
+        messageName: 'HWM_VALIDATION',
+        allowException: 'N',
+      },
     },
     {
       name: 'Worker',
@@ -644,7 +693,11 @@ describe('Oracle Fusion HCM projection contracts', () => {
       })
       expect(schema.parse(result)).toEqual(result)
       expect(Object.keys(result).sort()).toEqual(Object.keys(properties).sort())
-      for (const sensitiveValue of ['private narrative', 'private medical detail', 'https://private.example.com']) {
+      for (const sensitiveValue of [
+        'private narrative',
+        'private medical detail',
+        'https://private.example.com',
+      ]) {
         expect(JSON.stringify(result)).not.toContain(sensitiveValue)
       }
     }
@@ -652,7 +705,14 @@ describe('Oracle Fusion HCM projection contracts', () => {
 })
 
 describe('Oracle Fusion HCM payroll and time input contracts', () => {
-  const salary = { ...auth, assignmentId: '9007199254740993', salaryBasisId: '3', salaryAmount: 1250.5, dateFrom: '2026-01-01', dateTo: '4712-12-31' }
+  const salary = {
+    ...auth,
+    assignmentId: '9007199254740993',
+    salaryBasisId: '3',
+    salaryAmount: 1250.5,
+    dateFrom: '2026-01-01',
+    dateTo: '4712-12-31',
+  }
 
   it('requires salary basis, amount, and an ordered effective interval', () => {
     expect(schemas.oracleFusionHcmCreateSalaryBodySchema.parse(salary).assignmentId).toBe('9007199254740993')

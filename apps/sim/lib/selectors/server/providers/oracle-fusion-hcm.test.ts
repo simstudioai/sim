@@ -621,7 +621,14 @@ describe('Oracle Fusion HCM expansion selectors', () => {
       },
     })
     const result = await attachment.execute(input, await prepare(attachment, input))
-    expect(result).toEqual({ kind: 'detail', item: { id: '3', label: 'Annual · 2020-01-01', meta: { assignmentId: '2', dateFrom: '2020-01-01', dateTo: '2020-12-31' } } })
+    expect(result).toEqual({
+      kind: 'detail',
+      item: {
+        id: '3',
+        label: 'Annual · 2020-01-01',
+        meta: { assignmentId: '2', dateFrom: '2020-01-01', dateTo: '2020-12-31' },
+      },
+    })
     expect(JSON.stringify(result)).not.toContain('123456')
     expect(mocks.listWorkers).not.toHaveBeenCalled()
   })

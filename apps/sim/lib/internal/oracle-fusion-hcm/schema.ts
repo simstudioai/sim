@@ -1267,20 +1267,30 @@ export type OracleFusionHcmGetPayrollRelationshipResponse = z.output<
   typeof oracleFusionHcmGetPayrollRelationshipResponseSchema
 >
 
-export const oracleFusionHcmListPayrollAssignmentsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
-  effectiveDate: dateSchema.optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPayrollAssignmentsBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
+    effectiveDate: dateSchema.optional(),
+    ...paginationBodyShape,
+  }
+)
 
-export const oracleFusionHcmListPayrollAssignmentsResponseSchema = successResponse(z.object({
-  payrollAssignments: z.array(oracleFusionHcmPayrollAssignmentSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPayrollAssignmentsResponseSchema = successResponse(
+  z.object({
+    payrollAssignments: z.array(oracleFusionHcmPayrollAssignmentSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPayrollAssignmentsBody = z.output<typeof oracleFusionHcmListPayrollAssignmentsBodySchema>
-export type OracleFusionHcmListPayrollAssignmentsBodyInput = z.input<typeof oracleFusionHcmListPayrollAssignmentsBodySchema>
-export type OracleFusionHcmListPayrollAssignmentsResponse = z.output<typeof oracleFusionHcmListPayrollAssignmentsResponseSchema>
+export type OracleFusionHcmListPayrollAssignmentsBody = z.output<
+  typeof oracleFusionHcmListPayrollAssignmentsBodySchema
+>
+export type OracleFusionHcmListPayrollAssignmentsBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollAssignmentsBodySchema
+>
+export type OracleFusionHcmListPayrollAssignmentsResponse = z.output<
+  typeof oracleFusionHcmListPayrollAssignmentsResponseSchema
+>
 
 export const oracleFusionHcmGetPayrollAssignmentBodySchema = oracleFusionHcmBaseBodySchema.extend({
   payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
@@ -1288,13 +1298,21 @@ export const oracleFusionHcmGetPayrollAssignmentBodySchema = oracleFusionHcmBase
   effectiveDate: dateSchema.optional(),
 })
 
-export const oracleFusionHcmGetPayrollAssignmentResponseSchema = successResponse(z.object({
-  payrollAssignment: oracleFusionHcmPayrollAssignmentSchema,
-}))
+export const oracleFusionHcmGetPayrollAssignmentResponseSchema = successResponse(
+  z.object({
+    payrollAssignment: oracleFusionHcmPayrollAssignmentSchema,
+  })
+)
 
-export type OracleFusionHcmGetPayrollAssignmentBody = z.output<typeof oracleFusionHcmGetPayrollAssignmentBodySchema>
-export type OracleFusionHcmGetPayrollAssignmentBodyInput = z.input<typeof oracleFusionHcmGetPayrollAssignmentBodySchema>
-export type OracleFusionHcmGetPayrollAssignmentResponse = z.output<typeof oracleFusionHcmGetPayrollAssignmentResponseSchema>
+export type OracleFusionHcmGetPayrollAssignmentBody = z.output<
+  typeof oracleFusionHcmGetPayrollAssignmentBodySchema
+>
+export type OracleFusionHcmGetPayrollAssignmentBodyInput = z.input<
+  typeof oracleFusionHcmGetPayrollAssignmentBodySchema
+>
+export type OracleFusionHcmGetPayrollAssignmentResponse = z.output<
+  typeof oracleFusionHcmGetPayrollAssignmentResponseSchema
+>
 
 export const oracleFusionHcmListAssignedPayrollsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
@@ -1303,14 +1321,22 @@ export const oracleFusionHcmListAssignedPayrollsBodySchema = oracleFusionHcmBase
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListAssignedPayrollsResponseSchema = successResponse(z.object({
-  assignedPayrolls: z.array(oracleFusionHcmAssignedPayrollSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListAssignedPayrollsResponseSchema = successResponse(
+  z.object({
+    assignedPayrolls: z.array(oracleFusionHcmAssignedPayrollSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListAssignedPayrollsBody = z.output<typeof oracleFusionHcmListAssignedPayrollsBodySchema>
-export type OracleFusionHcmListAssignedPayrollsBodyInput = z.input<typeof oracleFusionHcmListAssignedPayrollsBodySchema>
-export type OracleFusionHcmListAssignedPayrollsResponse = z.output<typeof oracleFusionHcmListAssignedPayrollsResponseSchema>
+export type OracleFusionHcmListAssignedPayrollsBody = z.output<
+  typeof oracleFusionHcmListAssignedPayrollsBodySchema
+>
+export type OracleFusionHcmListAssignedPayrollsBodyInput = z.input<
+  typeof oracleFusionHcmListAssignedPayrollsBodySchema
+>
+export type OracleFusionHcmListAssignedPayrollsResponse = z.output<
+  typeof oracleFusionHcmListAssignedPayrollsResponseSchema
+>
 
 export const oracleFusionHcmGetAssignedPayrollBodySchema = oracleFusionHcmBaseBodySchema.extend({
   payrollRelationshipId: oracleFusionHcmDecimalIdSchema,
@@ -1319,13 +1345,21 @@ export const oracleFusionHcmGetAssignedPayrollBodySchema = oracleFusionHcmBaseBo
   effectiveDate: dateSchema.optional(),
 })
 
-export const oracleFusionHcmGetAssignedPayrollResponseSchema = successResponse(z.object({
-  assignedPayroll: oracleFusionHcmAssignedPayrollSchema,
-}))
+export const oracleFusionHcmGetAssignedPayrollResponseSchema = successResponse(
+  z.object({
+    assignedPayroll: oracleFusionHcmAssignedPayrollSchema,
+  })
+)
 
-export type OracleFusionHcmGetAssignedPayrollBody = z.output<typeof oracleFusionHcmGetAssignedPayrollBodySchema>
-export type OracleFusionHcmGetAssignedPayrollBodyInput = z.input<typeof oracleFusionHcmGetAssignedPayrollBodySchema>
-export type OracleFusionHcmGetAssignedPayrollResponse = z.output<typeof oracleFusionHcmGetAssignedPayrollResponseSchema>
+export type OracleFusionHcmGetAssignedPayrollBody = z.output<
+  typeof oracleFusionHcmGetAssignedPayrollBodySchema
+>
+export type OracleFusionHcmGetAssignedPayrollBodyInput = z.input<
+  typeof oracleFusionHcmGetAssignedPayrollBodySchema
+>
+export type OracleFusionHcmGetAssignedPayrollResponse = z.output<
+  typeof oracleFusionHcmGetAssignedPayrollResponseSchema
+>
 
 export const oracleFusionHcmCreateAssignedPayrollBodySchema = oracleFusionHcmBaseBodySchema.extend({
   payrollRelationshipId: oracleFusionHcmDecimalIdSchema,

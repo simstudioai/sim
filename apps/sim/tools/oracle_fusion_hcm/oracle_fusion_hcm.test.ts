@@ -6,7 +6,10 @@ import {
   oracleFusionHcmListAbsencesBodySchema,
   oracleFusionHcmUpdateElementEntryValueBodySchema,
 } from '@/lib/internal/oracle-fusion-hcm/schema'
-import { buildSelectorContextFromValues, getSelectorContextSubBlocks } from '@/lib/selectors/context'
+import {
+  buildSelectorContextFromValues,
+  getSelectorContextSubBlocks,
+} from '@/lib/selectors/context'
 import { parseDependsOn } from '@/lib/workflows/subblocks/visibility'
 import { OracleFusionHcmBlock } from '@/blocks/blocks/oracle_fusion_hcm'
 import {
@@ -179,7 +182,9 @@ describe('Oracle Fusion HCM tool definitions', () => {
       effectiveDate: '2020-01-01',
       personPicker: 'dormant-person',
     }
-    const field = OracleFusionHcmBlock.subBlocks.find((field) => field.id === 'payrollAssignmentIdPicker')
+    const field = OracleFusionHcmBlock.subBlocks.find(
+      (field) => field.id === 'payrollAssignmentIdPicker'
+    )
     if (!field) throw new Error('Missing payroll assignment selector')
     const dependencies = parseDependsOn(field.dependsOn)
     expect(dependencies.allFields).toEqual(['oauthCredential', 'payrollRelationshipId'])
@@ -190,7 +195,11 @@ describe('Oracle Fusion HCM tool definitions', () => {
       dependsOn: dependencies.allDependsOnFields,
       canonicalModes: { oauthCredential: 'advanced', payrollRelationshipId: 'advanced' },
     })
-    expect(context).toEqual({ oauthCredential: 'manual-credential', payrollRelationshipId: '9007199254740993', effectiveDate: '2020-01-01' })
+    expect(context).toEqual({
+      oauthCredential: 'manual-credential',
+      payrollRelationshipId: '9007199254740993',
+      effectiveDate: '2020-01-01',
+    })
     expect(context).not.toHaveProperty('personId')
   })
 
@@ -204,9 +213,18 @@ describe('Oracle Fusion HCM tool definitions', () => {
       screenEntryValue: null,
       timeRecordVersion: '2',
     })
-    expect(result).toMatchObject({ personId: '9223372036854775807', entryValues: [{ inputValueId: '9223372036854775806', screenEntryValue: null }], screenEntryValue: null, timeRecordVersion: 2 })
-    expect(() => map({ operation: 'create_element_entry', entryValues: 'private invalid JSON' })).toThrow('Oracle Fusion HCM array input must be valid JSON')
-    expect(() => map({ operation: 'create_element_entry', entryValues: ' '.repeat(65_537) + '[]' })).toThrow('character limit')
+    expect(result).toMatchObject({
+      personId: '9223372036854775807',
+      entryValues: [{ inputValueId: '9223372036854775806', screenEntryValue: null }],
+      screenEntryValue: null,
+      timeRecordVersion: 2,
+    })
+    expect(() =>
+      map({ operation: 'create_element_entry', entryValues: 'private invalid JSON' })
+    ).toThrow('Oracle Fusion HCM array input must be valid JSON')
+    expect(() =>
+      map({ operation: 'create_element_entry', entryValues: `${' '.repeat(65_537)}[]` })
+    ).toThrow('character limit')
   })
   it('preserves explicit null clearing through post-merge validation but rejects an omitted value', () => {
     const params = {
@@ -217,14 +235,19 @@ describe('Oracle Fusion HCM tool definitions', () => {
       effectiveDate: '2026-01-01',
       rangeMode: 'CORRECTION',
     }
-    expect(() => validateRequiredParametersAfterMerge(
-      oracleFusionHcmUpdateElementEntryValueTool.id,
-      oracleFusionHcmUpdateElementEntryValueTool,
-      { ...params, screenEntryValue: null }
-    )).not.toThrow()
-    expect(oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse({
-      ...params, screenEntryValue: null,
-    }).success).toBe(true)
+    expect(() =>
+      validateRequiredParametersAfterMerge(
+        oracleFusionHcmUpdateElementEntryValueTool.id,
+        oracleFusionHcmUpdateElementEntryValueTool,
+        { ...params, screenEntryValue: null }
+      )
+    ).not.toThrow()
+    expect(
+      oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse({
+        ...params,
+        screenEntryValue: null,
+      }).success
+    ).toBe(true)
     expect(oracleFusionHcmUpdateElementEntryValueBodySchema.safeParse(params).success).toBe(false)
   })
 
