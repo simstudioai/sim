@@ -87,6 +87,8 @@ import { getCatalogBlock } from '@/lib/catalog/application/get-block'
 import { getCatalogTool } from '@/lib/catalog/application/get-tool'
 import { listCatalogBlocks } from '@/lib/catalog/application/list-blocks'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
+import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
+import { universalGrepCommand } from '@/lib/mothership/agent-cli/engines/universal-grep'
 import type { BlockConfig } from '@/blocks/types'
 
 const TOOL_METADATA: Record<string, Record<string, unknown>> = {
@@ -293,6 +295,83 @@ describe('catalog block and tool reads', () => {
     ])
     expect(result.hasMore).toBe(false)
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('returns the authorable list with the same full details as individual reads', async () => {
+    const snapshot = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(mocks.getAllBlocks).toHaveBeenCalledTimes(1)
+    expect(mocks.getBlockVisibility).toHaveBeenCalledTimes(1)
+    const list = await listCatalogBlocks.execute({ principal: session, input: listInput })
+    expect(snapshot.blocks.map((block) => block.id)).toEqual(list.entries.map((block) => block.id))
+    for (const block of snapshot.blocks) {
+      const single = await getCatalogBlock.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID, blockId: block.id },
+      })
+      expect(block).toEqual(single.block)
+    }
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('runs the actual block grep through one current authorized catalog read', async () => {
+    const request = vi.fn()
+    const result = await universalGrepCommand.execute(
+      ['Message'],
+      {
+        client: { request },
+        workspaceId: WORKSPACE_ID,
+        userId: session.userId,
+        principal: session,
+      },
+      { scope: 'blocks', in: 'slack' }
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Message')
+    expect(request).not.toHaveBeenCalled()
+    expect(mocks.getAllBlocks).toHaveBeenCalledTimes(1)
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(1)
+    expect(mocks.getBlockVisibility).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes visibility and allowlist for every bulk read', async () => {
+    mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
+    setVisibility({
+      revealed: new Set(['preview_thing']),
+      disabled: new Set(),
+      previewTagged: new Set(),
+    })
+    const before = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(before.blocks.map((block) => block.id)).toContain('preview_thing')
+    setVisibility(NOTHING_GATED)
+    mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['notion']))
+    const after = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(after.blocks.map((block) => block.id)).toEqual(['loop', 'parallel'])
+  })
+
+  it('denies a revoked bulk reader before resolving catalog policies or data', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      readBlockCatalog.execute({ principal: session, input: { workspaceId: WORKSPACE_ID } })
+    ).rejects.toThrow()
+    expect(mocks.getBlockVisibility).not.toHaveBeenCalled()
+    expect(mocks.getAllBlocks).not.toHaveBeenCalled()
+  })
+
+  it('does not convert a bulk catalog policy outage into an empty catalog', async () => {
+    mocks.allowedIntegrationTypes.mockRejectedValue(new Error('permission store unavailable'))
+    await expect(
+      readBlockCatalog.execute({ principal: session, input: { workspaceId: WORKSPACE_ID } })
+    ).rejects.toThrow('permission store unavailable')
+    expect(mocks.getAllBlocks).not.toHaveBeenCalled()
   })
 
   it('accepts a workspace API key, which has no user for permission groups to key on', async () => {
