@@ -20,7 +20,7 @@ vi.mock('@/lib/core/admission/gate', () => ({
   tryAdmit: vi.fn(() => ({ release: mockRelease })),
 }))
 vi.mock('@/lib/webhooks/quickbooks-credentials', () => ({
-  getQuickBooksWebhookVerifierTokensByAppKey: mockVerifierTokens,
+  streamQuickBooksWebhookVerifierTokensByAppKey: mockVerifierTokens,
 }))
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
   withRouteHandler:
@@ -68,10 +68,16 @@ function callPost(webhookRequest: NextRequest, appKey = APP_KEY): Promise<Respon
   return POST(webhookRequest, { params: Promise.resolve({ appKey }) })
 }
 
+function mockTokens(...tokens: string[]): void {
+  mockVerifierTokens.mockImplementation(async function* (): AsyncGenerator<string> {
+    yield* tokens
+  })
+}
+
 describe('QuickBooks webhook ingress route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockVerifierTokens.mockResolvedValue(['verifier'])
+    mockTokens('verifier')
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
     mockEnqueue.mockResolvedValue('job-1')
   })
@@ -97,16 +103,30 @@ describe('QuickBooks webhook ingress route', () => {
   })
 
   it('accepts any verifier token configured by a connection for the same Intuit app', async () => {
-    mockVerifierTokens.mockResolvedValue(['stale-verifier', 'current-verifier'])
+    mockTokens('stale-verifier', 'current-verifier')
 
     expect((await callPost(signedRequest([validEvent], 'current-verifier'))).status).toBe(200)
   })
 
   it('fails closed for unknown app keys and missing signatures', async () => {
     expect((await callPost(signedRequest([validEvent]), 'invalid')).status).toBe(404)
-    mockVerifierTokens.mockResolvedValueOnce([])
-    expect((await callPost(signedRequest([validEvent]))).status).toBe(404)
+    mockTokens()
+    expect((await callPost(signedRequest([validEvent]))).status).toBe(401)
+    mockTokens('verifier')
     expect((await callPost(request(JSON.stringify([validEvent])))).status).toBe(401)
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges a batch that carries an unmodelled event instead of stalling the app queue', async () => {
+    const unmodelledEvent = { ...validEvent, id: 'event-2', type: undefined }
+    const response = await callPost(signedRequest([validEvent, unmodelledEvent]))
+
+    expect(response.status).toBe(200)
+    expect(mockEnqueue).toHaveBeenCalledWith(expect.objectContaining({ events: [validEvent] }))
+  })
+
+  it('acknowledges a batch whose events are all unmodelled without enqueueing', async () => {
+    expect((await callPost(signedRequest([{ id: 'event-1' }]))).status).toBe(200)
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
