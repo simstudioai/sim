@@ -1,7 +1,7 @@
 'use client'
 
-import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
-import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
+import { Button, ChipCombobox, ChipInput, ChipModalField, IconSwitch, Tooltip } from '@sim/emcn'
+import { CircleInfo, List, TypeText } from '@sim/emcn/icons'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
@@ -9,6 +9,11 @@ import type {
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+
+const MODE_OPTIONS = [
+  { value: 'basic', label: 'Selector', icon: List },
+  { value: 'advanced', label: 'Manual input', icon: TypeText },
+] as const
 
 export interface ConnectorConfigFieldsProps {
   /** Registry definition whose `configFields` drive the rendered rows. */
@@ -68,49 +73,40 @@ export function ConnectorConfigFields({
                * Cancelling the click's default action keeps label clicks
                * inert without affecting the buttons' own handlers.
                */
-              <span
-                className='flex w-full items-center justify-between'
-                onClick={(event) => event.preventDefault()}
-              >
-                <span className='flex items-center gap-1'>
-                  <span>
-                    {field.title}
-                    {field.required && <span className='ml-0.5'>*</span>}
-                  </span>
-                  {field.description && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
-                          aria-label={`About ${field.title}`}
-                        >
-                          <CircleInfo className='size-[12px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
+              <span className='flex items-center gap-1' onClick={(event) => event.preventDefault()}>
+                <span>
+                  {field.title}
+                  {field.required && <span className='ml-0.5'>*</span>}
                 </span>
-                {hasCanonicalPair && canonicalId && (
+                {field.description && (
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <Button
                         type='button'
                         variant='ghost'
-                        className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
-                        onClick={() => onToggleCanonicalMode(canonicalId)}
+                        className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                        aria-label={`About ${field.title}`}
                       >
-                        <ArrowLeftRight className='size-[12px]' />
+                        <CircleInfo className='size-[12px]' />
                       </Button>
                     </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>
-                      {field.mode === 'basic' ? 'Switch to manual input' : 'Switch to selector'}
-                    </Tooltip.Content>
+                    <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
                   </Tooltip.Root>
                 )}
               </span>
+            }
+            titleAdornment={
+              hasCanonicalPair && canonicalId ? (
+                <IconSwitch
+                  options={MODE_OPTIONS}
+                  value={field.mode === 'advanced' ? 'advanced' : 'basic'}
+                  onValueChange={() => onToggleCanonicalMode(canonicalId)}
+                  disabled={disabled}
+                  showTooltips
+                  aria-label={`${field.title} input mode`}
+                  className='-my-1'
+                />
+              ) : undefined
             }
           >
             {field.type === 'selector' && field.selectorKey ? (

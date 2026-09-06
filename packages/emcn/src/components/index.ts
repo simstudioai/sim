@@ -132,6 +132,7 @@ export {
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
+export { IconSwitch, type IconSwitchOption, type IconSwitchProps } from './icon-switch/icon-switch'
 export { Info } from './info/info'
 export {
   InfoCard,
