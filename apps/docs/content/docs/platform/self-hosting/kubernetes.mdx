@@ -77,9 +77,15 @@ Signing is Sigstore-only — there is no GPG `.prov` file, so `helm install --ve
 These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$API_ENCRYPTION_KEY`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, so they work whether or not a release exists yet. Two caveats when converting an existing generic install rather than starting fresh: (1) **reuse the original secret values** — recover them with `helm get values sim -n simstudio` if your shell no longer has them; supplying a newly generated `ENCRYPTION_KEY` makes every previously encrypted value (workspace environment variables, stored provider keys, MCP OAuth credentials) undecryptable. (2) The cloud values rename the bundled PostgreSQL database to `simstudio`, but Postgres only applies that setting on first initialization — add `--set postgresql.auth.database=sim` to keep your existing database. If you'd rather start clean, `helm uninstall sim -n simstudio`, delete its PVCs, and run the cloud command fresh.
 
 ```bash
+# The example values files are not part of the packaged chart, so fetch the one
+# you want at a release tag — pinning the chart but reading values off a moving
+# branch would still make this command produce different deployments over time.
+SIM_RELEASE=v0.8.24
+curl -fsSLO "https://raw.githubusercontent.com/simstudioai/sim/$SIM_RELEASE/helm/sim/examples/values-aws.yaml"
+
 helm upgrade --install sim oci://ghcr.io/simstudioai/charts/sim \
   --version 1.9.1 \
-  --values https://raw.githubusercontent.com/simstudioai/sim/main/helm/sim/examples/values-aws.yaml \
+  --values values-aws.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
@@ -97,7 +103,7 @@ helm upgrade --install sim oci://ghcr.io/simstudioai/charts/sim \
 
 Every one of those overrides is required. The cloud values files hardcode a placeholder domain in all six places, and overriding only `NEXT_PUBLIC_APP_URL` leaves sign-in pointed at the placeholder, realtime rejecting every socket upgrade, and the Ingress serving the wrong host.
 
-Swap the `--values` file for your cloud: `values-aws.yaml` (EKS), `values-azure.yaml` (AKS), or `values-gcp.yaml` (GKE). Everything else is identical. Helm reads `--values` over HTTPS, so this works without a checkout; the example files are not part of the packaged chart. Download the file and edit it locally if you'd rather not fetch it at install time.
+Swap the `--values` file for your cloud: `values-aws.yaml` (EKS), `values-azure.yaml` (AKS), or `values-gcp.yaml` (GKE). Everything else is identical. Keep the downloaded file in your own config repo — the `--set` overrides above cover the six placeholder domains, but anything else you tune belongs in the file.
 
 ## Key Configuration
 

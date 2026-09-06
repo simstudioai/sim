@@ -22,6 +22,7 @@ export POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
 
 # Install from the registry
 helm install sim oci://ghcr.io/simstudioai/charts/sim \
+  --version 1.9.1 \
   --namespace sim --create-namespace \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \

@@ -239,20 +239,35 @@ jobs:
           echo "repository=ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/${name}" >> "$GITHUB_OUTPUT"
 
       # Chart versions are immutable once published: whoever pinned a version
-      # must keep resolving the same bytes forever. The PR gate above
-      # already forces a version bump on every chart change, so a version that
-      # is already in the registry means this commit changed something outside
-      # `helm/sim/` — republishing would either fail or silently move a tag.
+      # must keep resolving the same bytes forever. The PR gate above already
+      # forces a version bump on every chart change, so a version that is
+      # already in the registry means this commit changed something outside
+      # `helm/sim/`.
+      #
+      # The lookup must fail CLOSED. Treating every non-zero exit as "absent"
+      # would let a transient 5xx, an expired token, or a DNS blip re-push an
+      # existing version and move a tag consumers have already pinned — and
+      # same-version runs are routine, since the path filter also fires on
+      # `package.json` and workflow edits.
+      #
+      # Verified against the pinned Helm (v3.16.4): an absent version AND an
+      # absent repository both report `<ref>: not found`, so a first publish
+      # still proceeds, while `denied`, `unauthorized`, and `dial tcp` failures
+      # do not match and stop the job instead.
       - name: Skip if this version is already published
         id: exists
         run: |
           set -euo pipefail
-          if helm show chart "oci://${{ steps.package.outputs.repository }}" \
-               --version "${{ steps.package.outputs.version }}" > /dev/null 2>&1; then
+          if err=$(helm show chart "oci://${{ steps.package.outputs.repository }}" \
+                     --version "${{ steps.package.outputs.version }}" 2>&1 >/dev/null); then
             echo "already=true" >> "$GITHUB_OUTPUT"
             echo "::notice::${{ steps.package.outputs.name }} ${{ steps.package.outputs.version }} is already published; skipping."
-          else
+          elif printf '%s\n' "$err" | grep -q ': not found'; then
             echo "already=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$err"
+            echo "::error::Could not determine whether ${{ steps.package.outputs.name }} ${{ steps.package.outputs.version }} is already published. Refusing to push, because an unchecked push can overwrite a published version."
+            exit 1
           fi
 
       # `helm push` takes the namespace only — it derives the repository
