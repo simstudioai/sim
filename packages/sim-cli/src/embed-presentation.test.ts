@@ -43,7 +43,7 @@ afterEach(() => {
 })
 
 describe('embedded presentation on a terminal host', () => {
-  it('keeps parallel raw file bytes and plain CLI notes separate without changing host styling', async () => {
+  it('keeps parallel raw file bytes and list metadata separate without changing host styling', async () => {
     const content = 'build started\r\n\u001b[31mfailed\u001b[0m\tjob=compile\n'
     let release = () => {}
     const gate = new Promise<void>((resolve) => {
@@ -68,10 +68,8 @@ describe('embedded presentation on a terminal host', () => {
           json({ data: [FILE], nextCursor: 'next' } satisfies ListFilesResponse),
       })
       expect(list.exitCode, list.stderr).toBe(0)
-      expect(JSON.parse(list.stdout)).toEqual([FILE])
-      expect(list.stderr).toBe(
-        'showing the first 1; more results exist — re-run with --limit 0 for all\n'
-      )
+      expect(JSON.parse(list.stdout)).toEqual({ data: [FILE], nextCursor: 'next' })
+      expect(list.stderr).toBe('')
       expect(bool(true)).toBe('\u001b[32myes\u001b[39m')
       expect(chalk.level).toBe(1)
     } finally {
@@ -94,7 +92,10 @@ describe('embedded presentation on a terminal host', () => {
       transport,
     })
     expect(result.exitCode, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout)).toEqual([FILE, { ...FILE, id: 'other' }])
+    expect(JSON.parse(result.stdout)).toEqual({
+      data: [FILE, { ...FILE, id: 'other' }],
+      nextCursor: null,
+    })
     expect(result.stderr).toBe('')
     expect(transport).toHaveBeenCalledTimes(2)
   })
