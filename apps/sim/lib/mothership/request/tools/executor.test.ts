@@ -20,7 +20,6 @@ const {
   encryptSecret,
   decryptSecret,
   publishToolConfirmation,
-  waitForToolConfirmation,
   replaceTerminalAsyncToolCallResult,
   mockError,
 } = vi.hoisted(() => {
@@ -38,7 +37,6 @@ const {
     upsertAsyncToolCall: vi.fn(),
     claimSimToolExecution: vi.fn(),
     settleSimToolExecution: vi.fn(),
-    waitForToolConfirmation: vi.fn(),
     onEvent: vi.fn(),
     recordSimToolMetric: vi.fn(),
     setAttribute,

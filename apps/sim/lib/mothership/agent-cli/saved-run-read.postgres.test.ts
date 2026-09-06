@@ -24,6 +24,7 @@ import { db } from '@sim/db'
 import {
   copilotAsyncToolCalls,
   copilotChats,
+  copilotMessages,
   copilotRequestStops,
   copilotRuns,
   folder,
@@ -68,6 +69,8 @@ import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { resolveCopilotWorkspaceFileReference } from '@/lib/mothership/application/execute-file-use-case'
+import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
@@ -75,6 +78,7 @@ import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/registe
 import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import { POST as forkChatRoute } from '@/app/api/mothership/chats/[chatId]/fork/route'
 import { GET as fileRoute } from '@/app/api/v2/files/[fileId]/route'
 import { GET as fileTextRoute } from '@/app/api/v2/files/[fileId]/text/route'
 import { GET as filesRoute } from '@/app/api/v2/files/route'
@@ -103,6 +107,21 @@ const fixture = vi.hoisted(() => ({
   storageKeys: new Map<string, string>(),
   inboxBytes: new Map<string, Buffer>(),
 }))
+vi.mock('@/lib/mothership/request/http', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/mothership/request/http')>()),
+  authenticateCopilotRequestSessionOnly: async () => ({
+    userId: 'run-reader',
+    isAuthenticated: true,
+  }),
+}))
+vi.mock('@/lib/workspaces/permissions/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workspaces/permissions/utils')>()),
+  assertActiveWorkspaceAccess: async () => {
+    if (!fixture.permission) throw new Error('Workspace access denied')
+  },
+}))
+vi.mock('@/lib/mothership/chat-status', () => ({ chatPubSub: null }))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: () => {} }))
 vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
   getAttachment: async (_inbox: string, _message: string, id: string) => {
     const bytes = fixture.inboxBytes.get(id)
@@ -486,6 +505,7 @@ const postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromis
 const schemaName = `saved_run_${generateId().replaceAll('-', '')}`
 const tables = [
   copilotChats,
+  copilotMessages,
   copilotRuns,
   copilotRequestStops,
   copilotAsyncToolCalls,
@@ -549,6 +569,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       }
       await db.execute(sql`ALTER TABLE copilot_runs ALTER COLUMN started_at SET DEFAULT now()`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_runs (stream_id)`)
+      await db.execute(sql`CREATE UNIQUE INDEX ON copilot_messages (chat_id, message_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON copilot_async_tool_calls (tool_call_id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON user_table_rows (id)`)
       await db.execute(sql`CREATE UNIQUE INDEX ON user_table_row_secret_provenance (row_id)`)
@@ -793,6 +814,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       .skipIf(process.env.SIM_HELPERS_SMOKE !== '1' || !process.env.MSHIP_WORKER_ROOT)
       .each([
         'connected',
+        'fork',
         'execute-connected',
         'execute-lost-final',
         'execute-lost-initial',
@@ -1097,6 +1119,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
             if (
               connection !== 'connected' &&
+              connection !== 'fork' &&
               connection !== 'controller-overlap' &&
               !delayedCli &&
               connection !== 'child-connected' &&
@@ -1343,6 +1366,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(calls.length).toBeGreaterThanOrEqual(2)
           expect(responseDropped).toBe(
             connection !== 'connected' &&
+              connection !== 'fork' &&
               connection !== 'controller-overlap' &&
               !delayedCli &&
               connection !== 'child-connected' &&
@@ -1400,6 +1424,146 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           }
           expect(executeInSandbox).not.toHaveBeenCalled()
           expect(executeShellInSandbox).not.toHaveBeenCalled()
+          if (connection === 'fork') {
+            await db.insert(copilotChats).values({
+              id: chatId,
+              userId: 'run-reader',
+              workspaceId,
+              type: 'mothership',
+              title: 'Source diagnostics',
+            })
+            const assistantId = generateId()
+            await appendCopilotChatMessages(chatId, [
+              {
+                id: messageId,
+                role: 'user',
+                content:
+                  'Run the saved workflow and identify the failing block from its recorded log.',
+                timestamp: new Date().toISOString(),
+              },
+              {
+                id: assistantId,
+                role: 'assistant',
+                content: result.content,
+                timestamp: new Date().toISOString(),
+              },
+            ])
+            const attachmentId = generateId()
+            const missingAttachmentId = generateId()
+            const filename = `fork-${generateId()}.csv`
+            fixture.inboxBytes.set(attachmentId, Buffer.from('branch,value\noriginal,42\n'))
+            fixture.inboxBytes.set(missingAttachmentId, Buffer.from('branch,value\nmissing,99\n'))
+            const prepared = await prepareInboxAttachments({
+              attachments: [
+                { attachment_id: attachmentId, filename, content_type: 'text/csv', size: 25 },
+                {
+                  attachment_id: missingAttachmentId,
+                  filename: `missing-${filename}`,
+                  content_type: 'text/csv',
+                  size: 25,
+                },
+              ],
+              inboxProviderId: 'local-inbox',
+              messageId: 'local-mail',
+              taskId: 'local-task',
+              workspaceId,
+              userId: 'run-reader',
+              chatId,
+              userMessageId: messageId,
+            })
+            fixture.inboxBytes.delete(attachmentId)
+            fixture.inboxBytes.delete(missingAttachmentId)
+            expect(prepared.storedAttachments).toHaveLength(2)
+            fixture.storageKeys.delete(prepared.storedAttachments[1].key)
+            const sourceFiles = await db
+              .select()
+              .from(workspaceFiles)
+              .where(eq(workspaceFiles.chatId, chatId))
+            await db
+              .update(copilotChats)
+              .set({
+                resources: sourceFiles.map((file) => ({
+                  type: 'file' as const,
+                  id: file.id,
+                  title: file.originalName,
+                })),
+              })
+              .where(eq(copilotChats.id, chatId))
+            const forkResponse = await forkChatRoute(
+              new NextRequest(`https://sim.test/api/mothership/chats/${chatId}/fork`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ upToMessageId: assistantId }),
+              }),
+              { params: Promise.resolve({ chatId }) }
+            )
+            expect(forkResponse.status, JSON.stringify(fixture.errors)).toBe(200)
+            const forkPayload = await forkResponse.json()
+            expect(forkPayload.failedFileCopies).toBe(1)
+            const forkId = forkPayload.id
+            expect(
+              (await loadCopilotChatMessages(forkId)).map((message) => message.content)
+            ).toEqual([
+              'Run the saved workflow and identify the failing block from its recorded log.',
+              result.content,
+            ])
+            const copiedFiles = await db
+              .select()
+              .from(workspaceFiles)
+              .where(eq(workspaceFiles.chatId, forkId))
+            expect(copiedFiles).toHaveLength(1)
+            const copiedFile = copiedFiles[0]
+            const [forkedChat] = await db
+              .select()
+              .from(copilotChats)
+              .where(eq(copilotChats.id, forkId))
+            expect(forkedChat.resources).toEqual([
+              { type: 'file', id: copiedFile.id, title: filename },
+            ])
+            expect(copiedFile.key).not.toBe(prepared.storedAttachments[0].key)
+            await db
+              .update(workspaceFiles)
+              .set({ deletedAt: new Date() })
+              .where(eq(workspaceFiles.chatId, chatId))
+            const fileRead = await executeAgentCliRequest(
+              { invocation: { kind: 'cli', argv: ['files', 'read', `uploads/${filename}`] } },
+              {
+                userId: 'run-reader',
+                workspaceId,
+                chatId: forkId,
+                resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+                  userId: 'run-reader',
+                  workspaceId,
+                }),
+              }
+            )
+            expect(fileRead.exitCode, fileRead.stderr).toBe(0)
+            expect(fileRead.stdout).toContain('original')
+            const continued = await runCopilotLifecycle(
+              {
+                message: 'Summarize the diagnosed failure without running it again.',
+                userId: 'run-reader',
+                workspaceId,
+                chatId: forkId,
+                messageId: generateId(),
+              },
+              {
+                userId: 'run-reader',
+                workspaceId,
+                chatId: forkId,
+                interactive: false,
+                clientToolPickupExpected: false,
+                flushAfterEvent: false,
+                abortSignal: AbortSignal.timeout(20_000),
+              }
+            )
+            expect(
+              continued.success,
+              JSON.stringify({ continued, errors: fixture.errors, diagnostics })
+            ).toBe(true)
+            expect(continued.content).toBe(result.content)
+            expect(fixture.requests.filter((path) => path.endsWith('/execute'))).toHaveLength(1)
+          }
         } finally {
           restoreClock()
           releaseExecution.resolve()
