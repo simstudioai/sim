@@ -803,36 +803,108 @@ describe('Oracle Fusion HCM payroll and time input contracts', () => {
   })
 
   it('accepts documented time combinations and partial updates without inventing quantity dates', () => {
-    const range = { ...auth, personNumber: '0007', startTime: '2026-01-01T09:00:00-05:00', stopTime: '2026-01-01T17:00:00-05:00' }
-    expect(schemas.oracleFusionHcmCreateTimeEntryBodySchema.parse(range).processMode).toBe('TIME_ENTER')
-    expect(schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({ ...auth, personNumber: '0007', measure: 8, referenceDate: '2026-01-01' }).success).toBe(true)
-    expect(schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({ ...range, measure: 8 }).success).toBe(true)
-    expect(schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({ ...range, referenceDate: '2026-01-01' }).success).toBe(true)
-    expect(schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({ ...auth, personNumber: '0007', measure: 8 }).success).toBe(true)
-    for (const change of [{ stopTime: undefined }, { stopTime: range.startTime }, { startTime: '2026-01-01T09:00:00' }, { processMode: 'APPROVE' }]) {
-      expect(schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({ ...range, ...change }).success).toBe(false)
+    const range = {
+      ...auth,
+      personNumber: '0007',
+      startTime: '2026-01-01T09:00:00-05:00',
+      stopTime: '2026-01-01T17:00:00-05:00',
+    }
+    expect(schemas.oracleFusionHcmCreateTimeEntryBodySchema.parse(range).processMode).toBe(
+      'TIME_ENTER'
+    )
+    expect(
+      schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({
+        ...auth,
+        personNumber: '0007',
+        measure: 8,
+        referenceDate: '2026-01-01',
+      }).success
+    ).toBe(true)
+    expect(
+      schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({ ...range, measure: 8 }).success
+    ).toBe(true)
+    expect(
+      schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({
+        ...range,
+        referenceDate: '2026-01-01',
+      }).success
+    ).toBe(true)
+    expect(
+      schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({
+        ...auth,
+        personNumber: '0007',
+        measure: 8,
+      }).success
+    ).toBe(true)
+    for (const change of [
+      { stopTime: undefined },
+      { stopTime: range.startTime },
+      { startTime: '2026-01-01T09:00:00' },
+      { processMode: 'APPROVE' },
+    ]) {
+      expect(
+        schemas.oracleFusionHcmCreateTimeEntryBodySchema.safeParse({ ...range, ...change }).success
+      ).toBe(false)
     }
     expect(schemas.oracleFusionHcmUpdateTimeEntryBodySchema.safeParse(range).success).toBe(false)
-    const update = { ...auth, personNumber: '0007', timeRecordId: '9007199254740993', timeRecordVersion: 2 }
-    expect(schemas.oracleFusionHcmUpdateTimeEntryBodySchema.safeParse(update).success).toBe(false)
-    for (const change of [{ stopTime: range.stopTime }, { measure: 8 }, { payrollTimeType: 'REGULAR' }]) {
-      expect(schemas.oracleFusionHcmUpdateTimeEntryBodySchema.safeParse({ ...update, ...change }).success).toBe(true)
+    const update = {
+      ...auth,
+      personNumber: '0007',
+      timeRecordId: '9007199254740993',
+      timeRecordVersion: 2,
     }
-    expect(schemas.oracleFusionHcmDeleteTimeEntryBodySchema.safeParse({ ...auth, personNumber: '0007', timeRecordId: '9007199254740993', timeRecordVersion: 2 }).success).toBe(true)
-    expect(schemas.oracleFusionHcmDeleteTimeEntryBodySchema.safeParse({ ...auth, personNumber: '0007', timeRecordId: '2', timeRecordVersion: 0 }).success).toBe(false)
+    expect(schemas.oracleFusionHcmUpdateTimeEntryBodySchema.safeParse(update).success).toBe(false)
+    for (const change of [
+      { stopTime: range.stopTime },
+      { measure: 8 },
+      { payrollTimeType: 'REGULAR' },
+    ]) {
+      expect(
+        schemas.oracleFusionHcmUpdateTimeEntryBodySchema.safeParse({ ...update, ...change }).success
+      ).toBe(true)
+    }
+    expect(
+      schemas.oracleFusionHcmDeleteTimeEntryBodySchema.safeParse({
+        ...auth,
+        personNumber: '0007',
+        timeRecordId: '9007199254740993',
+        timeRecordVersion: 2,
+      }).success
+    ).toBe(true)
+    expect(
+      schemas.oracleFusionHcmDeleteTimeEntryBodySchema.safeParse({
+        ...auth,
+        personNumber: '0007',
+        timeRecordId: '2',
+        timeRecordVersion: 0,
+      }).success
+    ).toBe(false)
   })
 
   it('bounds finder bindings and prevents separator injection', () => {
     const input = { ...auth, dataSourceUsageId: '1', timeAttributeUsageId: '2' }
-    for (const bindings of [[{ name: 'pAssignmentId', value: '1,pEffectiveDate=2026-01-01' }], [{ name: '../resource', value: '1' }], [{ name: 'pAssignmentId', value: '1' }, { name: 'pAssignmentId', value: '2' }]]) {
-      expect(schemas.oracleFusionHcmListTimeAttributeValuesBodySchema.safeParse({ ...input, bindings }).success).toBe(false)
+    for (const bindings of [
+      [{ name: 'pAssignmentId', value: '1,pEffectiveDate=2026-01-01' }],
+      [{ name: '../resource', value: '1' }],
+      [
+        { name: 'pAssignmentId', value: '1' },
+        { name: 'pAssignmentId', value: '2' },
+      ],
+    ]) {
+      expect(
+        schemas.oracleFusionHcmListTimeAttributeValuesBodySchema.safeParse({ ...input, bindings })
+          .success
+      ).toBe(false)
     }
   })
 
   it('preserves nullable identifiers in payroll lists and pending time events', () => {
     const period = projectors.projectPayrollTimePeriod({ TimePeriodId: null })
     const result = projectors.projectPersonProcessResult({ ObjectActionId: null })
-    const event = projectors.projectTimeRecordRequestEvent({ timeRecordEventId: null, eventStatus: 'New' })
+    const event = projectors.projectTimeRecordRequestEvent({
+      timeRecordEventId: null,
+      eventStatus: 'New',
+    })
     expect(period.timePeriodId).toBeNull()
     expect(result.objectActionId).toBeNull()
     expect(event.timeRecordEventId).toBeNull()

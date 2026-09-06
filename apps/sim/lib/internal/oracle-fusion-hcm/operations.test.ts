@@ -1085,46 +1085,102 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
   it('traverses evaluation roles and participants before their independently paginated tasks', async () => {
     mocks.requestOracleFusionJson
       .mockResolvedValueOnce(discovery('performanceEvaluations', 'EvaluationId', '1', 'evaluation'))
-      .mockResolvedValueOnce(collection([{ EvalStepId: '4', TaskName: 'Manager evaluation', TaskStatus: 'Not started' }], { limit: 5, offset: 10 }))
-    const result = await operations.executeOracleFusionHcmListPerformanceDocumentTasks({ ...auth, evaluationId: '1', evalRoleId: '2', evalParticipantId: '3', limit: 5, offset: 10 })
-    expect(lastRequest().address.relativePath).toBe('performanceEvaluations/evaluation/child/Roles/2/child/Participants/3/child/Tasks')
+      .mockResolvedValueOnce(
+        collection(
+          [{ EvalStepId: '4', TaskName: 'Manager evaluation', TaskStatus: 'Not started' }],
+          { limit: 5, offset: 10 }
+        )
+      )
+    const result = await operations.executeOracleFusionHcmListPerformanceDocumentTasks({
+      ...auth,
+      evaluationId: '1',
+      evalRoleId: '2',
+      evalParticipantId: '3',
+      limit: 5,
+      offset: 10,
+    })
+    expect(lastRequest().address.relativePath).toBe(
+      'performanceEvaluations/evaluation/child/Roles/2/child/Participants/3/child/Tasks'
+    )
     expect(result.output.performanceDocumentTasks[0].taskName).toBe('Manager evaluation')
   })
 
   it('uses secured talent sections and excludes private certification fields', async () => {
     mocks.requestOracleFusionJson
       .mockResolvedValueOnce(discovery('talentPersonProfiles', 'ProfileId', '1', 'profile'))
-      .mockResolvedValueOnce(collection([{ CertificationId: '3', ProfileId: '1', Title: 'Certificate', CertificateNumber: 'private-number', CertificationURL: 'https://private.invalid', Comments: 'private-comment' }]))
-    const result = await operations.executeOracleFusionHcmListTalentProfileCertifications({ ...auth, profileId: '1', profileSectionId: '2' })
-    expect(lastRequest().address.relativePath).toBe('talentPersonProfiles/profile/child/certificationSections/2/child/certificationItems')
+      .mockResolvedValueOnce(
+        collection([
+          {
+            CertificationId: '3',
+            ProfileId: '1',
+            Title: 'Certificate',
+            CertificateNumber: 'private-number',
+            CertificationURL: 'https://private.invalid',
+            Comments: 'private-comment',
+          },
+        ])
+      )
+    const result = await operations.executeOracleFusionHcmListTalentProfileCertifications({
+      ...auth,
+      profileId: '1',
+      profileSectionId: '2',
+    })
+    expect(lastRequest().address.relativePath).toBe(
+      'talentPersonProfiles/profile/child/certificationSections/2/child/certificationItems'
+    )
     expect(JSON.stringify(result)).not.toContain('private')
     expect(lastRequest().query.fields).not.toContain('CertificateNumber')
   })
 
   it('uses the fixed time layers and REST attribute context', async () => {
-    const input = { ...auth, personNumber: '0007', startTime: '2026-01-01T00:00:00Z', stopTime: '2026-01-08T00:00:00Z' }
+    const input = {
+      ...auth,
+      personNumber: '0007',
+      startTime: '2026-01-01T00:00:00Z',
+      stopTime: '2026-01-08T00:00:00Z',
+    }
     mocks.requestOracleFusionJson.mockResolvedValue(collection([]))
     await operations.executeOracleFusionHcmListTimeRecords(input)
-    expect(lastRequest().query.finder).toBe('filterByPerNumTimeGrp;personNumber=0007,startTime=2026-01-01T00:00:00Z,stopTime=2026-01-08T00:00:00Z,groupType=TimeCardEntry')
+    expect(lastRequest().query.finder).toBe(
+      'filterByPerNumTimeGrp;personNumber=0007,startTime=2026-01-01T00:00:00Z,stopTime=2026-01-08T00:00:00Z,groupType=TimeCardEntry'
+    )
     await operations.executeOracleFusionHcmListTimeCards(input)
     expect(lastRequest().query.finder).toContain('groupType=ProcessedTimecard')
     await operations.executeOracleFusionHcmListTimeAttributes(auth)
-    expect(lastRequest().query.finder).toBe('filterByAttrContext;contextCode=ORA_HWM_TIME_RECORDS_REST')
+    expect(lastRequest().query.finder).toBe(
+      'filterByAttrContext;contextCode=ORA_HWM_TIME_RECORDS_REST'
+    )
   })
 
   it.each([
     ['ADD', operations.executeOracleFusionHcmCreateTimeEntry],
     ['UPDATE', operations.executeOracleFusionHcmUpdateTimeEntry],
     ['DELETE', operations.executeOracleFusionHcmDeleteTimeEntry],
-  ] as const)('submits %s once through POST intake and returns no invented completion status', async (operationType, execute) => {
-    mocks.requestOracleFusionJson.mockResolvedValueOnce({ timeRecordEventRequestId: '9007199254740993', processInline: 'N', processMode: 'TIME_ENTER', links: self('timeRecordEventRequests/9007199254740993') })
-    const input = { ...auth, personNumber: '0007', timeRecordId: '9223372036854775807', timeRecordVersion: 2, measure: 8, referenceDate: '2026-01-01', payrollTimeType: 'REG', processMode: 'TIME_ENTER' as const }
-    const result = await execute(input)
-    expect(lastRequest()).toMatchObject({ address: { relativePath: 'timeRecordEventRequests' }, method: 'POST', body: { processInline: 'N', processMode: 'TIME_ENTER', timeRecordEvent: [expect.objectContaining({ operationType, reporterIdType: 'PERSON', reporterId: '0007' })] } })
-    expect(result.output.timeRecordRequest.timeRecordEventRequestId).toBe('9007199254740993')
-    expect(result.output.timeRecordRequest).not.toHaveProperty('status')
-    expect(mocks.requestOracleFusionJson).toHaveBeenCalledOnce()
-  })
+  ] as const)(
+    'submits %s once through POST intake and returns no invented completion status',
+    async (operationType, execute) => {
+      mocks.requestOracleFusionJson.mockResolvedValueOnce({
+        timeRecordEventRequestId: '9007199254740993',
+        processInline: 'N',
+        processMode: 'TIME_ENTER',
+        links: self('timeRecordEventRequests/9007199254740993'),
+      })
+      const input = {
+        ...auth,
+        personNumber: '0007',
+        timeRecordId: '9223372036854775807',
+        timeRecordVersion: 2,
+        measure: 8,
+        referenceDate: '2026-01-01',
+        payrollTimeType: 'REG',
+        processMode: 'TIME_ENTER' as const,
+      }
+      const result = await execute(input)
+      expect(lastRequest()).toMatchObject({
+        address: { relativePath: 'timeRecordEventRequests' },
+        method: 'POST',
+        body: {
+          processInline: 'N',
 
   it('sends only a changed stop time for a versioned time-entry update', async () => {
     mocks.requestOracleFusionJson.mockResolvedValueOnce({
@@ -1150,7 +1206,9 @@ describe('Oracle Fusion HCM payroll, compensation, talent, and time', () => {
     expect(event).not.toHaveProperty('startTime')
     expect(event).not.toHaveProperty('measure')
     expect(event).not.toHaveProperty('referenceDate')
-    expect(serializeOracleFusionJsonBody(lastRequest().body)).toContain('"timeRecordId":9007199254740993')
+    expect(serializeOracleFusionJsonBody(lastRequest().body)).toContain(
+      '"timeRecordId":9007199254740993'
+    )
   })
 
   it('does not replay an ambiguous time intake timeout and drops upstream details', async () => {

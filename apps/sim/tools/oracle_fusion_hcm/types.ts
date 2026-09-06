@@ -1331,78 +1331,132 @@ export const ORACLE_FUSION_HCM_UPDATE_ASSIGNED_PAYROLL_OUTPUTS = {
   },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmUpdateAssignedPayrollParams = Omit<Schemas.OracleFusionHcmUpdateAssignedPayrollBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmUpdateAssignedPayrollParams = Omit<
+  Schemas.OracleFusionHcmUpdateAssignedPayrollBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmUpdateAssignedPayrollResponse = Schemas.OracleFusionHcmUpdateAssignedPayrollResponse
+export type OracleFusionHcmUpdateAssignedPayrollResponse =
+  Schemas.OracleFusionHcmUpdateAssignedPayrollResponse
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_DEFINITIONS_OUTPUTS = {
-  payrollDefinitions: { type: 'array', description: 'Payroll Definition records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_DEFINITION_OUTPUT_PROPERTIES } },
+  payrollDefinitions: {
+    type: 'array',
+    description: 'Payroll Definition records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_DEFINITION_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollDefinitionsParams = Omit<Schemas.OracleFusionHcmListPayrollDefinitionsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollDefinitionsParams = Omit<
+  Schemas.OracleFusionHcmListPayrollDefinitionsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollDefinitionsResponse = Schemas.OracleFusionHcmListPayrollDefinitionsResponse
+export type OracleFusionHcmListPayrollDefinitionsResponse =
+  Schemas.OracleFusionHcmListPayrollDefinitionsResponse
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_TIME_PERIODS_OUTPUTS = {
-  payrollTimePeriods: { type: 'array', description: 'Payroll Time Period records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_TIME_PERIOD_OUTPUT_PROPERTIES } },
+  payrollTimePeriods: {
+    type: 'array',
+    description: 'Payroll Time Period records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_TIME_PERIOD_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollTimePeriodsParams = Omit<Schemas.OracleFusionHcmListPayrollTimePeriodsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollTimePeriodsParams = Omit<
+  Schemas.OracleFusionHcmListPayrollTimePeriodsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollTimePeriodsResponse = Schemas.OracleFusionHcmListPayrollTimePeriodsResponse
+export type OracleFusionHcmListPayrollTimePeriodsResponse =
+  Schemas.OracleFusionHcmListPayrollTimePeriodsResponse
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_ELEMENT_DEFINITIONS_OUTPUTS = {
-  payrollElementDefinitions: { type: 'array', description: 'Payroll Element Definition records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_ELEMENT_DEFINITION_OUTPUT_PROPERTIES } },
+  payrollElementDefinitions: {
+    type: 'array',
+    description: 'Payroll Element Definition records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_PAYROLL_ELEMENT_DEFINITION_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollElementDefinitionsParams = Omit<Schemas.OracleFusionHcmListPayrollElementDefinitionsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollElementDefinitionsParams = Omit<
+  Schemas.OracleFusionHcmListPayrollElementDefinitionsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollElementDefinitionsResponse = Schemas.OracleFusionHcmListPayrollElementDefinitionsResponse
+export type OracleFusionHcmListPayrollElementDefinitionsResponse =
+  Schemas.OracleFusionHcmListPayrollElementDefinitionsResponse
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_INPUT_VALUES_OUTPUTS = {
-  payrollInputValues: { type: 'array', description: 'Payroll Input Value records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_INPUT_VALUE_OUTPUT_PROPERTIES } },
+  payrollInputValues: {
+    type: 'array',
+    description: 'Payroll Input Value records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_INPUT_VALUE_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollInputValuesParams = Omit<Schemas.OracleFusionHcmListPayrollInputValuesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollInputValuesParams = Omit<
+  Schemas.OracleFusionHcmListPayrollInputValuesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollInputValuesResponse = Schemas.OracleFusionHcmListPayrollInputValuesResponse
+export type OracleFusionHcmListPayrollInputValuesResponse =
+  Schemas.OracleFusionHcmListPayrollInputValuesResponse
 
 export const ORACLE_FUSION_HCM_LIST_ELEMENT_ENTRIES_OUTPUTS = {
-  elementEntries: { type: 'array', description: 'Element Entry records', items: { type: 'object', properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES } },
+  elementEntries: {
+    type: 'array',
+    description: 'Element Entry records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListElementEntriesParams = Omit<Schemas.OracleFusionHcmListElementEntriesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListElementEntriesParams = Omit<
+  Schemas.OracleFusionHcmListElementEntriesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListElementEntriesResponse = Schemas.OracleFusionHcmListElementEntriesResponse
+export type OracleFusionHcmListElementEntriesResponse =
+  Schemas.OracleFusionHcmListElementEntriesResponse
 
 export const ORACLE_FUSION_HCM_GET_ELEMENT_ENTRY_OUTPUTS = {
-  elementEntry: { type: 'object', description: 'Element Entry', properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES },
+  elementEntry: {
+    type: 'object',
+    description: 'Element Entry',
+    properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetElementEntryParams = Omit<Schemas.OracleFusionHcmGetElementEntryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetElementEntryParams = Omit<
+  Schemas.OracleFusionHcmGetElementEntryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1410,92 +1464,158 @@ export type OracleFusionHcmGetElementEntryParams = Omit<Schemas.OracleFusionHcmG
 export type OracleFusionHcmGetElementEntryResponse = Schemas.OracleFusionHcmGetElementEntryResponse
 
 export const ORACLE_FUSION_HCM_LIST_ELEMENT_ENTRY_VALUES_OUTPUTS = {
-  elementEntryValues: { type: 'array', description: 'Element Entry Value records', items: { type: 'object', properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_VALUE_OUTPUT_PROPERTIES } },
+  elementEntryValues: {
+    type: 'array',
+    description: 'Element Entry Value records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_VALUE_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListElementEntryValuesParams = Omit<Schemas.OracleFusionHcmListElementEntryValuesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListElementEntryValuesParams = Omit<
+  Schemas.OracleFusionHcmListElementEntryValuesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListElementEntryValuesResponse = Schemas.OracleFusionHcmListElementEntryValuesResponse
+export type OracleFusionHcmListElementEntryValuesResponse =
+  Schemas.OracleFusionHcmListElementEntryValuesResponse
 
 export const ORACLE_FUSION_HCM_CREATE_ELEMENT_ENTRY_OUTPUTS = {
-  elementEntry: { type: 'object', description: 'Element Entry', properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES },
+  elementEntry: {
+    type: 'object',
+    description: 'Element Entry',
+    properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmCreateElementEntryParams = Omit<Schemas.OracleFusionHcmCreateElementEntryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmCreateElementEntryParams = Omit<
+  Schemas.OracleFusionHcmCreateElementEntryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmCreateElementEntryResponse = Schemas.OracleFusionHcmCreateElementEntryResponse
+export type OracleFusionHcmCreateElementEntryResponse =
+  Schemas.OracleFusionHcmCreateElementEntryResponse
 
 export const ORACLE_FUSION_HCM_UPDATE_ELEMENT_ENTRY_VALUE_OUTPUTS = {
-  elementEntryValue: { type: 'object', description: 'Element Entry Value', properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_VALUE_OUTPUT_PROPERTIES },
+  elementEntryValue: {
+    type: 'object',
+    description: 'Element Entry Value',
+    properties: ORACLE_FUSION_HCM_ELEMENT_ENTRY_VALUE_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmUpdateElementEntryValueParams = Omit<Schemas.OracleFusionHcmUpdateElementEntryValueBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmUpdateElementEntryValueParams = Omit<
+  Schemas.OracleFusionHcmUpdateElementEntryValueBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmUpdateElementEntryValueResponse = Schemas.OracleFusionHcmUpdateElementEntryValueResponse
+export type OracleFusionHcmUpdateElementEntryValueResponse =
+  Schemas.OracleFusionHcmUpdateElementEntryValueResponse
 
 export const ORACLE_FUSION_HCM_LIST_PERSON_PROCESS_RESULTS_OUTPUTS = {
-  personProcessResults: { type: 'array', description: 'Person Process Result records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PERSON_PROCESS_RESULT_OUTPUT_PROPERTIES } },
+  personProcessResults: {
+    type: 'array',
+    description: 'Person Process Result records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_PERSON_PROCESS_RESULT_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPersonProcessResultsParams = Omit<Schemas.OracleFusionHcmListPersonProcessResultsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPersonProcessResultsParams = Omit<
+  Schemas.OracleFusionHcmListPersonProcessResultsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPersonProcessResultsResponse = Schemas.OracleFusionHcmListPersonProcessResultsResponse
+export type OracleFusionHcmListPersonProcessResultsResponse =
+  Schemas.OracleFusionHcmListPersonProcessResultsResponse
 
 export const ORACLE_FUSION_HCM_GET_PERSON_PROCESS_RESULT_OUTPUTS = {
-  personProcessResult: { type: 'object', description: 'Person Process Result', properties: ORACLE_FUSION_HCM_PERSON_PROCESS_RESULT_OUTPUT_PROPERTIES },
+  personProcessResult: {
+    type: 'object',
+    description: 'Person Process Result',
+    properties: ORACLE_FUSION_HCM_PERSON_PROCESS_RESULT_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetPersonProcessResultParams = Omit<Schemas.OracleFusionHcmGetPersonProcessResultBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetPersonProcessResultParams = Omit<
+  Schemas.OracleFusionHcmGetPersonProcessResultBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetPersonProcessResultResponse = Schemas.OracleFusionHcmGetPersonProcessResultResponse
+export type OracleFusionHcmGetPersonProcessResultResponse =
+  Schemas.OracleFusionHcmGetPersonProcessResultResponse
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_RUN_RESULTS_OUTPUTS = {
-  payrollRunResults: { type: 'array', description: 'Payroll Run Result records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_RUN_RESULT_OUTPUT_PROPERTIES } },
+  payrollRunResults: {
+    type: 'array',
+    description: 'Payroll Run Result records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_RUN_RESULT_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollRunResultsParams = Omit<Schemas.OracleFusionHcmListPayrollRunResultsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollRunResultsParams = Omit<
+  Schemas.OracleFusionHcmListPayrollRunResultsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollRunResultsResponse = Schemas.OracleFusionHcmListPayrollRunResultsResponse
+export type OracleFusionHcmListPayrollRunResultsResponse =
+  Schemas.OracleFusionHcmListPayrollRunResultsResponse
 
 export const ORACLE_FUSION_HCM_LIST_PAYROLL_BALANCES_OUTPUTS = {
-  payrollBalances: { type: 'array', description: 'Payroll Balance records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_BALANCE_OUTPUT_PROPERTIES } },
+  payrollBalances: {
+    type: 'array',
+    description: 'Payroll Balance records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PAYROLL_BALANCE_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPayrollBalancesParams = Omit<Schemas.OracleFusionHcmListPayrollBalancesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPayrollBalancesParams = Omit<
+  Schemas.OracleFusionHcmListPayrollBalancesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPayrollBalancesResponse = Schemas.OracleFusionHcmListPayrollBalancesResponse
+export type OracleFusionHcmListPayrollBalancesResponse =
+  Schemas.OracleFusionHcmListPayrollBalancesResponse
 
 export const ORACLE_FUSION_HCM_LIST_SALARIES_OUTPUTS = {
-  salaries: { type: 'array', description: 'Salary records', items: { type: 'object', properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES } },
+  salaries: {
+    type: 'array',
+    description: 'Salary records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListSalariesParams = Omit<Schemas.OracleFusionHcmListSalariesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListSalariesParams = Omit<
+  Schemas.OracleFusionHcmListSalariesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1503,10 +1623,17 @@ export type OracleFusionHcmListSalariesParams = Omit<Schemas.OracleFusionHcmList
 export type OracleFusionHcmListSalariesResponse = Schemas.OracleFusionHcmListSalariesResponse
 
 export const ORACLE_FUSION_HCM_GET_SALARY_OUTPUTS = {
-  salary: { type: 'object', description: 'Salary', properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES },
+  salary: {
+    type: 'object',
+    description: 'Salary',
+    properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetSalaryParams = Omit<Schemas.OracleFusionHcmGetSalaryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetSalaryParams = Omit<
+  Schemas.OracleFusionHcmGetSalaryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1514,10 +1641,17 @@ export type OracleFusionHcmGetSalaryParams = Omit<Schemas.OracleFusionHcmGetSala
 export type OracleFusionHcmGetSalaryResponse = Schemas.OracleFusionHcmGetSalaryResponse
 
 export const ORACLE_FUSION_HCM_CREATE_SALARY_OUTPUTS = {
-  salary: { type: 'object', description: 'Salary', properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES },
+  salary: {
+    type: 'object',
+    description: 'Salary',
+    properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmCreateSalaryParams = Omit<Schemas.OracleFusionHcmCreateSalaryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmCreateSalaryParams = Omit<
+  Schemas.OracleFusionHcmCreateSalaryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1525,10 +1659,17 @@ export type OracleFusionHcmCreateSalaryParams = Omit<Schemas.OracleFusionHcmCrea
 export type OracleFusionHcmCreateSalaryResponse = Schemas.OracleFusionHcmCreateSalaryResponse
 
 export const ORACLE_FUSION_HCM_CORRECT_SALARY_OUTPUTS = {
-  salary: { type: 'object', description: 'Salary', properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES },
+  salary: {
+    type: 'object',
+    description: 'Salary',
+    properties: ORACLE_FUSION_HCM_SALARY_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmCorrectSalaryParams = Omit<Schemas.OracleFusionHcmCorrectSalaryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmCorrectSalaryParams = Omit<
+  Schemas.OracleFusionHcmCorrectSalaryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1536,11 +1677,18 @@ export type OracleFusionHcmCorrectSalaryParams = Omit<Schemas.OracleFusionHcmCor
 export type OracleFusionHcmCorrectSalaryResponse = Schemas.OracleFusionHcmCorrectSalaryResponse
 
 export const ORACLE_FUSION_HCM_LIST_SALARY_BASES_OUTPUTS = {
-  salaryBases: { type: 'array', description: 'Salary Basis records', items: { type: 'object', properties: ORACLE_FUSION_HCM_SALARY_BASIS_OUTPUT_PROPERTIES } },
+  salaryBases: {
+    type: 'array',
+    description: 'Salary Basis records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_SALARY_BASIS_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListSalaryBasesParams = Omit<Schemas.OracleFusionHcmListSalaryBasesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListSalaryBasesParams = Omit<
+  Schemas.OracleFusionHcmListSalaryBasesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1549,37 +1697,77 @@ export type OracleFusionHcmListSalaryBasesResponse = Schemas.OracleFusionHcmList
 
 export const ORACLE_FUSION_HCM_LIST_SALARY_COMPONENTS_OUTPUTS = {
   componentKind: { type: 'string', description: 'Selected component family' },
-  standardComponents: { type: 'array', description: 'StandardSalaryComponent records; empty when another component family is selected', items: { type: 'object', properties: ORACLE_FUSION_HCM_STANDARD_SALARY_COMPONENT_OUTPUT_PROPERTIES } },
-  simpleComponents: { type: 'array', description: 'SimpleSalaryComponent records; empty when another component family is selected', items: { type: 'object', properties: ORACLE_FUSION_HCM_SIMPLE_SALARY_COMPONENT_OUTPUT_PROPERTIES } },
-  rateComponents: { type: 'array', description: 'RateSalaryComponent records; empty when another component family is selected', items: { type: 'object', properties: ORACLE_FUSION_HCM_RATE_SALARY_COMPONENT_OUTPUT_PROPERTIES } },
+  standardComponents: {
+    type: 'array',
+    description: 'StandardSalaryComponent records; empty when another component family is selected',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_STANDARD_SALARY_COMPONENT_OUTPUT_PROPERTIES,
+    },
+  },
+  simpleComponents: {
+    type: 'array',
+    description: 'SimpleSalaryComponent records; empty when another component family is selected',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_SIMPLE_SALARY_COMPONENT_OUTPUT_PROPERTIES,
+    },
+  },
+  rateComponents: {
+    type: 'array',
+    description: 'RateSalaryComponent records; empty when another component family is selected',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_RATE_SALARY_COMPONENT_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListSalaryComponentsParams = Omit<Schemas.OracleFusionHcmListSalaryComponentsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListSalaryComponentsParams = Omit<
+  Schemas.OracleFusionHcmListSalaryComponentsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListSalaryComponentsResponse = Schemas.OracleFusionHcmListSalaryComponentsResponse
+export type OracleFusionHcmListSalaryComponentsResponse =
+  Schemas.OracleFusionHcmListSalaryComponentsResponse
 
 export const ORACLE_FUSION_HCM_LIST_GRADE_RATE_VALUES_OUTPUTS = {
-  gradeRateValues: { type: 'array', description: 'Grade Rate Value records', items: { type: 'object', properties: ORACLE_FUSION_HCM_GRADE_RATE_VALUE_OUTPUT_PROPERTIES } },
+  gradeRateValues: {
+    type: 'array',
+    description: 'Grade Rate Value records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_GRADE_RATE_VALUE_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListGradeRateValuesParams = Omit<Schemas.OracleFusionHcmListGradeRateValuesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListGradeRateValuesParams = Omit<
+  Schemas.OracleFusionHcmListGradeRateValuesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListGradeRateValuesResponse = Schemas.OracleFusionHcmListGradeRateValuesResponse
+export type OracleFusionHcmListGradeRateValuesResponse =
+  Schemas.OracleFusionHcmListGradeRateValuesResponse
 
 export const ORACLE_FUSION_HCM_LIST_GOAL_PLANS_OUTPUTS = {
-  goalPlans: { type: 'array', description: 'Goal Plan records', items: { type: 'object', properties: ORACLE_FUSION_HCM_GOAL_PLAN_OUTPUT_PROPERTIES } },
+  goalPlans: {
+    type: 'array',
+    description: 'Goal Plan records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_GOAL_PLAN_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListGoalPlansParams = Omit<Schemas.OracleFusionHcmListGoalPlansBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListGoalPlansParams = Omit<
+  Schemas.OracleFusionHcmListGoalPlansBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1587,10 +1775,17 @@ export type OracleFusionHcmListGoalPlansParams = Omit<Schemas.OracleFusionHcmLis
 export type OracleFusionHcmListGoalPlansResponse = Schemas.OracleFusionHcmListGoalPlansResponse
 
 export const ORACLE_FUSION_HCM_GET_GOAL_PLAN_OUTPUTS = {
-  goalPlan: { type: 'object', description: 'Goal Plan', properties: ORACLE_FUSION_HCM_GOAL_PLAN_OUTPUT_PROPERTIES },
+  goalPlan: {
+    type: 'object',
+    description: 'Goal Plan',
+    properties: ORACLE_FUSION_HCM_GOAL_PLAN_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetGoalPlanParams = Omit<Schemas.OracleFusionHcmGetGoalPlanBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetGoalPlanParams = Omit<
+  Schemas.OracleFusionHcmGetGoalPlanBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1598,175 +1793,309 @@ export type OracleFusionHcmGetGoalPlanParams = Omit<Schemas.OracleFusionHcmGetGo
 export type OracleFusionHcmGetGoalPlanResponse = Schemas.OracleFusionHcmGetGoalPlanResponse
 
 export const ORACLE_FUSION_HCM_LIST_PERFORMANCE_GOALS_OUTPUTS = {
-  performanceGoals: { type: 'array', description: 'Performance Goal records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PERFORMANCE_GOAL_OUTPUT_PROPERTIES } },
+  performanceGoals: {
+    type: 'array',
+    description: 'Performance Goal records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PERFORMANCE_GOAL_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPerformanceGoalsParams = Omit<Schemas.OracleFusionHcmListPerformanceGoalsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPerformanceGoalsParams = Omit<
+  Schemas.OracleFusionHcmListPerformanceGoalsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPerformanceGoalsResponse = Schemas.OracleFusionHcmListPerformanceGoalsResponse
+export type OracleFusionHcmListPerformanceGoalsResponse =
+  Schemas.OracleFusionHcmListPerformanceGoalsResponse
 
 export const ORACLE_FUSION_HCM_GET_PERFORMANCE_GOAL_OUTPUTS = {
-  performanceGoal: { type: 'object', description: 'Performance Goal', properties: ORACLE_FUSION_HCM_PERFORMANCE_GOAL_OUTPUT_PROPERTIES },
+  performanceGoal: {
+    type: 'object',
+    description: 'Performance Goal',
+    properties: ORACLE_FUSION_HCM_PERFORMANCE_GOAL_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetPerformanceGoalParams = Omit<Schemas.OracleFusionHcmGetPerformanceGoalBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetPerformanceGoalParams = Omit<
+  Schemas.OracleFusionHcmGetPerformanceGoalBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetPerformanceGoalResponse = Schemas.OracleFusionHcmGetPerformanceGoalResponse
+export type OracleFusionHcmGetPerformanceGoalResponse =
+  Schemas.OracleFusionHcmGetPerformanceGoalResponse
 
 export const ORACLE_FUSION_HCM_LIST_DEVELOPMENT_GOALS_OUTPUTS = {
-  developmentGoals: { type: 'array', description: 'Development Goal records', items: { type: 'object', properties: ORACLE_FUSION_HCM_DEVELOPMENT_GOAL_OUTPUT_PROPERTIES } },
+  developmentGoals: {
+    type: 'array',
+    description: 'Development Goal records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_DEVELOPMENT_GOAL_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListDevelopmentGoalsParams = Omit<Schemas.OracleFusionHcmListDevelopmentGoalsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListDevelopmentGoalsParams = Omit<
+  Schemas.OracleFusionHcmListDevelopmentGoalsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListDevelopmentGoalsResponse = Schemas.OracleFusionHcmListDevelopmentGoalsResponse
+export type OracleFusionHcmListDevelopmentGoalsResponse =
+  Schemas.OracleFusionHcmListDevelopmentGoalsResponse
 
 export const ORACLE_FUSION_HCM_GET_DEVELOPMENT_GOAL_OUTPUTS = {
-  developmentGoal: { type: 'object', description: 'Development Goal', properties: ORACLE_FUSION_HCM_DEVELOPMENT_GOAL_OUTPUT_PROPERTIES },
+  developmentGoal: {
+    type: 'object',
+    description: 'Development Goal',
+    properties: ORACLE_FUSION_HCM_DEVELOPMENT_GOAL_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetDevelopmentGoalParams = Omit<Schemas.OracleFusionHcmGetDevelopmentGoalBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetDevelopmentGoalParams = Omit<
+  Schemas.OracleFusionHcmGetDevelopmentGoalBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetDevelopmentGoalResponse = Schemas.OracleFusionHcmGetDevelopmentGoalResponse
+export type OracleFusionHcmGetDevelopmentGoalResponse =
+  Schemas.OracleFusionHcmGetDevelopmentGoalResponse
 
 export const ORACLE_FUSION_HCM_LIST_PERFORMANCE_DOCUMENTS_OUTPUTS = {
-  performanceDocuments: { type: 'array', description: 'Performance Document records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_OUTPUT_PROPERTIES } },
+  performanceDocuments: {
+    type: 'array',
+    description: 'Performance Document records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPerformanceDocumentsParams = Omit<Schemas.OracleFusionHcmListPerformanceDocumentsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPerformanceDocumentsParams = Omit<
+  Schemas.OracleFusionHcmListPerformanceDocumentsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPerformanceDocumentsResponse = Schemas.OracleFusionHcmListPerformanceDocumentsResponse
+export type OracleFusionHcmListPerformanceDocumentsResponse =
+  Schemas.OracleFusionHcmListPerformanceDocumentsResponse
 
 export const ORACLE_FUSION_HCM_GET_PERFORMANCE_DOCUMENT_OUTPUTS = {
-  performanceDocument: { type: 'object', description: 'Performance Document', properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_OUTPUT_PROPERTIES },
+  performanceDocument: {
+    type: 'object',
+    description: 'Performance Document',
+    properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetPerformanceDocumentParams = Omit<Schemas.OracleFusionHcmGetPerformanceDocumentBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetPerformanceDocumentParams = Omit<
+  Schemas.OracleFusionHcmGetPerformanceDocumentBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetPerformanceDocumentResponse = Schemas.OracleFusionHcmGetPerformanceDocumentResponse
+export type OracleFusionHcmGetPerformanceDocumentResponse =
+  Schemas.OracleFusionHcmGetPerformanceDocumentResponse
 
 export const ORACLE_FUSION_HCM_LIST_PERFORMANCE_DOCUMENT_ROLES_OUTPUTS = {
-  performanceDocumentRoles: { type: 'array', description: 'Performance Document Role records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_ROLE_OUTPUT_PROPERTIES } },
+  performanceDocumentRoles: {
+    type: 'array',
+    description: 'Performance Document Role records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_ROLE_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPerformanceDocumentRolesParams = Omit<Schemas.OracleFusionHcmListPerformanceDocumentRolesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPerformanceDocumentRolesParams = Omit<
+  Schemas.OracleFusionHcmListPerformanceDocumentRolesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPerformanceDocumentRolesResponse = Schemas.OracleFusionHcmListPerformanceDocumentRolesResponse
+export type OracleFusionHcmListPerformanceDocumentRolesResponse =
+  Schemas.OracleFusionHcmListPerformanceDocumentRolesResponse
 
 export const ORACLE_FUSION_HCM_LIST_PERFORMANCE_DOCUMENT_PARTICIPANTS_OUTPUTS = {
-  performanceDocumentParticipants: { type: 'array', description: 'Performance Document Participant records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_PARTICIPANT_OUTPUT_PROPERTIES } },
+  performanceDocumentParticipants: {
+    type: 'array',
+    description: 'Performance Document Participant records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_PARTICIPANT_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPerformanceDocumentParticipantsParams = Omit<Schemas.OracleFusionHcmListPerformanceDocumentParticipantsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPerformanceDocumentParticipantsParams = Omit<
+  Schemas.OracleFusionHcmListPerformanceDocumentParticipantsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPerformanceDocumentParticipantsResponse = Schemas.OracleFusionHcmListPerformanceDocumentParticipantsResponse
+export type OracleFusionHcmListPerformanceDocumentParticipantsResponse =
+  Schemas.OracleFusionHcmListPerformanceDocumentParticipantsResponse
 
 export const ORACLE_FUSION_HCM_LIST_PERFORMANCE_DOCUMENT_TASKS_OUTPUTS = {
-  performanceDocumentTasks: { type: 'array', description: 'Performance Document Task records', items: { type: 'object', properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_TASK_OUTPUT_PROPERTIES } },
+  performanceDocumentTasks: {
+    type: 'array',
+    description: 'Performance Document Task records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_PERFORMANCE_DOCUMENT_TASK_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListPerformanceDocumentTasksParams = Omit<Schemas.OracleFusionHcmListPerformanceDocumentTasksBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListPerformanceDocumentTasksParams = Omit<
+  Schemas.OracleFusionHcmListPerformanceDocumentTasksBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListPerformanceDocumentTasksResponse = Schemas.OracleFusionHcmListPerformanceDocumentTasksResponse
+export type OracleFusionHcmListPerformanceDocumentTasksResponse =
+  Schemas.OracleFusionHcmListPerformanceDocumentTasksResponse
 
 export const ORACLE_FUSION_HCM_LIST_TALENT_PROFILES_OUTPUTS = {
-  talentProfiles: { type: 'array', description: 'Talent Profile records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TALENT_PROFILE_OUTPUT_PROPERTIES } },
+  talentProfiles: {
+    type: 'array',
+    description: 'Talent Profile records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_TALENT_PROFILE_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTalentProfilesParams = Omit<Schemas.OracleFusionHcmListTalentProfilesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTalentProfilesParams = Omit<
+  Schemas.OracleFusionHcmListTalentProfilesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTalentProfilesResponse = Schemas.OracleFusionHcmListTalentProfilesResponse
+export type OracleFusionHcmListTalentProfilesResponse =
+  Schemas.OracleFusionHcmListTalentProfilesResponse
 
 export const ORACLE_FUSION_HCM_GET_TALENT_PROFILE_OUTPUTS = {
-  talentProfile: { type: 'object', description: 'Talent Profile', properties: ORACLE_FUSION_HCM_TALENT_PROFILE_OUTPUT_PROPERTIES },
+  talentProfile: {
+    type: 'object',
+    description: 'Talent Profile',
+    properties: ORACLE_FUSION_HCM_TALENT_PROFILE_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetTalentProfileParams = Omit<Schemas.OracleFusionHcmGetTalentProfileBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetTalentProfileParams = Omit<
+  Schemas.OracleFusionHcmGetTalentProfileBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetTalentProfileResponse = Schemas.OracleFusionHcmGetTalentProfileResponse
+export type OracleFusionHcmGetTalentProfileResponse =
+  Schemas.OracleFusionHcmGetTalentProfileResponse
 
 export const ORACLE_FUSION_HCM_LIST_TALENT_PROFILE_SECTIONS_OUTPUTS = {
-  talentProfileSections: { type: 'array', description: 'Talent Profile Section records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TALENT_PROFILE_SECTION_OUTPUT_PROPERTIES } },
+  talentProfileSections: {
+    type: 'array',
+    description: 'Talent Profile Section records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_TALENT_PROFILE_SECTION_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTalentProfileSectionsParams = Omit<Schemas.OracleFusionHcmListTalentProfileSectionsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTalentProfileSectionsParams = Omit<
+  Schemas.OracleFusionHcmListTalentProfileSectionsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTalentProfileSectionsResponse = Schemas.OracleFusionHcmListTalentProfileSectionsResponse
+export type OracleFusionHcmListTalentProfileSectionsResponse =
+  Schemas.OracleFusionHcmListTalentProfileSectionsResponse
 
 export const ORACLE_FUSION_HCM_LIST_TALENT_PROFILE_SKILLS_OUTPUTS = {
-  talentProfileSkills: { type: 'array', description: 'Talent Profile Skill records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TALENT_PROFILE_SKILL_OUTPUT_PROPERTIES } },
+  talentProfileSkills: {
+    type: 'array',
+    description: 'Talent Profile Skill records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_TALENT_PROFILE_SKILL_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTalentProfileSkillsParams = Omit<Schemas.OracleFusionHcmListTalentProfileSkillsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTalentProfileSkillsParams = Omit<
+  Schemas.OracleFusionHcmListTalentProfileSkillsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTalentProfileSkillsResponse = Schemas.OracleFusionHcmListTalentProfileSkillsResponse
+export type OracleFusionHcmListTalentProfileSkillsResponse =
+  Schemas.OracleFusionHcmListTalentProfileSkillsResponse
 
 export const ORACLE_FUSION_HCM_LIST_TALENT_PROFILE_CERTIFICATIONS_OUTPUTS = {
-  talentProfileCertifications: { type: 'array', description: 'Talent Profile Certification records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TALENT_PROFILE_CERTIFICATION_OUTPUT_PROPERTIES } },
+  talentProfileCertifications: {
+    type: 'array',
+    description: 'Talent Profile Certification records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_TALENT_PROFILE_CERTIFICATION_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTalentProfileCertificationsParams = Omit<Schemas.OracleFusionHcmListTalentProfileCertificationsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTalentProfileCertificationsParams = Omit<
+  Schemas.OracleFusionHcmListTalentProfileCertificationsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTalentProfileCertificationsResponse = Schemas.OracleFusionHcmListTalentProfileCertificationsResponse
+export type OracleFusionHcmListTalentProfileCertificationsResponse =
+  Schemas.OracleFusionHcmListTalentProfileCertificationsResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_RECORDS_OUTPUTS = {
-  timeRecords: { type: 'array', description: 'Time Record records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_RECORD_OUTPUT_PROPERTIES } },
+  timeRecords: {
+    type: 'array',
+    description: 'Time Record records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_RECORD_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeRecordsParams = Omit<Schemas.OracleFusionHcmListTimeRecordsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeRecordsParams = Omit<
+  Schemas.OracleFusionHcmListTimeRecordsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1774,10 +2103,17 @@ export type OracleFusionHcmListTimeRecordsParams = Omit<Schemas.OracleFusionHcmL
 export type OracleFusionHcmListTimeRecordsResponse = Schemas.OracleFusionHcmListTimeRecordsResponse
 
 export const ORACLE_FUSION_HCM_GET_TIME_RECORD_OUTPUTS = {
-  timeRecord: { type: 'object', description: 'Time Record', properties: ORACLE_FUSION_HCM_TIME_RECORD_OUTPUT_PROPERTIES },
+  timeRecord: {
+    type: 'object',
+    description: 'Time Record',
+    properties: ORACLE_FUSION_HCM_TIME_RECORD_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetTimeRecordParams = Omit<Schemas.OracleFusionHcmGetTimeRecordBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetTimeRecordParams = Omit<
+  Schemas.OracleFusionHcmGetTimeRecordBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1785,11 +2121,18 @@ export type OracleFusionHcmGetTimeRecordParams = Omit<Schemas.OracleFusionHcmGet
 export type OracleFusionHcmGetTimeRecordResponse = Schemas.OracleFusionHcmGetTimeRecordResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_CARDS_OUTPUTS = {
-  timeCards: { type: 'array', description: 'Time Card records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_CARD_OUTPUT_PROPERTIES } },
+  timeCards: {
+    type: 'array',
+    description: 'Time Card records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_CARD_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeCardsParams = Omit<Schemas.OracleFusionHcmListTimeCardsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeCardsParams = Omit<
+  Schemas.OracleFusionHcmListTimeCardsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1797,10 +2140,17 @@ export type OracleFusionHcmListTimeCardsParams = Omit<Schemas.OracleFusionHcmLis
 export type OracleFusionHcmListTimeCardsResponse = Schemas.OracleFusionHcmListTimeCardsResponse
 
 export const ORACLE_FUSION_HCM_GET_TIME_CARD_OUTPUTS = {
-  timeCard: { type: 'object', description: 'Time Card', properties: ORACLE_FUSION_HCM_TIME_CARD_OUTPUT_PROPERTIES },
+  timeCard: {
+    type: 'object',
+    description: 'Time Card',
+    properties: ORACLE_FUSION_HCM_TIME_CARD_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetTimeCardParams = Omit<Schemas.OracleFusionHcmGetTimeCardBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetTimeCardParams = Omit<
+  Schemas.OracleFusionHcmGetTimeCardBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1808,58 +2158,103 @@ export type OracleFusionHcmGetTimeCardParams = Omit<Schemas.OracleFusionHcmGetTi
 export type OracleFusionHcmGetTimeCardResponse = Schemas.OracleFusionHcmGetTimeCardResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTES_OUTPUTS = {
-  timeAttributes: { type: 'array', description: 'Time Attribute records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_OUTPUT_PROPERTIES } },
+  timeAttributes: {
+    type: 'array',
+    description: 'Time Attribute records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeAttributesParams = Omit<Schemas.OracleFusionHcmListTimeAttributesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeAttributesParams = Omit<
+  Schemas.OracleFusionHcmListTimeAttributesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTimeAttributesResponse = Schemas.OracleFusionHcmListTimeAttributesResponse
+export type OracleFusionHcmListTimeAttributesResponse =
+  Schemas.OracleFusionHcmListTimeAttributesResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTE_DATA_SOURCES_OUTPUTS = {
-  timeAttributeDataSources: { type: 'array', description: 'Time Attribute Data Source records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_DATA_SOURCE_OUTPUT_PROPERTIES } },
+  timeAttributeDataSources: {
+    type: 'array',
+    description: 'Time Attribute Data Source records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_DATA_SOURCE_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeAttributeDataSourcesParams = Omit<Schemas.OracleFusionHcmListTimeAttributeDataSourcesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeAttributeDataSourcesParams = Omit<
+  Schemas.OracleFusionHcmListTimeAttributeDataSourcesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTimeAttributeDataSourcesResponse = Schemas.OracleFusionHcmListTimeAttributeDataSourcesResponse
+export type OracleFusionHcmListTimeAttributeDataSourcesResponse =
+  Schemas.OracleFusionHcmListTimeAttributeDataSourcesResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTE_CRITERIA_BINDS_OUTPUTS = {
-  timeAttributeCriteriaBinds: { type: 'array', description: 'Time Attribute Criteria Bind records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_CRITERIA_BIND_OUTPUT_PROPERTIES } },
+  timeAttributeCriteriaBinds: {
+    type: 'array',
+    description: 'Time Attribute Criteria Bind records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_CRITERIA_BIND_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeAttributeCriteriaBindsParams = Omit<Schemas.OracleFusionHcmListTimeAttributeCriteriaBindsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeAttributeCriteriaBindsParams = Omit<
+  Schemas.OracleFusionHcmListTimeAttributeCriteriaBindsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTimeAttributeCriteriaBindsResponse = Schemas.OracleFusionHcmListTimeAttributeCriteriaBindsResponse
+export type OracleFusionHcmListTimeAttributeCriteriaBindsResponse =
+  Schemas.OracleFusionHcmListTimeAttributeCriteriaBindsResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_ATTRIBUTE_VALUES_OUTPUTS = {
-  timeAttributeValues: { type: 'array', description: 'Time Attribute Value records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_VALUE_OUTPUT_PROPERTIES } },
+  timeAttributeValues: {
+    type: 'array',
+    description: 'Time Attribute Value records',
+    items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_ATTRIBUTE_VALUE_OUTPUT_PROPERTIES },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeAttributeValuesParams = Omit<Schemas.OracleFusionHcmListTimeAttributeValuesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeAttributeValuesParams = Omit<
+  Schemas.OracleFusionHcmListTimeAttributeValuesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTimeAttributeValuesResponse = Schemas.OracleFusionHcmListTimeAttributeValuesResponse
+export type OracleFusionHcmListTimeAttributeValuesResponse =
+  Schemas.OracleFusionHcmListTimeAttributeValuesResponse
 
 export const ORACLE_FUSION_HCM_CREATE_TIME_ENTRY_OUTPUTS = {
-  timeRecordRequest: { type: 'object', description: 'Time Record Request', properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES },
+  timeRecordRequest: {
+    type: 'object',
+    description: 'Time Record Request',
+    properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmCreateTimeEntryParams = Omit<Schemas.OracleFusionHcmCreateTimeEntryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmCreateTimeEntryParams = Omit<
+  Schemas.OracleFusionHcmCreateTimeEntryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1867,10 +2262,17 @@ export type OracleFusionHcmCreateTimeEntryParams = Omit<Schemas.OracleFusionHcmC
 export type OracleFusionHcmCreateTimeEntryResponse = Schemas.OracleFusionHcmCreateTimeEntryResponse
 
 export const ORACLE_FUSION_HCM_UPDATE_TIME_ENTRY_OUTPUTS = {
-  timeRecordRequest: { type: 'object', description: 'Time Record Request', properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES },
+  timeRecordRequest: {
+    type: 'object',
+    description: 'Time Record Request',
+    properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmUpdateTimeEntryParams = Omit<Schemas.OracleFusionHcmUpdateTimeEntryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmUpdateTimeEntryParams = Omit<
+  Schemas.OracleFusionHcmUpdateTimeEntryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1878,10 +2280,17 @@ export type OracleFusionHcmUpdateTimeEntryParams = Omit<Schemas.OracleFusionHcmU
 export type OracleFusionHcmUpdateTimeEntryResponse = Schemas.OracleFusionHcmUpdateTimeEntryResponse
 
 export const ORACLE_FUSION_HCM_DELETE_TIME_ENTRY_OUTPUTS = {
-  timeRecordRequest: { type: 'object', description: 'Time Record Request', properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES },
+  timeRecordRequest: {
+    type: 'object',
+    description: 'Time Record Request',
+    properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmDeleteTimeEntryParams = Omit<Schemas.OracleFusionHcmDeleteTimeEntryBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmDeleteTimeEntryParams = Omit<
+  Schemas.OracleFusionHcmDeleteTimeEntryBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
@@ -1889,36 +2298,66 @@ export type OracleFusionHcmDeleteTimeEntryParams = Omit<Schemas.OracleFusionHcmD
 export type OracleFusionHcmDeleteTimeEntryResponse = Schemas.OracleFusionHcmDeleteTimeEntryResponse
 
 export const ORACLE_FUSION_HCM_GET_TIME_RECORD_REQUEST_OUTPUTS = {
-  timeRecordRequest: { type: 'object', description: 'Time Record Request', properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES },
+  timeRecordRequest: {
+    type: 'object',
+    description: 'Time Record Request',
+    properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_OUTPUT_PROPERTIES,
+  },
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmGetTimeRecordRequestParams = Omit<Schemas.OracleFusionHcmGetTimeRecordRequestBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmGetTimeRecordRequestParams = Omit<
+  Schemas.OracleFusionHcmGetTimeRecordRequestBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmGetTimeRecordRequestResponse = Schemas.OracleFusionHcmGetTimeRecordRequestResponse
+export type OracleFusionHcmGetTimeRecordRequestResponse =
+  Schemas.OracleFusionHcmGetTimeRecordRequestResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_RECORD_REQUEST_EVENTS_OUTPUTS = {
-  timeRecordRequestEvents: { type: 'array', description: 'Time Record Request Event records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_EVENT_OUTPUT_PROPERTIES } },
+  timeRecordRequestEvents: {
+    type: 'array',
+    description: 'Time Record Request Event records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_TIME_RECORD_REQUEST_EVENT_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeRecordRequestEventsParams = Omit<Schemas.OracleFusionHcmListTimeRecordRequestEventsBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeRecordRequestEventsParams = Omit<
+  Schemas.OracleFusionHcmListTimeRecordRequestEventsBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTimeRecordRequestEventsResponse = Schemas.OracleFusionHcmListTimeRecordRequestEventsResponse
+export type OracleFusionHcmListTimeRecordRequestEventsResponse =
+  Schemas.OracleFusionHcmListTimeRecordRequestEventsResponse
 
 export const ORACLE_FUSION_HCM_LIST_TIME_RECORD_EVENT_MESSAGES_OUTPUTS = {
-  timeRecordEventMessages: { type: 'array', description: 'Time Record Event Message records', items: { type: 'object', properties: ORACLE_FUSION_HCM_TIME_RECORD_EVENT_MESSAGE_OUTPUT_PROPERTIES } },
+  timeRecordEventMessages: {
+    type: 'array',
+    description: 'Time Record Event Message records',
+    items: {
+      type: 'object',
+      properties: ORACLE_FUSION_HCM_TIME_RECORD_EVENT_MESSAGE_OUTPUT_PROPERTIES,
+    },
+  },
   ...ORACLE_FUSION_HCM_PAGINATION_OUTPUT_PROPERTIES,
 } satisfies Record<string, ToolOutputProperty>
 
-export type OracleFusionHcmListTimeRecordEventMessagesParams = Omit<Schemas.OracleFusionHcmListTimeRecordEventMessagesBodyInput, 'accessToken' | 'instanceUrl'> & {
+export type OracleFusionHcmListTimeRecordEventMessagesParams = Omit<
+  Schemas.OracleFusionHcmListTimeRecordEventMessagesBodyInput,
+  'accessToken' | 'instanceUrl'
+> & {
   oauthCredential: string
   accessToken?: string
   instanceUrl?: string
 }
-export type OracleFusionHcmListTimeRecordEventMessagesResponse = Schemas.OracleFusionHcmListTimeRecordEventMessagesResponse
+export type OracleFusionHcmListTimeRecordEventMessagesResponse =
+  Schemas.OracleFusionHcmListTimeRecordEventMessagesResponse

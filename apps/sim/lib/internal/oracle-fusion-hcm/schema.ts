@@ -1455,58 +1455,93 @@ export const oracleFusionHcmListPayrollDefinitionsResponseSchema = successRespon
   })
 )
 
-export type OracleFusionHcmListPayrollDefinitionsBody = z.output<typeof oracleFusionHcmListPayrollDefinitionsBodySchema>
-export type OracleFusionHcmListPayrollDefinitionsBodyInput = z.input<typeof oracleFusionHcmListPayrollDefinitionsBodySchema>
-export type OracleFusionHcmListPayrollDefinitionsResponse = z.output<typeof oracleFusionHcmListPayrollDefinitionsResponseSchema>
+export type OracleFusionHcmListPayrollDefinitionsBody = z.output<
+  typeof oracleFusionHcmListPayrollDefinitionsBodySchema
+>
+export type OracleFusionHcmListPayrollDefinitionsBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollDefinitionsBodySchema
+>
+export type OracleFusionHcmListPayrollDefinitionsResponse = z.output<
+  typeof oracleFusionHcmListPayrollDefinitionsResponseSchema
+>
 
-export const oracleFusionHcmListPayrollTimePeriodsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  payrollId: oracleFusionHcmDecimalIdSchema,
-  effectiveDate: dateSchema.optional(),
-  search: z.string().trim().min(1).max(200).optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPayrollTimePeriodsBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    payrollId: oracleFusionHcmDecimalIdSchema,
+    effectiveDate: dateSchema.optional(),
+    search: z.string().trim().min(1).max(200).optional(),
+    ...paginationBodyShape,
+  }
+)
 
-export const oracleFusionHcmListPayrollTimePeriodsResponseSchema = successResponse(z.object({
-  payrollTimePeriods: z.array(oracleFusionHcmPayrollTimePeriodSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPayrollTimePeriodsResponseSchema = successResponse(
+  z.object({
+    payrollTimePeriods: z.array(oracleFusionHcmPayrollTimePeriodSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPayrollTimePeriodsBody = z.output<typeof oracleFusionHcmListPayrollTimePeriodsBodySchema>
-export type OracleFusionHcmListPayrollTimePeriodsBodyInput = z.input<typeof oracleFusionHcmListPayrollTimePeriodsBodySchema>
-export type OracleFusionHcmListPayrollTimePeriodsResponse = z.output<typeof oracleFusionHcmListPayrollTimePeriodsResponseSchema>
+export type OracleFusionHcmListPayrollTimePeriodsBody = z.output<
+  typeof oracleFusionHcmListPayrollTimePeriodsBodySchema
+>
+export type OracleFusionHcmListPayrollTimePeriodsBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollTimePeriodsBodySchema
+>
+export type OracleFusionHcmListPayrollTimePeriodsResponse = z.output<
+  typeof oracleFusionHcmListPayrollTimePeriodsResponseSchema
+>
 
-export const oracleFusionHcmListPayrollElementDefinitionsBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  personId: oracleFusionHcmDecimalIdSchema.optional(),
-  legislativeDataGroupId: oracleFusionHcmDecimalIdSchema.optional(),
-  effectiveDate: dateSchema.optional(),
-  search: z.string().trim().min(1).max(200).optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPayrollElementDefinitionsBodySchema =
+  oracleFusionHcmBaseBodySchema.extend({
+    personId: oracleFusionHcmDecimalIdSchema.optional(),
+    legislativeDataGroupId: oracleFusionHcmDecimalIdSchema.optional(),
+    effectiveDate: dateSchema.optional(),
+    search: z.string().trim().min(1).max(200).optional(),
+    ...paginationBodyShape,
+  })
 
-export const oracleFusionHcmListPayrollElementDefinitionsResponseSchema = successResponse(z.object({
-  payrollElementDefinitions: z.array(oracleFusionHcmPayrollElementDefinitionSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPayrollElementDefinitionsResponseSchema = successResponse(
+  z.object({
+    payrollElementDefinitions: z.array(oracleFusionHcmPayrollElementDefinitionSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPayrollElementDefinitionsBody = z.output<typeof oracleFusionHcmListPayrollElementDefinitionsBodySchema>
-export type OracleFusionHcmListPayrollElementDefinitionsBodyInput = z.input<typeof oracleFusionHcmListPayrollElementDefinitionsBodySchema>
-export type OracleFusionHcmListPayrollElementDefinitionsResponse = z.output<typeof oracleFusionHcmListPayrollElementDefinitionsResponseSchema>
+export type OracleFusionHcmListPayrollElementDefinitionsBody = z.output<
+  typeof oracleFusionHcmListPayrollElementDefinitionsBodySchema
+>
+export type OracleFusionHcmListPayrollElementDefinitionsBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollElementDefinitionsBodySchema
+>
+export type OracleFusionHcmListPayrollElementDefinitionsResponse = z.output<
+  typeof oracleFusionHcmListPayrollElementDefinitionsResponseSchema
+>
 
-export const oracleFusionHcmListPayrollInputValuesBodySchema = oracleFusionHcmBaseBodySchema.extend({
-  elementTypeId: oracleFusionHcmDecimalIdSchema,
-  effectiveDate: dateSchema.optional(),
-  search: z.string().trim().min(1).max(200).optional(),
-  ...paginationBodyShape,
-})
+export const oracleFusionHcmListPayrollInputValuesBodySchema = oracleFusionHcmBaseBodySchema.extend(
+  {
+    elementTypeId: oracleFusionHcmDecimalIdSchema,
+    effectiveDate: dateSchema.optional(),
+    search: z.string().trim().min(1).max(200).optional(),
+    ...paginationBodyShape,
+  }
+)
 
-export const oracleFusionHcmListPayrollInputValuesResponseSchema = successResponse(z.object({
-  payrollInputValues: z.array(oracleFusionHcmPayrollInputValueSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPayrollInputValuesResponseSchema = successResponse(
+  z.object({
+    payrollInputValues: z.array(oracleFusionHcmPayrollInputValueSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPayrollInputValuesBody = z.output<typeof oracleFusionHcmListPayrollInputValuesBodySchema>
-export type OracleFusionHcmListPayrollInputValuesBodyInput = z.input<typeof oracleFusionHcmListPayrollInputValuesBodySchema>
-export type OracleFusionHcmListPayrollInputValuesResponse = z.output<typeof oracleFusionHcmListPayrollInputValuesResponseSchema>
+export type OracleFusionHcmListPayrollInputValuesBody = z.output<
+  typeof oracleFusionHcmListPayrollInputValuesBodySchema
+>
+export type OracleFusionHcmListPayrollInputValuesBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollInputValuesBodySchema
+>
+export type OracleFusionHcmListPayrollInputValuesResponse = z.output<
+  typeof oracleFusionHcmListPayrollInputValuesResponseSchema
+>
 
 export const oracleFusionHcmListElementEntriesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personNumber: z.string().trim().min(1).max(30).optional(),
@@ -1517,27 +1552,43 @@ export const oracleFusionHcmListElementEntriesBodySchema = oracleFusionHcmBaseBo
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListElementEntriesResponseSchema = successResponse(z.object({
-  elementEntries: z.array(oracleFusionHcmElementEntrySchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListElementEntriesResponseSchema = successResponse(
+  z.object({
+    elementEntries: z.array(oracleFusionHcmElementEntrySchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListElementEntriesBody = z.output<typeof oracleFusionHcmListElementEntriesBodySchema>
-export type OracleFusionHcmListElementEntriesBodyInput = z.input<typeof oracleFusionHcmListElementEntriesBodySchema>
-export type OracleFusionHcmListElementEntriesResponse = z.output<typeof oracleFusionHcmListElementEntriesResponseSchema>
+export type OracleFusionHcmListElementEntriesBody = z.output<
+  typeof oracleFusionHcmListElementEntriesBodySchema
+>
+export type OracleFusionHcmListElementEntriesBodyInput = z.input<
+  typeof oracleFusionHcmListElementEntriesBodySchema
+>
+export type OracleFusionHcmListElementEntriesResponse = z.output<
+  typeof oracleFusionHcmListElementEntriesResponseSchema
+>
 
 export const oracleFusionHcmGetElementEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   elementEntryId: oracleFusionHcmDecimalIdSchema,
   effectiveDate: dateSchema.optional(),
 })
 
-export const oracleFusionHcmGetElementEntryResponseSchema = successResponse(z.object({
-  elementEntry: oracleFusionHcmElementEntrySchema,
-}))
+export const oracleFusionHcmGetElementEntryResponseSchema = successResponse(
+  z.object({
+    elementEntry: oracleFusionHcmElementEntrySchema,
+  })
+)
 
-export type OracleFusionHcmGetElementEntryBody = z.output<typeof oracleFusionHcmGetElementEntryBodySchema>
-export type OracleFusionHcmGetElementEntryBodyInput = z.input<typeof oracleFusionHcmGetElementEntryBodySchema>
-export type OracleFusionHcmGetElementEntryResponse = z.output<typeof oracleFusionHcmGetElementEntryResponseSchema>
+export type OracleFusionHcmGetElementEntryBody = z.output<
+  typeof oracleFusionHcmGetElementEntryBodySchema
+>
+export type OracleFusionHcmGetElementEntryBodyInput = z.input<
+  typeof oracleFusionHcmGetElementEntryBodySchema
+>
+export type OracleFusionHcmGetElementEntryResponse = z.output<
+  typeof oracleFusionHcmGetElementEntryResponseSchema
+>
 
 export const oracleFusionHcmListElementEntryValuesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   elementEntryId: oracleFusionHcmDecimalIdSchema,
@@ -1545,14 +1596,22 @@ export const oracleFusionHcmListElementEntryValuesBodySchema = oracleFusionHcmBa
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListElementEntryValuesResponseSchema = successResponse(z.object({
-  elementEntryValues: z.array(oracleFusionHcmElementEntryValueSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListElementEntryValuesResponseSchema = successResponse(
+  z.object({
+    elementEntryValues: z.array(oracleFusionHcmElementEntryValueSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListElementEntryValuesBody = z.output<typeof oracleFusionHcmListElementEntryValuesBodySchema>
-export type OracleFusionHcmListElementEntryValuesBodyInput = z.input<typeof oracleFusionHcmListElementEntryValuesBodySchema>
-export type OracleFusionHcmListElementEntryValuesResponse = z.output<typeof oracleFusionHcmListElementEntryValuesResponseSchema>
+export type OracleFusionHcmListElementEntryValuesBody = z.output<
+  typeof oracleFusionHcmListElementEntryValuesBodySchema
+>
+export type OracleFusionHcmListElementEntryValuesBodyInput = z.input<
+  typeof oracleFusionHcmListElementEntryValuesBodySchema
+>
+export type OracleFusionHcmListElementEntryValuesResponse = z.output<
+  typeof oracleFusionHcmListElementEntryValuesResponseSchema
+>
 
 export const oracleFusionHcmCreateElementEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personId: oracleFusionHcmDecimalIdSchema,
@@ -1566,13 +1625,21 @@ export const oracleFusionHcmCreateElementEntryBodySchema = oracleFusionHcmBaseBo
   entryValues: z.array(z.object({ inputValueId: oracleFusionHcmDecimalIdSchema, screenEntryValue: z.string().max(60).nullable() }).strict()).min(1).max(100),
 }).refine((input) => !input.effectiveStartDate || !input.effectiveEndDate || input.effectiveStartDate <= input.effectiveEndDate, 'effectiveEndDate must be on or after effectiveStartDate')
 
-export const oracleFusionHcmCreateElementEntryResponseSchema = successResponse(z.object({
-  elementEntry: oracleFusionHcmElementEntrySchema,
-}))
+export const oracleFusionHcmCreateElementEntryResponseSchema = successResponse(
+  z.object({
+    elementEntry: oracleFusionHcmElementEntrySchema,
+  })
+)
 
-export type OracleFusionHcmCreateElementEntryBody = z.output<typeof oracleFusionHcmCreateElementEntryBodySchema>
-export type OracleFusionHcmCreateElementEntryBodyInput = z.input<typeof oracleFusionHcmCreateElementEntryBodySchema>
-export type OracleFusionHcmCreateElementEntryResponse = z.output<typeof oracleFusionHcmCreateElementEntryResponseSchema>
+export type OracleFusionHcmCreateElementEntryBody = z.output<
+  typeof oracleFusionHcmCreateElementEntryBodySchema
+>
+export type OracleFusionHcmCreateElementEntryBodyInput = z.input<
+  typeof oracleFusionHcmCreateElementEntryBodySchema
+>
+export type OracleFusionHcmCreateElementEntryResponse = z.output<
+  typeof oracleFusionHcmCreateElementEntryResponseSchema
+>
 
 export const oracleFusionHcmUpdateElementEntryValueBodySchema = oracleFusionHcmBaseBodySchema.extend({
   elementEntryId: oracleFusionHcmDecimalIdSchema,
@@ -1582,13 +1649,21 @@ export const oracleFusionHcmUpdateElementEntryValueBodySchema = oracleFusionHcmB
   screenEntryValue: z.string().max(60).nullable(),
 })
 
-export const oracleFusionHcmUpdateElementEntryValueResponseSchema = successResponse(z.object({
-  elementEntryValue: oracleFusionHcmElementEntryValueSchema,
-}))
+export const oracleFusionHcmUpdateElementEntryValueResponseSchema = successResponse(
+  z.object({
+    elementEntryValue: oracleFusionHcmElementEntryValueSchema,
+  })
+)
 
-export type OracleFusionHcmUpdateElementEntryValueBody = z.output<typeof oracleFusionHcmUpdateElementEntryValueBodySchema>
-export type OracleFusionHcmUpdateElementEntryValueBodyInput = z.input<typeof oracleFusionHcmUpdateElementEntryValueBodySchema>
-export type OracleFusionHcmUpdateElementEntryValueResponse = z.output<typeof oracleFusionHcmUpdateElementEntryValueResponseSchema>
+export type OracleFusionHcmUpdateElementEntryValueBody = z.output<
+  typeof oracleFusionHcmUpdateElementEntryValueBodySchema
+>
+export type OracleFusionHcmUpdateElementEntryValueBodyInput = z.input<
+  typeof oracleFusionHcmUpdateElementEntryValueBodySchema
+>
+export type OracleFusionHcmUpdateElementEntryValueResponse = z.output<
+  typeof oracleFusionHcmUpdateElementEntryValueResponseSchema
+>
 
 export const oracleFusionHcmListPersonProcessResultsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personNumber: z.string().trim().min(1).max(30).optional(),
@@ -1600,80 +1675,122 @@ export const oracleFusionHcmListPersonProcessResultsBodySchema = oracleFusionHcm
   ...paginationBodyShape,
 }).refine((input) => !input.startDate || !input.endDate || input.startDate <= input.endDate, 'endDate must be on or after startDate')
 
-export const oracleFusionHcmListPersonProcessResultsResponseSchema = successResponse(z.object({
-  personProcessResults: z.array(oracleFusionHcmPersonProcessResultSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPersonProcessResultsResponseSchema = successResponse(
+  z.object({
+    personProcessResults: z.array(oracleFusionHcmPersonProcessResultSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPersonProcessResultsBody = z.output<typeof oracleFusionHcmListPersonProcessResultsBodySchema>
-export type OracleFusionHcmListPersonProcessResultsBodyInput = z.input<typeof oracleFusionHcmListPersonProcessResultsBodySchema>
-export type OracleFusionHcmListPersonProcessResultsResponse = z.output<typeof oracleFusionHcmListPersonProcessResultsResponseSchema>
+export type OracleFusionHcmListPersonProcessResultsBody = z.output<
+  typeof oracleFusionHcmListPersonProcessResultsBodySchema
+>
+export type OracleFusionHcmListPersonProcessResultsBodyInput = z.input<
+  typeof oracleFusionHcmListPersonProcessResultsBodySchema
+>
+export type OracleFusionHcmListPersonProcessResultsResponse = z.output<
+  typeof oracleFusionHcmListPersonProcessResultsResponseSchema
+>
 
 export const oracleFusionHcmGetPersonProcessResultBodySchema = oracleFusionHcmBaseBodySchema.extend({
   objectActionId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetPersonProcessResultResponseSchema = successResponse(z.object({
-  personProcessResult: oracleFusionHcmPersonProcessResultSchema,
-}))
+export const oracleFusionHcmGetPersonProcessResultResponseSchema = successResponse(
+  z.object({
+    personProcessResult: oracleFusionHcmPersonProcessResultSchema,
+  })
+)
 
-export type OracleFusionHcmGetPersonProcessResultBody = z.output<typeof oracleFusionHcmGetPersonProcessResultBodySchema>
-export type OracleFusionHcmGetPersonProcessResultBodyInput = z.input<typeof oracleFusionHcmGetPersonProcessResultBodySchema>
-export type OracleFusionHcmGetPersonProcessResultResponse = z.output<typeof oracleFusionHcmGetPersonProcessResultResponseSchema>
+export type OracleFusionHcmGetPersonProcessResultBody = z.output<
+  typeof oracleFusionHcmGetPersonProcessResultBodySchema
+>
+export type OracleFusionHcmGetPersonProcessResultBodyInput = z.input<
+  typeof oracleFusionHcmGetPersonProcessResultBodySchema
+>
+export type OracleFusionHcmGetPersonProcessResultResponse = z.output<
+  typeof oracleFusionHcmGetPersonProcessResultResponseSchema
+>
 
 export const oracleFusionHcmListPayrollRunResultsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   objectActionId: oracleFusionHcmDecimalIdSchema,
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListPayrollRunResultsResponseSchema = successResponse(z.object({
-  payrollRunResults: z.array(oracleFusionHcmPayrollRunResultSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPayrollRunResultsResponseSchema = successResponse(
+  z.object({
+    payrollRunResults: z.array(oracleFusionHcmPayrollRunResultSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPayrollRunResultsBody = z.output<typeof oracleFusionHcmListPayrollRunResultsBodySchema>
-export type OracleFusionHcmListPayrollRunResultsBodyInput = z.input<typeof oracleFusionHcmListPayrollRunResultsBodySchema>
-export type OracleFusionHcmListPayrollRunResultsResponse = z.output<typeof oracleFusionHcmListPayrollRunResultsResponseSchema>
+export type OracleFusionHcmListPayrollRunResultsBody = z.output<
+  typeof oracleFusionHcmListPayrollRunResultsBodySchema
+>
+export type OracleFusionHcmListPayrollRunResultsBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollRunResultsBodySchema
+>
+export type OracleFusionHcmListPayrollRunResultsResponse = z.output<
+  typeof oracleFusionHcmListPayrollRunResultsResponseSchema
+>
 
 export const oracleFusionHcmListPayrollBalancesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   objectActionId: oracleFusionHcmDecimalIdSchema,
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListPayrollBalancesResponseSchema = successResponse(z.object({
-  payrollBalances: z.array(oracleFusionHcmPayrollBalanceSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPayrollBalancesResponseSchema = successResponse(
+  z.object({
+    payrollBalances: z.array(oracleFusionHcmPayrollBalanceSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPayrollBalancesBody = z.output<typeof oracleFusionHcmListPayrollBalancesBodySchema>
-export type OracleFusionHcmListPayrollBalancesBodyInput = z.input<typeof oracleFusionHcmListPayrollBalancesBodySchema>
-export type OracleFusionHcmListPayrollBalancesResponse = z.output<typeof oracleFusionHcmListPayrollBalancesResponseSchema>
+export type OracleFusionHcmListPayrollBalancesBody = z.output<
+  typeof oracleFusionHcmListPayrollBalancesBodySchema
+>
+export type OracleFusionHcmListPayrollBalancesBodyInput = z.input<
+  typeof oracleFusionHcmListPayrollBalancesBodySchema
+>
+export type OracleFusionHcmListPayrollBalancesResponse = z.output<
+  typeof oracleFusionHcmListPayrollBalancesResponseSchema
+>
 
 export const oracleFusionHcmListSalariesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   assignmentId: oracleFusionHcmDecimalIdSchema,
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListSalariesResponseSchema = successResponse(z.object({
-  salaries: z.array(oracleFusionHcmSalarySchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListSalariesResponseSchema = successResponse(
+  z.object({
+    salaries: z.array(oracleFusionHcmSalarySchema),
+    ...paginationResponseShape,
+  })
+)
 
 export type OracleFusionHcmListSalariesBody = z.output<typeof oracleFusionHcmListSalariesBodySchema>
-export type OracleFusionHcmListSalariesBodyInput = z.input<typeof oracleFusionHcmListSalariesBodySchema>
-export type OracleFusionHcmListSalariesResponse = z.output<typeof oracleFusionHcmListSalariesResponseSchema>
+export type OracleFusionHcmListSalariesBodyInput = z.input<
+  typeof oracleFusionHcmListSalariesBodySchema
+>
+export type OracleFusionHcmListSalariesResponse = z.output<
+  typeof oracleFusionHcmListSalariesResponseSchema
+>
 
 export const oracleFusionHcmGetSalaryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   salaryId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetSalaryResponseSchema = successResponse(z.object({
-  salary: oracleFusionHcmSalarySchema,
-}))
+export const oracleFusionHcmGetSalaryResponseSchema = successResponse(
+  z.object({
+    salary: oracleFusionHcmSalarySchema,
+  })
+)
 
 export type OracleFusionHcmGetSalaryBody = z.output<typeof oracleFusionHcmGetSalaryBodySchema>
 export type OracleFusionHcmGetSalaryBodyInput = z.input<typeof oracleFusionHcmGetSalaryBodySchema>
-export type OracleFusionHcmGetSalaryResponse = z.output<typeof oracleFusionHcmGetSalaryResponseSchema>
+export type OracleFusionHcmGetSalaryResponse = z.output<
+  typeof oracleFusionHcmGetSalaryResponseSchema
+>
 
 export const oracleFusionHcmCreateSalaryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   assignmentId: oracleFusionHcmDecimalIdSchema,
@@ -1683,26 +1800,40 @@ export const oracleFusionHcmCreateSalaryBodySchema = oracleFusionHcmBaseBodySche
   dateTo: dateSchema,
 }).refine((input) => !input.dateFrom || !input.dateTo || input.dateFrom <= input.dateTo, 'dateTo must be on or after dateFrom')
 
-export const oracleFusionHcmCreateSalaryResponseSchema = successResponse(z.object({
-  salary: oracleFusionHcmSalarySchema,
-}))
+export const oracleFusionHcmCreateSalaryResponseSchema = successResponse(
+  z.object({
+    salary: oracleFusionHcmSalarySchema,
+  })
+)
 
 export type OracleFusionHcmCreateSalaryBody = z.output<typeof oracleFusionHcmCreateSalaryBodySchema>
-export type OracleFusionHcmCreateSalaryBodyInput = z.input<typeof oracleFusionHcmCreateSalaryBodySchema>
-export type OracleFusionHcmCreateSalaryResponse = z.output<typeof oracleFusionHcmCreateSalaryResponseSchema>
+export type OracleFusionHcmCreateSalaryBodyInput = z.input<
+  typeof oracleFusionHcmCreateSalaryBodySchema
+>
+export type OracleFusionHcmCreateSalaryResponse = z.output<
+  typeof oracleFusionHcmCreateSalaryResponseSchema
+>
 
 export const oracleFusionHcmCorrectSalaryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   salaryId: oracleFusionHcmDecimalIdSchema,
   salaryAmount: z.number().finite().nonnegative(),
 })
 
-export const oracleFusionHcmCorrectSalaryResponseSchema = successResponse(z.object({
-  salary: oracleFusionHcmSalarySchema,
-}))
+export const oracleFusionHcmCorrectSalaryResponseSchema = successResponse(
+  z.object({
+    salary: oracleFusionHcmSalarySchema,
+  })
+)
 
-export type OracleFusionHcmCorrectSalaryBody = z.output<typeof oracleFusionHcmCorrectSalaryBodySchema>
-export type OracleFusionHcmCorrectSalaryBodyInput = z.input<typeof oracleFusionHcmCorrectSalaryBodySchema>
-export type OracleFusionHcmCorrectSalaryResponse = z.output<typeof oracleFusionHcmCorrectSalaryResponseSchema>
+export type OracleFusionHcmCorrectSalaryBody = z.output<
+  typeof oracleFusionHcmCorrectSalaryBodySchema
+>
+export type OracleFusionHcmCorrectSalaryBodyInput = z.input<
+  typeof oracleFusionHcmCorrectSalaryBodySchema
+>
+export type OracleFusionHcmCorrectSalaryResponse = z.output<
+  typeof oracleFusionHcmCorrectSalaryResponseSchema
+>
 
 export const oracleFusionHcmListSalaryBasesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   legislativeDataGroupId: oracleFusionHcmDecimalIdSchema.optional(),
@@ -1711,14 +1842,22 @@ export const oracleFusionHcmListSalaryBasesBodySchema = oracleFusionHcmBaseBodyS
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListSalaryBasesResponseSchema = successResponse(z.object({
-  salaryBases: z.array(oracleFusionHcmSalaryBasisSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListSalaryBasesResponseSchema = successResponse(
+  z.object({
+    salaryBases: z.array(oracleFusionHcmSalaryBasisSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListSalaryBasesBody = z.output<typeof oracleFusionHcmListSalaryBasesBodySchema>
-export type OracleFusionHcmListSalaryBasesBodyInput = z.input<typeof oracleFusionHcmListSalaryBasesBodySchema>
-export type OracleFusionHcmListSalaryBasesResponse = z.output<typeof oracleFusionHcmListSalaryBasesResponseSchema>
+export type OracleFusionHcmListSalaryBasesBody = z.output<
+  typeof oracleFusionHcmListSalaryBasesBodySchema
+>
+export type OracleFusionHcmListSalaryBasesBodyInput = z.input<
+  typeof oracleFusionHcmListSalaryBasesBodySchema
+>
+export type OracleFusionHcmListSalaryBasesResponse = z.output<
+  typeof oracleFusionHcmListSalaryBasesResponseSchema
+>
 
 export const oracleFusionHcmListSalaryComponentsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   salaryId: oracleFusionHcmDecimalIdSchema,
@@ -1726,17 +1865,25 @@ export const oracleFusionHcmListSalaryComponentsBodySchema = oracleFusionHcmBase
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListSalaryComponentsResponseSchema = successResponse(z.object({
-  componentKind: z.enum(['standard', 'simple', 'rate']),
-  standardComponents: z.array(oracleFusionHcmStandardSalaryComponentSchema),
-  simpleComponents: z.array(oracleFusionHcmSimpleSalaryComponentSchema),
-  rateComponents: z.array(oracleFusionHcmRateSalaryComponentSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListSalaryComponentsResponseSchema = successResponse(
+  z.object({
+    componentKind: z.enum(['standard', 'simple', 'rate']),
+    standardComponents: z.array(oracleFusionHcmStandardSalaryComponentSchema),
+    simpleComponents: z.array(oracleFusionHcmSimpleSalaryComponentSchema),
+    rateComponents: z.array(oracleFusionHcmRateSalaryComponentSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListSalaryComponentsBody = z.output<typeof oracleFusionHcmListSalaryComponentsBodySchema>
-export type OracleFusionHcmListSalaryComponentsBodyInput = z.input<typeof oracleFusionHcmListSalaryComponentsBodySchema>
-export type OracleFusionHcmListSalaryComponentsResponse = z.output<typeof oracleFusionHcmListSalaryComponentsResponseSchema>
+export type OracleFusionHcmListSalaryComponentsBody = z.output<
+  typeof oracleFusionHcmListSalaryComponentsBodySchema
+>
+export type OracleFusionHcmListSalaryComponentsBodyInput = z.input<
+  typeof oracleFusionHcmListSalaryComponentsBodySchema
+>
+export type OracleFusionHcmListSalaryComponentsResponse = z.output<
+  typeof oracleFusionHcmListSalaryComponentsResponseSchema
+>
 
 export const oracleFusionHcmListGradeRateValuesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   gradeRateId: oracleFusionHcmDecimalIdSchema,
@@ -1744,14 +1891,22 @@ export const oracleFusionHcmListGradeRateValuesBodySchema = oracleFusionHcmBaseB
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListGradeRateValuesResponseSchema = successResponse(z.object({
-  gradeRateValues: z.array(oracleFusionHcmGradeRateValueSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListGradeRateValuesResponseSchema = successResponse(
+  z.object({
+    gradeRateValues: z.array(oracleFusionHcmGradeRateValueSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListGradeRateValuesBody = z.output<typeof oracleFusionHcmListGradeRateValuesBodySchema>
-export type OracleFusionHcmListGradeRateValuesBodyInput = z.input<typeof oracleFusionHcmListGradeRateValuesBodySchema>
-export type OracleFusionHcmListGradeRateValuesResponse = z.output<typeof oracleFusionHcmListGradeRateValuesResponseSchema>
+export type OracleFusionHcmListGradeRateValuesBody = z.output<
+  typeof oracleFusionHcmListGradeRateValuesBodySchema
+>
+export type OracleFusionHcmListGradeRateValuesBodyInput = z.input<
+  typeof oracleFusionHcmListGradeRateValuesBodySchema
+>
+export type OracleFusionHcmListGradeRateValuesResponse = z.output<
+  typeof oracleFusionHcmListGradeRateValuesResponseSchema
+>
 
 export const oracleFusionHcmListGoalPlansBodySchema = oracleFusionHcmBaseBodySchema.extend({
   reviewPeriodId: oracleFusionHcmDecimalIdSchema.optional(),
@@ -1759,26 +1914,40 @@ export const oracleFusionHcmListGoalPlansBodySchema = oracleFusionHcmBaseBodySch
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListGoalPlansResponseSchema = successResponse(z.object({
-  goalPlans: z.array(oracleFusionHcmGoalPlanSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListGoalPlansResponseSchema = successResponse(
+  z.object({
+    goalPlans: z.array(oracleFusionHcmGoalPlanSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListGoalPlansBody = z.output<typeof oracleFusionHcmListGoalPlansBodySchema>
-export type OracleFusionHcmListGoalPlansBodyInput = z.input<typeof oracleFusionHcmListGoalPlansBodySchema>
-export type OracleFusionHcmListGoalPlansResponse = z.output<typeof oracleFusionHcmListGoalPlansResponseSchema>
+export type OracleFusionHcmListGoalPlansBody = z.output<
+  typeof oracleFusionHcmListGoalPlansBodySchema
+>
+export type OracleFusionHcmListGoalPlansBodyInput = z.input<
+  typeof oracleFusionHcmListGoalPlansBodySchema
+>
+export type OracleFusionHcmListGoalPlansResponse = z.output<
+  typeof oracleFusionHcmListGoalPlansResponseSchema
+>
 
 export const oracleFusionHcmGetGoalPlanBodySchema = oracleFusionHcmBaseBodySchema.extend({
   goalPlanId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetGoalPlanResponseSchema = successResponse(z.object({
-  goalPlan: oracleFusionHcmGoalPlanSchema,
-}))
+export const oracleFusionHcmGetGoalPlanResponseSchema = successResponse(
+  z.object({
+    goalPlan: oracleFusionHcmGoalPlanSchema,
+  })
+)
 
 export type OracleFusionHcmGetGoalPlanBody = z.output<typeof oracleFusionHcmGetGoalPlanBodySchema>
-export type OracleFusionHcmGetGoalPlanBodyInput = z.input<typeof oracleFusionHcmGetGoalPlanBodySchema>
-export type OracleFusionHcmGetGoalPlanResponse = z.output<typeof oracleFusionHcmGetGoalPlanResponseSchema>
+export type OracleFusionHcmGetGoalPlanBodyInput = z.input<
+  typeof oracleFusionHcmGetGoalPlanBodySchema
+>
+export type OracleFusionHcmGetGoalPlanResponse = z.output<
+  typeof oracleFusionHcmGetGoalPlanResponseSchema
+>
 
 export const oracleFusionHcmListPerformanceGoalsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personId: oracleFusionHcmDecimalIdSchema.optional(),
@@ -1787,52 +1956,84 @@ export const oracleFusionHcmListPerformanceGoalsBodySchema = oracleFusionHcmBase
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListPerformanceGoalsResponseSchema = successResponse(z.object({
-  performanceGoals: z.array(oracleFusionHcmPerformanceGoalSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPerformanceGoalsResponseSchema = successResponse(
+  z.object({
+    performanceGoals: z.array(oracleFusionHcmPerformanceGoalSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPerformanceGoalsBody = z.output<typeof oracleFusionHcmListPerformanceGoalsBodySchema>
-export type OracleFusionHcmListPerformanceGoalsBodyInput = z.input<typeof oracleFusionHcmListPerformanceGoalsBodySchema>
-export type OracleFusionHcmListPerformanceGoalsResponse = z.output<typeof oracleFusionHcmListPerformanceGoalsResponseSchema>
+export type OracleFusionHcmListPerformanceGoalsBody = z.output<
+  typeof oracleFusionHcmListPerformanceGoalsBodySchema
+>
+export type OracleFusionHcmListPerformanceGoalsBodyInput = z.input<
+  typeof oracleFusionHcmListPerformanceGoalsBodySchema
+>
+export type OracleFusionHcmListPerformanceGoalsResponse = z.output<
+  typeof oracleFusionHcmListPerformanceGoalsResponseSchema
+>
 
 export const oracleFusionHcmGetPerformanceGoalBodySchema = oracleFusionHcmBaseBodySchema.extend({
   goalId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetPerformanceGoalResponseSchema = successResponse(z.object({
-  performanceGoal: oracleFusionHcmPerformanceGoalSchema,
-}))
+export const oracleFusionHcmGetPerformanceGoalResponseSchema = successResponse(
+  z.object({
+    performanceGoal: oracleFusionHcmPerformanceGoalSchema,
+  })
+)
 
-export type OracleFusionHcmGetPerformanceGoalBody = z.output<typeof oracleFusionHcmGetPerformanceGoalBodySchema>
-export type OracleFusionHcmGetPerformanceGoalBodyInput = z.input<typeof oracleFusionHcmGetPerformanceGoalBodySchema>
-export type OracleFusionHcmGetPerformanceGoalResponse = z.output<typeof oracleFusionHcmGetPerformanceGoalResponseSchema>
+export type OracleFusionHcmGetPerformanceGoalBody = z.output<
+  typeof oracleFusionHcmGetPerformanceGoalBodySchema
+>
+export type OracleFusionHcmGetPerformanceGoalBodyInput = z.input<
+  typeof oracleFusionHcmGetPerformanceGoalBodySchema
+>
+export type OracleFusionHcmGetPerformanceGoalResponse = z.output<
+  typeof oracleFusionHcmGetPerformanceGoalResponseSchema
+>
 
 export const oracleFusionHcmListDevelopmentGoalsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personId: oracleFusionHcmDecimalIdSchema,
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListDevelopmentGoalsResponseSchema = successResponse(z.object({
-  developmentGoals: z.array(oracleFusionHcmDevelopmentGoalSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListDevelopmentGoalsResponseSchema = successResponse(
+  z.object({
+    developmentGoals: z.array(oracleFusionHcmDevelopmentGoalSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListDevelopmentGoalsBody = z.output<typeof oracleFusionHcmListDevelopmentGoalsBodySchema>
-export type OracleFusionHcmListDevelopmentGoalsBodyInput = z.input<typeof oracleFusionHcmListDevelopmentGoalsBodySchema>
-export type OracleFusionHcmListDevelopmentGoalsResponse = z.output<typeof oracleFusionHcmListDevelopmentGoalsResponseSchema>
+export type OracleFusionHcmListDevelopmentGoalsBody = z.output<
+  typeof oracleFusionHcmListDevelopmentGoalsBodySchema
+>
+export type OracleFusionHcmListDevelopmentGoalsBodyInput = z.input<
+  typeof oracleFusionHcmListDevelopmentGoalsBodySchema
+>
+export type OracleFusionHcmListDevelopmentGoalsResponse = z.output<
+  typeof oracleFusionHcmListDevelopmentGoalsResponseSchema
+>
 
 export const oracleFusionHcmGetDevelopmentGoalBodySchema = oracleFusionHcmBaseBodySchema.extend({
   goalId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetDevelopmentGoalResponseSchema = successResponse(z.object({
-  developmentGoal: oracleFusionHcmDevelopmentGoalSchema,
-}))
+export const oracleFusionHcmGetDevelopmentGoalResponseSchema = successResponse(
+  z.object({
+    developmentGoal: oracleFusionHcmDevelopmentGoalSchema,
+  })
+)
 
-export type OracleFusionHcmGetDevelopmentGoalBody = z.output<typeof oracleFusionHcmGetDevelopmentGoalBodySchema>
-export type OracleFusionHcmGetDevelopmentGoalBodyInput = z.input<typeof oracleFusionHcmGetDevelopmentGoalBodySchema>
-export type OracleFusionHcmGetDevelopmentGoalResponse = z.output<typeof oracleFusionHcmGetDevelopmentGoalResponseSchema>
+export type OracleFusionHcmGetDevelopmentGoalBody = z.output<
+  typeof oracleFusionHcmGetDevelopmentGoalBodySchema
+>
+export type OracleFusionHcmGetDevelopmentGoalBodyInput = z.input<
+  typeof oracleFusionHcmGetDevelopmentGoalBodySchema
+>
+export type OracleFusionHcmGetDevelopmentGoalResponse = z.output<
+  typeof oracleFusionHcmGetDevelopmentGoalResponseSchema
+>
 
 export const oracleFusionHcmListPerformanceDocumentsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personId: oracleFusionHcmDecimalIdSchema.optional(),
@@ -1841,40 +2042,64 @@ export const oracleFusionHcmListPerformanceDocumentsBodySchema = oracleFusionHcm
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListPerformanceDocumentsResponseSchema = successResponse(z.object({
-  performanceDocuments: z.array(oracleFusionHcmPerformanceDocumentSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPerformanceDocumentsResponseSchema = successResponse(
+  z.object({
+    performanceDocuments: z.array(oracleFusionHcmPerformanceDocumentSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPerformanceDocumentsBody = z.output<typeof oracleFusionHcmListPerformanceDocumentsBodySchema>
-export type OracleFusionHcmListPerformanceDocumentsBodyInput = z.input<typeof oracleFusionHcmListPerformanceDocumentsBodySchema>
-export type OracleFusionHcmListPerformanceDocumentsResponse = z.output<typeof oracleFusionHcmListPerformanceDocumentsResponseSchema>
+export type OracleFusionHcmListPerformanceDocumentsBody = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentsBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentsBodyInput = z.input<
+  typeof oracleFusionHcmListPerformanceDocumentsBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentsResponse = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentsResponseSchema
+>
 
 export const oracleFusionHcmGetPerformanceDocumentBodySchema = oracleFusionHcmBaseBodySchema.extend({
   evaluationId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetPerformanceDocumentResponseSchema = successResponse(z.object({
-  performanceDocument: oracleFusionHcmPerformanceDocumentSchema,
-}))
+export const oracleFusionHcmGetPerformanceDocumentResponseSchema = successResponse(
+  z.object({
+    performanceDocument: oracleFusionHcmPerformanceDocumentSchema,
+  })
+)
 
-export type OracleFusionHcmGetPerformanceDocumentBody = z.output<typeof oracleFusionHcmGetPerformanceDocumentBodySchema>
-export type OracleFusionHcmGetPerformanceDocumentBodyInput = z.input<typeof oracleFusionHcmGetPerformanceDocumentBodySchema>
-export type OracleFusionHcmGetPerformanceDocumentResponse = z.output<typeof oracleFusionHcmGetPerformanceDocumentResponseSchema>
+export type OracleFusionHcmGetPerformanceDocumentBody = z.output<
+  typeof oracleFusionHcmGetPerformanceDocumentBodySchema
+>
+export type OracleFusionHcmGetPerformanceDocumentBodyInput = z.input<
+  typeof oracleFusionHcmGetPerformanceDocumentBodySchema
+>
+export type OracleFusionHcmGetPerformanceDocumentResponse = z.output<
+  typeof oracleFusionHcmGetPerformanceDocumentResponseSchema
+>
 
 export const oracleFusionHcmListPerformanceDocumentRolesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   evaluationId: oracleFusionHcmDecimalIdSchema,
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListPerformanceDocumentRolesResponseSchema = successResponse(z.object({
-  performanceDocumentRoles: z.array(oracleFusionHcmPerformanceDocumentRoleSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPerformanceDocumentRolesResponseSchema = successResponse(
+  z.object({
+    performanceDocumentRoles: z.array(oracleFusionHcmPerformanceDocumentRoleSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPerformanceDocumentRolesBody = z.output<typeof oracleFusionHcmListPerformanceDocumentRolesBodySchema>
-export type OracleFusionHcmListPerformanceDocumentRolesBodyInput = z.input<typeof oracleFusionHcmListPerformanceDocumentRolesBodySchema>
-export type OracleFusionHcmListPerformanceDocumentRolesResponse = z.output<typeof oracleFusionHcmListPerformanceDocumentRolesResponseSchema>
+export type OracleFusionHcmListPerformanceDocumentRolesBody = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentRolesBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentRolesBodyInput = z.input<
+  typeof oracleFusionHcmListPerformanceDocumentRolesBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentRolesResponse = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentRolesResponseSchema
+>
 
 export const oracleFusionHcmListPerformanceDocumentParticipantsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   evaluationId: oracleFusionHcmDecimalIdSchema,
@@ -1882,14 +2107,22 @@ export const oracleFusionHcmListPerformanceDocumentParticipantsBodySchema = orac
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListPerformanceDocumentParticipantsResponseSchema = successResponse(z.object({
-  performanceDocumentParticipants: z.array(oracleFusionHcmPerformanceDocumentParticipantSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPerformanceDocumentParticipantsResponseSchema = successResponse(
+  z.object({
+    performanceDocumentParticipants: z.array(oracleFusionHcmPerformanceDocumentParticipantSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPerformanceDocumentParticipantsBody = z.output<typeof oracleFusionHcmListPerformanceDocumentParticipantsBodySchema>
-export type OracleFusionHcmListPerformanceDocumentParticipantsBodyInput = z.input<typeof oracleFusionHcmListPerformanceDocumentParticipantsBodySchema>
-export type OracleFusionHcmListPerformanceDocumentParticipantsResponse = z.output<typeof oracleFusionHcmListPerformanceDocumentParticipantsResponseSchema>
+export type OracleFusionHcmListPerformanceDocumentParticipantsBody = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentParticipantsBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentParticipantsBodyInput = z.input<
+  typeof oracleFusionHcmListPerformanceDocumentParticipantsBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentParticipantsResponse = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentParticipantsResponseSchema
+>
 
 export const oracleFusionHcmListPerformanceDocumentTasksBodySchema = oracleFusionHcmBaseBodySchema.extend({
   evaluationId: oracleFusionHcmDecimalIdSchema,
@@ -1898,14 +2131,22 @@ export const oracleFusionHcmListPerformanceDocumentTasksBodySchema = oracleFusio
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListPerformanceDocumentTasksResponseSchema = successResponse(z.object({
-  performanceDocumentTasks: z.array(oracleFusionHcmPerformanceDocumentTaskSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListPerformanceDocumentTasksResponseSchema = successResponse(
+  z.object({
+    performanceDocumentTasks: z.array(oracleFusionHcmPerformanceDocumentTaskSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListPerformanceDocumentTasksBody = z.output<typeof oracleFusionHcmListPerformanceDocumentTasksBodySchema>
-export type OracleFusionHcmListPerformanceDocumentTasksBodyInput = z.input<typeof oracleFusionHcmListPerformanceDocumentTasksBodySchema>
-export type OracleFusionHcmListPerformanceDocumentTasksResponse = z.output<typeof oracleFusionHcmListPerformanceDocumentTasksResponseSchema>
+export type OracleFusionHcmListPerformanceDocumentTasksBody = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentTasksBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentTasksBodyInput = z.input<
+  typeof oracleFusionHcmListPerformanceDocumentTasksBodySchema
+>
+export type OracleFusionHcmListPerformanceDocumentTasksResponse = z.output<
+  typeof oracleFusionHcmListPerformanceDocumentTasksResponseSchema
+>
 
 export const oracleFusionHcmListTalentProfilesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personId: oracleFusionHcmDecimalIdSchema.optional(),
@@ -1913,26 +2154,42 @@ export const oracleFusionHcmListTalentProfilesBodySchema = oracleFusionHcmBaseBo
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTalentProfilesResponseSchema = successResponse(z.object({
-  talentProfiles: z.array(oracleFusionHcmTalentProfileSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTalentProfilesResponseSchema = successResponse(
+  z.object({
+    talentProfiles: z.array(oracleFusionHcmTalentProfileSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTalentProfilesBody = z.output<typeof oracleFusionHcmListTalentProfilesBodySchema>
-export type OracleFusionHcmListTalentProfilesBodyInput = z.input<typeof oracleFusionHcmListTalentProfilesBodySchema>
-export type OracleFusionHcmListTalentProfilesResponse = z.output<typeof oracleFusionHcmListTalentProfilesResponseSchema>
+export type OracleFusionHcmListTalentProfilesBody = z.output<
+  typeof oracleFusionHcmListTalentProfilesBodySchema
+>
+export type OracleFusionHcmListTalentProfilesBodyInput = z.input<
+  typeof oracleFusionHcmListTalentProfilesBodySchema
+>
+export type OracleFusionHcmListTalentProfilesResponse = z.output<
+  typeof oracleFusionHcmListTalentProfilesResponseSchema
+>
 
 export const oracleFusionHcmGetTalentProfileBodySchema = oracleFusionHcmBaseBodySchema.extend({
   profileId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetTalentProfileResponseSchema = successResponse(z.object({
-  talentProfile: oracleFusionHcmTalentProfileSchema,
-}))
+export const oracleFusionHcmGetTalentProfileResponseSchema = successResponse(
+  z.object({
+    talentProfile: oracleFusionHcmTalentProfileSchema,
+  })
+)
 
-export type OracleFusionHcmGetTalentProfileBody = z.output<typeof oracleFusionHcmGetTalentProfileBodySchema>
-export type OracleFusionHcmGetTalentProfileBodyInput = z.input<typeof oracleFusionHcmGetTalentProfileBodySchema>
-export type OracleFusionHcmGetTalentProfileResponse = z.output<typeof oracleFusionHcmGetTalentProfileResponseSchema>
+export type OracleFusionHcmGetTalentProfileBody = z.output<
+  typeof oracleFusionHcmGetTalentProfileBodySchema
+>
+export type OracleFusionHcmGetTalentProfileBodyInput = z.input<
+  typeof oracleFusionHcmGetTalentProfileBodySchema
+>
+export type OracleFusionHcmGetTalentProfileResponse = z.output<
+  typeof oracleFusionHcmGetTalentProfileResponseSchema
+>
 
 export const oracleFusionHcmListTalentProfileSectionsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   profileId: oracleFusionHcmDecimalIdSchema,
@@ -1940,14 +2197,22 @@ export const oracleFusionHcmListTalentProfileSectionsBodySchema = oracleFusionHc
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTalentProfileSectionsResponseSchema = successResponse(z.object({
-  talentProfileSections: z.array(oracleFusionHcmTalentProfileSectionSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTalentProfileSectionsResponseSchema = successResponse(
+  z.object({
+    talentProfileSections: z.array(oracleFusionHcmTalentProfileSectionSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTalentProfileSectionsBody = z.output<typeof oracleFusionHcmListTalentProfileSectionsBodySchema>
-export type OracleFusionHcmListTalentProfileSectionsBodyInput = z.input<typeof oracleFusionHcmListTalentProfileSectionsBodySchema>
-export type OracleFusionHcmListTalentProfileSectionsResponse = z.output<typeof oracleFusionHcmListTalentProfileSectionsResponseSchema>
+export type OracleFusionHcmListTalentProfileSectionsBody = z.output<
+  typeof oracleFusionHcmListTalentProfileSectionsBodySchema
+>
+export type OracleFusionHcmListTalentProfileSectionsBodyInput = z.input<
+  typeof oracleFusionHcmListTalentProfileSectionsBodySchema
+>
+export type OracleFusionHcmListTalentProfileSectionsResponse = z.output<
+  typeof oracleFusionHcmListTalentProfileSectionsResponseSchema
+>
 
 export const oracleFusionHcmListTalentProfileSkillsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   profileId: oracleFusionHcmDecimalIdSchema,
@@ -1955,14 +2220,22 @@ export const oracleFusionHcmListTalentProfileSkillsBodySchema = oracleFusionHcmB
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTalentProfileSkillsResponseSchema = successResponse(z.object({
-  talentProfileSkills: z.array(oracleFusionHcmTalentProfileSkillSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTalentProfileSkillsResponseSchema = successResponse(
+  z.object({
+    talentProfileSkills: z.array(oracleFusionHcmTalentProfileSkillSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTalentProfileSkillsBody = z.output<typeof oracleFusionHcmListTalentProfileSkillsBodySchema>
-export type OracleFusionHcmListTalentProfileSkillsBodyInput = z.input<typeof oracleFusionHcmListTalentProfileSkillsBodySchema>
-export type OracleFusionHcmListTalentProfileSkillsResponse = z.output<typeof oracleFusionHcmListTalentProfileSkillsResponseSchema>
+export type OracleFusionHcmListTalentProfileSkillsBody = z.output<
+  typeof oracleFusionHcmListTalentProfileSkillsBodySchema
+>
+export type OracleFusionHcmListTalentProfileSkillsBodyInput = z.input<
+  typeof oracleFusionHcmListTalentProfileSkillsBodySchema
+>
+export type OracleFusionHcmListTalentProfileSkillsResponse = z.output<
+  typeof oracleFusionHcmListTalentProfileSkillsResponseSchema
+>
 
 export const oracleFusionHcmListTalentProfileCertificationsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   profileId: oracleFusionHcmDecimalIdSchema,
@@ -1970,14 +2243,22 @@ export const oracleFusionHcmListTalentProfileCertificationsBodySchema = oracleFu
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTalentProfileCertificationsResponseSchema = successResponse(z.object({
-  talentProfileCertifications: z.array(oracleFusionHcmTalentProfileCertificationSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTalentProfileCertificationsResponseSchema = successResponse(
+  z.object({
+    talentProfileCertifications: z.array(oracleFusionHcmTalentProfileCertificationSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTalentProfileCertificationsBody = z.output<typeof oracleFusionHcmListTalentProfileCertificationsBodySchema>
-export type OracleFusionHcmListTalentProfileCertificationsBodyInput = z.input<typeof oracleFusionHcmListTalentProfileCertificationsBodySchema>
-export type OracleFusionHcmListTalentProfileCertificationsResponse = z.output<typeof oracleFusionHcmListTalentProfileCertificationsResponseSchema>
+export type OracleFusionHcmListTalentProfileCertificationsBody = z.output<
+  typeof oracleFusionHcmListTalentProfileCertificationsBodySchema
+>
+export type OracleFusionHcmListTalentProfileCertificationsBodyInput = z.input<
+  typeof oracleFusionHcmListTalentProfileCertificationsBodySchema
+>
+export type OracleFusionHcmListTalentProfileCertificationsResponse = z.output<
+  typeof oracleFusionHcmListTalentProfileCertificationsResponseSchema
+>
 
 export const oracleFusionHcmListTimeRecordsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personNumber: z.string().trim().min(1).max(30),
@@ -1986,26 +2267,42 @@ export const oracleFusionHcmListTimeRecordsBodySchema = oracleFusionHcmBaseBodyS
   ...paginationBodyShape,
 }).refine((input) => finderValueSchema.safeParse(input.personNumber).success, 'Person number cannot contain finder separators').refine((input) => Date.parse(input.startTime) < Date.parse(input.stopTime), 'stopTime must be after startTime')
 
-export const oracleFusionHcmListTimeRecordsResponseSchema = successResponse(z.object({
-  timeRecords: z.array(oracleFusionHcmTimeRecordSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeRecordsResponseSchema = successResponse(
+  z.object({
+    timeRecords: z.array(oracleFusionHcmTimeRecordSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeRecordsBody = z.output<typeof oracleFusionHcmListTimeRecordsBodySchema>
-export type OracleFusionHcmListTimeRecordsBodyInput = z.input<typeof oracleFusionHcmListTimeRecordsBodySchema>
-export type OracleFusionHcmListTimeRecordsResponse = z.output<typeof oracleFusionHcmListTimeRecordsResponseSchema>
+export type OracleFusionHcmListTimeRecordsBody = z.output<
+  typeof oracleFusionHcmListTimeRecordsBodySchema
+>
+export type OracleFusionHcmListTimeRecordsBodyInput = z.input<
+  typeof oracleFusionHcmListTimeRecordsBodySchema
+>
+export type OracleFusionHcmListTimeRecordsResponse = z.output<
+  typeof oracleFusionHcmListTimeRecordsResponseSchema
+>
 
 export const oracleFusionHcmGetTimeRecordBodySchema = oracleFusionHcmBaseBodySchema.extend({
   timeRecordId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetTimeRecordResponseSchema = successResponse(z.object({
-  timeRecord: oracleFusionHcmTimeRecordSchema,
-}))
+export const oracleFusionHcmGetTimeRecordResponseSchema = successResponse(
+  z.object({
+    timeRecord: oracleFusionHcmTimeRecordSchema,
+  })
+)
 
-export type OracleFusionHcmGetTimeRecordBody = z.output<typeof oracleFusionHcmGetTimeRecordBodySchema>
-export type OracleFusionHcmGetTimeRecordBodyInput = z.input<typeof oracleFusionHcmGetTimeRecordBodySchema>
-export type OracleFusionHcmGetTimeRecordResponse = z.output<typeof oracleFusionHcmGetTimeRecordResponseSchema>
+export type OracleFusionHcmGetTimeRecordBody = z.output<
+  typeof oracleFusionHcmGetTimeRecordBodySchema
+>
+export type OracleFusionHcmGetTimeRecordBodyInput = z.input<
+  typeof oracleFusionHcmGetTimeRecordBodySchema
+>
+export type OracleFusionHcmGetTimeRecordResponse = z.output<
+  typeof oracleFusionHcmGetTimeRecordResponseSchema
+>
 
 export const oracleFusionHcmListTimeCardsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personNumber: z.string().trim().min(1).max(30),
@@ -2014,54 +2311,84 @@ export const oracleFusionHcmListTimeCardsBodySchema = oracleFusionHcmBaseBodySch
   ...paginationBodyShape,
 }).refine((input) => finderValueSchema.safeParse(input.personNumber).success, 'Person number cannot contain finder separators').refine((input) => Date.parse(input.startTime) < Date.parse(input.stopTime), 'stopTime must be after startTime')
 
-export const oracleFusionHcmListTimeCardsResponseSchema = successResponse(z.object({
-  timeCards: z.array(oracleFusionHcmTimeCardSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeCardsResponseSchema = successResponse(
+  z.object({
+    timeCards: z.array(oracleFusionHcmTimeCardSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeCardsBody = z.output<typeof oracleFusionHcmListTimeCardsBodySchema>
-export type OracleFusionHcmListTimeCardsBodyInput = z.input<typeof oracleFusionHcmListTimeCardsBodySchema>
-export type OracleFusionHcmListTimeCardsResponse = z.output<typeof oracleFusionHcmListTimeCardsResponseSchema>
+export type OracleFusionHcmListTimeCardsBody = z.output<
+  typeof oracleFusionHcmListTimeCardsBodySchema
+>
+export type OracleFusionHcmListTimeCardsBodyInput = z.input<
+  typeof oracleFusionHcmListTimeCardsBodySchema
+>
+export type OracleFusionHcmListTimeCardsResponse = z.output<
+  typeof oracleFusionHcmListTimeCardsResponseSchema
+>
 
 export const oracleFusionHcmGetTimeCardBodySchema = oracleFusionHcmBaseBodySchema.extend({
   timeRecordGroupId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetTimeCardResponseSchema = successResponse(z.object({
-  timeCard: oracleFusionHcmTimeCardSchema,
-}))
+export const oracleFusionHcmGetTimeCardResponseSchema = successResponse(
+  z.object({
+    timeCard: oracleFusionHcmTimeCardSchema,
+  })
+)
 
 export type OracleFusionHcmGetTimeCardBody = z.output<typeof oracleFusionHcmGetTimeCardBodySchema>
-export type OracleFusionHcmGetTimeCardBodyInput = z.input<typeof oracleFusionHcmGetTimeCardBodySchema>
-export type OracleFusionHcmGetTimeCardResponse = z.output<typeof oracleFusionHcmGetTimeCardResponseSchema>
+export type OracleFusionHcmGetTimeCardBodyInput = z.input<
+  typeof oracleFusionHcmGetTimeCardBodySchema
+>
+export type OracleFusionHcmGetTimeCardResponse = z.output<
+  typeof oracleFusionHcmGetTimeCardResponseSchema
+>
 
 export const oracleFusionHcmListTimeAttributesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   search: z.string().trim().min(1).max(200).optional(),
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTimeAttributesResponseSchema = successResponse(z.object({
-  timeAttributes: z.array(oracleFusionHcmTimeAttributeSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeAttributesResponseSchema = successResponse(
+  z.object({
+    timeAttributes: z.array(oracleFusionHcmTimeAttributeSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeAttributesBody = z.output<typeof oracleFusionHcmListTimeAttributesBodySchema>
-export type OracleFusionHcmListTimeAttributesBodyInput = z.input<typeof oracleFusionHcmListTimeAttributesBodySchema>
-export type OracleFusionHcmListTimeAttributesResponse = z.output<typeof oracleFusionHcmListTimeAttributesResponseSchema>
+export type OracleFusionHcmListTimeAttributesBody = z.output<
+  typeof oracleFusionHcmListTimeAttributesBodySchema
+>
+export type OracleFusionHcmListTimeAttributesBodyInput = z.input<
+  typeof oracleFusionHcmListTimeAttributesBodySchema
+>
+export type OracleFusionHcmListTimeAttributesResponse = z.output<
+  typeof oracleFusionHcmListTimeAttributesResponseSchema
+>
 
 export const oracleFusionHcmListTimeAttributeDataSourcesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   timeAttributeId: oracleFusionHcmDecimalIdSchema,
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTimeAttributeDataSourcesResponseSchema = successResponse(z.object({
-  timeAttributeDataSources: z.array(oracleFusionHcmTimeAttributeDataSourceSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeAttributeDataSourcesResponseSchema = successResponse(
+  z.object({
+    timeAttributeDataSources: z.array(oracleFusionHcmTimeAttributeDataSourceSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeAttributeDataSourcesBody = z.output<typeof oracleFusionHcmListTimeAttributeDataSourcesBodySchema>
-export type OracleFusionHcmListTimeAttributeDataSourcesBodyInput = z.input<typeof oracleFusionHcmListTimeAttributeDataSourcesBodySchema>
-export type OracleFusionHcmListTimeAttributeDataSourcesResponse = z.output<typeof oracleFusionHcmListTimeAttributeDataSourcesResponseSchema>
+export type OracleFusionHcmListTimeAttributeDataSourcesBody = z.output<
+  typeof oracleFusionHcmListTimeAttributeDataSourcesBodySchema
+>
+export type OracleFusionHcmListTimeAttributeDataSourcesBodyInput = z.input<
+  typeof oracleFusionHcmListTimeAttributeDataSourcesBodySchema
+>
+export type OracleFusionHcmListTimeAttributeDataSourcesResponse = z.output<
+  typeof oracleFusionHcmListTimeAttributeDataSourcesResponseSchema
+>
 
 export const oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   timeAttributeId: oracleFusionHcmDecimalIdSchema,
@@ -2069,14 +2396,22 @@ export const oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema = oracleFus
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTimeAttributeCriteriaBindsResponseSchema = successResponse(z.object({
-  timeAttributeCriteriaBinds: z.array(oracleFusionHcmTimeAttributeCriteriaBindSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeAttributeCriteriaBindsResponseSchema = successResponse(
+  z.object({
+    timeAttributeCriteriaBinds: z.array(oracleFusionHcmTimeAttributeCriteriaBindSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeAttributeCriteriaBindsBody = z.output<typeof oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema>
-export type OracleFusionHcmListTimeAttributeCriteriaBindsBodyInput = z.input<typeof oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema>
-export type OracleFusionHcmListTimeAttributeCriteriaBindsResponse = z.output<typeof oracleFusionHcmListTimeAttributeCriteriaBindsResponseSchema>
+export type OracleFusionHcmListTimeAttributeCriteriaBindsBody = z.output<
+  typeof oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema
+>
+export type OracleFusionHcmListTimeAttributeCriteriaBindsBodyInput = z.input<
+  typeof oracleFusionHcmListTimeAttributeCriteriaBindsBodySchema
+>
+export type OracleFusionHcmListTimeAttributeCriteriaBindsResponse = z.output<
+  typeof oracleFusionHcmListTimeAttributeCriteriaBindsResponseSchema
+>
 
 export const oracleFusionHcmListTimeAttributeValuesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   dataSourceUsageId: oracleFusionHcmDecimalIdSchema,
@@ -2085,14 +2420,22 @@ export const oracleFusionHcmListTimeAttributeValuesBodySchema = oracleFusionHcmB
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTimeAttributeValuesResponseSchema = successResponse(z.object({
-  timeAttributeValues: z.array(oracleFusionHcmTimeAttributeValueSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeAttributeValuesResponseSchema = successResponse(
+  z.object({
+    timeAttributeValues: z.array(oracleFusionHcmTimeAttributeValueSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeAttributeValuesBody = z.output<typeof oracleFusionHcmListTimeAttributeValuesBodySchema>
-export type OracleFusionHcmListTimeAttributeValuesBodyInput = z.input<typeof oracleFusionHcmListTimeAttributeValuesBodySchema>
-export type OracleFusionHcmListTimeAttributeValuesResponse = z.output<typeof oracleFusionHcmListTimeAttributeValuesResponseSchema>
+export type OracleFusionHcmListTimeAttributeValuesBody = z.output<
+  typeof oracleFusionHcmListTimeAttributeValuesBodySchema
+>
+export type OracleFusionHcmListTimeAttributeValuesBodyInput = z.input<
+  typeof oracleFusionHcmListTimeAttributeValuesBodySchema
+>
+export type OracleFusionHcmListTimeAttributeValuesResponse = z.output<
+  typeof oracleFusionHcmListTimeAttributeValuesResponseSchema
+>
 
 export const oracleFusionHcmCreateTimeEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personNumber: z.string().trim().min(1).max(30),
@@ -2115,13 +2458,21 @@ export const oracleFusionHcmCreateTimeEntryBodySchema = oracleFusionHcmBaseBodyS
   }
 })
 
-export const oracleFusionHcmCreateTimeEntryResponseSchema = successResponse(z.object({
-  timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
-}))
+export const oracleFusionHcmCreateTimeEntryResponseSchema = successResponse(
+  z.object({
+    timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
+  })
+)
 
-export type OracleFusionHcmCreateTimeEntryBody = z.output<typeof oracleFusionHcmCreateTimeEntryBodySchema>
-export type OracleFusionHcmCreateTimeEntryBodyInput = z.input<typeof oracleFusionHcmCreateTimeEntryBodySchema>
-export type OracleFusionHcmCreateTimeEntryResponse = z.output<typeof oracleFusionHcmCreateTimeEntryResponseSchema>
+export type OracleFusionHcmCreateTimeEntryBody = z.output<
+  typeof oracleFusionHcmCreateTimeEntryBodySchema
+>
+export type OracleFusionHcmCreateTimeEntryBodyInput = z.input<
+  typeof oracleFusionHcmCreateTimeEntryBodySchema
+>
+export type OracleFusionHcmCreateTimeEntryResponse = z.output<
+  typeof oracleFusionHcmCreateTimeEntryResponseSchema
+>
 
 export const oracleFusionHcmUpdateTimeEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personNumber: z.string().trim().min(1).max(30),
@@ -2153,13 +2504,21 @@ export const oracleFusionHcmUpdateTimeEntryBodySchema = oracleFusionHcmBaseBodyS
   }
 })
 
-export const oracleFusionHcmUpdateTimeEntryResponseSchema = successResponse(z.object({
-  timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
-}))
+export const oracleFusionHcmUpdateTimeEntryResponseSchema = successResponse(
+  z.object({
+    timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
+  })
+)
 
-export type OracleFusionHcmUpdateTimeEntryBody = z.output<typeof oracleFusionHcmUpdateTimeEntryBodySchema>
-export type OracleFusionHcmUpdateTimeEntryBodyInput = z.input<typeof oracleFusionHcmUpdateTimeEntryBodySchema>
-export type OracleFusionHcmUpdateTimeEntryResponse = z.output<typeof oracleFusionHcmUpdateTimeEntryResponseSchema>
+export type OracleFusionHcmUpdateTimeEntryBody = z.output<
+  typeof oracleFusionHcmUpdateTimeEntryBodySchema
+>
+export type OracleFusionHcmUpdateTimeEntryBodyInput = z.input<
+  typeof oracleFusionHcmUpdateTimeEntryBodySchema
+>
+export type OracleFusionHcmUpdateTimeEntryResponse = z.output<
+  typeof oracleFusionHcmUpdateTimeEntryResponseSchema
+>
 
 export const oracleFusionHcmDeleteTimeEntryBodySchema = oracleFusionHcmBaseBodySchema.extend({
   personNumber: z.string().trim().min(1).max(30),
@@ -2170,39 +2529,63 @@ export const oracleFusionHcmDeleteTimeEntryBodySchema = oracleFusionHcmBaseBodyS
   changeReason: z.string().trim().min(1).max(64).optional(),
 })
 
-export const oracleFusionHcmDeleteTimeEntryResponseSchema = successResponse(z.object({
-  timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
-}))
+export const oracleFusionHcmDeleteTimeEntryResponseSchema = successResponse(
+  z.object({
+    timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
+  })
+)
 
-export type OracleFusionHcmDeleteTimeEntryBody = z.output<typeof oracleFusionHcmDeleteTimeEntryBodySchema>
-export type OracleFusionHcmDeleteTimeEntryBodyInput = z.input<typeof oracleFusionHcmDeleteTimeEntryBodySchema>
-export type OracleFusionHcmDeleteTimeEntryResponse = z.output<typeof oracleFusionHcmDeleteTimeEntryResponseSchema>
+export type OracleFusionHcmDeleteTimeEntryBody = z.output<
+  typeof oracleFusionHcmDeleteTimeEntryBodySchema
+>
+export type OracleFusionHcmDeleteTimeEntryBodyInput = z.input<
+  typeof oracleFusionHcmDeleteTimeEntryBodySchema
+>
+export type OracleFusionHcmDeleteTimeEntryResponse = z.output<
+  typeof oracleFusionHcmDeleteTimeEntryResponseSchema
+>
 
 export const oracleFusionHcmGetTimeRecordRequestBodySchema = oracleFusionHcmBaseBodySchema.extend({
   timeRecordEventRequestId: oracleFusionHcmDecimalIdSchema,
 })
 
-export const oracleFusionHcmGetTimeRecordRequestResponseSchema = successResponse(z.object({
-  timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
-}))
+export const oracleFusionHcmGetTimeRecordRequestResponseSchema = successResponse(
+  z.object({
+    timeRecordRequest: oracleFusionHcmTimeRecordRequestSchema,
+  })
+)
 
-export type OracleFusionHcmGetTimeRecordRequestBody = z.output<typeof oracleFusionHcmGetTimeRecordRequestBodySchema>
-export type OracleFusionHcmGetTimeRecordRequestBodyInput = z.input<typeof oracleFusionHcmGetTimeRecordRequestBodySchema>
-export type OracleFusionHcmGetTimeRecordRequestResponse = z.output<typeof oracleFusionHcmGetTimeRecordRequestResponseSchema>
+export type OracleFusionHcmGetTimeRecordRequestBody = z.output<
+  typeof oracleFusionHcmGetTimeRecordRequestBodySchema
+>
+export type OracleFusionHcmGetTimeRecordRequestBodyInput = z.input<
+  typeof oracleFusionHcmGetTimeRecordRequestBodySchema
+>
+export type OracleFusionHcmGetTimeRecordRequestResponse = z.output<
+  typeof oracleFusionHcmGetTimeRecordRequestResponseSchema
+>
 
 export const oracleFusionHcmListTimeRecordRequestEventsBodySchema = oracleFusionHcmBaseBodySchema.extend({
   timeRecordEventRequestId: oracleFusionHcmDecimalIdSchema,
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTimeRecordRequestEventsResponseSchema = successResponse(z.object({
-  timeRecordRequestEvents: z.array(oracleFusionHcmTimeRecordRequestEventSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeRecordRequestEventsResponseSchema = successResponse(
+  z.object({
+    timeRecordRequestEvents: z.array(oracleFusionHcmTimeRecordRequestEventSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeRecordRequestEventsBody = z.output<typeof oracleFusionHcmListTimeRecordRequestEventsBodySchema>
-export type OracleFusionHcmListTimeRecordRequestEventsBodyInput = z.input<typeof oracleFusionHcmListTimeRecordRequestEventsBodySchema>
-export type OracleFusionHcmListTimeRecordRequestEventsResponse = z.output<typeof oracleFusionHcmListTimeRecordRequestEventsResponseSchema>
+export type OracleFusionHcmListTimeRecordRequestEventsBody = z.output<
+  typeof oracleFusionHcmListTimeRecordRequestEventsBodySchema
+>
+export type OracleFusionHcmListTimeRecordRequestEventsBodyInput = z.input<
+  typeof oracleFusionHcmListTimeRecordRequestEventsBodySchema
+>
+export type OracleFusionHcmListTimeRecordRequestEventsResponse = z.output<
+  typeof oracleFusionHcmListTimeRecordRequestEventsResponseSchema
+>
 
 export const oracleFusionHcmListTimeRecordEventMessagesBodySchema = oracleFusionHcmBaseBodySchema.extend({
   timeRecordEventRequestId: oracleFusionHcmDecimalIdSchema,
@@ -2210,11 +2593,19 @@ export const oracleFusionHcmListTimeRecordEventMessagesBodySchema = oracleFusion
   ...paginationBodyShape,
 })
 
-export const oracleFusionHcmListTimeRecordEventMessagesResponseSchema = successResponse(z.object({
-  timeRecordEventMessages: z.array(oracleFusionHcmTimeRecordEventMessageSchema),
-  ...paginationResponseShape,
-}))
+export const oracleFusionHcmListTimeRecordEventMessagesResponseSchema = successResponse(
+  z.object({
+    timeRecordEventMessages: z.array(oracleFusionHcmTimeRecordEventMessageSchema),
+    ...paginationResponseShape,
+  })
+)
 
-export type OracleFusionHcmListTimeRecordEventMessagesBody = z.output<typeof oracleFusionHcmListTimeRecordEventMessagesBodySchema>
-export type OracleFusionHcmListTimeRecordEventMessagesBodyInput = z.input<typeof oracleFusionHcmListTimeRecordEventMessagesBodySchema>
-export type OracleFusionHcmListTimeRecordEventMessagesResponse = z.output<typeof oracleFusionHcmListTimeRecordEventMessagesResponseSchema>
+export type OracleFusionHcmListTimeRecordEventMessagesBody = z.output<
+  typeof oracleFusionHcmListTimeRecordEventMessagesBodySchema
+>
+export type OracleFusionHcmListTimeRecordEventMessagesBodyInput = z.input<
+  typeof oracleFusionHcmListTimeRecordEventMessagesBodySchema
+>
+export type OracleFusionHcmListTimeRecordEventMessagesResponse = z.output<
+  typeof oracleFusionHcmListTimeRecordEventMessagesResponseSchema
+>

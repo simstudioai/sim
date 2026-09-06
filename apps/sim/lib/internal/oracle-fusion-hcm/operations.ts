@@ -1346,13 +1346,22 @@ export async function executeOracleFusionHcmListElementEntryValues(
   signal?: AbortSignal
 ) {
   const path = `${await elementEntryPath(input, signal)}/child/elementEntryValues`
-  const result = await list(input, path, ELEMENT_ENTRY_VALUE_FIELDS, projectElementEntryValue, (query) => {
-    const clauses: string[] = []
-    addEffectiveDate(query, input.effectiveDate)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { elementEntryValues: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    ELEMENT_ENTRY_VALUE_FIELDS,
+    projectElementEntryValue,
+    (query) => {
+      const clauses: string[] = []
+      addEffectiveDate(query, input.effectiveDate)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { elementEntryValues: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-personprocessresults-get.html */
@@ -1361,18 +1370,28 @@ export async function executeOracleFusionHcmListPersonProcessResults(
   signal?: AbortSignal
 ) {
   const path = 'personProcessResults'
-  const result = await list(input, path, PERSON_PROCESS_RESULT_FIELDS, projectPersonProcessResult, (query) => {
-    const clauses: string[] = []
-    if (input.personNumber) clauses.push(`PersonNumber='${quoteOracle(input.personNumber)}'`)
-    if (input.personId) clauses.push(`PersonId=${input.personId}`)
-    if (input.payrollRelationshipId) clauses.push(`PayrollRelationshipId=${input.payrollRelationshipId}`)
-    if (input.payrollId) clauses.push(`PayrollId=${input.payrollId}`)
-    if (input.startDate) clauses.push(`ProcessDate >= '${input.startDate}'`)
-          if (input.endDate) clauses.push(`ProcessDate <= '${input.endDate}'`)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
-  return { success: true as const, output: { personProcessResults: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PERSON_PROCESS_RESULT_FIELDS,
+    projectPersonProcessResult,
+    (query) => {
+      const clauses: string[] = []
+      if (input.personNumber) clauses.push(`PersonNumber='${quoteOracle(input.personNumber)}'`)
+      if (input.personId) clauses.push(`PersonId=${input.personId}`)
+      if (input.payrollRelationshipId)
+        clauses.push(`PayrollRelationshipId=${input.payrollRelationshipId}`)
+      if (input.payrollId) clauses.push(`PayrollId=${input.payrollId}`)
+      if (input.startDate) clauses.push(`ProcessDate >= '${input.startDate}'`)
+      if (input.endDate) clauses.push(`ProcessDate <= '${input.endDate}'`)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
+  return {
+    success: true as const,
+    output: { personProcessResults: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-personprocessresults-get.html */
@@ -1381,7 +1400,15 @@ export async function executeOracleFusionHcmGetPersonProcessResult(
   signal?: AbortSignal
 ) {
   const path = `personProcessResults/${input.objectActionId}`
-  const result = await readResource(input, path, PERSON_PROCESS_RESULT_FIELDS, 'ObjectActionId', input.objectActionId, projectPersonProcessResult, signal)
+  const result = await readResource(
+    input,
+    path,
+    PERSON_PROCESS_RESULT_FIELDS,
+    'ObjectActionId',
+    input.objectActionId,
+    projectPersonProcessResult,
+    signal
+  )
   return { success: true as const, output: { personProcessResult: result } }
 }
 
@@ -1391,9 +1418,18 @@ export async function executeOracleFusionHcmListPayrollRunResults(
   signal?: AbortSignal
 ) {
   const path = `personProcessResults/${input.objectActionId}/child/RunResult`
-  const result = await list(input, path, PAYROLL_RUN_RESULT_FIELDS, projectPayrollRunResult, undefined,
-  signal)
-  return { success: true as const, output: { payrollRunResults: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_RUN_RESULT_FIELDS,
+    projectPayrollRunResult,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollRunResults: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-personprocessresults-objectactionid-child-balanceview-get.html */
@@ -1402,9 +1438,18 @@ export async function executeOracleFusionHcmListPayrollBalances(
   signal?: AbortSignal
 ) {
   const path = `personProcessResults/${input.objectActionId}/child/BalanceView`
-  const result = await list(input, path, PAYROLL_BALANCE_FIELDS, projectPayrollBalance, undefined,
-  signal)
-  return { success: true as const, output: { payrollBalances: result.items, ...withoutItems(result) } }
+  const result = await list(
+    input,
+    path,
+    PAYROLL_BALANCE_FIELDS,
+    projectPayrollBalance,
+    undefined,
+    signal
+  )
+  return {
+    success: true as const,
+    output: { payrollBalances: result.items, ...withoutItems(result) },
+  }
 }
 
 /** Oracle contract: https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-salaries-get.html */
@@ -1413,12 +1458,18 @@ export async function executeOracleFusionHcmListSalaries(
   signal?: AbortSignal
 ) {
   const path = 'salaries'
-  const result = await list(input, path, SALARY_FIELDS, projectSalary, (query) => {
-    const clauses: string[] = []
-    if (input.assignmentId) clauses.push(`AssignmentId=${input.assignmentId}`)
-    if (clauses.length > 0) query.q = clauses.join(' AND ')
-  },
-  signal)
+  const result = await list(
+    input,
+    path,
+    SALARY_FIELDS,
+    projectSalary,
+    (query) => {
+      const clauses: string[] = []
+      if (input.assignmentId) clauses.push(`AssignmentId=${input.assignmentId}`)
+      if (clauses.length > 0) query.q = clauses.join(' AND ')
+    },
+    signal
+  )
   return { success: true as const, output: { salaries: result.items, ...withoutItems(result) } }
 }
 
