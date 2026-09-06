@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
@@ -13,8 +12,6 @@ import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import {
   createSandboxMountBudget,
-  MAX_INLINE_MOUNT_FILE_BYTES,
-  pushSandboxFileMount,
   type SandboxMountBudget,
 } from '@/lib/function-execution/sandbox-mounts'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
@@ -40,13 +37,10 @@ import {
   parseChatUploadReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { importWorkspaceFileSecretProvenanceForRuntime } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
-import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
+import { importWorkspaceFileSnapshotProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
-import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
+import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import {
@@ -59,44 +53,9 @@ import { executeTool as executeAppTool } from '@/tools'
 
 const logger = createLogger('CopilotFunctionExecute')
 
-const MAX_FILE_SIZE = MAX_INLINE_MOUNT_FILE_BYTES
 const MAX_MOUNTED_FILES = 500
 
-async function importMountedWorkspaceFileProvenance(args: {
-  workspaceId: string
-  record: WorkspaceFileRecord
-  mountPath: string
-  registry?: ResolvedSecretTraceRegistry
-}): Promise<void> {
-  if (!args.registry) {
-    throw new Error(
-      `Input file "${args.mountPath}" cannot be mounted because its secret provenance is unavailable.`
-    )
-  }
-  try {
-    const imported = await importWorkspaceFileSecretProvenanceForRuntime({
-      workspaceId: args.workspaceId,
-      identity: {
-        fileId: args.record.id,
-        key: args.record.key,
-        context: args.record.storageContext ?? 'workspace',
-      },
-      registry: args.registry,
-    })
-    if (!imported) args.registry.markIncomplete('mounted-file-provenance-unavailable')
-  } catch {
-    args.registry.markIncomplete('mounted-file-provenance-unavailable')
-  }
-}
-
-/**
- * Mounts a stored workspace file into the sandbox. The transport choice, the byte
- * ceilings, and the budget accounting live in {@link pushSandboxFileMount}, which
- * the Function block shares; what stays here is workspace-specific — reloading the
- * record through its application operation, importing its secret provenance, and
- * reading generated documents through the servable reader rather than presigning
- * their generator source.
- */
+/** Keeps mount bytes, canonical classification and budget together until they enter the runtime. */
 async function pushWorkspaceFileMount(
   sandboxFiles: SandboxFile[],
   record: WorkspaceFileRecord,
@@ -104,68 +63,37 @@ async function pushWorkspaceFileMount(
   mounted: SandboxMountBudget,
   workspaceId: string,
   principal: Principal,
-  registry?: ResolvedSecretTraceRegistry
+  registry?: ResolvedSecretTraceRegistry,
+  signal?: AbortSignal
 ): Promise<void> {
-  record = (
-    await downloadWorkspaceFileRecord.execute({
-      principal,
-      input: { fileId: record.id, assertedWorkspaceId: workspaceId },
-    })
-  ).file
-  await importMountedWorkspaceFileProvenance({ workspaceId, record, mountPath, registry })
-
-  // A generated document stores its generator source, so a presigned URL for
-  // `record.key` would hand the sandbox source text under a `.docx` name and the
-  // user's script would fail on a file that looks fine. Those resolve through the
-  // servable reader instead — they are bounded by the render ceiling, so routing them
-  // through the web process rather than presigning is affordable.
-  const rendersFromSource = isGeneratedDocumentSourceType(record.type)
-
-  await pushSandboxFileMount(
-    sandboxFiles,
-    {
+  if (!registry) {
+    throw new Error(
+      `Input file "${mountPath}" cannot be mounted because its secret provenance is unavailable.`
+    )
+  }
+  const result = await readWorkspaceFileMount.execute({
+    principal,
+    input: {
+      fileId: record.id,
+      assertedWorkspaceId: workspaceId,
       mountPath,
-      key: record.key,
-      storageContext: record.storageContext ?? 'workspace',
-      declaredSize: record.size,
-      rendersFromSource,
-      readInline: async (maxBytes) => {
-        const { buffer, contentType } = rendersFromSource
-          ? await fetchAuthorizedServableWorkspaceFileBuffer(record, principal, {
-              maxBytes,
-            }).catch((error) => {
-              if (!isPayloadSizeLimitError(error)) throw error
-              throw new Error(
-                `Input file "${mountPath}" renders to more than the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit, or than the mount budget left. Mount fewer or smaller files.`
-              )
-            })
-          : {
-              buffer: (
-                await readWorkspaceFileContent.execute({
-                  principal,
-                  input: {
-                    fileId: record.id,
-                    assertedWorkspaceId: workspaceId,
-                    maxBytes,
-                  },
-                })
-              ).content,
-              contentType: record.type,
-            }
-        // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
-        // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
-        const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
-          contentType || ''
-        )
-        return {
-          content: isText ? buffer.toString('utf-8') : buffer.toString('base64'),
-          ...(isText ? {} : { encoding: 'base64' as const }),
-          byteLength: buffer.length,
-        }
-      },
+      budget: mounted,
+      signal,
     },
-    mounted
-  )
+  })
+  try {
+    const imported = await importWorkspaceFileSnapshotProvenance({
+      workspaceId,
+      provenance: result.secretProvenance,
+      registry,
+    })
+    if (!imported) registry.markIncomplete('mounted-file-provenance-unavailable')
+  } catch {
+    registry.markIncomplete('mounted-file-provenance-unavailable')
+  }
+  signal?.throwIfAborted()
+  sandboxFiles.push(result.mount)
+  Object.assign(mounted, result.budget)
 }
 
 /**
@@ -322,7 +250,8 @@ export async function resolveInputFiles(
         mounted,
         workspaceId,
         filePrincipal,
-        resolvedSecretTraceRegistry
+        resolvedSecretTraceRegistry,
+        context.abortSignal
       )
     }
   }
@@ -402,7 +331,8 @@ export async function resolveInputFiles(
           mounted,
           workspaceId,
           filePrincipal,
-          resolvedSecretTraceRegistry
+          resolvedSecretTraceRegistry,
+          context.abortSignal
         )
       }
     }
