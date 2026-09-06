@@ -1,15 +1,14 @@
-import { ArrowRight } from '@sim/emcn/icons'
+import { ChipTag, cn } from '@sim/emcn'
 import Link from 'next/link'
+import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import type { NavMenuItemData } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
+import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 
 /**
- * One row inside a navbar mega-menu panel - a title, a one-line description, and
- * a right-arrow that slides in on hover.
+ * One destination inside the mega-menu's editorial link columns.
  *
- * The row is its own `group/item`, so the arrow reveal (`opacity-0
- * -translate-x-1` → visible on `group-hover/item` and `group-focus-visible/item`)
- * is pure CSS, scoped to the hovered or keyboard-focused row and never to the
- * whole panel. `onSelect` fires on click so the parent menu can close itself.
+ * Hover and keyboard focus update the dynamic preview through `onActivate`.
+ * `onSelect` fires on click so the parent menu can close itself.
  *
  * Internal routes render a crawlable Next {@link Link}; `external` items render
  * a new-tab `<a>` with `rel='noopener noreferrer'`.
@@ -17,36 +16,63 @@ import type { NavMenuItemData } from '@/app/(landing)/components/navbar/componen
 
 interface NavMenuItemProps {
   item: NavMenuItemData
+  /** Keeps the previewed destination in its hover treatment while the menu is open. */
+  active?: boolean
   /** Called when the row is activated, so the parent menu can close. */
   onSelect?: () => void
+  /** Called on hover or focus to update the menu's preview region. */
+  onActivate?: () => void
 }
 
 const ROW_CLASS =
-  'group/item flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden'
-const TITLE_CLASS = 'truncate text-[14px] text-[var(--text-body)]'
-const DESC_CLASS = 'text-[12px] text-[var(--text-muted)] leading-snug'
-const ARROW_CLASS =
-  'size-4 shrink-0 -translate-x-1 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-visible/item:translate-x-0 group-focus-visible/item:opacity-100 motion-reduce:transition-none'
+  'group/item group/link flex min-w-0 items-start text-left focus-visible:outline-none'
+const DESC_CLASS =
+  'mt-2 max-w-[32ch] text-pretty text-[13px] leading-[1.45] transition-colors group-hover/item:text-[var(--text-body)] group-focus-visible/item:text-[var(--text-body)]'
 
-export function NavMenuItem({ item, onSelect }: NavMenuItemProps) {
-  const { title, description, href, external } = item
+export function NavMenuItem({ item, active = false, onSelect, onActivate }: NavMenuItemProps) {
+  const { brand, title, description, href, external } = item
   const content = (
-    <>
-      <span className='flex min-w-0 flex-1 flex-col'>
-        <span className={TITLE_CLASS}>{title}</span>
-        <span className={DESC_CLASS}>{description}</span>
+    <span className='flex min-w-0 flex-1 flex-col'>
+      <span className='flex items-center gap-2 font-normal text-[15px]'>
+        {brand ? (
+          <ChipTag
+            variant='brand'
+            brandColor='var(--bg)'
+            brandStrokeColor='var(--surface-6)'
+            brandForeground='dark'
+            aria-label={brand}
+          >
+            <SimWordmark size='tag' tone='brand-muted' />
+          </ChipTag>
+        ) : null}
+        <span className='text-[var(--text-body)] transition-colors'>{title}</span>
+        <span
+          className={cn(
+            'flex size-3 shrink-0 items-center justify-center transition-opacity duration-200 ease-out group-hover/link:opacity-100 group-focus-visible/link:opacity-100 motion-reduce:transition-none',
+            active ? 'opacity-100' : 'opacity-0'
+          )}
+        >
+          <ChevronArrow active={active} />
+        </span>
       </span>
-      <ArrowRight className={ARROW_CLASS} aria-hidden='true' />
-    </>
+      <span
+        className={cn(DESC_CLASS, active ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)]')}
+      >
+        {description}
+      </span>
+    </span>
   )
 
   if (external) {
     return (
       <a
         href={href}
+        data-active={active || undefined}
         target='_blank'
         rel='noopener noreferrer'
         onClick={onSelect}
+        onMouseEnter={onActivate}
+        onFocus={onActivate}
         className={ROW_CLASS}
       >
         {content}
@@ -55,7 +81,14 @@ export function NavMenuItem({ item, onSelect }: NavMenuItemProps) {
   }
 
   return (
-    <Link href={href} onClick={onSelect} className={ROW_CLASS}>
+    <Link
+      href={href}
+      data-active={active || undefined}
+      onClick={onSelect}
+      onMouseEnter={onActivate}
+      onFocus={onActivate}
+      className={ROW_CLASS}
+    >
       {content}
     </Link>
   )

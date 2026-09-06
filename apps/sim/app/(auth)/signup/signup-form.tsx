@@ -372,12 +372,10 @@ function SignupFormContent({
 
       if (destination.kind === 'verify') {
         router.push(VERIFY_FROM_SIGNUP_ROUTE)
-      } else if (destination.kind === 'redirect') {
-        // Full navigation, matching the verify hop: the destination (invite, CLI
-        // handoff) is server-rendered and must see the fresh session cookie.
-        window.location.href = destination.url
       } else {
-        router.push(DEFAULT_POST_AUTH_ROUTE)
+        /** Match login/verification: refresh session-bound shells and their theme default. */
+        window.location.href =
+          destination.kind === 'redirect' ? destination.url : DEFAULT_POST_AUTH_ROUTE
       }
     } catch (error) {
       logger.error('Signup error:', error)

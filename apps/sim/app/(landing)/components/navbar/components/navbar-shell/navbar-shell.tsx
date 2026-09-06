@@ -15,16 +15,15 @@ export const NAVBAR_GLASS_SURFACE = cn(colorMixFallbacks.navbarGlass, 'backdrop-
 
 interface NavbarFrostContextValue {
   /**
-   * Reported by the mobile sheet as it opens/closes so the bar frosts to glass
-   * while the menu is open - the bar and the dropdown then read as one continuous
-   * frosted panel instead of a transparent bar over a separate sheet.
+   * Reported independently by the desktop and mobile menus so shared shell
+   * effects remain active until every open navigation surface has closed.
    */
-  setMenuOpen: (open: boolean) => void
+  setMenuOpen: (source: 'desktop' | 'mobile', open: boolean) => void
 }
 
 const NavbarFrostContext = createContext<NavbarFrostContextValue | null>(null)
 
-/** Lets the mobile nav report its open state up to the shell so the bar can frost in sync. */
+/** Lets each nav surface report its open state so the shell can coordinate shared effects. */
 export function useNavbarFrost(): NavbarFrostContextValue | null {
   return use(NavbarFrostContext)
 }
@@ -34,8 +33,8 @@ interface NavbarShellProps {
 }
 
 /**
- * Sticky navbar chrome that frosts to glass once the page scrolls (or, on mobile,
- * while the dropdown menu is open).
+ * Sticky navbar chrome that frosts to glass once the page scrolls or while a
+ * desktop or mobile navigation menu is open.
  *
  * At the very top the bar uses the same solid canvas token as the hero, so it is
  * visually seamless while still preventing route content from painting through
@@ -51,9 +50,14 @@ interface NavbarShellProps {
  * vertical wobble of the bar's text as you scroll near the top. The blur snaps in
  * while the fill still fades, so the frost appears smoothly without the jitter.
  *
- * The mobile sheet reports its open state through {@link NavbarFrostContext}, so
- * opening the menu also frosts the bar - the bar and the dropdown then form one
- * continuous glass panel with no transparent seam between them.
+ * The measured header height anchors the desktop panel and bounds the mobile
+ * sheet, including changes to the announcement strip or text sizing. The same
+ * height offsets native page and hash scrolling inside the landing scroll port.
+ *
+ * Both navigation surfaces report open state through {@link NavbarFrostContext}.
+ * While either is open, the shell locks its actual scroll port, preserves the
+ * scrollbar gutter, frosts the header, and fades page content beneath a fixed
+ * veil. The sticky bar, trigger, and menu remain one stationary foreground layer.
  *
  * The frost lives on a separate sibling layer (`absolute inset-0 -z-10`) behind
  * the nav content rather than on the `<header>` element itself. This is
@@ -73,8 +77,34 @@ interface NavbarShellProps {
  */
 export function NavbarShell({ children }: NavbarShellProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
   const [scrolled, setScrolled] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuOpenBySource, setMenuOpenBySource] = useState({ desktop: false, mobile: false })
+  const menuOpen = menuOpenBySource.desktop || menuOpenBySource.mobile
+
+  useEffect(() => {
+    const header = headerRef.current
+    const scrollPort = sentinelRef.current?.parentElement
+    if (!header || !scrollPort) return
+
+    const previousScrollPaddingTop = scrollPort.style.scrollPaddingTop
+    let previousHeight = 0
+    const updateHeight = () => {
+      const height = header.getBoundingClientRect().height
+      if (height === previousHeight) return
+      previousHeight = height
+      header.style.setProperty('--landing-header-height', `${height}px`)
+      scrollPort.style.scrollPaddingTop = `${height}px`
+    }
+
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(header)
+    return () => {
+      observer.disconnect()
+      scrollPort.style.scrollPaddingTop = previousScrollPaddingTop
+    }
+  }, [])
 
   useEffect(() => {
     const sentinel = sentinelRef.current
@@ -89,12 +119,44 @@ export function NavbarShell({ children }: NavbarShellProps) {
     return () => observer.disconnect()
   }, [])
 
-  const frost = useMemo<NavbarFrostContextValue>(() => ({ setMenuOpen }), [])
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const scrollPort = sentinelRef.current?.parentElement
+    if (!scrollPort) return
+
+    const previousOverflowY = scrollPort.style.overflowY
+    const previousPaddingRight = scrollPort.style.paddingRight
+    const scrollbarWidth = scrollPort.offsetWidth - scrollPort.clientWidth
+
+    scrollPort.style.overflowY = 'hidden'
+    if (scrollbarWidth > 0) scrollPort.style.paddingRight = `${scrollbarWidth}px`
+
+    return () => {
+      scrollPort.style.overflowY = previousOverflowY
+      scrollPort.style.paddingRight = previousPaddingRight
+    }
+  }, [menuOpen])
+
+  const frost = useMemo<NavbarFrostContextValue>(
+    () => ({
+      setMenuOpen: (source, open) => {
+        setMenuOpenBySource((current) =>
+          current[source] === open ? current : { ...current, [source]: open }
+        )
+      },
+    }),
+    []
+  )
 
   return (
     <NavbarFrostContext value={frost}>
       <div ref={sentinelRef} aria-hidden='true' className='-mb-px h-px' />
-      <header className='sticky top-0 z-50'>
+      <header
+        ref={headerRef}
+        data-landing-header
+        className='sticky top-0 z-50 [--landing-header-height:calc(1.95rem_+_62px)]'
+      >
         <div
           aria-hidden='true'
           className={cn(
@@ -104,6 +166,14 @@ export function NavbarShell({ children }: NavbarShellProps) {
         />
         {children}
       </header>
+      <div
+        aria-hidden='true'
+        data-navigation-backdrop
+        className={cn(
+          'pointer-events-none fixed inset-0 z-40 bg-[var(--bg)] transition-opacity duration-[180ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
+          menuOpen ? 'opacity-75' : 'opacity-0'
+        )}
+      />
     </NavbarFrostContext>
   )
 }

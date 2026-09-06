@@ -421,6 +421,8 @@ export interface WorkflowBlockViewProps {
   routerContextValue?: string
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
+  /** Whether edge hover mounts an interactive React Flow source handle. */
+  cursorConnectionsEnabled?: boolean
 
   /** Sunset badge — editor-only. `legacy` shows an amber "legacy" badge, `deprecated`
    * a red "deprecated" badge; clicking (gated on `canFixSunset`) invokes `onFixSunset`. */
@@ -529,6 +531,7 @@ export function WorkflowBlockView({
   routerRows,
   routerContextValue,
   wouldCreateConnectionCycle,
+  cursorConnectionsEnabled = true,
   sunsetStatus,
   sunsetTooltip,
   canFixSunset,
@@ -569,7 +572,8 @@ export function WorkflowBlockView({
     () => reactFlowStore.getState().connection.fromNode?.id ?? null,
     [reactFlowStore]
   )
-  const supportsCursorHandle = type !== 'response'
+  const supportsCursorSwell = type !== 'response'
+  const supportsCursorHandle = supportsCursorSwell && cursorConnectionsEnabled
   const cursorSourceHandleRef = useRef<HTMLDivElement>(null)
   const cursorSourceHandleKeyRef = useRef<string | null>(null)
   const [cursorSourceHandle, setCursorSourceHandle] = useState<WorkflowCursorSourceHandle | null>(
@@ -872,7 +876,7 @@ export function WorkflowBlockView({
           }
           isSelected={usesSelectedVisuals}
           height={blockHeight}
-          canStartConnection={supportsCursorHandle}
+          canStartConnection={supportsCursorSwell}
           canReceiveConnection={shouldShowDefaultHandles}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}
           onActionMenuReadyChange={setActionMenuSwellReady}

@@ -1,7 +1,15 @@
 import { cn } from '@sim/emcn'
 import { Table, TypeBoolean, TypeText } from '@sim/emcn/icons'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
+import { LANDING_STAGE_WINDOW_RADIUS } from '@/app/(landing)/components/landing-layout'
+import {
+  FeatureGraphicShell,
+  type FeatureGraphicVariant,
+} from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/tables/components/feature-graphics/table-grid-graphic.module.css'
+
+interface TableGridGraphicProps {
+  variant?: FeatureGraphicVariant
+}
 
 interface GridColumnDef {
   /** Column header label. */
@@ -56,13 +64,25 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2, styles.row3, st
  * `table-grid-graphic.module.css`, the audit tile's one-shot settle) - an
  * agent writing records, never re-played. Under `prefers-reduced-motion`
  * the grid renders fully settled.
+ *
+ * Homepage portrait blocs frame the window on all sides, size columns to
+ * the stage, and fill leftover height with empty grid rows so the editor
+ * reads at the tall crop instead of bleeding off the right edge.
  */
-export function TableGridGraphic() {
+export function TableGridGraphic({ variant = 'tile' }: TableGridGraphicProps) {
+  const portrait = variant === 'portrait'
+  const emptyRowCount = portrait ? 6 : 0
+
   return (
-    <FeatureGraphicShell>
+    <FeatureGraphicShell variant={variant}>
       <div
         aria-hidden='true'
-        className='absolute top-5 right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--white)] shadow-xs'
+        className={cn(
+          'absolute overflow-hidden bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
+          portrait
+            ? cn('inset-[10px] border border-[var(--border-1)]', LANDING_STAGE_WINDOW_RADIUS)
+            : 'top-5 right-0 bottom-0 left-0 rounded-tl-xl border-[var(--border-1)] border-t border-l'
+        )}
       >
         <div className='flex h-12 items-center gap-2 border-[var(--border-1)] border-b px-4'>
           <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border-1)]'>
@@ -78,8 +98,8 @@ export function TableGridGraphic() {
               <div
                 key={column.label}
                 className={cn(
-                  'flex shrink-0 items-center gap-1.5 border-[var(--border-1)] border-r px-2.5 py-2 last:border-r-0',
-                  column.widthClass
+                  'flex items-center gap-1.5 border-[var(--border-1)] border-r px-2.5 py-2 last:border-r-0',
+                  portrait ? 'min-w-0 flex-1' : cn('shrink-0', column.widthClass)
                 )}
               >
                 <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
@@ -102,15 +122,29 @@ export function TableGridGraphic() {
                 <div
                   key={column.label}
                   className={cn(
-                    'shrink-0 truncate border-[var(--border-1)] border-r px-2.5 py-2 text-caption last:border-r-0',
+                    'truncate border-[var(--border-1)] border-r px-2.5 py-2 text-caption last:border-r-0',
                     columnIndex === 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
-                    column.widthClass
+                    portrait ? 'min-w-0 flex-1' : cn('shrink-0', column.widthClass)
                   )}
                 >
                   {typeof value === 'boolean' ? (value ? '✓' : '—') : value}
                 </div>
               )
             })}
+          </div>
+        ))}
+
+        {Array.from({ length: emptyRowCount }, (_, index) => (
+          <div key={`empty-${index}`} className='flex border-[var(--border-1)] border-b'>
+            {COLUMNS.map((column) => (
+              <div
+                key={column.label}
+                className={cn(
+                  'h-9 border-[var(--border-1)] border-r last:border-r-0',
+                  portrait ? 'min-w-0 flex-1' : cn('shrink-0', column.widthClass)
+                )}
+              />
+            ))}
           </div>
         ))}
       </div>

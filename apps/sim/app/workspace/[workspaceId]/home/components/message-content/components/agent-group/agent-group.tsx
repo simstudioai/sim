@@ -41,6 +41,10 @@ interface AgentGroupProps {
   isCurrentSection?: boolean
   /** The subagent lane is still open (no subagent_end yet) — i.e. actively running. */
   isLaneOpen?: boolean
+  /** Opens the group on first render without changing production's automatic collapse rules. */
+  defaultExpanded?: boolean
+  /** Keeps the activity viewport anchored at the top while new rows stream in. */
+  autoScrollActivity?: boolean
 }
 
 function toolStatusTitle(tool: ToolCallData): string {
@@ -133,6 +137,8 @@ export function AgentGroup({
   isStreaming = false,
   isCurrentSection = false,
   isLaneOpen = false,
+  defaultExpanded = false,
+  autoScrollActivity = true,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const isMainAgent = agentName === 'mothership'
@@ -175,7 +181,9 @@ export function AgentGroup({
   // and tool calls are the turn itself, so it keeps the original live-expand
   // behavior (open while streaming/current, settles when superseded).
   const autoExpanded = isMainAgent && isStreaming && (isCurrentSection || isLaneOpen || !resolved)
-  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(
+    defaultExpanded ? true : null
+  )
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   // An outstanding permission prompt overrides a manual collapse: the turn
   // cannot proceed until it is answered, so hiding it would deadlock the chat
@@ -233,7 +241,10 @@ export function AgentGroup({
       {hasItems && (
         <Expandable expanded={expanded}>
           <ExpandableContent>
-            <BoundedViewport isStreaming={isStreaming} unbounded={nestedBrowserTakeover}>
+            <BoundedViewport
+              isStreaming={isStreaming && autoScrollActivity}
+              unbounded={nestedBrowserTakeover}
+            >
               <div className='flex flex-col gap-1.5 py-0.5'>
                 {items.map((item, idx) => {
                   if (item.type === 'tool') {

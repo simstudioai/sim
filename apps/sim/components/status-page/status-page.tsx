@@ -28,7 +28,7 @@ export function StatusPage({ title, description, children, id = 'main-content' }
   return (
     <main
       id={id}
-      className='mx-auto flex min-h-[60vh] w-full max-w-[1460px] flex-col items-center justify-center px-20 py-24 max-sm:px-5 max-lg:px-8'
+      className='mx-auto flex min-h-[60vh] w-full max-w-[1728px] flex-col items-center justify-center px-10 py-24 max-md:px-7 max-lg:px-8 max-xl:px-9'
     >
       <StatusPageContent title={title} description={description}>
         {children}

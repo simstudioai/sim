@@ -3,9 +3,9 @@ import {
   SolutionsPage,
   type SolutionsPageConfig,
 } from '@/app/(landing)/components'
+import { CliGraphic } from '@/app/(landing)/components/shared/cli-graphic/cli-graphic'
 import {
   AuditTrailGraphic,
-  BuildMethodsGraphic,
   DeployGraphic,
   RunMonitoringGraphic,
 } from '@/app/(landing)/enterprise/components/feature-graphics'
@@ -23,7 +23,7 @@ import { WorkflowsEditorLoop } from '@/app/(landing)/workflows/components/workfl
  * The whole page is one typed {@link SolutionsPageConfig} rendered inside
  * the shared route-group layout chrome: identity (for structured data), a
  * hero, and card rows of 3-4 cards. Every visual slot carries a feature
- * graphic in the enterprise design language - the build-methods loop and
+ * graphic in the enterprise design language - the CLI session and
  * deploy window reused for the stories they already tell, the monitoring
  * panel, chat answer, and audit ledger retold for scheduled runs, Slack
  * bots, and run tracing (as a 2×2 grid, so each vignette keeps its full
@@ -70,10 +70,10 @@ const WORKFLOWS_CONFIG: SolutionsPageConfig = {
           visual: <WorkflowCanvasGraphic />,
         },
         {
-          title: 'Describe it in words',
+          title: 'Use your coding agent',
           description:
-            'Tell Sim what the agent should do in plain language, and the workspace assembles the workflow for you.',
-          visual: <BuildMethodsGraphic />,
+            'Use Claude Code with the Sim CLI to inspect workflows and run your agents from the terminal.',
+          visual: <CliGraphic />,
         },
         {
           title: 'Drop into code',

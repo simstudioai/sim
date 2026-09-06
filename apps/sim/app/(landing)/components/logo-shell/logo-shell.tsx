@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import Link from 'next/link'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { LogoMark, SimWordmark } from '@/app/(landing)/components/navbar/components'
 
 /**
@@ -30,7 +31,7 @@ export function LogoShell({ children, center = false, footer }: LogoShellProps) 
     <div className='light desktop-title-bar-page relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
       <DesktopTitleBarLane />
       <header>
-        <nav className='mx-auto flex w-full max-w-[1460px] items-center px-20 py-4 max-sm:px-5 max-lg:px-8'>
+        <nav className={cn('flex items-center py-4', LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
           <Link href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
             <LogoMark>
               <SimWordmark />

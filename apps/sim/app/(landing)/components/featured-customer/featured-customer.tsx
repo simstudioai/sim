@@ -1,0 +1,157 @@
+'use client'
+
+import { useState } from 'react'
+import { cn } from '@sim/emcn'
+import {
+  FeaturedCustomerCard,
+  type FeaturedCustomerStory,
+} from '@/app/(landing)/components/featured-customer/featured-customer-card'
+import { FeaturedCustomerNavigationButton } from '@/app/(landing)/components/featured-customer/featured-customer-navigation-button'
+import {
+  LANDING_CONTENT_WIDTH,
+  LANDING_GUTTER,
+  LANDING_STAGE_RADIUS,
+} from '@/app/(landing)/components/landing-layout'
+
+const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
+  {
+    id: 'rivian',
+    company: 'Rivian',
+    caption: 'Connect systems and build, deploy, and manage AI agents with Sim.',
+    media: {
+      kind: 'video',
+      poster: '/landing/customer-stories/rivian-r2-poster.jpg',
+      src: '/landing/customer-stories/rivian-r2-loop.mp4',
+      alt: 'Rivian R2 driving along a forest road',
+    },
+    logo: {
+      src: '/landing/logos/rivian-vw.svg',
+      alt: 'Rivian | Volkswagen Group Technologies',
+      aspect: 10.72,
+      height: 20,
+    },
+  },
+  {
+    id: 'exp-realty',
+    company: 'eXp Realty',
+    caption: 'Bring teams, shared knowledge, and AI agents into one workspace with Sim.',
+    media: { kind: 'brand' },
+    logo: { src: '/landing/logos/exp-realty.svg', alt: 'eXp Realty', aspect: 1.84, height: 32 },
+  },
+]
+
+/**
+ * Customer-story carousel with one full-emphasis card and a reduced-scale
+ * adjacent preview. Only the active film card plays video; an inactive film
+ * keeps its poster visible, and a brand card uses its own wordmark. A previous/next pair on the page
+ * ground above the film, fixed flush with the first card's right edge, moves
+ * between stories, with the arrow that has nowhere to go disabled.
+ */
+export function FeaturedCustomer() {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [previewedIndex, setPreviewedIndex] = useState<number | null>(null)
+  const activeStory = CUSTOMER_STORIES[activeIndex]
+  const previousStory = activeIndex > 0 ? CUSTOMER_STORIES[activeIndex - 1] : null
+  const nextStory =
+    activeIndex < CUSTOMER_STORIES.length - 1 ? CUSTOMER_STORIES[activeIndex + 1] : null
+
+  return (
+    <section
+      id='featured-customer'
+      aria-label='Featured customer stories'
+      aria-roledescription='carousel'
+      className='w-full overflow-hidden'
+    >
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+        {/* The control pair lives on the page ground above the film, outside
+          the rail whose padding flips to shift the frame, so it keeps one
+          place: flush with the first card's right edge, whichever story is
+          active. Both arrows are always present; the direction with no story
+          is disabled. */}
+        <div className='mb-4 flex items-center justify-end gap-2 xl:pr-24'>
+          <FeaturedCustomerNavigationButton
+            direction='previous'
+            label={
+              previousStory
+                ? `View ${previousStory.company} customer story`
+                : 'Previous customer story'
+            }
+            disabled={!previousStory}
+            onSelect={() => setActiveIndex(activeIndex - 1)}
+          />
+          <FeaturedCustomerNavigationButton
+            direction='next'
+            label={nextStory ? `View ${nextStory.company} customer story` : 'Next customer story'}
+            disabled={!nextStory}
+            onSelect={() => setActiveIndex(activeIndex + 1)}
+          />
+        </div>
+
+        <div
+          data-customer-carousel-rail='true'
+          className={cn(
+            'transition-[padding] duration-700 ease-out motion-reduce:duration-0',
+            activeIndex === 0 ? 'xl:pr-24' : 'xl:pl-24'
+          )}
+        >
+          <div className='relative isolate aspect-[2/1] w-full max-sm:aspect-[4/5]'>
+            {CUSTOMER_STORIES.map((story, index) => {
+              const isActive = index === activeIndex
+              const isNext = index > activeIndex
+              const isPreviewed = previewedIndex === index
+
+              return (
+                <div
+                  key={story.id}
+                  role='group'
+                  aria-roledescription='slide'
+                  aria-label={`${index + 1} of ${CUSTOMER_STORIES.length}: ${story.company}`}
+                  aria-current={isActive ? 'true' : undefined}
+                  onMouseEnter={() => !isActive && setPreviewedIndex(index)}
+                  onMouseLeave={() => setPreviewedIndex(null)}
+                  onFocus={() => !isActive && setPreviewedIndex(index)}
+                  onBlur={() => setPreviewedIndex(null)}
+                  className={cn(
+                    'absolute inset-0 transition-[transform,opacity] duration-700 ease-out motion-reduce:duration-0',
+                    isActive && 'z-10 translate-x-0 scale-100 opacity-100',
+                    !isActive &&
+                      isNext &&
+                      'z-20 origin-left translate-x-[calc(100%_+_1.5rem)] scale-[0.92] max-sm:translate-x-[calc(100%_+_0.75rem)] max-sm:scale-[0.96]',
+                    !isActive &&
+                      !isNext &&
+                      '-translate-x-[calc(100%_+_1.5rem)] max-sm:-translate-x-[calc(100%_+_0.75rem)] z-20 origin-right scale-[0.92] max-sm:scale-[0.96]',
+                    !isActive && (isPreviewed ? 'opacity-100' : 'opacity-75')
+                  )}
+                >
+                  <FeaturedCustomerCard
+                    story={story}
+                    active={isActive}
+                    emphasized={isActive || isPreviewed}
+                  />
+                  {!isActive && (
+                    <button
+                      type='button'
+                      aria-label={`Open ${story.company} customer story`}
+                      onClick={() => {
+                        setPreviewedIndex(null)
+                        setActiveIndex(index)
+                      }}
+                      className={cn(
+                        'focus-visible:-outline-offset-4 absolute inset-0 z-30 cursor-pointer bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/80',
+                        LANDING_STAGE_RADIUS
+                      )}
+                    />
+                  )}
+                </div>
+              )
+            })}
+
+            <span className='sr-only' aria-live='polite'>
+              {activeStory.company} customer story selected
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}

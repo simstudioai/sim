@@ -136,7 +136,7 @@ export default async function ProviderModelsPage({
       <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
           <div className='mb-6'>
             <BackLink href='/models' label='Back to Models' />
           </div>
@@ -163,7 +163,7 @@ export default async function ProviderModelsPage({
 
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-        <div className='mx-auto w-full max-w-[1460px]'>
+        <div className='mx-auto w-full max-w-[1728px]'>
           <div className='mx-20 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
             {provider.featuredModels.length > 0 && (
               <>

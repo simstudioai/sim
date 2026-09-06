@@ -18,7 +18,6 @@ import {
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
 import { BackLink } from '@/app/(landing)/components'
-import { Cta } from '@/app/(landing)/components/cta/cta'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 
@@ -368,10 +367,6 @@ export default async function ComparisonProviderPage({
 
         <div className='-mt-px h-px w-full bg-[var(--border)]' />
       </main>
-
-      <div className='py-16'>
-        <Cta />
-      </div>
     </>
   )
 }

@@ -89,7 +89,7 @@ export function FeatureCard({
             src={backdropSrc}
             alt=''
             fill
-            sizes='(max-width: 1460px) 70vw, 900px'
+            sizes='(max-width: 1728px) 70vw, 1150px'
             className='object-cover'
           />
         )}
@@ -107,16 +107,16 @@ export function FeatureCard({
         <ChipTag variant='mono' className='hidden max-lg:mb-3 max-lg:inline-flex max-lg:self-start'>
           {eyebrow}
         </ChipTag>
-        <h3 className='text-balance text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'>
+        <h3 className='text-balance text-[26px] text-[var(--text-primary)] leading-[1.2] tracking-[-0.015em] max-sm:text-[22px]'>
           {title}
         </h3>
-        <p className='mt-3 text-pretty text-[15px] text-[var(--text-muted)] leading-[1.6]'>
+        <p className='mt-4 text-pretty text-[16px] text-[var(--text-body)] leading-[1.45]'>
           {description}
         </p>
         {href && linkLabel && (
           <Link
             href={href}
-            className='mt-5 flex items-center gap-1.5 text-[15px] text-[var(--text-body)] transition-colors hover-hover:text-[var(--text-primary)]'
+            className='mt-6 flex items-center gap-1.5 text-[16px] text-[var(--text-body)] transition-colors hover-hover:text-[var(--text-primary)]'
           >
             {linkLabel}
             <ArrowRight className='size-[15px]' />

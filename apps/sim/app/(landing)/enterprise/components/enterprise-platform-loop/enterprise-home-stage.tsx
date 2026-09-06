@@ -121,10 +121,10 @@ function Composer({ children, active }: ComposerProps) {
           <span
             className={cn(
               'flex size-[28px] items-center justify-center rounded-full transition-colors duration-200',
-              active ? 'bg-[#383838]' : 'bg-[#808080]'
+              active ? 'bg-[#383838] dark:bg-[#E0E0E0]' : 'bg-[#808080]'
             )}
           >
-            <ArrowUp className='size-[16px] text-white' />
+            <ArrowUp className='size-[16px] text-white dark:text-black' />
           </span>
         </span>
       </div>

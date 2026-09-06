@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { cn } from '@sim/emcn'
 import { ThinkingLoader } from '@/components/ui'
-import { BlockHandles } from '@/app/(landing)/components/hero/components/hero-visual/block-handles'
+import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import {
   type HomeMode,
   StageHome,
@@ -19,11 +19,11 @@ import {
   type KbStage,
   KnowledgeBasePanel,
 } from '@/app/(landing)/components/hero/components/hero-visual/stage-kb'
-import { WorkflowBlock } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
   ANSWER_MS_PER_CHAR,
   ANSWER_TEXT,
   BLOCK_WIDTH,
+  blockHeight,
   PROMPT_ATOMS,
   SCENE_AGENT_FOCUS_TRANSLATE,
   SCENE_BLOCK1,
@@ -52,7 +52,9 @@ import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallb
  * panning to follow it (no zoom-out), docks, and calls out the world phrases;
  * only once the Mothership starts typing its reply does the camera zoom back out
  * to the full chat. The card then morphs into a GitHub → Agent → Jira workflow
- * (the cursor hides while the agent works); Jira morphs into a Knowledge Base
+ * drawn with the read-only production block card - the real border and
+ * connection knobs, name + type tag header, sentence chips, and error row (the
+ * cursor hides while the agent works); Jira morphs into a Knowledge Base
  * block, then a create modal opens, files drop in from "Finder", the cursor
  * returns to click Create, and an embedding map builds itself - before the whole
  * thing loops.
@@ -272,23 +274,30 @@ const ZOOM_SCALE = 2.4
 
 /** Base render size of the root loader, in px; the tracker scales it to its target. */
 const LOADER_BASE = 28
-const JIRA_BLOCK_HEIGHT = 77
+/** A production edge's stroke at canvas zoom 1 (`WorkflowEdgeView`'s default). */
+const EDGE_STROKE_WIDTH = 1.5
 const KB_PANEL_WIDTH = 420
 const KB_PANEL_HEIGHT = 410
 const KB_PANEL_MORPH_SCALE = 1 / SCENE_FOLLOW_SCALE
 const KB_PANEL_TARGET_OFFSET_Y = -3
 
 /**
- * Flat `#383838` ink with no glow - the chat send button's fill. Applied to the
- * root loader while it sits settled on the send button, so its orb reads as that
- * exact dark disc; dropped once it unsettles, and the loader's CSS tweens
- * `stop-color`/`flood-color` back to the brand gradient as it starts cycling.
+ * Flat send-button ink with no glow - the chat send button's fill, `#383838`
+ * lifted to `#E0E0E0` on the dark ground exactly as the product's own button
+ * is. Applied to the root loader while it sits settled on the send button, so
+ * its orb reads as that exact disc; dropped once it unsettles, and the
+ * loader's CSS tweens `stop-color`/`flood-color` back to the brand gradient as
+ * it starts cycling. The value itself lives on the loader's wrapper as a custom
+ * property ({@link SEND_BUTTON_INK_VALUE}), where the theme pair can be
+ * expressed in classes.
  */
 const SEND_BUTTON_INK = {
-  '--tl-grad-inner': '#383838',
-  '--tl-grad-outer': '#383838',
+  '--tl-grad-inner': 'var(--send-button-ink)',
+  '--tl-grad-outer': 'var(--send-button-ink)',
   '--tl-glow': 'transparent',
 } as CSSProperties
+
+const SEND_BUTTON_INK_VALUE = '[--send-button-ink:#383838] dark:[--send-button-ink:#E0E0E0]'
 
 /**
  * Landing loader ink - keeps the loader's default radial gloss (center darker,
@@ -954,6 +963,12 @@ export function HeroVisual() {
   const sceneTransitionMs = sceneTransitionMsFor(phase)
   const workflowContentFaded =
     phase === 'workflowFade' || phase === 'kbMorph' || KB_PHASES.has(phase)
+  // Block 1 - the production GitHub card - mounts hidden a beat before the morph
+  // so it can fade in over the shrinking chat shell, then stays for the workflow.
+  const showFirstBlock = phase === 'answerHold' || phase === 'morph' || showWorkflowCanvas
+  const firstBlockShown = (phase === 'morph' || showWorkflowCanvas) && !workflowContentFaded
+  // Once the real card is fully in, the chat shell beneath it has done its job.
+  const chatHandedOff = showWorkflowCanvas
 
   return (
     <div ref={containerRef} aria-hidden='true' className='relative h-full w-full overflow-hidden'>
@@ -973,7 +988,7 @@ export function HeroVisual() {
         {showCard && (
           <div
             className='absolute inset-0 translate-y-0 scale-100 transition-opacity [transition-duration:420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
-            style={{ opacity: workflowContentFaded ? 0 : 1 }}
+            style={{ opacity: workflowContentFaded || chatHandedOff ? 0 : 1 }}
           >
             <div
               ref={cameraElRef}
@@ -1007,22 +1022,23 @@ export function HeroVisual() {
           </div>
         )}
 
-        {WORKFLOW_PHASES.has(phase) && (
-          // GitHub (block 1) is the morphed chat card - rendered content-only and
-          // clipped by the card's `overflow-hidden`, so it can't carry its own
-          // edge nub. Draw its outbound handle here in scene space, positioned and
-          // scaled exactly like a satellite block, so it matches the other blocks.
+        {showFirstBlock && (
+          // GitHub (block 1) is the production card, placed in scene space exactly
+          // where the chat shell shrinks to - same rounded hairline, same box - so
+          // fading it in over the shell reads as the shell becoming the block.
           <div
-            className='absolute'
+            className='pointer-events-none absolute transition-opacity [transition-duration:300ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]'
             style={{
               left: `calc(50% + ${SCENE_BLOCK1.left}px)`,
               top: `calc(50% + ${SCENE_BLOCK1.top}px)`,
               width: BLOCK_WIDTH,
               transform: `scale(${WORKFLOW_FOCUS_SCALE})`,
               transformOrigin: 'top left',
+              opacity: firstBlockShown ? 1 : 0,
+              transitionDelay: phase === 'morph' ? '280ms' : '0ms',
             }}
           >
-            <BlockHandles block={SCENE_BLOCK1.block} />
+            <StageBlockCard block={SCENE_BLOCK1.block} orientation='horizontal' />
           </div>
         )}
 
@@ -1046,7 +1062,7 @@ export function HeroVisual() {
                     d={edge.d}
                     pathLength={1}
                     stroke='var(--workflow-edge)'
-                    strokeWidth={2 * WORKFLOW_FOCUS_SCALE}
+                    strokeWidth={EDGE_STROKE_WIDTH * WORKFLOW_FOCUS_SCALE}
                     strokeLinecap='round'
                     className='transition-[stroke-dashoffset] [stroke-dasharray:1] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
                     style={
@@ -1067,6 +1083,7 @@ export function HeroVisual() {
               const showKbShell =
                 block.id === 'jira' && (phase === 'kbMorph' || KB_PHASES.has(phase))
               const fadingJiraShell = block.id === 'jira' && phase === 'workflowFade'
+              const cardHeight = blockHeight(block)
               const visible = satelliteVisible(block.id, phase)
               const satelliteOpacity =
                 visible && (!workflowContentFaded || fadingJiraShell || showKbShell) ? 1 : 0
@@ -1079,7 +1096,12 @@ export function HeroVisual() {
                 <div
                   key={block.id}
                   className={cn(
-                    'absolute transform-gpu transition-[opacity,transform,width,height,top,left] will-change-transform [transition-duration:520ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+                    'pointer-events-none absolute transform-gpu transition-[opacity,transform,width,height,top,left] will-change-transform [transition-duration:520ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+                    // While the Jira card fades to a bare shell, the wrapper wears the
+                    // card's own silhouette, so the shell that then morphs into the KB
+                    // panel is the same white rounded box the card was.
+                    fadingJiraShell &&
+                      'rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)]',
                     showKbShell &&
                       'overflow-hidden rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px]'
                   )}
@@ -1089,9 +1111,7 @@ export function HeroVisual() {
                       : `calc(50% + ${left}px)`,
                     top: showKbShell
                       ? `calc(50% + ${
-                          top +
-                          (JIRA_BLOCK_HEIGHT * WORKFLOW_FOCUS_SCALE) / 2 +
-                          KB_PANEL_TARGET_OFFSET_Y
+                          top + (cardHeight * WORKFLOW_FOCUS_SCALE) / 2 + KB_PANEL_TARGET_OFFSET_Y
                         }px)`
                       : `calc(50% + ${top}px)`,
                     width: showKbShell ? KB_PANEL_WIDTH : BLOCK_WIDTH,
@@ -1099,7 +1119,7 @@ export function HeroVisual() {
                       block.id === 'jira'
                         ? showKbShell
                           ? KB_PANEL_HEIGHT
-                          : JIRA_BLOCK_HEIGHT
+                          : cardHeight
                         : undefined,
                     opacity: satelliteOpacity,
                     transform: showKbShell
@@ -1116,11 +1136,14 @@ export function HeroVisual() {
                       motion='morph'
                     />
                   ) : (
-                    <WorkflowBlock
-                      block={block}
-                      contentVisible={!fadingJiraShell}
-                      handlesVisible={!fadingJiraShell}
-                    />
+                    <div
+                      className={cn(
+                        'h-full transition-opacity [transition-duration:360ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+                        fadingJiraShell ? 'opacity-0' : 'opacity-100'
+                      )}
+                    >
+                      <StageBlockCard block={block} orientation='horizontal' />
+                    </div>
                   )}
                 </div>
               )
@@ -1150,7 +1173,10 @@ export function HeroVisual() {
           )}
           style={{ transformOrigin: '0 0' }}
         >
-          <div style={{ transform: `translate(-${LOADER_BASE / 2}px, -${LOADER_BASE / 2}px)` }}>
+          <div
+            className={SEND_BUTTON_INK_VALUE}
+            style={{ transform: `translate(-${LOADER_BASE / 2}px, -${LOADER_BASE / 2}px)` }}
+          >
             <ThinkingLoader
               size={LOADER_BASE}
               startVariant='corners'

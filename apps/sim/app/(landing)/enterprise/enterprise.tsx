@@ -1,7 +1,7 @@
 import { cn } from '@sim/emcn'
-import { Cta } from '@/app/(landing)/components/cta/cta'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { PlatformHeroVisual } from '@/app/(landing)/components/platform-hero-visual'
+import { CliGraphic } from '@/app/(landing)/components/shared/cli-graphic/cli-graphic'
 import {
   SolutionsHero,
   SolutionsLogosRow,
@@ -15,7 +15,6 @@ import { EnterprisePlatformLoop } from '@/app/(landing)/enterprise/components/en
 import {
   AccessControlGraphic,
   AuditTrailGraphic,
-  BuildMethodsGraphic,
   DeployGraphic,
   ItPlatformTeamsGraphic,
   LifecycleGraphic,
@@ -31,14 +30,14 @@ import {
  * Enterprise landing page (`/enterprise`) - the flagship surface for teams
  * evaluating Sim as their enterprise AI agent platform.
  *
- * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows →
- * shared homepage CTA) but composes its own `<main>` so the hero can render
+ * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows)
+ * but composes its own `<main>` so the hero can render
  * full-bleed in its `home` variant. The four feature rows render through
  * {@link EnterpriseFeatureGrid} - one shared grid that regroups the 12 cards
  * into 4/4/2/2 in the two-column band so no section leaves an orphan cell.
  * The shared `SOLUTIONS_SPACING` constants own the enterprise content gutter
- * and inter-section rhythm, while the homepage {@link Cta} owns the closing
- * conversion band.
+ * and inter-section rhythm. LandingShell provides the painted closing CTA
+ * and universal footer.
  *
  * The strict heading outline is H1 (hero) → H2 (each card row + the CTA) → H3
  * (each card), never skipped. Server Component; the interactive leaves live in
@@ -86,10 +85,10 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       cta: { label: 'Start building', href: SIGNUP_HREF },
       cards: [
         {
-          title: 'Build visually or with code',
+          title: 'Work from your terminal',
           description:
-            "Create enterprise AI agents in Sim's visual builder, describe the workflow in plain English, or write custom logic directly in code.",
-          visual: <BuildMethodsGraphic />,
+            'Use the Sim CLI with Claude Code to inspect workflows, test agents, and manage your workspace.',
+          visual: <CliGraphic />,
         },
         {
           title: 'Deploy in one click',
@@ -210,8 +209,6 @@ export default function EnterprisePage() {
           <SolutionsLogosRow />
           <EnterpriseFeatureGrid rows={ENTERPRISE_CONFIG.rows} />
         </div>
-
-        <Cta />
       </main>
     </>
   )

@@ -18,13 +18,12 @@ import { CapturedPlatformSurface } from '@/app/(landing)/components/features/com
  * approximated, then rounded up to the worst-case (peak render/viewport
  * ratio) in each tier so the browser never under-fetches:
  * `callout = 1.25 * (viewport - 2*gutter - 32px card padding - [40px gap +
- * 386px fixed copy column, desktop only])`, gutter = `px-20`/`max-lg:px-8`/
- * `max-sm:px-5` from `Features`'s grid, matching `FeatureCard`'s
- * `max-lg:grid-cols-1` stack. Peak ratios (verified against a static
- * reproduction of this exact layout rendered at each Tailwind breakpoint):
- * ~113.3% at the `max-width: 1023px` stacked tier's own upper edge, ~108.6%
- * at `1460px` (the container's cap, where render width stops growing with
- * viewport - hence the final tier is a flat px value, not a vw fraction).
+ * 386px fixed copy column, desktop only])`. Gutter is the shared landing
+ * gutter. Peak ratios (verified against a static reproduction of this exact
+ * layout rendered at each Tailwind breakpoint): ~113.3% at the
+ * `max-width: 1023px` stacked tier's own upper edge, ~108.6% at `1728px`
+ * (the container's cap, where render width stops growing with viewport -
+ * hence the final tier is a flat px value, not a vw fraction).
  */
 export function IntegrationsCallout() {
   return (
@@ -35,7 +34,7 @@ export function IntegrationsCallout() {
       >
         <CapturedPlatformSurface
           src='/landing/feature-integrate-ui.png'
-          sizes='(max-width: 1023px) 114vw, (max-width: 1460px) 109vw, 1053px'
+          sizes='(max-width: 1023px) 114vw, (max-width: 1728px) 109vw, 1796px'
           activeItem='Integrations'
         />
       </CalloutFrame>
