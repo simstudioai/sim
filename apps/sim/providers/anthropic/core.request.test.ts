@@ -506,6 +506,23 @@ describe('executeAnthropicProviderRequest native structured outputs', () => {
     expect(wireSchema.properties.off.const).toBe(false)
   })
 
+  it("does not mutate the caller's schema, so parallel iterations reuse it safely", async () => {
+    const shared = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['kind'],
+      properties: { kind: { type: 'string', enum: ['a', 'b'], description: 'd' } },
+    }
+    const before = JSON.stringify(shared)
+
+    const first = await sendSchema(shared)
+    const second = await sendSchema(shared)
+
+    expect(JSON.stringify(shared)).toBe(before)
+    expect(first.properties.kind.enum).toEqual(['a', 'b'])
+    expect(second.properties.kind.enum).toEqual(['a', 'b'])
+  })
+
   it('does not mistake a property literally named enum for a keyword', async () => {
     const wireSchema = await sendSchema({
       type: 'object',
