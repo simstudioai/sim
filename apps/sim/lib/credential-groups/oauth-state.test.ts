@@ -114,6 +114,34 @@ describe('credential group OAuth state', () => {
     ).rejects.toThrow('Credential group OAuth requires Redis')
   })
 
+  it('round-trips a scopeless GitHub App attempt with PKCE and one-time state', async () => {
+    const created = await createCredentialGroupOAuthAttempt({
+      provider: 'github-repositories',
+      workspaceId: 'workspace-1',
+      email: 'person@example.com',
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      optionId: 'option-1',
+      authorizationAppId: 'github-app:fixture',
+      scopeVersion: 1,
+      requiredScopes: [],
+      redirectUri: 'https://sim.example.com/api/auth/oauth2/callback/github-repositories',
+      codeVerifier: 'github-code-verifier',
+      invitationToken: 'invitation-token',
+      returnTo: 'search',
+    })
+
+    const consumed = await consumeCredentialGroupOAuthAttempt(created.state)
+    expect(consumed).toMatchObject({
+      provider: 'github-repositories',
+      requiredScopes: [],
+      codeVerifier: 'github-code-verifier',
+      returnTo: 'search',
+    })
+    expect(credentialGroupOAuthNonceMatches(created.nonce, consumed!.nonceHash)).toBe(true)
+    await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
+  })
+
   it('supports providers without PKCE while preserving one-time state', async () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'slack',
@@ -201,7 +229,7 @@ describe('credential group OAuth state', () => {
     await expect(consumeCredentialGroupOAuthAttempt(created.state)).rejects.toThrow('malformed')
     await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
   })
-  it.each(['workspaceId', 'email'])(
+  it.each(['workspaceId', 'email', 'requiredScopes'])(
     'rejects stored attempts missing the pinned %s and burns them',
     async (field) => {
       const created = await createCredentialGroupOAuthAttempt({

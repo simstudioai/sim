@@ -4456,7 +4456,6 @@ export const credential = pgTable(
         AND provider_subject_id IS NOT NULL
         AND managed_oauth_status IS NOT NULL
         AND granted_scopes IS NOT NULL
-        AND cardinality(granted_scopes) > 0
         AND encrypted_oauth_token_set IS NOT NULL
         AND granted_at IS NOT NULL
       )`

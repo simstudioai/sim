@@ -96,6 +96,7 @@ Sim checks Jira separately using each connected person's account. Issue content 
 | Projects are empty or disabled | Enter the domain and connect a browsing account, or switch to manual project keys. Check that the account can browse those projects. |
 | Connected, but no issues | Confirm the authorized site matches the configured domain. Check project access, issue security, and the JQL filter. An admin's Jira access does not grant access to other members. |
 | Email mismatch | Sign in to Atlassian with the email shown by Sim's connection flow. |
+| Atlassian says the callback URL is invalid | Ask the deployment operator to check the OAuth app identified by `JIRA_CLIENT_ID`. Its saved callback must exactly match the authorization request's `redirect_uri`, including scheme, hostname, port, and `/api/auth/oauth2/callback/jira` path. |
 | **Reconnect** | Reauthorize the Jira account and grant all requested permissions. This is needed after a grant is revoked or its required permissions change. |
 | Connection tab does not open | Allow pop-ups for Sim, then click **Connect account** again. |
 
@@ -131,8 +132,8 @@ The deployment operator configures one shared Jira OAuth integration. Teammates 
 
    Example callback in Atlassian's developer console. Replace `sim.example.com` with your Sim domain.
 
-3. Under **Permissions**, add the Jira and Jira Service Management APIs and configure the full scope set requested by Sim's Jira integration. Also add **User Identity API** with `read:me`. Sim requests `offline_access` for refresh tokens. The Search read scopes above are only a subset of this shared integration's permissions. Check the `jira` scope list for your release in [Sim's OAuth configuration](https://github.com/simstudioai/sim/blob/staging/apps/sim/lib/oauth/oauth.ts).
+3. Under **Permissions**, add **Jira API**, then **Configure** its classic and granular scopes for Jira, Jira Service Management, and Assets. Separately add **User Identity API** with `read:me`. Sim requests `offline_access` in the authorization URL for refresh tokens. Configure the full `jira` scope list for your release in [Sim's OAuth configuration](https://github.com/simstudioai/sim/blob/staging/apps/sim/lib/oauth/oauth.ts); the Search read scopes above are only a subset of this shared integration's permissions.
 4. Under **Distribution**, enable sharing so teammates can authorize the app. Copy the client ID and secret from **Settings** into `JIRA_CLIENT_ID` and `JIRA_CLIENT_SECRET`, set the correct `NEXT_PUBLIC_APP_URL`, and restart Sim.
 5. Start a connection from Search. Confirm that Atlassian lists the intended site, then return to Sim. After changing requested scopes, reconnect previously authorized accounts.
 
-If Atlassian reports a callback mismatch, compare the registered callback with the exact Sim origin and `/jira` callback path. If only the app owner can connect, check **Distribution**. See Atlassian's [OAuth configuration and sharing guide](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) and Sim's [deployment reference](/platform/self-hosting/integrations-oauth).
+For a local instance using `NEXT_PUBLIC_APP_URL=http://localhost:3000`, register `http://localhost:3000/api/auth/oauth2/callback/jira`. Use a separate development OAuth app when production callbacks must remain unchanged. After updating local client credentials or the app URL, restart Sim and begin a new connection from Search. If only the app owner can connect, check **Distribution**. See Atlassian's [OAuth configuration and sharing guide](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) and Sim's [deployment reference](/platform/self-hosting/integrations-oauth).

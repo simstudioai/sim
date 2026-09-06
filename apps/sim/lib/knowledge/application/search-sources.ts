@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
@@ -69,10 +69,12 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         connectorId: document.connectorId,
         count: sql<number>`count(*) FILTER (
           WHERE ${document.processingStatus} = 'completed'
-          AND EXISTS (
-            SELECT 1 FROM ${embedding}
-            WHERE ${embedding.documentId} = ${document.id} AND ${embedding.enabled} = true
-          )
+          AND ${exists(
+            db
+              .select({ id: embedding.id })
+              .from(embedding)
+              .where(and(eq(embedding.documentId, document.id), eq(embedding.enabled, true)))
+          )}
         )::int`,
         isIndexing: sql<boolean>`bool_or(${document.processingStatus} IN ('pending', 'processing'))`,
       })

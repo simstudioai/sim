@@ -11,7 +11,7 @@ GitHub Search indexes text files from a repository on `github.com`. A workspace 
 
 ## Before you start
 
-Your Sim deployment needs a GitHub App configured as described below. An owner or administrator of the target repositories must install that App on them. Each person needs a verified GitHub email address matching their Sim account; the address can be private or secondary.
+Your Sim deployment needs a GitHub App configured as described below. For private repositories, an owner or administrator must install that App on them. Each person needs a verified GitHub email address matching their Sim account; the address can be private or secondary.
 
 ## Configure the GitHub App
 
@@ -68,6 +68,8 @@ Expand **Account permissions** and set **Email addresses → Access: Read-only**
 
 Leave every other permission at **No access**. Sim does not need issue, pull-request, administration, or write permissions. GitHub's [registration guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) explains these settings.
 
+GitHub App user tokens use these permissions rather than OAuth scopes. An empty `scope` value in the token response is expected; see GitHub's [user token reference](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app).
+
 Under **Where can this GitHub App be installed?**, choose **Only on this account** for an organization-owned App used only by members of that organization. Choose **Any account** when teammates or repository owners are outside that organization, or the App is owned by your personal account. A private App owned by a personal account can only be authorized by its owner; see GitHub's [App visibility rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/making-a-github-app-public-or-private).
 
 Select **Create GitHub App**.
@@ -84,7 +86,7 @@ GITHUB_APP_CLIENT_ID=<Client ID>
 GITHUB_APP_CLIENT_SECRET=<Client secret>
 ```
 
-Use the **Client ID**, not the numeric **App ID**. These settings are separate from GitHub sign-in. An App private key is not required. Keep expiring user tokens enabled so Sim can [refresh them](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens).
+Use the **Client ID** and **client secret** from **Developer settings → GitHub Apps**. OAuth App credentials used for GitHub sign-in are not compatible. The numeric **App ID** and downloaded private key are not used by this connector. Keep expiring user tokens enabled so Sim can [refresh them](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens).
 
 In the App's sidebar, choose **Install App**, select the target account, and grant access to the repositories you want to search. Return to Sim and select **Connect account**. Every teammate must authorize from Sim too.
 
@@ -123,7 +125,7 @@ You can instead select an existing account under **Sync documents with** to supp
 
 ### Connect your account
 
-On the GitHub source row, select **Connect account** and authorize the App. Teammates repeat this step after joining the Sim workspace. A person only gains access to repository files that their account and the App installation can both read.
+On the GitHub source row, select **Connect account** and authorize the App. Teammates repeat this step after joining the Sim workspace. For private repositories, both the person's account and the App installation must have access. GitHub also permits App user tokens to read public repositories without an installation; see [GitHub's permission rules](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).
 
 With **Connected members**, indexing begins after someone connects. A dedicated indexing account can start syncing immediately; each teammate still connects before searching. Admins can open **Manage** on the source to inspect sync progress and errors.
 
@@ -135,6 +137,8 @@ With **Connected members**, indexing begins after someone connects. A dedicated 
 | Problem | Next step |
 |---|---|
 | GitHub is unavailable in Search | Ask the deployment admin to configure the App client credentials and enable member connections. |
+| GitHub rejects `redirect_uri` | Register the exact callback on the GitHub App whose Client ID Sim uses: `http://localhost:3000/api/auth/oauth2/callback/github-repositories` for the default local server, or your production Sim origin followed by `/api/auth/oauth2/callback/github-repositories`. The scheme, host, port, and path must match; keep wildcard matching disabled. See [callback matching](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url). |
+| Wrong app credentials | Copy the Client ID and client secret from **GitHub Apps**, not **OAuth Apps**. Set `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`, then restart Sim. A numeric App ID or private-key file cannot replace them. |
 | Repository cannot be read | Confirm the App is installed on that repository and your GitHub account has access. For SAML organizations, establish your GitHub SSO session before reconnecting. |
 | A teammate cannot authorize the App | Check **Where can this GitHub App be installed?** and the App owner. A private organization App accepts only organization members; a private personal App accepts only its owner. |
 | Identity verification fails | Verify the email used by your Sim account in GitHub's email settings, then reconnect. A public profile email alone is insufficient. |

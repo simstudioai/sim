@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -45,6 +45,7 @@ import {
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { slackCredentialGroupProviderAdapter } from '@/lib/credential-groups/slack-provider'
+import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
 import { rejectManagedOAuthToken, resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 
 function mondayCredentialRow() {
@@ -102,6 +103,61 @@ describe('managed OAuth token resolution', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    resetEnvMock()
+  })
+
+  it('resolves a scopeless GitHub grant through the canonical provider policy', async () => {
+    setEnv({ GITHUB_APP_CLIENT_ID: 'fixture-client', GITHUB_APP_CLIENT_SECRET: 'fixture-secret' })
+    const adapter = createStandardOAuthCredentialGroupProviderAdapter('github-repositories')
+    const policy = await adapter.getPolicy(undefined, { workspaceId: 'workspace-1' })
+    expect(policy.requiredScopes).toEqual([])
+    mocks.getAdapter.mockReturnValue(adapter)
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        ...mondayCredentialRow(),
+        providerId: policy.providerId,
+        authorizationAppId: policy.authorizationAppId,
+        managedOauthScopeVersion: policy.scopeVersion,
+        grantedScopes: [],
+        accessTokenExpiresAt: new Date('2026-09-01T13:00:00Z'),
+      },
+    ])
+    await expect(
+      resolveManagedOAuthToken({
+        ...mondayTokenResolutionParams(),
+        expectedProviderId: policy.providerId,
+        requiredScopes: [],
+      })
+    ).resolves.toMatchObject({ refreshed: false })
+    expect(mocks.decryptSecret).toHaveBeenCalledWith('encrypted-token-set')
+  })
+
+  it.each([null, undefined])(
+    'rejects missing granted-scope metadata: %s',
+    async (grantedScopes) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([{ ...mondayCredentialRow(), grantedScopes }])
+      await expect(resolveManagedOAuthToken(mondayTokenResolutionParams())).rejects.toMatchObject({
+        code: 'MANAGED_CREDENTIAL_INVALID_TOKEN_SET',
+      })
+      expect(mocks.decryptSecret).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects an empty grant when the provider policy requires scopes', async () => {
+    mocks.getAdapter.mockReturnValue({
+      getPolicy: vi.fn().mockResolvedValue({
+        authorizationAppId: 'monday:monday-client-1',
+        scopeVersion: 1,
+        requiredScopes: ['boards:read', 'me:read'],
+      }),
+      hasRequiredScopes: (granted: string[], required: string[]) =>
+        required.every((scope) => granted.includes(scope)),
+    })
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...mondayCredentialRow(), grantedScopes: [] }])
+    await expect(
+      resolveManagedOAuthToken({ ...mondayTokenResolutionParams(), requiredScopes: [] })
+    ).rejects.toMatchObject({ code: 'MANAGED_CREDENTIAL_INSUFFICIENT_SCOPE' })
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
   })
 
   function seedSlackSearchCredential(

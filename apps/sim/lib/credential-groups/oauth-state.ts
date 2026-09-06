@@ -110,7 +110,6 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
     Number.isInteger(candidate.scopeVersion) &&
     candidate.scopeVersion > 0 &&
     Array.isArray(candidate.requiredScopes) &&
-    candidate.requiredScopes.length > 0 &&
     candidate.requiredScopes.every((scope) => typeof scope === 'string' && scope.length > 0) &&
     typeof candidate.redirectUri === 'string' &&
     (candidate.completionRedirect === undefined ||

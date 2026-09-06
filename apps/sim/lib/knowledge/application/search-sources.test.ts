@@ -276,15 +276,19 @@ describe('Search source summaries', () => {
       ]),
     })
     const projection = dbChainMockFns.select.mock.calls.at(-1)?.[0]
-    expect(projection.count.toSQL().sql).toMatch(
-      /count\(\*\) FILTER[\s\S]*'completed'[\s\S]*EXISTS/
-    )
+    expect(projection.count.toSQL().sql).toMatch(/count\(\*\) FILTER[\s\S]*'completed'/)
     expect(projection.count.values).toEqual([
       document.processingStatus,
-      embedding,
-      embedding.documentId,
-      document.id,
-      embedding.enabled,
+      expect.objectContaining({ type: 'exists' }),
+    ])
+    expect(dbChainMockFns.where.mock.calls).toContainEqual([
+      {
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: embedding.documentId, right: document.id },
+          { type: 'eq', left: embedding.enabled, right: true },
+        ],
+      },
     ])
     expect(projection.isIndexing.toSQL().sql).toContain("IN ('pending', 'processing')")
   })

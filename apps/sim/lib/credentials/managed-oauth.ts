@@ -214,7 +214,7 @@ async function assertManagedCredentialUsable(
       401
     )
   }
-  if (!row.authorizationAppId || !row.encryptedOauthTokenSet || !row.grantedScopes?.length) {
+  if (!row.authorizationAppId || !row.encryptedOauthTokenSet || !row.grantedScopes) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_INVALID_TOKEN_SET',
       'Managed credential metadata is incomplete',
@@ -251,6 +251,7 @@ async function assertManagedCredentialUsable(
   }
 
   if (
+    (row.grantedScopes.length === 0 && policy.requiredScopes.length > 0) ||
     !adapter.hasRequiredScopes(policy.requiredScopes, requiredScopes) ||
     !adapter.hasRequiredScopes(row.grantedScopes, requiredScopes)
   ) {
