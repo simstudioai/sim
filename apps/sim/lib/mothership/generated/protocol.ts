@@ -17,10 +17,21 @@
 
 export const PROTOCOL_VERSION = 1;
 
-/** Receipt for main-assistant text applied by Sim, in JavaScript UTF-16 code units.
- * A retry includes the contiguous count so any attached leg replays only missing text. */
-export interface StreamTextReceipt {
+/** Activity acknowledged through a completed leg, scoped to one emitter's lifetime. */
+export interface StreamActivityReceipt {
+  emitterId: string;
+  sequence: number;
+}
+
+/** Applied response state: text uses UTF-16 units; activity positions belong to their emitter. */
+export interface StreamResponseReceipt {
   receivedTextChars?: number | undefined;
+  receivedActivity?: StreamActivityReceipt | undefined;
+}
+
+/** A pause or terminal acknowledges all preceding activity only after the receiver handles it. */
+export interface StreamActivityCheckpoint {
+  activityReceipt?: StreamActivityReceipt | undefined;
 }
 
 /** Main-assistant text position within this run, measured in UTF-16 code units. */
@@ -39,7 +50,7 @@ export interface StreamToolReplay {
 }
 
 /** POST /api/mothership — the chat request sim sends. */
-export interface ChatRequest extends StreamTextReceipt {
+export interface ChatRequest extends StreamResponseReceipt {
   message: string;
   userId: string;
   /** Bump-gated (S43): senders include it; the worker 426s on mismatch. */
@@ -107,7 +118,7 @@ export interface ChatContextItem {
 }
 
 /** POST /api/tools/resume — deferred tool results. */
-export interface ResumeRequest extends StreamTextReceipt {
+export interface ResumeRequest extends StreamResponseReceipt {
   streamId: string;
   results: ResumeResult[];
   /**
