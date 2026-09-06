@@ -1,15 +1,18 @@
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-// Volatile — lets the dispatcher claim an in-flight stream's slot. Not persisted.
+/** Durable predecessor and request identity for an outgoing message. */
 export interface QueuedSendHandoffSeed {
   id: string
   chatId?: string
   supersededStreamId: string | null
   userMessageId?: string
+  stopRequired?: boolean
 }
 
 export type QueuedMothershipMessage = QueuedMessage & {
   queuedSendHandoff?: QueuedSendHandoffSeed
+  /** A failed dispatch remains queued until the user retries or edits it. */
+  retryRequired?: boolean
   /**
    * Message id of a prior attempt at this send that an unmount cleanup
    * withdrew. Reused when the entry is dispatched so the server deduplicates
