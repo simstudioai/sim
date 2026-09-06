@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
+import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -669,45 +670,25 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       break
     }
     case MothershipStreamV1EventType.run: {
-      const payload = payloadRecord(envelope.payload)
+      const payload = envelope.payload
       const kind = payload.kind
-      if (kind === MothershipStreamV1RunKind.task_armed) {
-        const taskId = asString(payload.taskId)
-        if (!taskId) break
-        const id = `task:${taskId}`
-        if (!model.nodes.has(id)) {
+      if (kind === 'task_armed' || kind === 'task_delivered') {
+        const id = `task:${payload.taskId}`
+        const node = model.nodes.get(id)
+        const task = reduceTaskState(node?.kind === 'task' ? node.task : undefined, payload)
+        if (!task) break
+        if (node?.kind === 'task') {
+          node.task = task
+        } else {
           model.nodes.set(id, {
             id,
             kind: 'task',
             spanId,
             seq,
             ...(tsMs !== undefined ? { startedAtMs: tsMs } : {}),
-            task: {
-              taskId,
-              kind: payload.taskKind === 'workflow_run' ? 'workflow_run' : 'timer',
-              target: isRecordLike(payload.target) ? payload.target : {},
-              note: asString(payload.note) ?? '',
-              status: 'pending',
-            },
+            task,
           })
           model.order.push(id)
-        }
-      } else if (kind === MothershipStreamV1RunKind.task_delivered) {
-        const taskId = asString(payload.taskId)
-        const node = taskId ? model.nodes.get(`task:${taskId}`) : undefined
-        if (node?.kind === 'task') {
-          const status = asString(payload.status)
-          node.task = {
-            ...node.task,
-            status:
-              status === 'completed' ||
-              status === 'failed' ||
-              status === 'stopped' ||
-              status === 'expired'
-                ? status
-                : node.task.status,
-            summary: asString(payload.summary) ?? node.task.summary,
-          }
         }
       } else if (kind === MothershipStreamV1RunKind.compaction_start) {
         ensureSubagentLane(model, spanId, scope, seq, tsMs)

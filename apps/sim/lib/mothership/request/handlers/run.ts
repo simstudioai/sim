@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
@@ -113,29 +114,18 @@ export const handleRunEvent: StreamHandler = (event, context) => {
     return
   }
 
-  if (event.payload.kind === MothershipStreamV1RunKind.task_armed) {
-    addContentBlock(context, {
-      type: ContentBlockType.task,
-      task: {
-        taskId: event.payload.taskId,
-        kind: event.payload.taskKind,
-        target: event.payload.target,
-        note: event.payload.note,
-        status: 'pending',
-      },
-    })
-    return
-  }
-
-  if (event.payload.kind === MothershipStreamV1RunKind.task_delivered) {
-    const delivered = event.payload
-    for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
-      const block = context.contentBlocks[i]
-      if (block.type === ContentBlockType.task && block.task?.taskId === delivered.taskId) {
-        block.task = { ...block.task, status: delivered.status, summary: delivered.summary }
-        block.endedAt = Date.now()
-        return
-      }
+  const payload = event.payload
+  if (payload.kind === 'task_armed' || payload.kind === 'task_delivered') {
+    const block = context.contentBlocks.find(
+      (entry) => entry.type === ContentBlockType.task && entry.task?.taskId === payload.taskId
+    )
+    const task = reduceTaskState(block?.task, payload)
+    if (!task) return
+    if (block) {
+      block.task = task
+      if (payload.kind === 'task_delivered') block.endedAt ??= Date.now()
+    } else {
+      addContentBlock(context, { type: ContentBlockType.task, task })
     }
     return
   }
